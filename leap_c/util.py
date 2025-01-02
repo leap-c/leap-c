@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import mkdtemp
 from typing import Any
 
+from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
 import casadi as ca
 import numpy as np
 import torch
@@ -47,35 +48,41 @@ def tensor_to_numpy(tensor: torch.Tensor):
 
 
 class AcadosFileManager:
-    """A simple class to manage the export directory for acados solvers."""
+    """A simple class to manage the export directory for acados solvers.
+
+    This class is used to manage the export directory of acados solvers. If
+    the export directory is not provided, the class will create a temporary
+    directory in /tmp. The export directory is deleted when an instance is
+    garbage collected, but only if the export directory was not provided.
+    """
 
     def __init__(
         self,
         export_directory: Path | None = None,
-        cleanup: bool = True,
     ):
         """Initialize the export directory manager.
 
         Args:
             export_directory: The export directory if None create a folder in /tmp.
-            cleanup: Whether to delete the export directory on exit or when the
-                instance of the AcadosFileManager is garbage collected.
         """
         self.export_directory = (
             Path(mkdtemp()) if export_directory is None else export_directory
         )
 
-        self.cleanup = cleanup
-        if cleanup:
+        if export_directory is None:
             atexit.register(self.__del__)
 
-    def setup_acados_ocp_solver(self, ocp: AcadosOcp) -> AcadosOcpSolver:
+    def setup_acados_ocp_solver(
+        self, ocp: AcadosOcp, generate_code: bool = True, build: bool = True
+    ) -> AcadosOcpSolver:
         """Setup an acados ocp solver with path management.
 
         We set the json file and the code export directory.
 
         Args:
             ocp: The acados ocp object.
+            generate_code: If True generate the code.
+            build: If True build the code.
 
         Returns:
             AcadosOcpSolver: The acados ocp solver.
@@ -83,7 +90,9 @@ class AcadosFileManager:
         ocp.code_export_directory = str(self.export_directory / "c_generated_code")
         json_file = str(self.export_directory / "acados_ocp.json")
 
-        solver = AcadosOcpSolver(ocp, json_file=json_file)
+        solver = AcadosOcpSolver(
+            ocp, json_file=json_file, generate=generate_code, build=build
+        )
 
         # we add the acados file manager to the solver to ensure
         # the export directory is deleted when the solver is garbage collected
@@ -91,13 +100,17 @@ class AcadosFileManager:
 
         return solver
 
-    def setup_acados_sim_solver(self, sim: AcadosSim) -> AcadosSimSolver:
+    def setup_acados_sim_solver(
+        self, sim: AcadosSim, generate_code: bool = True, build: bool = True
+    ) -> AcadosSimSolver:
         """Setup an acados sim solver with path management.
 
         We set the json file and the code export directory.
 
         Args:
             sim: The acados sim object.
+            generate_code: If True generate the code.
+            build: If True build the code.
 
         Returns:
             AcadosSimSolver: The acados sim solver.
@@ -105,7 +118,30 @@ class AcadosFileManager:
         sim.code_export_directory = str(self.export_directory / "c_generated_code")
         json_file = str(self.export_directory / "acados_ocp.json")
 
-        solver = AcadosSimSolver(sim, json_file=json_file)
+        solver = AcadosSimSolver(sim, json_file=json_file, generate=generate_code, build=build)
+
+        # we add the acados file manager to the solver to ensure
+        # the export directory is deleted when the solver is garbage collected
+        solver.__acados_file_manager = self  # type: ignore
+
+        return solver
+
+    def setup_acados_ocp_batch_solver(self, ocp: AcadosOcp, N: int) -> AcadosOcpBatchSolver:
+        """Setup an acados ocp batch solver with path management.
+
+        We set the json file and the code export directory.
+
+        Args:
+            ocp: The acados ocp object.
+            N: The number of shooting nodes.
+
+        Returns:
+            AcadosOcpBatchSolver: The acados ocp batch solver.
+        """
+        ocp.code_export_directory = str(self.export_directory / "c_generated_code")
+        json_file = str(self.export_directory / "acados_ocp.json")
+
+        solver = AcadosOcpBatchSolver(ocp, json_file=json_file, N_batch=N)
 
         # we add the acados file manager to the solver to ensure
         # the export directory is deleted when the solver is garbage collected
@@ -114,11 +150,7 @@ class AcadosFileManager:
         return solver
 
     def __del__(self):
-        # TODO: Update this to make it safe for users.
-        pass
-
-        # if self.cleanup:
-        #     shutil.rmtree(self.export_directory, ignore_errors=True)
+        shutil.rmtree(self.export_directory, ignore_errors=True)
 
 
 def add_prefix_extend(prefix: str, extended: dict, extending: dict) -> None:
