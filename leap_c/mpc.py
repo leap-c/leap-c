@@ -509,7 +509,7 @@ class MPC(ABC):
         mpc_input: MPCInput,
         mpc_state: MPCSingleState | MPCBatchedState | None = None,
         backup_func: Callable[[], MPCSingleState]
-        | Callable[[], MPCBatchedState]
+        | Callable[[int], MPCSingleState]
         | None = None,
         dudx: bool = False,
         dudp: bool = False,
@@ -526,6 +526,8 @@ class MPC(ABC):
             mpc_state: The iterate of the solver to use as initialization.
             backup_func: A function that returns a backup iterate for which another solve is tried
                 in case the solver fails in the first try.
+                In case of a batched solve, this function must take an integer,
+                which is the index of the sample in the batch which must be recomputed.
             dudx: Whether to compute the sensitivity of the action with respect to the state.
             dudp: Whether to compute the sensitivity of the action with respect to the parameters.
             dvdx: Whether to compute the sensitivity of the value function with respect to the state.
@@ -569,6 +571,9 @@ class MPC(ABC):
         sensitivity_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
         mpc_input: MPCInput,
         mpc_state: MPCSingleState | MPCBatchedState | None,
+        backup_func: Callable[[], MPCSingleState]
+        | Callable[[int], MPCSingleState]
+        | None,
         use_sensitivity_solver: bool,
     ):
         initialize_ocp_solver(
@@ -578,6 +583,32 @@ class MPC(ABC):
         )
         # TODO: Cover case where we do not want to do a forward evaluation
         solver.solve()
+
+        if backup_func is not None:
+            if isinstance(solver, AcadosOcpSolver):
+                if solver.status != 0:
+                    initialize_ocp_solver(
+                        ocp_solver=solver,
+                        mpc_input=mpc_input,
+                        ocp_iterate=backup_func(),  # type:ignore
+                    )
+                    solver.solve()
+            elif isinstance(solver, AcadosOcpBatchSolver):
+                any_failed = False
+                for i, ocp_solver in enumerate(solver.ocp_solvers):
+                    if ocp_solver.status != 0:
+                        initialize_ocp_solver(
+                            ocp_solver=ocp_solver,
+                            mpc_input=mpc_input,
+                            ocp_iterate=backup_func(i),  # type:ignore
+                        )
+                        any_failed = True
+                if any_failed:
+                    solver.solve()
+            else:
+                raise ValueError(
+                    f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(solver)}."
+                )
 
         if use_sensitivity_solver:
             initialize_ocp_solver(
@@ -609,6 +640,7 @@ class MPC(ABC):
             sensitivity_solver=self.ocp_sensitivity_solver,
             mpc_input=mpc_input,
             mpc_state=mpc_state,
+            backup_func=backup_func,
             use_sensitivity_solver=use_sensitivity_solver,
         )
 
@@ -702,7 +734,7 @@ class MPC(ABC):
         self,
         mpc_input: MPCInput,
         mpc_state: MPCBatchedState | None = None,
-        backup_func: Callable[[], MPCBatchedState] | None = None,
+        backup_func: Callable[[int], MPCSingleState] | None = None,
         dudx: bool = False,
         dudp: bool = False,
         dvdx: bool = False,
