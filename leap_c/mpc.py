@@ -753,11 +753,12 @@ class MPC(ABC):
         use_sensitivity_solver = dudx or dudp or dvdp
 
         MPC.__solve_shared(
-            self.ocp_batch_solver,
-            self.ocp_batch_sensitivity_solver,
-            mpc_input,
-            mpc_state,
-            use_sensitivity_solver,
+            solver=self.ocp_batch_solver,
+            sensitivity_solver=self.ocp_batch_sensitivity_solver,
+            mpc_input=mpc_input,
+            mpc_state=mpc_state,
+            backup_func=backup_func,
+            use_sensitivity_solver=use_sensitivity_solver,
         )
 
         kw = {}
