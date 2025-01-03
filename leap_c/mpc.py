@@ -120,30 +120,70 @@ class MPCOutput(NamedTuple):
     du0_dx0: np.ndarray | None = None  # (B, u_dim, x_dim) or (u_dim, x_dim)
 
 
-# TODO this could also be changed to accept both regular and batch solver, but currently not needed
 def set_ocp_solver_mpc_params(
-    ocp_solver: AcadosOcpSolver, mpc_parameter: MPCParameter | None
+    ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
+    mpc_parameter: MPCParameter | None,
 ) -> None:
     if mpc_parameter is None:
         return
-    if mpc_parameter.is_batched():
-        raise ValueError("MPCParameter must be non-batched.")
-    if mpc_parameter is not None:
-        if mpc_parameter.p_global is not None:
-            ocp_solver.set_p_global_and_precompute_dependencies(mpc_parameter.p_global)
+    if isinstance(ocp_solver, AcadosOcpSolver):
+        if mpc_parameter is not None:
+            if mpc_parameter.p_global is not None:
+                ocp_solver.set_p_global_and_precompute_dependencies(
+                    mpc_parameter.p_global
+                )
 
-        if mpc_parameter.p_stagewise is not None:
-            if mpc_parameter.p_stagewise_sparse_idx is not None:
-                for stage, (p, idx) in enumerate(
-                    zip(
-                        mpc_parameter.p_stagewise,
-                        mpc_parameter.p_stagewise_sparse_idx,
-                    )
-                ):
-                    ocp_solver.set_params_sparse(stage, p, idx)
-            else:
-                for stage, p in enumerate(mpc_parameter.p_stagewise):
-                    ocp_solver.set(stage, "p", p)
+            if mpc_parameter.p_stagewise is not None:
+                if mpc_parameter.p_stagewise_sparse_idx is not None:
+                    for stage, (p, idx) in enumerate(
+                        zip(
+                            mpc_parameter.p_stagewise,
+                            mpc_parameter.p_stagewise_sparse_idx,
+                        )
+                    ):
+                        ocp_solver.set_params_sparse(stage, p, idx)
+                else:
+                    for stage, p in enumerate(mpc_parameter.p_stagewise):
+                        ocp_solver.set(stage, "p", p)
+    elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        for i, single_solver in enumerate(ocp_solver.ocp_solvers):
+            set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
+    else:
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
+        )
+
+
+def set_ocp_solver_iterate(
+    ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
+    ocp_iterate: MPCSingleState | MPCBatchedState | None,
+) -> None:
+    if ocp_iterate is None:
+        return
+    if isinstance(ocp_solver, AcadosOcpSolver):
+        if isinstance(ocp_iterate, AcadosOcpIterate):
+            ocp_solver.load_iterate_from_obj(ocp_iterate)
+        elif isinstance(ocp_iterate, AcadosOcpFlattenedIterate):
+            ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
+        elif ocp_iterate is not None:
+            raise ValueError(
+                f"Expected AcadosOcpIterate or AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}."
+            )
+
+    elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        if isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
+            ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
+        elif isinstance(ocp_iterate, list):
+            for i, ocp_iterate in enumerate(ocp_iterate):
+                ocp_solver.ocp_solvers[i].load_iterate_from_obj(ocp_iterate)
+        elif ocp_iterate is not None:
+            raise ValueError(
+                f"Expected AcadosOcpFlattenedBatchIterate or list of AcadosOcpIterates for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
+            )
+    else:
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        )
 
 
 def set_ocp_solver_initial_condition(
@@ -181,37 +221,9 @@ def initialize_ocp_solver(
             and the state and possibly control that will be used for the initial conditions.
         ocp_iterate: The iterate of the solver to use as initialization.
     """
-    if isinstance(ocp_solver, AcadosOcpSolver):
-        set_ocp_solver_mpc_params(ocp_solver, mpc_input.parameters)
-        if isinstance(ocp_iterate, AcadosOcpIterate):
-            ocp_solver.load_iterate_from_obj(ocp_iterate)
-        elif isinstance(ocp_iterate, AcadosOcpFlattenedIterate):
-            ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
-        elif ocp_iterate is not None:
-            raise ValueError(
-                f"Expected AcadosOcpIterate or AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}."
-            )
-
-    elif isinstance(ocp_solver, AcadosOcpBatchSolver):
-        if mpc_input.parameters is not None:
-            for i, single_solver in enumerate(ocp_solver.ocp_solvers):
-                set_ocp_solver_mpc_params(
-                    single_solver, mpc_input.parameters.get_sample(i)
-                )
-        if isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
-            ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
-        elif isinstance(ocp_iterate, list):
-            for i, ocp_iterate in enumerate(ocp_iterate):
-                ocp_solver.ocp_solvers[i].load_iterate_from_obj(ocp_iterate)
-        elif ocp_iterate is not None:
-            raise ValueError(
-                f"Expected AcadosOcpFlattenedBatchIterate or list of AcadosOcpIterates for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
-            )
-    else:
-        raise ValueError(
-            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
-        )
-    # Set the initial conditions at the end, in case the iterate contains a different value
+    set_ocp_solver_iterate(ocp_solver, ocp_iterate)
+    set_ocp_solver_mpc_params(ocp_solver, mpc_input.parameters)
+    # Set the initial conditions after setting the iterate, in case the given iterate contains a different value
     set_ocp_solver_initial_condition(ocp_solver, mpc_input)
 
 
