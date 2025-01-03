@@ -212,6 +212,7 @@ def initialize_ocp_solver(
     ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
     mpc_input: MPCInput,
     ocp_iterate: MPCSingleState | MPCBatchedState | None,
+    set_params: bool = True,
 ) -> None:
     """Initializes the fields of the OCP (batch) solver with the given values.
 
@@ -220,9 +221,11 @@ def initialize_ocp_solver(
         mpc_input: The MPCInput containing the parameters to set in the OCP (batch) solver
             and the state and possibly control that will be used for the initial conditions.
         ocp_iterate: The iterate of the solver to use as initialization.
+        set_params: Whether to set the MPC parameters of the OCP (batch) solver.
     """
     set_ocp_solver_iterate(ocp_solver, ocp_iterate)
-    set_ocp_solver_mpc_params(ocp_solver, mpc_input.parameters)
+    if set_params:
+        set_ocp_solver_mpc_params(ocp_solver, mpc_input.parameters)
     # Set the initial conditions after setting the iterate, in case the given iterate contains a different value
     set_ocp_solver_initial_condition(ocp_solver, mpc_input)
 
@@ -591,6 +594,7 @@ class MPC(ABC):
                         ocp_solver=solver,
                         mpc_input=mpc_input,
                         ocp_iterate=backup_func(),  # type:ignore
+                        set_params=False,
                     )
                     solver.solve()
             elif isinstance(solver, AcadosOcpBatchSolver):
@@ -601,6 +605,7 @@ class MPC(ABC):
                             ocp_solver=ocp_solver,
                             mpc_input=mpc_input,
                             ocp_iterate=backup_func(i),  # type:ignore
+                            set_params=False,
                         )
                         any_failed = True
                 if any_failed:
