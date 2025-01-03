@@ -1,7 +1,6 @@
 import numpy as np
 import numpy.testing as npt
 import pytest
-
 from leap_c.examples.linear_system import LinearSystemMPC
 from leap_c.mpc import MPC, MPCInput, MPCOutput, MPCParameter
 
@@ -85,6 +84,20 @@ def test_statelessness(
     mpc_outputs_assert_allclose(
         solution_standard, solution_supposedly_standard, test_u_star=True
     )
+
+
+def test_using_mpc_state(
+    linear_mpc: MPC,
+    x0: np.ndarray = np.array([0.5, 0.5]),
+    u0: np.ndarray = np.array([0.5]),
+):
+    inp = MPCInput(x0=x0, u0=u0)
+    sol, state = linear_mpc(inp)
+    first_iters = linear_mpc.ocp_solver.get_stats("qp_iter").sum()  # type:ignore
+    assert first_iters > 1
+    same_sol, _ = linear_mpc(inp, mpc_state=state)
+    second_iters = linear_mpc.ocp_solver.get_stats("qp_iter").sum()  # type:ignore
+    assert second_iters == 0
 
 
 def test_closed_loop(
