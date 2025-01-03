@@ -96,8 +96,29 @@ def test_using_mpc_state(
     first_iters = linear_mpc.ocp_solver.get_stats("qp_iter").sum()  # type:ignore
     assert first_iters > 1
     same_sol, _ = linear_mpc(inp, mpc_state=state)
+    mpc_outputs_assert_allclose(sol, same_sol, test_u_star=True)
     second_iters = linear_mpc.ocp_solver.get_stats("qp_iter").sum()  # type:ignore
     assert second_iters == 0
+
+
+def test_using_mpc_state_batched(
+    learnable_linear_mpc: MPC,
+    n_batch: int,
+    x0: np.ndarray = np.array([0.5, 0.5]),
+    u0: np.ndarray = np.array([0.5]),
+):
+    x0 = np.tile(x0, (n_batch, 1))
+    u0 = np.tile(u0, (n_batch, 1))
+    inp = MPCInput(x0=x0, u0=u0)
+    sol, state = learnable_linear_mpc(inp)
+    for solver in learnable_linear_mpc.ocp_batch_solver.ocp_solvers:
+        qp_iters = solver.get_stats("qp_iter").sum()  # type:ignore
+        assert qp_iters > 1
+    same_sol, _ = learnable_linear_mpc(inp, mpc_state=state)
+    for solver in learnable_linear_mpc.ocp_batch_solver.ocp_solvers:
+        qp_iters = solver.get_stats("qp_iter").sum()  # type:ignore
+        assert qp_iters == 0
+    mpc_outputs_assert_allclose(sol, same_sol, test_u_star=True)
 
 
 def test_closed_loop(
