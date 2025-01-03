@@ -170,19 +170,19 @@ def set_ocp_solver_initial_condition(
 
 def initialize_ocp_solver(
     ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
-    mpc_parameter: MPCParameter | None,
+    mpc_input: MPCInput,
     ocp_iterate: MPCSingleState | MPCBatchedState | None,
 ) -> None:
     """Initializes the fields of the OCP (batch) solver with the given values.
 
     Args:
         ocp_solver: The OCP (batch) solver to initialize.
-        mpc_parameter: The parameters to set in the OCP (batch) solver.
+        mpc_input: The MPCInput containing the parameters to set in the OCP (batch) solver
+            and the state and possibly control that will be used for the initial conditions.
         ocp_iterate: The iterate of the solver to use as initialization.
     """
-
     if isinstance(ocp_solver, AcadosOcpSolver):
-        set_ocp_solver_mpc_params(ocp_solver, mpc_parameter)
+        set_ocp_solver_mpc_params(ocp_solver, mpc_input.parameters)
         if isinstance(ocp_iterate, AcadosOcpIterate):
             ocp_solver.load_iterate_from_obj(ocp_iterate)
         elif isinstance(ocp_iterate, AcadosOcpFlattenedIterate):
@@ -193,9 +193,11 @@ def initialize_ocp_solver(
             )
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
-        if mpc_parameter is not None:
+        if mpc_input.parameters is not None:
             for i, single_solver in enumerate(ocp_solver.ocp_solvers):
-                set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
+                set_ocp_solver_mpc_params(
+                    single_solver, mpc_input.parameters.get_sample(i)
+                )
         if isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
             ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
         elif isinstance(ocp_iterate, list):
@@ -209,6 +211,8 @@ def initialize_ocp_solver(
         raise Exception(
             f"initialize_ocp_solver: expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
         )
+    # Set the initial conditions at the end, in case the iterate contains a different value
+    set_ocp_solver_initial_condition(ocp_solver, mpc_input)
 
 
 def set_ocp_solver_initial_control_constraints(
@@ -578,23 +582,17 @@ class MPC(ABC):
     ):
         initialize_ocp_solver(
             ocp_solver=solver,
-            mpc_parameter=mpc_input.parameters,  # type: ignore
+            mpc_input=mpc_input,
             ocp_iterate=mpc_state,
         )
-        set_ocp_solver_initial_condition(solver, mpc_input)
         # TODO: Cover case where we do not want to do a forward evaluation
         solver.solve()
 
         if use_sensitivity_solver:
             initialize_ocp_solver(
                 ocp_solver=sensitivity_solver,
-                mpc_parameter=mpc_input.parameters,  # type: ignore
-                ocp_iterate=mpc_state,
-            )
-            set_ocp_solver_initial_condition(sensitivity_solver, mpc_input)
-
-            sensitivity_solver.load_iterate_from_flat_obj(
-                solver.store_iterate_to_flat_obj()  # type:ignore
+                mpc_input=mpc_input,  # type: ignore
+                ocp_iterate=solver.store_iterate_to_flat_obj(),
             )
             sensitivity_solver.solve()
 
