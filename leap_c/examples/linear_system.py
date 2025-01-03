@@ -9,9 +9,6 @@ import numpy as np
 import pygame
 from acados_template import AcadosModel, AcadosOcp
 from casadi.tools import struct_symSX
-from pygame import draw, gfxdraw
-from scipy.linalg import solve_discrete_are
-
 from leap_c.examples.render_utils import draw_arrow, draw_ellipse_from_eigen
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
@@ -19,6 +16,8 @@ from leap_c.examples.util import (
 )
 from leap_c.mpc import MPC
 from leap_c.ocp_env import OCPEnv
+from pygame import draw, gfxdraw
+from scipy.linalg import solve_discrete_are
 
 
 class LinearSystemMPC(MPC):
@@ -377,7 +376,6 @@ def configure_ocp_solver(
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
-    ocp.solver_options.with_value_sens_wrt_params = True
 
     # Set nominal parameters. Could be done at AcadosOcpSolver initialization?
 
