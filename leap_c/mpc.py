@@ -163,8 +163,8 @@ def set_ocp_solver_initial_condition(
             set_ocp_solver_initial_condition(ocp, mpc_input.get_sample(i))
 
     else:
-        raise Exception(
-            f"set_ocp_solver_initial_condition: expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
         )
 
 
@@ -208,8 +208,8 @@ def initialize_ocp_solver(
                 f"Expected AcadosOcpFlattenedBatchIterate or list of AcadosOcpIterates for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
             )
     else:
-        raise Exception(
-            f"initialize_ocp_solver: expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
         )
     # Set the initial conditions at the end, in case the iterate contains a different value
     set_ocp_solver_initial_condition(ocp_solver, mpc_input)
@@ -229,8 +229,8 @@ def unset_ocp_solver_initial_control_constraints(
             unset_ocp_solver_initial_control_constraints(ocp_solver)
 
     else:
-        raise Exception(
-            f"unset_ocp_solver_initial_control_constraints: expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
         )
 
 
@@ -256,8 +256,8 @@ def set_ocp_solver_to_default(
             set_ocp_solver_to_default(ocp_solver, default_mpc_parameters, unset_u0)
 
     else:
-        raise Exception(
-            f"set_ocp_solver_to_default: expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
         )
 
 
@@ -273,8 +273,8 @@ def set_discount_factor(
             set_discount_factor(ocp_solver, discount_factor)
 
     else:
-        raise Exception(
-            f"set_discount_factor: expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
         )
 
 
