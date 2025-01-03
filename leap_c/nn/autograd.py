@@ -8,8 +8,7 @@ import numpy as np
 import torch
 import torch.autograd as autograd
 from acados_template import AcadosSimSolver
-
-from leap_c.mpc import MPC, MPCInput, MPCParameter, MPCState
+from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCParameter
 from leap_c.util import tensor_to_numpy
 
 
@@ -128,7 +127,7 @@ class MPCSolutionFunction(autograd.Function):
         u0: torch.Tensor | None,
         p_global: torch.Tensor | None,
         p_stagewise: MPCParameter | None,
-        initializations: list[MPCState] | None,
+        initializations: MPCBatchedState | None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         device = x0.device
         dtype = x0.dtype

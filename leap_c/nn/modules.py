@@ -5,8 +5,7 @@ import casadi as ca
 import torch
 import torch.nn as nn
 from acados_template import AcadosSimSolver
-
-from leap_c.mpc import MPC, MPCParameter, MPCState
+from leap_c.mpc import MPC, MPCBatchedState, MPCParameter
 
 from .autograd import AutogradCasadiFunction, DynamicsSimFunction, MPCSolutionFunction
 
@@ -81,7 +80,7 @@ class MPCSolutionModule(nn.Module):
         u0: torch.Tensor | None = None,
         p_global: torch.Tensor | None = None,
         p_stagewise: MPCParameter | None = None,
-        initializations: list[MPCState] | None = None,
+        initializations: MPCBatchedState | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         """Differentiation is only allowed with respect to x0, u0 and p_global.
 
@@ -93,8 +92,7 @@ class MPCSolutionModule(nn.Module):
             p_global: The parameters of the MPC, shape (batch_size, p_global_dim).
             p_stagewise: The remaining parameter information for the MPC, i.e., the stagewise parameters (batched according to the other input).
                 NOTE that it should not contain p_global, since this will be overwritten by p_global!
-            initializations: A list of length batch_size which contains the MPCState used for
-                initialization in the respective solve.
+            initializations: The batched MPCState used for initialization in the mpc solve.
         Returns:
             u_star: The first optimal action of the MPC solution, given the initial state and parameters.
                 NOTE that this is a tensor of shape (1, ) containing NaN if u0 was given in the forward pass.

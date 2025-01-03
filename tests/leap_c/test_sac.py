@@ -3,7 +3,6 @@ import shutil
 
 import numpy as np
 import pytest
-
 from leap_c.examples.linear_system import LinearSystemOcpEnv
 from leap_c.logging import NumberLogger
 from leap_c.scripts.rl.linear_system_sac import (

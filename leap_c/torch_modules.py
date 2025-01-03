@@ -2,11 +2,10 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.distributions import Normal
-
-from leap_c.mpc import MPC, MPCParameter, MPCState
+from leap_c.mpc import MPC, MPCBatchedState, MPCParameter
 from leap_c.nn.modules import MPCSolutionModule
 from leap_c.util import put_each_index_of_tensor_as_entry_into
+from torch.distributions import Normal
 
 
 def string_to_activation(activation: str) -> nn.Module:
@@ -261,7 +260,7 @@ class FOUMPCNetwork(nn.Module):
         self,
         obs: tuple[torch.Tensor, MPCParameter],
         param_transform_kwargs: dict | None = None,
-        mpc_initialization: list[MPCState] | None = None,
+        mpc_initialization: MPCBatchedState | None = None,
         deterministic: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict]:
         """
@@ -270,7 +269,7 @@ class FOUMPCNetwork(nn.Module):
                 NOTE: Despite being of the class MPCParameter, if p_global is not None,
                 it will be overridden, because p_global will be set by the prediction from the network.
             param_transform_kwargs: The keyword arguments for the final_param_transform_before_mpc (useful if overwritten).
-            initialization: The initialization for the MPC. If not None, it should be a list of length batch_size.
+            initialization: The initialization for the MPC.
             deterministic: If True, the output will just be tanh(MPC(mean)), no sampling is taking place.
 
         Returns the action, the log probability of the action, the status of the MPC and some statistics.
