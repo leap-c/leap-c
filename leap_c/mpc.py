@@ -571,13 +571,12 @@ class MPC(ABC):
     @staticmethod
     def __solve_shared(
         solver: AcadosOcpSolver | AcadosOcpBatchSolver,
-        sensitivity_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
+        sensitivity_solver: AcadosOcpSolver | AcadosOcpBatchSolver | None,
         mpc_input: MPCInput,
         mpc_state: MPCSingleState | MPCBatchedState | None,
         backup_func: Callable[[], MPCSingleState]
         | Callable[[int], MPCSingleState]
         | None,
-        use_sensitivity_solver: bool,
     ):
         initialize_ocp_solver(
             ocp_solver=solver,
@@ -615,7 +614,7 @@ class MPC(ABC):
                     f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(solver)}."
                 )
 
-        if use_sensitivity_solver:
+        if sensitivity_solver is not None:
             initialize_ocp_solver(
                 ocp_solver=sensitivity_solver,
                 mpc_input=mpc_input,  # type: ignore
@@ -642,11 +641,12 @@ class MPC(ABC):
 
         MPC.__solve_shared(
             solver=self.ocp_solver,
-            sensitivity_solver=self.ocp_sensitivity_solver,
+            sensitivity_solver=self.ocp_sensitivity_solver
+            if use_sensitivity_solver
+            else None,
             mpc_input=mpc_input,
             mpc_state=mpc_state,
             backup_func=backup_func,
-            use_sensitivity_solver=use_sensitivity_solver,
         )
 
         kw = {}
@@ -754,11 +754,12 @@ class MPC(ABC):
 
         MPC.__solve_shared(
             solver=self.ocp_batch_solver,
-            sensitivity_solver=self.ocp_batch_sensitivity_solver,
+            sensitivity_solver=self.ocp_batch_sensitivity_solver
+            if use_sensitivity_solver
+            else None,
             mpc_input=mpc_input,
             mpc_state=mpc_state,
             backup_func=backup_func,
-            use_sensitivity_solver=use_sensitivity_solver,
         )
 
         kw = {}
