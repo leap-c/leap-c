@@ -215,6 +215,25 @@ def initialize_ocp_solver(
     set_ocp_solver_initial_condition(ocp_solver, mpc_input)
 
 
+def unset_ocp_solver_initial_control_constraints(
+    ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
+) -> None:
+    """Unset the initial control constraints of the OCP (batch) solver."""
+
+    if isinstance(ocp_solver, AcadosOcpSolver):
+        ocp_solver.constraints_set(0, "lbu", ocp_solver.acados_ocp.constraints.lbu)  # type: ignore
+        ocp_solver.constraints_set(0, "ubu", ocp_solver.acados_ocp.constraints.ubu)  # type: ignore
+
+    elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        for ocp_solver in ocp_solver.ocp_solvers:
+            unset_ocp_solver_initial_control_constraints(ocp_solver)
+
+    else:
+        raise Exception(
+            f"unset_ocp_solver_initial_control_constraints: expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        )
+
+
 def set_ocp_solver_to_default(
     ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
     default_mpc_parameters: MPCParameter,
