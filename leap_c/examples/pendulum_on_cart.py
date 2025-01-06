@@ -6,8 +6,6 @@ import pygame
 from acados_template import AcadosModel, AcadosOcp
 from casadi.tools import struct_symSX
 from gymnasium.spaces import Box
-from pygame import gfxdraw
-
 from leap_c.examples.render_utils import draw_arrow
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
@@ -15,6 +13,7 @@ from leap_c.examples.util import (
 )
 from leap_c.mpc import MPC
 from leap_c.ocp_env import OCPEnv
+from pygame import gfxdraw
 
 
 class PendulumOnCartMPC(MPC):
@@ -341,7 +340,7 @@ def configure_ocp_solver(
 ):
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
-    ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
+    ocp.solver_options.hessian_approx = "EXACT"  # "GAUSS_NEWTON"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
     ocp.solver_options.with_value_sens_wrt_params = True
