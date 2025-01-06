@@ -1,6 +1,7 @@
 import numpy as np
 import numpy.testing as npt
 import pytest
+from acados_template.acados_ocp_iterate import AcadosOcpFlattenedIterate
 from leap_c.examples.linear_system import LinearSystemMPC
 from leap_c.mpc import MPC, MPCInput, MPCOutput, MPCParameter
 
@@ -119,6 +120,38 @@ def test_using_mpc_state_batched(
         qp_iters = solver.get_stats("qp_iter").sum()  # type:ignore
         assert qp_iters == 0
     mpc_outputs_assert_allclose(sol, same_sol, test_u_star=True)
+
+
+def test_backup_fn(
+    learnable_linear_mpc: MPC,
+):
+    x0 = np.array([0.5, 0.5])
+    u0 = np.array([0.5])
+    inp = MPCInput(x0=x0, u0=u0)
+    sol, template_state = learnable_linear_mpc(inp)
+    assert sol.status == 0
+    assert isinstance(
+        template_state, AcadosOcpFlattenedIterate
+    ), f"This test assumed state would be of type AcadosOcpFlattenedIterate, but got {type(template_state)}"
+    ridiculous_state = AcadosOcpFlattenedIterate(
+        x=np.ones_like(template_state.x) * 1e6,
+        u=np.ones_like(template_state.u) * 1e6,
+        z=np.ones_like(template_state.z) * 1e6,
+        sl=np.ones_like(template_state.sl) * 1e6,
+        su=np.ones_like(template_state.su) * 1e6,
+        pi=np.ones_like(template_state.pi) * 1e6,
+        lam=np.ones_like(template_state.lam) * 1e6,
+    )
+    no_sol, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
+    assert no_sol.status != 0
+
+    def backup_fn():
+        return template_state
+
+    sol_again, _ = learnable_linear_mpc(
+        inp, mpc_state=ridiculous_state, backup_fn=backup_fn
+    )
+    mpc_outputs_assert_allclose(sol, sol_again, test_u_star=True)
 
 
 def test_closed_loop(
