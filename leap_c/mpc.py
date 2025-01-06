@@ -602,7 +602,7 @@ class MPC(ABC):
                     if ocp_solver.status != 0:
                         initialize_ocp_solver(
                             ocp_solver=ocp_solver,
-                            mpc_input=mpc_input,
+                            mpc_input=mpc_input.get_sample(i),
                             ocp_iterate=backup_fn(i),  # type:ignore
                             set_params=False,
                         )
