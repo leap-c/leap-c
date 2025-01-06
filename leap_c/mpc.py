@@ -511,7 +511,7 @@ class MPC(ABC):
         self,
         mpc_input: MPCInput,
         mpc_state: MPCSingleState | MPCBatchedState | None = None,
-        backup_func: Callable[[], MPCSingleState]
+        backup_fn: Callable[[], MPCSingleState]
         | Callable[[int], MPCSingleState]
         | None = None,
         dudx: bool = False,
@@ -527,7 +527,7 @@ class MPC(ABC):
         Args:
             mpc_input: The input of the MPC controller.
             mpc_state: The iterate of the solver to use as initialization.
-            backup_func: A function that returns a backup iterate for which another solve is tried
+            backup_fn: A function that returns a backup iterate for which another solve is tried
                 in case the solver fails in the first try.
                 In case of a batched solve, this function must take an integer,
                 which is the index of the sample in the batch which must be recomputed.
@@ -547,7 +547,7 @@ class MPC(ABC):
             return self._solve(
                 mpc_input=mpc_input,
                 mpc_state=mpc_state,  # type: ignore
-                backup_func=backup_func,  # type:ignore
+                backup_fn=backup_fn,  # type:ignore
                 dudx=dudx,
                 dudp=dudp,
                 dvdx=dvdx,
@@ -559,7 +559,7 @@ class MPC(ABC):
         return self._batch_solve(
             mpc_input=mpc_input,
             mpc_state=mpc_state,  # type: ignore
-            backup_func=backup_func,  # type: ignore
+            backup_fn=backup_fn,  # type: ignore
             dudx=dudx,
             dudp=dudp,
             dvdx=dvdx,
@@ -574,7 +574,7 @@ class MPC(ABC):
         sensitivity_solver: AcadosOcpSolver | AcadosOcpBatchSolver | None,
         mpc_input: MPCInput,
         mpc_state: MPCSingleState | MPCBatchedState | None,
-        backup_func: Callable[[], MPCSingleState]
+        backup_fn: Callable[[], MPCSingleState]
         | Callable[[int], MPCSingleState]
         | None,
     ):
@@ -586,13 +586,13 @@ class MPC(ABC):
         # TODO: Cover case where we do not want to do a forward evaluation
         solver.solve()
 
-        if backup_func is not None:
+        if backup_fn is not None:
             if isinstance(solver, AcadosOcpSolver):
                 if solver.status != 0:
                     initialize_ocp_solver(
                         ocp_solver=solver,
                         mpc_input=mpc_input,
-                        ocp_iterate=backup_func(),  # type:ignore
+                        ocp_iterate=backup_fn(),  # type:ignore
                         set_params=False,
                     )
                     solver.solve()
@@ -603,7 +603,7 @@ class MPC(ABC):
                         initialize_ocp_solver(
                             ocp_solver=ocp_solver,
                             mpc_input=mpc_input,
-                            ocp_iterate=backup_func(i),  # type:ignore
+                            ocp_iterate=backup_fn(i),  # type:ignore
                             set_params=False,
                         )
                         any_failed = True
@@ -626,7 +626,7 @@ class MPC(ABC):
         self,
         mpc_input: MPCInput,
         mpc_state: MPCSingleState | None = None,
-        backup_func: Callable[[], MPCSingleState] | None = None,
+        backup_fn: Callable[[], MPCSingleState] | None = None,
         dudx: bool = False,
         dudp: bool = False,
         dvdx: bool = False,
@@ -646,7 +646,7 @@ class MPC(ABC):
             else None,
             mpc_input=mpc_input,
             mpc_state=mpc_state,
-            backup_func=backup_func,
+            backup_fn=backup_fn,
         )
 
         kw = {}
@@ -739,7 +739,7 @@ class MPC(ABC):
         self,
         mpc_input: MPCInput,
         mpc_state: MPCBatchedState | None = None,
-        backup_func: Callable[[int], MPCSingleState] | None = None,
+        backup_fn: Callable[[int], MPCSingleState] | None = None,
         dudx: bool = False,
         dudp: bool = False,
         dvdx: bool = False,
@@ -759,7 +759,7 @@ class MPC(ABC):
             else None,
             mpc_input=mpc_input,
             mpc_state=mpc_state,
-            backup_func=backup_func,
+            backup_fn=backup_fn,
         )
 
         kw = {}
