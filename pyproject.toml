@@ -7,7 +7,7 @@ name = "leap-c"
 version = "2024.0.0"
 dependencies = ["gymnasium", "scipy", "numpy", "pandas", "ruff"]
 
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 authors = [{ name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" }]
 maintainers = [{ name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" }]
 description = "Learning Predictive Control"
