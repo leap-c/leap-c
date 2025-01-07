@@ -1,5 +1,11 @@
+from dataclasses import fields
+
 import numpy as np
 import numpy.testing as npt
+from acados_template.acados_ocp_iterate import (
+    AcadosOcpFlattenedBatchIterate,
+    AcadosOcpFlattenedIterate,
+)
 from leap_c.examples.linear_system import LinearSystemMPC
 from leap_c.mpc import MPC, MPCInput, MPCOutput, MPCParameter
 
@@ -166,117 +172,93 @@ def test_using_mpc_state_batched(
     mpc_outputs_assert_allclose(sol, same_sol, test_u_star=True)
 
 
-# def test_backup_fn(
-#     learnable_linear_mpc: MPC,
-# ):
-#     x0 = np.array([0.5, 0.5])
-#     u0 = np.array([0.5])
-#     inp = MPCInput(x0=x0, u0=u0)
-#     sol, template_state = learnable_linear_mpc(inp)
-#     assert sol.status == 0
-#     assert isinstance(
-#         template_state, AcadosOcpFlattenedIterate
-#     ), f"This test assumed state would be of type AcadosOcpFlattenedIterate, but got {type(template_state)}"
-#     ridiculous_state = AcadosOcpFlattenedIterate(
-#         x=np.ones_like(template_state.x) * 1e6,
-#         u=np.ones_like(template_state.u) * 1e6,
-#         z=np.ones_like(template_state.z) * 1e6,
-#         sl=np.ones_like(template_state.sl) * 1e6,
-#         su=np.ones_like(template_state.su) * 1e6,
-#         pi=np.ones_like(template_state.pi) * 1e6,
-#         lam=np.ones_like(template_state.lam) * 1e6,
-#     )
-#     no_sol, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
-#     learnable_linear_mpc.last_solve_diagnostics(learnable_linear_mpc.ocp_solver)
-#     print(no_sol.status)
-#     print(learnable_linear_mpc.ocp_solver.get_residuals().sum())
-#     assert False  # no_sol.status != 0
+def test_backup_fn(
+    learnable_linear_mpc: MPC,
+):
+    x0 = np.array([0.5, 0.5])
+    u0 = np.array([0.5])
+    inp = MPCInput(x0=x0, u0=u0)
+    sol, template_state = learnable_linear_mpc(inp)
+    assert sol.status == 0
+    assert isinstance(
+        template_state, AcadosOcpFlattenedIterate
+    ), f"This test assumed state would be of type AcadosOcpFlattenedIterate, but got {type(template_state)}"
+    ridiculous_state = AcadosOcpFlattenedIterate(
+        x=np.ones_like(template_state.x) * 1e6,
+        u=np.ones_like(template_state.u) * 1e6,
+        z=np.ones_like(template_state.z) * 1e6,
+        sl=np.ones_like(template_state.sl) * 1e6,
+        su=np.ones_like(template_state.su) * 1e6,
+        pi=np.ones_like(template_state.pi) * 1e6,
+        lam=np.ones_like(template_state.lam) * 1e6,
+    )
+    no_sol, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
+    assert no_sol.status != 0
 
-#     def backup_fn():
-#         return template_state
+    def backup_fn():
+        return template_state
 
-#     sol_again, _ = learnable_linear_mpc(
-#         inp, mpc_state=ridiculous_state, backup_fn=backup_fn
-#     )
-#     mpc_outputs_assert_allclose(sol, sol_again, test_u_star=True)
+    sol_again, _ = learnable_linear_mpc(
+        inp, mpc_state=ridiculous_state, backup_fn=backup_fn
+    )
+    mpc_outputs_assert_allclose(sol, sol_again, test_u_star=True)
 
 
-# def test_backup_fn_batched(learnable_linear_mpc: MPC, n_batch: int):
-#     x0 = np.tile(np.array([0.5, 0.5]), (n_batch, 1))
-#     u0 = np.tile(np.array([0.5]), (n_batch, 1))
-#     increment = np.ones(2) * 1 / 2 * n_batch
-#     # The exact increment is not important, just that it is different for each sample
-#     for i in range(n_batch):
-#         x0[i] = x0[i] + i * increment
-#     inp = MPCInput(x0=x0, u0=u0)
-#     sol, template_state = learnable_linear_mpc(inp)
-#     assert np.all(sol.status == 0)
-#     assert isinstance(
-#         template_state, AcadosOcpFlattenedBatchIterate
-#     ), f"This test assumed state would be of type AcadosOcpFlattenedBatchIterate, but got {type(template_state)}"
-#     ridiculous_state = AcadosOcpFlattenedBatchIterate(
-#         x=np.ones_like(template_state.x) * 1e6,
-#         u=np.ones_like(template_state.u) * 1e6,
-#         z=np.ones_like(template_state.z) * 1e6,
-#         sl=np.ones_like(template_state.sl) * 1e6,
-#         su=np.ones_like(template_state.su) * 1e6,
-#         pi=np.ones_like(template_state.pi) * 1e6,
-#         lam=np.ones_like(template_state.lam) * 1e6,
-#         N_batch=template_state.N_batch,
-#     )
-#     no_sol, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
-#     for ocp_solver in learnable_linear_mpc.ocp_batch_solver.ocp_solvers:
-#         learnable_linear_mpc.last_solve_diagnostics(ocp_solver=ocp_solver)
-#     for i in range(no_sol.status.shape[0]):
-#         print(no_sol.status[i])
-#         print(
-#             learnable_linear_mpc.ocp_batch_solver.ocp_solvers[i].get_residuals().sum()
-#         )
-#     assert False  # np.all(no_sol.status != 0)
+def test_backup_fn_batched(learnable_linear_mpc: MPC, n_batch: int):
+    x0 = np.tile(np.array([0.5, 0.5]), (n_batch, 1))
+    u0 = np.tile(np.array([0.5]), (n_batch, 1))
+    increment = np.ones(2) * 1 / 2 * n_batch
+    # The exact increment is not important, just that it is different for each sample
+    for i in range(n_batch):
+        x0[i] = x0[i] + i * increment
+    inp = MPCInput(x0=x0, u0=u0)
+    sol, template_state = learnable_linear_mpc(inp)
+    assert np.all(sol.status == 0)
+    assert isinstance(
+        template_state, AcadosOcpFlattenedBatchIterate
+    ), f"This test assumed state would be of type AcadosOcpFlattenedBatchIterate, but got {type(template_state)}"
+    ridiculous_state = AcadosOcpFlattenedBatchIterate(
+        x=np.ones_like(template_state.x) * 1e6,
+        u=np.ones_like(template_state.u) * 1e6,
+        z=np.ones_like(template_state.z) * 1e6,
+        sl=np.ones_like(template_state.sl) * 1e6,
+        su=np.ones_like(template_state.su) * 1e6,
+        pi=np.ones_like(template_state.pi) * 1e6,
+        lam=np.ones_like(template_state.lam) * 1e6,
+        N_batch=template_state.N_batch,
+    )
+    no_sol, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
+    assert np.all(no_sol.status != 0)
 
-#     def backup_fn(i):
-#         vals = [
-#             getattr(template_state, field.name)[i] for field in fields(template_state)
-#         ]
-#         return AcadosOcpFlattenedIterate(*vals)
+    def backup_fn(i):
+        vals = [
+            getattr(template_state, field.name)[i]
+            for field in fields(template_state)
+            if field.type is not int
+        ]
+        return AcadosOcpFlattenedIterate(*vals)
 
-#     sol_again, _ = learnable_linear_mpc(
-#         inp, mpc_state=ridiculous_state, backup_fn=backup_fn
-#     )
-#     mpc_outputs_assert_allclose(sol, sol_again, test_u_star=True)
+    sol_again, _ = learnable_linear_mpc(
+        inp, mpc_state=ridiculous_state, backup_fn=backup_fn
+    )
+    mpc_outputs_assert_allclose(sol, sol_again, test_u_star=True)
 
 
-# def test_batch_solver_fail(learnable_pendulum_on_cart_mpc: MPC, n_batch: int):
-#     x0 = np.tile(np.array([0, -np.pi, 0, 0]), (n_batch, 1))
-#     p_glob = learnable_pendulum_on_cart_mpc.default_p_global
-#     p_glob[0] = 0  # Set Mass of cart to 0
-#     p_glob = np.tile(p_glob, (n_batch, 1))
-#     sol, _ = learnable_pendulum_on_cart_mpc(
-#         MPCInput(x0=x0, parameters=MPCParameter(p_global=p_glob))
-#     )
-#     single_sol, _ = learnable_pendulum_on_cart_mpc(
-#         MPCInput(x0=x0[0], parameters=MPCParameter(p_global=p_glob[0]))
-#     )
-#     print(single_sol.status)
-#     print(learnable_pendulum_on_cart_mpc.ocp_solver.get_residuals().sum())
-#     # learnable_pendulum_on_cart_mpc.last_solve_diagnostics(
-#     #     learnable_pendulum_on_cart_mpc.ocp_solver
-#     # ) NOTE: Statistics function fails in the qp_diagnostics call because of Nans.
-#     learnable_pendulum_on_cart_mpc.ocp_solver.print_statistics()
-#     for i in range(sol.status.shape[0]):
-#         print(sol.status[i])
-#         print(
-#             learnable_pendulum_on_cart_mpc.ocp_batch_solver.ocp_solvers[i]
-#             .get_residuals()
-#             .sum()
-#         )
-#         # learnable_pendulum_on_cart_mpc.last_solve_diagnostics(
-#         #     ocp_solver=learnable_pendulum_on_cart_mpc.ocp_batch_solver.ocp_solvers[i]
-#         # ) NOTE: Statistics function fails in the qp_diagnostics call because of Nans.
-#         learnable_pendulum_on_cart_mpc.ocp_batch_solver.ocp_solvers[
-#             i
-#         ].print_statistics()
-#     assert np.all(sol.status != 0)
+def test_fail_consistency_batched_non_batched(
+    learnable_pendulum_on_cart_mpc: MPC, n_batch: int
+):
+    x0 = np.tile(np.array([0, -np.pi, 0, 0]), (n_batch, 1))
+    p_glob = learnable_pendulum_on_cart_mpc.default_p_global
+    p_glob[0] = 0  # Set Mass of cart to 0 # type:ignore
+    p_glob = np.tile(p_glob, (n_batch, 1))  # type:ignore
+    sol, _ = learnable_pendulum_on_cart_mpc(
+        MPCInput(x0=x0, parameters=MPCParameter(p_global=p_glob))
+    )
+    single_sol, _ = learnable_pendulum_on_cart_mpc(
+        MPCInput(x0=x0[0], parameters=MPCParameter(p_global=p_glob[0]))
+    )
+    assert single_sol.status != 0
+    assert np.all(sol.status != 0)
 
 
 def test_closed_loop(
