@@ -16,7 +16,7 @@ leap-c requires the following dependencies that need to be installed separately:
 - [casadi](https://web.casadi.org/) for symbolic computations
 - [acados](https://docs.acados.org/index.html) for generating OCP solvers
 
-### acados as a submodule
+### Clone with recursive submodules
 
 leap-c uses acados as a submodule. To clone the repository with the submodule, use the following command:
 
@@ -24,18 +24,19 @@ leap-c uses acados as a submodule. To clone the repository with the submodule, u
     git clone --recurse-submodules git@github.com:leap-c/leap-c.git
 ```
 
-Follow the installation instructions for acados [here](https://docs.acados.org/installation/)
-
 ### Installation steps
 
-Create python virtual environment and install the (editable) package with the following commands:
+Create a python virtual environment using python version 3.11 and activate it:
 
 ``` bash
     sudo pip3 install virtualenv
     cd <PATH_TO_VENV_DIRECTORY>
-    virtualenv .venv --python=/usr/bin/python3
+    virtualenv .venv --python=/usr/bin/python3.11
     source .venv/bin/activate
 ```
+
+Follow the instructions to build acados [here](https://docs.acados.org/installation/),
+and also follow the instructions there to install acados' python interface.
 
 Install the required casadi version with the installation script:
 
@@ -56,7 +57,8 @@ or install with optional dependencies (e.g. for testing):
     pip install -e .[test]
 ```
 
-Install cpu-only pytorch
+Install the desired pytorch version, see [here](https://pytorch.org/get-started/locally/).
+E.g., to install cpu-only pytorch you can use
 
 ``` bash
     pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
@@ -64,11 +66,11 @@ Install cpu-only pytorch
 
 ## Usage
 
-Check out tests for the linear system
+Check out tests for the point mass system
 
 
 ``` bash
-    python tests/leap_c/examples/test_linear_system.py
+    python tests/leap_c/test_point_mass.py
 ```
 
 ## Questions/ Contact

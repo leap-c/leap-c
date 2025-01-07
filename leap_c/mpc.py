@@ -339,8 +339,10 @@ class MPC(ABC):
         self.ocp_sensitivity.model.name += "_sensitivity"  # type:ignore
 
         # path management
-        self.afm = AcadosFileManager(export_directory, cleanup)
-        self.afm_sens = AcadosFileManager(export_directory_sensitivity, cleanup)
+        self.afm = AcadosFileManager(export_directory)
+        self.afm_batch = AcadosFileManager(export_directory)
+        self.afm_sens = AcadosFileManager(export_directory_sensitivity)
+        self.afm_sens_batch = AcadosFileManager(export_directory_sensitivity)
 
         self._discount_factor = discount_factor
 
@@ -380,7 +382,7 @@ class MPC(ABC):
         ocp = deepcopy(self.ocp)
         ocp.model.name += "_batch"  # type:ignore
 
-        batch_solver = AcadosOcpBatchSolver(ocp, self.n_batch)
+        batch_solver = self.afm_batch.setup_acados_ocp_batch_solver(ocp, self.n_batch)
 
         default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
         if self._discount_factor is not None:
@@ -393,7 +395,10 @@ class MPC(ABC):
     def ocp_batch_sensitivity_solver(self) -> AcadosOcpBatchSolver:
         ocp = deepcopy(self.ocp_sensitivity)
         ocp.model.name += "_batch"  # type:ignore
-        batch_solver = AcadosOcpBatchSolver(ocp, self.n_batch)
+
+        batch_solver = self.afm_sens_batch.setup_acados_ocp_batch_solver(
+            ocp, self.n_batch
+        )
 
         default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
         if self._discount_factor is not None:
@@ -459,7 +464,11 @@ class MPC(ABC):
         mpc_input = MPCInput(x0=state, parameters=MPCParameter(p_global=p_global))
         mpc_output, _ = self.__call__(mpc_input=mpc_input, dvdp=sens)
 
-        return mpc_output.V, mpc_output.dvalue_dp_global, mpc_output.status  # type:ignore
+        return (
+            mpc_output.V,
+            mpc_output.dvalue_dp_global,
+            mpc_output.status,
+        )  # type:ignore
 
     def state_action_value(
         self,
@@ -484,7 +493,11 @@ class MPC(ABC):
         )
         mpc_output, _ = self.__call__(mpc_input=mpc_input, dvdp=sens)
 
-        return mpc_output.Q, mpc_output.dvalue_dp_global, mpc_output.status  # type:ignore
+        return (
+            mpc_output.Q,
+            mpc_output.dvalue_dp_global,
+            mpc_output.status,
+        )  # type:ignore
 
     def policy(
         self,
