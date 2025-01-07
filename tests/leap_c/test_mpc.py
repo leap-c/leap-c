@@ -216,7 +216,8 @@ def test_using_mpc_state_batched(
 #     print(learnable_pendulum_on_cart_mpc.ocp_solver.get_residuals().sum())
 #     # learnable_pendulum_on_cart_mpc.last_solve_diagnostics(
 #     #     learnable_pendulum_on_cart_mpc.ocp_solver
-#     # )
+#     # ) NOTE: Statistics function fails in the qp_diagnostics call because of Nans.
+#     learnable_pendulum_on_cart_mpc.ocp_solver.print_statistics()
 #     for i in range(sol.status.shape[0]):
 #         print(sol.status[i])
 #         print(
@@ -224,9 +225,12 @@ def test_using_mpc_state_batched(
 #             .get_residuals()
 #             .sum()
 #         )
-#         learnable_pendulum_on_cart_mpc.last_solve_diagnostics(
-#             ocp_solver=learnable_pendulum_on_cart_mpc.ocp_batch_solver.ocp_solvers[i]
-#         )
+#         # learnable_pendulum_on_cart_mpc.last_solve_diagnostics(
+#         #     ocp_solver=learnable_pendulum_on_cart_mpc.ocp_batch_solver.ocp_solvers[i]
+#         # ) NOTE: Statistics function fails in the qp_diagnostics call because of Nans.
+#         learnable_pendulum_on_cart_mpc.ocp_batch_solver.ocp_solvers[
+#             i
+#         ].print_statistics()
 #     assert np.all(sol.status != 0)
 
 
