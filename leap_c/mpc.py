@@ -336,6 +336,7 @@ class MPC(ABC):
         self.ocp_sensitivity.solver_options.hessian_approx = "EXACT"
         self.ocp_sensitivity.solver_options.with_solution_sens_wrt_params = True
         self.ocp_sensitivity.solver_options.with_value_sens_wrt_params = True
+        self.ocp_sensitivity.model.name += "_sensitivity"
 
         # path management
         self.afm = AcadosFileManager(export_directory, cleanup)
@@ -376,7 +377,10 @@ class MPC(ABC):
 
     @cached_property
     def ocp_batch_solver(self) -> AcadosOcpBatchSolver:
-        batch_solver = AcadosOcpBatchSolver(self.ocp, self.n_batch)
+        ocp = deepcopy(self.ocp)
+        ocp.model.name += "_batch"
+
+        batch_solver = AcadosOcpBatchSolver(ocp, self.n_batch)
 
         default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
         if self._discount_factor is not None:
@@ -387,7 +391,9 @@ class MPC(ABC):
 
     @cached_property
     def ocp_batch_sensitivity_solver(self) -> AcadosOcpBatchSolver:
-        batch_solver = AcadosOcpBatchSolver(self.ocp_sensitivity, self.n_batch)
+        ocp = deepcopy(self.ocp_sensitivity)
+        ocp.model.name += "_batch"
+        batch_solver = AcadosOcpBatchSolver(ocp, self.n_batch)
 
         default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
         if self._discount_factor is not None:
