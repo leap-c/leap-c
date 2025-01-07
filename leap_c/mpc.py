@@ -257,7 +257,7 @@ def set_ocp_solver_to_default(
     """Resets the OCP (batch) solver to remove any "state" to be carried over in the next call.
     This entails:
     - Setting all Iterate-Variables to 0.
-    - Setting the parameters to the default values.
+    - Setting the parameters to the default values (since the default is consistent over the batch, the given MPCParameter must not be batched).
     - Unsetting the initial control constraints if they were set.
     """
     if isinstance(ocp_solver, AcadosOcpSolver):
