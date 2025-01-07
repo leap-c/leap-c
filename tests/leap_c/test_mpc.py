@@ -116,7 +116,7 @@ def test_statelessness_batched(
     assert (
         len(p_stagewise.shape) == 2
     ), f"I assumed this would be of shape ({lin_mpc.N+1}, #p_stagewise) but shape is {p_stagewise.shape}"
-    p_stagewise = np.tile(p_stagewise, (n_batch, 1))
+    p_stagewise = np.tile(p_stagewise, (n_batch, 1, 1))
     params = MPCParameter(p_global, p_stagewise)
     x0_different = x0 - 0.01
     u0_different = u0 - 0.01
