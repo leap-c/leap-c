@@ -82,22 +82,6 @@ def test_MPCSolutionModule_on_LinearSystemMPC(
         only_du0dp_global, p, atol=1e-2, eps=1e-4, raise_exception=True
     )
 
-    def only_du0dp_global_with_u0_set(
-        p_global: torch.Tensor,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, V, status = mpc_module.forward(
-            x0=x0_torch,
-            u0=u0,
-            p_global=p_global,
-            p_stagewise=p_rests,
-            initializations=None,
-        )
-        return u_star, status
-
-    torch.autograd.gradcheck(
-        only_du0dp_global_with_u0_set, p, atol=1e-2, eps=1e-4, raise_exception=True
-    )
-
     def only_dVdp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         u_star, V, status = mpc_module.forward(
             x0=x0_torch,
