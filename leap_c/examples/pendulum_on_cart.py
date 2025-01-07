@@ -24,8 +24,10 @@ class PendulumOnCartMPC(MPC):
         N_horizon: int = 20,
         T_horizon: float = 1.0,
         Fmax: float = 80.0,
+        exact_hess_dyn: bool = True,
         discount_factor: float = 0.99,
         n_batch: int = 1,
+        
     ):
         if params is None:
             params = {
@@ -44,7 +46,7 @@ class PendulumOnCartMPC(MPC):
             tf=T_horizon,
             Fmax=Fmax,
         )
-        configure_ocp_solver(ocp)
+        configure_ocp_solver(ocp, exact_hess_dyn)
 
         self.given_default_param_dict = params
 
@@ -337,10 +339,12 @@ class PendulumOnCartOcpEnv(OCPEnv):
 
 def configure_ocp_solver(
     ocp: AcadosOcp,
+    exact_hess_dyn: bool
 ):
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"  # "GAUSS_NEWTON"
+    ocp.solver_options.exact_hess_dyn = exact_hess_dyn
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
     ocp.solver_options.with_value_sens_wrt_params = True

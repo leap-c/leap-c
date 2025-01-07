@@ -7,7 +7,6 @@ import numpy as np
 import pytest
 from acados_template import AcadosOcpSolver
 from gymnasium.utils.save_video import save_video
-
 from leap_c.examples.pendulum_on_cart import PendulumOnCartMPC, PendulumOnCartOcpEnv
 from leap_c.util import create_dir_if_not_exists
 
@@ -37,7 +36,7 @@ def plot_cart_pole_solution(
 
 def test_solution(
     mpc: PendulumOnCartMPC = PendulumOnCartMPC(
-        learnable_params=["M", "m", "g", "l", "Q", "R"]
+        learnable_params=["M", "m", "g", "l", "Q", "R"], exact_hess_dyn=False
     ),
 ):
     ocp_solver = mpc.ocp_solver
