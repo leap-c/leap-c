@@ -23,7 +23,7 @@ jobs:
       uses: actions/checkout@v4
       with:
         repository: 'acados/acados'
-        ref: 90d6f7abab42d57babe54ba6e61dd7f81e55dc8b
+        ref: ec992920b286da1a7d5c9879f3dcdb9b75a03ecc 
         path: ${{github.workspace}}/acados
         submodules: 'recursive'
 
