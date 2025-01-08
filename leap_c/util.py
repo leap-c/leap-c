@@ -149,8 +149,8 @@ class AcadosFileManager:
 
         return solver
 
-    def __del__(self):
-        shutil.rmtree(self.export_directory, ignore_errors=True)
+#     def __del__(self):
+#         shutil.rmtree(self.export_directory, ignore_errors=True)
 
 
 def add_prefix_extend(prefix: str, extended: dict, extending: dict) -> None:
