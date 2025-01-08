@@ -69,8 +69,8 @@ class AcadosFileManager:
             Path(mkdtemp()) if export_directory is None else export_directory
         )
 
-        # if export_directory is None:
-        #     atexit.register(self.__del__)
+        if export_directory is None:
+            atexit.register(self.__del__)
 
     def setup_acados_ocp_solver(
         self, ocp: AcadosOcp, generate_code: bool = True, build: bool = True
@@ -149,8 +149,8 @@ class AcadosFileManager:
 
         return solver
 
-#     def __del__(self):
-#         shutil.rmtree(self.export_directory, ignore_errors=True)
+    def __del__(self):
+        shutil.rmtree(self.export_directory, ignore_errors=True)
 
 
 def add_prefix_extend(prefix: str, extended: dict, extending: dict) -> None:

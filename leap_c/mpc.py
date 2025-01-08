@@ -339,10 +339,10 @@ class MPC(ABC):
         self.ocp_sensitivity.model.name += "_sensitivity"  # type:ignore
 
         # path management
-        self.afm = AcadosFileManager(None)
-        self.afm_batch = AcadosFileManager(None)
-        self.afm_sens = AcadosFileManager(None)
-        self.afm_sens_batch = AcadosFileManager(None)
+        self.afm = AcadosFileManager(export_directory)
+        self.afm_batch = AcadosFileManager(export_directory)
+        self.afm_sens = AcadosFileManager(export_directory_sensitivity)
+        self.afm_sens_batch = AcadosFileManager(export_directory_sensitivity)
 
         self._discount_factor = discount_factor
 
