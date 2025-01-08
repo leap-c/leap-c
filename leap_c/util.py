@@ -69,8 +69,8 @@ class AcadosFileManager:
             Path(mkdtemp()) if export_directory is None else export_directory
         )
 
-        if export_directory is None:
-            atexit.register(self.__del__)
+        # if export_directory is None:
+        #     atexit.register(self.__del__)
 
     def setup_acados_ocp_solver(
         self, ocp: AcadosOcp, generate_code: bool = True, build: bool = True
