@@ -53,42 +53,42 @@ def mpc_outputs_assert_allclose(
 #     npt.assert_array_equal(stage_cons["ubx"], np.array([1.0, 0.0]))
 # 
 # 
-# def test_statelessness(
-#     x0: np.ndarray = np.array([0.5, 0.5]), u0: np.ndarray = np.array([0.5])
-# ):
-#     # Create MPC with some stateless and some global parameters
-#     lin_mpc = LinearSystemMPC(learnable_params=["A", "B", "Q", "R", "f"])
-#     mpc_input_standard = MPCInput(x0=x0, u0=u0)
-#     solution_standard, _ = lin_mpc(
-#         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
-#     )
-#     p_global = lin_mpc.default_p_global
-#     assert p_global is not None
-#     p_global = p_global + np.ones(p_global.shape[0]) * 0.01
-#     p_stagewise = lin_mpc.default_p_stagewise
-#     assert p_stagewise is not None
-#     p_stagewise = p_stagewise + np.ones(p_stagewise.shape[1]) * 0.01
-#     assert (
-#         len(p_stagewise.shape) == 2
-#     ), f"I assumed this would be of shape ({lin_mpc.N+1}, #p_stagewise) but shape is {p_stagewise.shape}"
-#     params = MPCParameter(p_global, p_stagewise)
-#     x0_different = x0 - 0.01
-#     u0_different = u0 - 0.01
-#     mpc_input_different = MPCInput(x0=x0_different, u0=u0_different, parameters=params)
-#     solution_different, _ = lin_mpc(
-#         mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True
-#     )
-#     # Use this as proxy to verify the different solution is different enough
-#     assert not np.allclose(
-#         solution_standard.Q,  # type:ignore
-#         solution_different.Q,  # type:ignore
-#     )
-#     solution_supposedly_standard, _ = lin_mpc(
-#         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
-#     )
-#     mpc_outputs_assert_allclose(
-#         solution_standard, solution_supposedly_standard, test_u_star=True
-#     )
+def test_statelessness(
+    x0: np.ndarray = np.array([0.5, 0.5]), u0: np.ndarray = np.array([0.5])
+):
+    # Create MPC with some stateless and some global parameters
+    lin_mpc = LinearSystemMPC(learnable_params=["A", "B", "Q", "R", "f"])
+    mpc_input_standard = MPCInput(x0=x0, u0=u0)
+    solution_standard, _ = lin_mpc(
+        mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
+    )
+    p_global = lin_mpc.default_p_global
+    assert p_global is not None
+    p_global = p_global + np.ones(p_global.shape[0]) * 0.01
+    p_stagewise = lin_mpc.default_p_stagewise
+    assert p_stagewise is not None
+    p_stagewise = p_stagewise + np.ones(p_stagewise.shape[1]) * 0.01
+    assert (
+        len(p_stagewise.shape) == 2
+    ), f"I assumed this would be of shape ({lin_mpc.N+1}, #p_stagewise) but shape is {p_stagewise.shape}"
+    params = MPCParameter(p_global, p_stagewise)
+    x0_different = x0 - 0.01
+    u0_different = u0 - 0.01
+    mpc_input_different = MPCInput(x0=x0_different, u0=u0_different, parameters=params)
+    solution_different, _ = lin_mpc(
+        mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True
+    )
+    # Use this as proxy to verify the different solution is different enough
+    assert not np.allclose(
+        solution_standard.Q,  # type:ignore
+        solution_different.Q,  # type:ignore
+    )
+    solution_supposedly_standard, _ = lin_mpc(
+        mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
+    )
+    mpc_outputs_assert_allclose(
+        solution_standard, solution_supposedly_standard, test_u_star=True
+    )
 
 
 def test_statelessness_batched(
