@@ -300,6 +300,8 @@ class MPC(ABC):
         self,
         ocp: AcadosOcp,
         discount_factor: float | None = None,
+        default_init_state_fn: Callable[[MPCInput], MPCSingleState | MPCBatchedState]
+        | None = None,
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
         cleanup: bool = True,
@@ -311,6 +313,7 @@ class MPC(ABC):
         Args:
             ocp: Optimal control problem.
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
+            default_init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.
             export_directory: Directory to export the generated code.
             export_directory_sensitivity: Directory to export the generated
                 code for the sensitivity problem.
@@ -345,6 +348,7 @@ class MPC(ABC):
         self.afm_sens_batch = AcadosFileManager(export_directory_sensitivity)
 
         self._discount_factor = discount_factor
+        self._default_init_state_fn = default_init_state_fn
 
         # size of solver batch
         self.n_batch = n_batch
@@ -435,6 +439,12 @@ class MPC(ABC):
             if self.is_model_p_legal(self.ocp.model.p)
             else None
         )
+
+    @property
+    def default_init_state_fn(
+        self,
+    ) -> Callable[[MPCInput], MPCSingleState | MPCBatchedState] | None:
+        return self._default_init_state_fn
 
     def is_model_p_legal(self, model_p: Any) -> bool:
         if model_p is None:
@@ -530,9 +540,6 @@ class MPC(ABC):
         self,
         mpc_input: MPCInput,
         mpc_state: MPCSingleState | MPCBatchedState | None = None,
-        backup_fn: Callable[[], MPCSingleState]
-        | Callable[[int], MPCSingleState]
-        | None = None,
         dudx: bool = False,
         dudp: bool = False,
         dvdx: bool = False,
@@ -541,15 +548,13 @@ class MPC(ABC):
         use_adj_sens: bool = True,
     ) -> tuple[MPCOutput, MPCSingleState | MPCBatchedState]:
         """
-        Solve the OCP for the given initial state and parameters.
+        Solve the OCP for the given initial state and parameters. If an mpc_state is given and the solver does not converge,
+        AND the default_init_state_fn is not None, the solver will attempt another solve reinitialized with the default_init_state_fn
+        (in the batched solve, only the non-converged samples will be reattempted to solve).
 
         Args:
             mpc_input: The input of the MPC controller.
-            mpc_state: The iterate of the solver to use as initialization.
-            backup_fn: A function that returns a backup iterate for which another solve is tried
-                in case the solver fails in the first try.
-                In case of a batched solve, this function must take an integer,
-                which is the index of the sample in the batch which must be recomputed.
+            mpc_state: The iterate of the solver to use as initialization. If None, the solver is initialized using its default_init_state_fn.
             dudx: Whether to compute the sensitivity of the action with respect to the state.
             dudp: Whether to compute the sensitivity of the action with respect to the parameters.
             dvdx: Whether to compute the sensitivity of the value function with respect to the state.
@@ -566,7 +571,6 @@ class MPC(ABC):
             return self._solve(
                 mpc_input=mpc_input,
                 mpc_state=mpc_state,  # type: ignore
-                backup_fn=backup_fn,  # type:ignore
                 dudx=dudx,
                 dudp=dudp,
                 dvdx=dvdx,
@@ -578,7 +582,6 @@ class MPC(ABC):
         return self._batch_solve(
             mpc_input=mpc_input,
             mpc_state=mpc_state,  # type: ignore
-            backup_fn=backup_fn,  # type: ignore
             dudx=dudx,
             dudp=dudp,
             dvdx=dvdx,
@@ -593,9 +596,7 @@ class MPC(ABC):
         sensitivity_solver: AcadosOcpSolver | AcadosOcpBatchSolver | None,
         mpc_input: MPCInput,
         mpc_state: MPCSingleState | MPCBatchedState | None,
-        backup_fn: Callable[[], MPCSingleState]
-        | Callable[[int], MPCSingleState]
-        | None,
+        backup_fn: Callable[[MPCInput], MPCSingleState | MPCBatchedState] | None,
     ):
         initialize_ocp_solver(
             ocp_solver=solver,
@@ -611,7 +612,7 @@ class MPC(ABC):
                     initialize_ocp_solver(
                         ocp_solver=solver,
                         mpc_input=mpc_input,
-                        ocp_iterate=backup_fn(),  # type:ignore
+                        ocp_iterate=backup_fn(mpc_input),
                         set_params=False,
                     )
                     solver.solve()
@@ -619,10 +620,11 @@ class MPC(ABC):
                 any_failed = False
                 for i, ocp_solver in enumerate(solver.ocp_solvers):
                     if ocp_solver.status != 0:
+                        single_input = mpc_input.get_sample(i)
                         initialize_ocp_solver(
                             ocp_solver=ocp_solver,
-                            mpc_input=mpc_input.get_sample(i),
-                            ocp_iterate=backup_fn(i),  # type:ignore
+                            mpc_input=single_input,
+                            ocp_iterate=backup_fn(single_input),
                             set_params=False,
                         )
                         any_failed = True
@@ -645,7 +647,6 @@ class MPC(ABC):
         self,
         mpc_input: MPCInput,
         mpc_state: MPCSingleState | None = None,
-        backup_fn: Callable[[], MPCSingleState] | None = None,
         dudx: bool = False,
         dudp: bool = False,
         dvdx: bool = False,
@@ -665,7 +666,7 @@ class MPC(ABC):
             else None,
             mpc_input=mpc_input,
             mpc_state=mpc_state,
-            backup_fn=backup_fn,
+            backup_fn=self.default_init_state_fn,
         )
 
         kw = {}
@@ -758,7 +759,6 @@ class MPC(ABC):
         self,
         mpc_input: MPCInput,
         mpc_state: MPCBatchedState | None = None,
-        backup_fn: Callable[[int], MPCSingleState] | None = None,
         dudx: bool = False,
         dudp: bool = False,
         dvdx: bool = False,
@@ -778,7 +778,7 @@ class MPC(ABC):
             else None,
             mpc_input=mpc_input,
             mpc_state=mpc_state,
-            backup_fn=backup_fn,
+            backup_fn=self.default_init_state_fn,
         )
 
         kw = {}
