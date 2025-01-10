@@ -446,6 +446,12 @@ class MPC(ABC):
     ) -> Callable[[MPCInput], MPCSingleState | MPCBatchedState] | None:
         return self._default_init_state_fn
 
+    @default_init_state_fn.setter
+    def default_init_state_fn(
+        self, value: Callable[[MPCInput], MPCSingleState | MPCBatchedState] | None
+    ) -> None:
+        self._default_init_state_fn = value
+
     def is_model_p_legal(self, model_p: Any) -> bool:
         if model_p is None:
             return False
