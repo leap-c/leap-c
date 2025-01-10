@@ -178,6 +178,10 @@ def test_backup_fn(
     x0 = np.array([0.5, 0.5])
     u0 = np.array([0.5])
     inp = MPCInput(x0=x0, u0=u0)
+    default_init = learnable_linear_mpc.default_init_state_fn  # For restoring fixture
+    learnable_linear_mpc.default_init_state_fn = (
+        None  # Make sure 0 initialization for backup is being used
+    )
     sol, template_state = learnable_linear_mpc(inp)
     assert sol.status == 0
     assert isinstance(
@@ -195,12 +199,12 @@ def test_backup_fn(
     no_sol, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
     assert no_sol.status != 0
 
-    def backup_fn():
+    def backup_fn_single(input: MPCInput):
         return template_state
 
-    sol_again, _ = learnable_linear_mpc(
-        inp, mpc_state=ridiculous_state, backup_fn=backup_fn
-    )
+    learnable_linear_mpc.default_init_state_fn = backup_fn_single
+    sol_again, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
+    learnable_linear_mpc.default_init_state_fn = default_init  # Restore fixture
     mpc_outputs_assert_allclose(sol, sol_again, test_u_star=True)
 
 
@@ -212,6 +216,10 @@ def test_backup_fn_batched(learnable_linear_mpc: MPC, n_batch: int):
     for i in range(n_batch):
         x0[i] = x0[i] + i * increment
     inp = MPCInput(x0=x0, u0=u0)
+    default_init = learnable_linear_mpc.default_init_state_fn  # For restoring fixture
+    learnable_linear_mpc.default_init_state_fn = (
+        None  # Make sure 0 initialization for backup is being used
+    )
     sol, template_state = learnable_linear_mpc(inp)
     assert np.all(sol.status == 0)
     assert isinstance(
@@ -230,7 +238,7 @@ def test_backup_fn_batched(learnable_linear_mpc: MPC, n_batch: int):
     no_sol, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
     assert np.all(no_sol.status != 0)
 
-    def backup_fn(i):
+    def backup_fn_batched(input: MPCInput):
         vals = [
             getattr(template_state, field.name)[i]
             for field in fields(template_state)
@@ -238,9 +246,12 @@ def test_backup_fn_batched(learnable_linear_mpc: MPC, n_batch: int):
         ]
         return AcadosOcpFlattenedIterate(*vals)
 
+    learnable_linear_mpc.default_init_state_fn = backup_fn_batched
     sol_again, _ = learnable_linear_mpc(
-        inp, mpc_state=ridiculous_state, backup_fn=backup_fn
+        inp,
+        mpc_state=ridiculous_state,
     )
+    learnable_linear_mpc.default_init_state_fn = default_init  # Restore fixture
     mpc_outputs_assert_allclose(sol, sol_again, test_u_star=True)
 
 
