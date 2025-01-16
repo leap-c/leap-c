@@ -49,14 +49,12 @@ class Task(ABC):
     @abstractmethod
     def prepare_mpc_input(
         self,
-        mpc_state: MPCSingleState | MPCBatchedState,
         obs: Any,
-        param_nn: Optional[np.ndarray],
+        param_nn: Optional[np.ndarray] = None,
     ) -> MPCInput:
         """Prepares the MPC input from the state and observation for the MPC class.
 
         Args:
-            mpc_state (MPCSingleState | MPCBatchedState): The current batched state of the MPC.
             obs (Any): The observation from the environment.
             param_nn (Optional[torch.Tensor]): Optional parameters predicted
                 by a neural network to assist in planning.
