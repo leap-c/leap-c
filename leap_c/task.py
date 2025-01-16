@@ -2,43 +2,64 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 import gymnasium as gym
-import torch
+import numpy as np
 
-from leap_c.mpc import MPC, MPCBatchedState, MPCInput
+from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCSingleState
 
 
 class Task(ABC):
-    """A task is a wrapper around an gym environment and an MPC planner."""
+    """A task describes a concrete problem to be solved by a learning problem.
+
+    This class serves as a base class for tasks that involve a combination of
+    a gymnasium environment and a model predictive control (MPC) planner. It
+    provides an interface for preparing neural network inputs and MPC inputs
+    based on environment observations and states.
+
+    Attributes:
+        mpc (MPC): The Model Predictive Control planner to be used for this task.
+        env (gym.Env): The gymnasium environment for the task.
+    """
+
     def __init__(self, mpc: MPC, env: gym.Env):
-        """A task is a wrapper around an gym environment and an MPC planner.
+        """Initializes the Task with an MPC planner and a gymnasium environment.
 
         Args:
-            mpc: The learnable MPC planner.
-            env: The gym environment.
+            mpc (MPC): The Model Predictive Control planner to be used for this task.
+            env (gym.Env): The gymnasium environment for the task.
         """
         super().__init__()
         self.mpc = mpc
         self.env = env
 
     @abstractmethod
-    def prepare_nn_input(self, obs: Any) -> torch.Tensor:
-        """Prepare the neural network input from the observation.
+    def prepare_nn_input(self, obs: Any) -> np.ndarray:
+        """Prepares the neural network input from an environment observation.
+
+        This method processes an observation from the gymnasium environment
+        into a format suitable for a torch module.
 
         Args:
-            obs: The observation from the environment.
+            obs (Any): The observation from the environment.
+
+        Returns:
+            torch.Tensor: The processed input for the neural network.
         """
         ...
 
     @abstractmethod
     def prepare_mpc_input(
-        self, mpc_state: MPCBatchedState, obs: Any, param_nn: Optional[torch.Tensor]
+        self, mpc_state: MPCSingleState | MPCBatchedState, obs: Any, param_nn: Optional[np.ndarray]
     ) -> MPCInput:
-        """Prepare the MPC input from the observation.
+        """Prepares the MPC input from the state and observation for the MPC class.
 
         Args:
-            mpc_state: The current state of the MPC.
-            obs: The observation from the environment.
-            param_nn: The neural network output.
+            mpc_state (MPCBatchedState): The current batched state of the MPC.
+            obs (Any): The observation from the environment.
+            param_nn (Optional[torch.Tensor]): Optional parameters predicted 
+                by a neural network to assist in planning.
+
+        Returns:
+            MPCInput: The processed input for the MPC planner.
         """
         ...
 
