@@ -1,10 +1,13 @@
 from abc import ABC, abstractmethod
-from typing import Any, Optional
+from typing import Any, Optional, Callable
 
 import gymnasium as gym
 import numpy as np
 
-from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCSingleState
+from leap_c.mpc import MPC, MPCInput
+
+
+EnvFactory = Callable[[], gym.Env]
 
 
 class Task(ABC):
@@ -17,19 +20,21 @@ class Task(ABC):
 
     Attributes:
         mpc (MPC): The Model Predictive Control planner to be used for this task.
-        env (gym.Env): The gymnasium environment for the task.
+        env_factory (EnvFactory): A factory function to create a gymnasium en-
+            vironment for the task.
     """
 
-    def __init__(self, mpc: MPC, env: gym.Env):
+    def __init__(self, mpc: MPC, env_factory: EnvFactory):
         """Initializes the Task with an MPC planner and a gymnasium environment.
 
         Args:
             mpc (MPC): The Model Predictive Control planner to be used for this task.
-            env (gym.Env): The gymnasium environment for the task.
+            env_factory (EnvFactory): A factory function to create a gymnasium en-
+                vironment for the task.
         """
         super().__init__()
         self.mpc = mpc
-        self.env = env
+        self.env_factory = env_factory
 
     @abstractmethod
     def prepare_nn_input(self, obs: Any) -> np.ndarray:
