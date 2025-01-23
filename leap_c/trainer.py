@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
-from collections import defaultdict, deque
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Tuple
+import bisect
 
 import wandb
 import numpy as np
@@ -11,7 +13,6 @@ import pandas as pd
 
 from leap_c.task import Task
 from leap_c.rollout import episode_rollout
-from leap_c.util import create_dir_if_not_exists
 
 
 @dataclass(kw_only=True)
@@ -90,7 +91,7 @@ class BaseConfig:
     seed: int
 
 
-@dataclass
+@dataclass(kw_only=True)
 class TrainerState:
     """The state of a trainer.
 
@@ -110,7 +111,7 @@ class TrainerState:
     step: int = 0
     train_logs: dict = field(default_factory=lambda: defaultdict(list))
     train_logs_time: list[int] = field(default_factory=list)
-    val_logs: list = field(default_factory=list)
+    val_logs: dict = field(default_factory=lambda: defaultdict(list))
     scores: list[int] = field(default_factory=list)
     min_score: float = float("inf")
 
@@ -145,15 +146,23 @@ class Trainer(ABC, nn.Module):
         self.task = task
         self.cfg = cfg
         self.device = device
+
         self.output_path = Path(output_path)
+        self.output_path.mkdir(parents=True, exist_ok=True)
 
         # env
         # COMMENT: In the future we could allow different envs.
         self.train_env = task.env_factory()
+        self.train_env.reset(seed=cfg.seed)
         self.eval_env = task.env_factory()
+        self.eval_env.reset(seed=cfg.seed)
 
         # trainer state
         self.state = TrainerState()
+
+        # init wandb
+        if cfg.log.wandb_logger:
+            wandb.init(project="leap", dir=self.output_path / "wandb")
 
     @abstractmethod
     def train_step(self) -> dict[str, float]:
@@ -171,8 +180,8 @@ class Trainer(ABC, nn.Module):
         This is intended for rollouts (= interaction with the environment).
 
         Args:
-            obs: The observation for which the action should be determined.
-            deterministic: If True, the action is drawn deterministically.
+            obs (Any): The observation for which the action should be determined.
+            deterministic (bool): If True, the action is drawn deterministically.
 
         Returns:
             The action to take.
@@ -182,15 +191,17 @@ class Trainer(ABC, nn.Module):
     def report_stats(self, group: str, stats: dict[str, float], step: int):
         """Report the statistics of the training loop.
 
-        Returns:
-            A dictionary containing the statistics of the training loop.
+        Args:
+            group: The group of the statistics.
+            stats: The statistics to be reported.
+            step: The current step of the training loop
         """
 
         if self.cfg.log.wandb_logger:
             wandb.log(stats, step=step)
 
         if self.cfg.log.csv_logger:
-            csv_path = Path(f"{self.output_path}/{group}_log.csv")
+            csv_path = self.output_path / f"{group}_log.csv"
 
             if csv_path.exists():
                 kw = {"mode": "a", "header": False}
@@ -203,9 +214,7 @@ class Trainer(ABC, nn.Module):
     def loop(self) -> float:
         """Call this function in your script to start the training loop."""
 
-        s = self.state
-
-        for s.step in range(s.step, self.cfg.train.steps):
+        for self.state.step in range(self.state.step, self.cfg.train.steps):
 
             # train step
             train_logs = self.train_step()
@@ -214,37 +223,62 @@ class Trainer(ABC, nn.Module):
             if train_logs is not None:
                 for key, value in train_logs.items():
                     self.state.train_logs[key].append(value)
-                    self.state.train_logs_time.append(s.step)
+                    self.state.train_logs_time.append(self.state.step)
 
             # do validation
-            if s.step % self.cfg.val.interval == 0:
+            if self.state.step % self.cfg.val.interval == 0:
                 val_score, val_stats = self.validate()
                 self.scores.append(val_score)
 
-                if self.cfg.val.ckpt_modus == "best" and val_score > s.min_score:
+                if val_score > self.state.min_score:
                     self.state.min_score = val_score
-                    self.save()
 
-                s.val_logs.append(val_stats)
+                    if self.cfg.val.ckpt_modus == "best":
+                        self.save()
+
+                for key, value in val_stats.items():
+                    self.state.val_logs[key].append(value)
+
+                smoothed_stats = {
+                    key: np.mean(self.state.val_logs[key][-self.cfg.log.val_window :])
+                    for key in self.state.val_logs
+                }
+                self.report_stats("val", smoothed_stats, self.state.step)
 
             # do logging
-            if s.step % self.cfg.log.train_interval == 0:
+            if self.state.step % self.cfg.log.train_interval == 0:
+                # find window length for smoothing
+                time_index = bisect.bisect_left(
+                    self.state.train_logs_time,
+                    self.state.step - self.cfg.log.train_window,
+                )
+                smoothed_stats = {
+                    key: np.mean(self.state.train_logs[key][time_index:])
+                    for key in self.state.train_logs
+                }
+                self.report_stats("train", smoothed_stats, self.state.step)
+
+            # save model
+            if self.cfg.val.ckpt_modus != "best":
+                self.save()
 
         return self.state.min_score  # Return last validation score for testing purposes
 
-    def validate(self):
+    def validate(self) -> Tuple[float, dict[str, float]]:
         """Do a deterministic validation run of the policy and
         return the mean of the cumulative reward over all validation episodes."""
-        scores = []
 
         policy = lambda obs: self.act(obs, deterministic=self.cfg.val.deterministic)
 
-        for _ in range(self.cfg.val.num_rollouts):
-            info = episode_rollout(policy, self.eval_env, , config)
-            score = info["score"]
-            scores.append(score)
+        parts = []
 
-        return sum(scores) / n_val_rollouts
+        for _ in range(self.cfg.val.num_rollouts):
+            p = episode_rollout(policy, self.eval_env, render_human=False)
+            parts.append(p)
+
+        stats = {key: float(np.mean([p[key] for p in parts])) for key in parts[0]}
+
+        return float(stats["score"]), stats
 
     def _ckpt_path(self, name: str) -> Path:
         if self.cfg.val.ckpt_modus == "best":
@@ -258,9 +292,8 @@ class Trainer(ABC, nn.Module):
         torch.save(self.state_dict(), self._ckpt_path("model"))
         torch.save(self.state, self._ckpt_path("trainer"))
 
-    def load(self):
+    def load(self) -> None:
         """Loads the state of a trainer from the output_path."""
 
         self.load_state_dict(torch.load(self._ckpt_path("model")))
         self.state = torch.load(self._ckpt_path("trainer"))
-
