@@ -93,14 +93,14 @@ class MPCSolutionModule(nn.Module):
             p_stagewise: The remaining parameter information for the MPC, i.e., the stagewise parameters (batched according to the other input).
                 NOTE that it should not contain p_global, since this will be overwritten by p_global!
             initializations: The batched MPCState used for initialization in the mpc solve.
-        Returns: A tuple (u_star, value, status, info).
+        Returns: A tuple (u_star, value, status, stats).
             u_star is the first optimal action of the MPC solution, given the initial state and parameters.
                 NOTE that this is a tensor of shape (1, ) containing NaN if u0 was given in the forward pass.
             value is the value of the MPC solution (the cost of the objective function in the solution).
                 Corresponds to the Value function if u0 is not given, and the Q function if u0 is given.
             status is the status of the MPC solution, where 0 means converged and all other integers count as not converged,
                 (useful for e.g., logging, debugging or cleaning the backward pass from non-converged solutions).
-            info is a dictionary containing additional information about the solution, such as the number of iterations the solver took, etc.
+            stats is a dictionary containing additional statistics about the solution, such as the number of iterations the solver took, etc.
 
         NOTE: An extension to allow for outputting and differentiating also with respect to other stages
             (meaning stages of the action and state trajectories) than the first one is possible, but not implemented yet.
@@ -115,8 +115,8 @@ class MPCSolutionModule(nn.Module):
             p_stagewise,
             initializations,
         )
-        info = self.mpc.last_call_infos
-        return u_star, value, status, info
+        stats = self.mpc.last_call_stats
+        return u_star, value, status, stats
 
 
 class CleanseAndReducePerSampleLoss(nn.Module):

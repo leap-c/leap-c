@@ -296,13 +296,13 @@ class FOUMPCNetwork(nn.Module):
             params_unscaled, x, **param_transform_kwargs
         )
 
-        action_mean, _, mpc_status, mpc_info = self.mpc_layer(
+        action_mean, _, mpc_status, mpc_stats = self.mpc_layer(
             x,
             p_global=params_scaled,
             p_stagewise=p_stagewise,
             initializations=mpc_initialization,
         )
-        add_prefix_extend("mpc_", stats, mpc_info)
+        add_prefix_extend("mpc_", stats, mpc_stats)
         if self.log_tensors:
             batch_dims = tuple(
                 range(params_scaled.ndim - 1)

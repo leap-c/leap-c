@@ -340,12 +340,12 @@ def _solve_shared(
     # TODO: Cover case where we do not want to do a forward evaluation
     solver.solve()
 
-    solve_infos = dict()
+    solve_stats = dict()
 
     if isinstance(solver, AcadosOcpSolver):  #
-        solve_infos["sqp_iter"] = solver.get_stats("sqp_iter")
-        solve_infos["qp_iter"] = solver.get_stats("qp_iter").sum()  # type:ignore
-        solve_infos["time_tot"] = solver.get_stats("time_tot")
+        solve_stats["sqp_iter"] = solver.get_stats("sqp_iter")
+        solve_stats["qp_iter"] = solver.get_stats("qp_iter").sum()  # type:ignore
+        solve_stats["time_tot"] = solver.get_stats("time_tot")
         if backup_fn is not None:
             if solver.status != 0:
                 initialize_ocp_solver(
@@ -356,12 +356,12 @@ def _solve_shared(
                     throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
                 )
                 solver.solve()
-                solve_infos["first_solve_status"] = solver.status
+                solve_stats["first_solve_status"] = solver.status
             else:
-                solve_infos["first_solve_status"] = 0
-        solve_infos["sqp_iter"] += solver.get_stats("sqp_iter")
-        solve_infos["qp_iter"] += solver.get_stats("qp_iter").sum()  # type:ignore
-        solve_infos["time_tot"] += solver.get_stats("time_tot")
+                solve_stats["first_solve_status"] = 0
+        solve_stats["sqp_iter"] += solver.get_stats("sqp_iter")
+        solve_stats["qp_iter"] += solver.get_stats("qp_iter").sum()  # type:ignore
+        solve_stats["time_tot"] += solver.get_stats("time_tot")
 
     elif isinstance(solver, AcadosOcpBatchSolver):
         status_batch = []
@@ -397,16 +397,16 @@ def _solve_shared(
                 sqp_iter_batch[i] += ocp_solver.get_stats("sqp_iter")
                 qp_iter_batch[i] += ocp_solver.get_stats("qp_iter").sum()  # type:ignore
                 time_tot_batch[i] += ocp_solver.get_stats("time_tot")
-            solve_infos["first_solve_status"] = status_batch
-        solve_infos["avg_sqp_iter"] = sum(sqp_iter_batch) / len(sqp_iter_batch)
-        solve_infos["avg_qp_iter"] = sum(qp_iter_batch) / len(qp_iter_batch)
-        solve_infos["avg_time_tot"] = sum(time_tot_batch) / len(time_tot_batch)
-        solve_infos["max_sqp_iter"] = max(sqp_iter_batch)
-        solve_infos["max_qp_iter"] = max(qp_iter_batch)
-        solve_infos["max_time_tot"] = max(time_tot_batch)
-        solve_infos["min_sqp_iter"] = min(sqp_iter_batch)
-        solve_infos["min_qp_iter"] = min(qp_iter_batch)
-        solve_infos["min_time_tot"] = min(time_tot_batch)
+            solve_stats["first_solve_status"] = status_batch
+        solve_stats["avg_sqp_iter"] = sum(sqp_iter_batch) / len(sqp_iter_batch)
+        solve_stats["avg_qp_iter"] = sum(qp_iter_batch) / len(qp_iter_batch)
+        solve_stats["avg_time_tot"] = sum(time_tot_batch) / len(time_tot_batch)
+        solve_stats["max_sqp_iter"] = max(sqp_iter_batch)
+        solve_stats["max_qp_iter"] = max(qp_iter_batch)
+        solve_stats["max_time_tot"] = max(time_tot_batch)
+        solve_stats["min_sqp_iter"] = min(sqp_iter_batch)
+        solve_stats["min_qp_iter"] = min(qp_iter_batch)
+        solve_stats["min_time_tot"] = min(time_tot_batch)
     else:
         raise ValueError(
             f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(solver)}."
@@ -420,7 +420,7 @@ def _solve_shared(
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
         )
         sensitivity_solver.solve()
-    return solve_infos
+    return solve_stats
 
 
 class MPC(ABC):
@@ -487,7 +487,7 @@ class MPC(ABC):
             throw_error_if_u0_is_outside_ocp_bounds
         )
 
-        self.last_call_infos: None | dict = None
+        self.last_call_stats: dict = dict()
 
         # constraints and cost functions
         self._h_fn = None
@@ -693,7 +693,7 @@ class MPC(ABC):
         Solve the OCP for the given initial state and parameters. If an mpc_state is given and the solver does not converge,
         AND the default_init_state_fn is not None, the solver will attempt another solve reinitialized with the default_init_state_fn
         (in the batched solve, only the non-converged samples will be reattempted to solve).
-        NOTE: Information about this call is stored in the public member self.last_call_infos.
+        NOTE: Information about this call is stored in the public member self.last_call_stats.
 
         Args:
             mpc_input: The input of the MPC controller.
@@ -749,7 +749,7 @@ class MPC(ABC):
 
         use_sensitivity_solver = dudx or dudp or dvdp
 
-        self.last_call_infos = _solve_shared(
+        self.last_call_stats = _solve_shared(
             solver=self.ocp_solver,
             sensitivity_solver=self.ocp_sensitivity_solver
             if use_sensitivity_solver
@@ -862,7 +862,7 @@ class MPC(ABC):
 
         use_sensitivity_solver = dudx or dudp or dvdp
 
-        self.last_call_infos = _solve_shared(
+        self.last_call_stats = _solve_shared(
             solver=self.ocp_batch_solver,
             sensitivity_solver=self.ocp_batch_sensitivity_solver
             if use_sensitivity_solver
@@ -1021,7 +1021,7 @@ class MPC(ABC):
         self, ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver
     ) -> dict | list[dict]:
         """Print statistics for the last solve and collect QP-diagnostics for the solvers.
-        NOTE: Simpler information about the last call is stored in self.last_call_infos.
+        NOTE: Simpler information about the last call is stored in self.last_call_stats.
         """
 
         if isinstance(ocp_solver, AcadosOcpSolver):
