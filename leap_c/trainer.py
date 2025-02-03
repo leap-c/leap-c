@@ -126,10 +126,11 @@ class Trainer(ABC, nn.Module):
         task: The task to be solved by the trainer.
         cfg: The configuration for the trainer.
         output_path: The path to the output directory.
+        train_env: The training environment.
+        eval_env: The evaluation environment.
+        state: The state of the trainer.
         device: The device on which the trainer is running.
-        train_logs: A dictionary containing the logs of the training update.
-        train_logs_time: A deque containing the time of the training updates.
-        val_logs: A dictionary containing the logs of the validation.
+        optimizers: The optimizers of the trainer.
     """
 
     def __init__(self, task: Task, cfg: BaseConfig, output_path: str, device: str):
@@ -188,6 +189,11 @@ class Trainer(ABC, nn.Module):
         """
         ...
 
+    @property
+    def optimizers(self) -> list[torch.optim.Optimizer]:
+        """If provided optimizers are also checkpointed."""
+        return []
+
     def report_stats(self, group: str, stats: dict[str, float], step: int):
         """Report the statistics of the training loop.
 
@@ -211,7 +217,7 @@ class Trainer(ABC, nn.Module):
             df = pd.DataFrame(stats, index=[step])  # type: ignore
             df.to_csv(csv_path, **kw)
 
-    def loop(self) -> float:
+    def run(self) -> float:
         """Call this function in your script to start the training loop."""
 
         for self.state.step in range(self.state.step, self.cfg.train.steps):
@@ -280,20 +286,34 @@ class Trainer(ABC, nn.Module):
 
         return float(stats["score"]), stats
 
-    def _ckpt_path(self, name: str) -> Path:
+    def _ckpt_path(self, name: str, suffix: str) -> Path:
         if self.cfg.val.ckpt_modus == "best":
-            return self.output_path / "ckpts" / f"best_{name}.pth"
+            return self.output_path / "ckpts" / f"best_{name}.{suffix}"
+        elif self.cfg.val.ckpt_modus == "last":
+            return self.output_path / "ckpts" / f"last_{name}.{suffix}"
 
-        return self.output_path / "ckpts" / f"{self.step}_{name}.pth"
+        return self.output_path / "ckpts" / f"{self.step}_{name}.{suffix}"
 
     def save(self) -> None:
         """Save the trainer state in a checkpoint folder."""
 
-        torch.save(self.state_dict(), self._ckpt_path("model"))
-        torch.save(self.state, self._ckpt_path("trainer"))
+        torch.save(self.state_dict(), self._ckpt_path("model", "pth"))
+        torch.save(self.state, self._ckpt_path("trainer", "pkl"))
+
+        if self.optimizers:
+            state_dict = {
+                f"optimizer_{i}": opt.state_dict() for i, opt in enumerate(self.optimizers)
+            }
+            torch.save(state_dict, self._ckpt_path("optimizers", "pth"))
 
     def load(self) -> None:
         """Loads the state of a trainer from the output_path."""
 
-        self.load_state_dict(torch.load(self._ckpt_path("model")))
-        self.state = torch.load(self._ckpt_path("trainer"))
+        self.load_state_dict(torch.load(self._ckpt_path("model", "pth")))
+        self.state = torch.load(self._ckpt_path("trainer", "pkl"))
+
+        if self.optimizers:
+            state_dict = torch.load(self._ckpt_path("optimizers", "pth"))
+            for i, opt in enumerate(self.optimizers):
+                opt.load_state_dict(state_dict[f"optimizer_{i}"])
+
