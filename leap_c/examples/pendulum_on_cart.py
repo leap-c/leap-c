@@ -17,6 +17,14 @@ from pygame import gfxdraw
 
 
 class PendulumOnCartMPC(MPC):
+    """
+    The parameters of the quadratic cost matrix describe a cholesky factorization of the cost matrix.
+    In more detail, the cost matrix W is calculated like this:
+        L_diag = np.diag([L_11, L_22, L_33, L_44, L_55]) # cost matrix factorization diagonal
+        L_diag[np.tril_indices_from(L_diag, -1)] = L_lower_offdiag
+        W = L@L.T
+    """
+
     def __init__(
         self,
         params: dict[str, np.ndarray] | None = None,
@@ -27,7 +35,6 @@ class PendulumOnCartMPC(MPC):
         exact_hess_dyn: bool = True,
         discount_factor: float = 0.99,
         n_batch: int = 1,
-        
     ):
         if params is None:
             params = {
@@ -35,8 +42,21 @@ class PendulumOnCartMPC(MPC):
                 "m": np.array([0.1]),  # mass of the ball [kg]
                 "g": np.array([9.81]),  # gravity constant [m/s^2]
                 "l": np.array([0.8]),  # length of the rod [m]
-                "Q": np.diag([2e3, 2e3, 1e-2, 1e-2]),  # state cost
-                "R": np.diag([2e-1]),  # control cost
+                # The quadratic cost matrix is calculated according to L@L.T
+                "L_11": np.array([np.sqrt(2e3)]),
+                "L_22": np.array([np.sqrt(2e3)]),
+                "L_33": np.array([np.sqrt(1e-2)]),
+                "L_44": np.array([np.sqrt(1e-2)]),
+                "L_55": np.array([np.sqrt(2e-1)]),
+                "L_lower_offdiag": np.array([0] * (4 + 3 + 2 + 1)),
+                "f": np.array(
+                    [0] * 5
+                ),  # linear cost vector, only used for non-LS (!) cost
+                "x_ref_1": np.array([0]),  # reference position, only used for LS cost
+                "x_ref_2": np.array([0]),  # reference position, only used for LS cost
+                "x_ref_3": np.array([0]),  # reference position, only used for LS cost
+                "x_ref_4": np.array([0]),  # reference position, only used for LS cost
+                "u_ref": np.array([0]),  # reference position, only used for LS cost
             }
 
         ocp = export_parametric_ocp(
@@ -154,7 +174,9 @@ class PendulumOnCartOcpEnv(OCPEnv):
         length = self.mpc.given_default_param_dict["l"]
         for x in state_trajectory:
             self.pos_trajectory.append(x[0])  # Only take coordinate
-            self.pole_end_trajectory.append(self.calc_pole_end(x[0], x[1], length))
+            self.pole_end_trajectory.append(
+                self.calc_pole_end(x[0], x[1], length.item())
+            )
 
     def calc_pole_end(
         self, x_coord: float, theta: float, length: float
@@ -337,10 +359,7 @@ class PendulumOnCartOcpEnv(OCPEnv):
             pygame.quit()
 
 
-def configure_ocp_solver(
-    ocp: AcadosOcp,
-    exact_hess_dyn: bool
-):
+def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"  # "GAUSS_NEWTON"
