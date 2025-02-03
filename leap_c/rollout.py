@@ -62,6 +62,10 @@ def episode_rollout(
     with torch.no_grad():
         while not terminated and not truncated:
             a = policy(o)
+
+            if isinstance(a, torch.Tensor):
+                a = a.cpu().numpy()
+
             o_prime, r, terminated, truncated, _ = env.step(a)
 
             if render:

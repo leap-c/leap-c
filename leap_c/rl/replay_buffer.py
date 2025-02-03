@@ -29,7 +29,7 @@ class ReplayBuffer:
 
         self.custom_collate_map = self.create_collate_map()
 
-    def put(self, transition: tuple[Any, np.ndarray, float, Any, bool]):
+    def put(self, transition: tuple[Any, np.ndarray, float, Any, bool, bool]):
         self.buffer.append(transition)
 
     def sample(
@@ -130,5 +130,5 @@ class ReplayBuffer:
         """Collate the input and cast all final tensors to the device and dtype of the buffer."""
         return collate(obs, collate_fn_map=self.custom_collate_map)
 
-    def size(self):
+    def size(self) -> int:
         return len(self.buffer)

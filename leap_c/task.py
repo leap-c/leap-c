@@ -3,11 +3,14 @@ from typing import Any, Optional, Callable
 
 import gymnasium as gym
 import numpy as np
+import torch.nn as nn
 
 from leap_c.mpc import MPC, MPCInput
+from leap_c.nn.extractor import Extractor, IdentityExtractor
 
 
 EnvFactory = Callable[[], gym.Env]
+ExtractorFactory = Callable[[gym.Env], Extractor]
 
 
 class Task(ABC):
@@ -22,19 +25,24 @@ class Task(ABC):
         mpc (MPC): The Model Predictive Control planner to be used for this task.
         env_factory (EnvFactory): A factory function to create a gymnasium en-
             vironment for the task.
+        extractor_factory (ExtractorFactory): A factory function to create an
+            extractor for the task.
     """
 
-    def __init__(self, mpc: MPC, env_factory: EnvFactory):
+    def __init__(self, mpc: MPC, env_factory: EnvFactory, extractor_factory: Optional[ExtractorFactory] = None):
         """Initializes the Task with an MPC planner and a gymnasium environment.
 
         Args:
             mpc (MPC): The Model Predictive Control planner to be used for this task.
             env_factory (EnvFactory): A factory function to create a gymnasium en-
                 vironment for the task.
+            extractor_factory (Optional[ExtractorFactory]): An optional factory function to
+                create an extractor for the task.
         """
         super().__init__()
         self.mpc = mpc
         self.env_factory = env_factory
+        self.extractor_factory = IdentityExtractor if extractor_factory is None else extractor_factory
 
     @abstractmethod
     def prepare_nn_input(self, obs: Any) -> np.ndarray:

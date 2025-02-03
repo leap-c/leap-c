@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Tuple
+from typing import Tuple, Iterator
 import bisect
 
 import wandb
@@ -166,7 +166,7 @@ class Trainer(ABC, nn.Module):
             wandb.init(project="leap", dir=self.output_path / "wandb")
 
     @abstractmethod
-    def train_step(self) -> dict[str, float]:
+    def train_loop(self) -> Iterator[dict[str, float]]:
         """A single training step.
 
         Returns:
@@ -175,7 +175,7 @@ class Trainer(ABC, nn.Module):
         ...
 
     @abstractmethod
-    def act(self, obs, deterministic: bool = False) -> np.ndarray:
+    def act(self, obs, deterministic: bool = False) -> torch.Tensor:
         """Act based on the observation.
 
         This is intended for rollouts (= interaction with the environment).
@@ -220,10 +220,12 @@ class Trainer(ABC, nn.Module):
     def run(self) -> float:
         """Call this function in your script to start the training loop."""
 
+        train_loop_iter = self.train_loop()
+
         for self.state.step in range(self.state.step, self.cfg.train.steps):
 
             # train step
-            train_logs = self.train_step()
+            train_logs = next(train_loop_iter)
 
             # update train logs
             if train_logs is not None:
