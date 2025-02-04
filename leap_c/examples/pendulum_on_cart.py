@@ -10,6 +10,7 @@ from leap_c.examples.render_utils import draw_arrow
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
+    assign_lower_triangular
 )
 from leap_c.mpc import MPC
 from leap_c.ocp_env import OCPEnv
@@ -35,6 +36,7 @@ class PendulumOnCartMPC(MPC):
         exact_hess_dyn: bool = True,
         discount_factor: float = 0.99,
         n_batch: int = 1,
+        least_squares_cost: bool = True,
     ):
         if params is None:
             params = {
@@ -65,6 +67,7 @@ class PendulumOnCartMPC(MPC):
             N_horizon=N_horizon,
             tf=T_horizon,
             Fmax=Fmax,
+            least_squares_cost=least_squares_cost,
         )
         configure_ocp_solver(ocp, exact_hess_dyn)
 
@@ -423,17 +426,26 @@ def disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
     return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 
+def cost_matrix(model: AcadosModel) -> ca.SX:
+    L = ca.diag(
+        ca.vertcat(*find_param_in_p_or_p_global(["L_11", "L_22", "L_33", "L_44", "L_55"], model).values())
+    )
+    L_offdiag = find_param_in_p_or_p_global(["L_lower_offdiag"], model)["L_lower_offdiag"]
+
+    assign_lower_triangular(L, L_offdiag)
+
+    W = L@L.T
+    return W
+
 def cost_expr_ext_cost(model: AcadosModel) -> ca.SX:
     x = model.x
     u = model.u
 
-    p = find_param_in_p_or_p_global(["Q", "R"], model)
-    Q = p["Q"]
-    R = p["R"]
+    W = cost_matrix(model)
 
-    return 0.5 * (
-        ca.mtimes([ca.transpose(x), Q, x]) + ca.mtimes([ca.transpose(u), R, u])
-    )
+    z = ca.vertcat(x, u)
+
+    return 0.5 * z.T@W@z
 
 
 def cost_expr_ext_cost_0(model: AcadosModel) -> ca.SX:
@@ -442,7 +454,9 @@ def cost_expr_ext_cost_0(model: AcadosModel) -> ca.SX:
 
 def cost_expr_ext_cost_e(model: AcadosModel) -> ca.SX:
     x = model.x
-    Q = find_param_in_p_or_p_global(["Q"], model)["Q"]
+    W = cost_matrix(model)
+    
+    Q = W[:4, :4]
 
     return 0.5 * (ca.mtimes([ca.transpose(x), Q, x]))
 
@@ -455,6 +469,7 @@ def export_parametric_ocp(
     Fmax: float = 80.0,
     N_horizon: int = 50,
     tf: float = 2.0,
+    least_squares_cost: bool = True
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
@@ -479,14 +494,13 @@ def export_parametric_ocp(
 
     ######## Cost ########
     if cost_type == "EXTERNAL":
-        ocp.cost.cost_type_0 = cost_type
-        ocp.model.cost_expr_ext_cost_0 = cost_expr_ext_cost_0(ocp.model)
-
         ocp.cost.cost_type = cost_type
-        ocp.model.cost_expr_ext_cost = cost_expr_ext_cost(ocp.model)
+        ocp.model.cost_expr_ext_cost = cost_expr_ext_cost(ocp.model) #type:ignore
 
         ocp.cost.cost_type_e = cost_type
-        ocp.model.cost_expr_ext_cost_e = cost_expr_ext_cost_e(ocp.model)
+        ocp.model.cost_expr_ext_cost_e = cost_expr_ext_cost_e(ocp.model) #type:ignore
+    elif cost_type == "LINEAR_LS":
+        
     else:
         raise ValueError(f"Cost type {cost_type} not supported.")
         # TODO: Implement NONLINEAR_LS with y_expr = sqrt(Q) * x and sqrt(R) * u

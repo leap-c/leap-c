@@ -49,3 +49,25 @@ def translate_learnable_param_to_p_global(
         print("non_learnable_params", non_learnable_params)
 
     return ocp
+
+
+def assign_lower_triangular(A: ca.SX, var_vector: ca.SX):
+    """
+    Assigns the elements of var_vector to the lower triangular part of A (excluding the diagonal).
+
+    Args:
+        A: The given n x n CasADi matrix.
+        var_vector: A column vector containing values to assign to the lower triangular part.
+
+    Returns:
+        A copy of the given n x n matrix with lower triangular part replaced.
+    """
+    n = A.size1()
+    A_copy = ca.SX(A)
+    index = 0
+    for i in range(1, n):  # exclude diagonal by starting at 1
+        for j in range(i):
+            A_copy[i, j] = var_vector[index]
+            index += 1
+
+    return A_copy
