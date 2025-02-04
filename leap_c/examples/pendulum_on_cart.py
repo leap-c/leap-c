@@ -23,7 +23,7 @@ class PendulumOnCartMPC(MPC):
     """
     The parameters of the quadratic cost matrix describe a cholesky factorization of the cost matrix.
     In more detail, the cost matrix W is calculated like this:
-        L_diag = np.diag([L_11, L_22, L_33, L_44, L_55]) # cost matrix factorization diagonal
+        L_diag = np.diag([L11, L22, L33, L44, L55]) # cost matrix factorization diagonal
         L_diag[np.tril_indices_from(L_diag, -1)] = L_lower_offdiag
         W = L@L.T
     """
@@ -47,20 +47,20 @@ class PendulumOnCartMPC(MPC):
                 "g": np.array([9.81]),  # gravity constant [m/s^2]
                 "l": np.array([0.8]),  # length of the rod [m]
                 # The quadratic cost matrix is calculated according to L@L.T
-                "L_11": np.array([np.sqrt(2e3)]),
-                "L_22": np.array([np.sqrt(2e3)]),
-                "L_33": np.array([np.sqrt(1e-2)]),
-                "L_44": np.array([np.sqrt(1e-2)]),
-                "L_55": np.array([np.sqrt(2e-1)]),
-                "L_lower_offdiag": np.array([0] * (4 + 3 + 2 + 1)),
+                "L11": np.array([np.sqrt(2e3)]),
+                "L22": np.array([np.sqrt(2e3)]),
+                "L33": np.array([np.sqrt(1e-2)]),
+                "L44": np.array([np.sqrt(1e-2)]),
+                "L55": np.array([np.sqrt(2e-1)]),
+                "Lloweroffdiag": np.array([0] * (4 + 3 + 2 + 1)),
                 "c": np.array(
                     [0] * 5
                 ),  # linear cost vector, only used for non-LS (!) cost
-                "x_ref_1": np.array([0]),  # reference position, only used for LS cost
-                "x_ref_2": np.array([0]),  # reference position, only used for LS cost
-                "x_ref_3": np.array([0]),  # reference position, only used for LS cost
-                "x_ref_4": np.array([0]),  # reference position, only used for LS cost
-                "u_ref": np.array([0]),  # reference position, only used for LS cost
+                "xref1": np.array([0]),  # reference position, only used for LS cost
+                "xref2": np.array([0]),  # reference position, only used for LS cost
+                "xref3": np.array([0]),  # reference position, only used for LS cost
+                "xref4": np.array([0]),  # reference position, only used for LS cost
+                "uref": np.array([0]),  # reference position, only used for LS cost
             }
 
         ocp = export_parametric_ocp(
@@ -441,13 +441,11 @@ def cost_matrix_casadi(model: AcadosModel) -> ca.SX:
     L = ca.diag(
         ca.vertcat(
             *find_param_in_p_or_p_global(
-                ["L_11", "L_22", "L_33", "L_44", "L_55"], model
+                ["L11", "L22", "L33", "L44", "L55"], model
             ).values()
         )
     )
-    L_offdiag = find_param_in_p_or_p_global(["L_lower_offdiag"], model)[
-        "L_lower_offdiag"
-    ]
+    L_offdiag = find_param_in_p_or_p_global(["Lloweroffdiag"], model)["Lloweroffdiag"]
 
     assign_lower_triangular(L, L_offdiag)
 
@@ -455,21 +453,21 @@ def cost_matrix_casadi(model: AcadosModel) -> ca.SX:
 
 
 def cost_matrix_numpy(nominal_params: dict[str, np.ndarray]) -> np.ndarray:
-    L = np.diag([nominal_params[f"L_{i}{i}"].item() for i in range(1, 6)])
-    L[np.tril_indices_from(L, -1)] = nominal_params["L_lower_offdiag"]
+    L = np.diag([nominal_params[f"L{i}{i}"].item() for i in range(1, 6)])
+    L[np.tril_indices_from(L, -1)] = nominal_params["Lloweroffdiag"]
     return L @ L.T
 
 
 def yref_numpy(nominal_params: dict[str, np.ndarray]) -> np.ndarray:
     return np.array(
-        [nominal_params[f"x_ref_{i}"] for i in range(1, 5)] + [nominal_params["u_ref"]]
+        [nominal_params[f"xref{i}"] for i in range(1, 5)] + [nominal_params["uref"]]
     ).squeeze()
 
 
 def yref_casadi(model: AcadosModel) -> ca.SX:
     return ca.vertcat(
         *find_param_in_p_or_p_global(
-            [f"x_ref_{i}" for i in range(1, 5)] + ["u_ref"], model
+            [f"xref{i}" for i in range(1, 5)] + ["uref"], model
         ).values()
     )
 
