@@ -173,6 +173,16 @@ def set_ocp_solver_mpc_params(
                 else:
                     for stage, p in enumerate(mpc_parameter.p_stagewise):
                         ocp_solver.set(stage, "p", p)
+            if mpc_parameter.p_W is not None:
+                for stage, W in enumerate(mpc_parameter.p_W):
+                    ocp_solver.cost_set(stage, "W", W)
+            if mpc_parameter.p_yref is not None:
+                for stage, yref in enumerate(mpc_parameter.p_yref):
+                    ocp_solver.cost_set(stage, "yref", yref)
+            if mpc_parameter.p_W_e is not None:
+                ocp_solver.cost_set(ocp_solver.N, "W", mpc_parameter.p_W_e)
+            if mpc_parameter.p_yref_e is not None:
+                ocp_solver.cost_set(ocp_solver.N, "yref", mpc_parameter.p_yref_e)
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         for i, single_solver in enumerate(ocp_solver.ocp_solvers):
             set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
