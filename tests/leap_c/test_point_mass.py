@@ -5,9 +5,18 @@ from leap_c.examples.pointmass.mpc import PointmassMPC
 def main():
     mpc = PointmassMPC(learnable_params=["m", "c", "q_diag"])
 
-    policy = mpc.policy(state=np.array([1.0, 0.0, 0.0, 0.0]), p_global=None)[0]
+    s = np.array([1.0, 0.0, 0.0, 0.0])
+    a = np.array([0.0, 0.0])
 
+    policy = mpc.policy(state=s, p_global=None)[0]
     print(policy)
+
+    state_value = mpc.state_value(state=s, p_global=None)[0]
+    print(state_value)
+
+    state_action_value = mpc.state_action_value(state=s, action=a, p_global=None)[0]
+    print(state_action_value)
+
     # env = PointMassOcpEnv(mpc)
 
     # (x, p), _ = env.reset(seed=0)
