@@ -8,9 +8,9 @@ from casadi.tools import struct_symSX
 from gymnasium.spaces import Box
 from leap_c.examples.render_utils import draw_arrow
 from leap_c.examples.util import (
+    assign_lower_triangular,
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
-    assign_lower_triangular
 )
 from leap_c.mpc import MPC
 from leap_c.ocp_env import OCPEnv
@@ -51,7 +51,7 @@ class PendulumOnCartMPC(MPC):
                 "L_44": np.array([np.sqrt(1e-2)]),
                 "L_55": np.array([np.sqrt(2e-1)]),
                 "L_lower_offdiag": np.array([0] * (4 + 3 + 2 + 1)),
-                "f": np.array(
+                "c": np.array(
                     [0] * 5
                 ),  # linear cost vector, only used for non-LS (!) cost
                 "x_ref_1": np.array([0]),  # reference position, only used for LS cost
@@ -63,11 +63,11 @@ class PendulumOnCartMPC(MPC):
 
         ocp = export_parametric_ocp(
             nominal_param=params,
+            cost_type="LINEAR_LS" if least_squares_cost else "EXTERNAL",
             learnable_param=learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
             Fmax=Fmax,
-            least_squares_cost=least_squares_cost,
         )
         configure_ocp_solver(ocp, exact_hess_dyn)
 
@@ -426,26 +426,45 @@ def disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
     return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 
-def cost_matrix(model: AcadosModel) -> ca.SX:
+def cost_matrix_casadi(model: AcadosModel) -> ca.SX:
     L = ca.diag(
-        ca.vertcat(*find_param_in_p_or_p_global(["L_11", "L_22", "L_33", "L_44", "L_55"], model).values())
+        ca.vertcat(
+            *find_param_in_p_or_p_global(
+                ["L_11", "L_22", "L_33", "L_44", "L_55"], model
+            ).values()
+        )
     )
-    L_offdiag = find_param_in_p_or_p_global(["L_lower_offdiag"], model)["L_lower_offdiag"]
+    L_offdiag = find_param_in_p_or_p_global(["L_lower_offdiag"], model)[
+        "L_lower_offdiag"
+    ]
 
     assign_lower_triangular(L, L_offdiag)
 
-    W = L@L.T
-    return W
+    return L @ L.T
+
+
+def cost_matrix_numpy(nominal_params: dict[str, np.ndarray]) -> np.ndarray:
+    L = np.diag([nominal_params[f"L_{i}{i}"] for i in range(1, 6)])
+    L[np.tril_indices_from(L, -1)] = nominal_params["L_lower_offdiag"]
+    return L @ L.T
+
+
+def ref_vector_numpy(nominal_params: dict[str, np.ndarray]) -> np.ndarray:
+    return np.array(
+        [nominal_params[f"x_ref_{i}"] for i in range(1, 5)] + [nominal_params["u_ref"]]
+    )
+
 
 def cost_expr_ext_cost(model: AcadosModel) -> ca.SX:
     x = model.x
     u = model.u
 
-    W = cost_matrix(model)
+    W = cost_matrix_casadi(model)
+    c = find_param_in_p_or_p_global(["c"], model)["c"]
 
     z = ca.vertcat(x, u)
 
-    return 0.5 * z.T@W@z
+    return 0.5 * z.T @ W @ z + c.T @ z
 
 
 def cost_expr_ext_cost_0(model: AcadosModel) -> ca.SX:
@@ -454,11 +473,13 @@ def cost_expr_ext_cost_0(model: AcadosModel) -> ca.SX:
 
 def cost_expr_ext_cost_e(model: AcadosModel) -> ca.SX:
     x = model.x
-    W = cost_matrix(model)
-    
-    Q = W[:4, :4]
+    W = cost_matrix_casadi(model)
+    c = find_param_in_p_or_p_global(["c"], model)["c"]
 
-    return 0.5 * (ca.mtimes([ca.transpose(x), Q, x]))
+    Q = W[:4, :4]
+    c = c[:4]
+
+    return 0.5 * x.T @ Q @ x + c.T @ x  # type:ignore
 
 
 def export_parametric_ocp(
@@ -469,7 +490,6 @@ def export_parametric_ocp(
     Fmax: float = 80.0,
     N_horizon: int = 50,
     tf: float = 2.0,
-    least_squares_cost: bool = True
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
@@ -483,8 +503,8 @@ def export_parametric_ocp(
     ocp.dims.nx = 4
     ocp.dims.nu = 1
 
-    ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
-    ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
+    ocp.model.x = ca.SX.sym("x", ocp.dims.nx)  # type:ignore
+    ocp.model.u = ca.SX.sym("u", ocp.dims.nu)  # type:ignore
 
     ocp = translate_learnable_param_to_p_global(
         nominal_param=nominal_param, learnable_param=learnable_param, ocp=ocp
@@ -495,12 +515,33 @@ def export_parametric_ocp(
     ######## Cost ########
     if cost_type == "EXTERNAL":
         ocp.cost.cost_type = cost_type
-        ocp.model.cost_expr_ext_cost = cost_expr_ext_cost(ocp.model) #type:ignore
+        ocp.model.cost_expr_ext_cost = cost_expr_ext_cost(ocp.model)  # type:ignore
 
         ocp.cost.cost_type_e = cost_type
-        ocp.model.cost_expr_ext_cost_e = cost_expr_ext_cost_e(ocp.model) #type:ignore
+        ocp.model.cost_expr_ext_cost_e = cost_expr_ext_cost_e(ocp.model)  # type:ignore
     elif cost_type == "LINEAR_LS":
-        
+        ocp.cost.cost_type = cost_type
+        ocp.cost.cost_type_e = cost_type
+
+        W = cost_matrix_numpy(nominal_param)
+
+        ocp.cost.W = W
+        ocp.cost.W_e = W[:4, :4]
+
+        Vx = np.zeros(
+            (5, 4)
+        )  # The fifth line is for the action, which we ignore in Vx.
+        Vx[:4, :4] = np.eye(4)
+        Vx_e = Vx[:4, :]
+        Vu = np.zeros((5, 1))
+        Vu[4, 0] = 1
+        ocp.cost.Vx = Vx
+        ocp.cost.Vx_e = Vx_e
+        ocp.cost.Vu = Vu
+
+        ref_vector = ref_vector_numpy(nominal_param)
+        ocp.cost.yref = ref_vector
+        ocp.cost.yref_e = ref_vector[:4]
     else:
         raise ValueError(f"Cost type {cost_type} not supported.")
         # TODO: Implement NONLINEAR_LS with y_expr = sqrt(Q) * x and sqrt(R) * u
