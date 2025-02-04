@@ -63,21 +63,15 @@ class PendulumOnCartMPC(MPC):
                 "uref": np.array([0]),  # reference position, only used for LS cost
             }
 
-        ocp = export_parametric_ocp(
+        ocp, ocp_sens = export_parametric_ocp(
             nominal_param=params,
             cost_type="LINEAR_LS" if least_squares_cost else "EXTERNAL",
+            exact_hess_dyn=exact_hess_dyn,
             learnable_param=learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
             Fmax=Fmax,
         )
-        configure_ocp_solver(
-            ocp,
-            hess_approx="GAUSS_NEWTON" if least_squares_cost else "EXACT",
-            exact_hess_dyn=exact_hess_dyn,
-        )
-
-        ocp_sens = generate_sens_ocp(ocp)
 
         self.given_default_param_dict = params
 
@@ -502,12 +496,13 @@ def cost_expr_ext_cost_e(model: AcadosModel) -> ca.SX:
 def export_parametric_ocp(
     nominal_param: dict[str, np.ndarray],
     cost_type: str = "EXTERNAL",
+    exact_hess_dyn: bool = True,
     name: str = "pendulum_on_cart",
     learnable_param: list[str] | None = None,
     Fmax: float = 80.0,
     N_horizon: int = 50,
     tf: float = 2.0,
-) -> AcadosOcp:
+) -> tuple[AcadosOcp, AcadosOcp]:
     ocp = AcadosOcp()
 
     ocp.solver_options.N_horizon = N_horizon
@@ -575,19 +570,31 @@ def export_parametric_ocp(
     ocp.constraints.ubx = -ocp.constraints.lbx
     ocp.constraints.idxbx = np.array([0])
 
+    configure_ocp_solver(
+        ocp,
+        hess_approx="GAUSS_NEWTON" if cost_type == "LINEAR_LS" else "EXACT",
+        exact_hess_dyn=exact_hess_dyn,
+    )
+
+    ocp_sens = generate_sens_ocp(ocp)
+
     # #############################
     if isinstance(ocp.model.p, struct_symSX):
         ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
+        ocp_sens.model.p = ocp_sens.model.p.cat if ocp_sens.model.p is not None else []  # type:ignore
 
     if isinstance(ocp.model.p_global, struct_symSX):
         ocp.model.p_global = (
             ocp.model.p_global.cat if ocp.model.p_global is not None else None
         )
+        ocp_sens.model.p_global = (
+            ocp_sens.model.p_global.cat if ocp_sens.model.p_global is not None else None  # type:ignore
+        )
 
-    return ocp
+    return ocp, ocp_sens
 
 
-def generate_sens_ocp(ocp: AcadosOcp):
+def generate_sens_ocp(ocp: AcadosOcp) -> AcadosOcp:
     ocp_sens = deepcopy(ocp)
 
     W = cost_matrix_casadi(ocp_sens.model)
@@ -596,3 +603,4 @@ def generate_sens_ocp(ocp: AcadosOcp):
     yref_e = yref[:4]
     ocp_sens.translate_cost_to_external_cost(W=W, W_e=W_e, yref=yref, yref_e=yref_e)
     set_standard_sensitivity_options(ocp_sens)
+    return ocp_sens
