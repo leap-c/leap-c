@@ -13,7 +13,7 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedIterate,
     AcadosOcpIterate,
 )
-from leap_c.util import AcadosFileManager
+from leap_c.util import AcadosFileManager, set_standard_sensitivity_options
 
 
 class MPCParameter(NamedTuple):
@@ -387,6 +387,7 @@ class MPC(ABC):
     def __init__(
         self,
         ocp: AcadosOcp,
+        ocp_sensitivity: AcadosOcp | None = None,
         discount_factor: float | None = None,
         default_init_state_fn: Callable[[MPCInput], MPCSingleState | MPCBatchedState]
         | None = None,
@@ -401,6 +402,9 @@ class MPC(ABC):
 
         Args:
             ocp: Optimal control problem.
+            ocp_sensitivity: The optimal control problem formulation to use for sensitivities.
+                If None, the sensitivity problem is derived from the ocp, however only the EXTERNAL cost type is allowed then.
+                For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
             default_init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.
             n_batch: Number of batched solvers to use.
@@ -414,23 +418,18 @@ class MPC(ABC):
         """
         self.ocp = ocp
 
-        # setup OCP for sensitivity solver
-        self.ocp_sensitivity = deepcopy(ocp)
-        self.ocp_sensitivity.translate_cost_to_external_cost()
-        self.ocp_sensitivity.solver_options.nlp_solver_type = "SQP_RTI"
-        self.ocp_sensitivity.solver_options.globalization_fixed_step_length = 0.0
-        self.ocp_sensitivity.solver_options.nlp_solver_max_iter = 1
-        self.ocp_sensitivity.solver_options.qp_solver_iter_max = 200
-        self.ocp_sensitivity.solver_options.tol = self.ocp.solver_options.tol / 1e3
-        self.ocp_sensitivity.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-        self.ocp_sensitivity.solver_options.qp_solver_ric_alg = 1
-        self.ocp_sensitivity.solver_options.qp_solver_cond_N = (
-            self.ocp.solver_options.N_horizon
-        )
-        self.ocp_sensitivity.solver_options.hessian_approx = "EXACT"
-        self.ocp_sensitivity.solver_options.with_solution_sens_wrt_params = True
-        self.ocp_sensitivity.solver_options.with_value_sens_wrt_params = True
-        self.ocp_sensitivity.model.name += "_sensitivity"  # type:ignore
+        if ocp_sensitivity is None:
+            # setup OCP for sensitivity solver
+            if (
+                ocp.cost.cost_type != "EXTERNAL"
+                or ocp.cost.cost_type_0 != "EXTERNAL"
+                or ocp.cost.cost_type_e != "EXTERNAL"
+            ):
+                raise ValueError(
+                    "Automatic derivation of sensitivity problem is only supported for EXTERNAL cost types."
+                )
+            self.ocp_sensitivity = deepcopy(ocp)
+            set_standard_sensitivity_options(self.ocp_sensitivity)
 
         # path management
         self.afm = AcadosFileManager(export_directory)
