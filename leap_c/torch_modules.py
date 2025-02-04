@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from leap_c.mpc import MPC, MPCBatchedState, MPCParameter
 from leap_c.nn.modules import MPCSolutionModule
-from leap_c.util import put_each_index_of_tensor_as_entry_into
+from leap_c.util import add_prefix_extend, put_each_index_of_tensor_as_entry_into
 from torch.distributions import Normal
 
 
@@ -296,12 +296,13 @@ class FOUMPCNetwork(nn.Module):
             params_unscaled, x, **param_transform_kwargs
         )
 
-        action_mean, _, mpc_status = self.mpc_layer(
+        action_mean, _, mpc_status, mpc_stats = self.mpc_layer(
             x,
             p_global=params_scaled,
             p_stagewise=p_stagewise,
             initializations=mpc_initialization,
         )
+        add_prefix_extend("mpc_", stats, mpc_stats)
         if self.log_tensors:
             batch_dims = tuple(
                 range(params_scaled.ndim - 1)
