@@ -180,6 +180,9 @@ def set_standard_sensitivity_options(ocp_sensitivity: AcadosOcp):
         ocp_sensitivity.solver_options.N_horizon
     )
     ocp_sensitivity.solver_options.hessian_approx = "EXACT"
+    ocp_sensitivity.solver_options.exact_hess_dyn = True
+    ocp_sensitivity.solver_options.exact_hess_cost = True
+    ocp_sensitivity.solver_options.exact_hess_constr = True
     ocp_sensitivity.solver_options.with_solution_sens_wrt_params = True
     ocp_sensitivity.solver_options.with_value_sens_wrt_params = True
     ocp_sensitivity.model.name += "_sensitivity"  # type:ignore
