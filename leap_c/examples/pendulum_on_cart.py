@@ -455,7 +455,7 @@ def cost_matrix_casadi(model: AcadosModel) -> ca.SX:
 
 
 def cost_matrix_numpy(nominal_params: dict[str, np.ndarray]) -> np.ndarray:
-    L = np.diag([nominal_params[f"L_{i}{i}"] for i in range(1, 6)])
+    L = np.diag([nominal_params[f"L_{i}{i}"].item() for i in range(1, 6)])
     L[np.tril_indices_from(L, -1)] = nominal_params["L_lower_offdiag"]
     return L @ L.T
 
@@ -463,7 +463,7 @@ def cost_matrix_numpy(nominal_params: dict[str, np.ndarray]) -> np.ndarray:
 def yref_numpy(nominal_params: dict[str, np.ndarray]) -> np.ndarray:
     return np.array(
         [nominal_params[f"x_ref_{i}"] for i in range(1, 5)] + [nominal_params["u_ref"]]
-    )
+    ).squeeze()
 
 
 def yref_casadi(model: AcadosModel) -> ca.SX:

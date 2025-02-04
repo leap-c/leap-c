@@ -938,7 +938,7 @@ class MPC(ABC):
             if dudp:
                 if use_adj_sens:
                     # TODO: Tested for scalar u only
-                    seed_vec = np.ones((self.n_batch, self.ocp.dims.nu, 1))
+                    seed_vec = np.ones((self.n_batch, self.ocp.dims.nu, 1))  # type:ignore
 
                     # n_seed can change when only subset of u is updated
                     n_seed = self.ocp.dims.nu
@@ -969,7 +969,7 @@ class MPC(ABC):
                             )["sens_u"]
                             for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
                         ]
-                    ).reshape(self.n_batch, self.ocp.dims.nu, self.p_global_dim)
+                    ).reshape(self.n_batch, self.ocp.dims.nu, self.p_global_dim)  # type:ignore
 
                 assert kw["du0_dp_global"].shape == (
                     self.n_batch,
@@ -1087,7 +1087,7 @@ class MPC(ABC):
                 if mpc_param.p_stagewise_sparse_idx is None:
                     p_stage = mpc_param.p_stagewise[stage]
                 else:
-                    p_stage = p_stage.copy()
+                    p_stage = p_stage.copy()  # type:ignore
                     p_stage[mpc_param.p_stagewise_sparse_idx[stage]] = (
                         mpc_param.p_stagewise[stage]
                     )
