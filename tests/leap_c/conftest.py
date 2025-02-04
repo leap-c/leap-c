@@ -1,6 +1,5 @@
 import numpy as np
 import pytest
-
 from leap_c.examples.linear_system import LinearSystemMPC, LinearSystemOcpEnv
 from leap_c.examples.pendulum_on_cart import PendulumOnCartMPC, PendulumOnCartOcpEnv
 from leap_c.examples.point_mass import PointMassMPC, PointMassOcpEnv
@@ -122,7 +121,9 @@ def linear_mpc_p_global(
 @pytest.fixture(scope="session")
 def learnable_pendulum_on_cart_mpc(n_batch: int) -> PendulumOnCartMPC:
     """Fixture for the pendulum on cart MPC with learnable parameters."""
-    return PendulumOnCartMPC(learnable_params=["M", "m", "g", "l"], n_batch=n_batch)
+    return PendulumOnCartMPC(
+        learnable_params=["M", "m", "g", "L11", "xref1"], n_batch=n_batch
+    )
 
 
 @pytest.fixture(scope="session")
