@@ -561,6 +561,38 @@ class MPC(ABC):
             else None
         )
 
+    @cached_property
+    def default_p_W(self) -> np.ndarray | None:
+        """Return the default p_W."""
+        return (
+            np.tile(self.ocp.cost.W, (self.N, 1, 1))
+            if self.is_model_p_legal(self.ocp.cost.W)
+            else None
+        )
+
+    @cached_property
+    def default_p_yref(self) -> np.ndarray | None:
+        """Return the default p_yref."""
+        return (
+            np.tile(self.ocp.cost.yref, (self.N, 1))
+            if self.is_model_p_legal(self.ocp.cost.yref)
+            else None
+        )
+
+    @cached_property
+    def default_p_W_e(self) -> np.ndarray | None:
+        """Return the default p_W_e."""
+        return self.ocp.cost.W_e if self.is_model_p_legal(self.ocp.cost.W_e) else None
+
+    @cached_property
+    def default_p_yref_e(self) -> np.ndarray | None:
+        """Return the default p_yref_e."""
+        return (
+            self.ocp.cost.yref_e
+            if self.is_model_p_legal(self.ocp.cost.yref_e)
+            else None
+        )
+
     @property
     def default_init_state_fn(
         self,
