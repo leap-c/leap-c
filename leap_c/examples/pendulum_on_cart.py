@@ -1,3 +1,4 @@
+from copy import deepcopy
 from typing import Any
 
 import casadi as ca
@@ -14,6 +15,7 @@ from leap_c.examples.util import (
 )
 from leap_c.mpc import MPC
 from leap_c.ocp_env import OCPEnv
+from leap_c.util import set_standard_sensitivity_options
 from pygame import gfxdraw
 
 
@@ -69,11 +71,22 @@ class PendulumOnCartMPC(MPC):
             tf=T_horizon,
             Fmax=Fmax,
         )
-        configure_ocp_solver(ocp, exact_hess_dyn)
+        configure_ocp_solver(
+            ocp,
+            hess_approx="GAUSS_NEWTON" if least_squares_cost else "EXACT",
+            exact_hess_dyn=exact_hess_dyn,
+        )
+
+        ocp_sens = generate_sens_ocp(ocp)
 
         self.given_default_param_dict = params
 
-        super().__init__(ocp=ocp, discount_factor=discount_factor, n_batch=n_batch)
+        super().__init__(
+            ocp=ocp,
+            ocp_sensitivity=ocp_sens,
+            discount_factor=discount_factor,
+            n_batch=n_batch,
+        )
 
 
 class PendulumOnCartOcpEnv(OCPEnv):
@@ -362,10 +375,10 @@ class PendulumOnCartOcpEnv(OCPEnv):
             pygame.quit()
 
 
-def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
+def configure_ocp_solver(ocp: AcadosOcp, hess_approx: str, exact_hess_dyn: bool):
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
-    ocp.solver_options.hessian_approx = "EXACT"  # "GAUSS_NEWTON"
+    ocp.solver_options.hessian_approx = hess_approx
     ocp.solver_options.exact_hess_dyn = exact_hess_dyn
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
@@ -413,9 +426,7 @@ def disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
     u = model.u
 
     # discrete dynamics via RK4
-    p = ca.vertcat(
-        *list(find_param_in_p_or_p_global(["M", "m", "g", "l"], model).values())
-    )
+    p = ca.vertcat(*find_param_in_p_or_p_global(["M", "m", "g", "l"], model).values())
 
     ode = ca.Function("ode", [x, u, p], [f_expl])
     k1 = ode(x, u, p)
@@ -449,9 +460,17 @@ def cost_matrix_numpy(nominal_params: dict[str, np.ndarray]) -> np.ndarray:
     return L @ L.T
 
 
-def ref_vector_numpy(nominal_params: dict[str, np.ndarray]) -> np.ndarray:
+def yref_numpy(nominal_params: dict[str, np.ndarray]) -> np.ndarray:
     return np.array(
         [nominal_params[f"x_ref_{i}"] for i in range(1, 5)] + [nominal_params["u_ref"]]
+    )
+
+
+def yref_casadi(model: AcadosModel) -> ca.SX:
+    return ca.vertcat(
+        *find_param_in_p_or_p_global(
+            [f"x_ref_{i}" for i in range(1, 5)] + ["u_ref"], model
+        ).values()
     )
 
 
@@ -539,9 +558,9 @@ def export_parametric_ocp(
         ocp.cost.Vx_e = Vx_e
         ocp.cost.Vu = Vu
 
-        ref_vector = ref_vector_numpy(nominal_param)
-        ocp.cost.yref = ref_vector
-        ocp.cost.yref_e = ref_vector[:4]
+        yref = yref_numpy(nominal_param)
+        ocp.cost.yref = yref
+        ocp.cost.yref_e = yref[:4]
     else:
         raise ValueError(f"Cost type {cost_type} not supported.")
         # TODO: Implement NONLINEAR_LS with y_expr = sqrt(Q) * x and sqrt(R) * u
@@ -568,3 +587,14 @@ def export_parametric_ocp(
         )
 
     return ocp
+
+
+def generate_sens_ocp(ocp: AcadosOcp):
+    ocp_sens = deepcopy(ocp)
+
+    W = cost_matrix_casadi(ocp_sens.model)
+    W_e = W[:4, :4]
+    yref = yref_casadi(ocp_sens.model)
+    yref_e = yref[:4]
+    ocp_sens.translate_cost_to_external_cost(W=W, W_e=W_e, yref=yref, yref_e=yref_e)
+    set_standard_sensitivity_options(ocp_sens)
