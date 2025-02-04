@@ -29,11 +29,21 @@ class MPCParameter(NamedTuple):
         p_stagewise_sparse_idx: If not None, stagewise parameters are set in a sparse manner, using these indices.
             The indices are in shape (N+1, n_p_stagewise_sparse_idx) or (B, N+1, n_p_stagewise_sparse_idx).
             If a multi-phase MPC is used this is a list containing the above arrays for the respective phases.
+        p_W: The weights for the least squares cost formulation in shape (N, n_x+n_u, n_x+n_u) or (B, N, n_x+n_u, n_x+n_u).
+        p_yref: The reference for the least squares cost formulation in shape (N, n_x+n_u) or (B, N, n_x+n_u).
+        p_W_e: The weights for the least squares cost formulation in the terminal stage in shape (n_x, n_x) or (B, n_x, n_x).
+        p_yref_e: The reference for the least squares cost formulation in the terminal stage in shape (n_x,) or (B, n_x).
     """
 
     p_global: np.ndarray | None = None
     p_stagewise: List[np.ndarray] | np.ndarray | None = None
     p_stagewise_sparse_idx: List[np.ndarray] | np.ndarray | None = None
+
+    # Only used in least squares cost formulations
+    p_W: np.ndarray | None = None
+    p_yref: np.ndarray | None = None
+    p_W_e: np.ndarray | None = None
+    p_yref_e: np.ndarray | None = None
 
     def is_batched(self) -> bool:
         """The empty MPCParameter counts as non-batched."""
@@ -41,6 +51,14 @@ class MPCParameter(NamedTuple):
             return self.p_global.ndim == 2
         elif self.p_stagewise is not None:
             return self.p_stagewise[0].ndim == 3
+        elif self.p_W is not None:
+            return self.p_W.ndim == 4
+        elif self.p_yref is not None:
+            return self.p_yref.ndim == 3
+        elif self.p_W_e is not None:
+            return self.p_W_e.ndim == 3
+        elif self.p_yref_e is not None:
+            return self.p_yref_e.ndim == 2
         else:
             return False
 
@@ -55,10 +73,19 @@ class MPCParameter(NamedTuple):
             if self.p_stagewise_sparse_idx is not None
             else None
         )
+        p_W = self.p_W[i] if self.p_W is not None else None
+        p_yref = self.p_yref[i] if self.p_yref is not None else None
+        p_W_e = self.p_W_e[i] if self.p_W_e is not None else None
+        p_yref_e = self.p_yref_e[i] if self.p_yref_e is not None else None
+
         return MPCParameter(
             p_global=p_global,
             p_stagewise=p_stagewise,
             p_stagewise_sparse_idx=p_stagewise_sparse_idx,
+            p_W=p_W,
+            p_yref=p_yref,
+            p_W_e=p_W_e,
+            p_yref_e=p_yref_e,
         )
 
 
