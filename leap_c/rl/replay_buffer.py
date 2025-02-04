@@ -29,7 +29,7 @@ class ReplayBuffer:
 
         self.custom_collate_map = self.create_collate_map()
 
-    def put(self, transition: tuple[Any, np.ndarray, float, Any, bool, bool]):
+    def put(self, transition: tuple[Any, np.ndarray, float, Any, bool]):
         self.buffer.append(transition)
 
     def sample(

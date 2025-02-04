@@ -35,6 +35,7 @@ class LogConfig:
     Args:
         train_interval: The interval at which training statistics will be logged.
         train_window: The moving window size for the training statistics.
+            This is calculated by the number of training steps.
         val_window: The moving window size for the validation statistics (note that
             this does not consider the training step but the number of validation episodes).
     """
@@ -101,18 +102,16 @@ class TrainerState:
 
     Attributes:
         step: The current step of the training loop.
-        train_logs: A dictionary containing the logs of the training update.
-        train_logs_time: A deque containing the time of the training updates.
-        val_logs: A dictionary containing the logs of the validation.
+        timestamps: A dictionary containing the timestamps of the statistics.
+        logs: A dictionary of dictionaries containing the statistics.
         scores: A list containing the scores of the validation episodes.
         min_score: The minimum score of the validation episodes
     """
 
     step: int = 0
-    train_logs: dict = field(default_factory=lambda: defaultdict(list))
-    train_logs_time: list[int] = field(default_factory=list)
-    val_logs: dict = field(default_factory=lambda: defaultdict(list))
-    scores: list[int] = field(default_factory=list)
+    timestamps: dict = field(default_factory=lambda: defaultdict(list))
+    logs: dict = field(default_factory=lambda: defaultdict(lambda: defaultdict(list)))
+    scores: list[float] = field(default_factory=list)
     min_score: float = float("inf")
 
 
@@ -165,17 +164,26 @@ class Trainer(ABC, nn.Module):
         if cfg.log.wandb_logger:
             wandb.init(project="leap", dir=self.output_path / "wandb")
 
+        # log dataclass config as yaml
+        with open(self.output_path / "config.yaml", "w") as f:
+            f.write(cfg.__repr__())
+
     @abstractmethod
-    def train_loop(self) -> Iterator[dict[str, float]]:
-        """A single training step.
+    def train_loop(self) -> Iterator[int]:
+        """The main training loop.
+
+        For simplicity, we use an Iterator here, to make the training loop as simple as
+        possible. To make your own code compatible use the yield statement to return the
+        number of steps your train loop did. If yield not always returns 1, the val- 
+        idation might be performed not exactly at the specified interval.
 
         Returns:
-            A dictionary containing the training statistics.
+           The number of steps the training loop did.
         """
         ...
 
     @abstractmethod
-    def act(self, obs, deterministic: bool = False) -> torch.Tensor:
+    def act(self, obs, deterministic: bool = False) -> np.ndarray:
         """Act based on the observation.
 
         This is intended for rollouts (= interaction with the environment).
@@ -194,17 +202,36 @@ class Trainer(ABC, nn.Module):
         """If provided optimizers are also checkpointed."""
         return []
 
-    def report_stats(self, group: str, stats: dict[str, float], step: int):
+    def report_stats(
+        self,
+        group: str,
+        stats: dict[str, float],
+        timestamp: int,
+        window_size: int | None = None,
+    ):
         """Report the statistics of the training loop.
 
         Args:
             group: The group of the statistics.
             stats: The statistics to be reported.
-            step: The current step of the training loop
+            timestamp: The timestamp of the logging entry. 
+            window_size: The window size for smoothing the statistics.
         """
 
+        self.state.timestamps[group].append(timestamp)
+        for key, value in stats.items():
+            self.state.logs[group][key].append(value)
+
+        if window_size is not None:
+            window_idx = bisect.bisect_left(self.state.timestamps[group], timestamp - window_size)
+            smoothed_stats = {
+                key: np.mean(self.state.logs[key][-window_idx:])
+                for key in self.state.logs
+            }
+            self.state.logs[group].append(smoothed_stats)
+
         if self.cfg.log.wandb_logger:
-            wandb.log(stats, step=step)
+            wandb.log(stats, step=timestamp)
 
         if self.cfg.log.csv_logger:
             csv_path = self.output_path / f"{group}_log.csv"
@@ -214,57 +241,26 @@ class Trainer(ABC, nn.Module):
             else:
                 kw = {"mode": "w", "header": True}
 
-            df = pd.DataFrame(stats, index=[step])  # type: ignore
+            df = pd.DataFrame(stats, index=[timestamp])  # type: ignore
             df.to_csv(csv_path, **kw)
 
     def run(self) -> float:
         """Call this function in your script to start the training loop."""
-
         train_loop_iter = self.train_loop()
 
-        for self.state.step in range(self.state.step, self.cfg.train.steps):
+        while self.state.step < self.cfg.train.steps:
+            # train
+            self.state.step += next(train_loop_iter)
 
-            # train step
-            train_logs = next(train_loop_iter)
-
-            # update train logs
-            if train_logs is not None:
-                for key, value in train_logs.items():
-                    self.state.train_logs[key].append(value)
-                    self.state.train_logs_time.append(self.state.step)
-
-            # do validation
-            if self.state.step % self.cfg.val.interval == 0:
-                val_score, val_stats = self.validate()
-                self.scores.append(val_score)
+            # validate
+            if self.state.step // self.cfg.val.interval > len(self.state.scores):
+                val_score = self.validate()
+                self.state.scores.append(val_score)
 
                 if val_score > self.state.min_score:
                     self.state.min_score = val_score
-
                     if self.cfg.val.ckpt_modus == "best":
                         self.save()
-
-                for key, value in val_stats.items():
-                    self.state.val_logs[key].append(value)
-
-                smoothed_stats = {
-                    key: np.mean(self.state.val_logs[key][-self.cfg.log.val_window :])
-                    for key in self.state.val_logs
-                }
-                self.report_stats("val", smoothed_stats, self.state.step)
-
-            # do logging
-            if self.state.step % self.cfg.log.train_interval == 0:
-                # find window length for smoothing
-                time_index = bisect.bisect_left(
-                    self.state.train_logs_time,
-                    self.state.step - self.cfg.log.train_window,
-                )
-                smoothed_stats = {
-                    key: np.mean(self.state.train_logs[key][time_index:])
-                    for key in self.state.train_logs
-                }
-                self.report_stats("train", smoothed_stats, self.state.step)
 
             # save model
             if self.cfg.val.ckpt_modus != "best":
@@ -272,7 +268,7 @@ class Trainer(ABC, nn.Module):
 
         return self.state.min_score  # Return last validation score for testing purposes
 
-    def validate(self) -> Tuple[float, dict[str, float]]:
+    def validate(self) -> float:
         """Do a deterministic validation run of the policy and
         return the mean of the cumulative reward over all validation episodes."""
 
@@ -285,8 +281,9 @@ class Trainer(ABC, nn.Module):
             parts.append(p)
 
         stats = {key: float(np.mean([p[key] for p in parts])) for key in parts[0]}
+        self.report_stats("val", stats, self.state.step, self.cfg.log.val_window)
 
-        return float(stats["score"]), stats
+        return float(stats["score"])
 
     def _ckpt_path(self, name: str, suffix: str) -> Path:
         if self.cfg.val.ckpt_modus == "best":
