@@ -485,8 +485,7 @@ class MPC(ABC):
         if self._discount_factor is not None:
             set_discount_factor(solver, self._discount_factor)
 
-        default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
-        set_ocp_solver_to_default(solver, default_params, unset_u0=True)
+        set_ocp_solver_to_default(solver, self.default_full_mpcparameter, unset_u0=True)
 
         return solver
 
@@ -497,8 +496,7 @@ class MPC(ABC):
         if self._discount_factor is not None:
             set_discount_factor(solver, self._discount_factor)
 
-        default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
-        set_ocp_solver_to_default(solver, default_params, unset_u0=True)
+        set_ocp_solver_to_default(solver, self.default_full_mpcparameter, unset_u0=True)
 
         return solver
 
@@ -509,10 +507,11 @@ class MPC(ABC):
 
         batch_solver = self.afm_batch.setup_acados_ocp_batch_solver(ocp, self.n_batch)
 
-        default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
         if self._discount_factor is not None:
             set_discount_factor(batch_solver, self._discount_factor)
-        set_ocp_solver_to_default(batch_solver, default_params, unset_u0=True)
+        set_ocp_solver_to_default(
+            batch_solver, self.default_full_mpcparameter, unset_u0=True
+        )
 
         return batch_solver
 
@@ -525,10 +524,11 @@ class MPC(ABC):
             ocp, self.n_batch
         )
 
-        default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
         if self._discount_factor is not None:
             set_discount_factor(batch_solver, self._discount_factor)
-        set_ocp_solver_to_default(batch_solver, default_params, unset_u0=True)
+        set_ocp_solver_to_default(
+            batch_solver, self.default_full_mpcparameter, unset_u0=True
+        )
 
         return batch_solver
 
@@ -591,6 +591,18 @@ class MPC(ABC):
             self.ocp.cost.yref_e
             if self.is_model_p_legal(self.ocp.cost.yref_e)
             else None
+        )
+
+    @cached_property
+    def default_full_mpcparameter(self) -> MPCParameter:
+        """Return the full default MPCParameter."""
+        return MPCParameter(
+            p_global=self.default_p_global,
+            p_stagewise=self.default_p_stagewise,
+            p_W=self.default_p_W,
+            p_yref=self.default_p_yref,
+            p_W_e=self.default_p_W_e,
+            p_yref_e=self.default_p_yref_e,
         )
 
     @property
@@ -843,20 +855,16 @@ class MPC(ABC):
         flat_iterate = self.ocp_solver.store_iterate_to_flat_obj()
 
         # Set solvers to default
-        default_params = MPCParameter(
-            p_global=self.default_p_global,
-            p_stagewise=self.default_p_stagewise,  # type:ignore
-        )
         unset_u0 = True if mpc_input.u0 is not None else False
         set_ocp_solver_to_default(
             ocp_solver=self.ocp_solver,
-            default_mpc_parameters=default_params,
+            default_mpc_parameters=self.default_full_mpcparameter,
             unset_u0=unset_u0,
         )
         if use_sensitivity_solver:
             set_ocp_solver_to_default(
                 ocp_solver=self.ocp_sensitivity_solver,
-                default_mpc_parameters=default_params,
+                default_mpc_parameters=self.default_full_mpcparameter,
                 unset_u0=unset_u0,
             )
 
@@ -1014,20 +1022,16 @@ class MPC(ABC):
         flat_iterate = self.ocp_batch_solver.store_iterate_to_flat_obj()
 
         # Set solvers to default
-        default_params = MPCParameter(
-            p_global=self.default_p_global,
-            p_stagewise=self.default_p_stagewise,  # type:ignore
-        )
         unset_u0 = True if mpc_input.u0 is not None else False
         set_ocp_solver_to_default(
             ocp_solver=self.ocp_batch_solver,
-            default_mpc_parameters=default_params,
+            default_mpc_parameters=self.default_full_mpcparameter,
             unset_u0=unset_u0,
         )
         if use_sensitivity_solver:
             set_ocp_solver_to_default(
                 ocp_solver=self.ocp_batch_sensitivity_solver,
-                default_mpc_parameters=default_params,
+                default_mpc_parameters=self.default_full_mpcparameter,
                 unset_u0=unset_u0,
             )
 
