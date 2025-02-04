@@ -129,7 +129,7 @@ def learnable_pendulum_on_cart_mpc_lls_cost(n_batch: int) -> PendulumOnCartMPC:
 
 
 @pytest.fixture(scope="session")
-def pendulum_on_cart_ocp_env_ls_cost(
+def pendulum_on_cart_ocp_env_lls_cost(
     learnable_pendulum_on_cart_mpc_lls_cost: PendulumOnCartMPC,
 ) -> PendulumOnCartOcpEnv:
     return PendulumOnCartOcpEnv(
@@ -159,13 +159,13 @@ def pendulum_on_cart_ocp_env_ext_cost(
 @pytest.fixture(scope="session")
 def all_ocp_env(
     linear_system_ocp_env: LinearSystemOcpEnv,
-    pendulum_on_cart_ocp_env_ls_cost: PendulumOnCartOcpEnv,
+    pendulum_on_cart_ocp_env_lls_cost: PendulumOnCartOcpEnv,
     pendulum_on_cart_ocp_env_ext_cost: PendulumOnCartOcpEnv,
     point_mass_ocp_env: PointMassOcpEnv,
 ):
     return [
         linear_system_ocp_env,
-        pendulum_on_cart_ocp_env_ls_cost,
+        pendulum_on_cart_ocp_env_lls_cost,
         pendulum_on_cart_ocp_env_ext_cost,
         point_mass_ocp_env,
     ]
