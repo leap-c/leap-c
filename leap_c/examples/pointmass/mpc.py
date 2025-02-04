@@ -126,22 +126,13 @@ def _B_cont(
         )
 
 
-def _Q_sqrt(
+def _create_diag_matrix(
     _q_sqrt: np.ndarray | ca.SX,
 ) -> np.ndarray | ca.SX:
     if any(isinstance(i, ca.SX) for i in [_q_sqrt]):
         return ca.diag(_q_sqrt)
     else:
         return np.diag(_q_sqrt)
-
-
-def _R_sqrt(
-    _r_diag: np.ndarray | ca.SX,
-) -> np.ndarray | ca.SX:
-    if any(isinstance(i, ca.SX) for i in [_r_diag]):
-        return ca.diag(_r_diag)
-    else:
-        return np.diag(_r_diag)
 
 
 def _disc_dyn_expr(
@@ -164,8 +155,12 @@ def _cost_expr_ext_cost(ocp: AcadosOcp) -> ca.SX:
     x = ocp.model.x
     u = ocp.model.u
 
-    Q_sqrt = _Q_sqrt(find_param_in_p_or_p_global(["q_diag"], ocp.model)["q_diag"])
-    R_sqrt = _R_sqrt(find_param_in_p_or_p_global(["r_diag"], ocp.model)["r_diag"])
+    Q_sqrt = _create_diag_matrix(
+        find_param_in_p_or_p_global(["q_diag"], ocp.model)["q_diag"]
+    )
+    R_sqrt = _create_diag_matrix(
+        find_param_in_p_or_p_global(["r_diag"], ocp.model)["r_diag"]
+    )
 
     return 0.5 * (
         ca.mtimes([ca.transpose(x), Q_sqrt.T, Q_sqrt, x])
@@ -176,14 +171,15 @@ def _cost_expr_ext_cost(ocp: AcadosOcp) -> ca.SX:
 def _cost_expr_ext_cost_e(ocp: AcadosOcp) -> ca.SX:
     x = ocp.model.x
 
-    Q_sqrt_e = _Q_sqrt(find_param_in_p_or_p_global(["q_diag_e"], ocp.model)["q_diag_e"])
+    Q_sqrt_e = _create_diag_matrix(
+        find_param_in_p_or_p_global(["q_diag_e"], ocp.model)["q_diag_e"]
+    )
 
     return 0.5 * ca.mtimes([ca.transpose(x), Q_sqrt_e.T, Q_sqrt_e, x])
 
 
 def export_parametric_ocp(
     nominal_param: dict[str, np.ndarray],
-    cost_type: str = "EXTERNAL",
     name: str = "pointmass",
     learnable_params: list[str] | None = None,
     N_horizon: int = 50,
@@ -195,10 +191,7 @@ def export_parametric_ocp(
     ocp.solver_options.tf = tf
     ocp.solver_options.N_horizon = N_horizon
 
-    ocp.model.name = "pointmass"
-
-    # ocp.dims.nx = 4
-    # ocp.dims.nu = 2
+    ocp.model.name = name
 
     ocp.model.x = ca.SX.sym("x", 4)
     ocp.model.u = ca.SX.sym("u", 2)
@@ -209,11 +202,16 @@ def export_parametric_ocp(
 
     ocp.model.disc_dyn_expr = _disc_dyn_expr(ocp=ocp)
     ocp.model.cost_expr_ext_cost = _cost_expr_ext_cost(ocp=ocp)
-    ocp.cost.cost_type = cost_type
+    ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost_e = _cost_expr_ext_cost_e(ocp=ocp)
-    ocp.cost.cost_type_e = cost_type
+    ocp.cost.cost_type_e = "EXTERNAL"
 
     ocp.constraints.x0 = x0
+
+    # Box constraints on u
+    ocp.constraints.lbu = np.array([-1.0, -1.0])
+    ocp.constraints.ubu = np.array([1.0, 1.0])
+    ocp.constraints.idxbu = np.array([0, 1])
 
     # #############################
     if isinstance(ocp.model.p, struct_symSX):
