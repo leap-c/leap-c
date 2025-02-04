@@ -467,6 +467,8 @@ class MPC(ABC):
                 )
             self.ocp_sensitivity = deepcopy(ocp)
             set_standard_sensitivity_options(self.ocp_sensitivity)
+        else:
+            self.ocp_sensitivity = ocp_sensitivity
 
         # path management
         self.afm = AcadosFileManager(export_directory)
@@ -1186,21 +1188,22 @@ class MPC(ABC):
         Returns:
             stage_cost: Stage cost.
         """
-        assert self.ocp.cost.cost_type == "EXTERNAL"
+        if self.ocp.cost.cost_type == "EXTERNAL":
+            ocp = self.ocp
+        else:
+            ocp = self.ocp_sensitivity
         assert x.ndim == 1 and u.ndim == 1
 
         if self._cost_fn is None:
-            inputs = [self.ocp.model.x, self.ocp.model.u]
+            inputs = [ocp.model.x, ocp.model.u]
 
             if self.default_p_global is not None:
-                inputs.append(self.ocp.model.p_global)
+                inputs.append(ocp.model.p_global)
 
             if self.default_p_stagewise is not None:
-                inputs.append(self.ocp.model.p)
+                inputs.append(ocp.model.p)
 
-            self._cost_fn = ca.Function(
-                "cost", inputs, [self.ocp.model.cost_expr_ext_cost]
-            )
+            self._cost_fn = ca.Function("cost", inputs, [ocp.model.cost_expr_ext_cost])
 
         inputs = [x, u]
 
