@@ -1,3 +1,4 @@
+from collections import OrderedDict
 from copy import deepcopy
 from typing import Any
 
@@ -41,27 +42,45 @@ class PendulumOnCartMPC(MPC):
         least_squares_cost: bool = True,
     ):
         if params is None:
-            params = {
-                "M": np.array([1.0]),  # mass of the cart [kg]
-                "m": np.array([0.1]),  # mass of the ball [kg]
-                "g": np.array([9.81]),  # gravity constant [m/s^2]
-                "l": np.array([0.8]),  # length of the rod [m]
-                # The quadratic cost matrix is calculated according to L@L.T
-                "L11": np.array([np.sqrt(2e3)]),
-                "L22": np.array([np.sqrt(2e3)]),
-                "L33": np.array([np.sqrt(1e-2)]),
-                "L44": np.array([np.sqrt(1e-2)]),
-                "L55": np.array([np.sqrt(2e-1)]),
-                "Lloweroffdiag": np.array([0] * (4 + 3 + 2 + 1)),
-                "c": np.array(
-                    [0] * 5
-                ),  # linear cost vector, only used for non-LS (!) cost
-                "xref1": np.array([0]),  # reference position, only used for LS cost
-                "xref2": np.array([0]),  # reference position, only used for LS cost
-                "xref3": np.array([0]),  # reference position, only used for LS cost
-                "xref4": np.array([0]),  # reference position, only used for LS cost
-                "uref": np.array([0]),  # reference position, only used for LS cost
-            }
+            params = OrderedDict(
+                [
+                    ("M", np.array([1.0])),  # mass of the cart [kg]
+                    ("m", np.array([0.1])),  # mass of the ball [kg]
+                    ("g", np.array([9.81])),  # gravity constant [m/s^2]
+                    ("l", np.array([0.8])),  # length of the rod [m]
+                    (
+                        "c",
+                        np.array([0] * 5),
+                    ),  # linear cost vector, only used for non-LS (!) cost
+                    # The quadratic cost matrix is calculated according to L@L.T
+                    ("L11", np.array([np.sqrt(2e3)])),
+                    ("L22", np.array([np.sqrt(2e3)])),
+                    ("L33", np.array([np.sqrt(1e-2)])),
+                    ("L44", np.array([np.sqrt(1e-2)])),
+                    ("L55", np.array([np.sqrt(2e-1)])),
+                    ("Lloweroffdiag", np.array([0] * (4 + 3 + 2 + 1))),
+                    (
+                        "xref1",
+                        np.array([0]),
+                    ),  # reference position, only used for LS cost
+                    (
+                        "xref2",
+                        np.array([0]),
+                    ),  # reference position, only used for LS cost
+                    (
+                        "xref3",
+                        np.array([0]),
+                    ),  # reference position, only used for LS cost
+                    (
+                        "xref4",
+                        np.array([0]),
+                    ),  # reference position, only used for LS cost
+                    (
+                        "uref",
+                        np.array([0]),
+                    ),  # reference position, only used for LS cost
+                ]
+            )
 
         ocp, ocp_sens = export_parametric_ocp(
             nominal_param=params,
