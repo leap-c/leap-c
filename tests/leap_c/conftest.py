@@ -119,34 +119,64 @@ def linear_mpc_p_global(
 
 
 @pytest.fixture(scope="session")
-def learnable_pendulum_on_cart_mpc(n_batch: int) -> PendulumOnCartMPC:
-    """Fixture for the pendulum on cart MPC with learnable parameters."""
+def learnable_pendulum_on_cart_mpc_lls_cost(n_batch: int) -> PendulumOnCartMPC:
+    """Fixture for the pendulum on cart MPC with learnable parameters, using Linear Least Squares cost."""
     return PendulumOnCartMPC(
-        learnable_params=["M", "m", "g", "L11", "xref1"], n_batch=n_batch
+        learnable_params=["M", "m", "g", "L11", "xref1"],
+        n_batch=n_batch,
+        least_squares_cost=True,
     )
 
 
 @pytest.fixture(scope="session")
-def pendulum_on_cart_ocp_env(
-    learnable_pendulum_on_cart_mpc: PendulumOnCartMPC,
+def pendulum_on_cart_ocp_env_ls_cost(
+    learnable_pendulum_on_cart_mpc_lls_cost: PendulumOnCartMPC,
 ) -> PendulumOnCartOcpEnv:
-    return PendulumOnCartOcpEnv(learnable_pendulum_on_cart_mpc, render_mode="rgb_array")
+    return PendulumOnCartOcpEnv(
+        learnable_pendulum_on_cart_mpc_lls_cost, render_mode="rgb_array"
+    )
+
+
+@pytest.fixture(scope="session")
+def learnable_pendulum_on_cart_mpc_ext_cost(n_batch: int) -> PendulumOnCartMPC:
+    """Fixture for the pendulum on cart MPC with learnable parameters, using a general quadratic cost."""
+    return PendulumOnCartMPC(
+        learnable_params=["M", "m", "g", "L11", "c"],
+        n_batch=n_batch,
+        least_squares_cost=False,
+    )
+
+
+@pytest.fixture(scope="session")
+def pendulum_on_cart_ocp_env_ext_cost(
+    learnable_pendulum_on_cart_mpc_ext_cost: PendulumOnCartMPC,
+) -> PendulumOnCartOcpEnv:
+    return PendulumOnCartOcpEnv(
+        learnable_pendulum_on_cart_mpc_ext_cost, render_mode="rgb_array"
+    )
 
 
 @pytest.fixture(scope="session")
 def all_ocp_env(
     linear_system_ocp_env: LinearSystemOcpEnv,
-    pendulum_on_cart_ocp_env: PendulumOnCartOcpEnv,
+    pendulum_on_cart_ocp_env_ls_cost: PendulumOnCartOcpEnv,
+    pendulum_on_cart_ocp_env_ext_cost: PendulumOnCartOcpEnv,
     point_mass_ocp_env: PointMassOcpEnv,
 ):
-    return [linear_system_ocp_env, pendulum_on_cart_ocp_env, point_mass_ocp_env]
+    return [
+        linear_system_ocp_env,
+        pendulum_on_cart_ocp_env_ls_cost,
+        pendulum_on_cart_ocp_env_ext_cost,
+        point_mass_ocp_env,
+    ]
 
 
 @pytest.fixture(scope="session")
 def pendulum_on_cart_p_global(
-    learnable_pendulum_on_cart_mpc: PendulumOnCartMPC, n_batch: int
+    learnable_pendulum_on_cart_mpc_lls_cost: PendulumOnCartMPC, n_batch: int
 ) -> np.ndarray:
     """Fixture for the global parameters of the pendulum on cart MPC."""
     return generate_batch_variation(
-        learnable_pendulum_on_cart_mpc.ocp_solver.acados_ocp.p_global_values, n_batch
+        learnable_pendulum_on_cart_mpc_lls_cost.ocp_solver.acados_ocp.p_global_values,
+        n_batch,
     )

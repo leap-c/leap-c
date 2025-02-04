@@ -271,16 +271,16 @@ def test_backup_fn_batched(learnable_linear_mpc: MPC, n_batch: int):
 
 
 def test_fail_consistency_batched_non_batched(
-    learnable_pendulum_on_cart_mpc: MPC, n_batch: int
+    learnable_pendulum_on_cart_mpc_lls_cost: MPC, n_batch: int
 ):
     x0 = np.tile(np.array([0, -np.pi, 0, 0]), (n_batch, 1))
-    p_glob = learnable_pendulum_on_cart_mpc.default_p_global.copy()  # type:ignore
+    p_glob = learnable_pendulum_on_cart_mpc_lls_cost.default_p_global.copy()  # type:ignore
     p_glob[0] = 0  # Set Mass of cart to 0 # type:ignore
     p_glob = np.tile(p_glob, (n_batch, 1))  # type:ignore
-    sol, _ = learnable_pendulum_on_cart_mpc(
+    sol, _ = learnable_pendulum_on_cart_mpc_lls_cost(
         MPCInput(x0=x0, parameters=MPCParameter(p_global=p_glob))
     )
-    single_sol, _ = learnable_pendulum_on_cart_mpc(
+    single_sol, _ = learnable_pendulum_on_cart_mpc_lls_cost(
         MPCInput(x0=x0[0], parameters=MPCParameter(p_global=p_glob[0]))
     )
     assert single_sol.status != 0

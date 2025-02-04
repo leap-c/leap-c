@@ -86,6 +86,7 @@ class PendulumOnCartMPC(MPC):
             nominal_param=params,
             cost_type="LINEAR_LS" if least_squares_cost else "EXTERNAL",
             exact_hess_dyn=exact_hess_dyn,
+            name="pendulum_on_cart_lls" if "LINEAR_LS" else "pendulum_on_cart_ext",
             learnable_param=learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
@@ -388,16 +389,6 @@ class PendulumOnCartOcpEnv(OCPEnv):
             pygame.quit()
 
 
-def configure_ocp_solver(ocp: AcadosOcp, hess_approx: str, exact_hess_dyn: bool):
-    ocp.solver_options.integrator_type = "DISCRETE"
-    ocp.solver_options.nlp_solver_type = "SQP"
-    ocp.solver_options.hessian_approx = hess_approx
-    ocp.solver_options.exact_hess_dyn = exact_hess_dyn
-    ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    ocp.solver_options.qp_solver_ric_alg = 1
-    ocp.solver_options.with_value_sens_wrt_params = True
-
-
 def f_expl_expr(model: AcadosModel) -> ca.SX:
     p = find_param_in_p_or_p_global(["M", "m", "g", "l"], model)
 
@@ -497,10 +488,6 @@ def cost_expr_ext_cost(model: AcadosModel) -> ca.SX:
     return 0.5 * z.T @ W @ z + c.T @ z
 
 
-def cost_expr_ext_cost_0(model: AcadosModel) -> ca.SX:
-    return cost_expr_ext_cost(model)
-
-
 def cost_expr_ext_cost_e(model: AcadosModel) -> ca.SX:
     x = model.x
     W = cost_matrix_casadi(model)
@@ -589,15 +576,35 @@ def export_parametric_ocp(
     ocp.constraints.ubx = -ocp.constraints.lbx
     ocp.constraints.idxbx = np.array([0])
 
-    configure_ocp_solver(
-        ocp,
-        hess_approx="GAUSS_NEWTON" if cost_type == "LINEAR_LS" else "EXACT",
-        exact_hess_dyn=exact_hess_dyn,
+    ######## Solver configuration ########
+    ocp.solver_options.integrator_type = "DISCRETE"
+    ocp.solver_options.nlp_solver_type = "SQP"
+    ocp.solver_options.hessian_approx = (
+        "GAUSS_NEWTON" if cost_type == "LINEAR_LS" else "EXACT"
     )
 
-    ocp_sens = generate_sens_ocp(ocp)
+    ocp.solver_options.exact_hess_dyn = exact_hess_dyn
+    ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    ocp.solver_options.qp_solver_ric_alg = 1
+    ocp.solver_options.with_value_sens_wrt_params = True
 
-    # #############################
+    #####################################################
+
+    ######## Generate ocp for sensitivities ########
+    ocp_sens = deepcopy(ocp)
+
+    if cost_type == "EXTERNAL":
+        pass
+    else:
+        W = cost_matrix_casadi(ocp_sens.model)
+        W_e = W[:4, :4]
+        yref = yref_casadi(ocp_sens.model)
+        yref_e = yref[:4]
+        ocp_sens.translate_cost_to_external_cost(W=W, W_e=W_e, yref=yref, yref_e=yref_e)
+    set_standard_sensitivity_options(ocp_sens)
+
+    ######################################################
+
     if isinstance(ocp.model.p, struct_symSX):
         ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
         ocp_sens.model.p = ocp_sens.model.p.cat if ocp_sens.model.p is not None else []  # type:ignore
@@ -611,15 +618,3 @@ def export_parametric_ocp(
         )
 
     return ocp, ocp_sens
-
-
-def generate_sens_ocp(ocp: AcadosOcp) -> AcadosOcp:
-    ocp_sens = deepcopy(ocp)
-
-    W = cost_matrix_casadi(ocp_sens.model)
-    W_e = W[:4, :4]
-    yref = yref_casadi(ocp_sens.model)
-    yref_e = yref[:4]
-    ocp_sens.translate_cost_to_external_cost(W=W, W_e=W_e, yref=yref, yref_e=yref_e)
-    set_standard_sensitivity_options(ocp_sens)
-    return ocp_sens

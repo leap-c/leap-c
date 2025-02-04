@@ -49,10 +49,10 @@ def test_solution(
 
 
 def test_closed_loop_rendering(
-    learnable_pendulum_on_cart_mpc: PendulumOnCartMPC,
-    pendulum_on_cart_ocp_env: PendulumOnCartOcpEnv,
+    learnable_pendulum_on_cart_mpc_lls_cost: PendulumOnCartMPC,
+    pendulum_on_cart_ocp_env_ls_cost: PendulumOnCartOcpEnv,
 ):
-    obs, _ = pendulum_on_cart_ocp_env.reset(seed=1337)
+    obs, _ = pendulum_on_cart_ocp_env_ls_cost.reset(seed=1337)
 
     count = 0
     terminated = False
@@ -62,10 +62,12 @@ def test_closed_loop_rendering(
     savefile_dir_path = os.path.join(cwd, "test_closed_loop_pendulum_on_cart")
     create_dir_if_not_exists(savefile_dir_path)
     while count < 200 and not terminated and not truncated:
-        a = learnable_pendulum_on_cart_mpc.policy(
-            obs[0], learnable_pendulum_on_cart_mpc.default_p_global
+        a = learnable_pendulum_on_cart_mpc_lls_cost.policy(
+            obs[0], learnable_pendulum_on_cart_mpc_lls_cost.default_p_global
         )[0]
-        obs_prime, r, terminated, truncated, info = pendulum_on_cart_ocp_env.step(a)
+        obs_prime, r, terminated, truncated, info = (
+            pendulum_on_cart_ocp_env_ls_cost.step(a)
+        )
         frames.append(info["frame"])
         obs = obs_prime
         count += 1
@@ -76,7 +78,7 @@ def test_closed_loop_rendering(
         frames,  # type:ignore
         video_folder=savefile_dir_path,
         name_prefix="pendulum_on_cart",
-        fps=pendulum_on_cart_ocp_env.metadata["render_fps"],
+        fps=pendulum_on_cart_ocp_env_ls_cost.metadata["render_fps"],
     )
 
     shutil.rmtree(savefile_dir_path)
