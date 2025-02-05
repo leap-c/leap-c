@@ -48,10 +48,6 @@ class PendulumOnCartMPC(MPC):
                     ("m", np.array([0.1])),  # mass of the ball [kg]
                     ("g", np.array([9.81])),  # gravity constant [m/s^2]
                     ("l", np.array([0.8])),  # length of the rod [m]
-                    (
-                        "c",
-                        np.array([0] * 5),
-                    ),  # linear cost vector, only used for non-LS (!) cost
                     # The quadratic cost matrix is calculated according to L@L.T
                     ("L11", np.array([np.sqrt(2e3)])),
                     ("L22", np.array([np.sqrt(2e3)])),
@@ -60,25 +56,45 @@ class PendulumOnCartMPC(MPC):
                     ("L55", np.array([np.sqrt(2e-1)])),
                     ("Lloweroffdiag", np.array([0] * (4 + 3 + 2 + 1))),
                     (
+                        "c1",
+                        np.array([0]),
+                    ),  # position linear cost, only used for non-LS (!) cost
+                    (
+                        "c2",
+                        np.array([0]),
+                    ),  # theta linear cost, only used for non-LS (!) cost
+                    (
+                        "c3",
+                        np.array([0]),
+                    ),  # v linear cost, only used for non-LS (!) cost
+                    (
+                        "c4",
+                        np.array([0]),
+                    ),  # thetadot linear cost, only used for non-LS (!) cost
+                    (
+                        "c5",
+                        np.array([0]),
+                    ),  # u linear cost, only used for non-LS (!) cost
+                    (
                         "xref1",
                         np.array([0]),
                     ),  # reference position, only used for LS cost
                     (
                         "xref2",
                         np.array([0]),
-                    ),  # reference position, only used for LS cost
+                    ),  # reference theta, only used for LS cost
                     (
                         "xref3",
                         np.array([0]),
-                    ),  # reference position, only used for LS cost
+                    ),  # reference v, only used for LS cost
                     (
                         "xref4",
                         np.array([0]),
-                    ),  # reference position, only used for LS cost
+                    ),  # reference thetadot, only used for LS cost
                     (
                         "uref",
                         np.array([0]),
-                    ),  # reference position, only used for LS cost
+                    ),  # reference u, only used for LS cost
                 ]
             )
 
@@ -523,6 +539,18 @@ def export_parametric_ocp(
 
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)  # type:ignore
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)  # type:ignore
+
+    if cost_type == "EXTERNAL":
+        # Prune away reference parameters
+        for i in range(1, 5):
+            nominal_param.pop(f"xref{i}")
+        nominal_param.pop("uref")
+    elif cost_type == "LINEAR_LS":
+        # Prune away linear cost parameters
+        for i in range(1, 6):
+            nominal_param.pop(f"c{i}")
+    else:
+        raise ValueError(f"Cost type {cost_type} not supported.")
 
     ocp = translate_learnable_param_to_p_global(
         nominal_param=nominal_param,
