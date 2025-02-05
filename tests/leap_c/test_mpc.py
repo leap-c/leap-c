@@ -210,8 +210,8 @@ def test_statelessness_batched_external(
     p_global_def = learnable_pendulum_on_cart_mpc_ext_cost.default_p_global
     p_global_def = np.tile(p_global_def, (n_batch, 1))
 
-    p_global_def[:, -6] = 1e-2  # Set quadratic weight to low value
-    p_global_def[:, 9] = 1  # Set reference position to 1
+    p_global_def[:, -2] = 1e-2  # Set quadratic weight to low value
+    p_global_def[:, 1] = 1  # Set reference position to 1
     params = MPCParameter(p_global=p_global_def)
     mpc_input_different = MPCInput(x0=x0, parameters=params)
     solution_different, _ = learnable_pendulum_on_cart_mpc_ext_cost(
