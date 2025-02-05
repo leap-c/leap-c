@@ -36,7 +36,25 @@ def plot_cart_pole_solution(
 
 def test_solution(
     mpc: PendulumOnCartMPC = PendulumOnCartMPC(
-        learnable_params=["M", "m", "g", "l", "Q", "R"], exact_hess_dyn=False
+        learnable_params=[
+            "M",
+            "m",
+            "g",
+            "l",
+            "L11",
+            "L22",
+            "L33",
+            "L44",
+            "L55",
+            "Lloweroffdiag",
+            "c1",
+            "c2",
+            "c3",
+            "c4",
+            "c5",
+        ],
+        exact_hess_dyn=False,
+        least_squares_cost=False,
     ),
 ):
     ocp_solver = mpc.ocp_solver
