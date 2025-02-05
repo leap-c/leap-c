@@ -178,8 +178,8 @@ def test_statelessness_LLS(learnable_pendulum_on_cart_mpc_lls_cost: MPC):
     )
     # Use this as proxy to verify the different solution is different enough
     assert not np.allclose(
-        solution_standard.Q,  # type:ignore
-        solution_different.Q,  # type:ignore
+        solution_standard.V,  # type:ignore
+        solution_different.V,  # type:ignore
     )
     solution_supposedly_standard, _ = learnable_pendulum_on_cart_mpc_lls_cost(
         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
@@ -221,8 +221,8 @@ def test_statelessness_batched_LLS(
     )
     # Use this as proxy to verify the different solution is different enough
     assert not np.allclose(
-        solution_standard.Q,  # type:ignore
-        solution_different.Q,  # type:ignore
+        solution_standard.V,  # type:ignore
+        solution_different.V,  # type:ignore
     )
     solution_supposedly_standard, _ = learnable_pendulum_on_cart_mpc_lls_cost(
         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
