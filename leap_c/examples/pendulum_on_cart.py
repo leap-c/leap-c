@@ -101,7 +101,9 @@ class PendulumOnCartMPC(MPC):
             nominal_param=params.copy(),
             cost_type="LINEAR_LS" if least_squares_cost else "EXTERNAL",
             exact_hess_dyn=exact_hess_dyn,
-            name="pendulum_on_cart_lls" if "LINEAR_LS" else "pendulum_on_cart_ext",
+            name="pendulum_on_cart_lls"
+            if least_squares_cost
+            else "pendulum_on_cart_ext",
             learnable_param=learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
@@ -113,7 +115,9 @@ class PendulumOnCartMPC(MPC):
             nominal_param=params.copy(),
             cost_type="LINEAR_LS" if least_squares_cost else "EXTERNAL",
             exact_hess_dyn=exact_hess_dyn,
-            name="pendulum_on_cart_lls" if "LINEAR_LS" else "pendulum_on_cart_ext",
+            name="pendulum_on_cart_lls"
+            if least_squares_cost
+            else "pendulum_on_cart_ext",
             learnable_param=learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
