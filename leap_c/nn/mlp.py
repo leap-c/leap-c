@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+
 import torch
 import torch.nn as nn
 
@@ -33,34 +34,34 @@ class MLP(nn.Module):
     """
     def __init__(
         self,
-        input_dims: int | list[int],
-        output_dims: int | list[int],
+        input_sizes: int | list[int],
+        output_sizes: int | list[int],
         mlp_cfg: MLPConfig,
     ) -> None:
         """Initializes the MLP.
 
         Args:
-            input_dims: The dimensionality of the input tensor.
-            output_dims: The dimensionality of the output tensor.
-            mlpcfg: The configuration for the MLP.
+            input_sizes: The sizes of the input tensors.
+            output_sizes: The sizes of the output tensors
+            mlp_cfg: The configuration for the MLP.
         """
         super().__init__()
 
         self.activation = string_to_activation(mlp_cfg.activation)
 
-        if isinstance(input_dims, int):
-            input_dims = [input_dims]
-        self._comb_input_dim = sum(input_dims)
-        self._input_dims = input_dims
+        if isinstance(input_sizes, int):
+            input_sizes = [input_sizes]
+        self._comb_input_dim = sum(input_sizes)
+        self._input_dims = input_sizes
 
-        if isinstance(output_dims, int):
-            output_dims = [output_dims]
-        self._comb_output_dim = sum(output_dims)
-        self._output_dims = output_dims
+        if isinstance(output_sizes, int):
+            output_sizes = [output_sizes]
+        self._comb_output_dim = sum(output_sizes)
+        self._output_dims = output_sizes
 
         layers = []
         prev_d = self._comb_input_dim
-        for d in mlp_cfg.hidden_dims:
+        for d in [*mlp_cfg.hidden_dims, self._comb_output_dim]:
             layers.extend([nn.Linear(prev_d, d), self.activation])
             prev_d = d
 
@@ -71,6 +72,8 @@ class MLP(nn.Module):
         if isinstance(x, tuple):
             x = torch.cat(x, dim=-1)  # type: ignore
         y = self.mlp(x)
-        y = torch.split(y, self._output_dims, dim=-1)
 
+        if len(self._output_dims) == 1:
+            return y
+        y = torch.split(y, self._output_dims, dim=-1)
         return y

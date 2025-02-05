@@ -130,5 +130,5 @@ class ReplayBuffer:
         """Collate the input and cast all final tensors to the device and dtype of the buffer."""
         return collate(obs, collate_fn_map=self.custom_collate_map)
 
-    def size(self) -> int:
+    def __len__(self):
         return len(self.buffer)

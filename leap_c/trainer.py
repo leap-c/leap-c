@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Tuple, Iterator
+from typing import Iterator
 import bisect
 
 import wandb
@@ -10,6 +10,7 @@ import numpy as np
 import torch
 from torch import nn
 import pandas as pd
+from yaml import dump
 
 from leap_c.task import Task
 from leap_c.rollout import episode_rollout
@@ -45,7 +46,7 @@ class LogConfig:
 
     val_window: int = 1
 
-    csv_logger: bool = False
+    csv_logger: bool = True
     wandb_logger: bool = False
 
 
@@ -166,7 +167,7 @@ class Trainer(ABC, nn.Module):
 
         # log dataclass config as yaml
         with open(self.output_path / "config.yaml", "w") as f:
-            f.write(cfg.__repr__())
+            dump(cfg, f)
 
     @abstractmethod
     def train_loop(self) -> Iterator[int]:
@@ -224,11 +225,13 @@ class Trainer(ABC, nn.Module):
 
         if window_size is not None:
             window_idx = bisect.bisect_left(self.state.timestamps[group], timestamp - window_size)
-            smoothed_stats = {
-                key: np.mean(self.state.logs[key][-window_idx:])
-                for key in self.state.logs
+            stats = {
+                key: float(np.mean(values[-window_idx:]))
+                for key, values in self.state.logs[group].items()
             }
-            self.state.logs[group].append(smoothed_stats)
+
+        if group == "train" or group == "val":
+            print(f"Step: {timestamp}, {group}: {stats}")
 
         if self.cfg.log.wandb_logger:
             wandb.log(stats, step=timestamp)
