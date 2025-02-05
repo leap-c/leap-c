@@ -632,9 +632,9 @@ def export_parametric_ocp(
     if cost_type == "EXTERNAL":
         pass
     else:
-        W = cost_matrix_casadi(ocp_sens.model)
+        W = cost_matrix_casadi(ocp.model)
         W_e = W[:4, :4]
-        yref = yref_casadi(ocp_sens.model)
+        yref = yref_casadi(ocp.model)
         yref_e = yref[:4]
         ocp_sens.translate_cost_to_external_cost(W=W, W_e=W_e, yref=yref, yref_e=yref_e)
     set_standard_sensitivity_options(ocp_sens)
@@ -643,14 +643,16 @@ def export_parametric_ocp(
 
     if isinstance(ocp.model.p, struct_symSX):
         ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
-        ocp_sens.model.p = ocp_sens.model.p.cat if ocp_sens.model.p is not None else []  # type:ignore
+        ocp_sens.model.p = ocp.model.p
+    #        ocp_sens.model.p = ocp_sens.model.p.cat if ocp_sens.model.p is not None else []  # type:ignore
 
     if isinstance(ocp.model.p_global, struct_symSX):
         ocp.model.p_global = (
             ocp.model.p_global.cat if ocp.model.p_global is not None else None
         )
-        ocp_sens.model.p_global = (
-            ocp_sens.model.p_global.cat if ocp_sens.model.p_global is not None else None  # type:ignore
-        )
+        ocp_sens.model.p_global = ocp.model.p_global
+        # ocp_sens.model.p_global = (
+        #     ocp_sens.model.p_global.cat if ocp_sens.model.p_global is not None else None  # type:ignore
+        # )
 
     return ocp, ocp_sens
