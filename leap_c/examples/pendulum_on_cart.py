@@ -1,5 +1,4 @@
 from collections import OrderedDict
-from copy import deepcopy
 from typing import Any
 
 import casadi as ca
@@ -98,8 +97,8 @@ class PendulumOnCartMPC(MPC):
                 ]
             )
 
-        ocp, ocp_sens = export_parametric_ocp(
-            nominal_param=params,
+        ocp = export_parametric_ocp(
+            nominal_param=params.copy(),
             cost_type="LINEAR_LS" if least_squares_cost else "EXTERNAL",
             exact_hess_dyn=exact_hess_dyn,
             name="pendulum_on_cart_lls" if "LINEAR_LS" else "pendulum_on_cart_ext",
@@ -107,6 +106,19 @@ class PendulumOnCartMPC(MPC):
             N_horizon=N_horizon,
             tf=T_horizon,
             Fmax=Fmax,
+            sensitivity_ocp=False,
+        )
+
+        ocp_sens = export_parametric_ocp(
+            nominal_param=params.copy(),
+            cost_type="LINEAR_LS" if least_squares_cost else "EXTERNAL",
+            exact_hess_dyn=exact_hess_dyn,
+            name="pendulum_on_cart_lls" if "LINEAR_LS" else "pendulum_on_cart_ext",
+            learnable_param=learnable_params,
+            N_horizon=N_horizon,
+            tf=T_horizon,
+            Fmax=Fmax,
+            sensitivity_ocp=True,
         )
 
         self.given_default_param_dict = params
@@ -530,7 +542,8 @@ def export_parametric_ocp(
     Fmax: float = 80.0,
     N_horizon: int = 50,
     tf: float = 2.0,
-) -> tuple[AcadosOcp, AcadosOcp]:
+    sensitivity_ocp=False,
+) -> AcadosOcp:
     ocp = AcadosOcp()
 
     ocp.solver_options.N_horizon = N_horizon
@@ -626,33 +639,23 @@ def export_parametric_ocp(
 
     #####################################################
 
-    ######## Generate ocp for sensitivities ########
-    ocp_sens = deepcopy(ocp)
-
-    if cost_type == "EXTERNAL":
-        pass
-    else:
-        W = cost_matrix_casadi(ocp.model)
-        W_e = W[:4, :4]
-        yref = yref_casadi(ocp.model)
-        yref_e = yref[:4]
-        ocp_sens.translate_cost_to_external_cost(W=W, W_e=W_e, yref=yref, yref_e=yref_e)
-    set_standard_sensitivity_options(ocp_sens)
-
-    ######################################################
+    if sensitivity_ocp:
+        if cost_type == "EXTERNAL":
+            pass
+        else:
+            W = cost_matrix_casadi(ocp.model)
+            W_e = W[:4, :4]
+            yref = yref_casadi(ocp.model)
+            yref_e = yref[:4]
+            ocp.translate_cost_to_external_cost(W=W, W_e=W_e, yref=yref, yref_e=yref_e)
+        set_standard_sensitivity_options(ocp)
 
     if isinstance(ocp.model.p, struct_symSX):
         ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
-        ocp_sens.model.p = ocp.model.p
-    #        ocp_sens.model.p = ocp_sens.model.p.cat if ocp_sens.model.p is not None else []  # type:ignore
 
     if isinstance(ocp.model.p_global, struct_symSX):
         ocp.model.p_global = (
             ocp.model.p_global.cat if ocp.model.p_global is not None else None
         )
-        ocp_sens.model.p_global = ocp.model.p_global
-        # ocp_sens.model.p_global = (
-        #     ocp_sens.model.p_global.cat if ocp_sens.model.p_global is not None else None  # type:ignore
-        # )
 
-    return ocp, ocp_sens
+    return ocp
