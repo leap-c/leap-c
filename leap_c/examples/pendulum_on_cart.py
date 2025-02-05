@@ -205,7 +205,7 @@ class PendulumOnCartOcpEnv(OCPEnv):
         for x in state_trajectory:
             self.pos_trajectory.append(x[0])  # Only take coordinate
             self.pole_end_trajectory.append(
-                self.calc_pole_end(x[0], x[1], length.item())
+                self.calc_pole_end(x[0], x[1], length.item())  # type:ignore
             )
 
     def calc_pole_end(
@@ -265,9 +265,9 @@ class PendulumOnCartOcpEnv(OCPEnv):
             raise ValueError(
                 "action_to_take is None, but it should be set before rendering."
             )
-        action_length = abs(int(self.action_to_take.item() / Fmax * scale))
+        action_length = abs(int(self.action_to_take.item() / Fmax * scale))  # type:ignore
 
-        if self.action_to_take.item() > 0:  # Draw on the right side
+        if self.action_to_take.item() > 0:  # Draw on the right side #type:ignore
             action_origin = (int(cartx + right), ground_height)
             action_rotate_deg = 270
             if self.current_noise > 0:
@@ -296,7 +296,7 @@ class PendulumOnCartOcpEnv(OCPEnv):
             color=(0, 0, 255),
             width_line=3,
         )
-        noise_length = abs(int(self.current_noise / Fmax * scale))
+        noise_length = abs(int(self.current_noise / Fmax * scale))  # type:ignore
         draw_arrow(
             canvas,
             noise_origin,
@@ -420,7 +420,7 @@ def f_expl_expr(model: AcadosModel) -> ca.SX:
         / (l * denominator),
     )
 
-    return f_expl
+    return f_expl  # type:ignore
 
 
 def disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
@@ -434,11 +434,11 @@ def disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
 
     ode = ca.Function("ode", [x, u, p], [f_expl])
     k1 = ode(x, u, p)
-    k2 = ode(x + dt / 2 * k1, u, p)
-    k3 = ode(x + dt / 2 * k2, u, p)
-    k4 = ode(x + dt * k3, u, p)
+    k2 = ode(x + dt / 2 * k1, u, p)  # type:ignore
+    k3 = ode(x + dt / 2 * k2, u, p)  # type:ignore
+    k4 = ode(x + dt * k3, u, p)  # type:ignore
 
-    return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+    return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)  # type:ignore
 
 
 def cost_matrix_casadi(model: AcadosModel) -> ca.SX:
@@ -473,7 +473,7 @@ def yref_casadi(model: AcadosModel) -> ca.SX:
         *find_param_in_p_or_p_global(
             [f"xref{i}" for i in range(1, 5)] + ["uref"], model
         ).values()
-    )
+    )  # type:ignore
 
 
 def cost_expr_ext_cost(model: AcadosModel) -> ca.SX:
@@ -525,10 +525,12 @@ def export_parametric_ocp(
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)  # type:ignore
 
     ocp = translate_learnable_param_to_p_global(
-        nominal_param=nominal_param, learnable_param=learnable_param, ocp=ocp
+        nominal_param=nominal_param,
+        learnable_param=learnable_param if learnable_param is not None else [],
+        ocp=ocp,
     )
 
-    ocp.model.disc_dyn_expr = disc_dyn_expr(model=ocp.model, dt=dt)
+    ocp.model.disc_dyn_expr = disc_dyn_expr(model=ocp.model, dt=dt)  # type:ignore
 
     ######## Cost ########
     if cost_type == "EXTERNAL":
