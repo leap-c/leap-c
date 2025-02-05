@@ -1030,7 +1030,7 @@ class MPC(ABC):
                         return_sens_u=True,
                         return_sens_x=False,
                     )["sens_u"]
-                    for ocp_solver in self.ocp_batch_solver.ocp_solvers
+                    for ocp_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
                 ]
             )
         if dvdx:
