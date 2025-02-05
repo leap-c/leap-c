@@ -161,11 +161,11 @@ def test_statelessness_LLS(learnable_pendulum_on_cart_mpc_lls_cost: MPC):
     )
 
     assert learnable_pendulum_on_cart_mpc_lls_cost.default_p_global is not None
-    p_global_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_global
+    p_global_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_global.copy()
     assert learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref is not None
-    p_yref_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref
+    p_yref_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref.copy()
     assert learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref_e is not None
-    p_yref_e_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref_e
+    p_yref_e_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref_e.copy()
     p_global_def[-1] = 1  # Set reference position to 1
     p_yref_def[:, 0] = 1  # Set reference position to 1
     p_yref_e_def[0] = 1  # Set reference position to 1
@@ -241,7 +241,7 @@ def test_statelessness_external(learnable_pendulum_on_cart_mpc_ext_cost: MPC):
     )
 
     assert learnable_pendulum_on_cart_mpc_ext_cost.default_p_global is not None
-    p_global_def = learnable_pendulum_on_cart_mpc_ext_cost.default_p_global
+    p_global_def = learnable_pendulum_on_cart_mpc_ext_cost.default_p_global.copy()
 
     p_global_def[-2] = 1e-2  # Set quadratic weight to low value
     p_global_def[1] = 1  # Set reference position to 1
