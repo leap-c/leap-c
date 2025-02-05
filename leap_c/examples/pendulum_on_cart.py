@@ -492,12 +492,18 @@ def yref_casadi(model: AcadosModel) -> ca.SX:
     )  # type:ignore
 
 
+def c_casadi(model: AcadosModel) -> ca.SX:
+    return ca.vertcat(
+        *find_param_in_p_or_p_global([f"c{i}" for i in range(1, 6)], model).values()
+    )  # type:ignore
+
+
 def cost_expr_ext_cost(model: AcadosModel) -> ca.SX:
     x = model.x
     u = model.u
 
     W = cost_matrix_casadi(model)
-    c = find_param_in_p_or_p_global(["c"], model)["c"]
+    c = c_casadi(model)
 
     z = ca.vertcat(x, u)
 
@@ -507,7 +513,7 @@ def cost_expr_ext_cost(model: AcadosModel) -> ca.SX:
 def cost_expr_ext_cost_e(model: AcadosModel) -> ca.SX:
     x = model.x
     W = cost_matrix_casadi(model)
-    c = find_param_in_p_or_p_global(["c"], model)["c"]
+    c = c_casadi(model)
 
     Q = W[:4, :4]
     c = c[:4]

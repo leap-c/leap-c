@@ -141,7 +141,7 @@ def pendulum_on_cart_ocp_env_lls_cost(
 def learnable_pendulum_on_cart_mpc_ext_cost(n_batch: int) -> PendulumOnCartMPC:
     """Fixture for the pendulum on cart MPC with learnable parameters, using a general quadratic cost."""
     return PendulumOnCartMPC(
-        learnable_params=["M", "m", "g", "L11", "c"],
+        learnable_params=["M", "m", "g", "L11", "c1"],
         n_batch=n_batch,
         least_squares_cost=False,
     )
