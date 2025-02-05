@@ -138,14 +138,14 @@ class Trainer(ABC, nn.Module):
         optimizers: The optimizers of the trainer.
     """
 
-    def __init__(self, task: Task, cfg: BaseConfig, output_path: str | Path, device: str):
+    def __init__(self, task: Task, output_path: str | Path, device: str, cfg: BaseConfig):
         """Initializes the trainer with a configuration, output path, and device.
 
         Args:
             task: The task to be solved by the trainer.
-            cfg: The configuration for the trainer.
             output_path: The path to the output directory.
             device: The device on which the trainer is running
+            cfg: The configuration for the trainer.
         """
         super().__init__()
 

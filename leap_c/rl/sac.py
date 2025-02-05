@@ -11,6 +11,7 @@ import torch.nn as nn
 from leap_c.nn.gaussian import Gaussian
 from leap_c.nn.mlp import MLP, MLPConfig
 from leap_c.rl.replay_buffer import ReplayBuffer
+from leap_c.registry import register_trainer
 from leap_c.task import Task
 from leap_c.trainer import (
     BaseConfig,
@@ -118,22 +119,30 @@ class SACActor(nn.Module):
 
     def forward(self, x: torch.Tensor, deterministic=False):
         mean, log_std = self.mlp(x)
+        # pdb if mean or std is nan
+        if torch.isnan(mean).any() or torch.isnan(log_std).any():
+            import pdb
+
+            pdb.set_trace()
         return self.gaussian(mean, log_std, deterministic=deterministic)
 
 
+@register_trainer("sac", SACBaseConfig())
 class SACTrainer(Trainer):
     cfg: SACBaseConfig
 
-    def __init__(self, task: Task, cfg: SACBaseConfig, output_path: str | Path, device: str):
+    def __init__(
+        self, task: Task, output_path: str | Path, device: str, cfg: SACBaseConfig
+    ):
         """Initializes the trainer with a configuration, output path, and device.
 
         Args:
             task: The task to be solved by the trainer.
-            cfg: The configuration for the trainer.
             output_path: The path to the output directory.
             device: The device on which the trainer is running
+            cfg: The configuration for the trainer.
         """
-        super().__init__(task, cfg, output_path, device)
+        super().__init__(task, output_path, device, cfg)
 
         extractor_factory = partial(task.extractor_factory, self.train_env)
         action_space: gym.spaces.Box = self.train_env.action_space  # type: ignore
@@ -200,8 +209,7 @@ class SACTrainer(Trainer):
                 # update temperature
                 target_entropy = -np.prod(self.train_env.action_space.shape)  # type: ignore
                 alpha_loss = -torch.mean(
-                    self.log_alpha.exp()
-                    * (log_p + target_entropy).detach()
+                    self.log_alpha.exp() * (log_p + target_entropy).detach()
                 )
                 self.alpha_optim.zero_grad()
                 alpha_loss.backward()

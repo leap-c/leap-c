@@ -1,8 +1,2 @@
-from mujoco.task import HalfCheetahTask
+import leap_c.examples.mujoco.task  # noqa: F401, F403
 
-
-def create_task(name: str):
-    if name == "half_cheetah":
-        return HalfCheetahTask()
-    else:
-        raise ValueError(f"Unknown task: {name}")
