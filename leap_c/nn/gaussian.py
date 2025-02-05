@@ -22,7 +22,7 @@ class Gaussian(nn.Module):
     def __init__(
         self,
         action_space: spaces.Box,
-        log_std_min: float = -10.0,
+        log_std_min: float = -3.5,
         log_std_max: float = 2.0,
     ):
         """Initializes the TanhNormal module.

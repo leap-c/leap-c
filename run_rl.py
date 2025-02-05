@@ -7,7 +7,7 @@ from leap_c.registry import create_task, create_default_cfg, create_trainer
 
 
 def default_output_path(trainer_name: str, task_name: str, seed: int) -> Path:
-    return Path(f"output/{trainer_name}/{task_name}/{seed}")
+    return Path(f"output/{task_name}/{trainer_name}_{seed}")
 
 
 def main(

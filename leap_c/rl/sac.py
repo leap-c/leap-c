@@ -120,11 +120,16 @@ class SACActor(nn.Module):
     def forward(self, x: torch.Tensor, deterministic=False):
         mean, log_std = self.mlp(x)
         # pdb if mean or std is nan
-        if torch.isnan(mean).any() or torch.isnan(log_std).any():
+        try:
+            if torch.isnan(mean).any() or torch.isnan(log_std).any():
+                import pdb
+
+                pdb.set_trace()
+            return self.gaussian(mean, log_std, deterministic=deterministic)
+        except ValueError:
             import pdb
 
             pdb.set_trace()
-        return self.gaussian(mean, log_std, deterministic=deterministic)
 
 
 @register_trainer("sac", SACBaseConfig())
@@ -215,6 +220,9 @@ class SACTrainer(Trainer):
                 alpha_loss.backward()
                 self.alpha_optim.step()
 
+                if alpha_loss.isnan():
+                    print("alpha nan detected")
+
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
@@ -229,6 +237,9 @@ class SACTrainer(Trainer):
                 q = torch.cat(self.q(o, a), dim=1)
                 q_loss = torch.mean((q - target).pow(2))
 
+                if q_loss.isnan():
+                    print("q loss nan detected")
+
                 self.q_optim.zero_grad()
                 q_loss.backward()
                 self.q_optim.step()
@@ -237,6 +248,9 @@ class SACTrainer(Trainer):
                 q_pi = torch.cat(self.q(o, a_pi), dim=1)
                 min_q_pi = torch.min(q_pi, dim=1).values
                 pi_loss = (alpha * log_p - min_q_pi).mean()
+
+                if pi_loss.isnan():
+                    print("pi loss nan detected")
 
                 self.pi_optim.zero_grad()
                 pi_loss.backward()
