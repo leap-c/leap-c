@@ -409,9 +409,22 @@ def _solve_shared(
             )
 
     if sensitivity_solver is not None:
+        # Mask LS-parameters
+        if mpc_input.parameters is not None:
+            sens_input = MPCInput(
+                x0=mpc_input.x0,
+                u0=mpc_input.u0,
+                parameters=MPCParameter(
+                    p_global=mpc_input.parameters.p_global,
+                    p_stagewise=mpc_input.parameters.p_stagewise,
+                    p_stagewise_sparse_idx=mpc_input.parameters.p_stagewise_sparse_idx,
+                ),
+            )
+        else:
+            sens_input = mpc_input
         initialize_ocp_solver(
             ocp_solver=sensitivity_solver,
-            mpc_input=mpc_input,
+            mpc_input=sens_input,
             ocp_iterate=solver.store_iterate_to_flat_obj(),
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
         )
@@ -508,7 +521,7 @@ class MPC(ABC):
         if self._discount_factor is not None:
             set_discount_factor(solver, self._discount_factor)
 
-        set_ocp_solver_to_default(solver, self.default_full_mpcparameter, unset_u0=True)
+        set_ocp_solver_to_default(solver, self.default_sens_mpcparameter, unset_u0=True)
 
         return solver
 
@@ -539,7 +552,7 @@ class MPC(ABC):
         if self._discount_factor is not None:
             set_discount_factor(batch_solver, self._discount_factor)
         set_ocp_solver_to_default(
-            batch_solver, self.default_full_mpcparameter, unset_u0=True
+            batch_solver, self.default_sens_mpcparameter, unset_u0=True
         )
 
         return batch_solver
@@ -615,6 +628,15 @@ class MPC(ABC):
             p_yref=self.default_p_yref,
             p_W_e=self.default_p_W_e,
             p_yref_e=self.default_p_yref_e,
+        )
+
+    @cached_property
+    def default_sens_mpcparameter(self) -> MPCParameter:
+        """Return the default MPCParameter for sensitivity solver.
+        It does not contain the LS-parameters"""
+        return MPCParameter(
+            p_global=self.default_p_global,
+            p_stagewise=self.default_p_stagewise,
         )
 
     @property
@@ -876,7 +898,7 @@ class MPC(ABC):
         if use_sensitivity_solver:
             set_ocp_solver_to_default(
                 ocp_solver=self.ocp_sensitivity_solver,
-                default_mpc_parameters=self.default_full_mpcparameter,
+                default_mpc_parameters=self.default_sens_mpcparameter,
                 unset_u0=unset_u0,
             )
 
@@ -1043,7 +1065,7 @@ class MPC(ABC):
         if use_sensitivity_solver:
             set_ocp_solver_to_default(
                 ocp_solver=self.ocp_batch_sensitivity_solver,
-                default_mpc_parameters=self.default_full_mpcparameter,
+                default_mpc_parameters=self.default_sens_mpcparameter,
                 unset_u0=unset_u0,
             )
 
