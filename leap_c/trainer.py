@@ -9,6 +9,7 @@ import wandb
 import numpy as np
 import torch
 from torch import nn
+from torch.utils.tensorboard import SummaryWriter
 import pandas as pd
 from yaml import dump
 
@@ -39,6 +40,9 @@ class LogConfig:
             This is calculated by the number of training steps.
         val_window: The moving window size for the validation statistics (note that
             this does not consider the training step but the number of validation episodes).
+        csv_logger: If True, the statistics will be logged to a CSV file.
+        tensorboard_logger: If True, the statistics will be logged to TensorBoard.
+        wandb_logger: If True, the statistics will be logged to Weights & Biases.
     """
 
     train_interval: int = 1000
@@ -47,6 +51,7 @@ class LogConfig:
     val_window: int = 1
 
     csv_logger: bool = True
+    tensorboard_logger: bool = True 
     wandb_logger: bool = False
 
 
@@ -66,7 +71,7 @@ class ValConfig:
     """
 
     interval: int = 50000
-    num_rollouts: int = 1
+    num_rollouts: int = 20
     deterministic: bool = True
 
     ckpt_modus: str = "best"
@@ -133,7 +138,7 @@ class Trainer(ABC, nn.Module):
         optimizers: The optimizers of the trainer.
     """
 
-    def __init__(self, task: Task, cfg: BaseConfig, output_path: str, device: str):
+    def __init__(self, task: Task, cfg: BaseConfig, output_path: str | Path, device: str):
         """Initializes the trainer with a configuration, output path, and device.
 
         Args:
@@ -164,6 +169,10 @@ class Trainer(ABC, nn.Module):
         # init wandb
         if cfg.log.wandb_logger:
             wandb.init(project="leap", dir=self.output_path / "wandb")
+
+        # tensorboard
+        if cfg.log.tensorboard_logger:
+            self.writer = SummaryWriter(self.output_path)
 
         # log dataclass config as yaml
         with open(self.output_path / "config.yaml", "w") as f:
@@ -235,6 +244,10 @@ class Trainer(ABC, nn.Module):
 
         if self.cfg.log.wandb_logger:
             wandb.log(stats, step=timestamp)
+
+        if self.cfg.log.tensorboard_logger:
+            for key, value in stats.items():
+                self.writer.add_scalar(f"{group}/{key}", value, timestamp)
 
         if self.cfg.log.csv_logger:
             csv_path = self.output_path / f"{group}_log.csv"

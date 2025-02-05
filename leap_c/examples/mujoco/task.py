@@ -6,9 +6,9 @@ from leap_c.task import Task
 from leap_c.mpc import MPCInput
 
 
-class MountainCarTask(Task):
+class HalfCheetahTask(Task):
     def __init__(self):
-        env_factory = lambda: gym.make('MountainCarContinuous-v0')
+        env_factory = lambda: gym.make('HalfCheetah-v5')
         super().__init__(None, env_factory)  # type: ignore
 
     def prepare_nn_input(self, obs: Any) -> np.ndarray:

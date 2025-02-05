@@ -20,7 +20,7 @@ def string_to_activation(activation: str) -> nn.Module:
 
 @dataclass(kw_only=True)
 class MLPConfig:
-    hidden_dims: Sequence[int] = (256, 256)
+    hidden_dims: Sequence[int] = (256, 256, 256)
     activation: str = "relu"
 
 

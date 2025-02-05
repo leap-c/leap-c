@@ -1,6 +1,6 @@
-from collections import defaultdict
 from dataclasses import dataclass, field
 from functools import partial
+from pathlib import Path
 from typing import Iterator
 
 import gymnasium as gym
@@ -33,24 +33,25 @@ class SACAlgorithmConfig:
         soft_update_freq: The frequency of soft updates.
         lr_q: The learning rate for the Q networks.
         lr_pi: The learning rate for the policy network.
-        target_entropy: The target entropy for the policy network.
         lr_alpha: The learning rate for the temperature parameter.
         num_critics: The number of critic networks.
         report_loss_freq: The frequency of reporting the loss.
+        update_freq: The frequency of updating the networks.
     """
+
     critic_mlp: MLPConfig = field(default_factory=MLPConfig)
     actor_mlp: MLPConfig = field(default_factory=MLPConfig)
-    batch_size: int = 32
+    batch_size: int = 256
     buffer_size: int = 1000000
     gamma: float = 0.99
     tau: float = 0.005
     soft_update_freq: int = 1
-    lr_q: float = 3e-4
+    lr_q: float = 1e-4
     lr_pi: float = 3e-4
-    target_entropy: float = -2.0
-    lr_alpha: float = 3e-4
+    lr_alpha: float = 1e-4
     num_critics: int = 2
     report_loss_freq: int = 100
+    update_freq: int = 1
 
 
 @dataclass(kw_only=True)
@@ -73,26 +74,38 @@ class SACBaseConfig(BaseConfig):
 
 
 class SACCritic(nn.Module):
-    def __init__(self, extractor_factory, mlp_cfg: MLPConfig, num_critics: int, action_space: gym.spaces.Box):
+    def __init__(
+        self,
+        extractor_factory,
+        mlp_cfg: MLPConfig,
+        num_critics: int,
+        action_space: gym.spaces.Box,
+    ):
         super().__init__()
 
         action_dim = action_space.shape[0]  # type: ignore
-        self.extractor = nn.ModuleList([extractor_factory() for _ in range(num_critics)])
-        self.mlp = nn.ModuleList([
-            MLP(
-                input_sizes=[qe.output_size, action_dim],  # type: ignore
-                output_sizes=1,
-                mlp_cfg=mlp_cfg,
-            )
-            for qe in self.extractor
-        ])
+        self.extractor = nn.ModuleList(
+            [extractor_factory() for _ in range(num_critics)]
+        )
+        self.mlp = nn.ModuleList(
+            [
+                MLP(
+                    input_sizes=[qe.output_size, action_dim],  # type: ignore
+                    output_sizes=1,
+                    mlp_cfg=mlp_cfg,
+                )
+                for qe in self.extractor
+            ]
+        )
 
     def forward(self, x: torch.Tensor, a: torch.Tensor):
         return [mlp(qe(x), a) for qe, mlp in zip(self.extractor, self.mlp)]
 
 
 class SACActor(nn.Module):
-    def __init__(self, extractor_factory, mlp_cfg: MLPConfig, action_space: gym.spaces.Box):
+    def __init__(
+        self, extractor_factory, mlp_cfg: MLPConfig, action_space: gym.spaces.Box
+    ):
         super().__init__()
 
         self.extractor = extractor_factory()
@@ -104,14 +117,14 @@ class SACActor(nn.Module):
         self.gaussian = Gaussian(action_space)
 
     def forward(self, x: torch.Tensor, deterministic=False):
-        mean, std = self.mlp(x)
-        return self.gaussian(mean, std, deterministic=deterministic)
+        mean, log_std = self.mlp(x)
+        return self.gaussian(mean, log_std, deterministic=deterministic)
 
 
 class SACTrainer(Trainer):
     cfg: SACBaseConfig
 
-    def __init__(self, task: Task, cfg: SACBaseConfig, output_path: str, device: str):
+    def __init__(self, task: Task, cfg: SACBaseConfig, output_path: str | Path, device: str):
         """Initializes the trainer with a configuration, output path, and device.
 
         Args:
@@ -125,15 +138,19 @@ class SACTrainer(Trainer):
         extractor_factory = partial(task.extractor_factory, self.train_env)
         action_space: gym.spaces.Box = self.train_env.action_space  # type: ignore
 
-        self.q = SACCritic(extractor_factory, cfg.sac.critic_mlp, cfg.sac.num_critics, action_space).to(device)
-        self.q_target = SACCritic(extractor_factory, cfg.sac.critic_mlp, cfg.sac.num_critics, action_space).to(device)
+        self.q = SACCritic(
+            extractor_factory, cfg.sac.critic_mlp, cfg.sac.num_critics, action_space
+        ).to(device)
+        self.q_target = SACCritic(
+            extractor_factory, cfg.sac.critic_mlp, cfg.sac.num_critics, action_space
+        ).to(device)
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
         self.pi = SACActor(extractor_factory, cfg.sac.actor_mlp, action_space).to(device)  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(1.0))  # type: ignore
+        self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
         self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
@@ -156,7 +173,9 @@ class SACTrainer(Trainer):
                 episode_return = episode_length = 0
 
             action = self.act(obs)  # type: ignore
-            obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(action)
+            obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
+                action
+            )
 
             episode_return += float(reward)
             episode_length += 1
@@ -166,15 +185,24 @@ class SACTrainer(Trainer):
 
             obs = obs_prime
 
-            if self.state.step >= self.cfg.train.start and len(self.buffer) >= self.cfg.sac.batch_size:
+            if (
+                self.state.step >= self.cfg.train.start
+                and len(self.buffer) >= self.cfg.sac.batch_size
+                and self.state.step % self.cfg.sac.update_freq == 0
+            ):
                 # sample batch
                 o, a, r, o_prime, te = self.buffer.sample(self.cfg.sac.batch_size)
 
                 # sample action
                 a_pi, log_p = self.pi(o)
+                log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
-                alpha_loss = -torch.mean(self.log_alpha.exp() * (log_p + self.cfg.sac.target_entropy).detach())
+                target_entropy = -np.prod(self.train_env.action_space.shape)  # type: ignore
+                alpha_loss = -torch.mean(
+                    self.log_alpha.exp()
+                    * (log_p + target_entropy).detach()
+                )
                 self.alpha_optim.zero_grad()
                 alpha_loss.backward()
                 self.alpha_optim.step()
@@ -186,7 +214,7 @@ class SACTrainer(Trainer):
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
                     # add entropy
-                    q_target = q_target - alpha * log_p.reshape(-1, 1)
+                    q_target = q_target - alpha * log_p
 
                     target = r + self.cfg.sac.gamma * (1 - te) * q_target
 
@@ -208,13 +236,20 @@ class SACTrainer(Trainer):
 
                 # soft updates
                 for q, q_target in zip(self.q.parameters(), self.q_target.parameters()):
-                    q_target.data = self.cfg.sac.tau * q.data + (1 - self.cfg.sac.tau) * q_target.data
+                    q_target.data = (
+                        self.cfg.sac.tau * q.data
+                        + (1 - self.cfg.sac.tau) * q_target.data
+                    )
 
-                if self.state.step % self.cfg.sac.report_loss_freq:
+                report_freq = self.cfg.sac.report_loss_freq * self.cfg.sac.update_freq
+
+                if self.state.step % report_freq == 0:
                     loss_stats = {
                         "q_loss": q_loss.item(),
                         "pi_loss": pi_loss.item(),
-                        "alpha": self.log_alpha.item(),  # type: ignore
+                        "alpha": alpha,
+                        "q": q.mean().item(),
+                        "q_target": target.mean().item(),
                     }
                     self.report_stats("loss", loss_stats, self.state.step + 1)
 
@@ -241,4 +276,3 @@ class SACTrainer(Trainer):
 
         self.buffer = torch.load(self.output_path / "buffer.pt")
         return super().load()
-
