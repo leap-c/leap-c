@@ -4,6 +4,7 @@ import pytest
 from leap_c.examples.linear_system import LinearSystemMPC, LinearSystemOcpEnv
 from leap_c.examples.pendulum_on_cart import PendulumOnCartMPC, PendulumOnCartOcpEnv
 
+from leap_c.linear_mpc import LinearMPC
 from leap_c.examples.pointmass.mpc import PointMassMPC as PointMassMPC
 
 
@@ -95,11 +96,6 @@ def learnable_linear_mpc(n_batch: int) -> LinearSystemMPC:
 
 
 @pytest.fixture(scope="session")
-def learnable_point_mass_mpc(n_batch: int) -> PointMassMPC:
-    return PointMassMPC(learnable_params=["m", "c"], n_batch=n_batch)
-
-
-@pytest.fixture(scope="session")
 def linear_system_ocp_env(learnable_linear_mpc: LinearSystemMPC) -> LinearSystemOcpEnv:
     return LinearSystemOcpEnv(learnable_linear_mpc, render_mode="rgb_array")
 
@@ -111,6 +107,21 @@ def linear_mpc_p_global(
     """Fixture for the global parameters of the linear system MPC."""
     return generate_batch_variation(
         learnable_linear_mpc.ocp_solver.acados_ocp.p_global_values, n_batch
+    )
+
+
+@pytest.fixture(scope="session")
+def learnable_point_mass_mpc(n_batch: int) -> PointMassMPC:
+    return PointMassMPC(learnable_params=["m", "c"], n_batch=n_batch)
+
+
+@pytest.fixture(scope="session")
+def point_mass_mpc_p_global(
+    learnable_point_mass_mpc: LinearMPC, n_batch: int
+) -> np.ndarray:
+    """Fixture for the global parameters of the point mass MPC."""
+    return generate_batch_variation(
+        learnable_point_mass_mpc.ocp_solver.acados_ocp.p_global_values, n_batch
     )
 
 
