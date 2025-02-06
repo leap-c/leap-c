@@ -1,9 +1,9 @@
 import numpy as np
-from leap_c.examples.pointmass.mpc import PointmassMPC
+from leap_c.examples.pointmass.mpc import PointMassMPC
 
 
 def main():
-    mpc = PointmassMPC(learnable_params=["m", "c", "q_diag"])
+    mpc = PointMassMPC(learnable_params=["m", "c", "q_diag"])
 
     s = np.array([1.0, 0.0, 0.0, 0.0])
     a = np.array([0.0, 0.0])

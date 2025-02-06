@@ -9,8 +9,8 @@ from leap_c.examples.util import (
 )
 
 
-class PointmassMPC(LinearMPC):
-    """docstring for PointmassMPC."""
+class PointMassMPC(LinearMPC):
+    """docstring for PointMassMPC."""
 
     def __init__(
         self,

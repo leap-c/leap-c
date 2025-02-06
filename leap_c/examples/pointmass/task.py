@@ -1,7 +1,7 @@
 from leap_c.task import Task
 import numpy as np
 from typing import Any, Optional
-from leap_c.examples.pointmass.mpc import PointmassMPC as MPC
+from leap_c.examples.pointmass.mpc import PointMassMPC as MPC
 from leap_c.examples.pointmass.env import PointMassEnv as Env
 from leap_c.mpc import MPCInput, MPCSingleState
 
