@@ -137,6 +137,7 @@ class TanhNormal(nn.Module):
             log_prob = 1
         else:
             dist = Normal(mean, std)
+            # rsample is used to get a reparametrization trick gradient
             action = dist.rsample()
             log_prob = dist.log_prob(action)
 
