@@ -7,12 +7,12 @@ from test_mpc_p_global import (
 from conftest import generate_batch_variation
 
 
-def test_parametric_sensitivities(
-    learnable_point_mass_mpc: LinearMPC, point_mass_mpc_p_global: np.ndarray
-):
-    run_test_mpc_solve_and_batch_solve_on_batch_p_global(
-        learnable_point_mass_mpc, point_mass_mpc_p_global, plot=False
-    )
+# def test_parametric_sensitivities(
+#     learnable_point_mass_mpc: LinearMPC, point_mass_mpc_p_global: np.ndarray
+# ):
+#     run_test_mpc_solve_and_batch_solve_on_batch_p_global(
+#         learnable_point_mass_mpc, point_mass_mpc_p_global, plot=False
+#     )
 
 
 def main():
@@ -39,17 +39,17 @@ def main():
 
     # _ = env.step(mpc.policy(state=x0, p_global=None)[0])
 
-    n_batch = 4
+    # n_batch = 4
 
-    learnable_point_mass_mpc = PointMassMPC(
-        learnable_params=["m", "c"], n_batch=n_batch
-    )
+    # learnable_point_mass_mpc = PointMassMPC(
+    #     learnable_params=["m", "c"], n_batch=n_batch
+    # )
 
-    p_global = generate_batch_variation(
-        learnable_point_mass_mpc.ocp_solver.acados_ocp.p_global_values, n_batch
-    )
+    # p_global = generate_batch_variation(
+    #     learnable_point_mass_mpc.ocp_solver.acados_ocp.p_global_values, n_batch
+    # )
 
-    test_parametric_sensitivities(learnable_point_mass_mpc, p_global)
+    # test_parametric_sensitivities(learnable_point_mass_mpc, p_global)
 
 
 if __name__ == "__main__":

@@ -359,25 +359,19 @@ def plot_gradient_diff_comparison(
 
 def initialize_results(
     mpc: MPC,
-    n_p_global: int,
+    n_col: int,
 ) -> Dict[str, Dict[str, Dict[str, np.ndarray]]]:
     """Initialize the results dictionary structure."""
     results = {}
     for method in ["_solve", "_batch_solve"]:
         results[method] = {}
-        for key in ["state_value", "state_action_value"]:
+        for key in ["policy", "state_value", "state_action_value"]:
             results[method][key] = {
-                "value": np.zeros(shape=(mpc.n_batch, n_p_global)),
-                "gradient": np.zeros(shape=(mpc.n_batch, n_p_global)),
-                "gradient_fd": np.zeros(shape=(mpc.n_batch, n_p_global)),
-                "gradient_diff": np.zeros(shape=(mpc.n_batch, n_p_global)),
+                "value": np.zeros(shape=(mpc.n_batch, n_col)),
+                "gradient": np.zeros(shape=(mpc.n_batch, n_col)),
+                "gradient_fd": np.zeros(shape=(mpc.n_batch, n_col)),
+                "gradient_diff": np.zeros(shape=(mpc.n_batch, n_col)),
             }
-        results[method]["policy"] = {
-            "value": np.zeros(shape=(mpc.n_batch, mpc.ocp.dims.nu, n_p_global)),
-            "gradient": np.zeros(shape=(mpc.n_batch, mpc.ocp.dims.nu, n_p_global)),
-            "gradient_fd": np.zeros(shape=(mpc.n_batch, mpc.ocp.dims.nu, n_p_global)),
-            "gradient_diff": np.zeros(shape=(mpc.n_batch, mpc.ocp.dims.nu, n_p_global)),
-        }
     return results
 
 
@@ -400,20 +394,17 @@ def run_batch_solve(
         ),
     }
 
+    # TODO: This assumes nu = 1 for the policy. Modify to cover the case where nu > 1
     for key, compute_func in computations.items():
         batch_value, batch_gradient, status = compute_func()
-
-        if key in ["state_value", "state_action_value"]:
-            results["_batch_solve"][key]["value"][:, i_param] = batch_value
-
-            results["_batch_solve"][key]["gradient"][:, i_param] = batch_gradient[
-                :, i_param
-            ]
-        else:
-            results["_batch_solve"][key]["value"][:, :, i_param] = batch_value
-            results["_batch_solve"][key]["gradient"][:, :, i_param] = batch_gradient[
-                :, :, i_param
-            ]
+        results["_batch_solve"][key]["value"][:, i_param] = (
+            batch_value if key != "policy" else batch_value
+        ).flatten()
+        results["_batch_solve"][key]["gradient"][:, i_param] = (
+            batch_gradient[:, i_param]
+            if key != "policy"
+            else batch_gradient[:, 0, i_param]
+        )
         assert np.all(
             status == 0
         ), f"Some samples in the Batch solve did not converge for {key}"
@@ -469,7 +460,7 @@ def compute_finite_differences_for_parametric_sensitivities(
 
     # Find the varying value
     for method in ["_solve", "_batch_solve"]:
-        for key in ["state_value", "state_action_value"]:
+        for key in ["state_value", "state_action_value", "policy"]:
             results[method][key]["gradient_fd"][:, i_param] = np.gradient(
                 results[method][key]["value"][:, i_param],
                 p_global[:, i_param],
@@ -481,24 +472,6 @@ def compute_finite_differences_for_parametric_sensitivities(
                 - results[method][key]["gradient"][:, i_param]
             )
 
-        for key in ["policy"]:
-            print(method)
-            print(key)
-            print(results[method][key]["value"][:, i_param].shape)
-            print(p_global[:, i_param].shape)
-
-            for i_u in range(results[method]["policy"]["value"].shape[1]):
-                results[method]["policy"]["gradient_fd"][:, i_u, i_param] = np.gradient(
-                    results[method]["policy"]["value"][:, i_u, i_param],
-                    p_global[:, i_param],
-                    edge_order=2,
-                )
-
-                results[method]["policy"]["gradient_diff"][:, i_u, i_param] = np.abs(
-                    results[method]["policy"]["gradient_fd"][:, i_u, i_param]
-                    - results[method]["policy"]["gradient"][:, i_u, i_param]
-                )
-
 
 def verify_shapes(
     results: Dict[str, Dict[str, Dict[str, np.ndarray]]],
@@ -508,7 +481,7 @@ def verify_shapes(
     # TODO: This assumes nu = 1 for the policy. Modify to cover the case where nu > 1
     """Verify the shapes of all result arrays."""
     for method in ["_solve", "_batch_solve"]:
-        for key in ["state_value", "state_action_value"]:
+        for key in ["state_value", "state_action_value", "policy"]:
             assert results[method][key]["value"].shape[0] == mpc.n_batch
             assert results[method][key]["gradient"].shape == (
                 mpc.n_batch,
@@ -518,36 +491,6 @@ def verify_shapes(
                 mpc.n_batch,
                 n_col,
             )
-
-        for key in ["policy"]:
-            assert results[method][key]["value"].shape[0] == mpc.n_batch
-            assert results[method][key]["gradient"].shape == (
-                mpc.n_batch,
-                mpc.ocp.dims.nu,
-                n_col,
-            )
-            assert results[method][key]["gradient_fd"].shape == (
-                mpc.n_batch,
-                mpc.ocp.dims.nu,
-                n_col,
-            )
-
-
-def flatten_dict_arrays(nested_dict):
-    flattened_arrays = []
-
-    def recursive_flatten(item):
-        if isinstance(item, dict):
-            for value in item.values():
-                recursive_flatten(value)
-        elif isinstance(item, np.ndarray):
-            flattened_arrays.append(item.flatten())
-        elif isinstance(item, (list, tuple)):
-            for element in item:
-                recursive_flatten(element)
-
-    recursive_flatten(nested_dict)
-    return np.concatenate(flattened_arrays) if flattened_arrays else np.array([])
 
 
 def validate_mpc_results_on_batch_p_global(
@@ -606,16 +549,14 @@ def validate_mpc_results_on_batch_p_global(
     )
 
     # Stack diff_solve_batch_solve into a single array and compute the norm
-
-    print("Checking difference between _solve and _batch_solve")
-    for key in diff_solve_batch_solve.keys():
-        for field in diff_solve_batch_solve[key].keys():
-            print(
-                f"Key: {key}, Field: {field}, Median difference: {np.median(np.abs(diff_solve_batch_solve[key][field]))}"
-            )
-
     diff_solve_batch_solve_norm = np.linalg.norm(
-        flatten_dict_arrays(diff_solve_batch_solve)
+        np.stack(
+            [
+                diff_solve_batch_solve[key][field]
+                for key in diff_solve_batch_solve
+                for field in diff_solve_batch_solve[key]
+            ]
+        )
     )
 
     assert (
@@ -683,7 +624,7 @@ def run_test_mpc_solve_and_batch_solve_on_batch_p_global(
     )
 
     # Initialize results structure
-    results = initialize_results(mpc, n_p_global=p_global.shape[2])
+    results = initialize_results(mpc, n_col=p_global.shape[2])
 
     # Main computation loop
     for i_param in range(p_global.shape[2]):
