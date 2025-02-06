@@ -65,6 +65,17 @@ class LinearMPC(MPC):
                 dvdp=dvdp,
                 use_adj_sens=use_adj_sens,
             )
+        else:
+            return self._batch_solve(
+                mpc_input=mpc_input,
+                mpc_state=mpc_state,  # type: ignore
+                dudx=dudx,
+                dudp=dudp,
+                dvdx=dvdx,
+                dvdu=dvdu,
+                dvdp=dvdp,
+                use_adj_sens=use_adj_sens,
+            )
 
     def _solve(
         self,
@@ -225,7 +236,7 @@ class LinearMPC(MPC):
         if dudp:
             if use_adj_sens:
                 # TODO: Tested for scalar u only
-                seed_vec = np.ones((self.n_batch, self.ocp.dims.nu, 1))
+                seed_vec = np.ones((self.n_batch, self.ocp.dims.nu, self.ocp.dims.nu))
 
                 # n_seed can change when only subset of u is updated
                 n_seed = self.ocp.dims.nu
