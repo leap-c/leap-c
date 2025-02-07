@@ -111,6 +111,20 @@ def test_env_truncates(pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEn
     assert trunc
 
 
+def test_env_types(pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv):
+    """Test whether the type of the state is and stays np.float32
+    for an action from the action space (note that the action space has type np.float32).
+    """
+
+    env = pendulum_on_cart_ocp_swingup_env
+
+    x, _ = env.reset(seed=0)
+    assert x.dtype == np.float32
+    action = np.zeros(env.action_space.shape, dtype=np.float32)  # type:ignore
+    x, _, _, _, _ = env.step(action)
+    assert x.dtype == np.float32
+
+
 def test_closed_loop_rendering(
     learnable_pendulum_on_cart_mpc_lls_cost: PendulumOnCartMPC,
     pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv,
