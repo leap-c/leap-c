@@ -116,8 +116,9 @@ class PendulumOnCartSwingupEnv(gym.Env):
         self.action_space = spaces.Box(-self.Fmax, self.Fmax, dtype=np.float32)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
 
-        self.x = None
+        self.reset_needed = True
         self.t = 0
+        self.x = None
 
         # For rendering
         if not (render_mode is None or render_mode in self.metadata["render_modes"]):
@@ -134,8 +135,8 @@ class PendulumOnCartSwingupEnv(gym.Env):
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict]:
         """Execute the dynamics of the pendulum on cart."""
-        if self.x is None:
-            raise Exception("Call reset before using step method.")
+        if self.reset_needed:
+            raise Exception("Call reset before using the step method.")
         self.x = self.integrator(self.x, action, self.dt)
         self.t += self.dt
         theta = self.x[1]
@@ -147,18 +148,15 @@ class PendulumOnCartSwingupEnv(gym.Env):
 
         r = abs(np.pi - (abs(theta))) / (10 * np.pi)  # Reward for swingup; Max: 0.1
 
-        next_state = self.x
-
         term = False
         trunc = False
         if self.x[0] > self.x_threshold or self.x[0] < -self.x_threshold:
             term = True  # Just terminating should be enough punishment when reward is positive
-            self.x = None
         if self.t > self.max_time:
             trunc = True
-            self.x = None
+        self.reset_needed = trunc or term
 
-        return next_state, r, term, trunc, {}
+        return self.x, r, term, trunc, {}
 
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
@@ -167,8 +165,11 @@ class PendulumOnCartSwingupEnv(gym.Env):
             super().reset(seed=seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
+        if self._np_random is None:
+            raise RuntimeError("The first reset needs to be called with a seed.")
         self.t = 0
         self.x = np.array([0.0, np.pi, 0.0, 0.0], dtype=np.float32)
+        self.reset_needed = False
 
         self.pos_trajectory = None
         self.pole_end_trajectory = None
@@ -212,6 +213,9 @@ class PendulumOnCartSwingupEnv(gym.Env):
             )
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
+
+        if self.x is None:
+            return None
 
         world_width = 2 * self.x_threshold
         center = (int(self.screen_width / 2), int(self.screen_height / 2))

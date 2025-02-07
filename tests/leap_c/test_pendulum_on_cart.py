@@ -126,7 +126,7 @@ def test_closed_loop_rendering(
     create_dir_if_not_exists(savefile_dir_path)
     while count < 300 and not terminated and not truncated:
         a = learnable_pendulum_on_cart_mpc_lls_cost.policy(
-            obs[0], learnable_pendulum_on_cart_mpc_lls_cost.default_p_global
+            obs, learnable_pendulum_on_cart_mpc_lls_cost.default_p_global
         )[0]
         obs_prime, r, terminated, truncated, info = (
             pendulum_on_cart_ocp_swingup_env.step(a)
