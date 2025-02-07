@@ -710,6 +710,10 @@ class MPC(ABC):
             and a dictionary containing statistics from the solve.
         """
 
+        print("--------------------")
+        print("__call__")
+        print("--------------------")
+
         if not mpc_input.is_batched():
             return self._solve(
                 mpc_input=mpc_input,
@@ -860,6 +864,10 @@ class MPC(ABC):
         if mpc_input.u0 is None and dvdu:
             raise ValueError("dvdu is only allowed if u0 is set in the input.")
 
+        print("--------------------")
+        print("Batch solve")
+        print("--------------------")
+
         use_sensitivity_solver = dudx or dudp or dvdp
 
         self.last_call_stats = _solve_shared(
@@ -913,16 +921,9 @@ class MPC(ABC):
 
             if dudp:
                 if use_adj_sens:
-                    # TODO: Tested for scalar u only
-                    seed_vec = np.ones((self.n_batch, self.ocp.dims.nu, 1))
-
-                    # n_seed can change when only subset of u is updated
-                    n_seed = self.ocp.dims.nu
-
-                    assert seed_vec.shape == (
-                        self.n_batch,
-                        self.ocp.dims.nu,
-                        n_seed,
+                    single_seed = np.eye(self.ocp.dims.nu)
+                    seed_vec = np.repeat(
+                        single_seed[np.newaxis, :, :], self.n_batch, axis=0
                     )
 
                     kw["du0_dp_global"] = (
