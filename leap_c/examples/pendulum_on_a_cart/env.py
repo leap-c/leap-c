@@ -3,7 +3,7 @@ import numpy as np
 from gymnasium import spaces
 
 
-class PendulumOnCartEnvSwingup(gym.Env):
+class PendulumOnCartSwingupEnv(gym.Env):
     """
     An environment of a pendulum on a cart meant for swinging
     the pole into an upright position and holding it there.
