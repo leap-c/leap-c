@@ -710,10 +710,6 @@ class MPC(ABC):
             and a dictionary containing statistics from the solve.
         """
 
-        print("--------------------")
-        print("__call__")
-        print("--------------------")
-
         if not mpc_input.is_batched():
             return self._solve(
                 mpc_input=mpc_input,
@@ -863,10 +859,6 @@ class MPC(ABC):
     ) -> tuple[MPCOutput, AcadosOcpFlattenedBatchIterate]:
         if mpc_input.u0 is None and dvdu:
             raise ValueError("dvdu is only allowed if u0 is set in the input.")
-
-        print("--------------------")
-        print("Batch solve")
-        print("--------------------")
 
         use_sensitivity_solver = dudx or dudp or dvdp
 
