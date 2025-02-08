@@ -2,14 +2,18 @@ import numpy as np
 from acados_template import AcadosOcp
 from casadi.tools import struct_symSX
 from leap_c.linear_mpc import LinearMPC
+from leap_c.mpc import MPC
 import casadi as ca
 from leap_c.examples.util import (
     translate_learnable_param_to_p_global,
     find_param_in_p_or_p_global,
 )
+from leap_c.examples.pointmass.env import _A_disc, _B_disc
+from pathlib import Path
 
 
-class PointMassMPC(LinearMPC):
+# class PointMassMPC(LinearMPC):
+class PointMassMPC(MPC):
     """docstring for PointMassMPC."""
 
     def __init__(
@@ -19,6 +23,9 @@ class PointMassMPC(LinearMPC):
         N_horizon: int = 20,
         discount_factor: float = 0.99,
         n_batch: int = 1,
+        export_directory: Path | None = None,
+        export_directory_sensitivity: Path | None = None,
+        throw_error_if_u0_is_outside_ocp_bounds: bool = True,
     ):
         params = (
             {
@@ -42,87 +49,12 @@ class PointMassMPC(LinearMPC):
         configure_ocp_solver(ocp=ocp, exact_hess_dyn=True)
 
         self.given_default_param_dict = params
-        super().__init__(ocp=ocp, n_batch=n_batch)
-
-
-def _A_disc(
-    m: float | ca.SX, c: float | ca.SX, dt: float | ca.SX
-) -> np.ndarray | ca.SX:
-    if any(isinstance(i, ca.SX) for i in [m, c, dt]):
-        a = ca.exp(-c * dt / m)
-        return ca.vertcat(
-            ca.horzcat(1, 0, dt, 0),
-            ca.horzcat(0, 1, 0, dt),
-            ca.horzcat(0, 0, a, 0),
-            ca.horzcat(0, 0, 0, a),
-        )
-    else:
-        a = np.exp(-c * dt / m)
-        return np.array(
-            [
-                [1, 0, dt, 0],
-                [0, 1, 0, dt],
-                [0, 0, a, 0],
-                [0, 0, 0, a],
-            ]
-        )
-
-
-def _B_disc(
-    m: float | ca.SX, c: float | ca.SX, dt: float | ca.SX
-) -> np.ndarray | ca.SX:
-    if any(isinstance(i, ca.SX) for i in [m, c, dt]):
-        b = (m / c) * (1 - ca.exp(-c * dt / m))
-        return ca.vertcat(
-            ca.horzcat(0, 0),
-            ca.horzcat(0, 0),
-            ca.horzcat(b, 0),
-            ca.horzcat(0, b),
-        )
-    else:
-        b = (m / c) * (1 - np.exp(-c * dt / m))
-        return np.array(
-            [
-                [0, 0],
-                [0, 0],
-                [b, 0],
-                [0, b],
-            ]
-        )
-
-
-def _A_cont(
-    m: float | ca.SX, c: float | ca.SX, dt: float | ca.SX
-) -> np.ndarray | ca.SX:
-    if isinstance(m, float):
-        return np.array(
-            [
-                [0, 0, 1.0, 0],
-                [0, 0, 0, 1.0],
-                [0, 0, -(c / m), 0],
-                [0, 0, 0, -(c / m)],
-            ]
-        )
-    else:
-        return ca.vertcat(
-            ca.horzcat(0, 0, 1.0, 0),
-            ca.horzcat(0, 0, 0, 1.0),
-            ca.horzcat(0, 0, -(c / m), 0),
-            ca.horzcat(0, 0, 0, -(c / m)),
-        )
-
-
-def _B_cont(
-    m: float | ca.SX, c: float | ca.SX, dt: float | ca.SX
-) -> np.ndarray | ca.SX:
-    if isinstance(m, float):
-        return np.array([[0, 0], [0, 0], [1.0 / m, 0], [0, 1.0 / m]])
-    else:
-        return ca.vertcat(
-            ca.horzcat(0, 0),
-            ca.horzcat(0, 0),
-            ca.horzcat(1.0 / m, 0),
-            ca.horzcat(0, 1.0 / m),
+        super().__init__(
+            ocp=ocp,
+            n_batch=n_batch,
+            export_directory=export_directory,
+            export_directory_sensitivity=export_directory_sensitivity,
+            throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
         )
 
 
@@ -193,8 +125,11 @@ def export_parametric_ocp(
 
     ocp.model.name = name
 
-    ocp.model.x = ca.SX.sym("x", 4)
-    ocp.model.u = ca.SX.sym("u", 2)
+    ocp.dims.nu = 2
+    ocp.dims.nx = 4
+
+    ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
+    ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
     ocp = translate_learnable_param_to_p_global(
         nominal_param=nominal_param, learnable_param=learnable_params, ocp=ocp
@@ -234,3 +169,14 @@ def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.qp_solver_ric_alg = 1
     ocp.solver_options.with_value_sens_wrt_params = True
     ocp.solver_options.with_solution_sens_wrt_params = True
+
+
+# def configure_ocp_solver(
+#     ocp: AcadosOcp,
+# ):
+#     ocp.solver_options.tf = ocp.solver_options.N_horizon
+#     ocp.solver_options.integrator_type = "DISCRETE"
+#     ocp.solver_options.nlp_solver_type = "SQP"
+#     ocp.solver_options.hessian_approx = "EXACT"
+#     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+#     ocp.solver_options.qp_solver_ric_alg = 1
