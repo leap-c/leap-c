@@ -100,11 +100,9 @@ class PointMassEnv(gym.Env):
 
     def __init__(
         self,
-        dt: float = 0.01,
-        max_time: float = 10.0,
         render_mode: str | None = None,
         init_state: np.ndarray | None = None,
-        param: PointMassParam = PointMassParam(dt=0.01, m=1.0, c=0.1),
+        param: PointMassParam = PointMassParam(dt=0.1, m=1.0, c=0.1),
     ):
         super().__init__()
 
@@ -112,7 +110,7 @@ class PointMassEnv(gym.Env):
         self.current_noise = None
 
         if init_state is None:
-            self.s0 = np.array([1.0, 1.0, 0.0, 0.0]).astype(dtype=np.float32)
+            self.s0 = np.array([0.5, 0.5, 0.0, 0.0]).astype(dtype=np.float32)
         else:
             self.s0 = init_state
 

@@ -5,7 +5,8 @@ from leap_c.examples.linear_system import LinearSystemMPC, LinearSystemOcpEnv
 from leap_c.examples.pendulum_on_cart import PendulumOnCartMPC, PendulumOnCartOcpEnv
 
 from leap_c.linear_mpc import LinearMPC
-from leap_c.examples.pointmass.mpc import PointMassMPC as PointMassMPC
+from leap_c.examples.pointmass.mpc import PointMassMPC
+from leap_c.examples.pointmass.env import PointMassEnv
 
 
 def generate_batch_variation(
@@ -113,6 +114,11 @@ def linear_mpc_p_global(
 @pytest.fixture(scope="session")
 def learnable_point_mass_mpc(n_batch: int) -> PointMassMPC:
     return PointMassMPC(learnable_params=["m", "c"], n_batch=n_batch)
+
+
+@pytest.fixture(scope="session")
+def point_mass_env() -> PointMassEnv:
+    return PointMassEnv()
 
 
 @pytest.fixture(scope="session")

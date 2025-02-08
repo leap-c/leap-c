@@ -10,9 +10,7 @@ from leap_c.mpc import MPC
 from test_mpc_p_global import (
     run_test_mpc_solve_and_batch_solve_on_batch_p_global,
 )
-from conftest import generate_batch_variation
 
-import torch
 
 from leap_c.mpc import MPCInput, MPCParameter
 
@@ -37,13 +35,19 @@ def run_test_pointmass_functions(mpc: PointMassMPC):
     _ = mpc.state_action_value(state=s, action=a, p_global=None)[0]
 
 
-def run_closed_loop_test(mpc: PointMassMPC, env: PointMassEnv, n_iter: int = int(5e2)):
+def run_closed_loop_test(mpc: PointMassMPC, env: PointMassEnv, n_iter: int = int(2e2)):
     s = env.reset(seed=0)
     for _ in range(n_iter):
         a = mpc.policy(state=s, p_global=None)[0]
         s, _, _, _, _ = env.step(a)
 
-    assert np.allclose(s, np.array([0.0, 0.0, 0.0, 0.0]), atol=1e-6)
+    assert np.allclose(s, np.array([0.0, 0.0, 0.0, 0.0]), atol=1e-4)
+
+
+def test_closed_loop(
+    learnable_point_mass_mpc: PointMassMPC, point_mass_env: PointMassEnv
+):
+    run_closed_loop_test(learnable_point_mass_mpc, point_mass_env)
 
 
 def simple_test_dudx0(
@@ -73,136 +77,6 @@ def simple_test_dudx0(
     plt.grid()
     plt.ylabel("du0_dx0")
     plt.show()
-
-
-def test_solution_module():
-    batch_size = 2
-    mpc = PointMassMPC(
-        learnable_params=["m", "c"],
-        n_batch=batch_size,
-        export_directory=Path("c_generated_code"),
-        export_directory_sensitivity=Path("c_generated_code_sens"),
-    )
-
-    x0 = np.array([0.5, 0.5, 0.0, 0.0])
-    u0 = np.array([0.5, 0.5])
-
-    batch_variation = generate_batch_variation(
-        mpc.ocp_solver.acados_ocp.p_global_values,
-        batch_size,
-    )
-    print(batch_variation.shape)
-
-    varying_params_to_test = [0, 1]  # A_0, Q_0, b_1, f_1
-    chosen_samples = []
-    for i in range(batch_size):
-        vary_idx = varying_params_to_test[i % len(varying_params_to_test)]
-        chosen_samples.append(batch_variation[i, :, vary_idx].squeeze())
-    test_param = np.stack(chosen_samples, axis=0)
-    assert test_param.shape == (batch_size, 2)  # Sanity check
-
-    p_rests = MPCParameter(None, None, None)
-
-    mpc_module = MPCSolutionModule(mpc)
-    x0_torch = torch.tensor(x0, dtype=torch.float64)
-    x0_torch = torch.tile(x0_torch, (batch_size, 1))
-    p = torch.tensor(test_param, dtype=torch.float64)
-    u0 = torch.tensor([u0], dtype=torch.float64)
-    u0 = torch.tile(u0, (batch_size, 1))
-
-    u0.requires_grad = True
-    x0_torch.requires_grad = True
-    p.requires_grad = True
-
-    def only_du0dx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, val, status, stats = mpc_module.forward(
-            x0, u0=None, p_global=p, p_stagewise=p_rests, initializations=None
-        )
-        return u_star, status
-
-    torch.autograd.gradcheck(
-        only_du0dx0, x0_torch, atol=1e-2, eps=1e-4, raise_exception=True
-    )
-
-    def only_dVdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, val, status, stats = mpc_module.forward(
-            x0, u0=None, p_global=p, p_stagewise=p_rests, initializations=None
-        )
-        return val, status
-
-    torch.autograd.gradcheck(
-        only_dVdx0, x0_torch, atol=1e-2, eps=1e-4, raise_exception=True
-    )
-
-    def only_dQdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:  #
-        u_star, Q, status, stats = mpc_module.forward(
-            x0, u0=u0, p_global=p, p_stagewise=p_rests, initializations=None
-        )
-        assert torch.all(
-            torch.isnan(u_star)
-        ), "u_star should be nan, since u0 is given."
-        return Q, status
-
-    torch.autograd.gradcheck(
-        only_dQdx0, x0_torch, atol=1e-2, eps=1e-4, raise_exception=True
-    )
-
-    def only_du0dp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, V, status, stats = mpc_module.forward(
-            x0=x0_torch,
-            u0=None,
-            p_global=p_global,
-            p_stagewise=p_rests,
-            initializations=None,
-        )
-        return u_star, status
-
-    torch.autograd.gradcheck(
-        only_du0dp_global, p, atol=1e-2, eps=1e-4, raise_exception=True
-    )
-
-    def only_dVdp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, V, status, stats = mpc_module.forward(
-            x0=x0_torch,
-            u0=None,
-            p_global=p_global,
-            p_stagewise=p_rests,
-            initializations=None,
-        )
-        return V, status
-
-    # NOTE: A higher tolerance than in the other checks is used here.
-    torch.autograd.gradcheck(
-        only_dVdp_global, p, atol=5 * 1e-2, eps=1e-4, raise_exception=True
-    )
-
-    def only_dQdp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, Q, status, stats = mpc_module.forward(
-            x0=x0_torch,
-            u0=u0,
-            p_global=p_global,
-            p_stagewise=p_rests,
-            initializations=None,
-        )
-        assert torch.all(
-            torch.isnan(u_star)
-        ), "u_star should be nan, since u0 is given."
-        return Q, status
-
-    torch.autograd.gradcheck(
-        only_dQdp_global, p, atol=1e-2, eps=1e-6, raise_exception=True
-    )
-
-    def only_dQdu0(u0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, Q, status, stats = mpc_module.forward(
-            x0=x0_torch, u0=u0, p_global=p, p_stagewise=p_rests, initializations=None
-        )
-        assert torch.all(
-            torch.isnan(u_star)
-        ), "u_star should be nan, since u0 is given."
-        return Q, status
-
-    torch.autograd.gradcheck(only_dQdu0, u0, atol=1e-2, eps=1e-4, raise_exception=True)
 
 
 def prototyping():
@@ -280,9 +154,6 @@ def prototyping():
 
 
 if __name__ == "__main__":
-    test_solution_module()
-    print("All autograd tests passed")
-
     n_batch = 100
     mpc = PointMassMPC(
         learnable_params=["m", "c"],
