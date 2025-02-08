@@ -1,13 +1,13 @@
 from leap_c.task import Task
 import numpy as np
 from typing import Any, Optional
-from leap_c.examples.pointmass.mpc import PointMassMPC as MPC
-from leap_c.examples.pointmass.env import PointMassEnv as Env
+from leap_c.examples.pointmass.mpc import PointMassMPC
+from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.mpc import MPCInput, MPCSingleState
 
 
 class PointMassTask(Task):
-    def __init__(self, mpc: MPC, env: Env):
+    def __init__(self, mpc: PointMassMPC, env: PointMassEnv):
         super().__init__(mpc, env)
 
     def prepare_nn_input(self, obs: Any) -> np.ndarray:
