@@ -107,7 +107,8 @@ class PointMassEnv(gym.Env):
         super().__init__()
 
         # Will be added after doing a step.
-        self.current_noise = None
+        self.current_noise = 0.0
+        self._np_random = None
 
         if init_state is None:
             self.s0 = np.array([0.5, 0.5, 0.0, 0.0]).astype(dtype=np.float32)
@@ -125,7 +126,15 @@ class PointMassEnv(gym.Env):
         self.action_to_take = action
 
         u = action
+
         self.state = self.A @ self.state + self.B @ u
+
+        # Compute the norm of u
+        norm_u = np.linalg.norm(u)
+        disturbane = self.B @ (self.current_noise * (u / norm_u))
+        self.state += disturbane
+
+        self.current_noise = self.next_noise()
 
         # frame = None
         # if self.render_mode == "human" or self.render_mode == "rgb_array":
@@ -138,7 +147,6 @@ class PointMassEnv(gym.Env):
         # state = o[0].copy()
         # state[-2:] += self.current_noise
         # self.x = state
-        # self.current_noise = self.next_noise()
         # o = (state, o[1])
 
         # if state not in self.state_space:
@@ -159,13 +167,14 @@ class PointMassEnv(gym.Env):
         self.state = self.init_state()
         self.state_trajectory = None
         self.action_to_take = None
+        self._np_random = np.random.RandomState(seed)
         return self.state
 
-    # def next_noise(self) -> float:
-    #     """Return the next noise to be added to the state."""
-    #     if self._np_random is None:
-    #         raise ValueError("First, reset needs to be called with a seed.")
-    #     return self._np_random.uniform(-0.1, 0, size=2)
+    def next_noise(self) -> float:
+        """Return the next noise to be added to the state."""
+        if self._np_random is None:
+            raise ValueError("First, reset needs to be called with a seed.")
+        return self._np_random.uniform(-0.1, +0.1, size=1)
 
     def init_state(self):
         return self.s0
