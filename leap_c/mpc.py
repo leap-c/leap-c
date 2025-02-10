@@ -1013,16 +1013,9 @@ class MPC(ABC):
 
             if dudp:
                 if use_adj_sens:
-                    # TODO: Tested for scalar u only
-                    seed_vec = np.ones((self.n_batch, self.ocp.dims.nu, 1))  # type:ignore
-
-                    # n_seed can change when only subset of u is updated
-                    n_seed = self.ocp.dims.nu
-
-                    assert seed_vec.shape == (
-                        self.n_batch,
-                        self.ocp.dims.nu,
-                        n_seed,
+                    single_seed = np.eye(self.ocp.dims.nu)
+                    seed_vec = np.repeat(
+                        single_seed[np.newaxis, :, :], self.n_batch, axis=0
                     )
 
                     kw["du0_dp_global"] = (

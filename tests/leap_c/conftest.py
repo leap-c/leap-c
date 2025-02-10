@@ -1,9 +1,10 @@
 import numpy as np
 import pytest
 from leap_c.examples.linear_system import LinearSystemMPC, LinearSystemOcpEnv
+from leap_c.examples.pointmass.mpc import PointMassMPC
+from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
 from leap_c.examples.pendulum_on_cart import PendulumOnCartMPC
-from leap_c.examples.point_mass import PointMassMPC, PointMassOcpEnv
 
 
 def generate_batch_variation(
@@ -94,19 +95,8 @@ def learnable_linear_mpc(n_batch: int) -> LinearSystemMPC:
 
 
 @pytest.fixture(scope="session")
-def learnable_point_mass_mpc(n_batch: int) -> PointMassMPC:
-    """Fixture for the linear system MPC with learnable parameters."""
-    return PointMassMPC(learnable_params=["m", "c"], n_batch=n_batch)
-
-
-@pytest.fixture(scope="session")
 def linear_system_ocp_env(learnable_linear_mpc: LinearSystemMPC) -> LinearSystemOcpEnv:
     return LinearSystemOcpEnv(learnable_linear_mpc, render_mode="rgb_array")
-
-
-@pytest.fixture(scope="session")
-def point_mass_ocp_env(learnable_point_mass_mpc: PointMassMPC) -> PointMassOcpEnv:
-    return PointMassOcpEnv(learnable_point_mass_mpc)
 
 
 @pytest.fixture(scope="session")
@@ -117,6 +107,32 @@ def linear_mpc_p_global(
     return generate_batch_variation(
         learnable_linear_mpc.ocp_solver.acados_ocp.p_global_values, n_batch
     )
+
+
+@pytest.fixture(scope="session")
+def learnable_point_mass_mpc(n_batch: int) -> PointMassMPC:
+    return PointMassMPC(learnable_params=["m", "c"], n_batch=n_batch)
+
+
+@pytest.fixture(scope="session")
+def point_mass_env() -> PointMassEnv:
+    return PointMassEnv()
+
+
+@pytest.fixture(scope="session")
+def point_mass_mpc_p_global(
+    learnable_point_mass_mpc: PointMassMPC, n_batch: int
+) -> np.ndarray:
+    """Fixture for the global parameters of the point mass MPC."""
+    return generate_batch_variation(
+        learnable_point_mass_mpc.ocp_solver.acados_ocp.p_global_values, n_batch
+    )
+
+
+@pytest.fixture(scope="session")
+def learnable_pendulum_on_cart_mpc(n_batch: int) -> PendulumOnCartMPC:
+    """Fixture for the pendulum on cart MPC with learnable parameters."""
+    return PendulumOnCartMPC(learnable_params=["M", "m", "g", "l"], n_batch=n_batch)
 
 
 @pytest.fixture(scope="session")
