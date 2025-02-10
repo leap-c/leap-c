@@ -9,7 +9,6 @@ import numpy as np
 import torch
 from gymnasium import Env
 from gymnasium.utils.save_video import save_video
-
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.util import add_prefix_extend, create_dir_if_not_exists
 
@@ -230,10 +229,7 @@ class Trainer(ABC):
             exploration_stats = dict()
             info = self.episode_rollout(ocp_env, False, grad_or_no_grad, config)
             add_prefix_extend("exploration_", exploration_stats, info)
-            if (
-                self.replay_buffer.size()
-                > config.dont_train_until_this_many_transitions
-            ):
+            if len(self.replay_buffer) > config.dont_train_until_this_many_transitions:
                 self.log(exploration_stats, commit=False)
                 for i in range(config.training_steps_per_episode):
                     training_stats = self.train()

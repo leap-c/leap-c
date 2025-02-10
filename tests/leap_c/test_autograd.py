@@ -36,7 +36,7 @@ def test_MPCSolutionModule_on_LinearSystemMPC(
     p.requires_grad = True
 
     def only_du0dx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, val, status = mpc_module.forward(
+        u_star, val, status, stats = mpc_module.forward(
             x0, u0=None, p_global=p, p_stagewise=p_rests, initializations=None
         )
         return u_star, status
@@ -46,7 +46,7 @@ def test_MPCSolutionModule_on_LinearSystemMPC(
     )
 
     def only_dVdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, val, status = mpc_module.forward(
+        u_star, val, status, stats = mpc_module.forward(
             x0, u0=None, p_global=p, p_stagewise=p_rests, initializations=None
         )
         return val, status
@@ -56,7 +56,7 @@ def test_MPCSolutionModule_on_LinearSystemMPC(
     )
 
     def only_dQdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:  #
-        u_star, Q, status = mpc_module.forward(
+        u_star, Q, status, stats = mpc_module.forward(
             x0, u0=u0, p_global=p, p_stagewise=p_rests, initializations=None
         )
         assert torch.all(
@@ -69,7 +69,7 @@ def test_MPCSolutionModule_on_LinearSystemMPC(
     )
 
     def only_du0dp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, V, status = mpc_module.forward(
+        u_star, V, status, stats = mpc_module.forward(
             x0=x0_torch,
             u0=None,
             p_global=p_global,
@@ -83,7 +83,7 @@ def test_MPCSolutionModule_on_LinearSystemMPC(
     )
 
     def only_dVdp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, V, status = mpc_module.forward(
+        u_star, V, status, stats = mpc_module.forward(
             x0=x0_torch,
             u0=None,
             p_global=p_global,
@@ -98,7 +98,7 @@ def test_MPCSolutionModule_on_LinearSystemMPC(
     )
 
     def only_dQdp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, Q, status = mpc_module.forward(
+        u_star, Q, status, stats = mpc_module.forward(
             x0=x0_torch,
             u0=u0,
             p_global=p_global,
@@ -115,7 +115,7 @@ def test_MPCSolutionModule_on_LinearSystemMPC(
     )
 
     def only_dQdu0(u0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        u_star, Q, status = mpc_module.forward(
+        u_star, Q, status, stats = mpc_module.forward(
             x0=x0_torch, u0=u0, p_global=p, p_stagewise=p_rests, initializations=None
         )
         assert torch.all(
