@@ -88,8 +88,8 @@ class MPCSolutionModule(nn.Module):
             mpc_state: The MPCBatchedState object containing the initializations.
 
         Returns:
-            The optimal control sequence, the value of the optimal control problem,
-            the status of the solution and the statistics of the last call.
+            mpc_output: The MPCOutput object from the MPC evluation.
+            stats: A dictionary containing statistics from the MPC evaluation.
         """
         u0, value, status = MPCSolutionFunction.apply(  # type:ignore
             self.mpc,
