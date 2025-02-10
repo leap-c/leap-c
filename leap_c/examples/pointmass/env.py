@@ -103,7 +103,6 @@ class PointMassEnv(gym.Env):
         dt: float | None = None,
         max_time: float = 10.0,
         render_mode: str | None = None,
-        init_state: np.ndarray | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, c=0.1),
     ):
         super().__init__()
@@ -133,11 +132,6 @@ class PointMassEnv(gym.Env):
         # Will be added after doing a step.
         self.input_noise = 0.0
         self._np_random = None
-
-        if init_state is None:
-            self.s0 = self._init_state()
-        else:
-            self.s0 = init_state
 
         if dt is not None:
             param.dt = dt
@@ -179,10 +173,10 @@ class PointMassEnv(gym.Env):
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
     ) -> tuple[Any, dict]:  # type: ignore
-        self.state = self._init_state()
+        self._np_random = np.random.RandomState(seed)
         self.state_trajectory = None
         self.action_to_take = None
-        self._np_random = np.random.RandomState(seed)
+        self.state = self._init_state()
         return self.state
 
     def _current_observation(self):

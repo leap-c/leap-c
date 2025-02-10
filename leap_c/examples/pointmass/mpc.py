@@ -169,14 +169,3 @@ def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.qp_solver_ric_alg = 1
     ocp.solver_options.with_value_sens_wrt_params = True
     ocp.solver_options.with_solution_sens_wrt_params = True
-
-
-# def configure_ocp_solver(
-#     ocp: AcadosOcp,
-# ):
-#     ocp.solver_options.tf = ocp.solver_options.N_horizon
-#     ocp.solver_options.integrator_type = "DISCRETE"
-#     ocp.solver_options.nlp_solver_type = "SQP"
-#     ocp.solver_options.hessian_approx = "EXACT"
-#     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-#     ocp.solver_options.qp_solver_ric_alg = 1
