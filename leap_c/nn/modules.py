@@ -5,7 +5,7 @@ import casadi as ca
 import torch
 import torch.nn as nn
 from acados_template import AcadosSimSolver
-from leap_c.mpc import MPC, MPCBatchedState, MPCParameter
+from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCOutput, MPCParameter
 
 from .autograd import AutogradCasadiFunction, DynamicsSimFunction, MPCSolutionFunction
 
@@ -42,23 +42,25 @@ class AcadosSimModule(nn.Module):
 
 
 class MPCSolutionModule(nn.Module):
-    """A pytorch module to allow differentiating the solution given by an MPC controller,
-    with respect to some inputs. Backpropagation works by using the sensitivities
+    """A PyTorch module to allow differentiating the solution given by an MPC planner,
+    with respect to some inputs.
+
+    Backpropagation works by using the sensitivities
     given by the MPC. If differentiation with respect to parameters is desired, they must
     be global over the horizon (contrary to stagewise parameters).
 
-        NOTE: This solves every sample in the batch sequentially, so it is not efficient for large batch sizes.
+    NOTE: This solves every sample in the batch sequentially, so it is not efficient for large batch sizes.
 
-        NOTE: Make sure that you follow the documentation of AcadosOcpSolver.eval_solution_sensitivity
+    NOTE: Make sure that you follow the documentation of AcadosOcpSolver.eval_solution_sensitivity
         and AcadosOcpSolver.eval_and_get_optimal_value_gradient
         or else the gradients used in the backpropagation might be erroneous!
 
-        NOTE: Make sure you also read the documentation of the forward method!
+    NOTE: Make sure you also read the documentation of the forward method!
 
-        NOTE: The status output can be used to rid yourself from non-converged solutions, e.g., by using the
+    NOTE: The status output can be used to rid yourself from non-converged solutions, e.g., by using the
         CleanseAndReducePerSampleLoss module.
 
-        NOTE: Currently, acados guards calculating sensitivities for parameters in constraints with an Exception.
+    NOTE: Currently, acados guards calculating sensitivities for parameters in constraints with an Exception.
         Still, it might be that you want to have such parameters,
         and still use the sensitivities of OTHER parameters.
         For this, you can, e.g., in acados github commit 95c341c6,
@@ -69,54 +71,36 @@ class MPCSolutionModule(nn.Module):
     Attributes:
         mpc: The MPC object to use.
     """
-
     def __init__(self, mpc: MPC):
         super().__init__()
         self.mpc = mpc
 
     def forward(
         self,
-        x0: torch.Tensor,
-        u0: torch.Tensor | None = None,
-        p_global: torch.Tensor | None = None,
-        p_stagewise: MPCParameter | None = None,
-        initializations: MPCBatchedState | None = None,
-    ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor, dict]:
+        mpc_input: MPCInput,
+        mpc_state: MPCBatchedState,
+    ) -> MPCOutput, dict[str, Any]:
         """Differentiation is only allowed with respect to x0, u0 and p_global.
 
+        Args:
+            mpc_input: The MPCInput object containing the stagewise parameters.
+            mpc_state: The MPCBatchedState object containing the initializations.
 
-        Parameters:
-            x0: The initial state of the MPC, shape (batch_size, xdim).
-            u0: The initial action of the MPC, shape (batch_size, udim).
-                If it is not given, the initial action will be variable in the MPC.
-            p_global: The parameters of the MPC, shape (batch_size, p_global_dim).
-            p_stagewise: The remaining parameter information for the MPC, i.e., the stagewise parameters (batched according to the other input).
-                NOTE that it should not contain p_global, since this will be overwritten by p_global!
-            initializations: The batched MPCState used for initialization in the mpc solve.
-        Returns: A tuple (u_star, value, status, stats).
-            u_star is the first optimal action of the MPC solution, given the initial state and parameters.
-                NOTE that this is a tensor of shape (1, ) containing NaN if u0 was given in the forward pass.
-            value is the value of the MPC solution (the cost of the objective function in the solution).
-                Corresponds to the Value function if u0 is not given, and the Q function if u0 is given.
-            status is the status of the MPC solution, where 0 means converged and all other integers count as not converged,
-                (useful for e.g., logging, debugging or cleaning the backward pass from non-converged solutions).
-            stats is a dictionary containing additional statistics about the solution, such as the number of iterations the solver took, etc.
-
-        NOTE: An extension to allow for outputting and differentiating also with respect to other stages
-            (meaning stages of the action and state trajectories) than the first one is possible, but not implemented yet.
-        NOTE: Using a multiphase MPC formulation allows differentiation with respect to parameters that are not "truly" global,
-            but this is not implemented yet.
+        Returns:
+            The optimal control sequence, the value of the optimal control problem,
+            the status of the solution and the statistics of the last call.
         """
         u_star, value, status = MPCSolutionFunction.apply(  # type:ignore
             self.mpc,
-            x0,
-            u0,
-            p_global,
-            p_stagewise,
-            initializations,
+            mpc_input.x0,
+            mpc_input.u0,
+            mpc_input.p_global,
+            mpc_input.p_stagewise,
+            mpc_input.initializations,
         )
+
         stats = self.mpc.last_call_stats
-        return u_star, value, status, stats
+        return 
 
 
 class CleanseAndReducePerSampleLoss(nn.Module):
