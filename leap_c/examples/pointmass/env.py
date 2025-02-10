@@ -113,6 +113,11 @@ class PointMassEnv(gym.Env):
             "cov": np.diag([0.1, 0.1, 0.05, 0.05]),
         }
 
+        self.input_noise_dist = {
+            "low": -0.1,
+            "high": 0.1,
+        }
+
         self.state_space = spaces.Box(
             low=np.array([-10.0, -np.inf, -5.0, -5.0]),
             high=np.array([10.0, 10.0, 5.0, 5.0]),
@@ -126,7 +131,7 @@ class PointMassEnv(gym.Env):
         )
 
         # Will be added after doing a step.
-        self.current_noise = 0.0
+        self.input_noise = 0.0
         self._np_random = None
 
         if init_state is None:
@@ -153,13 +158,12 @@ class PointMassEnv(gym.Env):
 
         # Add an input disturbance that acts in the direction of u
         norm_u = np.linalg.norm(u)
-        disturbane = self.B @ (self.current_noise * (u / norm_u))
+        disturbane = self.B @ (self.input_noise * (u / norm_u))
         self.state += disturbane
 
-        self.current_noise = self._next_action_noise()
+        self.input_noise = self._get_input_noise()
 
-        o = self.state
-
+        o = self._current_observation()
         r = self._calculate_reward()
 
         if self.state not in self.state_space:
@@ -181,17 +185,24 @@ class PointMassEnv(gym.Env):
         self._np_random = np.random.RandomState(seed)
         return self.state
 
+    def _current_observation(self):
+        return self.state
+
     def _init_state(self):
-        return np.random.multivariate_normal(
+        return self._np_random.multivariate_normal(
             mean=self.init_state_dist["mean"],
             cov=self.init_state_dist["cov"],
         )
 
-    def _next_action_noise(self) -> float:
+    def _get_input_noise(self) -> float:
         """Return the next noise to be added to the state."""
         if self._np_random is None:
             raise ValueError("First, reset needs to be called with a seed.")
-        return self._np_random.uniform(-0.1, +0.1, size=1)
+        return self._np_random.uniform(
+            low=self.input_noise_dist["low"],
+            high=self.input_noise_dist["high"],
+            size=1,
+        )
 
     def _calculate_reward(self):
         # Reward is higher the closer the position is to (0,0) and the lower the velocity
