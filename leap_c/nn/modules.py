@@ -79,7 +79,7 @@ class MPCSolutionModule(nn.Module):
         self,
         mpc_input: MPCInput,
         mpc_state: MPCBatchedState,
-    ) -> MPCOutput, dict[str, Any]:
+    ) -> tuple[MPCOutput, dict[str, Any]]:
         """Differentiation is only allowed with respect to x0, u0 and p_global.
 
         Args:

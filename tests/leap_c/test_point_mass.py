@@ -7,9 +7,6 @@ from leap_c.nn.modules import MPCSolutionModule
 
 # from leap_c.linear_mpc import LinearMPC
 from leap_c.mpc import MPC
-from test_mpc_p_global import (
-    run_test_mpc_solve_and_batch_solve_on_batch_p_global,
-)
 
 
 from leap_c.mpc import MPCInput, MPCParameter
@@ -17,13 +14,6 @@ from leap_c.mpc import MPCInput, MPCParameter
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-
-def run_test_parametric_sensitivities(
-    learnable_point_mass_mpc: MPC, point_mass_mpc_p_global: np.ndarray
-):
-    run_test_mpc_solve_and_batch_solve_on_batch_p_global(
-        learnable_point_mass_mpc, point_mass_mpc_p_global, plot=False
-    )
 
 
 def run_test_pointmass_functions(mpc: PointMassMPC):
