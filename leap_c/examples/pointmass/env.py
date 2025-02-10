@@ -101,6 +101,7 @@ class PointMassEnv(gym.Env):
     def __init__(
         self,
         dt: float | None = None,
+        max_time: float = 10.0,
         render_mode: str | None = None,
         init_state: np.ndarray | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, c=0.1),
@@ -112,12 +113,24 @@ class PointMassEnv(gym.Env):
             "cov": np.diag([0.1, 0.1, 0.05, 0.05]),
         }
 
+        self.state_space = spaces.Box(
+            low=np.array([-10.0, -np.inf, -5.0, -5.0]),
+            high=np.array([10.0, 10.0, 5.0, 5.0]),
+            dtype=np.float32,
+        )
+
+        self.action_space = spaces.Box(
+            low=np.array([-1.0, -1.0]),
+            high=np.array([1.0, 1.0]),
+            dtype=np.float32,
+        )
+
         # Will be added after doing a step.
         self.current_noise = 0.0
         self._np_random = None
 
         if init_state is None:
-            self.s0 = np.array([1.5, 1.5, 0.0, 0.0]).astype(dtype=np.float32)
+            self.s0 = self._init_state()
         else:
             self.s0 = init_state
 
@@ -138,33 +151,22 @@ class PointMassEnv(gym.Env):
 
         self.state = self.A @ self.state + self.B @ u
 
-        # Compute the norm of u
+        # Add an input disturbance that acts in the direction of u
         norm_u = np.linalg.norm(u)
         disturbane = self.B @ (self.current_noise * (u / norm_u))
         self.state += disturbane
 
-        self.current_noise = self.next_noise()
-
-        # frame = None
-        # if self.render_mode == "human" or self.render_mode == "rgb_array":
-        #     frame = self.render()
-        # o, r, term, trunc, info = super().step(
-        #     action
-        # )  # o is the next state as np.ndarray, next parameters as MPCParameter
-        # info["frame"] = frame
-
-        # state = o[0].copy()
-        # state[-2:] += self.current_noise
-        # self.x = state
-        # o = (state, o[1])
-
-        # if state not in self.state_space:
-        #     r -= 1e2
-        #     term = True
+        self.current_noise = self._next_action_noise()
 
         o = self.state
-        r = 0
-        term = False
+
+        r = self._calculate_reward()
+
+        if self.state not in self.state_space:
+            r -= 1e2
+
+        term = self._is_done()
+
         trunc = False
         info = {}
 
@@ -173,19 +175,40 @@ class PointMassEnv(gym.Env):
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
     ) -> tuple[Any, dict]:  # type: ignore
-        self.state = self.init_state()
+        self.state = self._init_state()
         self.state_trajectory = None
         self.action_to_take = None
         self._np_random = np.random.RandomState(seed)
         return self.state
 
-    def next_noise(self) -> float:
+    def _init_state(self):
+        return np.random.multivariate_normal(
+            mean=self.init_state_dist["mean"],
+            cov=self.init_state_dist["cov"],
+        )
+
+    def _next_action_noise(self) -> float:
         """Return the next noise to be added to the state."""
         if self._np_random is None:
             raise ValueError("First, reset needs to be called with a seed.")
         return self._np_random.uniform(-0.1, +0.1, size=1)
 
-    def init_state(self):
-        return np.random.multivariate_normal(
-            self.init_state_dist["mean"], self.init_state_dist["cov"]
-        )
+    def _calculate_reward(self):
+        # Reward is higher the closer the position is to (0,0) and the lower the velocity
+        distance = np.linalg.norm(self.state)
+        velocity = np.linalg.norm(self.state[2:])
+
+        reward = -distance - 0.1 * velocity
+        return reward
+
+    def _is_done(self):
+        # Episode is done if the position is very close to (0,0) at low velocity
+
+        distance = np.linalg.norm(self.state[:2])
+        velocity = np.linalg.norm(self.state[2:])
+
+        close_to_zero = distance < 0.1 and velocity < 0.1
+
+        outside_bounds = self.state not in self.state_space
+
+        return close_to_zero or outside_bounds
