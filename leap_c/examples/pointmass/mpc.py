@@ -136,6 +136,8 @@ def export_parametric_ocp(
     )
 
     ocp.model.disc_dyn_expr = _disc_dyn_expr(ocp=ocp)
+    ocp.model.cost_expr_ext_cost_0 = _cost_expr_ext_cost(ocp=ocp)
+    ocp.cost.cost_type_0 = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = _cost_expr_ext_cost(ocp=ocp)
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost_e = _cost_expr_ext_cost_e(ocp=ocp)
