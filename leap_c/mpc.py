@@ -13,7 +13,7 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedIterate,
     AcadosOcpIterate,
 )
-from leap_c.util import AcadosFileManager
+from leap_c.util import AcadosFileManager, set_standard_sensitivity_options
 
 
 class MPCParameter(NamedTuple):
@@ -29,11 +29,21 @@ class MPCParameter(NamedTuple):
         p_stagewise_sparse_idx: If not None, stagewise parameters are set in a sparse manner, using these indices.
             The indices are in shape (N+1, n_p_stagewise_sparse_idx) or (B, N+1, n_p_stagewise_sparse_idx).
             If a multi-phase MPC is used this is a list containing the above arrays for the respective phases.
+        p_W: The weights for the least squares cost formulation in shape (N, n_x+n_u, n_x+n_u) or (B, N, n_x+n_u, n_x+n_u).
+        p_yref: The reference for the least squares cost formulation in shape (N, n_x+n_u) or (B, N, n_x+n_u).
+        p_W_e: The weights for the least squares cost formulation in the terminal stage in shape (n_x, n_x) or (B, n_x, n_x).
+        p_yref_e: The reference for the least squares cost formulation in the terminal stage in shape (n_x,) or (B, n_x).
     """
 
     p_global: np.ndarray | None = None
     p_stagewise: List[np.ndarray] | np.ndarray | None = None
     p_stagewise_sparse_idx: List[np.ndarray] | np.ndarray | None = None
+
+    # Only used in least squares cost formulations
+    p_W: np.ndarray | None = None
+    p_yref: np.ndarray | None = None
+    p_W_e: np.ndarray | None = None
+    p_yref_e: np.ndarray | None = None
 
     def is_batched(self) -> bool:
         """The empty MPCParameter counts as non-batched."""
@@ -41,6 +51,14 @@ class MPCParameter(NamedTuple):
             return self.p_global.ndim == 2
         elif self.p_stagewise is not None:
             return self.p_stagewise[0].ndim == 3
+        elif self.p_W is not None:
+            return self.p_W.ndim == 4
+        elif self.p_yref is not None:
+            return self.p_yref.ndim == 3
+        elif self.p_W_e is not None:
+            return self.p_W_e.ndim == 3
+        elif self.p_yref_e is not None:
+            return self.p_yref_e.ndim == 2
         else:
             return False
 
@@ -55,10 +73,19 @@ class MPCParameter(NamedTuple):
             if self.p_stagewise_sparse_idx is not None
             else None
         )
+        p_W = self.p_W[i] if self.p_W is not None else None
+        p_yref = self.p_yref[i] if self.p_yref is not None else None
+        p_W_e = self.p_W_e[i] if self.p_W_e is not None else None
+        p_yref_e = self.p_yref_e[i] if self.p_yref_e is not None else None
+
         return MPCParameter(
             p_global=p_global,
             p_stagewise=p_stagewise,
             p_stagewise_sparse_idx=p_stagewise_sparse_idx,
+            p_W=p_W,
+            p_yref=p_yref,
+            p_W_e=p_W_e,
+            p_yref_e=p_yref_e,
         )
 
 
@@ -146,6 +173,16 @@ def set_ocp_solver_mpc_params(
                 else:
                     for stage, p in enumerate(mpc_parameter.p_stagewise):
                         ocp_solver.set(stage, "p", p)
+            if mpc_parameter.p_W is not None:
+                for stage, W in enumerate(mpc_parameter.p_W):
+                    ocp_solver.cost_set(stage, "W", W)
+            if mpc_parameter.p_yref is not None:
+                for stage, yref in enumerate(mpc_parameter.p_yref):
+                    ocp_solver.cost_set(stage, "yref", yref)
+            if mpc_parameter.p_W_e is not None:
+                ocp_solver.cost_set(ocp_solver.N, "W", mpc_parameter.p_W_e)
+            if mpc_parameter.p_yref_e is not None:
+                ocp_solver.cost_set(ocp_solver.N, "yref", mpc_parameter.p_yref_e)
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         for i, single_solver in enumerate(ocp_solver.ocp_solvers):
             set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
@@ -413,9 +450,22 @@ def _solve_shared(
         )
 
     if sensitivity_solver is not None:
+        # Mask LS-parameters
+        if mpc_input.parameters is not None:
+            sens_input = MPCInput(
+                x0=mpc_input.x0,
+                u0=mpc_input.u0,
+                parameters=MPCParameter(
+                    p_global=mpc_input.parameters.p_global,
+                    p_stagewise=mpc_input.parameters.p_stagewise,
+                    p_stagewise_sparse_idx=mpc_input.parameters.p_stagewise_sparse_idx,
+                ),
+            )
+        else:
+            sens_input = mpc_input
         initialize_ocp_solver(
             ocp_solver=sensitivity_solver,
-            mpc_input=mpc_input,
+            mpc_input=sens_input,
             ocp_iterate=solver.store_iterate_to_flat_obj(),
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
         )
@@ -429,6 +479,7 @@ class MPC(ABC):
     def __init__(
         self,
         ocp: AcadosOcp,
+        ocp_sensitivity: AcadosOcp | None = None,
         discount_factor: float | None = None,
         default_init_state_fn: Callable[[MPCInput], MPCSingleState | MPCBatchedState]
         | None = None,
@@ -442,6 +493,9 @@ class MPC(ABC):
 
         Args:
             ocp: Optimal control problem.
+            ocp_sensitivity: The optimal control problem formulation to use for sensitivities.
+                If None, the sensitivity problem is derived from the ocp, however only the EXTERNAL cost type is allowed then.
+                For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
             default_init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.
             n_batch: Number of batched solvers to use.
@@ -453,23 +507,20 @@ class MPC(ABC):
         """
         self.ocp = ocp
 
-        # setup OCP for sensitivity solver
-        self.ocp_sensitivity = deepcopy(ocp)
-        self.ocp_sensitivity.translate_cost_to_external_cost()
-        self.ocp_sensitivity.solver_options.nlp_solver_type = "SQP_RTI"
-        self.ocp_sensitivity.solver_options.globalization_fixed_step_length = 0.0
-        self.ocp_sensitivity.solver_options.nlp_solver_max_iter = 1
-        self.ocp_sensitivity.solver_options.qp_solver_iter_max = 200
-        self.ocp_sensitivity.solver_options.tol = self.ocp.solver_options.tol / 1e3
-        self.ocp_sensitivity.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-        self.ocp_sensitivity.solver_options.qp_solver_ric_alg = 1
-        self.ocp_sensitivity.solver_options.qp_solver_cond_N = (
-            self.ocp.solver_options.N_horizon
-        )
-        self.ocp_sensitivity.solver_options.hessian_approx = "EXACT"
-        self.ocp_sensitivity.solver_options.with_solution_sens_wrt_params = True
-        self.ocp_sensitivity.solver_options.with_value_sens_wrt_params = True
-        self.ocp_sensitivity.model.name += "_sensitivity"  # type:ignore
+        if ocp_sensitivity is None:
+            # setup OCP for sensitivity solver
+            if (
+                ocp.cost.cost_type != "EXTERNAL"
+                or ocp.cost.cost_type_0 != "EXTERNAL"
+                or ocp.cost.cost_type_e != "EXTERNAL"
+            ):
+                raise ValueError(
+                    "Automatic derivation of sensitivity problem is only supported for EXTERNAL cost types."
+                )
+            self.ocp_sensitivity = deepcopy(ocp)
+            set_standard_sensitivity_options(self.ocp_sensitivity)
+        else:
+            self.ocp_sensitivity = ocp_sensitivity
 
         # path management
         self.afm = AcadosFileManager(export_directory)
@@ -500,8 +551,7 @@ class MPC(ABC):
         if self._discount_factor is not None:
             set_discount_factor(solver, self._discount_factor)
 
-        default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
-        set_ocp_solver_to_default(solver, default_params, unset_u0=True)
+        set_ocp_solver_to_default(solver, self.default_full_mpcparameter, unset_u0=True)
 
         return solver
 
@@ -512,8 +562,7 @@ class MPC(ABC):
         if self._discount_factor is not None:
             set_discount_factor(solver, self._discount_factor)
 
-        default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
-        set_ocp_solver_to_default(solver, default_params, unset_u0=True)
+        set_ocp_solver_to_default(solver, self.default_sens_mpcparameter, unset_u0=True)
 
         return solver
 
@@ -524,10 +573,11 @@ class MPC(ABC):
 
         batch_solver = self.afm_batch.setup_acados_ocp_batch_solver(ocp, self.n_batch)
 
-        default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
         if self._discount_factor is not None:
             set_discount_factor(batch_solver, self._discount_factor)
-        set_ocp_solver_to_default(batch_solver, default_params, unset_u0=True)
+        set_ocp_solver_to_default(
+            batch_solver, self.default_full_mpcparameter, unset_u0=True
+        )
 
         return batch_solver
 
@@ -540,10 +590,11 @@ class MPC(ABC):
             ocp, self.n_batch
         )
 
-        default_params = MPCParameter(self.default_p_global, self.default_p_stagewise)
         if self._discount_factor is not None:
             set_discount_factor(batch_solver, self._discount_factor)
-        set_ocp_solver_to_default(batch_solver, default_params, unset_u0=True)
+        set_ocp_solver_to_default(
+            batch_solver, self.default_sens_mpcparameter, unset_u0=True
+        )
 
         return batch_solver
 
@@ -574,6 +625,59 @@ class MPC(ABC):
             np.tile(self.ocp.parameter_values, (self.N + 1, 1))
             if self.is_model_p_legal(self.ocp.model.p)
             else None
+        )
+
+    @cached_property
+    def default_p_W(self) -> np.ndarray | None:
+        """Return the default p_W."""
+        return (
+            np.tile(self.ocp.cost.W, (self.N, 1, 1))
+            if self.is_model_p_legal(self.ocp.cost.W)
+            else None
+        )
+
+    @cached_property
+    def default_p_yref(self) -> np.ndarray | None:
+        """Return the default p_yref."""
+        return (
+            np.tile(self.ocp.cost.yref, (self.N, 1))
+            if self.is_model_p_legal(self.ocp.cost.yref)
+            else None
+        )
+
+    @cached_property
+    def default_p_W_e(self) -> np.ndarray | None:
+        """Return the default p_W_e."""
+        return self.ocp.cost.W_e if self.is_model_p_legal(self.ocp.cost.W_e) else None
+
+    @cached_property
+    def default_p_yref_e(self) -> np.ndarray | None:
+        """Return the default p_yref_e."""
+        return (
+            self.ocp.cost.yref_e
+            if self.is_model_p_legal(self.ocp.cost.yref_e)
+            else None
+        )
+
+    @cached_property
+    def default_full_mpcparameter(self) -> MPCParameter:
+        """Return the full default MPCParameter."""
+        return MPCParameter(
+            p_global=self.default_p_global,
+            p_stagewise=self.default_p_stagewise,
+            p_W=self.default_p_W,
+            p_yref=self.default_p_yref,
+            p_W_e=self.default_p_W_e,
+            p_yref_e=self.default_p_yref_e,
+        )
+
+    @cached_property
+    def default_sens_mpcparameter(self) -> MPCParameter:
+        """Return the default MPCParameter for sensitivity solver.
+        It does not contain the LS-parameters"""
+        return MPCParameter(
+            p_global=self.default_p_global,
+            p_stagewise=self.default_p_stagewise,
         )
 
     @property
@@ -827,20 +931,16 @@ class MPC(ABC):
         flat_iterate = self.ocp_solver.store_iterate_to_flat_obj()
 
         # Set solvers to default
-        default_params = MPCParameter(
-            p_global=self.default_p_global,
-            p_stagewise=self.default_p_stagewise,  # type:ignore
-        )
         unset_u0 = True if mpc_input.u0 is not None else False
         set_ocp_solver_to_default(
             ocp_solver=self.ocp_solver,
-            default_mpc_parameters=default_params,
+            default_mpc_parameters=self.default_full_mpcparameter,
             unset_u0=unset_u0,
         )
         if use_sensitivity_solver:
             set_ocp_solver_to_default(
                 ocp_solver=self.ocp_sensitivity_solver,
-                default_mpc_parameters=default_params,
+                default_mpc_parameters=self.default_sens_mpcparameter,
                 unset_u0=unset_u0,
             )
 
@@ -938,7 +1038,7 @@ class MPC(ABC):
                             )["sens_u"]
                             for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
                         ]
-                    ).reshape(self.n_batch, self.ocp.dims.nu, self.p_global_dim)
+                    ).reshape(self.n_batch, self.ocp.dims.nu, self.p_global_dim)  # type:ignore
 
                 assert kw["du0_dp_global"].shape == (
                     self.n_batch,
@@ -965,7 +1065,7 @@ class MPC(ABC):
                         return_sens_u=True,
                         return_sens_x=False,
                     )["sens_u"]
-                    for ocp_solver in self.ocp_batch_solver.ocp_solvers
+                    for ocp_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
                 ]
             )
         if dvdx:
@@ -991,20 +1091,16 @@ class MPC(ABC):
         flat_iterate = self.ocp_batch_solver.store_iterate_to_flat_obj()
 
         # Set solvers to default
-        default_params = MPCParameter(
-            p_global=self.default_p_global,
-            p_stagewise=self.default_p_stagewise,  # type:ignore
-        )
         unset_u0 = True if mpc_input.u0 is not None else False
         set_ocp_solver_to_default(
             ocp_solver=self.ocp_batch_solver,
-            default_mpc_parameters=default_params,
+            default_mpc_parameters=self.default_full_mpcparameter,
             unset_u0=unset_u0,
         )
         if use_sensitivity_solver:
             set_ocp_solver_to_default(
                 ocp_solver=self.ocp_batch_sensitivity_solver,
-                default_mpc_parameters=default_params,
+                default_mpc_parameters=self.default_sens_mpcparameter,
                 unset_u0=unset_u0,
             )
 
@@ -1062,7 +1158,7 @@ class MPC(ABC):
                 if mpc_param.p_stagewise_sparse_idx is None:
                     p_stage = mpc_param.p_stagewise[stage]
                 else:
-                    p_stage = p_stage.copy()
+                    p_stage = p_stage.copy()  # type:ignore
                     p_stage[mpc_param.p_stagewise_sparse_idx[stage]] = (
                         mpc_param.p_stagewise[stage]
                     )
@@ -1151,21 +1247,22 @@ class MPC(ABC):
         Returns:
             stage_cost: Stage cost.
         """
-        assert self.ocp.cost.cost_type == "EXTERNAL"
+        if self.ocp.cost.cost_type == "EXTERNAL":
+            ocp = self.ocp
+        else:
+            ocp = self.ocp_sensitivity
         assert x.ndim == 1 and u.ndim == 1
 
         if self._cost_fn is None:
-            inputs = [self.ocp.model.x, self.ocp.model.u]
+            inputs = [ocp.model.x, ocp.model.u]
 
             if self.default_p_global is not None:
-                inputs.append(self.ocp.model.p_global)
+                inputs.append(ocp.model.p_global)
 
             if self.default_p_stagewise is not None:
-                inputs.append(self.ocp.model.p)
+                inputs.append(ocp.model.p)
 
-            self._cost_fn = ca.Function(
-                "cost", inputs, [self.ocp.model.cost_expr_ext_cost]
-            )
+            self._cost_fn = ca.Function("cost", inputs, [ocp.model.cost_expr_ext_cost])
 
         inputs = [x, u]
 

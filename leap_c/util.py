@@ -5,11 +5,11 @@ from pathlib import Path
 from tempfile import mkdtemp
 from typing import Any
 
-from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
 import casadi as ca
 import numpy as np
 import torch
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSim, AcadosSimSolver
+from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
 
 
 def SX_to_labels(SX: ca.SX) -> list[str]:
@@ -118,7 +118,9 @@ class AcadosFileManager:
         sim.code_export_directory = str(self.export_directory / "c_generated_code")
         json_file = str(self.export_directory / "acados_ocp.json")
 
-        solver = AcadosSimSolver(sim, json_file=json_file, generate=generate_code, build=build)
+        solver = AcadosSimSolver(
+            sim, json_file=json_file, generate=generate_code, build=build
+        )
 
         # we add the acados file manager to the solver to ensure
         # the export directory is deleted when the solver is garbage collected
@@ -126,7 +128,9 @@ class AcadosFileManager:
 
         return solver
 
-    def setup_acados_ocp_batch_solver(self, ocp: AcadosOcp, N: int) -> AcadosOcpBatchSolver:
+    def setup_acados_ocp_batch_solver(
+        self, ocp: AcadosOcp, N: int
+    ) -> AcadosOcpBatchSolver:
         """Setup an acados ocp batch solver with path management.
 
         We set the json file and the code export directory.
@@ -162,3 +166,23 @@ def add_prefix_extend(prefix: str, extended: dict, extending: dict) -> None:
         if extended.get(prefix + k, None) is not None:
             raise ValueError(f"Key {prefix + k} already exists in the dictionary.")
         extended[prefix + k] = v
+
+
+def set_standard_sensitivity_options(ocp_sensitivity: AcadosOcp):
+    ocp_sensitivity.solver_options.nlp_solver_type = "SQP_RTI"
+    ocp_sensitivity.solver_options.globalization_fixed_step_length = 0.0
+    ocp_sensitivity.solver_options.nlp_solver_max_iter = 1
+    ocp_sensitivity.solver_options.qp_solver_iter_max = 200
+    ocp_sensitivity.solver_options.tol = ocp_sensitivity.solver_options.tol / 1e3
+    ocp_sensitivity.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    ocp_sensitivity.solver_options.qp_solver_ric_alg = 1
+    ocp_sensitivity.solver_options.qp_solver_cond_N = (
+        ocp_sensitivity.solver_options.N_horizon
+    )
+    ocp_sensitivity.solver_options.hessian_approx = "EXACT"
+    ocp_sensitivity.solver_options.exact_hess_dyn = True
+    ocp_sensitivity.solver_options.exact_hess_cost = True
+    ocp_sensitivity.solver_options.exact_hess_constr = True
+    ocp_sensitivity.solver_options.with_solution_sens_wrt_params = True
+    ocp_sensitivity.solver_options.with_value_sens_wrt_params = True
+    ocp_sensitivity.model.name += "_sensitivity"  # type:ignore

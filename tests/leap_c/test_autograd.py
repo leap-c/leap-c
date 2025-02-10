@@ -64,9 +64,9 @@ def test_MPCSolutionModule_on_LinearSystemMPC(
         u_star, Q, status, stats = mpc_module.forward(
             x0, u0=u0, p_global=p, p_stagewise=p_rests, initializations=None
         )
-        assert torch.all(
-            torch.isnan(u_star)
-        ), "u_star should be nan, since u0 is given."
+        assert torch.all(torch.isnan(u_star)), (
+            "u_star should be nan, since u0 is given."
+        )
         return Q, status
 
     torch.autograd.gradcheck(
@@ -110,9 +110,9 @@ def test_MPCSolutionModule_on_LinearSystemMPC(
             p_stagewise=p_rests,
             initializations=None,
         )
-        assert torch.all(
-            torch.isnan(u_star)
-        ), "u_star should be nan, since u0 is given."
+        assert torch.all(torch.isnan(u_star)), (
+            "u_star should be nan, since u0 is given."
+        )
         return Q, status
 
     torch.autograd.gradcheck(
@@ -123,9 +123,9 @@ def test_MPCSolutionModule_on_LinearSystemMPC(
         u_star, Q, status, stats = mpc_module.forward(
             x0=x0_torch, u0=u0, p_global=p, p_stagewise=p_rests, initializations=None
         )
-        assert torch.all(
-            torch.isnan(u_star)
-        ), "u_star should be nan, since u0 is given."
+        assert torch.all(torch.isnan(u_star)), (
+            "u_star should be nan, since u0 is given."
+        )
         return Q, status
 
     torch.autograd.gradcheck(only_dQdu0, u0, atol=1e-2, eps=1e-4, raise_exception=True)
@@ -185,9 +185,9 @@ def test_MPCSolutionModule_on_PointMassMPC(
         u_star, Q, status, stats = mpc_module.forward(
             x0, u0=u0, p_global=p, p_stagewise=p_rests, initializations=None
         )
-        assert torch.all(
-            torch.isnan(u_star)
-        ), "u_star should be nan, since u0 is given."
+        assert torch.all(torch.isnan(u_star)), (
+            "u_star should be nan, since u0 is given."
+        )
         return Q, status
 
     torch.autograd.gradcheck(
@@ -231,9 +231,9 @@ def test_MPCSolutionModule_on_PointMassMPC(
             p_stagewise=p_rests,
             initializations=None,
         )
-        assert torch.all(
-            torch.isnan(u_star)
-        ), "u_star should be nan, since u0 is given."
+        assert torch.all(torch.isnan(u_star)), (
+            "u_star should be nan, since u0 is given."
+        )
         return Q, status
 
     torch.autograd.gradcheck(
@@ -244,9 +244,9 @@ def test_MPCSolutionModule_on_PointMassMPC(
         u_star, Q, status, stats = mpc_module.forward(
             x0=x0_torch, u0=u0, p_global=p, p_stagewise=p_rests, initializations=None
         )
-        assert torch.all(
-            torch.isnan(u_star)
-        ), "u_star should be nan, since u0 is given."
+        assert torch.all(torch.isnan(u_star)), (
+            "u_star should be nan, since u0 is given."
+        )
         return Q, status
 
     torch.autograd.gradcheck(only_dQdu0, u0, atol=1e-2, eps=1e-4, raise_exception=True)
