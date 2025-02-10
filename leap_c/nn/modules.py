@@ -71,6 +71,7 @@ class MPCSolutionModule(nn.Module):
     Attributes:
         mpc: The MPC object to use.
     """
+
     def __init__(self, mpc: MPC):
         super().__init__()
         self.mpc = mpc
@@ -78,7 +79,7 @@ class MPCSolutionModule(nn.Module):
     def forward(
         self,
         mpc_input: MPCInput,
-        mpc_state: MPCBatchedState,
+        mpc_state: MPCBatchedState | None = None,
     ) -> tuple[MPCOutput, dict[str, Any]]:
         """Differentiation is only allowed with respect to x0, u0 and p_global.
 
@@ -90,17 +91,23 @@ class MPCSolutionModule(nn.Module):
             The optimal control sequence, the value of the optimal control problem,
             the status of the solution and the statistics of the last call.
         """
-        u_star, value, status = MPCSolutionFunction.apply(  # type:ignore
+        u0, value, status = MPCSolutionFunction.apply(  # type:ignore
             self.mpc,
             mpc_input.x0,
             mpc_input.u0,
-            mpc_input.p_global,
-            mpc_input.p_stagewise,
-            mpc_input.initializations,
+            mpc_input.parameters.p_global,
+            mpc_input.parameters.p_stagewise,
+            mpc_state.initializations if mpc_state is not None else None,
         )
 
-        stats = self.mpc.last_call_stats
-        return 
+        if mpc_input.u0 is None:
+            V = value
+            Q = None
+        else:
+            Q = value
+            V = None
+
+        return MPCOutput(u0=u0, Q=Q, V=V, status=status), self.mpc.last_call_stats
 
 
 class CleanseAndReducePerSampleLoss(nn.Module):

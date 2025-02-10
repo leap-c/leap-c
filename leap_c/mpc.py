@@ -3,6 +3,7 @@ from copy import deepcopy
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Callable, List, NamedTuple
+import torch
 
 import casadi as ca
 import numpy as np
@@ -137,10 +138,10 @@ class MPCOutput(NamedTuple):
         du0_dx0: The sensitivity of the initial action with respect to the initial state.
     """
 
-    status: np.ndarray | None = None  # (B, ) or (1, )
-    u0: np.ndarray | None = None  # (B, u_dim) or (u_dim, )
-    Q: np.ndarray | None = None  # (B, ) or (1, )
-    V: np.ndarray | None = None  # (B, ) or (1, )
+    status: np.ndarray | torch.Tensor | None = None  # (B, ) or (1, )
+    u0: np.ndarray | torch.Tensor | None = None  # (B, u_dim) or (u_dim, )
+    Q: np.ndarray | torch.Tensor | None = None  # (B, ) or (1, )
+    V: np.ndarray | torch.Tensor | None = None  # (B, ) or (1, )
     dvalue_dx0: np.ndarray | None = None  # (B, x_dim) or (x_dim, )
     dvalue_du0: np.ndarray | None = None  # (B, u_dim) or (u_dim, )
     dvalue_dp_global: np.ndarray | None = None  # (B, p_dim) or (p_dim, )
