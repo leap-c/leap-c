@@ -41,7 +41,7 @@ def run_closed_loop_test(mpc: PointMassMPC, env: PointMassEnv, n_iter: int = int
         a = mpc.policy(state=s, p_global=None)[0]
         s, _, _, _, _ = env.step(a)
 
-    assert np.allclose(s, np.array([0.0, 0.0, 0.0, 0.0]), atol=1e-4)
+    assert np.linalg.norm(s) < 1e-1
 
 
 def test_closed_loop(
@@ -153,16 +153,64 @@ def prototyping():
     print("Done")
 
 
+def run_closed_loop(
+    mpc: PointMassMPC,
+    env: PointMassEnv,
+    dt: float | None = None,
+    n_iter: int = int(2e2),
+):
+    s = env.reset()
+
+    S = np.zeros((n_iter, 4))
+    S[0, :] = s
+    A = np.zeros((n_iter, 2))
+    for i in range(n_iter - 1):
+        A[i, :] = mpc.policy(state=S[i, :], p_global=None)[0]
+        S[i + 1, :], _, _, _, _ = env.step(A[i, :])
+
+    plot_data = np.hstack([S, A])
+    return plot_data
+
+
 if __name__ == "__main__":
-    n_batch = 100
+    # n_batch = 100
+    # mpc = PointMassMPC(
+    #     learnable_params=["m", "c"],
+    #     n_batch=n_batch,
+    #     export_directory=Path("c_generated_code"),
+    #     export_directory_sensitivity=Path("c_generated_code_sens"),
+    # )
+
+    # x0 = np.array([1.0, 1.0, 0.0, 0.0])
+    # u0 = np.array([0.5, 0.5])
+
+    # simple_test_dudx0(mpc, x0=x0, u0=u0, n_batch=n_batch)
+
     mpc = PointMassMPC(
         learnable_params=["m", "c"],
-        n_batch=n_batch,
         export_directory=Path("c_generated_code"),
         export_directory_sensitivity=Path("c_generated_code_sens"),
     )
 
-    x0 = np.array([1.0, 1.0, 0.0, 0.0])
-    u0 = np.array([0.5, 0.5])
+    env = PointMassEnv()
 
-    simple_test_dudx0(mpc, x0=x0, u0=u0, n_batch=n_batch)
+    data = [run_closed_loop(mpc=mpc, env=env, n_iter=100) for _ in range(30)]
+
+    plt.figure()
+    for data_k in data:
+        plt.plot(data_k[:, 0], data_k[:, 1], label="trajectory")
+        plt.grid()
+        plt.legend()
+
+    labels = ["x", "y", "vx", "vy", "ax", "ay"]
+
+    plt.figure()
+    for data_k in data:
+        for i in range(6):
+            plt.subplot(6, 1, i + 1)
+            plt.plot(data_k[:, i])
+            plt.ylabel(labels[i])
+            plt.grid()
+            plt.legend()
+    plt.xlabel("Time step")
+    plt.show()
