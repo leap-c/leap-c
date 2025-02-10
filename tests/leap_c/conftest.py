@@ -135,6 +135,7 @@ def learnable_pendulum_on_cart_mpc(n_batch: int) -> PendulumOnCartMPC:
     return PendulumOnCartMPC(learnable_params=["M", "m", "g", "l"], n_batch=n_batch)
 
 
+@pytest.fixture(scope="session")
 def learnable_pendulum_on_cart_mpc_ext_cost(n_batch: int) -> PendulumOnCartMPC:
     """Fixture for the pendulum on cart MPC with learnable parameters, using a general quadratic cost."""
     return PendulumOnCartMPC(
