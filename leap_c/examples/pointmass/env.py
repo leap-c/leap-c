@@ -100,20 +100,29 @@ class PointMassEnv(gym.Env):
 
     def __init__(
         self,
+        dt: float | None = None,
         render_mode: str | None = None,
         init_state: np.ndarray | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, c=0.1),
     ):
         super().__init__()
 
+        self.init_state_dist = {
+            "mean": np.array([1.5, 1.5, 0.0, 0.0]),
+            "cov": np.diag([0.1, 0.1, 0.05, 0.05]),
+        }
+
         # Will be added after doing a step.
         self.current_noise = 0.0
         self._np_random = None
 
         if init_state is None:
-            self.s0 = np.array([0.5, 0.5, 0.0, 0.0]).astype(dtype=np.float32)
+            self.s0 = np.array([1.5, 1.5, 0.0, 0.0]).astype(dtype=np.float32)
         else:
             self.s0 = init_state
+
+        if dt is not None:
+            param.dt = dt
 
         self.A = _A_disc(param.m, param.c, param.dt)
         self.B = _B_disc(param.m, param.c, param.dt)
@@ -177,4 +186,6 @@ class PointMassEnv(gym.Env):
         return self._np_random.uniform(-0.1, +0.1, size=1)
 
     def init_state(self):
-        return self.s0
+        return np.random.multivariate_normal(
+            self.init_state_dist["mean"], self.init_state_dist["cov"]
+        )
