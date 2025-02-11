@@ -220,7 +220,7 @@ class SACTrainer(Trainer):
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1).values
                     # add entropy
-                    q_target = q_target - alpha * log_p
+                    q_target = q_target - alpha * log_p[:, 0]
 
                     target = r + self.cfg.sac.gamma * (1 - te) * q_target
 

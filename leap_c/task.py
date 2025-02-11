@@ -2,8 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional, Callable
 
 import gymnasium as gym
-import numpy as np
-import torch.nn as nn
+import torch
 
 from leap_c.mpc import MPC, MPCInput
 from leap_c.nn.extractor import Extractor, IdentityExtractor
@@ -18,8 +17,8 @@ class Task(ABC):
 
     This class serves as a base class for tasks that involve a combination of
     a gymnasium environment and a model predictive control (MPC) planner. It
-    provides an interface for preparing neural network inputs and MPC inputs
-    based on environment observations and states.
+    provides an interface for preparing neural network inputs in the forms of
+    extractors and MPC inputs based on environment observations and states.
 
     Attributes:
         mpc (MPC): The Model Predictive Control planner to be used for this task.
@@ -45,25 +44,10 @@ class Task(ABC):
         self.extractor_factory = IdentityExtractor if extractor_factory is None else extractor_factory
 
     @abstractmethod
-    def prepare_nn_input(self, obs: Any) -> np.ndarray:
-        """Prepares the neural network input from an environment observation.
-
-        This method processes an observation from the gymnasium environment
-        into a format suitable for a torch module.
-
-        Args:
-            obs (Any): The observation from the environment.
-
-        Returns:
-            torch.Tensor: The processed input for the neural network.
-        """
-        ...
-
-    @abstractmethod
     def prepare_mpc_input(
         self,
         obs: Any,
-        param_nn: Optional[np.ndarray] = None,
+        param_nn: Optional[torch.Tensor] = None,
     ) -> MPCInput:
         """Prepares the MPC input from the state and observation for the MPC class.
 

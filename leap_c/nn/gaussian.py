@@ -38,7 +38,6 @@ class Gaussian(nn.Module):
         loc = torch.tensor(loc, dtype=torch.float32)
         scale = torch.tensor(scale, dtype=torch.float32)
 
-
         self.register_buffer("loc", loc)
         self.register_buffer("scale", scale)
 

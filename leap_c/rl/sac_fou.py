@@ -47,17 +47,18 @@ class SACFOUBaseConfig(BaseConfig):
     seed: int = 0
 
 
+
 class MPCSACActor(nn.Module):
     def __init__(
         self,
+        task,
         extractor_factory,
-        prepare_mpc_input_fn,
-        mpc: MPC,
         mlp_cfg: MLPConfig,
-        action_space: gym.spaces.Box,
-        param_space: gym.spaces.Box,
     ):
         super().__init__()
+
+        param_space = task.param_space
+        action_space = task.action_space
 
         self.extractor = extractor_factory()
         self.mlp = MLP(
@@ -66,16 +67,18 @@ class MPCSACActor(nn.Module):
             mlp_cfg=mlp_cfg,
         )
         self.gaussian = Gaussian(action_space)
-        self.mpc_layer = MPCSolutionModule(mpc)
-        self.prepare_mpc_input = prepare_mpc_input_fn
+        self.mpc_layer = MPCSolutionModule(task.mpc)
+        self.prepare_mpc_input = task.prepare_mpc_input
 
-    def forward(self, x: torch.Tensor, deterministic=False):
-        param, log_std = self.mlp(x)
+    def forward(self, x: torch.Tensor, obs, deterministic=False):
+        y, log_std = self.mlp(x)
 
-        mpc_input = self.prepare_mpc_input(x, param)
-        mean = self.mpc_layer(mpc_input)
+        param, log_prob = self.gaussian(y, log_std, deterministic=deterministic)
 
-        return self.gaussian(mean, log_std, deterministic=deterministic)
+        mpc_input = self.prepare_mpc_input(obs, param)
+        mpc_output, stats = self.mpc_layer(mpc_input)
+
+        return mpc_output.u0, log_prob, stats
 
 
 @register_trainer("sac_fou", SACFOUBaseConfig())
