@@ -107,7 +107,9 @@ class SACFOUTrainer(Trainer):
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = SACActor(extractor_factory, cfg.sac.actor_mlp, action_space).to(device)  # type: ignore
+        self.pi = MPCSACActor(extractor_factory, cfg.sac.actor_mlp, action_space).to(
+            device
+        )  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
@@ -118,7 +120,6 @@ class SACFOUTrainer(Trainer):
         self.to(device)
 
     def train_loop(self) -> Iterator[int]:
-
         is_terminated = is_truncated = True
         episode_return = episode_length = np.inf
 
