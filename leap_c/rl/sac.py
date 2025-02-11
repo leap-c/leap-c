@@ -174,7 +174,7 @@ class SACTrainer(Trainer):
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
 
-            action = self.act(obs)  # type: ignore
+            action, _ = self.act(obs)  # type: ignore
             obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
                 action
             )
@@ -256,12 +256,13 @@ class SACTrainer(Trainer):
 
             yield 1
 
-    # add a state to the act method
-    def act(self, obs, deterministic: bool = False, state=None) -> np.ndarray:
+    def act(
+        self, obs, deterministic: bool = False, state=None
+    ) -> tuple[np.ndarray, None]:
+        obs = self.task.collate(obs, self.device)
         with torch.no_grad():
-            o = torch.tensor(obs, dtype=torch.float32).to(self.device)
-            a, _ = self.pi(o, deterministic=deterministic)
-        return a.cpu().numpy()
+            action, _ = self.pi(obs, deterministic=deterministic)
+        return action.cpu().numpy(), None
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:

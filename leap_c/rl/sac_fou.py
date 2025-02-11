@@ -11,7 +11,6 @@ import torch.nn as nn
 
 from leap_c.mpc import MPCBatchedState
 from leap_c.nn.gaussian import Gaussian
-from leap_c.nn.modules import MPCSolutionModule
 from leap_c.nn.mlp import MLP, MLPConfig
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.registry import register_trainer

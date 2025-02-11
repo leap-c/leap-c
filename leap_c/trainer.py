@@ -320,8 +320,15 @@ class Trainer(ABC, nn.Module):
 
         parts = []
 
-        for _ in range(self.cfg.val.num_rollouts):
-            p = episode_rollout(policy, self.eval_env, render_human=False)
+        for idx in range(self.cfg.val.num_rollouts):
+            if idx < self.cfg.val.num_render_rollouts:
+                video_folder = self.output_path / "video"
+                video_folder.mkdir(exist_ok=True)
+                video_path = video_folder / f"{self.state.step}_{idx}.mp4"
+            else:
+                video_path = None
+
+            p = episode_rollout(policy, self.eval_env, render_human=False, video_path=video_path)
             parts.append(p)
 
         stats = {key: float(np.mean([p[key] for p in parts])) for key in parts[0]}

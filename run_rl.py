@@ -25,6 +25,8 @@ def main(
     task = create_task(task_name)
     cfg = create_default_cfg(trainer_name)
     cfg.seed = seed
+    cfg.val.interval = 2000
+    cfg.val.deterministic = False
     trainer = create_trainer(trainer_name, task, output_path, device, cfg)
     trainer.run()
 
