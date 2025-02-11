@@ -9,20 +9,24 @@ from torch.utils.data._utils.collate import collate
 
 class ReplayBuffer:
     def __init__(
-        self, buffer_limit: int, device: str, tensor_dtype: torch.dtype = torch.float32
+        self,
+        buffer_limit: int,
+        device: str,
+        tensor_dtype: torch.dtype = torch.float32,
     ):
         """
         Args:
             buffer_limit: The maximum number of transitions that can be stored in the buffer.
                 If the buffer is full, the oldest transitions are discarded when putting in a new one.
             device: The device to which all sampled tensors will be cast.
+            collate_fn_map: The collate function map that informs the buffer how to form batches.
             tensor_dtype: The data type to which the tensors in the observation will be cast.
         """
         self.buffer = collections.deque(maxlen=buffer_limit)
         self.device = device
         self.tensor_dtype = tensor_dtype
 
-        self.custom_collate_fn_map = create_collate_fn_map()
+        self.collate_fn_map = create_collate_fn_map()
 
     def put(self, data: Any):
         """Put the data into the replay buffer. If the buffer is full, the oldest data is discarded.
@@ -45,7 +49,7 @@ class ReplayBuffer:
         """
         mini_batch = random.sample(self.buffer, n)
         return pytree_tensor_to(
-            collate(mini_batch, collate_fn_map=self.custom_collate_fn_map),
+            collate(mini_batch, collate_fn_map=self.collate_fn_map),
             device=self.device,
             tensor_dtype=self.tensor_dtype,
         )

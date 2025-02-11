@@ -547,10 +547,13 @@ class MPC(ABC):
 
     @cached_property
     def ocp_solver(self) -> AcadosOcpSolver:
+        __import__('pdb').set_trace()
         solver = self.afm.setup_acados_ocp_solver(self.ocp)
+        __import__('pdb').set_trace()
 
         if self._discount_factor is not None:
             set_discount_factor(solver, self._discount_factor)
+
 
         set_ocp_solver_to_default(solver, self.default_full_mpcparameter, unset_u0=True)
 
@@ -558,6 +561,7 @@ class MPC(ABC):
 
     @cached_property
     def ocp_sensitivity_solver(self) -> AcadosOcpSolver:
+        __import__('pdb').set_trace()
         solver = self.afm_sens.setup_acados_ocp_solver(self.ocp_sensitivity)
 
         if self._discount_factor is not None:
@@ -814,6 +818,33 @@ class MPC(ABC):
             A tuple consisting of the output of the MPC controller, the iterate of the solver
             and a dictionary containing statistics from the solve.
         """
+
+        if mpc_input.is_batched() and mpc_input.x0.shape[0] == 1:
+            # Jasper (Todo): Quick fix, remove this when automatic proportional batch solving is allowed.
+            # undo the batched solve
+            mpc_input = mpc_input.get_sample(0)
+            mpc_output, mpc_state = self._solve(
+                mpc_input=mpc_input,
+                mpc_state=mpc_state,  # type: ignore
+                dudx=dudx,
+                dudp=dudp,
+                dvdx=dvdx,
+                dvdu=dvdu,
+                dvdp=dvdp,
+                use_adj_sens=use_adj_sens,
+            )
+
+            # add the batch dimension back by iterating over the fields
+            def add_dim(value):
+                if isinstance(value, np.ndarray):
+                    return np.array([value])
+                return value
+
+            mpc_output = MPCOutput(
+                **{k: add_dim(v) for k, v in mpc_output._asdict().items()}
+            )
+
+            return mpc_output, mpc_state
 
         if not mpc_input.is_batched():
             return self._solve(

@@ -2,16 +2,14 @@
 layer for the policy network."""
 
 from dataclasses import dataclass, field
-from functools import partial
 from pathlib import Path
-from typing import Iterator
+from typing import Any, Iterator
 
-import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.mpc import MPC
+from leap_c.mpc import MPCBatchedState
 from leap_c.nn.gaussian import Gaussian
 from leap_c.nn.modules import MPCSolutionModule
 from leap_c.nn.mlp import MLP, MLPConfig
@@ -47,36 +45,34 @@ class SACFOUBaseConfig(BaseConfig):
     seed: int = 0
 
 
-
 class MPCSACActor(nn.Module):
     def __init__(
         self,
         task,
-        extractor_factory,
         mlp_cfg: MLPConfig,
     ):
         super().__init__()
 
         param_space = task.param_space
-        action_space = task.action_space
 
-        self.extractor = extractor_factory()
+        self.extractor = task.create_extractor()
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
-            output_sizes=(param_space.shape[0], action_space.shape[0]),  # type: ignore
+            output_sizes=(param_space.shape[0], param_space.shape[0]),  # type: ignore
             mlp_cfg=mlp_cfg,
         )
-        self.gaussian = Gaussian(action_space)
-        self.mpc_layer = MPCSolutionModule(task.mpc)
+        self.gaussian = Gaussian(param_space)
+        self.mpc = task.mpc
         self.prepare_mpc_input = task.prepare_mpc_input
 
-    def forward(self, x: torch.Tensor, obs, deterministic=False):
-        y, log_std = self.mlp(x)
+    def forward(self, obs, mpc_state: MPCBatchedState, deterministic=False):
+        e = self.extractor(obs)
+        mean, log_std = self.mlp(e)
 
-        param, log_prob = self.gaussian(y, log_std, deterministic=deterministic)
+        param, log_prob = self.gaussian(mean, log_std, deterministic=deterministic)
 
         mpc_input = self.prepare_mpc_input(obs, param)
-        mpc_output, stats = self.mpc_layer(mpc_input)
+        mpc_output, stats = self.mpc(mpc_input, mpc_state)
 
         return mpc_output.u0, log_prob, stats
 
@@ -98,21 +94,14 @@ class SACFOUTrainer(Trainer):
         """
         super().__init__(task, output_path, device, cfg)
 
-        extractor_factory = partial(task.extractor_factory, self.train_env)
-        action_space: gym.spaces.Box = self.train_env.action_space  # type: ignore
-
-        self.q = SACCritic(
-            extractor_factory, cfg.sac.critic_mlp, cfg.sac.num_critics, action_space
-        ).to(device)
-        self.q_target = SACCritic(
-            extractor_factory, cfg.sac.critic_mlp, cfg.sac.num_critics, action_space
-        ).to(device)
+        self.q = SACCritic(task, cfg.sac.critic_mlp, cfg.sac.num_critics).to(device)
+        self.q_target = SACCritic(task, cfg.sac.critic_mlp, cfg.sac.num_critics).to(
+            device
+        )
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = MPCSACActor(extractor_factory, cfg.sac.actor_mlp, action_space).to(
-            device
-        )  # type: ignore
+        self.pi = MPCSACActor(task, cfg.sac.actor_mlp).to(device)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
@@ -125,6 +114,7 @@ class SACFOUTrainer(Trainer):
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
         episode_return = episode_length = np.inf
+        policy_state = None
 
         while True:
             if is_terminated or is_truncated:
@@ -135,10 +125,11 @@ class SACFOUTrainer(Trainer):
                         "episode_length": episode_length,
                     }
                     self.report_stats("train", stats, self.state.step)
+                policy_state = self.init_policy_state()
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
 
-            action = self.act(obs)  # type: ignore
+            action, policy_state_prime = self.act(obs, policy_state)  # type: ignore
             obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
                 action
             )
@@ -147,7 +138,7 @@ class SACFOUTrainer(Trainer):
             episode_length += 1
 
             # TODO (Jasper): Add is_truncated to buffer.
-            self.buffer.put((obs, action, reward, obs_prime, is_terminated))  # type: ignore
+            self.buffer.put((obs, policy_state, action, reward, obs_prime, policy_state_prime, is_terminated))  # type: ignore
 
             obs = obs_prime
 
@@ -157,10 +148,12 @@ class SACFOUTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te = self.buffer.sample(self.cfg.sac.batch_size)
+                o, ps, a, r, o_prime, ps_prime, te = self.buffer.sample(
+                    self.cfg.sac.batch_size
+                )
 
                 # sample action
-                a_pi, log_p = self.pi(o)
+                a_pi, log_p = self.pi(o, ps)
                 log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
@@ -175,7 +168,7 @@ class SACFOUTrainer(Trainer):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    a_pi_prime, _ = self.pi(o_prime)
+                    a_pi_prime, _ = self.pi(o_prime, ps_prime)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1).values
                     # add entropy
@@ -220,11 +213,15 @@ class SACFOUTrainer(Trainer):
 
             yield 1
 
-    def act(self, obs, deterministic: bool = False) -> np.ndarray:
+    def act(
+        self, obs, deterministic: bool = False, state=None
+    ) -> tuple[np.ndarray, Any | None]:
+        obs = self.task.collate([obs], device=self.device)
+
         with torch.no_grad():
-            o = torch.tensor(obs, dtype=torch.float32).to(self.device)
-            a, _ = self.pi(o, deterministic=deterministic)
-            return a.cpu().numpy()
+            action, state, _ = self.pi(obs, state, deterministic=deterministic)
+
+        return action.cpu().numpy(), state
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:

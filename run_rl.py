@@ -1,4 +1,5 @@
 from argparse import ArgumentParser
+import datetime
 from pathlib import Path
 
 import leap_c.examples  # noqa: F401
@@ -6,8 +7,10 @@ import leap_c.rl  # noqa: F401
 from leap_c.registry import create_task, create_default_cfg, create_trainer
 
 
-def default_output_path(trainer_name: str, task_name: str, seed: int) -> Path:
-    return Path(f"output/{task_name}/{trainer_name}_{seed}")
+def default_output_path() -> Path:
+    # derive output path from date and time
+    now = datetime.datetime.now()
+    return Path(f"output/{now.strftime('%Y_%m_%d/%H_%M_%S')}")
 
 
 def main(
@@ -15,7 +18,7 @@ def main(
 ):
 
     if output_path is None:
-        output_path = default_output_path(trainer_name, task_name, seed)
+        output_path = default_output_path()
         if output_path.exists():
             raise ValueError(f"Output path {output_path} already exists")
 

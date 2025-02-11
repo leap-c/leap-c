@@ -77,16 +77,16 @@ class SACBaseConfig(BaseConfig):
 class SACCritic(nn.Module):
     def __init__(
         self,
-        extractor_factory,
+        task: Task,
         mlp_cfg: MLPConfig,
         num_critics: int,
-        action_space: gym.spaces.Box,
     ):
         super().__init__()
 
-        action_dim = action_space.shape[0]  # type: ignore
+        action_dim = task.train_env.action_space.shape[0]  # type: ignore
+
         self.extractor = nn.ModuleList(
-            [extractor_factory() for _ in range(num_critics)]
+            [task.create_extractor() for _ in range(num_critics)]
         )
         self.mlp = nn.ModuleList(
             [
@@ -104,18 +104,18 @@ class SACCritic(nn.Module):
 
 
 class SACActor(nn.Module):
-    def __init__(
-        self, extractor_factory, mlp_cfg: MLPConfig, action_space: gym.spaces.Box
-    ):
+    def __init__(self, task, mlp_cfg: MLPConfig):
         super().__init__()
 
-        self.extractor = extractor_factory()
+        self.extractor = task.create_extractor()
+        action_dim = task.train_env.action_space.shape[0]  # type: ignore
+
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
-            output_sizes=(action_space.shape[0], action_space.shape[0]),  # type: ignore
+            output_sizes=(action_dim, action_dim),  # type: ignore
             mlp_cfg=mlp_cfg,
         )
-        self.gaussian = Gaussian(action_space)
+        self.gaussian = Gaussian(task.train_env.action_space)
 
     def forward(self, x: torch.Tensor, deterministic=False):
         mean, log_std = self.mlp(x)
@@ -140,19 +140,14 @@ class SACTrainer(Trainer):
         """
         super().__init__(task, output_path, device, cfg)
 
-        extractor_factory = partial(task.extractor_factory, self.train_env)
-        action_space: gym.spaces.Box = self.train_env.action_space  # type: ignore
-
-        self.q = SACCritic(
-            extractor_factory, cfg.sac.critic_mlp, cfg.sac.num_critics, action_space
-        ).to(device)
-        self.q_target = SACCritic(
-            extractor_factory, cfg.sac.critic_mlp, cfg.sac.num_critics, action_space
-        ).to(device)
+        self.q = SACCritic(task, cfg.sac.critic_mlp, cfg.sac.num_critics).to(device)
+        self.q_target = SACCritic(task, cfg.sac.critic_mlp, cfg.sac.num_critics).to(
+            device
+        )
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = SACActor(extractor_factory, cfg.sac.actor_mlp, action_space).to(device)  # type: ignore
+        self.pi = SACActor(task, cfg.sac.actor_mlp).to(device)  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
@@ -261,11 +256,12 @@ class SACTrainer(Trainer):
 
             yield 1
 
-    def act(self, obs, deterministic: bool = False) -> np.ndarray:
+    # add a state to the act method
+    def act(self, obs, deterministic: bool = False, state=None) -> np.ndarray:
         with torch.no_grad():
             o = torch.tensor(obs, dtype=torch.float32).to(self.device)
             a, _ = self.pi(o, deterministic=deterministic)
-            return a.cpu().numpy()
+        return a.cpu().numpy()
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:

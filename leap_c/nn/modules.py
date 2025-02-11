@@ -76,6 +76,9 @@ class MPCSolutionModule(nn.Module):
         super().__init__()
         self.mpc = mpc
 
+    def initial_state(self) -> MPCBatchedState:
+        self.mpc.default_init_state_fn()
+
     def forward(
         self,
         mpc_input: MPCInput,

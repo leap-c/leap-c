@@ -117,7 +117,7 @@ class PointMassEnv(gym.Env):
             "high": 0.1,
         }
 
-        self.state_space = spaces.Box(
+        self.observation_space = spaces.Box(
             low=np.array([-10.0, -np.inf, -5.0, -5.0]),
             high=np.array([10.0, 10.0, 5.0, 5.0]),
             dtype=np.float32,
@@ -160,7 +160,7 @@ class PointMassEnv(gym.Env):
         o = self._current_observation()
         r = self._calculate_reward()
 
-        if self.state not in self.state_space:
+        if self.state not in self.observation_space:
             r -= 1e2
 
         term = self._is_done()
@@ -177,7 +177,7 @@ class PointMassEnv(gym.Env):
         self.state_trajectory = None
         self.action_to_take = None
         self.state = self._init_state()
-        return self.state
+        return self.state, {}
 
     def _current_observation(self):
         return self.state
@@ -214,6 +214,6 @@ class PointMassEnv(gym.Env):
 
         close_to_zero = distance < 0.1 and velocity < 0.1
 
-        outside_bounds = self.state not in self.state_space
+        outside_bounds = self.state not in self.observation_space
 
         return close_to_zero or outside_bounds

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Any
 import bisect
 
 import wandb
@@ -51,7 +51,7 @@ class LogConfig:
     val_window: int = 1
 
     csv_logger: bool = True
-    tensorboard_logger: bool = True 
+    tensorboard_logger: bool = True
     wandb_logger: bool = False
 
 
@@ -138,7 +138,9 @@ class Trainer(ABC, nn.Module):
         optimizers: The optimizers of the trainer.
     """
 
-    def __init__(self, task: Task, output_path: str | Path, device: str, cfg: BaseConfig):
+    def __init__(
+        self, task: Task, output_path: str | Path, device: str, cfg: BaseConfig
+    ):
         """Initializes the trainer with a configuration, output path, and device.
 
         Args:
@@ -150,18 +152,16 @@ class Trainer(ABC, nn.Module):
         super().__init__()
 
         self.task = task
+        task.seed = cfg.seed
         self.cfg = cfg
         self.device = device
 
         self.output_path = Path(output_path)
         self.output_path.mkdir(parents=True, exist_ok=True)
 
-        # env
-        # COMMENT: In the future we could allow different envs.
-        self.train_env = task.env_factory()
-        self.train_env.reset(seed=cfg.seed)
-        self.eval_env = task.env_factory()
-        self.eval_env.reset(seed=cfg.seed)
+        # envs
+        self.train_env = self.task.train_env
+        self.eval_env = self.task.eval_env
 
         # trainer state
         self.state = TrainerState()
@@ -184,7 +184,7 @@ class Trainer(ABC, nn.Module):
 
         For simplicity, we use an Iterator here, to make the training loop as simple as
         possible. To make your own code compatible use the yield statement to return the
-        number of steps your train loop did. If yield not always returns 1, the val- 
+        number of steps your train loop did. If yield not always returns 1, the val-
         idation might be performed not exactly at the specified interval.
 
         Returns:
@@ -193,7 +193,9 @@ class Trainer(ABC, nn.Module):
         ...
 
     @abstractmethod
-    def act(self, obs, deterministic: bool = False) -> np.ndarray:
+    def act(
+        self, obs, deterministic: bool = False, state=None
+    ) -> tuple[np.ndarray, Any | None]:
         """Act based on the observation.
 
         This is intended for rollouts (= interaction with the environment).
@@ -201,9 +203,11 @@ class Trainer(ABC, nn.Module):
         Args:
             obs (Any): The observation for which the action should be determined.
             deterministic (bool): If True, the action is drawn deterministically.
+            state: The state of the policy. If the policy is recurrent or includes
+                an MPC planner.
 
         Returns:
-            The action to take.
+            The action and the state of the policy.
         """
         ...
 
@@ -211,6 +215,16 @@ class Trainer(ABC, nn.Module):
     def optimizers(self) -> list[torch.optim.Optimizer]:
         """If provided optimizers are also checkpointed."""
         return []
+
+    def init_policy_state(self) -> Any | None:
+        """Initializes the state of the policy.
+
+        This could be useful for recurrent policies or policies that include an MPC planner.
+
+        Returns:
+            The initial state of the policy.
+        """
+        return None
 
     def report_stats(
         self,
@@ -224,7 +238,7 @@ class Trainer(ABC, nn.Module):
         Args:
             group: The group of the statistics.
             stats: The statistics to be reported.
-            timestamp: The timestamp of the logging entry. 
+            timestamp: The timestamp of the logging entry.
             window_size: The window size for smoothing the statistics.
         """
 
@@ -233,7 +247,9 @@ class Trainer(ABC, nn.Module):
             self.state.logs[group][key].append(value)
 
         if window_size is not None:
-            window_idx = bisect.bisect_left(self.state.timestamps[group], timestamp - window_size)
+            window_idx = bisect.bisect_left(
+                self.state.timestamps[group], timestamp - window_size
+            )
             stats = {
                 key: float(np.mean(values[-window_idx:]))
                 for key, values in self.state.logs[group].items()
@@ -288,7 +304,19 @@ class Trainer(ABC, nn.Module):
         """Do a deterministic validation run of the policy and
         return the mean of the cumulative reward over all validation episodes."""
 
-        policy = lambda obs: self.act(obs, deterministic=self.cfg.val.deterministic)
+        def create_policy_fn():
+            policy_state = self.init_policy_state()
+
+            def policy_fn(obs):
+                nonlocal policy_state
+                action, policy_state = self.act(
+                    obs, deterministic=self.cfg.val.deterministic, state=policy_state
+                )
+                return action
+
+            return policy_fn
+
+        policy = create_policy_fn()
 
         parts = []
 
@@ -317,7 +345,8 @@ class Trainer(ABC, nn.Module):
 
         if self.optimizers:
             state_dict = {
-                f"optimizer_{i}": opt.state_dict() for i, opt in enumerate(self.optimizers)
+                f"optimizer_{i}": opt.state_dict()
+                for i, opt in enumerate(self.optimizers)
             }
             torch.save(state_dict, self._ckpt_path("optimizers", "pth"))
 
@@ -331,4 +360,3 @@ class Trainer(ABC, nn.Module):
             state_dict = torch.load(self._ckpt_path("optimizers", "pth"))
             for i, opt in enumerate(self.optimizers):
                 opt.load_state_dict(state_dict[f"optimizer_{i}"])
-

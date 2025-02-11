@@ -26,7 +26,7 @@ def run_test_pointmass_functions(mpc: PointMassMPC):
 
 
 def run_closed_loop_test(mpc: PointMassMPC, env: PointMassEnv, n_iter: int = int(2e2)):
-    s = env.reset(seed=0)
+    s, _ = env.reset(seed=0)
     for _ in range(n_iter):
         a = mpc.policy(state=s, p_global=None)[0]
         s, _, _, _, _ = env.step(a)
@@ -149,7 +149,7 @@ def run_closed_loop(
     dt: float | None = None,
     n_iter: int = int(2e2),
 ):
-    s = env.reset()
+    s, _ = env.reset()
 
     S = np.zeros((n_iter, 4))
     S[0, :] = s
