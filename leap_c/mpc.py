@@ -547,9 +547,7 @@ class MPC(ABC):
 
     @cached_property
     def ocp_solver(self) -> AcadosOcpSolver:
-        __import__('pdb').set_trace()
         solver = self.afm.setup_acados_ocp_solver(self.ocp)
-        __import__('pdb').set_trace()
 
         if self._discount_factor is not None:
             set_discount_factor(solver, self._discount_factor)
