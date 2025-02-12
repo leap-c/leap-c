@@ -47,7 +47,7 @@ class SACFOUBaseConfig(BaseConfig):
 class MPCSACActor(nn.Module):
     def __init__(
         self,
-        task,
+        task: Task,
         mlp_cfg: MLPConfig,
     ):
         super().__init__()
@@ -140,7 +140,6 @@ class SACFOUTrainer(Trainer):
             self.buffer.put(
                 (
                     obs,
-                    policy_state,
                     action,
                     reward,
                     obs_prime,
@@ -157,12 +156,12 @@ class SACFOUTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, ps, a, r, o_prime, ps_prime, te = self.buffer.sample(
+                o, a, r, o_prime, ps_prime, te = self.buffer.sample(
                     self.cfg.sac.batch_size
                 )
 
                 # sample action
-                a_pi, log_p = self.pi(o, ps)
+                a_pi, log_p, _ = self.pi(o, ps_prime)
                 log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
