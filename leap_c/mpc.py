@@ -162,13 +162,9 @@ def set_ocp_solver_mpc_params(
     if isinstance(ocp_solver, AcadosOcpSolver):
         if mpc_parameter is not None:
             if mpc_parameter.p_global is not None:
-                p_global = mpc_parameter.p_global[
-                    : ocp_solver.acados_ocp.p_global_values.shape[0]
-                ]
-                if p_global.size == 0:
-                    pass
-                else:
-                    ocp_solver.set_p_global_and_precompute_dependencies(p_global)
+                ocp_solver.set_p_global_and_precompute_dependencies(
+                    mpc_parameter.p_global
+                )
 
             if mpc_parameter.p_stagewise is not None:
                 if mpc_parameter.p_stagewise_sparse_idx is not None:
@@ -623,7 +619,7 @@ class MPC(ABC):
         """Return the default p_global."""
         return (
             self.ocp.p_global_values
-            if self.is_model_p_legal(self.ocp_sensitivity.model.p_global)
+            if self.is_model_p_legal(self.ocp.model.p_global)
             else None
         )
 
