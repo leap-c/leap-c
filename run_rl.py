@@ -5,6 +5,27 @@ from pathlib import Path
 import leap_c.examples  # noqa: F401
 import leap_c.rl  # noqa: F401
 from leap_c.registry import create_task, create_default_cfg, create_trainer
+from leap_c.trainer import BaseConfig
+
+
+def print_inputs(
+    trainer_name: str,
+    task_name: str,
+    output_path: Path,
+    device: str,
+    seed: int,
+    cfg: BaseConfig,
+):
+    print("Running RL with the following inputs:")
+    print(f"trainer_name: {trainer_name}")
+    print(f"task_name: {task_name}")
+    print(f"output_path: {output_path}")
+    print(f"device: {device}")
+
+    # Report on the configuration
+    print("Configuration:")
+    for key, value in cfg.__dict__.items():
+        print(f"{key}: {value}")
 
 
 def default_output_path() -> Path:
@@ -16,7 +37,6 @@ def default_output_path() -> Path:
 def main(
     trainer_name: str, task_name: str, output_path: Path | None, device: str, seed: int
 ):
-
     if output_path is None:
         output_path = default_output_path()
         if output_path.exists():
@@ -27,6 +47,16 @@ def main(
     cfg.seed = seed
     cfg.val.interval = 2000
     cfg.val.deterministic = False
+
+    print_inputs(
+        trainer_name=trainer_name,
+        task_name=task_name,
+        output_path=output_path,
+        device=device,
+        seed=seed,
+        cfg=cfg,
+    )
+
     trainer = create_trainer(trainer_name, task, output_path, device, cfg)
     trainer.run()
 
@@ -41,4 +71,3 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     main(args.trainer, args.task, args.output_path, args.device, args.seed)
-
