@@ -90,46 +90,46 @@ class PendulumOnCartMPC(MPC):
                     ("L33", np.array([np.sqrt(1e-2)])),
                     ("L44", np.array([np.sqrt(1e-2)])),
                     ("L55", np.array([np.sqrt(2e-1)])),
-                    ("Lloweroffdiag", np.array([0] * (4 + 3 + 2 + 1))),
+                    ("Lloweroffdiag", np.array([0.0] * (4 + 3 + 2 + 1))),
                     (
                         "c1",
-                        np.array([0]),
+                        np.array([0.0]),
                     ),  # position linear cost, only used for non-LS (!) cost
                     (
                         "c2",
-                        np.array([0]),
+                        np.array([0.0]),
                     ),  # theta linear cost, only used for non-LS (!) cost
                     (
                         "c3",
-                        np.array([0]),
+                        np.array([0.0]),
                     ),  # v linear cost, only used for non-LS (!) cost
                     (
                         "c4",
-                        np.array([0]),
+                        np.array([0.0]),
                     ),  # thetadot linear cost, only used for non-LS (!) cost
                     (
                         "c5",
-                        np.array([0]),
+                        np.array([0.0]),
                     ),  # u linear cost, only used for non-LS (!) cost
                     (
                         "xref1",
-                        np.array([0]),
+                        np.array([0.0]),
                     ),  # reference position, only used for LS cost
                     (
                         "xref2",
-                        np.array([0]),
+                        np.array([0.0]),
                     ),  # reference theta, only used for LS cost
                     (
                         "xref3",
-                        np.array([0]),
+                        np.array([0.0]),
                     ),  # reference v, only used for LS cost
                     (
                         "xref4",
-                        np.array([0]),
+                        np.array([0.0]),
                     ),  # reference thetadot, only used for LS cost
                     (
                         "uref",
-                        np.array([0]),
+                        np.array([0.0]),
                     ),  # reference u, only used for LS cost
                 ]
             )
