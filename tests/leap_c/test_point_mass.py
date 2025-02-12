@@ -207,9 +207,7 @@ if __name__ == "__main__":
         cfg=create_default_cfg("sac_fou"),
     )
 
-    pi = trainer.pi
-
-    episode_rollout(policy=pi, env=trainer.train_env)
+    trainer.validate()
 
     # mpc = PointMassMPC(
     #     learnable_params=["m", "c"],

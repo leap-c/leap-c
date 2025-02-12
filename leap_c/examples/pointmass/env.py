@@ -5,6 +5,8 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 import casadi as ca
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 
 def _A_disc(
@@ -142,6 +144,8 @@ class PointMassEnv(gym.Env):
         self.A = _A_disc(param.m, param.c, param.dt)
         self.B = _B_disc(param.m, param.c, param.dt)
 
+        self.trajectory = []
+
         # For rendering
         if render_mode is not None:
             raise NotImplementedError("Rendering is not implemented yet.")
@@ -151,7 +155,7 @@ class PointMassEnv(gym.Env):
 
         u = action
         # TODO(Jasper): Quickfix
-        if u.ndim> 1:
+        if u.ndim > 1:
             u = u.squeeze()
 
         self.state = self.A @ self.state + self.B @ u
@@ -175,6 +179,8 @@ class PointMassEnv(gym.Env):
         info = {}
 
         self.time += self.dt
+
+        self.trajectory.append(o)
 
         return o, r, term, trunc, info
 
@@ -228,3 +234,32 @@ class PointMassEnv(gym.Env):
         time_exceeded = self.time > self.max_time
 
         return close_to_zero or outside_bounds or time_exceeded
+
+    def _set_canvas(self):
+        # Create a figure
+        fig = plt.figure()
+        # Set axes equal
+        plt.ylabel("y")
+        plt.xlabel("x")
+        plt.xlim(-5.1, 5.1)
+        plt.ylim(-5.1, 5.1)
+        plt.axis("equal")
+        plt.grid()
+
+        self.canvas = FigureCanvas(fig)
+        (self.line,) = plt.plot(
+            self.canvas.figure.get_axes()[0].get_xlim(),
+            self.canvas.figure.get_axes()[0].get_xlim(),
+            "k-o",
+        )
+
+    def render(self):
+        self.line.set_xdata([x[0] for x in self.trajectory])
+        self.line.set_ydata([x[1] for x in self.trajectory])
+        self.canvas.draw()
+
+        # Convert the plot to an RGB string
+        s, (width, height) = self.canvas.print_to_buffer()
+
+        # Convert the RGB string to a NumPy array
+        return np.frombuffer(s, np.uint8).reshape((height, width, 4))[:, :, :3]
