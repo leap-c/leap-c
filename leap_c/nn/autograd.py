@@ -196,6 +196,8 @@ class MPCSolutionFunction(autograd.Function):
 
         value = mpc_output.Q if u0 is not None else mpc_output.V
         if u0 is None:
+            # TODO (Jasper): Why do we have an extra dim here?
+            # u_star = u_star[..., 0]  # type: ignore
             u_star = torch.tensor(u_star, device=device, dtype=dtype)
         else:
             u_star = torch.empty(1)

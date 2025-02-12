@@ -55,7 +55,7 @@ class PendulumOnCartMPC(MPC):
         T_horizon: float = 1.0,
         Fmax: float = 80.0,
         discount_factor: float = 0.99,
-        n_batch: int = 1,
+        n_batch: int = 256,
         least_squares_cost: bool = True,
         exact_hess_dyn: bool = True,
     ):

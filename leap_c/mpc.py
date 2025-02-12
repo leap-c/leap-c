@@ -488,7 +488,7 @@ class MPC(ABC):
         discount_factor: float | None = None,
         default_init_state_fn: Callable[[MPCInput], MPCSingleState | MPCBatchedState]
         | None = None,
-        n_batch: int = 1,
+        n_batch: int = 256,
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
         throw_error_if_u0_is_outside_ocp_bounds: bool = True,
@@ -873,6 +873,7 @@ class MPC(ABC):
             use_adj_sens=use_adj_sens,
         )
         self.last_call_state = mpc_state
+
         return mpc_output
 
     def _solve(

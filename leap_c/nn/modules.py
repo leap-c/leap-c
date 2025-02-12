@@ -87,6 +87,7 @@ class MPCSolutionModule(nn.Module):
         else:
             p_glob = mpc_input.parameters.p_global
             p_rest = mpc_input.parameters._replace(p_global=None)
+
         u0, value, status = MPCSolutionFunction.apply(  # type:ignore
             self.mpc,
             mpc_input.x0,

@@ -120,7 +120,7 @@ class PointMassEnv(gym.Env):
         self.observation_space = spaces.Box(
             low=np.array([-10.0, -np.inf, -5.0, -5.0]),
             high=np.array([10.0, 10.0, 5.0, 5.0]),
-            dtype=np.float32,
+            dtype=np.float64,
         )
 
         self.action_space = spaces.Box(
@@ -147,6 +147,9 @@ class PointMassEnv(gym.Env):
         self.action_to_take = action
 
         u = action
+        # TODO(Jasper): Quickfix
+        if u.ndim> 1:
+            u = u.squeeze()
 
         self.state = self.A @ self.state + self.B @ u
 
@@ -168,6 +171,8 @@ class PointMassEnv(gym.Env):
         trunc = False
         info = {}
 
+        self.time += 1.0
+
         return o, r, term, trunc, info
 
     def reset(
@@ -177,6 +182,7 @@ class PointMassEnv(gym.Env):
         self.state_trajectory = None
         self.action_to_take = None
         self.state = self._init_state()
+        self.time = 0.0
         return self.state, {}
 
     def _current_observation(self):

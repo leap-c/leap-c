@@ -22,7 +22,7 @@ class PointMassMPC(MPC):
         learnable_params: list[str] | None = None,
         N_horizon: int = 20,
         discount_factor: float = 0.99,
-        n_batch: int = 1,
+        n_batch: int = 256,
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
         throw_error_if_u0_is_outside_ocp_bounds: bool = True,

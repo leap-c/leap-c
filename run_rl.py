@@ -45,6 +45,7 @@ def main(
     task = create_task(task_name)
     cfg = create_default_cfg(trainer_name)
     cfg.seed = seed
+    cfg.val.num_render_rollouts = 0
     cfg.val.interval = 2000
     cfg.val.deterministic = False
 

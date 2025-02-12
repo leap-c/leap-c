@@ -23,7 +23,7 @@ def test_MPCSolutionModule_on_PointMassMPC(
     test_param = np.stack(chosen_samples, axis=0)
     assert test_param.shape == (batch_size, 2)  # Sanity check
 
-    p_rests = MPCParameter(None, None, None)
+    p_rests = None
 
     mpc_module = MPCSolutionModule(learnable_point_mass_mpc)
     x0_torch = torch.tensor(x0, dtype=torch.float64)
@@ -42,7 +42,7 @@ def test_MPCSolutionModule_on_PointMassMPC(
             u0=None,
             parameters=MPCParameter(p_global=p, p_stagewise=p_rests),
         )
-        mpc_output, stats = mpc_module.forward(
+        mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
             mpc_state=None,
         )
@@ -58,7 +58,7 @@ def test_MPCSolutionModule_on_PointMassMPC(
             u0=None,
             parameters=MPCParameter(p_global=p, p_stagewise=p_rests),
         )
-        mpc_output, stats = mpc_module.forward(
+        mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
             mpc_state=None,
         )
@@ -74,7 +74,7 @@ def test_MPCSolutionModule_on_PointMassMPC(
             u0=u0,
             parameters=MPCParameter(p_global=p, p_stagewise=p_rests),
         )
-        mpc_output, stats = mpc_module.forward(
+        mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
             mpc_state=None,
         )
@@ -92,7 +92,7 @@ def test_MPCSolutionModule_on_PointMassMPC(
             x0=x0_torch,
             parameters=MPCParameter(p_global=p_global, p_stagewise=p_rests),
         )
-        mpc_output, stats = mpc_module.forward(
+        mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
             mpc_state=None,
         )
@@ -107,7 +107,7 @@ def test_MPCSolutionModule_on_PointMassMPC(
             x0=x0_torch,
             parameters=MPCParameter(p_global=p_global, p_stagewise=p_rests),
         )
-        mpc_output, stats = mpc_module.forward(
+        mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
             mpc_state=None,
         )
@@ -124,7 +124,7 @@ def test_MPCSolutionModule_on_PointMassMPC(
             u0=u0,
             parameters=MPCParameter(p_global=p_global, p_stagewise=p_rests),
         )
-        mpc_output, stats = mpc_module.forward(
+        mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
             mpc_state=None,
         )
@@ -143,7 +143,7 @@ def test_MPCSolutionModule_on_PointMassMPC(
             u0=u0,
             parameters=MPCParameter(p_global=p, p_stagewise=p_rests),
         )
-        mpc_output, stats = mpc_module.forward(
+        mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
             mpc_state=None,
         )

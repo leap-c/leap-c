@@ -26,6 +26,10 @@ from leap_c.trainer import (
 )
 
 
+LOG_STD_MIN = -4
+LOG_STD_MAX = 2
+
+
 @dataclass(kw_only=True)
 class SACFOUBaseConfig(BaseConfig):
     """Contains the necessary information for a Trainer.
@@ -53,8 +57,6 @@ class MPCSACActor(nn.Module):
     ):
         super().__init__()
 
-        if task.param_space is None:
-            raise ValueError("Task for learning parameters must have a param_space.")
         param_space = task.param_space
 
         self.extractor = task.create_extractor()
@@ -63,22 +65,41 @@ class MPCSACActor(nn.Module):
             output_sizes=(param_space.shape[0], param_space.shape[0]),  # type:ignore
             mlp_cfg=mlp_cfg,
         )
-        self.gaussian = Gaussian(param_space)
-        if task.mpc is None:
-            raise ValueError("MPC task must have an MPC module.")
+
         self.mpc: MPCSolutionModule = task.mpc
         self.prepare_mpc_input = task.prepare_mpc_input
+
+        # add scaling params
+        loc = (param_space.high + param_space.low) / 2.0  # type: ignore
+        scale = (param_space.high - param_space.low) / 2.0  # type: ignore
+        loc = torch.tensor(loc, dtype=torch.float32)
+        scale = torch.tensor(scale, dtype=torch.float32)
+        self.register_buffer("loc", loc)
+        self.register_buffer("scale", scale)
 
     def forward(self, obs, mpc_state: MPCBatchedState, deterministic=False):
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
-        param, log_prob = self.gaussian(mean, log_std, deterministic=deterministic)
+        log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
+        std = torch.exp(log_std)
+
+        if deterministic:
+            action = mean
+        else:
+            action = mean + std * torch.randn_like(mean)
+
+        log_prob = -0.5 * ((action - mean) / (std + 1e-6)).pow(2) - log_std - np.log(np.pi)
+
+        action = torch.tanh(action)
+        log_prob -= torch.log(self.scale[None, :] * (1 - action.pow(2)) + 1e-6)
+
+        param = action * self.scale[None, :] + self.loc[None, :]
 
         mpc_input = self.prepare_mpc_input(obs, param)
-        mpc_output, stats = self.mpc(mpc_input, mpc_state)
+        mpc_output, state, stats = self.mpc(mpc_input, mpc_state)
 
-        return mpc_output.u0, log_prob, stats
+        return mpc_output.u0, log_prob, state, stats
 
 
 @register_trainer("sac_fou", SACFOUBaseConfig())
@@ -154,6 +175,7 @@ class SACFOUTrainer(Trainer):
             )  # type: ignore
 
             obs = obs_prime
+            policy_state = policy_state_prime
 
             if (
                 self.state.step >= self.cfg.train.start
@@ -166,7 +188,7 @@ class SACFOUTrainer(Trainer):
                 )
 
                 # sample action
-                a_pi, log_p, _ = self.pi(o, ps_prime)
+                a_pi, log_p, _, _ = self.pi(o, ps_prime)
                 log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
@@ -181,14 +203,16 @@ class SACFOUTrainer(Trainer):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    a_pi_prime, _ = self.pi(o_prime, ps_prime)
+                    a_pi_prime, _, _, _ = self.pi(o_prime, ps_prime)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1).values
+
                     # add entropy
-                    q_target = q_target - alpha * log_p
+                    q_target = q_target - alpha * log_p[:, 0]
 
                     target = r + self.cfg.sac.gamma * (1 - te) * q_target
 
+                a = a[:, 0, :]
                 q = torch.cat(self.q(o, a), dim=1)
                 q_loss = torch.mean((q - target[:, None]).pow(2))
 
@@ -232,7 +256,7 @@ class SACFOUTrainer(Trainer):
         obs = self.task.collate([obs], device=self.device)
 
         with torch.no_grad():
-            action, state, _, _ = self.pi(obs, state, deterministic=deterministic)
+            action, _, state, _ = self.pi(obs, state, deterministic=deterministic)
 
         return action.cpu().numpy(), state
 
