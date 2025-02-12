@@ -71,7 +71,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
             l=self.length,  # noqa E741
         ):
             _, theta, dx, dtheta = x
-            F = u[0]
+            F = u.item()
             cos_theta = np.cos(theta)
             sin_theta = np.sin(theta)
             denominator = M + m - m * cos_theta * cos_theta
