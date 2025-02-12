@@ -12,6 +12,7 @@ import torch.nn as nn
 from leap_c.mpc import MPCBatchedState
 from leap_c.nn.gaussian import Gaussian
 from leap_c.nn.mlp import MLP, MLPConfig
+from leap_c.nn.modules import MPCSolutionModule
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.rl.sac import SACAlgorithmConfig, SACCritic
@@ -52,16 +53,20 @@ class MPCSACActor(nn.Module):
     ):
         super().__init__()
 
+        if task.param_space is None:
+            raise ValueError("Task for learning parameters must have a param_space.")
         param_space = task.param_space
 
         self.extractor = task.create_extractor()
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
-            output_sizes=(param_space.shape[0], param_space.shape[0]),  # type: ignore
+            output_sizes=(param_space.shape[0], param_space.shape[0]),  # type:ignore
             mlp_cfg=mlp_cfg,
         )
         self.gaussian = Gaussian(param_space)
-        self.mpc = task.mpc
+        if task.mpc is None:
+            raise ValueError("MPC task must have an MPC module.")
+        self.mpc: MPCSolutionModule = task.mpc
         self.prepare_mpc_input = task.prepare_mpc_input
 
     def forward(self, obs, mpc_state: MPCBatchedState, deterministic=False):

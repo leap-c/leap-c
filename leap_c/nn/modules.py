@@ -5,7 +5,8 @@ import casadi as ca
 import torch
 import torch.nn as nn
 from acados_template import AcadosSimSolver
-from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCOutput, MPCParameter
+
+from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCOutput
 
 from .autograd import AutogradCasadiFunction, DynamicsSimFunction, MPCSolutionFunction
 
@@ -47,26 +48,14 @@ class MPCSolutionModule(nn.Module):
 
     Backpropagation works by using the sensitivities
     given by the MPC. If differentiation with respect to parameters is desired, they must
-    be global over the horizon (contrary to stagewise parameters).
-
-    NOTE: This solves every sample in the batch sequentially, so it is not efficient for large batch sizes.
+    be declared as global over the horizon (contrary to stagewise parameters).
 
     NOTE: Make sure that you follow the documentation of AcadosOcpSolver.eval_solution_sensitivity
         and AcadosOcpSolver.eval_and_get_optimal_value_gradient
         or else the gradients used in the backpropagation might be erroneous!
 
-    NOTE: Make sure you also read the documentation of the forward method!
-
     NOTE: The status output can be used to rid yourself from non-converged solutions, e.g., by using the
         CleanseAndReducePerSampleLoss module.
-
-    NOTE: Currently, acados guards calculating sensitivities for parameters in constraints with an Exception.
-        Still, it might be that you want to have such parameters,
-        and still use the sensitivities of OTHER parameters.
-        For this, you can, e.g., in acados github commit 95c341c6,
-        disable the Exception in acados_ocp.py, line 800 to still calculate all the sensitivities
-        and then only use the sensitivities of the parameters not belonging to constraints
-        (because as acados states in eval_solution_sensitivity, they are erroneous).
 
     Attributes:
         mpc: The MPC object to use.
@@ -76,9 +65,6 @@ class MPCSolutionModule(nn.Module):
         super().__init__()
         self.mpc = mpc
 
-    def initial_state(self) -> MPCBatchedState:
-        self.mpc.default_init_state_fn()
-
     def forward(
         self,
         mpc_input: MPCInput,
@@ -87,20 +73,27 @@ class MPCSolutionModule(nn.Module):
         """Differentiation is only allowed with respect to x0, u0 and p_global.
 
         Args:
-            mpc_input: The MPCInput object containing the stagewise parameters.
-            mpc_state: The MPCBatchedState object containing the initializations.
+            mpc_input: The MPCInput object containing the input that should be set.
+                NOTE x0, u0 and p_global must be tensors, if not None.
+            mpc_state: The MPCBatchedState object containing the initializations for the solver.
 
         Returns:
-            mpc_output: The MPCOutput object from the MPC evluation.
+            mpc_output: An MPCOutput object containing tensors of u0, value (or Q, if u0 was given) and status of the solution.
             stats: A dictionary containing statistics from the MPC evaluation.
         """
+        if mpc_input.parameters is None:
+            p_glob = None
+            p_rest = None
+        else:
+            p_glob = mpc_input.parameters.p_global
+            p_rest = mpc_input.parameters._replace(p_global=None)
         u0, value, status = MPCSolutionFunction.apply(  # type:ignore
             self.mpc,
             mpc_input.x0,
             mpc_input.u0,
-            mpc_input.parameters.p_global,
-            mpc_input.parameters.p_stagewise,
-            mpc_state.initializations if mpc_state is not None else None,
+            p_glob,
+            p_rest,
+            mpc_state,
         )
 
         if mpc_input.u0 is None:

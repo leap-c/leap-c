@@ -8,6 +8,7 @@ import numpy as np
 import torch
 import torch.autograd as autograd
 from acados_template import AcadosSimSolver
+
 from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCParameter
 from leap_c.util import tensor_to_numpy
 
@@ -126,7 +127,7 @@ class MPCSolutionFunction(autograd.Function):
         x0: torch.Tensor,
         u0: torch.Tensor | None,
         p_global: torch.Tensor | None,
-        p_stagewise: MPCParameter | None,
+        p_the_rest: MPCParameter | None,
         initializations: MPCBatchedState | None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         device = x0.device
@@ -139,29 +140,29 @@ class MPCSolutionFunction(autograd.Function):
         need_dudx0 = need_dx0 and u0 is None
 
         if p_global is None:
-            if p_stagewise is None:
+            if p_the_rest is None:
                 p_whole = None
             else:
                 p_whole = MPCParameter(
                     None,
-                    p_stagewise.p_stagewise.astype(np.float64),  # type:ignore
-                    p_stagewise_sparse_idx=p_stagewise.p_stagewise_sparse_idx,
+                    p_the_rest.p_stagewise.astype(np.float64),  # type:ignore
+                    p_stagewise_sparse_idx=p_the_rest.p_stagewise_sparse_idx,
                 )
         else:
             p_global_np = tensor_to_numpy(p_global)
-            if p_stagewise is None:
+            if p_the_rest is None:
                 p_whole = MPCParameter(p_global_np.astype(np.float64), None, None)
             else:
-                if p_stagewise.p_global is not None:
+                if p_the_rest.p_global is not None:
                     raise ValueError(
                         "p_global is already set in p_rests, but would be overwritten!"
                     )
                 p_whole = MPCParameter(
                     p_global=p_global_np.astype(np.float64),
-                    p_stagewise=p_stagewise.p_stagewise.astype(np.float64)  # type:ignore
-                    if p_stagewise.p_stagewise is not None
+                    p_stagewise=p_the_rest.p_stagewise.astype(np.float64)  # type:ignore
+                    if p_the_rest.p_stagewise is not None
                     else None,
-                    p_stagewise_sparse_idx=p_stagewise.p_stagewise_sparse_idx,
+                    p_stagewise_sparse_idx=p_the_rest.p_stagewise_sparse_idx,
                 )
         x0_np = tensor_to_numpy(x0)
         u0_np = None if u0 is None else tensor_to_numpy(u0)
