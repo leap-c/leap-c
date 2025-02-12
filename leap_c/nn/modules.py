@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from acados_template import AcadosSimSolver
 
-from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCOutput
+from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCOutput, MPCSingleState
 
 from .autograd import AutogradCasadiFunction, DynamicsSimFunction, MPCSolutionFunction
 
@@ -69,7 +69,7 @@ class MPCSolutionModule(nn.Module):
         self,
         mpc_input: MPCInput,
         mpc_state: MPCBatchedState | None = None,
-    ) -> tuple[MPCOutput, dict[str, Any]]:
+    ) -> tuple[MPCOutput, MPCSingleState | MPCBatchedState, dict[str, Any]]:
         """Differentiation is only allowed with respect to x0, u0 and p_global.
 
         Args:
@@ -103,7 +103,11 @@ class MPCSolutionModule(nn.Module):
             Q = value
             V = None
 
-        return MPCOutput(u0=u0, Q=Q, V=V, status=status), self.mpc.last_call_stats
+        return (
+            MPCOutput(u0=u0, Q=Q, V=V, status=status),
+            self.mpc.last_call_state,
+            self.mpc.last_call_stats,
+        )
 
 
 class CleanseAndReducePerSampleLoss(nn.Module):

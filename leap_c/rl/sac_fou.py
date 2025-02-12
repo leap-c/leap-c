@@ -232,7 +232,7 @@ class SACFOUTrainer(Trainer):
         obs = self.task.collate([obs], device=self.device)
 
         with torch.no_grad():
-            action, state, _ = self.pi(obs, state, deterministic=deterministic)
+            action, state, _, _ = self.pi(obs, state, deterministic=deterministic)
 
         return action.cpu().numpy(), state
 

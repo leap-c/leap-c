@@ -544,6 +544,7 @@ class MPC(ABC):
         )
 
         self.last_call_stats: dict = dict()
+        self.last_call_state: MPCSingleState | MPCBatchedState
 
         # constraints and cost functions
         self._h_fn = None
@@ -723,7 +724,7 @@ class MPC(ABC):
         """
 
         mpc_input = MPCInput(x0=state, parameters=MPCParameter(p_global=p_global))
-        mpc_output, _ = self.__call__(mpc_input=mpc_input, dvdp=sens)
+        mpc_output = self.__call__(mpc_input=mpc_input, dvdp=sens)
 
         return (
             mpc_output.V,
@@ -752,7 +753,7 @@ class MPC(ABC):
         mpc_input = MPCInput(
             x0=state, u0=action, parameters=MPCParameter(p_global=p_global)
         )
-        mpc_output, _ = self.__call__(mpc_input=mpc_input, dvdp=sens)
+        mpc_output = self.__call__(mpc_input=mpc_input, dvdp=sens)
 
         return (
             mpc_output.Q,
@@ -781,7 +782,7 @@ class MPC(ABC):
 
         mpc_input = MPCInput(x0=state, parameters=MPCParameter(p_global=p_global))
 
-        mpc_output, _ = self.__call__(
+        mpc_output = self.__call__(
             mpc_input=mpc_input, dudp=sens, use_adj_sens=use_adj_sens
         )
 
@@ -797,12 +798,13 @@ class MPC(ABC):
         dvdu: bool = False,
         dvdp: bool = False,
         use_adj_sens: bool = True,
-    ) -> tuple[MPCOutput, MPCSingleState | MPCBatchedState]:
+    ) -> MPCOutput:
         """
         Solve the OCP for the given initial state and parameters. If an mpc_state is given and the solver does not converge,
         AND the default_init_state_fn is not None, the solver will attempt another solve reinitialized with the default_init_state_fn
         (in the batched solve, only the non-converged samples will be reattempted to solve).
         NOTE: Information about this call is stored in the public member self.last_call_stats.
+        NOTE: The solution state of this call is stored in the public member self.last_call_state.
 
         Args:
             mpc_input: The input of the MPC controller.
@@ -815,8 +817,7 @@ class MPC(ABC):
             use_adj_sens: Whether to use adjoint sensitivity.
 
         Returns:
-            A tuple consisting of the output of the MPC controller, the iterate of the solver
-            and a dictionary containing statistics from the solve.
+            A collection of outputs from the MPC controller.
         """
 
         if mpc_input.is_batched() and mpc_input.x0.shape[0] == 1:
@@ -844,10 +845,11 @@ class MPC(ABC):
                 **{k: add_dim(v) for k, v in mpc_output._asdict().items()}
             )
 
-            return mpc_output, mpc_state
+            self.last_call_state = mpc_state
+            return mpc_output
 
         if not mpc_input.is_batched():
-            return self._solve(
+            mpc_output, mpc_state = self._solve(
                 mpc_input=mpc_input,
                 mpc_state=mpc_state,  # type: ignore
                 dudx=dudx,
@@ -857,8 +859,10 @@ class MPC(ABC):
                 dvdp=dvdp,
                 use_adj_sens=use_adj_sens,
             )
+            self.last_call_state = mpc_state
+            return mpc_output
 
-        return self._batch_solve(
+        mpc_output, mpc_state = self._batch_solve(
             mpc_input=mpc_input,
             mpc_state=mpc_state,  # type: ignore
             dudx=dudx,
@@ -868,6 +872,8 @@ class MPC(ABC):
             dvdp=dvdp,
             use_adj_sens=use_adj_sens,
         )
+        self.last_call_state = mpc_state
+        return mpc_output
 
     def _solve(
         self,
