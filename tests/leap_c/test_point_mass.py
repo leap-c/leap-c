@@ -4,9 +4,12 @@ from leap_c.examples.pointmass.env import PointMassEnv, PointMassParam
 from leap_c.examples.pointmass.task import PointMassTask
 
 from leap_c.nn.modules import MPCSolutionModule
+import datetime
 
 # from leap_c.linear_mpc import LinearMPC
 from leap_c.mpc import MPC
+
+from leap_c.registry import create_task, create_default_cfg, create_trainer
 
 
 from leap_c.mpc import MPCInput, MPCParameter
@@ -14,6 +17,16 @@ from leap_c.mpc import MPCInput, MPCParameter
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from argparse import ArgumentParser
+import datetime
+from pathlib import Path
+
+import leap_c.examples  # noqa: F401
+import leap_c.rl  # noqa: F401
+from leap_c.registry import create_task, create_default_cfg, create_trainer
+from leap_c.trainer import BaseConfig
+
+from leap_c.rollout import episode_rollout
 
 
 def run_test_pointmass_functions(mpc: PointMassMPC):
@@ -162,6 +175,16 @@ def run_closed_loop(
     return plot_data
 
 
+def test_episode_rollout(mpc: PointMassMPC, env: PointMassEnv):
+    pass
+
+
+def default_output_path() -> Path:
+    # derive output path from date and time
+    now = datetime.datetime.now()
+    return Path(f"output/{now.strftime('%Y_%m_%d/%H_%M_%S')}")
+
+
 if __name__ == "__main__":
     # n_batch = 100
     # mpc = PointMassMPC(
@@ -176,31 +199,45 @@ if __name__ == "__main__":
 
     # simple_test_dudx0(mpc, x0=x0, u0=u0, n_batch=n_batch)
 
-    mpc = PointMassMPC(
-        learnable_params=["m", "c"],
-        export_directory=Path("c_generated_code"),
-        export_directory_sensitivity=Path("c_generated_code_sens"),
+    trainer = create_trainer(
+        name="sac_fou",
+        task=create_task("point_mass"),
+        output_path=default_output_path(),
+        device="cpu",
+        cfg=create_default_cfg("sac_fou"),
     )
 
-    env = PointMassEnv()
+    pi = trainer.pi
 
-    data = [run_closed_loop(mpc=mpc, env=env, n_iter=100) for _ in range(30)]
+    episode_rollout(policy=pi, env=trainer.train_env)
 
-    plt.figure()
-    for data_k in data:
-        plt.plot(data_k[:, 0], data_k[:, 1], label="trajectory")
-        plt.grid()
-        plt.legend()
+    # mpc = PointMassMPC(
+    #     learnable_params=["m", "c"],
+    #     export_directory=Path("c_generated_code"),
+    #     export_directory_sensitivity=Path("c_generated_code_sens"),
+    # )
 
-    labels = ["x", "y", "vx", "vy", "ax", "ay"]
+    # env = PointMassEnv()
 
-    plt.figure()
-    for data_k in data:
-        for i in range(6):
-            plt.subplot(6, 1, i + 1)
-            plt.plot(data_k[:, i])
-            plt.ylabel(labels[i])
-            plt.grid()
-            plt.legend()
-    plt.xlabel("Time step")
-    plt.show()
+    # test_episode_rollout(mpc=mpc, env=env)
+
+    # data = [run_closed_loop(mpc=mpc, env=env, n_iter=100) for _ in range(30)]
+
+    # plt.figure()
+    # for data_k in data:
+    #     plt.plot(data_k[:, 0], data_k[:, 1], label="trajectory")
+    #     plt.grid()
+    #     plt.legend()
+
+    # labels = ["x", "y", "vx", "vy", "ax", "ay"]
+
+    # plt.figure()
+    # for data_k in data:
+    #     for i in range(6):
+    #         plt.subplot(6, 1, i + 1)
+    #         plt.plot(data_k[:, i])
+    #         plt.ylabel(labels[i])
+    #         plt.grid()
+    #         plt.legend()
+    # plt.xlabel("Time step")
+    # plt.show()
