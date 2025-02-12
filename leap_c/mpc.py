@@ -388,7 +388,7 @@ def _solve_shared(
 
     solve_stats = dict()
 
-    if isinstance(solver, AcadosOcpSolver):  #
+    if isinstance(solver, AcadosOcpSolver):
         solve_stats["sqp_iter"] = solver.get_stats("sqp_iter")
         solve_stats["qp_iter"] = solver.get_stats("qp_iter").sum()  # type:ignore
         solve_stats["time_tot"] = solver.get_stats("time_tot")

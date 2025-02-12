@@ -12,10 +12,10 @@ import torch.nn as nn
 from leap_c.mpc import MPCBatchedState
 from leap_c.nn.gaussian import Gaussian
 from leap_c.nn.mlp import MLP, MLPConfig
-from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.registry import register_trainer
+from leap_c.rl.replay_buffer import ReplayBuffer
+from leap_c.rl.sac import SACAlgorithmConfig, SACCritic
 from leap_c.task import Task
-from leap_c.rl.sac import SACCritic, SACAlgorithmConfig
 from leap_c.trainer import (
     BaseConfig,
     LogConfig,
@@ -137,7 +137,17 @@ class SACFOUTrainer(Trainer):
             episode_length += 1
 
             # TODO (Jasper): Add is_truncated to buffer.
-            self.buffer.put((obs, policy_state, action, reward, obs_prime, policy_state_prime, is_terminated))  # type: ignore
+            self.buffer.put(
+                (
+                    obs,
+                    policy_state,
+                    action,
+                    reward,
+                    obs_prime,
+                    policy_state_prime,
+                    is_terminated,
+                )
+            )  # type: ignore
 
             obs = obs_prime
 
