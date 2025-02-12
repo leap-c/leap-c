@@ -127,38 +127,41 @@ def test_env_types(pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv):
 
 def test_closed_loop_rendering(
     learnable_pendulum_on_cart_mpc_lls_cost: PendulumOnCartMPC,
+    learnable_pendulum_on_cart_mpc_lls_cost_only_cost_params: PendulumOnCartMPC,
     pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv,
 ):
-    obs, _ = pendulum_on_cart_ocp_swingup_env.reset(seed=1337)
+    for pendulum_mpc in [
+        learnable_pendulum_on_cart_mpc_lls_cost,
+        learnable_pendulum_on_cart_mpc_lls_cost_only_cost_params,
+    ]:
+        obs, _ = pendulum_on_cart_ocp_swingup_env.reset(seed=1337)
 
-    count = 0
-    terminated = False
-    truncated = False
-    frames = []
-    cwd = os.getcwd()
-    savefile_dir_path = os.path.join(cwd, "test_closed_loop_pendulum_on_cart")
-    create_dir_if_not_exists(savefile_dir_path)
-    while count < 300 and not terminated and not truncated:
-        a = learnable_pendulum_on_cart_mpc_lls_cost.policy(
-            obs, learnable_pendulum_on_cart_mpc_lls_cost.default_p_global
-        )[0]
-        obs_prime, r, terminated, truncated, info = (
-            pendulum_on_cart_ocp_swingup_env.step(a)
+        count = 0
+        terminated = False
+        truncated = False
+        frames = []
+        cwd = os.getcwd()
+        savefile_dir_path = os.path.join(cwd, "test_closed_loop_pendulum_on_cart")
+        create_dir_if_not_exists(savefile_dir_path)
+        while count < 300 and not terminated and not truncated:
+            a = pendulum_mpc.policy(obs, pendulum_mpc.default_p_global)[0]
+            obs_prime, r, terminated, truncated, info = (
+                pendulum_on_cart_ocp_swingup_env.step(a)
+            )
+            frames.append(pendulum_on_cart_ocp_swingup_env.render())
+            obs = obs_prime
+            count += 1
+        assert (
+            count <= 200
+        ), "max_time and dt dictate that no more than 200 steps should be possible until termination."
+        save_video(
+            frames,  # type:ignore
+            video_folder=savefile_dir_path,
+            name_prefix="pendulum_on_cart",
+            fps=pendulum_on_cart_ocp_swingup_env.metadata["render_fps"],
         )
-        frames.append(pendulum_on_cart_ocp_swingup_env.render())
-        obs = obs_prime
-        count += 1
-    assert (
-        count <= 200
-    ), "max_time and dt dictate that no more than 200 steps should be possible until termination."
-    save_video(
-        frames,  # type:ignore
-        video_folder=savefile_dir_path,
-        name_prefix="pendulum_on_cart",
-        fps=pendulum_on_cart_ocp_swingup_env.metadata["render_fps"],
-    )
 
-    shutil.rmtree(savefile_dir_path)
+        shutil.rmtree(savefile_dir_path)
 
 
 def main():

@@ -326,22 +326,39 @@ def export_parametric_ocp(
     else:
         raise ValueError(f"Cost type {cost_type} not supported.")
 
-    ocp = translate_learnable_param_to_p_global(
-        nominal_param=nominal_param,
-        learnable_param=learnable_param if learnable_param is not None else [],
-        ocp=ocp,
-    )
-
-    ocp.model.disc_dyn_expr = disc_dyn_expr(model=ocp.model, dt=dt)  # type:ignore
-
     ######## Cost ########
     if cost_type == "EXTERNAL":
+        ocp = translate_learnable_param_to_p_global(
+            nominal_param=nominal_param,
+            learnable_param=learnable_param if learnable_param is not None else [],
+            ocp=ocp,
+        )
+
+        ocp.model.disc_dyn_expr = disc_dyn_expr(model=ocp.model, dt=dt)  # type:ignore
+
         ocp.cost.cost_type = cost_type
         ocp.model.cost_expr_ext_cost = cost_expr_ext_cost(ocp.model)  # type:ignore
 
         ocp.cost.cost_type_e = cost_type
         ocp.model.cost_expr_ext_cost_e = cost_expr_ext_cost_e(ocp.model)  # type:ignore
     elif cost_type == "LINEAR_LS":
+        if learnable_param is not None and not sensitivity_ocp:
+            # The cost parameters must not be part of the p_global, since we have LLS cost (and having unused p_globals is currently not supported)
+            learnable_param_pruned = [
+                allowed
+                for allowed in learnable_param
+                if allowed in ["M", "m", "g", "l"]
+            ]
+        else:
+            learnable_param_pruned = []
+        ocp = translate_learnable_param_to_p_global(
+            nominal_param=nominal_param,
+            learnable_param=learnable_param_pruned,
+            ocp=ocp,
+        )
+
+        ocp.model.disc_dyn_expr = disc_dyn_expr(model=ocp.model, dt=dt)  # type:ignore
+
         ocp.cost.cost_type = cost_type
         ocp.cost.cost_type_e = cost_type
 

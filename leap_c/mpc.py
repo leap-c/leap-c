@@ -3,10 +3,10 @@ from copy import deepcopy
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Callable, List, NamedTuple
-import torch
 
 import casadi as ca
 import numpy as np
+import torch
 from acados_template import AcadosOcp, AcadosOcpBatchSolver, AcadosOcpSolver
 from acados_template.acados_multiphase_ocp import AcadosMultiphaseOcp
 from acados_template.acados_ocp_iterate import (
@@ -14,12 +14,16 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedIterate,
     AcadosOcpIterate,
 )
+
 from leap_c.util import AcadosFileManager, set_standard_sensitivity_options
 
 
 class MPCParameter(NamedTuple):
     """
     A named tuple to store the parameters of the MPC planner.
+    NOTE: If the non-sensitivity solver is using something else than EXTERNAL cost, like LLS cost, then
+    only the first few entries of the here given p_global is set (such that its shape matches the shape of the default p_global
+    in that solver). This is due to the fact that "unused" (wrt. casadi expressions) p_global entries are currently not allowed in the solver.
 
     Attributes:
         p_global: The part of p_global that should be learned in shape (n_p_global_learnable, ) or (B, n_p_global_learnable).
@@ -158,9 +162,13 @@ def set_ocp_solver_mpc_params(
     if isinstance(ocp_solver, AcadosOcpSolver):
         if mpc_parameter is not None:
             if mpc_parameter.p_global is not None:
-                ocp_solver.set_p_global_and_precompute_dependencies(
-                    mpc_parameter.p_global
-                )
+                p_global = mpc_parameter.p_global[
+                    : ocp_solver.acados_ocp.p_global_values.shape[0]
+                ]
+                if p_global.size == 0:
+                    pass
+                else:
+                    ocp_solver.set_p_global_and_precompute_dependencies(p_global)
 
             if mpc_parameter.p_stagewise is not None:
                 if mpc_parameter.p_stagewise_sparse_idx is not None:
@@ -552,14 +560,12 @@ class MPC(ABC):
         if self._discount_factor is not None:
             set_discount_factor(solver, self._discount_factor)
 
-
         set_ocp_solver_to_default(solver, self.default_full_mpcparameter, unset_u0=True)
 
         return solver
 
     @cached_property
     def ocp_sensitivity_solver(self) -> AcadosOcpSolver:
-        __import__('pdb').set_trace()
         solver = self.afm_sens.setup_acados_ocp_solver(self.ocp_sensitivity)
 
         if self._discount_factor is not None:
@@ -617,7 +623,7 @@ class MPC(ABC):
         """Return the default p_global."""
         return (
             self.ocp.p_global_values
-            if self.is_model_p_legal(self.ocp.model.p_global)
+            if self.is_model_p_legal(self.ocp_sensitivity.model.p_global)
             else None
         )
 
@@ -626,7 +632,7 @@ class MPC(ABC):
         """Return the default p_stagewise."""
         return (
             np.tile(self.ocp.parameter_values, (self.N + 1, 1))
-            if self.is_model_p_legal(self.ocp.model.p)
+            if self.is_model_p_legal(self.ocp_sensitivity.model.p)
             else None
         )
 
