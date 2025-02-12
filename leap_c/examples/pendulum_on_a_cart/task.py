@@ -1,13 +1,14 @@
-from typing import Any, Optional
+from typing import Any
 
 import gymnasium as gym
+import numpy as np
 import torch
-
 from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
 from leap_c.nn.modules import MPCSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
+from leap_c.util import tensor_to_numpy
 
 from ...mpc import MPCInput, MPCParameter
 
@@ -25,14 +26,14 @@ class PendulumOnCart(Task):
 
     @property
     def param_space(self) -> gym.spaces.Box | None:
-        return gym.spaces.Box(low=-2. * torch.pi, high=2. * torch.pi, shape=(1,))
+        return gym.spaces.Box(low=-2.0 * torch.pi, high=2.0 * torch.pi, shape=(1,))
 
     def prepare_mpc_input(
         self,
         obs: Any,
-        param_nn: Optional[torch.Tensor] = None,
+        param_nn: torch.Tensor,
     ) -> MPCInput:
-
-        mpc_param = MPCParameter(p_global=param_nn)  # type: ignore
+        numpy_param = tensor_to_numpy(param_nn).astype(np.float64)
+        mpc_param = MPCParameter(p_global=numpy_param)
 
         return MPCInput(x0=obs, parameters=mpc_param)
