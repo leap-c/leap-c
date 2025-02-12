@@ -100,7 +100,7 @@ class PointMassEnv(gym.Env):
 
     def __init__(
         self,
-        dt: float | None = None,
+        dt: float = 2 / 20,
         max_time: float = 10.0,
         render_mode: str | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, c=0.1),
@@ -135,6 +135,9 @@ class PointMassEnv(gym.Env):
 
         if dt is not None:
             param.dt = dt
+
+        self.dt = dt
+        self.max_time = max_time
 
         self.A = _A_disc(param.m, param.c, param.dt)
         self.B = _B_disc(param.m, param.c, param.dt)
@@ -171,7 +174,7 @@ class PointMassEnv(gym.Env):
         trunc = False
         info = {}
 
-        self.time += 1.0
+        self.time += self.dt
 
         return o, r, term, trunc, info
 
@@ -222,4 +225,6 @@ class PointMassEnv(gym.Env):
 
         outside_bounds = self.state not in self.observation_space
 
-        return close_to_zero or outside_bounds
+        time_exceeded = self.time > self.max_time
+
+        return close_to_zero or outside_bounds or time_exceeded

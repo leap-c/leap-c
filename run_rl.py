@@ -47,7 +47,7 @@ def main(
     cfg.seed = seed
     cfg.val.num_render_rollouts = 0
     cfg.val.interval = 2000
-    cfg.val.deterministic = False
+    cfg.val.deterministic = True
 
     print_inputs(
         trainer_name=trainer_name,

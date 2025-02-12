@@ -21,6 +21,7 @@ class PointMassMPC(MPC):
         params: dict[str, np.ndarray] | None = None,
         learnable_params: list[str] | None = None,
         N_horizon: int = 20,
+        T_horizon: float = 2.0,
         discount_factor: float = 0.99,
         n_batch: int = 256,
         export_directory: Path | None = None,
@@ -44,7 +45,10 @@ class PointMassMPC(MPC):
         print("learnable_params: ", learnable_params)
 
         ocp = export_parametric_ocp(
-            nominal_param=params, learnable_params=learnable_params, N_horizon=N_horizon
+            nominal_param=params,
+            learnable_params=learnable_params,
+            N_horizon=N_horizon,
+            tf=T_horizon,
         )
         configure_ocp_solver(ocp=ocp, exact_hess_dyn=True)
 
