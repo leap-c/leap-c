@@ -168,7 +168,7 @@ class MPCSolutionFunction(autograd.Function):
         u0_np = None if u0 is None else tensor_to_numpy(u0)
         mpc_input = MPCInput(x0_np, u0_np, parameters=p_whole)
 
-        mpc_output, _ = mpc(
+        mpc_output = mpc(
             mpc_input=mpc_input,
             mpc_state=initializations,
             dudx=need_dudx0,
