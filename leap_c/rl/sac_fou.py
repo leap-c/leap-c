@@ -90,16 +90,25 @@ class MPCSACActor(nn.Module):
             action = mean
         else:
             action = mean + std * torch.randn_like(mean)
-            if action.shape[0] == 1:
-                self.trainer["trainer"].report_stats("action", {"param": action.item()}, self.trainer["trainer"].state.step)
 
-
-        log_prob = -0.5 * ((action - mean) / (std + 1e-6)).pow(2) - log_std - np.log(np.pi)
+        log_prob = (
+            -0.5 * ((action - mean) / (std + 1e-6)).pow(2) - log_std - np.log(np.pi)
+        )
 
         action = torch.tanh(action)
+
         log_prob -= torch.log(self.scale[None, :] * (1 - action.pow(2)) + 1e-6)
 
         param = action * self.scale[None, :] + self.loc[None, :]
+
+        if action.shape[0] == 1:
+            # TODO (dirk): Extract labels from p_global and use as keys here
+            stats = {f"param_{k}": element for k, element in enumerate(param.squeeze())}
+            self.trainer["trainer"].report_stats(
+                "action",
+                stats,
+                self.trainer["trainer"].state.step,
+            )
 
         mpc_input = self.prepare_mpc_input(obs, param)
         mpc_output, state, stats = self.mpc(mpc_input, mpc_state)
@@ -225,7 +234,7 @@ class SACFOUTrainer(Trainer):
                 self.q_optim.step()
 
                 # update actor
-                mask_status = (status == 0)
+                mask_status = status == 0
                 q_pi = torch.cat(self.q(o, a_pi), dim=1)
                 min_q_pi = torch.min(q_pi, dim=1).values
                 pi_loss = (alpha * log_p - min_q_pi)[mask_status].mean()
@@ -257,7 +266,10 @@ class SACFOUTrainer(Trainer):
             yield 1
 
     def act(
-        self, obs, deterministic: bool = False, state=None,
+        self,
+        obs,
+        deterministic: bool = False,
+        state=None,
     ) -> tuple[np.ndarray, Any | None]:
         obs = self.task.collate([obs], device=self.device)
 

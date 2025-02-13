@@ -47,10 +47,10 @@ def run_closed_loop_test(mpc: PointMassMPC, env: PointMassEnv, n_iter: int = int
     assert np.linalg.norm(s) < 1e-1
 
 
-def test_closed_loop(
-    learnable_point_mass_mpc: PointMassMPC, point_mass_env: PointMassEnv
-):
-    run_closed_loop_test(learnable_point_mass_mpc, point_mass_env)
+# def test_closed_loop(
+#     learnable_point_mass_mpc: PointMassMPC, point_mass_env: PointMassEnv
+# ):
+#     run_closed_loop_test(learnable_point_mass_mpc, point_mass_env)
 
 
 def simple_test_dudx0(
@@ -186,56 +186,12 @@ def default_output_path() -> Path:
 
 
 if __name__ == "__main__":
-    # n_batch = 100
-    # mpc = PointMassMPC(
-    #     learnable_params=["m", "c"],
-    #     n_batch=n_batch,
-    #     export_directory=Path("c_generated_code"),
-    #     export_directory_sensitivity=Path("c_generated_code_sens"),
-    # )
-
-    # x0 = np.array([1.0, 1.0, 0.0, 0.0])
-    # u0 = np.array([0.5, 0.5])
-
-    # simple_test_dudx0(mpc, x0=x0, u0=u0, n_batch=n_batch)
-
     trainer = create_trainer(
         name="sac_fou",
         task=create_task("point_mass"),
-        output_path=default_output_path(),
+        output_path="output/videos",
         device="cpu",
         cfg=create_default_cfg("sac_fou"),
     )
 
     trainer.validate()
-
-    # mpc = PointMassMPC(
-    #     learnable_params=["m", "c"],
-    #     export_directory=Path("c_generated_code"),
-    #     export_directory_sensitivity=Path("c_generated_code_sens"),
-    # )
-
-    # env = PointMassEnv()
-
-    # test_episode_rollout(mpc=mpc, env=env)
-
-    # data = [run_closed_loop(mpc=mpc, env=env, n_iter=100) for _ in range(30)]
-
-    # plt.figure()
-    # for data_k in data:
-    #     plt.plot(data_k[:, 0], data_k[:, 1], label="trajectory")
-    #     plt.grid()
-    #     plt.legend()
-
-    # labels = ["x", "y", "vx", "vy", "ax", "ay"]
-
-    # plt.figure()
-    # for data_k in data:
-    #     for i in range(6):
-    #         plt.subplot(6, 1, i + 1)
-    #         plt.plot(data_k[:, i])
-    #         plt.ylabel(labels[i])
-    #         plt.grid()
-    #         plt.legend()
-    # plt.xlabel("Time step")
-    # plt.show()

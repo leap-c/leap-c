@@ -328,7 +328,9 @@ class Trainer(ABC, nn.Module):
             else:
                 video_path = None
 
-            p = episode_rollout(policy, self.eval_env, render_human=False, video_path=video_path)
+            p = episode_rollout(
+                policy, self.eval_env, render_human=False, video_path=video_path
+            )
             parts.append(p)
 
         stats = {key: float(np.mean([p[key] for p in parts])) for key in parts[0]}

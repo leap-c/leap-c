@@ -22,7 +22,7 @@ class PointMassTask(Task):
     @property
     def param_space(self) -> spaces.Box:
         low = np.array([0.5, 0.0])
-        high = np.array([1.5, 0.2])
+        high = np.array([2.5, 0.5])
         return spaces.Box(low=low, high=high, dtype=np.float32)
 
     def prepare_mpc_input(
@@ -30,7 +30,6 @@ class PointMassTask(Task):
         obs: Any,
         param_nn: Optional[torch.Tensor] = None,
     ) -> MPCInput:
-
         mpc_param = MPCParameter(p_global=param_nn)  # type: ignore
 
         return MPCInput(x0=obs, parameters=mpc_param)

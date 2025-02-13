@@ -105,7 +105,7 @@ class PointMassEnv(gym.Env):
         dt: float = 2 / 20,
         max_time: float = 10.0,
         render_mode: str | None = None,
-        param: PointMassParam = PointMassParam(dt=0.1, m=1.0, c=0.1),
+        param: PointMassParam = PointMassParam(dt=0.1, m=2.0, c=0.4),
     ):
         super().__init__()
 
