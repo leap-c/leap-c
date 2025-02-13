@@ -120,8 +120,8 @@ class PointMassEnv(gym.Env):
         }
 
         self.observation_space = spaces.Box(
-            low=np.array([-10.0, -np.inf, -5.0, -5.0]),
-            high=np.array([10.0, 10.0, 5.0, 5.0]),
+            low=np.array([-2.0, 0.0, -5.0, -5.0]),
+            high=np.array([2.0, 2.0, 5.0, 5.0]),
             dtype=np.float64,
         )
 
@@ -146,6 +146,8 @@ class PointMassEnv(gym.Env):
 
         self.trajectory = []
 
+        self._set_canvas()
+
         # For rendering
         if render_mode is not None:
             raise NotImplementedError("Rendering is not implemented yet.")
@@ -162,8 +164,10 @@ class PointMassEnv(gym.Env):
 
         # Add an input disturbance that acts in the direction of u
         norm_u = np.linalg.norm(u)
-        disturbane = self.B @ (self.input_noise * (u / norm_u))
-        self.state += disturbane
+        self.disturbance = self.input_noise * (u / norm_u)
+        self.state += self.B @ self.disturbance
+
+        self.u = u
 
         self.input_noise = self._get_input_noise()
 
@@ -238,7 +242,6 @@ class PointMassEnv(gym.Env):
     def _set_canvas(self):
         # Create a figure
         fig = plt.figure()
-        # Set axes equal
         plt.ylabel("y")
         plt.xlabel("x")
         plt.xlim(-5.1, 5.1)
@@ -247,15 +250,84 @@ class PointMassEnv(gym.Env):
         plt.grid()
 
         self.canvas = FigureCanvas(fig)
+
+        # Draw trajectory
         (self.line,) = plt.plot(
             self.canvas.figure.get_axes()[0].get_xlim(),
             self.canvas.figure.get_axes()[0].get_xlim(),
-            "k-o",
+            "k",
+            alpha=0.5,
+        )
+
+        # Draw position
+        (self.point,) = plt.plot([0], [0], "ko")
+
+        # Draw arrow for action
+        self.input_arrow = plt.arrow(
+            0,
+            0,
+            0,
+            0,
+            head_width=0.1,
+            head_length=0.1,
+            fc="g",
+            ec="g",
+            alpha=0.75,
+        )
+
+        # Draw arrow for action
+        self.disturbance_arrow = plt.arrow(
+            0,
+            0,
+            0,
+            0,
+            head_width=0.1,
+            head_length=0.1,
+            fc="r",
+            ec="r",
+            alpha=0.75,
+        )
+
+        # Draw constraint boundary
+        rect = plt.Rectangle(
+            (self.observation_space.low[0], self.observation_space.low[1]),
+            width=(self.observation_space.high[0] - self.observation_space.low[0]),
+            height=(self.observation_space.high[1] - self.observation_space.low[1]),
+            fill=False,  # Set to True if you want a filled rectangle
+            color="k",
+            linewidth=2,
+            linestyle="--",
+        )
+        self.canvas.figure.get_axes()[0].add_patch(rect)
+
+        # Set the axis limits with some padding
+        self.canvas.figure.get_axes()[0].set_xlim(
+            self.observation_space.low[0] - 1, self.observation_space.high[0] + 1
+        )
+        self.canvas.figure.get_axes()[0].set_ylim(
+            self.observation_space.low[1] - 1, self.observation_space.high[1] + 1
         )
 
     def render(self):
         self.line.set_xdata([x[0] for x in self.trajectory])
         self.line.set_ydata([x[1] for x in self.trajectory])
+
+        self.point.set_xdata([self.state[0]])
+        self.point.set_ydata([self.state[1]])
+
+        self.input_arrow.set_data(
+            x=self.state[0],
+            y=self.state[1],
+            dx=self.u[0],
+            dy=self.u[1],
+        )
+
+        self.disturbance_arrow.set_data(
+            x=self.state[0],
+            y=self.state[1],
+            dx=self.disturbance[0],
+            dy=self.disturbance[1],
+        )
         self.canvas.draw()
 
         # Convert the plot to an RGB string
