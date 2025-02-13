@@ -139,31 +139,17 @@ class MPCSolutionFunction(autograd.Function):
         need_dudp_global = need_dp_global and u0 is None
         need_dudx0 = need_dx0 and u0 is None
 
-        if p_global is None:
-            if p_the_rest is None:
-                p_whole = None
-            else:
-                p_whole = MPCParameter(
-                    None,
-                    p_the_rest.p_stagewise.astype(np.float64),  # type:ignore
-                    p_stagewise_sparse_idx=p_the_rest.p_stagewise_sparse_idx,
-                )
+        if p_the_rest.p_global is not None:
+            raise ValueError("p_global should not be set in p_the_rest")
+
+        p_global = p_global.detach().cpu().numpy().astype(np.float64)  # type: ignore
+        if p_the_rest is None:
+            p_whole = MPCParameter(p_global=p_global)  # type: ignore
         else:
-            p_global_np = tensor_to_numpy(p_global)
-            if p_the_rest is None:
-                p_whole = MPCParameter(p_global_np.astype(np.float64), None, None)
-            else:
-                if p_the_rest.p_global is not None:
-                    raise ValueError(
-                        "p_global is already set in p_rests, but would be overwritten!"
-                    )
-                p_whole = MPCParameter(
-                    p_global=p_global_np.astype(np.float64),
-                    p_stagewise=p_the_rest.p_stagewise.astype(np.float64)  # type:ignore
-                    if p_the_rest.p_stagewise is not None
-                    else None,
-                    p_stagewise_sparse_idx=p_the_rest.p_stagewise_sparse_idx,
-                )
+            p_the_rest = p_the_rest.ensure_float64()
+            p_whole = p_the_rest._replace(p_global=p_global)
+
+
         x0_np = tensor_to_numpy(x0)
         u0_np = None if u0 is None else tensor_to_numpy(u0)
         mpc_input = MPCInput(x0_np, u0_np, parameters=p_whole)

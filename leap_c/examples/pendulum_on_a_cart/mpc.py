@@ -13,6 +13,64 @@ from leap_c.mpc import MPC
 from leap_c.util import set_standard_sensitivity_options
 
 
+# DO NOT TOUCH THE DEFAULT CONFIG!
+PARAMS = OrderedDict(
+    [
+        ("M", np.array([1.0])),  # mass of the cart [kg]
+        ("m", np.array([0.1])),  # mass of the ball [kg]
+        ("g", np.array([9.81])),  # gravity constant [m/s^2]
+        ("l", np.array([0.8])),  # length of the rod [m]
+        # The quadratic cost matrix is calculated according to L@L.T
+        ("L11", np.array([np.sqrt(2e3)])),
+        ("L22", np.array([np.sqrt(2e3)])),
+        ("L33", np.array([np.sqrt(1e-2)])),
+        ("L44", np.array([np.sqrt(1e-2)])),
+        ("L55", np.array([np.sqrt(2e-1)])),
+        ("Lloweroffdiag", np.array([0.0] * (4 + 3 + 2 + 1))),
+        (
+            "c1",
+            np.array([0.0]),
+        ),  # position linear cost, only used for non-LS (!) cost
+        (
+            "c2",
+            np.array([0.0]),
+        ),  # theta linear cost, only used for non-LS (!) cost
+        (
+            "c3",
+            np.array([0.0]),
+        ),  # v linear cost, only used for non-LS (!) cost
+        (
+            "c4",
+            np.array([0.0]),
+        ),  # thetadot linear cost, only used for non-LS (!) cost
+        (
+            "c5",
+            np.array([0.0]),
+        ),  # u linear cost, only used for non-LS (!) cost
+        (
+            "xref1",
+            np.array([0.0]),
+        ),  # reference position, only used for LS cost
+        (
+            "xref2",
+            np.array([0.0]),
+        ),  # reference theta, only used for LS cost
+        (
+            "xref3",
+            np.array([0.0]),
+        ),  # reference v, only used for LS cost
+        (
+            "xref4",
+            np.array([0.0]),
+        ),  # reference thetadot, only used for LS cost
+        (
+            "uref",
+            np.array([0.0]),
+        ),  # reference u, only used for LS cost
+    ]
+)
+
+
 class PendulumOnCartMPC(MPC):
     """
     Describes an inverted pendulum on a cart.
@@ -55,7 +113,7 @@ class PendulumOnCartMPC(MPC):
         T_horizon: float = 1.0,
         Fmax: float = 80.0,
         discount_factor: float = 0.99,
-        n_batch: int = 256,
+        n_batch: int = 64,
         least_squares_cost: bool = True,
         exact_hess_dyn: bool = True,
     ):
@@ -77,67 +135,12 @@ class PendulumOnCartMPC(MPC):
                 be the general quadratic cost(see above).
             exact_hess_dyn: If False, the contributions of the dynamics will be left out of the Hessian.
         """
-        if params is None:
-            params = OrderedDict(
-                [
-                    ("M", np.array([1.0])),  # mass of the cart [kg]
-                    ("m", np.array([0.1])),  # mass of the ball [kg]
-                    ("g", np.array([9.81])),  # gravity constant [m/s^2]
-                    ("l", np.array([0.8])),  # length of the rod [m]
-                    # The quadratic cost matrix is calculated according to L@L.T
-                    ("L11", np.array([np.sqrt(2e3)])),
-                    ("L22", np.array([np.sqrt(2e3)])),
-                    ("L33", np.array([np.sqrt(1e-2)])),
-                    ("L44", np.array([np.sqrt(1e-2)])),
-                    ("L55", np.array([np.sqrt(2e-1)])),
-                    ("Lloweroffdiag", np.array([0.0] * (4 + 3 + 2 + 1))),
-                    (
-                        "c1",
-                        np.array([0.0]),
-                    ),  # position linear cost, only used for non-LS (!) cost
-                    (
-                        "c2",
-                        np.array([0.0]),
-                    ),  # theta linear cost, only used for non-LS (!) cost
-                    (
-                        "c3",
-                        np.array([0.0]),
-                    ),  # v linear cost, only used for non-LS (!) cost
-                    (
-                        "c4",
-                        np.array([0.0]),
-                    ),  # thetadot linear cost, only used for non-LS (!) cost
-                    (
-                        "c5",
-                        np.array([0.0]),
-                    ),  # u linear cost, only used for non-LS (!) cost
-                    (
-                        "xref1",
-                        np.array([0.0]),
-                    ),  # reference position, only used for LS cost
-                    (
-                        "xref2",
-                        np.array([0.0]),
-                    ),  # reference theta, only used for LS cost
-                    (
-                        "xref3",
-                        np.array([0.0]),
-                    ),  # reference v, only used for LS cost
-                    (
-                        "xref4",
-                        np.array([0.0]),
-                    ),  # reference thetadot, only used for LS cost
-                    (
-                        "uref",
-                        np.array([0.0]),
-                    ),  # reference u, only used for LS cost
-                ]
-            )
+        params = params if params is not None else PARAMS  # type:ignore
 
         ocp = export_parametric_ocp(
             nominal_param=params.copy(),
             cost_type="LINEAR_LS" if least_squares_cost else "EXTERNAL",
-            exact_hess_dyn=exact_hess_dyn,
+            exact_hess_dyn=exact_hess_dyn if not least_squares_cost else False,
             name="pendulum_on_cart_lls"
             if least_squares_cost
             else "pendulum_on_cart_ext",
@@ -379,6 +382,10 @@ def export_parametric_ocp(
     ocp.constraints.lbx = np.array([-2.5])
     ocp.constraints.ubx = -ocp.constraints.lbx
     ocp.constraints.idxbx = np.array([0])
+
+    ocp.constraints.idxsbx = np.array([0])
+    ocp.cost.Zu = ocp.cost.Zl = np.array([1e3])
+    ocp.cost.zu = ocp.cost.zl = np.array([0.0])
 
     ######## Solver configuration ########
     ocp.solver_options.integrator_type = "DISCRETE"

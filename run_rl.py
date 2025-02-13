@@ -1,6 +1,8 @@
 from argparse import ArgumentParser
+from dataclasses import asdict
 import datetime
 from pathlib import Path
+import yaml
 
 import leap_c.examples  # noqa: F401
 import leap_c.rl  # noqa: F401
@@ -17,15 +19,14 @@ def print_inputs(
     cfg: BaseConfig,
 ):
     print("Running RL with the following inputs:")
-    print(f"trainer_name: {trainer_name}")
-    print(f"task_name: {task_name}")
-    print(f"output_path: {output_path}")
-    print(f"device: {device}")
+    print(f"trainer_name:\t{trainer_name}")
+    print(f"task_name:\t{task_name}")
+    print(f"output_path:\t{output_path}")
+    print(f"device:  \t{device}")
 
     # Report on the configuration
-    print("Configuration:")
-    for key, value in cfg.__dict__.items():
-        print(f"{key}: {value}")
+    print("\nConfiguration:")
+    print(yaml.dump(asdict(cfg), default_flow_style=False))
 
 
 def default_output_path() -> Path:
@@ -45,9 +46,11 @@ def main(
     task = create_task(task_name)
     cfg = create_default_cfg(trainer_name)
     cfg.seed = seed
-    cfg.val.num_render_rollouts = 0
+    cfg.val.num_render_rollouts = 1
+    cfg.val.num_rollouts = 1
     cfg.val.interval = 2000
     cfg.val.deterministic = True
+    # cfg.sac.update_freq = 20  # type: ignore
 
     print_inputs(
         trainer_name=trainer_name,

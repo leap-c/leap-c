@@ -42,7 +42,7 @@ class SACAlgorithmConfig:
 
     critic_mlp: MLPConfig = field(default_factory=MLPConfig)
     actor_mlp: MLPConfig = field(default_factory=MLPConfig)
-    batch_size: int = 256
+    batch_size: int = 64
     buffer_size: int = 1000000
     gamma: float = 0.99
     tau: float = 0.005
@@ -211,11 +211,11 @@ class SACTrainer(Trainer):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    a_pi_prime, _ = self.pi(o_prime)
+                    a_pi_prime, log_p_prime = self.pi(o_prime)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1).values
                     # add entropy
-                    q_target = q_target - alpha * log_p[:, 0]
+                    q_target = q_target - alpha * log_p_prime[:, 0]
 
                     target = r + self.cfg.sac.gamma * (1 - te) * q_target
 

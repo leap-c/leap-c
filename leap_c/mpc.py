@@ -93,6 +93,17 @@ class MPCParameter(NamedTuple):
             p_yref_e=p_yref_e,
         )
 
+    def ensure_float64(self) -> "MPCParameter":
+        def convert(k, v):
+            if k not in ["p_stagewise_sparse_idx"]:
+                return v.astype(np.float64) if v is not None else None
+            return v
+
+        kw = {k: convert(k, v) for k, v in self._asdict().items()}
+
+        return MPCParameter(**kw)
+    
+
 
 MPCSingleState = AcadosOcpIterate | AcadosOcpFlattenedIterate
 MPCBatchedState = list[AcadosOcpIterate] | AcadosOcpFlattenedBatchIterate
@@ -381,6 +392,11 @@ def _solve_shared(
     )
     # TODO: Cover case where we do not want to do a forward evaluation
     solver.solve()
+
+    if isinstance(solver, AcadosOcpBatchSolver):
+        for i, ocp_solver in enumerate(solver.ocp_solvers):
+            assert ocp_solver.get_cost() >= -1e-4, ocp_solver.get_cost()
+
 
     solve_stats = dict()
 

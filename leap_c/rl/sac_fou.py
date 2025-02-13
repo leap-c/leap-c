@@ -53,6 +53,7 @@ class MPCSACActor(nn.Module):
     def __init__(
         self,
         task: Task,
+        trainer: Trainer,
         mlp_cfg: MLPConfig,
     ):
         super().__init__()
@@ -66,6 +67,7 @@ class MPCSACActor(nn.Module):
             mlp_cfg=mlp_cfg,
         )
 
+        self.trainer = {"trainer": trainer}
         self.mpc: MPCSolutionModule = task.mpc
         self.prepare_mpc_input = task.prepare_mpc_input
 
@@ -88,6 +90,9 @@ class MPCSACActor(nn.Module):
             action = mean
         else:
             action = mean + std * torch.randn_like(mean)
+            if action.shape[0] == 1:
+                self.trainer["trainer"].report_stats("action", {"param": action.item()}, self.trainer["trainer"].state.step)
+
 
         log_prob = -0.5 * ((action - mean) / (std + 1e-6)).pow(2) - log_std - np.log(np.pi)
 
@@ -99,7 +104,7 @@ class MPCSACActor(nn.Module):
         mpc_input = self.prepare_mpc_input(obs, param)
         mpc_output, state, stats = self.mpc(mpc_input, mpc_state)
 
-        return mpc_output.u0, log_prob, state, stats
+        return mpc_output.u0, log_prob, mpc_output.status, state, stats
 
 
 @register_trainer("sac_fou", SACFOUBaseConfig())
@@ -126,7 +131,7 @@ class SACFOUTrainer(Trainer):
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = MPCSACActor(task, cfg.sac.actor_mlp).to(device)
+        self.pi = MPCSACActor(task, self, cfg.sac.actor_mlp).to(device)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
@@ -154,7 +159,7 @@ class SACFOUTrainer(Trainer):
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
 
-            action, policy_state_prime = self.act(obs, policy_state)  # type: ignore
+            action, policy_state_prime = self.act(obs, state=policy_state)  # type: ignore
             obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
                 action
             )
@@ -188,7 +193,7 @@ class SACFOUTrainer(Trainer):
                 )
 
                 # sample action
-                a_pi, log_p, _, _ = self.pi(o, ps_prime)
+                a_pi, log_p, status, _, _ = self.pi(o, ps_prime)
                 log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
@@ -203,16 +208,15 @@ class SACFOUTrainer(Trainer):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    a_pi_prime, _, _, _ = self.pi(o_prime, ps_prime)
+                    a_pi_prime, log_p_prime, _, _, _ = self.pi(o_prime, ps_prime)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1).values
 
                     # add entropy
-                    q_target = q_target - alpha * log_p[:, 0]
+                    q_target = q_target - alpha * log_p_prime[:, 0]
 
                     target = r + self.cfg.sac.gamma * (1 - te) * q_target
 
-                a = a[:, 0, :]
                 q = torch.cat(self.q(o, a), dim=1)
                 q_loss = torch.mean((q - target[:, None]).pow(2))
 
@@ -221,9 +225,10 @@ class SACFOUTrainer(Trainer):
                 self.q_optim.step()
 
                 # update actor
+                mask_status = (status == 0)
                 q_pi = torch.cat(self.q(o, a_pi), dim=1)
                 min_q_pi = torch.min(q_pi, dim=1).values
-                pi_loss = (alpha * log_p - min_q_pi).mean()
+                pi_loss = (alpha * log_p - min_q_pi)[mask_status].mean()
 
                 self.pi_optim.zero_grad()
                 pi_loss.backward()
@@ -245,20 +250,21 @@ class SACFOUTrainer(Trainer):
                         "alpha": alpha,
                         "q": q.mean().item(),
                         "q_target": target.mean().item(),
+                        "not_converged": (status != 0).float().mean().item(),
                     }
                     self.report_stats("loss", loss_stats, self.state.step + 1)
 
             yield 1
 
     def act(
-        self, obs, deterministic: bool = False, state=None
+        self, obs, deterministic: bool = False, state=None,
     ) -> tuple[np.ndarray, Any | None]:
         obs = self.task.collate([obs], device=self.device)
 
         with torch.no_grad():
-            action, _, state, _ = self.pi(obs, state, deterministic=deterministic)
+            action, _, _, state, _ = self.pi(obs, state, deterministic=deterministic)
 
-        return action.cpu().numpy(), state
+        return action.cpu().numpy()[0], state
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
