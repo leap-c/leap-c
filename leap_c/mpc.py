@@ -15,7 +15,11 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpIterate,
 )
 
-from leap_c.util import AcadosFileManager, set_standard_sensitivity_options
+from leap_c.util import (
+    AcadosFileManager,
+    set_standard_sensitivity_options,
+    SX_to_labels,
+)
 
 
 class MPCParameter(NamedTuple):
@@ -102,7 +106,6 @@ class MPCParameter(NamedTuple):
         kw = {k: convert(k, v) for k, v in self._asdict().items()}
 
         return MPCParameter(**kw)
-    
 
 
 MPCSingleState = AcadosOcpIterate | AcadosOcpFlattenedIterate
@@ -397,7 +400,6 @@ def _solve_shared(
         for i, ocp_solver in enumerate(solver.ocp_solvers):
             assert ocp_solver.get_cost() >= -1e-4, ocp_solver.get_cost()
 
-
     solve_stats = dict()
 
     if isinstance(solver, AcadosOcpSolver):
@@ -551,6 +553,8 @@ class MPC(ABC):
 
         self._discount_factor = discount_factor
         self._default_init_state_fn = default_init_state_fn
+
+        self.param_labels = SX_to_labels(self.ocp.model.p_global)
 
         # size of solver batch
         self.n_batch: int = n_batch

@@ -101,9 +101,12 @@ class MPCSACActor(nn.Module):
 
         param = action * self.scale[None, :] + self.loc[None, :]
 
+        param_labels = self.mpc.mpc.param_labels
+
         if action.shape[0] == 1:
-            # TODO (dirk): Extract labels from p_global and use as keys here
-            stats = {f"param_{k}": element for k, element in enumerate(param.squeeze())}
+            stats = {
+                param_labels[k]: element for k, element in enumerate(param.squeeze())
+            }
             self.trainer["trainer"].report_stats(
                 "action",
                 stats,

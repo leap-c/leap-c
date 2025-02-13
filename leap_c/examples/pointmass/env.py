@@ -115,8 +115,8 @@ class PointMassEnv(gym.Env):
         }
 
         self.input_noise_dist = {
-            "low": -0.1,
-            "high": 0.1,
+            "low": -1.0,
+            "high": 1.0,
         }
 
         self.observation_space = spaces.Box(
