@@ -163,8 +163,7 @@ class PointMassEnv(gym.Env):
         self.state = self.A @ self.state + self.B @ u
 
         # Add an input disturbance that acts in the direction of u
-        norm_u = np.linalg.norm(u)
-        self.disturbance = self.input_noise * (u / norm_u)
+        self.disturbance = self.input_noise * u
         self.state += self.B @ self.disturbance
 
         self.u = u
