@@ -274,12 +274,7 @@ class PointMassEnv(gym.Env):
 
         self.u_dist = 0.0 * self.input_noise * u
 
-        print("u: ", self.u)
-        print("u_wind: ", self.u_wind)
-        print("u_dist: ", self.u_dist)
-
         self.state = self.A @ self.state + self.B @ (self.u + self.u_wind + self.u_dist)
-        # self.state = self.A @ self.state + self.B @ (self.u)
 
         self.input_noise = self._get_input_noise()
 
