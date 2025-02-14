@@ -285,7 +285,7 @@ class PointMassEnv(gym.Env):
         r = self._calculate_reward()
 
         if self.state not in self.observation_space:
-            r -= 1e2
+            r -= 3e2
 
         term = self._is_done()
 
@@ -306,6 +306,9 @@ class PointMassEnv(gym.Env):
         self.action_to_take = None
         self.state = self._init_state()
         self.time = 0.0
+
+        self._set_canvas()
+
         return self.state, {}
 
     def _current_observation(self):
@@ -340,7 +343,7 @@ class PointMassEnv(gym.Env):
         # print(f"Distance: {distance}, Power: {power}")
         # print(f"Distance: {distance}, Power: {power}")
 
-        reward = -distance - power
+        reward = -distance - 10 * power
         return reward
 
     def _is_done(self):
@@ -349,7 +352,7 @@ class PointMassEnv(gym.Env):
         distance = np.linalg.norm(self.state[:2])
         velocity = np.linalg.norm(self.state[2:])
 
-        close_to_zero = distance < 0.1 and velocity < 0.1
+        close_to_zero = distance < 0.5 and velocity < 0.5
 
         outside_bounds = self.state not in self.observation_space
 
