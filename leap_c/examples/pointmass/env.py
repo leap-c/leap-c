@@ -97,10 +97,6 @@ def test_wind_velocity(
 
     # Compute and print some statistics
     wind_mag = np.sqrt(U**2 + V**2)
-    print(f"Wind field statistics:")
-    print(f"Mean magnitude: {np.mean(wind_mag):.2f}")
-    print(f"Max magnitude: {np.max(wind_mag):.2f}")
-    print(f"Min magnitude: {np.min(wind_mag):.2f}")
 
     return X, Y, U, V, wind_mag
 
@@ -337,12 +333,6 @@ class PointMassEnv(gym.Env):
 
         done = close_to_zero or outside_bounds or time_exceeded
 
-        if done:
-            print(
-                f"Episode done: {close_to_zero=}, {outside_bounds=}, {time_exceeded=}"
-            )
-            print(f"Final state: {self.state}")
-
         return done
 
     def _set_canvas(self):
@@ -350,9 +340,6 @@ class PointMassEnv(gym.Env):
         fig = plt.figure(figsize=(10, 10))
         plt.ylabel("y")
         plt.xlabel("x")
-        # plt.xlim(-5.1, 5.1)
-        # plt.ylim(-5.1, 5.1)
-        # plt.axis("equal")
         plt.grid()
 
         self.canvas = FigureCanvas(fig)
