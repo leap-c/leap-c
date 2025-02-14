@@ -17,23 +17,23 @@ class PointMassTask(Task):
     def __init__(self):
         mpc = PointMassMPC(
             learnable_params=[
-                "m",
-                "cx",
-                "cy",
+                # "m",
+                # "cx",
+                # "cy",
                 "q_diag",
                 "r_diag",
                 "q_diag_e",
-                "xref",
-                "uref",
-                "xref_e",
+                # "xref",
+                # "uref",
+                # "xref_e",
             ]
         )
         mpc_layer = MPCSolutionModule(mpc)
 
         super().__init__(mpc_layer, PointMassEnv)
 
-        self.param_low = 0.9 * mpc.ocp.p_global_values
-        self.param_high = 1.1 * mpc.ocp.p_global_values
+        self.param_low = 0.5 * mpc.ocp.p_global_values
+        self.param_high = 1.5 * mpc.ocp.p_global_values
 
     @property
     def param_space(self) -> spaces.Box:

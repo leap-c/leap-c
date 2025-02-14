@@ -25,12 +25,15 @@ def get_wind_velocity(x, y, scale=0.1, vortex_center=(5, 5), vortex_strength=1.0
     """
     if True:
         # Base south-west wind
-        u = -1.0
-        v = +1.0
+        # u = -1.0
+        # v = +1.0
 
-        # Add variation
-        u += 2 * np.sin(scale * y)
-        v = 1.5 * np.cos(scale * x)
+        u = 0.0
+        v = 0.0
+
+        # # Add variation
+        # u += 2 * np.sin(scale * y)
+        # v = 1.5 * np.cos(scale * x)
 
         # Add vortex
         dx = x - vortex_center[0]
@@ -47,9 +50,9 @@ def get_wind_velocity(x, y, scale=0.1, vortex_center=(5, 5), vortex_strength=1.0
 
         # Add random turbulence component
         # Note: Using a fixed seed for reproducibility
-        np.random.seed(int((x + 10) * 1000) + int((y + 6) * 1000))
-        u += np.random.randn() * 0.5
-        v += np.random.randn() * 0.5
+        # np.random.seed(int((x + 10) * 1000) + int((y + 6) * 1000))
+        # u += np.random.randn() * 0.5
+        # v += np.random.randn() * 0.5
     else:
         u, v = 0.0, 0.0
 
@@ -204,7 +207,7 @@ class PointMassEnv(gym.Env):
         dt: float = 2 / 20,
         max_time: float = 10.0,
         render_mode: str | None = None,
-        param: PointMassParam = PointMassParam(dt=0.1, m=2.0, cx=0.4, cy=0.4),
+        param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=0.1, cy=0.1),
         wind_param: WindParam = WindParam(
             scale=0.3, vortex_center=(5, 6), vortex_strength=8.0
         ),
