@@ -9,6 +9,102 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 
+def get_wind_velocity(x, y, scale=0.3, vortex_center=(5, 5), vortex_strength=30.0):
+    """
+    Compute wind velocity components at a given position.
+
+    Args:
+        x (float): X-coordinate of the position
+        y (float): Y-coordinate of the position
+        scale (float): Wind variation scale
+        vortex_center (tuple): Center coordinates of vortex (x, y)
+        vortex_strength (float): Strength of the vortex
+
+    Returns:
+        tuple: (u, v) wind velocity components at the given position
+    """
+    # Base south-west wind
+    u = 5.0
+    v = -5.0
+
+    # Add variation
+    u += 2 * np.sin(scale * y)
+    v = 1.5 * np.cos(scale * x)
+
+    # Add vortex
+    dx = x - vortex_center[0]
+    dy = y - vortex_center[1]
+    r = np.sqrt(dx**2 + dy**2)
+    theta = np.arctan2(dy, dx)
+
+    # Tangential velocity decreases with radius
+    v_theta = vortex_strength * np.exp(-0.5 * r)
+
+    # # Add vortex components
+    u += -v_theta * np.sin(theta)
+    v += v_theta * np.cos(theta)
+
+    # Add random turbulence component
+    # Note: Using a fixed seed for reproducibility
+    np.random.seed(int((x + 10) * 1000) + int((y + 6) * 1000))
+    u += np.random.randn() * 0.5
+    v += np.random.randn() * 0.5
+
+    return u, v
+
+
+def test_wind_velocity(
+    xlim=[0, 10],
+    ylim=[0, 10],
+    nx=100,
+    ny=100,
+    scale=0.3,
+    vortex_center=(5, 6),
+    vortex_strength=30.0,
+):
+    """
+    Test the wind velocity function using a grid of positions.
+    Returns the complete wind field arrays U, V for comparison.
+
+    Args:
+        nx, ny (int): Grid dimensions
+        scale (float): Wind variation scale
+        vortex_center (tuple): Center coordinates of vortex (x, y)
+        vortex_strength (float): Strength of the vortex
+
+    Returns:
+        tuple: (X, Y, U, V) arrays containing the grid coordinates and wind components
+    """
+    # Create grid
+    x = np.linspace(xlim[0], xlim[1], nx)
+    y = np.linspace(ylim[0], ylim[1], ny)
+    X, Y = np.meshgrid(x, y)
+
+    # Initialize velocity arrays
+    U = np.zeros_like(X)
+    V = np.zeros_like(Y)
+
+    # Compute velocities for each grid point
+    for i in range(ny):
+        for j in range(nx):
+            U[i, j], V[i, j] = get_wind_velocity(
+                X[i, j],
+                Y[i, j],
+                scale=scale,
+                vortex_center=vortex_center,
+                vortex_strength=vortex_strength,
+            )
+
+    # Compute and print some statistics
+    wind_mag = np.sqrt(U**2 + V**2)
+    print(f"Wind field statistics:")
+    print(f"Mean magnitude: {np.mean(wind_mag):.2f}")
+    print(f"Max magnitude: {np.max(wind_mag):.2f}")
+    print(f"Min magnitude: {np.min(wind_mag):.2f}")
+
+    return X, Y, U, V, wind_mag
+
+
 def _A_disc(
     m: float | ca.SX, c: float | ca.SX, dt: float | ca.SX
 ) -> np.ndarray | ca.SX:
@@ -110,7 +206,7 @@ class PointMassEnv(gym.Env):
         super().__init__()
 
         self.init_state_dist = {
-            "mean": np.array([1.5, 1.5, 0.0, 0.0]),
+            "mean": np.array([8.0, 8.0, 0.0, 0.0]),
             "cov": np.diag([0.1, 0.1, 0.05, 0.05]),
         }
 
@@ -120,14 +216,14 @@ class PointMassEnv(gym.Env):
         }
 
         self.observation_space = spaces.Box(
-            low=np.array([-2.0, 0.0, -5.0, -5.0]),
-            high=np.array([2.0, 2.0, 5.0, 5.0]),
+            low=np.array([0.0, 0.0, -50.0, -50.0]),
+            high=np.array([10.0, 10.0, 50.0, 50.0]),
             dtype=np.float64,
         )
 
         self.action_space = spaces.Box(
-            low=np.array([-1.0, -1.0]),
-            high=np.array([1.0, 1.0]),
+            low=np.array([-10.0, -10.0]),
+            high=np.array([10.0, 10.0]),
             dtype=np.float32,
         )
 
@@ -165,6 +261,11 @@ class PointMassEnv(gym.Env):
         # Add an input disturbance that acts in the direction of u
         self.disturbance = self.input_noise * u
         self.state += self.B @ self.disturbance
+
+        # Add wind velocity to state velocity
+        wind_u, wind_v = get_wind_velocity(self.state[0], self.state[1])
+        self.state[2] += 0.001 * wind_u
+        self.state[3] += 0.001 * wind_v
 
         self.u = u
 
@@ -220,8 +321,9 @@ class PointMassEnv(gym.Env):
         # Reward is higher the closer the position is to (0,0) and the lower the velocity
         distance = np.linalg.norm(self.state)
         velocity = np.linalg.norm(self.state[2:])
+        power = np.dot(self.u, self.state[2:])
 
-        reward = -distance - 0.1 * velocity
+        reward = -distance - 0.1 * velocity - power
         return reward
 
     def _is_done(self):
@@ -236,16 +338,24 @@ class PointMassEnv(gym.Env):
 
         time_exceeded = self.time > self.max_time
 
-        return close_to_zero or outside_bounds or time_exceeded
+        done = close_to_zero or outside_bounds or time_exceeded
+
+        if done:
+            print(
+                f"Episode done: {close_to_zero=}, {outside_bounds=}, {time_exceeded=}"
+            )
+            print(f"Final state: {self.state}")
+
+        return done
 
     def _set_canvas(self):
         # Create a figure
-        fig = plt.figure()
+        fig = plt.figure(figsize=(10, 10))
         plt.ylabel("y")
         plt.xlabel("x")
-        plt.xlim(-5.1, 5.1)
-        plt.ylim(-5.1, 5.1)
-        plt.axis("equal")
+        # plt.xlim(-5.1, 5.1)
+        # plt.ylim(-5.1, 5.1)
+        # plt.axis("equal")
         plt.grid()
 
         self.canvas = FigureCanvas(fig)
@@ -287,6 +397,15 @@ class PointMassEnv(gym.Env):
             alpha=0.75,
         )
 
+        # Draw velocity field
+        X, Y, U, V, wind_mag = test_wind_velocity(nx=30, ny=30)
+
+        contour = plt.contourf(X, Y, wind_mag, levels=20, cmap="viridis")
+        plt.colorbar(contour, label="Wind Speed")
+
+        # Plot wind vectors
+        plt.quiver(X, Y, U, V, color="black", alpha=0.8)
+
         # Draw constraint boundary
         rect = plt.Rectangle(
             (self.observation_space.low[0], self.observation_space.low[1]),
@@ -299,12 +418,15 @@ class PointMassEnv(gym.Env):
         )
         self.canvas.figure.get_axes()[0].add_patch(rect)
 
+        # Set axis limits tight
+        plt.tight_layout()
+
         # Set the axis limits with some padding
         self.canvas.figure.get_axes()[0].set_xlim(
-            self.observation_space.low[0] - 1, self.observation_space.high[0] + 1
+            self.observation_space.low[0], self.observation_space.high[0]
         )
         self.canvas.figure.get_axes()[0].set_ylim(
-            self.observation_space.low[1] - 1, self.observation_space.high[1] + 1
+            self.observation_space.low[1], self.observation_space.high[1]
         )
 
     def render(self):
