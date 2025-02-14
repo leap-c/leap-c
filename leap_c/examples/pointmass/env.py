@@ -215,8 +215,8 @@ class PointMassEnv(gym.Env):
         )
 
         self.action_space = spaces.Box(
-            low=np.array([-1.0, -1.0]),
-            high=np.array([1.0, 1.0]),
+            low=np.array([-50.0, -50.0]),
+            high=np.array([50.0, 50.0]),
             dtype=np.float32,
         )
 
@@ -256,9 +256,15 @@ class PointMassEnv(gym.Env):
         self.state += self.B @ self.disturbance
 
         # Add wind velocity to state velocity
+
         wind_u, wind_v = get_wind_velocity(self.state[0], self.state[1])
-        self.state[2] += 0.001 * wind_u
-        self.state[3] += 0.001 * wind_v
+
+        u_wind = np.array([wind_u, wind_v])
+
+        self.state += self.B @ u_wind
+
+        # self.state[2] += 1 * wind_u
+        # self.state[3] += 1 * wind_v
 
         self.u = u
 
@@ -313,10 +319,17 @@ class PointMassEnv(gym.Env):
     def _calculate_reward(self):
         # Reward is higher the closer the position is to (0,0) and the lower the velocity
         distance = np.linalg.norm(self.state)
-        velocity = np.linalg.norm(self.state[2:])
-        power = np.dot(self.u, self.state[2:])
+        # velocity = np.linalg.norm(self.state[2:])
+        # power = np.dot(self.u, self.state[2:])
+        power = np.linalg.norm(self.u)
 
-        reward = -distance - 0.1 * velocity - power
+        # r_power = -power
+        # r_distance = -distance
+
+        # print(f"Distance: {distance}, Power: {power}")
+        # print(f"Distance: {distance}, Power: {power}")
+
+        reward = -distance - power
         return reward
 
     def _is_done(self):
@@ -332,6 +345,11 @@ class PointMassEnv(gym.Env):
         time_exceeded = self.time > self.max_time
 
         done = close_to_zero or outside_bounds or time_exceeded
+
+        # if done:
+        #     print(
+        #         f"Close to zero: {close_to_zero}, Outside bounds: {outside_bounds}, Time exceeded: {time_exceeded}"
+        #     )
 
         return done
 
