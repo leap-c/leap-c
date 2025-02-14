@@ -16,7 +16,17 @@ from leap_c.task import Task
 class PointMassTask(Task):
     def __init__(self):
         mpc = PointMassMPC(
-            learnable_params=["m", "cx", "cy", "q_diag", "r_diag", "q_diag_e"]
+            learnable_params=[
+                "m",
+                "cx",
+                "cy",
+                "q_diag",
+                "r_diag",
+                "q_diag_e",
+                "xref",
+                "uref",
+                "xref_e",
+            ]
         )
         mpc_layer = MPCSolutionModule(mpc)
 

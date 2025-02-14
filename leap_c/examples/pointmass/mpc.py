@@ -36,6 +36,9 @@ class PointMassMPC(MPC):
                 "q_diag": np.array([1.0, 1.0, 1.0, 1.0]),
                 "r_diag": np.array([1.0, 1.0]),
                 "q_diag_e": np.array([1.0, 1.0, 1.0, 1.0]),
+                "xref": np.array([0.0, 0.0, 0.0, 0.0]),
+                "uref": np.array([0.0, 0.0]),
+                "xref_e": np.array([0.0, 0.0, 0.0, 0.0]),
             }
             if params is None
             else params
@@ -100,9 +103,12 @@ def _cost_expr_ext_cost(ocp: AcadosOcp) -> ca.SX:
         find_param_in_p_or_p_global(["r_diag"], ocp.model)["r_diag"]
     )
 
+    xref = find_param_in_p_or_p_global(["xref"], ocp.model)["xref"]
+    uref = find_param_in_p_or_p_global(["uref"], ocp.model)["uref"]
+
     return 0.5 * (
-        ca.mtimes([ca.transpose(x), Q_sqrt.T, Q_sqrt, x])
-        + ca.mtimes([ca.transpose(u), R_sqrt.T, R_sqrt, u])
+        ca.mtimes([ca.transpose(x - xref), Q_sqrt.T, Q_sqrt, x - xref])
+        + ca.mtimes([ca.transpose(u - uref), R_sqrt.T, R_sqrt, u - uref])
     )
 
 
@@ -113,7 +119,9 @@ def _cost_expr_ext_cost_e(ocp: AcadosOcp) -> ca.SX:
         find_param_in_p_or_p_global(["q_diag_e"], ocp.model)["q_diag_e"]
     )
 
-    return 0.5 * ca.mtimes([ca.transpose(x), Q_sqrt_e.T, Q_sqrt_e, x])
+    xref_e = find_param_in_p_or_p_global(["xref_e"], ocp.model)["xref_e"]
+
+    return 0.5 * ca.mtimes([ca.transpose(x - xref_e), Q_sqrt_e.T, Q_sqrt_e, x - xref_e])
 
 
 def export_parametric_ocp(
