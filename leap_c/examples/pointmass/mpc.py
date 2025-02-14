@@ -34,7 +34,7 @@ class PointMassMPC(MPC):
                 "cx": 0.1,
                 "cy": 0.1,
                 "q_diag": np.array([1.0, 1.0, 1.0, 1.0]),
-                "r_diag": np.array([1.0, 1.0]),
+                "r_diag": np.array([0.5, 0.5]),
                 "q_diag_e": np.array([1.0, 1.0, 1.0, 1.0]),
                 "xref": np.array([0.0, 0.0, 0.0, 0.0]),
                 "uref": np.array([0.0, 0.0]),
@@ -164,9 +164,17 @@ def export_parametric_ocp(
     ocp.constraints.ubu = np.array([50.0, 50.0])
     ocp.constraints.idxbu = np.array([0, 1])
 
-    # ocp.constraints.lbx = np.array([0.0, 0.0, -50.0, -50.0])
-    # ocp.constraints.ubx = np.array([10.0, 10.0, 50.0, 50.0])
-    # ocp.constraints.idxbx = np.array([0, 1, 2, 3])
+    ocp.constraints.lbx = np.array([0.0, 0.0, -50.0, -50.0])
+    ocp.constraints.ubx = np.array([10.0, 10.0, 50.0, 50.0])
+    ocp.constraints.idxbx = np.array([0, 1, 2, 3])
+
+    ocp.constraints.idxsbx = np.array([0, 1])
+
+    ns = 2
+    ocp.cost.zl = 100 * np.ones((ns,))
+    ocp.cost.Zl = 0 * np.ones((ns,))
+    ocp.cost.zu = 100 * np.ones((ns,))
+    ocp.cost.Zu = 0 * np.ones((ns,))
 
     # #############################
     if isinstance(ocp.model.p, struct_symSX):
