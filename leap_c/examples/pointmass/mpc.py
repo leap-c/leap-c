@@ -164,6 +164,10 @@ def export_parametric_ocp(
     ocp.constraints.ubu = np.array([50.0, 50.0])
     ocp.constraints.idxbu = np.array([0, 1])
 
+    # ocp.constraints.lbx = np.array([0.0, 0.0, -50.0, -50.0])
+    # ocp.constraints.ubx = np.array([10.0, 10.0, 50.0, 50.0])
+    # ocp.constraints.idxbx = np.array([0, 1, 2, 3])
+
     # #############################
     if isinstance(ocp.model.p, struct_symSX):
         ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
