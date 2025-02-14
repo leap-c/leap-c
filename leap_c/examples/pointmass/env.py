@@ -106,74 +106,70 @@ def test_wind_velocity(
 
 
 def _A_disc(
-    m: float | ca.SX, c: float | ca.SX, dt: float | ca.SX
+    m: float | ca.SX, cx: float | ca.SX, cy: float | ca.SX, dt: float | ca.SX
 ) -> np.ndarray | ca.SX:
-    if any(isinstance(i, ca.SX) for i in [m, c, dt]):
-        a = ca.exp(-c * dt / m)
+    if any(isinstance(i, ca.SX) for i in [m, cx, cy, dt]):
         return ca.vertcat(
             ca.horzcat(1, 0, dt, 0),
             ca.horzcat(0, 1, 0, dt),
-            ca.horzcat(0, 0, a, 0),
-            ca.horzcat(0, 0, 0, a),
+            ca.horzcat(0, 0, ca.exp(-cx * dt / m), 0),
+            ca.horzcat(0, 0, 0, ca.exp(-cy * dt / m)),
         )
     else:
-        a = np.exp(-c * dt / m)
         return np.array(
             [
                 [1, 0, dt, 0],
                 [0, 1, 0, dt],
-                [0, 0, a, 0],
-                [0, 0, 0, a],
+                [0, 0, np.exp(-cx * dt / m), 0],
+                [0, 0, 0, np.exp(-cy * dt / m)],
             ]
         )
 
 
 def _B_disc(
-    m: float | ca.SX, c: float | ca.SX, dt: float | ca.SX
+    m: float | ca.SX, cx: float | ca.SX, cy: float | ca.SX, dt: float | ca.SX
 ) -> np.ndarray | ca.SX:
-    if any(isinstance(i, ca.SX) for i in [m, c, dt]):
-        b = (m / c) * (1 - ca.exp(-c * dt / m))
+    if any(isinstance(i, ca.SX) for i in [m, cx, cy, dt]):
         return ca.vertcat(
             ca.horzcat(0, 0),
             ca.horzcat(0, 0),
-            ca.horzcat(b, 0),
-            ca.horzcat(0, b),
+            ca.horzcat((m / cx) * (1 - ca.exp(-cx * dt / m)), 0),
+            ca.horzcat(0, (m / cy) * (1 - ca.exp(-cy * dt / m))),
         )
     else:
-        b = (m / c) * (1 - np.exp(-c * dt / m))
         return np.array(
             [
                 [0, 0],
                 [0, 0],
-                [b, 0],
-                [0, b],
+                [(m / cx) * (1 - np.exp(-cx * dt / m)), 0],
+                [0, (m / cy) * (1 - np.exp(-cy * dt / m))],
             ]
         )
 
 
 def _A_cont(
-    m: float | ca.SX, c: float | ca.SX, dt: float | ca.SX
+    m: float | ca.SX, cx: float | ca.SX, cy: float | ca.SX, dt: float | ca.SX
 ) -> np.ndarray | ca.SX:
     if isinstance(m, float):
         return np.array(
             [
                 [0, 0, 1.0, 0],
                 [0, 0, 0, 1.0],
-                [0, 0, -(c / m), 0],
-                [0, 0, 0, -(c / m)],
+                [0, 0, -(cx / m), 0],
+                [0, 0, 0, -(cy / m)],
             ]
         )
     else:
         return ca.vertcat(
             ca.horzcat(0, 0, 1.0, 0),
             ca.horzcat(0, 0, 0, 1.0),
-            ca.horzcat(0, 0, -(c / m), 0),
-            ca.horzcat(0, 0, 0, -(c / m)),
+            ca.horzcat(0, 0, -(cx / m), 0),
+            ca.horzcat(0, 0, 0, -(cy / m)),
         )
 
 
 def _B_cont(
-    m: float | ca.SX, c: float | ca.SX, dt: float | ca.SX
+    m: float | ca.SX, cx: float | ca.SX, cy: float | ca.SX, dt: float | ca.SX
 ) -> np.ndarray | ca.SX:
     if isinstance(m, float):
         return np.array([[0, 0], [0, 0], [1.0 / m, 0], [0, 1.0 / m]])
@@ -190,7 +186,8 @@ def _B_cont(
 class PointMassParam:
     dt: float
     m: float
-    c: float
+    cx: float
+    cy: float
 
 
 class PointMassEnv(gym.Env):
@@ -201,7 +198,7 @@ class PointMassEnv(gym.Env):
         dt: float = 2 / 20,
         max_time: float = 10.0,
         render_mode: str | None = None,
-        param: PointMassParam = PointMassParam(dt=0.1, m=2.0, c=0.4),
+        param: PointMassParam = PointMassParam(dt=0.1, m=2.0, cx=0.4, cy=0.4),
     ):
         super().__init__()
 
@@ -222,8 +219,8 @@ class PointMassEnv(gym.Env):
         )
 
         self.action_space = spaces.Box(
-            low=np.array([-10.0, -10.0]),
-            high=np.array([10.0, 10.0]),
+            low=np.array([-1.0, -1.0]),
+            high=np.array([1.0, 1.0]),
             dtype=np.float32,
         )
 
@@ -237,8 +234,8 @@ class PointMassEnv(gym.Env):
         self.dt = dt
         self.max_time = max_time
 
-        self.A = _A_disc(param.m, param.c, param.dt)
-        self.B = _B_disc(param.m, param.c, param.dt)
+        self.A = _A_disc(param.m, param.cx, param.cy, param.dt)
+        self.B = _B_disc(param.m, param.cx, param.cy, param.dt)
 
         self.trajectory = []
 

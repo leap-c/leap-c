@@ -31,7 +31,8 @@ class PointMassMPC(MPC):
         params = (
             {
                 "m": 1.0,
-                "c": 0.1,
+                "cx": 0.1,
+                "cy": 0.1,
                 "q_diag": np.array([1.0, 1.0, 1.0, 1.0]),
                 "r_diag": np.array([1.0, 1.0]),
                 "q_diag_e": np.array([1.0, 1.0, 1.0, 1.0]),
@@ -78,11 +79,12 @@ def _disc_dyn_expr(
     u = ocp.model.u
 
     m = find_param_in_p_or_p_global(["m"], ocp.model)["m"]
-    c = find_param_in_p_or_p_global(["c"], ocp.model)["c"]
+    cx = find_param_in_p_or_p_global(["cx"], ocp.model)["cx"]
+    cy = find_param_in_p_or_p_global(["cy"], ocp.model)["cy"]
     dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
 
-    A = _A_disc(m=m, c=c, dt=dt)
-    B = _B_disc(m=m, c=c, dt=dt)
+    A = _A_disc(m=m, cx=cx, cy=cy, dt=dt)
+    B = _B_disc(m=m, cx=cx, cy=cy, dt=dt)
 
     return A @ x + B @ u
 
