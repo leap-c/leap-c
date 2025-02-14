@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 
-def get_wind_velocity(x, y, scale=0.3, vortex_center=(5, 5), vortex_strength=30.0):
+def get_wind_velocity(x, y, scale=0.1, vortex_center=(5, 5), vortex_strength=1.0):
     """
     Compute wind velocity components at a given position.
 
@@ -23,32 +23,35 @@ def get_wind_velocity(x, y, scale=0.3, vortex_center=(5, 5), vortex_strength=30.
     Returns:
         tuple: (u, v) wind velocity components at the given position
     """
-    # Base south-west wind
-    u = 5.0
-    v = -5.0
+    if True:
+        # Base south-west wind
+        u = -1.0
+        v = +1.0
 
-    # Add variation
-    u += 2 * np.sin(scale * y)
-    v = 1.5 * np.cos(scale * x)
+        # Add variation
+        u += 2 * np.sin(scale * y)
+        v = 1.5 * np.cos(scale * x)
 
-    # Add vortex
-    dx = x - vortex_center[0]
-    dy = y - vortex_center[1]
-    r = np.sqrt(dx**2 + dy**2)
-    theta = np.arctan2(dy, dx)
+        # Add vortex
+        dx = x - vortex_center[0]
+        dy = y - vortex_center[1]
+        r = np.sqrt(dx**2 + dy**2)
+        theta = np.arctan2(dy, dx)
 
-    # Tangential velocity decreases with radius
-    v_theta = vortex_strength * np.exp(-0.5 * r)
+        # Tangential velocity decreases with radius
+        v_theta = vortex_strength * np.exp(-0.5 * r)
 
-    # # Add vortex components
-    u += -v_theta * np.sin(theta)
-    v += v_theta * np.cos(theta)
+        # # Add vortex components
+        u += -v_theta * np.sin(theta)
+        v += v_theta * np.cos(theta)
 
-    # Add random turbulence component
-    # Note: Using a fixed seed for reproducibility
-    np.random.seed(int((x + 10) * 1000) + int((y + 6) * 1000))
-    u += np.random.randn() * 0.5
-    v += np.random.randn() * 0.5
+        # Add random turbulence component
+        # Note: Using a fixed seed for reproducibility
+        np.random.seed(int((x + 10) * 1000) + int((y + 6) * 1000))
+        u += np.random.randn() * 0.5
+        v += np.random.randn() * 0.5
+    else:
+        u, v = 0.0, 0.0
 
     return u, v
 
@@ -58,9 +61,9 @@ def test_wind_velocity(
     ylim=[0, 10],
     nx=100,
     ny=100,
-    scale=0.3,
-    vortex_center=(5, 6),
-    vortex_strength=30.0,
+    scale=0.1,
+    vortex_center=(5, 5),
+    vortex_strength=1.0,
 ):
     """
     Test the wind velocity function using a grid of positions.
@@ -186,6 +189,13 @@ class PointMassParam:
     cy: float
 
 
+@dataclass
+class WindParam:
+    scale: float
+    vortex_center: tuple[float, float]
+    vortex_strength: float
+
+
 class PointMassEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
@@ -195,8 +205,13 @@ class PointMassEnv(gym.Env):
         max_time: float = 10.0,
         render_mode: str | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=2.0, cx=0.4, cy=0.4),
+        wind_param: WindParam = WindParam(
+            scale=0.3, vortex_center=(5, 6), vortex_strength=8.0
+        ),
     ):
         super().__init__()
+
+        self.wind_param = wind_param
 
         self.init_state_dist = {
             "mean": np.array([8.0, 8.0, 0.0, 0.0]),
@@ -249,24 +264,22 @@ class PointMassEnv(gym.Env):
         if u.ndim > 1:
             u = u.squeeze()
 
-        self.state = self.A @ self.state + self.B @ u
-
-        # Add an input disturbance that acts in the direction of u
-        self.disturbance = self.input_noise * u
-        self.state += self.B @ self.disturbance
-
-        # Add wind velocity to state velocity
-
-        wind_u, wind_v = get_wind_velocity(self.state[0], self.state[1])
-
-        u_wind = np.array([wind_u, wind_v])
-
-        self.state += self.B @ u_wind
-
-        # self.state[2] += 1 * wind_u
-        # self.state[3] += 1 * wind_v
-
         self.u = u
+
+        wind_u, wind_v = get_wind_velocity(
+            self.state[0], self.state[1], **self.wind_param.__dict__
+        )
+
+        self.u_wind = np.array([wind_u, wind_v])
+
+        self.u_dist = 0.0 * self.input_noise * u
+
+        print("u: ", self.u)
+        print("u_wind: ", self.u_wind)
+        print("u_dist: ", self.u_dist)
+
+        self.state = self.A @ self.state + self.B @ (self.u + self.u_wind + self.u_dist)
+        # self.state = self.A @ self.state + self.B @ (self.u)
 
         self.input_noise = self._get_input_noise()
 
@@ -373,40 +386,20 @@ class PointMassEnv(gym.Env):
         # Draw position
         (self.point,) = plt.plot([0], [0], "ko")
 
-        # Draw arrow for action
-        self.input_arrow = plt.arrow(
-            0,
-            0,
-            0,
-            0,
-            head_width=0.1,
-            head_length=0.1,
-            fc="g",
-            ec="g",
-            alpha=0.75,
-        )
-
-        # Draw arrow for action
-        self.disturbance_arrow = plt.arrow(
-            0,
-            0,
-            0,
-            0,
-            head_width=0.1,
-            head_length=0.1,
-            fc="r",
-            ec="r",
-            alpha=0.75,
-        )
-
         # Draw velocity field
-        X, Y, U, V, wind_mag = test_wind_velocity(nx=30, ny=30)
+        X, Y, U, V, wind_mag = test_wind_velocity(
+            nx=30, ny=30, **self.wind_param.__dict__
+        )
 
         contour = plt.contourf(X, Y, wind_mag, levels=20, cmap="viridis")
         plt.colorbar(contour, label="Wind Speed")
 
         # Plot wind vectors
-        plt.quiver(X, Y, U, V, color="black", alpha=0.8)
+        quiver = plt.quiver(
+            X, Y, U, V, color="black", alpha=0.8, scale=10, scale_units="xy"
+        )
+
+        self.quiver = quiver
 
         # Draw constraint boundary
         rect = plt.Rectangle(
@@ -422,6 +415,47 @@ class PointMassEnv(gym.Env):
 
         # Set axis limits tight
         plt.tight_layout()
+
+        # Draw arrow for action
+        self.input_arrow = plt.arrow(
+            0,
+            0,
+            0,
+            0,
+            head_width=0.1,
+            head_length=0.1,
+            fc="g",
+            ec="g",
+            alpha=1.0,
+        )
+
+        # Draw arrow for action
+        self.disturbance_arrow = plt.arrow(
+            0,
+            0,
+            0,
+            0,
+            head_width=0.1,
+            head_length=0.1,
+            fc="r",
+            ec="r",
+            alpha=0.75,
+        )
+
+        xwind = 8
+        ywind = 8
+        uwind, vwind = get_wind_velocity(xwind, ywind)
+        self.wind_arrow = plt.arrow(
+            xwind,
+            ywind,
+            uwind / quiver.scale,
+            vwind / quiver.scale,
+            head_width=0.1,
+            head_length=0.1,
+            fc="b",
+            ec="b",
+            alpha=0.75,
+        )
 
         # Set the axis limits with some padding
         self.canvas.figure.get_axes()[0].set_xlim(
@@ -441,16 +475,24 @@ class PointMassEnv(gym.Env):
         self.input_arrow.set_data(
             x=self.state[0],
             y=self.state[1],
-            dx=self.u[0],
-            dy=self.u[1],
+            dx=self.u[0] / self.quiver.scale,
+            dy=self.u[1] / self.quiver.scale,
         )
 
         self.disturbance_arrow.set_data(
             x=self.state[0],
             y=self.state[1],
-            dx=self.disturbance[0],
-            dy=self.disturbance[1],
+            dx=self.u_dist[0] / self.quiver.scale,
+            dy=self.u_dist[1] / self.quiver.scale,
         )
+
+        self.wind_arrow.set_data(
+            x=self.state[0],
+            y=self.state[1],
+            dx=self.u_wind[0] / self.quiver.scale,
+            dy=self.u_wind[1] / self.quiver.scale,
+        )
+
         self.canvas.draw()
 
         # Convert the plot to an RGB string
