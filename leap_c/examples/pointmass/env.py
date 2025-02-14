@@ -218,7 +218,7 @@ class PointMassEnv(gym.Env):
 
         self.init_state_dist = {
             "mean": np.array([8.0, 8.0, 0.0, 0.0]),
-            "cov": np.diag([0.1, 0.1, 0.05, 0.05]),
+            "cov": np.diag([0.1, 0.1, 0.00, 0.00]),
         }
 
         self.input_noise_dist = {
