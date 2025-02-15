@@ -307,6 +307,11 @@ class PointMassEnv(gym.Env):
         self.state = self._init_state()
         self.time = 0.0
 
+        self.trajectory = []
+        plt.close("all")
+        self.canvas = None
+        self.line = None
+
         self._set_canvas()
 
         return self.state, {}
@@ -368,10 +373,9 @@ class PointMassEnv(gym.Env):
         return done
 
     def _set_canvas(self):
-        # Create a figure
         fig = plt.figure(figsize=(10, 10))
-        plt.ylabel("y")
         plt.xlabel("x")
+        plt.ylabel("y")
         plt.grid()
 
         self.canvas = FigureCanvas(fig)
@@ -415,7 +419,7 @@ class PointMassEnv(gym.Env):
         self.canvas.figure.get_axes()[0].add_patch(rect)
 
         # Set axis limits tight
-        plt.tight_layout()
+        # plt.tight_layout()
 
         # Draw arrow for action
         self.input_arrow = plt.arrow(
