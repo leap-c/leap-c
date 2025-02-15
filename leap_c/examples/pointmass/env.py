@@ -235,26 +235,15 @@ class PointMassEnv(gym.Env):
         max_time: float = 10.0,
         render_mode: str | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=0.1, cy=0.1),
-<<<<<<< HEAD
         wind_param: WindParam = WindParam(),
-=======
-        wind_param: WindParam = WindParam(
-            scale=0.3, vortex_center=(5, 6), vortex_strength=10.0
-        ),
->>>>>>> 35bd861 (Add Fmax to env and mpc)
     ):
         super().__init__()
 
         self.wind_param = wind_param
 
         self.init_state_dist = {
-<<<<<<< HEAD
             "low": np.array([1.0, 1.0, 0.0, 0.0]),
             "high": np.array([9.0, 9.0, 0.0, 0.0]),
-=======
-            "mean": np.array([7.0, 5.0, 0.0, 0.0]),
-            "cov": np.diag([0.1, 0.1, 0.00, 0.00]),
->>>>>>> 35bd861 (Add Fmax to env and mpc)
         }
 
         self.input_noise_dist = {
@@ -394,11 +383,7 @@ class PointMassEnv(gym.Env):
         #     f"Position: {self.state[:2]}, Velocity: {self.state[2:]}, Distance: {distance}, Force: {self.u}, Power: {power}, Work: {work}"
         # )
 
-<<<<<<< HEAD
         reward = -distance - 10 * power
-=======
-        reward = -distance - np.linalg.norm(self.u)
->>>>>>> 35bd861 (Add Fmax to env and mpc)
         # reward = -distance - 10 * work
         return reward
 
