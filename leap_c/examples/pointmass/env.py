@@ -342,15 +342,24 @@ class PointMassEnv(gym.Env):
 
         # velocity = np.linalg.norm(self.state[2:])
         # power = np.dot(self.u, self.state[2:])
-        power = np.linalg.norm(self.u)
 
-        # r_power = -power
-        # r_distance = -distance
+        # power = np.linalg.norm(self.u)
+        power = np.dot(self.u, self.state[2:])
 
-        # print(f"Distance: {distance}, Power: {power}")
-        # print(f"Distance: {distance}, Power: {power}")
+        if len(self.trajectory) > 1:
+            path_increment = self.state[:2] - self.trajectory[-1][:2]
+        else:
+            path_increment = np.array([0.0, 0.0])
+        work = np.dot(path_increment, self.u)
 
-        reward = -distance - 10 * power
+        # print(f"u: {self.u}, Path increment: {path_increment}")
+        # print(f"Distance: {distance}, Work: {work}")
+        print(
+            f"Position: {self.state[:2]}, Velocity: {self.state[2:]}, Distance: {distance}, Force: {self.u}, Power: {power}, Work: {work}"
+        )
+
+        # reward = -distance - 10 * power
+        reward = -distance - 10 * work
         return reward
 
     def _is_done(self):
