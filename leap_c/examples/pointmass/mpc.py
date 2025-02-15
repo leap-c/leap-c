@@ -27,7 +27,7 @@ class PointMassMPC(MPC):
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
         throw_error_if_u0_is_outside_ocp_bounds: bool = True,
-        wind_param: WindParam | None = WindParam(),
+        wind_param: WindParam | None = None,
     ):
         params = (
             {
@@ -92,15 +92,18 @@ def _disc_dyn_expr(
     A = _A_disc(m=m, cx=cx, cy=cy, dt=dt)
     B = _B_disc(m=m, cx=cx, cy=cy, dt=dt)
 
-    u_wind_x, u_wind_y = get_wind_velocity(
-        x=ocp.model.x[0],
-        y=ocp.model.x[1],
-        scale=wind_param.scale,
-        vortex_center=wind_param.vortex_center,
-        vortex_strength=wind_param.vortex_strength,
-    )
+    if wind_param is None:
+        u_wind = ca.vertcat(0.0, 0.0)
+    else:
+        u_wind_x, u_wind_y = get_wind_velocity(
+            x=ocp.model.x[0],
+            y=ocp.model.x[1],
+            scale=wind_param.scale,
+            vortex_center=wind_param.vortex_center,
+            vortex_strength=wind_param.vortex_strength,
+        )
 
-    u_wind = ca.vertcat(u_wind_x, u_wind_y)
+        u_wind = ca.vertcat(u_wind_x, u_wind_y)
 
     return A @ x + B @ (u + u_wind)
 
