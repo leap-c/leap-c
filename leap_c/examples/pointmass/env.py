@@ -337,7 +337,9 @@ class PointMassEnv(gym.Env):
 
     def _calculate_reward(self):
         # Reward is higher the closer the position is to (0,0) and the lower the velocity
-        distance = np.linalg.norm(self.state)
+
+        distance = np.linalg.norm(self.state[:2])
+
         # velocity = np.linalg.norm(self.state[2:])
         # power = np.dot(self.u, self.state[2:])
         power = np.linalg.norm(self.u)
