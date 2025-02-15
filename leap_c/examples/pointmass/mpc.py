@@ -173,9 +173,10 @@ def export_parametric_ocp(
 
     ocp.constraints.x0 = x0
 
+    Fmax = 3.0
     # Box constraints on u
-    ocp.constraints.lbu = np.array([-50.0, -50.0])
-    ocp.constraints.ubu = np.array([50.0, 50.0])
+    ocp.constraints.lbu = np.array([-Fmax, -Fmax])
+    ocp.constraints.ubu = np.array([Fmax, Fmax])
     ocp.constraints.idxbu = np.array([0, 1])
 
     ocp.constraints.lbx = np.array([0.0, 0.0, -50.0, -50.0])
