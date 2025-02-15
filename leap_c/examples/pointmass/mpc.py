@@ -8,7 +8,7 @@ from leap_c.examples.util import (
     translate_learnable_param_to_p_global,
     find_param_in_p_or_p_global,
 )
-from leap_c.examples.pointmass.env import _A_disc, _B_disc
+from leap_c.examples.pointmass.env import _A_disc, _B_disc, WindParam, get_wind_velocity
 from pathlib import Path
 
 
@@ -27,6 +27,7 @@ class PointMassMPC(MPC):
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
         throw_error_if_u0_is_outside_ocp_bounds: bool = True,
+        wind_param: WindParam | None = WindParam(),
     ):
         params = (
             {
@@ -53,6 +54,7 @@ class PointMassMPC(MPC):
             learnable_params=learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
+            wind_param=wind_param,
         )
         configure_ocp_solver(ocp=ocp, exact_hess_dyn=True)
 
@@ -77,6 +79,7 @@ def _create_diag_matrix(
 
 def _disc_dyn_expr(
     ocp: AcadosOcp,
+    wind_param: WindParam | None = None,
 ) -> ca.SX:
     x = ocp.model.x
     u = ocp.model.u
@@ -89,7 +92,17 @@ def _disc_dyn_expr(
     A = _A_disc(m=m, cx=cx, cy=cy, dt=dt)
     B = _B_disc(m=m, cx=cx, cy=cy, dt=dt)
 
-    return A @ x + B @ u
+    u_wind_x, u_wind_y = get_wind_velocity(
+        x=ocp.model.x[0],
+        y=ocp.model.x[1],
+        scale=wind_param.scale,
+        vortex_center=wind_param.vortex_center,
+        vortex_strength=wind_param.vortex_strength,
+    )
+
+    u_wind = ca.vertcat(u_wind_x, u_wind_y)
+
+    return A @ x + B @ (u + u_wind)
 
 
 def _cost_expr_ext_cost(ocp: AcadosOcp) -> ca.SX:
@@ -131,6 +144,7 @@ def export_parametric_ocp(
     N_horizon: int = 50,
     tf: float = 2.0,
     x0: np.ndarray = np.array([1.0, 1.0, 0.0, 0.0]),
+    wind_param: WindParam | None = None,
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
@@ -149,7 +163,7 @@ def export_parametric_ocp(
         nominal_param=nominal_param, learnable_param=learnable_params, ocp=ocp
     )
 
-    ocp.model.disc_dyn_expr = _disc_dyn_expr(ocp=ocp)
+    ocp.model.disc_dyn_expr = _disc_dyn_expr(ocp=ocp, wind_param=wind_param)
     ocp.model.cost_expr_ext_cost_0 = _cost_expr_ext_cost(ocp=ocp)
     ocp.cost.cost_type_0 = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = _cost_expr_ext_cost(ocp=ocp)
