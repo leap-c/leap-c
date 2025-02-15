@@ -9,7 +9,28 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 
-def get_wind_velocity(x, y, scale=0.1, vortex_center=(5, 5), vortex_strength=1.0):
+@dataclass
+class PointMassParam:
+    dt: float
+    m: float
+    cx: float
+    cy: float
+
+
+@dataclass
+class WindParam:
+    scale: float = 0.3
+    vortex_center: tuple[float, float] = (5.0, 6.0)
+    vortex_strength: float = 8.0
+
+
+def get_wind_velocity(
+    x: float | ca.SX,
+    y: float | ca.SX,
+    scale=0.1,
+    vortex_center=(5, 5),
+    vortex_strength=1.0,
+):
     """
     Compute wind velocity components at a given position.
 
@@ -23,6 +44,21 @@ def get_wind_velocity(x, y, scale=0.1, vortex_center=(5, 5), vortex_strength=1.0
     Returns:
         tuple: (u, v) wind velocity components at the given position
     """
+    if isinstance(x, ca.SX) or isinstance(y, ca.SX):
+        u = ca.SX(0.0)
+        v = ca.SX(0.0)
+        dx = x - vortex_center[0]
+        dy = y - vortex_center[1]
+        r = ca.sqrt(dx**2 + dy**2)
+        theta = ca.arctan2(dy, dx)
+
+        # Tangential velocity decreases with radius
+        v_theta = vortex_strength * ca.exp(-0.5 * r)
+
+        # # Add vortex components
+        u += -v_theta * ca.sin(theta)
+        v += v_theta * ca.cos(theta)
+
     if True:
         # Base south-west wind
         # u = -1.0
@@ -108,7 +144,10 @@ def test_wind_velocity(
 
 
 def _A_disc(
-    m: float | ca.SX, cx: float | ca.SX, cy: float | ca.SX, dt: float | ca.SX
+    m: float | ca.SX,
+    cx: float | ca.SX,
+    cy: float | ca.SX,
+    dt: float | ca.SX,
 ) -> np.ndarray | ca.SX:
     if any(isinstance(i, ca.SX) for i in [m, cx, cy, dt]):
         return ca.vertcat(
@@ -129,7 +168,10 @@ def _A_disc(
 
 
 def _B_disc(
-    m: float | ca.SX, cx: float | ca.SX, cy: float | ca.SX, dt: float | ca.SX
+    m: float | ca.SX,
+    cx: float | ca.SX,
+    cy: float | ca.SX,
+    dt: float | ca.SX,
 ) -> np.ndarray | ca.SX:
     if any(isinstance(i, ca.SX) for i in [m, cx, cy, dt]):
         return ca.vertcat(
@@ -184,21 +226,6 @@ def _B_cont(
         )
 
 
-@dataclass
-class PointMassParam:
-    dt: float
-    m: float
-    cx: float
-    cy: float
-
-
-@dataclass
-class WindParam:
-    scale: float
-    vortex_center: tuple[float, float]
-    vortex_strength: float
-
-
 class PointMassEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
@@ -208,17 +235,15 @@ class PointMassEnv(gym.Env):
         max_time: float = 10.0,
         render_mode: str | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=0.1, cy=0.1),
-        wind_param: WindParam = WindParam(
-            scale=0.3, vortex_center=(5, 6), vortex_strength=8.0
-        ),
+        wind_param: WindParam = WindParam(),
     ):
         super().__init__()
 
         self.wind_param = wind_param
 
         self.init_state_dist = {
-            "mean": np.array([8.0, 8.0, 0.0, 0.0]),
-            "cov": np.diag([0.1, 0.1, 0.00, 0.00]),
+            "low": np.array([1.0, 1.0, 0.0, 0.0]),
+            "high": np.array([9.0, 9.0, 0.0, 0.0]),
         }
 
         self.input_noise_dist = {
@@ -250,6 +275,8 @@ class PointMassEnv(gym.Env):
 
         self.A = _A_disc(param.m, param.cx, param.cy, param.dt)
         self.B = _B_disc(param.m, param.cx, param.cy, param.dt)
+
+        self.terminal_radius = 0.5
 
         self.trajectory = []
 
@@ -320,9 +347,8 @@ class PointMassEnv(gym.Env):
         return self.state
 
     def _init_state(self):
-        return self._np_random.multivariate_normal(
-            mean=self.init_state_dist["mean"],
-            cov=self.init_state_dist["cov"],
+        return np.random.uniform(
+            low=self.init_state_dist["low"], high=self.init_state_dist["high"]
         )
 
     def _get_input_noise(self) -> float:
@@ -358,8 +384,8 @@ class PointMassEnv(gym.Env):
             f"Position: {self.state[:2]}, Velocity: {self.state[2:]}, Distance: {distance}, Force: {self.u}, Power: {power}, Work: {work}"
         )
 
-        # reward = -distance - 10 * power
-        reward = -distance - 10 * work
+        reward = -distance - 10 * power
+        # reward = -distance - 10 * work
         return reward
 
     def _is_done(self):
@@ -368,7 +394,7 @@ class PointMassEnv(gym.Env):
         distance = np.linalg.norm(self.state[:2])
         velocity = np.linalg.norm(self.state[2:])
 
-        close_to_zero = distance < 0.5 and velocity < 0.5
+        close_to_zero = distance < self.terminal_radius and velocity < 0.5
 
         outside_bounds = self.state not in self.observation_space
 
@@ -472,6 +498,32 @@ class PointMassEnv(gym.Env):
             ec="b",
             alpha=0.75,
         )
+
+        # Draw radius with self.terminal_radius at (0,0)
+        self.circle = plt.Circle(
+            xy=(0, 0),
+            radius=self.terminal_radius,
+            fill=False,
+            color="k",
+            linewidth=2,
+            linestyle="--",
+        )
+
+        self.canvas.figure.get_axes()[0].add_patch(self.circle)
+
+        # Draw radius for initial state distribution
+        self.rectangle_init = plt.Rectangle(
+            (self.init_state_dist["low"][0], self.init_state_dist["low"][1]),
+            width=(self.init_state_dist["high"][0] - self.init_state_dist["low"][0]),
+            height=(self.init_state_dist["high"][1] - self.init_state_dist["low"][1]),
+            fill=False,  # Set to True if you want a filled rectangle
+            color="k",
+            linewidth=2,
+            linestyle="-",
+            alpha=0.5,
+        )
+
+        self.canvas.figure.get_axes()[0].add_patch(self.rectangle_init)
 
         # Set the axis limits with some padding
         self.canvas.figure.get_axes()[0].set_xlim(
