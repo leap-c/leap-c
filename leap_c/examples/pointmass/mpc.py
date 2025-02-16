@@ -35,7 +35,7 @@ class PointMassMPC(MPC):
                 "cx": 0.1,
                 "cy": 0.1,
                 "q_diag": np.array([1.0, 1.0, 1.0, 1.0]),
-                "r_diag": np.array([0.5, 0.5]),
+                "r_diag": np.array([0.1, 0.1]),
                 "q_diag_e": np.array([1.0, 1.0, 1.0, 1.0]),
                 "xref": np.array([0.0, 0.0, 0.0, 0.0]),
                 "uref": np.array([0.0, 0.0]),
@@ -179,7 +179,7 @@ def export_parametric_ocp(
 
     ocp.constraints.x0 = x0
 
-    Fmax = 3.0
+    Fmax = 8.0
     # Box constraints on u
     ocp.constraints.lbu = np.array([-Fmax, -Fmax])
     ocp.constraints.ubu = np.array([Fmax, Fmax])
