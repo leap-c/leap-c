@@ -82,3 +82,31 @@ class PointMassTask(Task):
         mpc_param = MPCParameter(p_global=param_nn)  # type: ignore
 
         return MPCInput(x0=obs, parameters=mpc_param)
+
+
+@register_task("point_mass_homo_center")
+class PointMassTaskHomoCenter(PointMassTask):
+    def __init__(self):
+        super().__init__()
+
+    @cached_property
+    def train_env(self) -> gym.Env:
+        env = PointMassEnv(
+            init_state_dist={
+                "low": np.array([1.0, -5.0, 0.0, 0.0]),
+                "high": np.array([5.0, 5.0, 0.0, 0.0]),
+            },
+        )
+        env.reset(seed=self.seed)
+        return env
+
+    @cached_property
+    def eval_env(self) -> gym.Env:
+        env = PointMassEnv(
+            init_state_dist={
+                "low": np.array([5.0, -1.0, 0.0, 0.0]),
+                "high": np.array([5.0, 1.0, 0.0, 0.0]),
+            },
+        )
+        env.reset(seed=self.seed)
+        return env
