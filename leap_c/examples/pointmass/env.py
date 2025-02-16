@@ -350,13 +350,27 @@ class PointMassEnv(gym.Env):
         max_time: float = 10.0,
         render_mode: str | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=0.1, cy=0.1),
+        observation_space: spaces.Box = spaces.Box(
+            low=np.array([0.0, -5.0, -50.0, -50.0]),
+            high=np.array([11.0, +5.0, 50.0, 50.0]),
+            dtype=np.float64,
+        ),
+        init_state_dist: dict[str, np.ndarray] = {
+            "low": np.array([10.0, -5.0, 0.0, 0.0]),
+            "high": np.array([10.0, 5.0, 0.0, 0.0]),
+        },
+        Fmax: float = 3.0,
         wind_field=WindField(
             [
-                BaseWind(param=BaseWindParam(magnitude=(-1.0, 1.0))),
-                RandomWind(param=RandomWindParam()),
-                VariationWind(param=VariationWindParam()),
-                VortexWind(param=VortexParam(center=(6, 5.0))),
-                WindTunnel(param=WindTunnelParam()),
+                # BaseWind(param=BaseWindParam(magnitude=(-1.0, 1.0))),
+                # RandomWind(param=RandomWindParam()),
+                # VariationWind(param=VariationWindParam()),
+                # VortexWind(param=VortexParam(center=(6, 5.0))),
+                WindTunnel(
+                    param=WindTunnelParam(
+                        center=(0, 0), magnitude=(0, 1.5), decay=(0.0, 0.1)
+                    )
+                ),
             ]
         ),
     ):
@@ -365,23 +379,15 @@ class PointMassEnv(gym.Env):
         # self.wind_param = wind_param
         self.wind_field = wind_field
 
-        self.init_state_dist = {
-            "low": np.array([1.0, 1.0, 0.0, 0.0]),
-            "high": np.array([9.0, 9.0, 0.0, 0.0]),
-        }
+        self.init_state_dist = init_state_dist
 
         self.input_noise_dist = {
             "low": -1.0,
             "high": 1.0,
         }
 
-        self.observation_space = spaces.Box(
-            low=np.array([0.0, 0.0, -50.0, -50.0]),
-            high=np.array([10.0, 10.0, 50.0, 50.0]),
-            dtype=np.float64,
-        )
+        self.observation_space = observation_space
 
-        Fmax = 3.0
         self.action_space = spaces.Box(
             low=np.array([-Fmax, -Fmax]),
             high=np.array([Fmax, Fmax]),
@@ -532,7 +538,6 @@ class PointMassEnv(gym.Env):
         fig = plt.figure(figsize=(10, 10))
         plt.xlabel("x")
         plt.ylabel("y")
-        plt.grid()
 
         self.canvas = FigureCanvas(fig)
 
@@ -550,6 +555,8 @@ class PointMassEnv(gym.Env):
         # Draw velocity field
         X, Y, U, V, wind_mag = map_wind_field(
             wind_field=self.wind_field,
+            xlim=(self.observation_space.low[0], self.observation_space.high[0]),
+            ylim=(self.observation_space.low[1], self.observation_space.high[1]),
             nx=30,
             ny=30,
         )
@@ -565,16 +572,16 @@ class PointMassEnv(gym.Env):
         self.quiver = quiver
 
         # Draw constraint boundary
-        rect = plt.Rectangle(
-            (self.observation_space.low[0], self.observation_space.low[1]),
-            width=(self.observation_space.high[0] - self.observation_space.low[0]),
-            height=(self.observation_space.high[1] - self.observation_space.low[1]),
-            fill=False,  # Set to True if you want a filled rectangle
-            color="k",
-            linewidth=2,
-            linestyle="--",
-        )
-        self.canvas.figure.get_axes()[0].add_patch(rect)
+        # rect = plt.Rectangle(
+        #     (self.observation_space.low[0], self.observation_space.low[1]),
+        #     width=(self.observation_space.high[0] - self.observation_space.low[0]),
+        #     height=(self.observation_space.high[1] - self.observation_space.low[1]),
+        #     fill=False,  # Set to True if you want a filled rectangle
+        #     color="k",
+        #     linewidth=2,
+        #     linestyle="--",
+        # )
+        # self.canvas.figure.get_axes()[0].add_patch(rect)
 
         # Set axis limits tight
         # plt.tight_layout()
@@ -605,8 +612,8 @@ class PointMassEnv(gym.Env):
             alpha=0.75,
         )
 
-        xwind = 8
-        ywind = 8
+        xwind = 0
+        ywind = 0
         uv = self.wind_field(xwind, ywind)
 
         self.wind_arrow = plt.arrow(
@@ -654,6 +661,11 @@ class PointMassEnv(gym.Env):
         self.canvas.figure.get_axes()[0].set_ylim(
             self.observation_space.low[1], self.observation_space.high[1]
         )
+
+        # Set axis equal
+        # plt.axis("equal")
+        # plt.show()
+        # exit(0)
 
     def render(self):
         self.line.set_xdata([x[0] for x in self.trajectory])
