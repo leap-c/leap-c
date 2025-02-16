@@ -443,10 +443,11 @@ class PointMassEnv(gym.Env):
 
         term = self._is_done()
 
-        trunc = False
         info = {}
 
         self.time += self.dt
+
+        trunc = self.time > self.max_time
 
         self.trajectory.append(o)
 
