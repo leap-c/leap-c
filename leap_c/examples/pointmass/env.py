@@ -347,19 +347,19 @@ class PointMassEnv(gym.Env):
     def __init__(
         self,
         dt: float = 2 / 20,
-        max_time: float = 10.0,
+        max_time: float = 5.0,
         render_mode: str | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=0.1, cy=0.1),
+        Fmax: float = 5.0,
         observation_space: spaces.Box = spaces.Box(
             low=np.array([0.0, -5.0, -50.0, -50.0]),
-            high=np.array([11.0, +5.0, 50.0, 50.0]),
+            high=np.array([6.0, +5.0, 50.0, 50.0]),
             dtype=np.float64,
         ),
         init_state_dist: dict[str, np.ndarray] = {
-            "low": np.array([10.0, -5.0, 0.0, 0.0]),
-            "high": np.array([10.0, 5.0, 0.0, 0.0]),
+            "low": np.array([5.0, -5.0, 0.0, 0.0]),
+            "high": np.array([5.0, 5.0, 0.0, 0.0]),
         },
-        Fmax: float = 3.0,
         wind_field=WindField(
             [
                 # BaseWind(param=BaseWindParam(magnitude=(-1.0, 1.0))),
@@ -368,7 +368,7 @@ class PointMassEnv(gym.Env):
                 # VortexWind(param=VortexParam(center=(6, 5.0))),
                 WindTunnel(
                     param=WindTunnelParam(
-                        center=(0, 0), magnitude=(0, 1.5), decay=(0.0, 0.1)
+                        center=(0, 0), magnitude=(0, 4.0), decay=(0.0, 0.1)
                     )
                 ),
             ]
@@ -439,7 +439,7 @@ class PointMassEnv(gym.Env):
         r = self._calculate_reward()
 
         if self.state not in self.observation_space:
-            r -= 3e2
+            r -= 50
 
         term = self._is_done()
 
@@ -510,7 +510,15 @@ class PointMassEnv(gym.Env):
         #     f"Position: {self.state[:2]}, Velocity: {self.state[2:]}, Distance: {distance}, Force: {self.u}, Power: {power}, Work: {work}"
         # )
 
-        reward = -distance - 10 * power
+        reward = -self.dt * (distance + 5 * power)
+
+        distance = np.linalg.norm(self.state[:2])
+        velocity = np.linalg.norm(self.state[2:])
+
+        close_to_zero = distance < self.terminal_radius and velocity < 0.5
+
+        if close_to_zero:
+            reward += 50
         # reward = -distance - 10 * work
         return reward
 
