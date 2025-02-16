@@ -23,11 +23,12 @@ class PointMassTask(Task):
                 # "cx",
                 # "cy",
                 "q_diag",
-                "r_diag",
-                "q_diag_e",
-                # "xref",
-                # "uref",
+                # "r_diag",
+                # "q_diag_e",
+                "xref",
+                "uref",
                 # "xref_e",
+                # "u_wind",
             ]
         )
         mpc_layer = MPCSolutionModule(mpc)
@@ -55,8 +56,8 @@ class PointMassTask(Task):
     def train_env(self) -> gym.Env:
         env = PointMassEnv(
             init_state_dist={
-                "low": np.array([10.0, -5.0, 0.0, 0.0]),
-                "high": np.array([10.0, 5.0, 0.0, 0.0]),
+                "low": np.array([1.0, 0.0, 0.0, 0.0]),
+                "high": np.array([5.0, 5.0, 0.0, 0.0]),
             },
         )
         env.reset(seed=self.seed)
@@ -66,8 +67,8 @@ class PointMassTask(Task):
     def eval_env(self) -> gym.Env:
         env = PointMassEnv(
             init_state_dist={
-                "low": np.array([10.0, -1.0, 0.0, 0.0]),
-                "high": np.array([10.0, 1.0, 0.0, 0.0]),
+                "low": np.array([5.0, 3.0, 0.0, 0.0]),
+                "high": np.array([5.0, 5.0, 0.0, 0.0]),
             },
         )
         env.reset(seed=self.seed)
