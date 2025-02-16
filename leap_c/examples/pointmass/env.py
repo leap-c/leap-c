@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Callable
 from dataclasses import dataclass
 
 import gymnasium as gym
@@ -7,6 +7,129 @@ from gymnasium import spaces
 import casadi as ca
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+
+
+@dataclass(kw_only=True)
+class WindTunnelParam:
+    magnitude: tuple[float, float] = (0, 1.5)
+    decay: tuple[float, float] = (0.0, 0.1)
+    center: tuple[float, float] = (0, 0)
+
+
+@dataclass(kw_only=True)
+class VortexParam:
+    center: tuple[float, float] = (2.5, 0.0)
+    magnitude: float = 8.0
+    decay: float = 0.5
+    direction: float = 1.0
+
+
+@dataclass(kw_only=True)
+class BaseWindParam:
+    magnitude: tuple[float, float] = (-1.0, 1.0)
+
+
+@dataclass(kw_only=True)
+class VariationWindParam:
+    scale: float = 0.3
+    magnitude: tuple[float, float] = (2, 1.5)
+
+
+@dataclass(kw_only=True)
+class RandomWindParam:
+    magnitude: float = 0.1
+    seed: int = 1000
+    dx: int = 10
+    dy: int = 6
+
+
+class VortexWind:
+    p: VortexParam
+
+    def __init__(self, param: VortexParam):
+        self.p = param
+
+    def __call__(self, x, y):
+        dx = x - self.p.center[0]
+        dy = y - self.p.center[1]
+        r = np.sqrt(dx**2 + dy**2)
+        theta = np.arctan2(dy, dx)
+
+        # Tangential velocity decreases with radius
+        v_theta = self.p.magnitude * np.exp(-self.p.decay * r)
+
+        return v_theta * np.array(
+            [-self.p.direction * np.sin(theta), self.p.direction * np.cos(theta)]
+        )
+
+
+class BaseWind:
+    p: BaseWindParam
+
+    def __init__(self, param: BaseWindParam):
+        self.p = param
+
+    def __call__(self, x, y):
+        return np.array(self.p.magnitude)
+
+
+class VariationWind:
+    p: VariationWindParam
+
+    # def __init__(self, scale: float, magnitude: tuple[float, float] = (2, 1.5)):
+    def __init__(self, param: VariationWindParam):
+        self.p = param
+
+    def __call__(self, x, y):
+        u = self.p.magnitude[0] * np.sin(self.p.scale * y)
+        v = self.p.magnitude[1] * np.cos(self.p.scale * x)
+        return np.array([u, v])
+
+
+class RandomWind:
+    p: RandomWindParam
+
+    def __init__(
+        self,
+        param: RandomWindParam,
+    ):
+        self.p = param
+
+    def __call__(self, x, y):
+        np.random.seed(
+            int((x + self.p.dx) * self.p.seed) + int((y + self.p.dy) * self.p.seed)
+        )
+        u = np.random.randn() * self.p.magnitude
+        v = np.random.randn() * self.p.magnitude
+        return np.array([u, v])
+
+
+class WindTunnel:
+    p: WindTunnelParam
+
+    def __init__(
+        self,
+        param: WindTunnelParam,
+    ):
+        self.p = param
+
+    def __call__(self, x, y):
+        return np.array(
+            [
+                self.p.magnitude[1]
+                * np.exp(-self.p.decay[1] * (y - self.p.center[1]) ** 2),
+                self.p.magnitude[0]
+                * np.exp(-self.p.decay[0] * (x - self.p.center[0]) ** 2),
+            ]
+        )
+
+
+class WindField:
+    def __init__(self, wind_partial: list[Callable]):
+        self.wind_partial = wind_partial
+
+    def __call__(self, x, y):
+        return np.sum([wind(x, y) for wind in self.wind_partial], axis=0)
 
 
 @dataclass
@@ -95,14 +218,12 @@ def get_wind_velocity(
     return u, v
 
 
-def test_wind_velocity(
+def map_wind_field(
+    wind_field: WindField,
     xlim=[0, 10],
     ylim=[0, 10],
     nx=100,
     ny=100,
-    scale=0.1,
-    vortex_center=(5, 5),
-    vortex_strength=1.0,
 ):
     """
     Test the wind velocity function using a grid of positions.
@@ -129,13 +250,7 @@ def test_wind_velocity(
     # Compute velocities for each grid point
     for i in range(ny):
         for j in range(nx):
-            U[i, j], V[i, j] = get_wind_velocity(
-                X[i, j],
-                Y[i, j],
-                scale=scale,
-                vortex_center=vortex_center,
-                vortex_strength=vortex_strength,
-            )
+            U[i, j], V[i, j] = wind_field(X[i, j], Y[i, j])
 
     # Compute and print some statistics
     wind_mag = np.sqrt(U**2 + V**2)
@@ -235,11 +350,20 @@ class PointMassEnv(gym.Env):
         max_time: float = 10.0,
         render_mode: str | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=0.1, cy=0.1),
-        wind_param: WindParam = WindParam(),
+        wind_field=WindField(
+            [
+                BaseWind(param=BaseWindParam(magnitude=(-1.0, 1.0))),
+                RandomWind(param=RandomWindParam()),
+                VariationWind(param=VariationWindParam()),
+                VortexWind(param=VortexParam(center=(6, 5.0))),
+                WindTunnel(param=WindTunnelParam()),
+            ]
+        ),
     ):
         super().__init__()
 
-        self.wind_param = wind_param
+        # self.wind_param = wind_param
+        self.wind_field = wind_field
 
         self.init_state_dist = {
             "low": np.array([1.0, 1.0, 0.0, 0.0]),
@@ -297,11 +421,7 @@ class PointMassEnv(gym.Env):
 
         self.u = u
 
-        wind_u, wind_v = get_wind_velocity(
-            self.state[0], self.state[1], **self.wind_param.__dict__
-        )
-
-        self.u_wind = np.array([wind_u, wind_v])
+        self.u_wind = self.wind_field(self.state[0], self.state[1])
 
         self.u_dist = 0.0 * self.input_noise * u
 
@@ -428,8 +548,10 @@ class PointMassEnv(gym.Env):
         (self.point,) = plt.plot([0], [0], "ko")
 
         # Draw velocity field
-        X, Y, U, V, wind_mag = test_wind_velocity(
-            nx=30, ny=30, **self.wind_param.__dict__
+        X, Y, U, V, wind_mag = map_wind_field(
+            wind_field=self.wind_field,
+            nx=30,
+            ny=30,
         )
 
         contour = plt.contourf(X, Y, wind_mag, levels=20, cmap="viridis")
@@ -485,12 +607,13 @@ class PointMassEnv(gym.Env):
 
         xwind = 8
         ywind = 8
-        uwind, vwind = get_wind_velocity(xwind, ywind)
+        uv = self.wind_field(xwind, ywind)
+
         self.wind_arrow = plt.arrow(
             xwind,
             ywind,
-            uwind / quiver.scale,
-            vwind / quiver.scale,
+            uv[0] / quiver.scale,
+            uv[1] / quiver.scale,
             head_width=0.1,
             head_length=0.1,
             fc="b",
