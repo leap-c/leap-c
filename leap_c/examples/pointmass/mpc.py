@@ -1,6 +1,6 @@
 import numpy as np
 from acados_template import AcadosOcp
-from casadi.tools import struct_symSX
+from casadi.tools import struct_symSX, entry
 from leap_c.linear_mpc import LinearMPC
 from leap_c.mpc import MPC
 import casadi as ca
@@ -40,6 +40,7 @@ class PointMassMPC(MPC):
                 "xref": np.array([0.0, 0.0, 0.0, 0.0]),
                 "uref": np.array([0.0, 0.0]),
                 "xref_e": np.array([0.0, 0.0, 0.0, 0.0]),
+                "u_wind": np.array([0.0, 0.0]),
             }
             if params is None
             else params
@@ -93,7 +94,7 @@ def _disc_dyn_expr(
     B = _B_disc(m=m, cx=cx, cy=cy, dt=dt)
 
     if wind_param is None:
-        u_wind = ca.vertcat(0.0, 0.0)
+        u_wind = find_param_in_p_or_p_global(["u_wind"], ocp.model)["u_wind"]
     else:
         u_wind_x, u_wind_y = get_wind_velocity(
             x=ocp.model.x[0],
@@ -161,6 +162,8 @@ def export_parametric_ocp(
 
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
+
+    # ocp.model.p = struct_symSX([entry("u_wind", shape=(2, 1))])
 
     ocp = translate_learnable_param_to_p_global(
         nominal_param=nominal_param, learnable_param=learnable_params, ocp=ocp
