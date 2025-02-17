@@ -350,7 +350,7 @@ class PointMassEnv(gym.Env):
         max_time: float = 5.0,
         render_mode: str | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=0.1, cy=0.1),
-        Fmax: float = 5.0,
+        Fmax: float = 8.0,
         observation_space: spaces.Box = spaces.Box(
             low=np.array([0.0, -5.0, -50.0, -50.0]),
             high=np.array([6.0, +5.0, 50.0, 50.0]),
@@ -368,7 +368,7 @@ class PointMassEnv(gym.Env):
                 # VortexWind(param=VortexParam(center=(6, 5.0))),
                 WindTunnel(
                     param=WindTunnelParam(
-                        center=(0, 0), magnitude=(0, 4.0), decay=(0.0, 0.1)
+                        center=(0, 0), magnitude=(0, 3.0), decay=(0.0, 0.1)
                     )
                 ),
             ]

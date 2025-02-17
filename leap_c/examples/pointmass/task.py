@@ -55,6 +55,7 @@ class PointMassTask(Task):
     @cached_property
     def train_env(self) -> gym.Env:
         env = PointMassEnv(
+            max_time=10.0,
             init_state_dist={
                 "low": np.array([1.0, 0.0, 0.0, 0.0]),
                 "high": np.array([5.0, 5.0, 0.0, 0.0]),
@@ -66,6 +67,7 @@ class PointMassTask(Task):
     @cached_property
     def eval_env(self) -> gym.Env:
         env = PointMassEnv(
+            max_time=10.0,
             init_state_dist={
                 "low": np.array([5.0, 3.0, 0.0, 0.0]),
                 "high": np.array([5.0, 5.0, 0.0, 0.0]),
@@ -96,6 +98,13 @@ class PointMassTaskHomoCenter(PointMassTask):
                 "low": np.array([1.0, -5.0, 0.0, 0.0]),
                 "high": np.array([5.0, 5.0, 0.0, 0.0]),
             },
+            observation_space=spaces.Box(
+                low=np.array([0.0, -5.0, -50.0, -50.0]),
+                high=np.array([8.0, +5.0, 50.0, 50.0]),
+                dtype=np.float64,
+            ),
+            max_time=10.0,
+            Fmax=10.0,
         )
         env.reset(seed=self.seed)
         return env
@@ -107,6 +116,13 @@ class PointMassTaskHomoCenter(PointMassTask):
                 "low": np.array([5.0, -1.0, 0.0, 0.0]),
                 "high": np.array([5.0, 1.0, 0.0, 0.0]),
             },
+            observation_space=spaces.Box(
+                low=np.array([0.0, -5.0, -50.0, -50.0]),
+                high=np.array([8.0, +5.0, 50.0, 50.0]),
+                dtype=np.float64,
+            ),
+            max_time=10.0,
+            Fmax=10.0,
         )
         env.reset(seed=self.seed)
         return env
