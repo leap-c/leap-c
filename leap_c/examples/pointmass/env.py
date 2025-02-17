@@ -347,13 +347,13 @@ class PointMassEnv(gym.Env):
     def __init__(
         self,
         dt: float = 2 / 20,
-        max_time: float = 5.0,
+        max_time: float = 10.0,
         render_mode: str | None = None,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=0.1, cy=0.1),
-        Fmax: float = 8.0,
+        Fmax: float = 10.0,
         observation_space: spaces.Box = spaces.Box(
-            low=np.array([0.0, -5.0, -50.0, -50.0]),
-            high=np.array([6.0, +5.0, 50.0, 50.0]),
+            low=np.array([0.0, -8.0, -50.0, -50.0]),
+            high=np.array([6.0, +8.0, 50.0, 50.0]),
             dtype=np.float64,
         ),
         init_state_dist: dict[str, np.ndarray] = {
