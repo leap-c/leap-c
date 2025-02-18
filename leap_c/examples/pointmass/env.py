@@ -63,6 +63,26 @@ class VortexWind:
         )
 
 
+class InverseVortexWind:
+    p: VortexParam
+
+    def __init__(self, param: VortexParam):
+        self.p = param
+
+    def __call__(self, x, y):
+        dx = x - self.p.center[0]
+        dy = y - self.p.center[1]
+        r = np.sqrt(dx**2 + dy**2)
+        theta = np.arctan2(dy, dx)
+
+        # Tangential velocity decreases with radius
+        v_theta = self.p.magnitude * np.exp(-self.p.decay * r)
+
+        return v_theta * np.array(
+            [self.p.direction * np.sin(theta), self.p.direction * np.cos(theta)]
+        )
+
+
 class BaseWind:
     p: BaseWindParam
 
