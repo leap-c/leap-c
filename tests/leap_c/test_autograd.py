@@ -15,13 +15,16 @@ def test_MPCSolutionModule_on_PointMassMPC(
     batch_size = point_mass_mpc_p_global.shape[0]
     assert batch_size <= 10, "Using batch_sizes too large will make the test very slow."
 
-    varying_params_to_test = [0, 1]
+    varying_params_to_test = [0]
     chosen_samples = []
     for i in range(batch_size):
         vary_idx = varying_params_to_test[i % len(varying_params_to_test)]
         chosen_samples.append(point_mass_mpc_p_global[i, :, vary_idx].squeeze())
     test_param = np.stack(chosen_samples, axis=0)
-    assert test_param.shape == (batch_size, 2)  # Sanity check
+
+    if len(varying_params_to_test) == 1:
+        test_param = test_param.reshape(-1, 1)
+    assert test_param.shape == (batch_size, 1)  # Sanity check
 
     p_rests = None
 

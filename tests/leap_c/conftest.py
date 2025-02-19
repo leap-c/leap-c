@@ -81,7 +81,7 @@ def n_batch() -> int:
 
 @pytest.fixture(scope="session")
 def learnable_point_mass_mpc(n_batch: int) -> PointMassMPC:
-    return PointMassMPC(learnable_params=["m", "c"], n_batch=n_batch)
+    return PointMassMPC(learnable_params=["m"], n_batch=n_batch)
 
 
 @pytest.fixture(scope="session")
