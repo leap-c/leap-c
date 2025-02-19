@@ -71,8 +71,8 @@ class ValConfig:
         render_interval_validation: The interval at which validation episodes will be rendered.
     """
 
-    interval: int = 50000
-    num_rollouts: int = 20
+    interval: int = 10000
+    num_rollouts: int = 10 
     deterministic: bool = True
 
     ckpt_modus: str = "best"

@@ -209,7 +209,7 @@ class SACFOUTrainer(Trainer):
                 log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
-                target_entropy = -np.prod(self.train_env.action_space.shape)  # type: ignore
+                target_entropy = -np.prod(self.task.param_space.shape)  # type: ignore
                 alpha_loss = -torch.mean(
                     self.log_alpha.exp() * (log_p + target_entropy).detach()
                 )

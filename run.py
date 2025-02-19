@@ -92,7 +92,7 @@ if __name__ == "__main__":
     cfg = create_cfg(args.trainer, args.seed)
 
     if args.output_path is None:
-        output_path = default_output_path(args.trainer_name, args.task_name, cfg.seed)
+        output_path = default_output_path(args.trainer, args.task, cfg.seed)
     else:
         output_path = args.output_path
 
