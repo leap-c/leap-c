@@ -10,7 +10,7 @@ import torch
 from gymnasium import Env
 from gymnasium.utils.save_video import save_video
 from leap_c.rl.replay_buffer import ReplayBuffer
-from leap_c.util import add_prefix_extend, create_dir_if_not_exists
+from leap_c.utils import add_prefix_extend, create_dir_if_not_exists
 
 
 def very_crude_debug_memory_leak():

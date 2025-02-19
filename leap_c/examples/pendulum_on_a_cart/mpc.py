@@ -10,7 +10,7 @@ from leap_c.examples.util import (
     translate_learnable_param_to_p_global,
 )
 from leap_c.mpc import MPC
-from leap_c.util import set_standard_sensitivity_options
+from leap_c.utils import set_standard_sensitivity_options
 
 
 # DO NOT TOUCH THE DEFAULT CONFIG!

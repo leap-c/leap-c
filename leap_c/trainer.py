@@ -15,6 +15,7 @@ from yaml import dump
 
 from leap_c.task import Task
 from leap_c.rollout import episode_rollout
+from leap_c.utils import set_seed
 
 
 @dataclass(kw_only=True)
@@ -177,6 +178,9 @@ class Trainer(ABC, nn.Module):
         # log dataclass config as yaml
         with open(self.output_path / "config.yaml", "w") as f:
             dump(cfg, f)
+
+        # seed
+        set_seed(cfg.seed)
 
     @abstractmethod
     def train_loop(self) -> Iterator[int]:

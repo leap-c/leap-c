@@ -15,7 +15,7 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpIterate,
 )
 
-from leap_c.util import (
+from leap_c.utils import (
     AcadosFileManager,
     set_standard_sensitivity_options,
     SX_to_labels,

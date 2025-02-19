@@ -1,3 +1,5 @@
+"""Main script to run experiments."""
+
 from argparse import ArgumentParser
 from dataclasses import asdict
 import datetime
@@ -13,9 +15,8 @@ from leap_c.trainer import BaseConfig
 def print_inputs(
     trainer_name: str,
     task_name: str,
-    output_path: Path,
+    output_path: Path | None,
     device: str,
-    seed: int,
     cfg: BaseConfig,
 ):
     print("Running RL with the following inputs:")
@@ -23,41 +24,55 @@ def print_inputs(
     print(f"task_name:\t{task_name}")
     print(f"output_path:\t{output_path}")
     print(f"device:  \t{device}")
+    print(f"cfg.seed:    \t{cfg.seed}")
 
     # Report on the configuration
     print("\nConfiguration:")
     print(yaml.dump(asdict(cfg), default_flow_style=False))
 
 
-def default_output_path() -> Path:
-    # derive output path from date and time
+def default_output_path(trainer_name: str, task_name: str, seed: int) -> Path:
     now = datetime.datetime.now()
-    return Path(f"output/{now.strftime('%Y_%m_%d/%H_%M_%S')}")
+    date = now.strftime("%Y_%m_%d")
+    time = now.strftime("%H_%M_%S")
+
+    return Path(f"output/{date}/{time}_{task_name}_{trainer_name}_seed_{seed}")
+
+
+def create_cfg(trainer_name: str, seed: int) -> BaseConfig:
+    cfg = create_default_cfg(trainer_name)
+    cfg.seed = seed
+
+    return cfg
 
 
 def main(
-    trainer_name: str, task_name: str, output_path: Path | None, device: str, seed: int
+    trainer_name: str,
+    task_name: str,
+    cfg: BaseConfig,
+    output_path: Path,
+    device: str,
 ):
-    if output_path is None:
-        output_path = default_output_path()
-        if output_path.exists():
-            raise ValueError(f"Output path {output_path} already exists")
+    """Main function to run experiments.
+
+    Args:
+        trainer_name: Name of the trainer to use.
+        task_name: Name of the task to use.
+        cfg: The configuration to use.
+        output_path: Path to save output to.
+        device: Device to run on.
+    """
+    if output_path.exists():
+        raise ValueError(f"Output path {output_path} already exists")
 
     task = create_task(task_name)
     cfg = create_default_cfg(trainer_name)
-    cfg.seed = seed
-    cfg.val.num_render_rollouts = 1
-    cfg.val.num_rollouts = 1
-    cfg.val.interval = 2000
-    cfg.val.deterministic = True
-    # cfg.sac.update_freq = 20  # type: ignore
 
     print_inputs(
         trainer_name=trainer_name,
         task_name=task_name,
         output_path=output_path,
         device=device,
-        seed=seed,
         cfg=cfg,
     )
 
@@ -74,4 +89,11 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
 
-    main(args.trainer, args.task, args.output_path, args.device, args.seed)
+    cfg = create_cfg(args.trainer, args.seed)
+
+    if args.output_path is None:
+        output_path = default_output_path(args.trainer_name, args.task_name, cfg.seed)
+    else:
+        output_path = args.output_path
+
+    main(args.trainer, args.task, cfg, output_path, args.device)
