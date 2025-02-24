@@ -1,12 +1,12 @@
+import datetime
 from argparse import ArgumentParser
 from dataclasses import asdict
-import datetime
 from pathlib import Path
-import yaml
 
 import leap_c.examples  # noqa: F401
 import leap_c.rl  # noqa: F401
-from leap_c.registry import create_task, create_default_cfg, create_trainer
+import yaml
+from leap_c.registry import create_default_cfg, create_task, create_trainer
 from leap_c.trainer import BaseConfig
 
 
