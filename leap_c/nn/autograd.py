@@ -10,7 +10,7 @@ import torch.autograd as autograd
 from acados_template import AcadosSimSolver
 
 from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCParameter
-from leap_c.util import tensor_to_numpy
+from leap_c.utils import tensor_to_numpy
 
 
 class AutogradCasadiFunction(autograd.Function):

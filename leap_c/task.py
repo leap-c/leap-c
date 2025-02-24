@@ -127,6 +127,8 @@ class Task:
         """
         env = self.env_factory()
         env.reset(seed=self.seed)
+        env.observation_space.seed(self.seed)
+        env.action_space.seed(self.seed)
         return env
 
     @cached_property
@@ -138,6 +140,8 @@ class Task:
         """
         env = self.env_factory()
         env.reset(seed=self.seed)
+        env.observation_space.seed(self.seed)
+        env.action_space.seed(self.seed)
         return env
 
     def collate(self, data, device):

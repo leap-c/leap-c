@@ -4,7 +4,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 from leap_c.mpc import MPC, MPCBatchedState, MPCParameter
 from leap_c.nn.modules import MPCSolutionModule
-from leap_c.util import add_prefix_extend, put_each_index_of_tensor_as_entry_into
+from leap_c.utils import add_prefix_extend, put_each_index_of_tensor_as_entry_into
 from torch.distributions import Normal
 
 

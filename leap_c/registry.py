@@ -46,7 +46,7 @@ def create_default_cfg(name: str) -> BaseConfig:
 def create_trainer(
     name: str,
     task: Task,
-    output_path: str | Path,
+    output_path: str | Path | None,
     device: str,
     cfg: None | BaseConfig = None,
 ) -> Trainer:

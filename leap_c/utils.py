@@ -2,6 +2,7 @@ import atexit
 import os
 import shutil
 from pathlib import Path
+import random
 from tempfile import mkdtemp
 from typing import Any
 
@@ -186,3 +187,12 @@ def set_standard_sensitivity_options(ocp_sensitivity: AcadosOcp):
     ocp_sensitivity.solver_options.with_solution_sens_wrt_params = True
     ocp_sensitivity.solver_options.with_value_sens_wrt_params = True
     ocp_sensitivity.model.name += "_sensitivity"  # type:ignore
+
+
+def set_seed(seed: int):
+    """Set the seed for all random number generators."""
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
