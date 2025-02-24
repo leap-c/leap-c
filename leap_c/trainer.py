@@ -1,21 +1,21 @@
+import bisect
 from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator, Any
-import bisect
+from typing import Any, Iterator
 
-import wandb
 import numpy as np
+import pandas as pd
 import torch
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
-import pandas as pd
 from yaml import dump
 
-from leap_c.task import Task
+import wandb
 from leap_c.rollout import episode_rollout
-from leap_c.utils import set_seed
+from leap_c.task import Task
+from leap_c.utils import add_prefix_extend, set_seed
 
 
 @dataclass(kw_only=True)
@@ -72,7 +72,7 @@ class ValConfig:
     """
 
     interval: int = 10000
-    num_rollouts: int = 10 
+    num_rollouts: int = 10
     deterministic: bool = True
 
     ckpt_modus: str = "best"
@@ -263,6 +263,8 @@ class Trainer(ABC, nn.Module):
             print(f"Step: {timestamp}, {group}: {stats}")
 
         if self.cfg.log.wandb_logger:
+            newstats = {}
+            add_prefix_extend(prefix=group + "/", extended=newstats, extending=stats)
             wandb.log(stats, step=timestamp)
 
         if self.cfg.log.tensorboard_logger:

@@ -23,6 +23,7 @@ from leap_c.trainer import (
     Trainer,
     ValConfig,
 )
+from leap_c.utils import collect_status, sum_up_dict
 
 LOG_STD_MIN = -4
 LOG_STD_MAX = 2
@@ -47,6 +48,17 @@ class SACFOUBaseConfig(BaseConfig):
     seed: int = 0
 
 
+def update_mpc_stats(mpc_stats: dict, mpc_stats_summed_up: dict):
+    first_solve_status = mpc_stats.pop("first_solve_status")
+    first_solve_status = collect_status(first_solve_status)
+    mpc_stats["first_solve_status_0"] = first_solve_status[0]
+    mpc_stats["first_solve_status_1"] = first_solve_status[1]
+    mpc_stats["first_solve_status_2"] = first_solve_status[2]
+    mpc_stats["first_solve_status_3"] = first_solve_status[3]
+    mpc_stats["first_solve_status_4"] = first_solve_status[4]
+    sum_up_dict(mpc_stats, mpc_stats_summed_up)
+
+
 class MPCSACActor(nn.Module):
     def __init__(
         self,
@@ -66,7 +78,7 @@ class MPCSACActor(nn.Module):
         )
 
         self.trainer = {"trainer": trainer}
-        self.mpc: MPCSolutionModule = task.mpc
+        self.mpc: MPCSolutionModule = task.mpc  # type:ignore
         self.prepare_mpc_input = task.prepare_mpc_input
 
         # add scaling params
@@ -112,9 +124,18 @@ class MPCSACActor(nn.Module):
             )
 
         mpc_input = self.prepare_mpc_input(obs, param)
-        mpc_output, state, stats = self.mpc(mpc_input, mpc_state)
+        mpc_output, state_solution, stats = self.mpc(
+            mpc_input, mpc_state
+        )  # TODO: We have to catch and probably replace the state_solution somewhere, if its not a converged solution
 
-        return mpc_output.u0, log_prob, mpc_output.status, state, stats
+        return (
+            mpc_output.u0,
+            log_prob,
+            mpc_output.status,
+            state_solution,
+            param,
+            stats,
+        )
 
 
 @register_trainer("sac_fou", SACFOUBaseConfig())
@@ -151,10 +172,16 @@ class SACFOUTrainer(Trainer):
 
         self.to(device)
 
+    def init_policy_state(self) -> Any:
+        return (
+            self.pi.mpc.mpc.ocp_solver.store_iterate_to_flat_obj()
+        )  # State full of zeros
+
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
         episode_return = episode_length = np.inf
-        policy_state = None
+        policy_state = self.init_policy_state()
+        mpc_stats_summed_up = {}
 
         while True:
             if is_terminated or is_truncated:
@@ -164,28 +191,34 @@ class SACFOUTrainer(Trainer):
                         "episode_return": episode_return,
                         "episode_length": episode_length,
                     }
-                    self.report_stats("train", stats, self.state.step)
+                    self.report_stats("train_rollout", stats, self.state.step)
                 policy_state = self.init_policy_state()
+                mpc_stats_summed_up = {}
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
+            action, policy_state_prime, param, status, mpc_stats = self.act(
+                obs, state=policy_state
+            )
 
-            action, policy_state_prime = self.act(obs, state=policy_state)  # type: ignore
             obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
                 action
             )
 
             episode_return += float(reward)
             episode_length += 1
+            update_mpc_stats(mpc_stats, mpc_stats_summed_up)
 
-            # TODO (Jasper): Add is_truncated to buffer.
             self.buffer.put(
                 (
                     obs,
                     action,
                     reward,
                     obs_prime,
-                    policy_state_prime,
                     is_terminated,
+                    is_truncated,
+                    policy_state,
+                    policy_state_prime,
+                    param,
                 )
             )  # type: ignore
 
@@ -198,12 +231,12 @@ class SACFOUTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, ps_prime, te = self.buffer.sample(
+                o, a, r, o_prime, te, tr, ps, ps_prime, param = self.buffer.sample(
                     self.cfg.sac.batch_size
                 )
 
                 # sample action
-                a_pi, log_p, status, _, _ = self.pi(o, ps_prime)
+                a_pi, log_p, status, state_sol, param, mpc_stats = self.pi(o, ps_prime)
                 log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
@@ -218,7 +251,14 @@ class SACFOUTrainer(Trainer):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    a_pi_prime, log_p_prime, _, _, _ = self.pi(o_prime, ps_prime)
+                    (
+                        a_pi_prime,
+                        log_p_prime,
+                        status_prime,
+                        state_sol_prime,
+                        param_prime,
+                        mpc_stats_prime,
+                    ) = self.pi(o_prime, ps_prime)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1).values
 
@@ -254,15 +294,27 @@ class SACFOUTrainer(Trainer):
                 report_freq = self.cfg.sac.report_loss_freq * self.cfg.sac.update_freq
 
                 if self.state.step % report_freq == 0:
+                    status_stats = collect_status(status)
                     loss_stats = {
                         "q_loss": q_loss.item(),
                         "pi_loss": pi_loss.item(),
                         "alpha": alpha,
                         "q": q.mean().item(),
                         "q_target": target.mean().item(),
-                        "not_converged": (status != 0).float().mean().item(),
+                        "train_not_converged": (status != 0).float().mean().item(),
+                        "train_perc_status_0": status_stats[0]
+                        / self.cfg.sac.batch_size,
+                        "train_perc_status_1": status_stats[1]
+                        / self.cfg.sac.batch_size,
+                        "train_perc_status_2": status_stats[2]
+                        / self.cfg.sac.batch_size,
+                        "train_perc_status_3": status_stats[3]
+                        / self.cfg.sac.batch_size,
+                        "train_perc_status_4": status_stats[4]
+                        / self.cfg.sac.batch_size,
                     }
-                    self.report_stats("loss", loss_stats, self.state.step + 1)
+
+                    self.report_stats("train_loss", loss_stats, self.state.step + 1)
 
             yield 1
 
@@ -271,13 +323,21 @@ class SACFOUTrainer(Trainer):
         obs,
         deterministic: bool = False,
         state=None,
-    ) -> tuple[np.ndarray, Any | None]:
+    ) -> tuple[np.ndarray, Any | None, np.ndarray, np.ndarray, dict]:
         obs = self.task.collate([obs], device=self.device)
 
         with torch.no_grad():
-            action, _, _, state, _ = self.pi(obs, state, deterministic=deterministic)
+            action, log_prob, status, state_solution, param, mpc_stats = self.pi(
+                obs, state, deterministic=deterministic
+            )
 
-        return action.cpu().numpy()[0], state
+        return (  # type:ignore
+            action.cpu().numpy()[0],
+            state_solution,
+            param.detach().cpu().numpy(),
+            status.cpu().numpy(),
+            mpc_stats,
+        )
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:

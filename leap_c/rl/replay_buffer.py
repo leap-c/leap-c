@@ -1,6 +1,7 @@
 import collections
 import random
-from typing import Any, Callable
+from enum import Enum
+from typing import Any
 
 import torch
 from torch.utils.data._utils.collate import collate
@@ -14,7 +15,6 @@ class ReplayBuffer:
         buffer_limit: int,
         device: str,
         tensor_dtype: torch.dtype = torch.float32,
-        input_transformation: Callable[[Any], Any] = None,
     ):
         """
         Args:
@@ -30,7 +30,6 @@ class ReplayBuffer:
         self.tensor_dtype = tensor_dtype
 
         self.collate_fn_map = create_collate_fn_map()
-        self.input_transformation = input_transformation
 
     def put(self, data: Any):
         """Put the data into the replay buffer. If the buffer is full, the oldest data is discarded.
@@ -39,8 +38,6 @@ class ReplayBuffer:
             data: The data to put into the buffer.
                 It should be collatable according to the custom_collate function.
         """
-        if self.input_transformation is not None:
-            data = self.input_transformation(data)
         self.buffer.append(data)
 
     def sample(self, n: int) -> Any:
@@ -62,3 +59,35 @@ class ReplayBuffer:
 
     def __len__(self):
         return len(self.buffer)
+
+
+class InitializationStrategy(Enum):
+    PREVIOUS = 0
+    DEFAULTINIT = 1
+    RELOAD = 2
+    RELOADWRITEBACK = 3
+    NN = 4
+
+
+# TODO finish when its time
+# class ReplayBufferReloadWriteback(ReplayBuffer):
+#     """This implements the initialization strategy where the previous solution is reloaded,
+#     but samples in the buffer can be updated."""
+
+#     def __init__(
+#         self, buffer_limit: int, device: str, tensor_dtype: torch.dtype = torch.float32
+#     ):
+#         super().__init__(buffer_limit, device, tensor_dtype)
+#         self.id = 0
+#         self.lookup: dict[int, Any] = dict()
+
+#     def rollout_state(self, input: MPCInput, state: MPCSingleState) -> MPCSingleState:
+#         return state
+
+#     def put(self, data: Any):
+#         """The same as the put of the usual ReplayBuffer, but also"""
+#         # append id for lookup later
+#         self.buffer.append(data)
+
+#     def writeback(self, id: int, data: Any):
+#         self.lookup[id] = data

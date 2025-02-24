@@ -6,7 +6,7 @@ from run import create_cfg, default_output_path, main
 
 class Experiment(Enum):
     POINTMASS_PLAINRL = 0
-    POINTMASS_FOU_SHIFT = 1
+    POINTMASS_FOU_PREVIOUS = 1
     POINTMASS_FOU_DEFAULTINIT = 2
     POINTMASS_FOU_RELOAD = 3
     POINTMASS_FOU_NN = 4
@@ -36,6 +36,12 @@ if __name__ == "__main__":
         task_name = "point_mass"
     else:
         raise ValueError("Unknown task")
+
+    if "PREVIOUS" in experiment.name:
+        pass
+    else:
+        if "PLAINRL" not in experiment.name:
+            raise ValueError("Unknown initialization")
 
     cfg = create_cfg(trainer_name="sac_fou", seed=seed)
     output_path = str.join(
