@@ -10,7 +10,6 @@ import torch
 import torch.nn as nn
 
 from leap_c.mpc import MPCBatchedState
-from leap_c.nn.gaussian import Gaussian
 from leap_c.nn.mlp import MLP, MLPConfig
 from leap_c.nn.modules import MPCSolutionModule
 from leap_c.registry import register_trainer
@@ -24,7 +23,6 @@ from leap_c.trainer import (
     Trainer,
     ValConfig,
 )
-
 
 LOG_STD_MIN = -4
 LOG_STD_MAX = 2
