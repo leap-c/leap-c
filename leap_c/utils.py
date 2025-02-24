@@ -31,9 +31,12 @@ def create_dir_if_not_exists(directory):
         os.mkdir(directory)
 
 
-def collect_status(status: torch.Tensor) -> list:
+def collect_status(status: np.ndarray | torch.Tensor | list) -> list:
     """Count how many occurrences of the respective status number there are in the given tensor."""
-    return [(status == i).sum().item() for i in range(5)]
+    if isinstance(status, list):
+        return [status.count(i) for i in range(5)]
+    else:
+        return [(status == i).sum().item() for i in range(5)]
 
 
 def sum_up_dict(d_in, d_sum):

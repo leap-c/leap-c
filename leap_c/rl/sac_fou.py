@@ -48,14 +48,23 @@ class SACFOUBaseConfig(BaseConfig):
     seed: int = 0
 
 
-def update_mpc_stats(mpc_stats: dict, mpc_stats_summed_up: dict):
+def put_status_into_stats(status: np.ndarray | torch.Tensor, stats: dict, prefix=""):
+    status_collection = collect_status(status)
+    stats[prefix + "status_0"] = status_collection[0]
+    stats[prefix + "status_1"] = status_collection[1]
+    stats[prefix + "status_2"] = status_collection[2]
+    stats[prefix + "status_3"] = status_collection[3]
+    stats[prefix + "status_4"] = status_collection[4]
+
+
+def update_mpc_stats_train_rollout(
+    mpc_stats: dict, mpc_stats_summed_up: dict, actual_status: np.ndarray | torch.Tensor
+):
     first_solve_status = mpc_stats.pop("first_solve_status")
-    first_solve_status = collect_status(first_solve_status)
-    mpc_stats["first_solve_status_0"] = first_solve_status[0]
-    mpc_stats["first_solve_status_1"] = first_solve_status[1]
-    mpc_stats["first_solve_status_2"] = first_solve_status[2]
-    mpc_stats["first_solve_status_3"] = first_solve_status[3]
-    mpc_stats["first_solve_status_4"] = first_solve_status[4]
+    put_status_into_stats(
+        status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
+    )
+    put_status_into_stats(status=actual_status, stats=mpc_stats, prefix="actual_")
     sum_up_dict(mpc_stats, mpc_stats_summed_up)
 
 
@@ -206,7 +215,7 @@ class SACFOUTrainer(Trainer):
 
             episode_return += float(reward)
             episode_length += 1
-            update_mpc_stats(mpc_stats, mpc_stats_summed_up)
+            update_mpc_stats_train_rollout(mpc_stats, mpc_stats_summed_up, status)
 
             self.buffer.put(
                 (
@@ -294,7 +303,6 @@ class SACFOUTrainer(Trainer):
                 report_freq = self.cfg.sac.report_loss_freq * self.cfg.sac.update_freq
 
                 if self.state.step % report_freq == 0:
-                    status_stats = collect_status(status)
                     loss_stats = {
                         "q_loss": q_loss.item(),
                         "pi_loss": pi_loss.item(),
@@ -302,17 +310,8 @@ class SACFOUTrainer(Trainer):
                         "q": q.mean().item(),
                         "q_target": target.mean().item(),
                         "train_not_converged": (status != 0).float().mean().item(),
-                        "train_perc_status_0": status_stats[0]
-                        / self.cfg.sac.batch_size,
-                        "train_perc_status_1": status_stats[1]
-                        / self.cfg.sac.batch_size,
-                        "train_perc_status_2": status_stats[2]
-                        / self.cfg.sac.batch_size,
-                        "train_perc_status_3": status_stats[3]
-                        / self.cfg.sac.batch_size,
-                        "train_perc_status_4": status_stats[4]
-                        / self.cfg.sac.batch_size,
                     }
+                    put_status_into_stats(status, loss_stats)
 
                     self.report_stats("train_loss", loss_stats, self.state.step + 1)
 

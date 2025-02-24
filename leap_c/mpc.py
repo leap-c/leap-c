@@ -422,7 +422,7 @@ def _solve_shared(
                     throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
                 )
                 solver.solve()
-                solve_stats["first_solve_status"] = solver.status
+                solve_stats["first_solve_status"] = [solver.status]
             else:
                 solve_stats["first_solve_status"] = 0
             solve_stats["sqp_iter"] += solver.get_stats("sqp_iter")
