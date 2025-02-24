@@ -1,3 +1,4 @@
+from argparse import ArgumentParser
 from enum import Enum
 
 from run import create_cfg, default_output_path, main
@@ -12,9 +13,15 @@ class Experiment(Enum):
 
 
 if __name__ == "__main__":
-    experiment = Experiment.POINTMASS_FOU_SHIFT
-    device = "cuda:0"
-    seed = 1337
+    parser = ArgumentParser()
+    parser.add_argument("--experiment", type=int)
+    parser.add_argument("--device", type=str)
+    parser.add_argument("--seed", type=int)
+    args = parser.parse_args()
+
+    experiment = Experiment(args.experiment)
+    device = args.device
+    seed = args.seed
 
     if "FOU" in experiment.name:
         trainer_name = "sac_fou"
