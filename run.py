@@ -66,7 +66,6 @@ def main(
         raise ValueError(f"Output path {output_path} already exists")
 
     task = create_task(task_name)
-    cfg = create_default_cfg(trainer_name)
 
     print_inputs(
         trainer_name=trainer_name,
