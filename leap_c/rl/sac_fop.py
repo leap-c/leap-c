@@ -216,7 +216,7 @@ class SACFOPTrainer(Trainer):
                     episode_length < np.inf
                 ):  # TODO: Add rollout-logging for the non-episodic case
                     stats = {
-                        k: v / episode_length
+                        "avg_" + k: v / episode_length
                         for k, v in mpc_stats_summed_up_rollout.items()
                     }
                     stats["episode_return"] = episode_return
