@@ -1,5 +1,6 @@
 from abc import ABC
 from copy import deepcopy
+from dataclasses import replace
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Callable, List, NamedTuple
@@ -110,6 +111,54 @@ class MPCParameter(NamedTuple):
 
 MPCSingleState = AcadosOcpIterate | AcadosOcpFlattenedIterate
 MPCBatchedState = list[AcadosOcpIterate] | AcadosOcpFlattenedBatchIterate
+
+
+def zero_duals_of_state(
+    state: MPCSingleState | MPCBatchedState, also_slacks: bool
+) -> MPCSingleState | MPCBatchedState:
+    if isinstance(state, AcadosOcpIterate):
+        new_pi = []
+        for pi in state.pi_traj:
+            new_pi.append(np.zeros_like(pi))
+        new_lam = []
+        for lam in state.lam_traj:
+            new_lam.append(np.zeros_like(lam))
+        if also_slacks:
+            new_sl = []
+            for sl in state.sl_traj:
+                new_sl.append(np.zeros_like(sl))
+            new_su = []
+            for su in state.su_traj:
+                new_su.append(np.zeros_like(su))
+            return replace(
+                state, pi_traj=new_pi, lam_traj=new_lam, sl_traj=new_sl, su_traj=new_su
+            )
+        else:
+            return replace(state, pi_traj=new_pi, lam_traj=new_lam)
+    elif isinstance(state, AcadosOcpFlattenedIterate):
+        new_pi = np.zeros_like(state.pi)
+        new_lam = np.zeros_like(state.lam)
+        if also_slacks:
+            new_sl = np.zeros_like(state.sl)
+            new_su = np.zeros_like(state.su)
+            return replace(state, pi=new_pi, lam=new_lam, sl=new_sl, su=new_su)
+        else:
+            return replace(state, pi=new_pi, lam=new_lam)
+    elif isinstance(state, list):
+        return [zero_duals_of_state(s) for s in state]  # type:ignore
+    elif isinstance(state, AcadosOcpFlattenedBatchIterate):
+        new_pi = np.zeros_like(state.pi)
+        new_lam = np.zeros_like(state.lam)
+        if also_slacks:
+            new_sl = np.zeros_like(state.sl)
+            new_su = np.zeros_like(state.su)
+            return replace(state, pi=new_pi, lam=new_lam, sl=new_sl, su=new_su)
+        else:
+            return replace(state, pi=new_pi, lam=new_lam)
+    else:
+        raise ValueError(
+            f"Expected AcadosOcpIterate, AcadosOcpFlattenedIterate, list or AcadosOcpFlattenedBatchIterate, got {type(state)}."
+        )
 
 
 class MPCInput(NamedTuple):
