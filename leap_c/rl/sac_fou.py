@@ -111,7 +111,9 @@ class MPCSACActor(nn.Module):
             action = mean + std * torch.randn_like(mean)
 
         log_prob = (
-            -0.5 * ((action - mean) / (std + 1e-6)).pow(2) - log_std - np.log(np.pi)
+            -0.5 * ((action - mean) / (std + 1e-6)).pow(2)
+            - log_std
+            - np.log(np.sqrt(2) * np.pi)
         )
 
         action = torch.tanh(action)
