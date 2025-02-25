@@ -1,7 +1,7 @@
 from argparse import ArgumentParser
 from enum import Enum
 
-from run import create_cfg, default_output_path, main
+from leap_c.run import create_cfg, default_output_path, main
 
 import wandb
 
@@ -20,6 +20,7 @@ if __name__ == "__main__":
     parser.add_argument("--experiment", type=int)
     parser.add_argument("--device", type=str)
     parser.add_argument("--seed", type=int)
+    parser.add_argument("t", "--wandbtags", action="append", type=str)
     args = parser.parse_args()
 
     experiment = Experiment(args.experiment)
@@ -50,17 +51,13 @@ if __name__ == "__main__":
     cfg = create_cfg(trainer_name="sac_fop", seed=seed)
     wandb.login()
     cfg.log.wandb_logger = True
-    output_path = str.join(
-        "_",
-        [
-            default_output_path(
-                trainer_name=trainer_name,
-                task_name=task_name,
-                seed=seed,  # type:ignore
-            ),
-            experiment.name.split("_")[-1],
-        ],
-    )  # type:ignore
+    cfg.log.wandb_name = "_".join((experiment.name, "seed", seed))
+    cfg.log.wandb_tags = args.wandbtags
+    output_path = default_output_path(
+        trainer_name=trainer_name,
+        task_name=task_name,
+        seed=seed,  # type:ignore
+    )
     main(
         trainer_name=trainer_name,
         task_name=task_name,
