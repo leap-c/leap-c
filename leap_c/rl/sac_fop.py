@@ -23,7 +23,7 @@ from leap_c.trainer import (
     Trainer,
     ValConfig,
 )
-from leap_c.utils import collect_status, sum_up_dict
+from leap_c.utils import collect_status
 
 LOG_STD_MIN = -4
 LOG_STD_MAX = 2
@@ -66,7 +66,15 @@ def update_mpc_stats_train_rollout(
             status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
         )
     put_status_into_stats(status=actual_status, stats=mpc_stats, prefix="actual_")
-    sum_up_dict(mpc_stats, mpc_stats_summed_up)
+    non_status_fields = ["qp_iter", "sqp_iter", "time_tot"]
+    for k in non_status_fields:
+        mpc_stats_summed_up[k] = mpc_stats_summed_up.get(k, 0) + mpc_stats[k]
+        mpc_stats_summed_up["max_" + k] = max(
+            mpc_stats_summed_up.get("max_" + k, 0), mpc_stats[k]
+        )
+        mpc_stats_summed_up["min_" + k] = min(
+            mpc_stats_summed_up.get("min_" + k, 0), mpc_stats[k]
+        )
 
 
 def update_mpc_stats_train_loss(
@@ -218,6 +226,7 @@ class SACFOPTrainer(Trainer):
                     stats = {
                         "avg_" + k: v / episode_length
                         for k, v in mpc_stats_summed_up_rollout.items()
+                        if "max" not in k or "min" not in k
                     }
                     stats["episode_return"] = episode_return
                     stats["episode_length"] = episode_length
