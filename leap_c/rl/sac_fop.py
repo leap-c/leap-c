@@ -60,10 +60,11 @@ def put_status_into_stats(status: np.ndarray | torch.Tensor, stats: dict, prefix
 def update_mpc_stats_train_rollout(
     mpc_stats: dict, mpc_stats_summed_up: dict, actual_status: np.ndarray | torch.Tensor
 ):
-    first_solve_status = mpc_stats.pop("first_solve_status")
-    put_status_into_stats(
-        status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
-    )
+    first_solve_status = mpc_stats.pop("first_solve_status", None)
+    if first_solve_status is not None:
+        put_status_into_stats(
+            status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
+        )
     put_status_into_stats(status=actual_status, stats=mpc_stats, prefix="actual_")
     sum_up_dict(mpc_stats, mpc_stats_summed_up)
 
@@ -73,10 +74,11 @@ def update_mpc_stats_train_loss(
     loss_stats: dict,
     actual_status: np.ndarray | torch.Tensor,
 ):
-    first_solve_status = mpc_stats.pop("first_solve_status")
-    put_status_into_stats(
-        status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
-    )
+    first_solve_status = mpc_stats.pop("first_solve_status", None)
+    if first_solve_status is not None:
+        put_status_into_stats(
+            status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
+        )
     put_status_into_stats(status=actual_status, stats=loss_stats, prefix="actual_")
     loss_stats.update(mpc_stats)
 
