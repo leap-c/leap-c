@@ -169,7 +169,9 @@ class Trainer(ABC, nn.Module):
 
         # init wandb
         if cfg.log.wandb_logger:
-            wandb.init(project="leap", dir=self.output_path / "wandb")
+            wandbdir = self.output_path / "wandb"
+            wandbdir.mkdir(exist_ok=True)
+            wandb.init(project="leap", dir=wandbdir)
 
         # tensorboard
         if cfg.log.tensorboard_logger:
