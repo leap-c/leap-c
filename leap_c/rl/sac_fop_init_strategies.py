@@ -1,4 +1,4 @@
-from leap_c.rl.sac_fou import SACFOPTrainer
+from leap_c.rl.sac_fop import SACFOPTrainer
 
 
 class SACFOUTrainerPreviousInit(SACFOPTrainer):
