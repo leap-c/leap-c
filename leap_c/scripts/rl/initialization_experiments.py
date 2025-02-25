@@ -9,11 +9,13 @@ import wandb
 class Experiment(Enum):
     POINTMASS_PLAINRL = 0
     POINTMASS_FOP_PREVIOUS = 1
-    POINTMASS_FOP_CONST = 2
-    POINTMASS_FOP_RELOAD = 3
-    POINTMASS_FOP_LOADANDWRITEBACK = 4
-    POINTMASS_FOP_NN = 5
-    # TODO: Dont forget to also try out leaving out dual variables (only using primals)
+    POINTMASS_FOP_PREVIOUS_PRIMAL = 2
+    POINTMASS_FOP_CONST = 3
+    POINTMASS_FOP_RELOAD = 4
+    POINTMASS_FOP_RELOAD_PRIMAL = 5
+    POINTMASS_FOP_LOADANDWRITEBACK = 6
+    POINTMASS_FOP_NN = 7
+    # TODO: Dont forget to also try out only using primals
 
 
 if __name__ == "__main__":
@@ -44,6 +46,8 @@ if __name__ == "__main__":
         trainer_name = "sac"
     else:
         raise ValueError("Unknown trainer")
+    if "PRIMAL" in experiment.name:
+        trainer_name += "_primal"  # type:ignore
 
     if "POINTMASS" in experiment.name:
         task_name = "point_mass_homo_center"
