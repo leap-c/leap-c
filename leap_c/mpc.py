@@ -412,22 +412,21 @@ def _solve_shared(
         solve_stats["sqp_iter"] = solver.get_stats("sqp_iter")
         solve_stats["qp_iter"] = solver.get_stats("qp_iter").sum()  # type:ignore
         solve_stats["time_tot"] = solver.get_stats("time_tot")
-        if not use_backup_for_first_solve:  # Reattempt with backup
-            if solver.status != 0:
-                initialize_ocp_solver(
-                    ocp_solver=solver,
-                    mpc_input=mpc_input,
-                    ocp_iterate=backup_fn(mpc_input),  # type:ignore
-                    set_params=False,
-                    throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
-                )
-                solver.solve()
-                solve_stats["first_solve_status"] = [solver.status]
-            else:
-                solve_stats["first_solve_status"] = 0
+        if (
+            not use_backup_for_first_solve and solver.status != 0
+        ):  # Reattempt with backup
+            initialize_ocp_solver(
+                ocp_solver=solver,
+                mpc_input=mpc_input,
+                ocp_iterate=backup_fn(mpc_input),  # type:ignore
+                set_params=False,
+                throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
+            )
+            solver.solve()
             solve_stats["sqp_iter"] += solver.get_stats("sqp_iter")
             solve_stats["qp_iter"] += solver.get_stats("qp_iter").sum()  # type:ignore
             solve_stats["time_tot"] += solver.get_stats("time_tot")
+        solve_stats["first_solve_status"] = [solver.status]
 
     elif isinstance(solver, AcadosOcpBatchSolver):
         status_batch = []
