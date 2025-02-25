@@ -213,11 +213,11 @@ class SACFOPTrainer(Trainer):
             if is_terminated or is_truncated:
                 obs, _ = self.train_env.reset()
                 if episode_length < np.inf:
-                    stats = {
-                        "episode_return": episode_return,
-                        "episode_length": episode_length,
-                    }
-                    self.report_stats("train_rollout", stats, self.state.step)
+                    mpc_stats_summed_up_rollout["episode_return"] = episode_return
+                    mpc_stats_summed_up_rollout["episode_length"] = episode_length
+                    self.report_stats(
+                        "train_rollout", mpc_stats_summed_up_rollout, self.state.step
+                    )
                 policy_state = self.init_policy_state()
                 mpc_stats_summed_up_rollout = {}
                 is_terminated = is_truncated = False
