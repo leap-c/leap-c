@@ -9,10 +9,11 @@ import wandb
 class Experiment(Enum):
     POINTMASS_PLAINRL = 0
     POINTMASS_FOP_PREVIOUS = 1
-    POINTMASS_FOP_DEFAULTINIT = 2
+    POINTMASS_FOP_CONST = 2
     POINTMASS_FOP_RELOAD = 3
     POINTMASS_FOP_LOADANDWRITEBACK = 4
     POINTMASS_FOP_NN = 5
+    # TODO: Dont forget to also try out leaving out dual variables (only using primals)
 
 
 if __name__ == "__main__":
@@ -32,6 +33,8 @@ if __name__ == "__main__":
             trainer_name = "sac_fop_previous"
         elif "RELOAD" in experiment.name:
             trainer_name = "sac_fop"
+        elif "CONST" in experiment.name:
+            trainer_name = "sac_fop_const"
         else:
             if "PLAINRL" not in experiment.name:
                 raise ValueError("Unknown initialization")
