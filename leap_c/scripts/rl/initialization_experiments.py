@@ -28,11 +28,10 @@ if __name__ == "__main__":
     seed = args.seed
 
     if "FOP" in experiment.name:
-        trainer_name = "sac_fop"
         if "PREVIOUS" in experiment.name:
-            raise NotImplementedError()
+            trainer_name = "sac_fop_previous"
         elif "RELOAD" in experiment.name:
-            pass  # sac_fop already implements this strategy
+            trainer_name = "sac_fop"
         else:
             if "PLAINRL" not in experiment.name:
                 raise ValueError("Unknown initialization")
