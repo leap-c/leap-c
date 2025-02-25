@@ -6,10 +6,10 @@ from run import create_cfg, default_output_path, main
 
 class Experiment(Enum):
     POINTMASS_PLAINRL = 0
-    POINTMASS_FOU_PREVIOUS = 1
-    POINTMASS_FOU_DEFAULTINIT = 2
-    POINTMASS_FOU_RELOAD = 3
-    POINTMASS_FOU_NN = 4
+    POINTMASS_FOP_PREVIOUS = 1
+    POINTMASS_FOP_DEFAULTINIT = 2
+    POINTMASS_FOP_RELOAD = 3
+    POINTMASS_FOP_NN = 4
 
 
 if __name__ == "__main__":
@@ -23,8 +23,8 @@ if __name__ == "__main__":
     device = args.device
     seed = args.seed
 
-    if "FOU" in experiment.name:
-        trainer_name = "sac_fou"
+    if "FOP" in experiment.name:
+        trainer_name = "sac_fop"
     elif "ZO" in experiment.name:
         trainer_name = "sac_zo"
     elif "PLAINRL" in experiment.name:
@@ -43,7 +43,7 @@ if __name__ == "__main__":
         if "PLAINRL" not in experiment.name:
             raise ValueError("Unknown initialization")
 
-    cfg = create_cfg(trainer_name="sac_fou", seed=seed)
+    cfg = create_cfg(trainer_name="sac_fop", seed=seed)
     output_path = str.join(
         "_",
         [
