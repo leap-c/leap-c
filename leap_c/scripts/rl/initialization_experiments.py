@@ -3,13 +3,16 @@ from enum import Enum
 
 from run import create_cfg, default_output_path, main
 
+import wandb
+
 
 class Experiment(Enum):
     POINTMASS_PLAINRL = 0
     POINTMASS_FOP_PREVIOUS = 1
     POINTMASS_FOP_DEFAULTINIT = 2
     POINTMASS_FOP_RELOAD = 3
-    POINTMASS_FOP_NN = 4
+    POINTMASS_FOP_LOADANDWRITEBACK = 4
+    POINTMASS_FOP_NN = 5
 
 
 if __name__ == "__main__":
@@ -25,25 +28,28 @@ if __name__ == "__main__":
 
     if "FOP" in experiment.name:
         trainer_name = "sac_fop"
+        if "PREVIOUS" in experiment.name:
+            raise NotImplementedError()
+        elif "RELOAD" in experiment.name:
+            pass  # sac_fop already implements this strategy
+        else:
+            if "PLAINRL" not in experiment.name:
+                raise ValueError("Unknown initialization")
     elif "ZO" in experiment.name:
-        trainer_name = "sac_zo"
+        raise NotImplementedError()
     elif "PLAINRL" in experiment.name:
         trainer_name = "sac"
     else:
         raise ValueError("Unknown trainer")
 
     if "POINTMASS" in experiment.name:
-        task_name = "point_mass"
+        task_name = "point_mass_homo_center"
     else:
         raise ValueError("Unknown task")
 
-    if "PREVIOUS" in experiment.name:
-        pass
-    else:
-        if "PLAINRL" not in experiment.name:
-            raise ValueError("Unknown initialization")
-
     cfg = create_cfg(trainer_name="sac_fop", seed=seed)
+    wandb.login()
+    cfg.log.wandb_logger = True
     output_path = str.join(
         "_",
         [
