@@ -57,6 +57,9 @@ def put_status_into_stats(status: np.ndarray | torch.Tensor, stats: dict, prefix
     stats[prefix + "status_4"] = status_collection[4]
 
 
+MPC_STATS_NON_STATUS_KEYS = ("qp_iter", "sqp_iter", "time_tot")
+
+
 def update_mpc_stats_train_rollout(
     mpc_stats: dict, mpc_stats_summed_up: dict, actual_status: np.ndarray | torch.Tensor
 ):
@@ -66,15 +69,15 @@ def update_mpc_stats_train_rollout(
             status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
         )
     put_status_into_stats(status=actual_status, stats=mpc_stats, prefix="actual_")
-    non_status_fields = ["qp_iter", "sqp_iter", "time_tot"]
-    for k in non_status_fields:
+    for k in mpc_stats.keys():
         mpc_stats_summed_up[k] = mpc_stats_summed_up.get(k, 0) + mpc_stats[k]
-        mpc_stats_summed_up["max_" + k] = max(
-            mpc_stats_summed_up.get("max_" + k, 0), mpc_stats[k]
-        )
-        mpc_stats_summed_up["min_" + k] = min(
-            mpc_stats_summed_up.get("min_" + k, 0), mpc_stats[k]
-        )
+        if k in MPC_STATS_NON_STATUS_KEYS:
+            mpc_stats_summed_up["max_" + k] = max(
+                mpc_stats_summed_up.get("max_" + k, 0), mpc_stats[k]
+            )
+            mpc_stats_summed_up["min_" + k] = min(
+                mpc_stats_summed_up.get("min_" + k, np.inf), mpc_stats[k]
+            )
 
 
 def update_mpc_stats_train_loss(
@@ -215,7 +218,7 @@ class SACFOPTrainer(Trainer):
         is_terminated = is_truncated = True
         episode_return = episode_length = np.inf
         policy_state = self.init_policy_state()
-        mpc_stats_summed_up_rollout = {}
+        mpc_stats_aggregated_rollout = {}
 
         while True:
             if is_terminated or is_truncated:
@@ -223,16 +226,18 @@ class SACFOPTrainer(Trainer):
                 if (
                     episode_length < np.inf
                 ):  # TODO: Add rollout-logging for the non-episodic case
-                    stats = {
-                        "avg_" + k: v / episode_length
-                        for k, v in mpc_stats_summed_up_rollout.items()
-                        if "max" not in k or "min" not in k
-                    }
+                    stats = {}
+                    for k, v in mpc_stats_aggregated_rollout.items():
+                        if not ("max" in k or "min" in k):
+                            stats["avg_" + k] = v / episode_length
+                        else:
+                            stats[k] = v
+
                     stats["episode_return"] = episode_return
                     stats["episode_length"] = episode_length
                     self.report_stats("train_rollout", stats, self.state.step)
                 policy_state = self.init_policy_state()
-                mpc_stats_summed_up_rollout = {}
+                mpc_stats_aggregated_rollout = {}
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
             action, policy_state_prime, param, status, mpc_stats = self.act(
@@ -246,7 +251,7 @@ class SACFOPTrainer(Trainer):
             episode_return += float(reward)
             episode_length += 1
             update_mpc_stats_train_rollout(
-                mpc_stats, mpc_stats_summed_up_rollout, status
+                mpc_stats, mpc_stats_aggregated_rollout, status
             )
 
             self.buffer.put(
@@ -341,7 +346,7 @@ class SACFOPTrainer(Trainer):
                         "alpha": alpha,
                         "q": q.mean().item(),
                         "q_target": target.mean().item(),
-                        "train_not_converged": (status != 0).float().mean().item(),
+                        "not_converged": (status != 0).float().mean().item(),
                     }
                     update_mpc_stats_train_loss(
                         mpc_stats=mpc_stats, loss_stats=loss_stats, actual_status=status
