@@ -276,7 +276,7 @@ class Trainer(ABC, nn.Module):
         if self.cfg.log.wandb_logger:
             newstats = {}
             add_prefix_extend(prefix=group + "/", extended=newstats, extending=stats)
-            wandb.log(stats, step=timestamp)
+            wandb.log(newstats, step=timestamp)
 
         if self.cfg.log.tensorboard_logger:
             for key, value in stats.items():
