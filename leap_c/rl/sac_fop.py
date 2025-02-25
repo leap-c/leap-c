@@ -68,6 +68,19 @@ def update_mpc_stats_train_rollout(
     sum_up_dict(mpc_stats, mpc_stats_summed_up)
 
 
+def update_mpc_stats_train_loss(
+    mpc_stats: dict,
+    loss_stats: dict,
+    actual_status: np.ndarray | torch.Tensor,
+):
+    first_solve_status = mpc_stats.pop("first_solve_status")
+    put_status_into_stats(
+        status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
+    )
+    put_status_into_stats(status=actual_status, stats=loss_stats, prefix="actual_")
+    loss_stats.update(mpc_stats)
+
+
 class MPCSACActor(nn.Module):
     def __init__(
         self,
@@ -192,7 +205,7 @@ class SACFOPTrainer(Trainer):
         is_terminated = is_truncated = True
         episode_return = episode_length = np.inf
         policy_state = self.init_policy_state()
-        mpc_stats_summed_up = {}
+        mpc_stats_summed_up_rollout = {}
 
         while True:
             if is_terminated or is_truncated:
@@ -204,7 +217,7 @@ class SACFOPTrainer(Trainer):
                     }
                     self.report_stats("train_rollout", stats, self.state.step)
                 policy_state = self.init_policy_state()
-                mpc_stats_summed_up = {}
+                mpc_stats_summed_up_rollout = {}
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
             action, policy_state_prime, param, status, mpc_stats = self.act(
@@ -217,7 +230,9 @@ class SACFOPTrainer(Trainer):
 
             episode_return += float(reward)
             episode_length += 1
-            update_mpc_stats_train_rollout(mpc_stats, mpc_stats_summed_up, status)
+            update_mpc_stats_train_rollout(
+                mpc_stats, mpc_stats_summed_up_rollout, status
+            )
 
             self.buffer.put(
                 (
@@ -313,8 +328,9 @@ class SACFOPTrainer(Trainer):
                         "q_target": target.mean().item(),
                         "train_not_converged": (status != 0).float().mean().item(),
                     }
-                    put_status_into_stats(status, loss_stats)
-
+                    update_mpc_stats_train_loss(
+                        mpc_stats=mpc_stats, loss_stats=loss_stats, actual_status=status
+                    )
                     self.report_stats("train_loss", loss_stats, self.state.step + 1)
 
             yield 1
