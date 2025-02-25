@@ -20,7 +20,7 @@ if __name__ == "__main__":
     parser.add_argument("--experiment", type=int)
     parser.add_argument("--device", type=str)
     parser.add_argument("--seed", type=int)
-    parser.add_argument("t", "--wandbtags", action="append", type=str)
+    parser.add_argument("-t", "--wandbtags", action="append", type=str)
     args = parser.parse_args()
 
     experiment = Experiment(args.experiment)
@@ -51,7 +51,7 @@ if __name__ == "__main__":
     cfg = create_cfg(trainer_name="sac_fop", seed=seed)
     wandb.login()
     cfg.log.wandb_logger = True
-    cfg.log.wandb_name = "_".join((experiment.name, "seed", seed))
+    cfg.log.wandb_name = "_".join((experiment.name, "seed", str(seed)))
     cfg.log.wandb_tags = args.wandbtags
     output_path = default_output_path(
         trainer_name=trainer_name,
