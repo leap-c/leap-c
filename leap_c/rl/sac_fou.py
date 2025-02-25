@@ -30,7 +30,7 @@ LOG_STD_MAX = 2
 
 
 @dataclass(kw_only=True)
-class SACFOUBaseConfig(BaseConfig):
+class SACFOPBaseConfig(BaseConfig):
     """Contains the necessary information for a Trainer.
 
     Attributes:
@@ -149,12 +149,12 @@ class MPCSACActor(nn.Module):
         )
 
 
-@register_trainer("sac_fou", SACFOUBaseConfig())
-class SACFOUTrainer(Trainer):
-    cfg: SACFOUBaseConfig
+@register_trainer("sac_fop", SACFOPBaseConfig())
+class SACFOPTrainer(Trainer):
+    cfg: SACFOPBaseConfig
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: SACFOUBaseConfig
+        self, task: Task, output_path: str | Path, device: str, cfg: SACFOPBaseConfig
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
