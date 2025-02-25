@@ -9,7 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.mpc import MPCBatchedState
+from leap_c.mpc import MPCBatchedState, zero_duals_of_state
 from leap_c.nn.mlp import MLP, MLPConfig
 from leap_c.nn.modules import MPCSolutionModule
 from leap_c.registry import register_trainer
@@ -173,6 +173,15 @@ class MPCSACActor(nn.Module):
             param,
             stats,
         )
+
+
+class MPCSACActorPrimal(MPCSACActor):
+    """The same as the MPCSACActor, but it always ignores the input dual variables of the states,
+    i.e., zeros them (hence, keeping only the primal variables)."""
+
+    def forward(self, obs, mpc_state: MPCBatchedState, deterministic=False):
+        mpc_state = zero_duals_of_state(mpc_state, also_slacks=False)  # type:ignore
+        return super().forward(obs, mpc_state, deterministic)
 
 
 @register_trainer("sac_fop", SACFOPBaseConfig())
