@@ -400,3 +400,17 @@ class SACFOPTrainer(Trainer):
 
         self.buffer = torch.load(self.output_path / "buffer.pt")
         return super().load()
+
+
+@register_trainer("sac_fop_primal", SACFOPBaseConfig())
+class SACFOPTrainerPrimal(SACFOPTrainer):
+    """The same as SACFOPTrainer, but only the primal variables are being used in the mpc-initialization,
+    the duals are always set to zero."""
+
+    def __init__(
+        self, task: Task, output_path: str | Path, device: str, cfg: SACFOPBaseConfig
+    ):
+        super().__init__(task, output_path, device, cfg)
+
+        self.pi = MPCSACActorPrimal(task, self, cfg.sac.actor_mlp).to(device)
+        self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)

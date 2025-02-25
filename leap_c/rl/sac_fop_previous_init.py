@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Iterator
 
 import numpy as np
@@ -5,11 +6,13 @@ import torch
 
 from leap_c.registry import register_trainer
 from leap_c.rl.sac_fop import (
+    MPCSACActorPrimal,
     SACFOPBaseConfig,
     SACFOPTrainer,
     update_mpc_stats_train_loss,
     update_mpc_stats_train_rollout,
 )
+from leap_c.task import Task
 
 
 @register_trainer("sac_fop_previous", SACFOPBaseConfig())
@@ -166,3 +169,16 @@ class PreviousInitStrategy(SACFOPTrainer):
                     self.report_stats("train_loss", loss_stats, self.state.step + 1)
 
             yield 1
+
+
+@register_trainer("sac_fop_previous_primal", SACFOPBaseConfig())
+class PreviousInitStrategyPrimal(PreviousInitStrategy):
+    """The same as PreviousInitStrategy, but only the primal variables are being used, the duals are always set to zero."""
+
+    def __init__(
+        self, task: Task, output_path: str | Path, device: str, cfg: SACFOPBaseConfig
+    ):
+        super().__init__(task, output_path, device, cfg)
+
+        self.pi = MPCSACActorPrimal(task, self, cfg.sac.actor_mlp).to(device)
+        self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
