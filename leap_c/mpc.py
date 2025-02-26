@@ -545,7 +545,7 @@ def _solve_shared(
             ocp_iterate=solver.store_iterate_to_flat_obj(),
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
         )
-        sensitivity_solver.setup_qp_matrices_and_factorize()
+        sensitivity_solver.solve()
     return solve_stats
 
 
