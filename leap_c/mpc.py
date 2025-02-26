@@ -450,7 +450,6 @@ def _solve_shared(
         throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
     )
     solver.solve()
-
     if isinstance(solver, AcadosOcpBatchSolver):
         for i, ocp_solver in enumerate(solver.ocp_solvers):
             assert ocp_solver.get_cost() >= -1e-4, ocp_solver.get_cost()
@@ -546,7 +545,7 @@ def _solve_shared(
             ocp_iterate=solver.store_iterate_to_flat_obj(),
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
         )
-        sensitivity_solver.solve()
+        sensitivity_solver.setup_qp_matrices_and_factorize()
     return solve_stats
 
 
