@@ -1,17 +1,15 @@
 from dataclasses import dataclass, field
-from functools import partial
 from pathlib import Path
 from typing import Iterator
 
-import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 
 from leap_c.nn.gaussian import Gaussian
 from leap_c.nn.mlp import MLP, MLPConfig
-from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.registry import register_trainer
+from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.task import Task
 from leap_c.trainer import (
     BaseConfig,
@@ -158,7 +156,6 @@ class SACTrainer(Trainer):
         self.to(device)
 
     def train_loop(self) -> Iterator[int]:
-
         is_terminated = is_truncated = True
         episode_return = episode_length = np.inf
 
@@ -170,7 +167,7 @@ class SACTrainer(Trainer):
                         "episode_return": episode_return,
                         "episode_length": episode_length,
                     }
-                    self.report_stats("train", stats, self.state.step)
+                    self.report_stats("train_rollout", stats, self.state.step)
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
 
