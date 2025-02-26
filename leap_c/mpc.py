@@ -558,7 +558,7 @@ def turn_on_warmstart(acados_ocp: AcadosOcp):
         print(
             "WARNING: Warmstart is not enabled. We will enable it for our initialization strategies to work properly."
         )
-    acados_ocp.solver_options.qp_solver_warm_start = 1
+    acados_ocp.solver_options.qp_solver_warm_start = 0
     acados_ocp.solver_options.nlp_solver_warm_start_first_qp = True
     acados_ocp.solver_options.nlp_solver_warm_start_first_qp_from_nlp = True
 
@@ -613,7 +613,7 @@ class MPC(ABC):
             self.ocp_sensitivity = ocp_sensitivity
 
         turn_on_warmstart(self.ocp)
-        turn_on_warmstart(self.ocp_sensitivity)
+        # turn_on_warmstart(self.ocp_sensitivity)
 
         # path management
         self.afm = AcadosFileManager(export_directory)
