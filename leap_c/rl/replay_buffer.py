@@ -1,7 +1,6 @@
 import collections
 import random
-from enum import Enum
-from typing import Any
+from typing import Any, Callable, Iterable
 
 import torch
 from torch.utils.data._utils.collate import collate
@@ -61,33 +60,33 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
-class InitializationStrategy(Enum):
-    PREVIOUS = 0
-    DEFAULTINIT = 1
-    RELOAD = 2
-    RELOADWRITEBACK = 3
-    NN = 4
+class ReplayBufferReloadWriteback(ReplayBuffer):
+    """A ReplayBuffer where the data can be updated, e.g., when some information has changed at the time it was sampled."""
 
+    def __init__(
+        self, buffer_limit: int, device: str, tensor_dtype: torch.dtype = torch.float32
+    ):
+        super().__init__(buffer_limit, device, tensor_dtype)
+        self.id = 0
+        self.lookup: dict[int, Any] = (
+            dict()
+        )  # Keep a lookup table for the writeback instead of iterating through the deque
 
-# TODO finish when its time
-# class ReplayBufferReloadWriteback(ReplayBuffer):
-#     """This implements the initialization strategy where the previous solution is reloaded,
-#     but samples in the buffer can be updated."""
+    def put(self, data: Iterable[Any]):
+        """Almost the same as the put of the usual ReplayBuffer, but
+        1. The input has to be an iterable.
+        2. The input is appended with an id that can be used for the writeback.
+        """
+        entry = list(data)
+        entry.append(self.id)
+        self.id += 1
 
-#     def __init__(
-#         self, buffer_limit: int, device: str, tensor_dtype: torch.dtype = torch.float32
-#     ):
-#         super().__init__(buffer_limit, device, tensor_dtype)
-#         self.id = 0
-#         self.lookup: dict[int, Any] = dict()
+        self.buffer.append(data)
+        self.lookup[self.id % self.buffer.maxlen] = entry  # type:ignore
 
-#     def rollout_state(self, input: MPCInput, state: MPCSingleState) -> MPCSingleState:
-#         return state
-
-#     def put(self, data: Any):
-#         """The same as the put of the usual ReplayBuffer, but also"""
-#         # append id for lookup later
-#         self.buffer.append(data)
-
-#     def writeback(self, id: int, data: Any):
-#         self.lookup[id] = data
+    def writeback(
+        self, id: int, inplace_modification: Callable[[list[Any]], list[Any]]
+    ):
+        """Apply the inplace_modification function to the data with the given id."""
+        data_old = self.lookup[id % self.buffer.maxlen]  # type:ignore
+        inplace_modification(data_old)
