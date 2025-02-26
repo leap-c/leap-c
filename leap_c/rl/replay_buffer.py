@@ -60,7 +60,7 @@ class ReplayBuffer:
         return len(self.buffer)
 
 
-class ReplayBufferReloadWriteback(ReplayBuffer):
+class ReplayBufferWriteback(ReplayBuffer):
     """A ReplayBuffer where the data can be updated, e.g., when some information has changed at the time it was sampled."""
 
     def __init__(
