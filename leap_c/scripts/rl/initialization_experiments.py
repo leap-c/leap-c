@@ -37,6 +37,8 @@ if __name__ == "__main__":
             trainer_name = "sac_fop"
         elif "CONST" in experiment.name:
             trainer_name = "sac_fop_const"
+        elif "LOADANDWRITEBACK" in experiment.name:
+            trainer_name = "sac_fop_writeback"
         else:
             if "PLAINRL" not in experiment.name:
                 raise ValueError("Unknown initialization")

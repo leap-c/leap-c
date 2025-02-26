@@ -84,9 +84,7 @@ class ReplayBufferWriteback(ReplayBuffer):
         self.buffer.append(data)
         self.lookup[self.id % self.buffer.maxlen] = entry  # type:ignore
 
-    def writeback(
-        self, id: int, inplace_modification: Callable[[list[Any]], list[Any]]
-    ):
+    def writeback(self, id: int, inplace_modification: Callable[[list[Any]]]):
         """Apply the inplace_modification function to the data with the given id."""
         data_old = self.lookup[id % self.buffer.maxlen]  # type:ignore
         inplace_modification(data_old)
