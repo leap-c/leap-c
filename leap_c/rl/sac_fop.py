@@ -353,7 +353,7 @@ class SACFOPTrainer(Trainer):
                         "alpha": alpha,
                         "q": q.mean().item(),
                         "q_target": target.mean().item(),
-                        "not_converged": (status != 0).float().mean().item(),
+                        "train_not_converged": (status != 0).float().mean().item(),
                     }
                     update_mpc_stats_train_loss(
                         mpc_stats=mpc_stats, loss_stats=loss_stats, actual_status=status
