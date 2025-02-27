@@ -43,14 +43,6 @@ def collect_status(status: np.ndarray | torch.Tensor | list) -> list:
         return template
 
 
-def sum_up_dict(d_in, d_sum):
-    for k, v in d_in.items():
-        if k in d_sum:
-            d_sum[k] += v
-        else:
-            d_sum[k] = v
-
-
 def put_each_index_of_tensor_as_entry_into(
     put_here: dict[str, Any], data: torch.Tensor | np.ndarray, name: str
 ):

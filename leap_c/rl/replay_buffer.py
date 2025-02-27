@@ -22,7 +22,6 @@ class ReplayBuffer:
             device: The device to which all sampled tensors will be cast.
             collate_fn_map: The collate function map that informs the buffer how to form batches.
             tensor_dtype: The data type to which the tensors in the observation will be cast.
-            input_transformation: A function that transforms the data before it is put into the buffer.
         """
         self.buffer = collections.deque(maxlen=buffer_limit)
         self.device = device
