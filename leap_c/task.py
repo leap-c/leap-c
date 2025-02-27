@@ -1,5 +1,5 @@
-from typing import Any, Optional, Callable
 from functools import cached_property
+from typing import Any, Callable, Optional
 
 import gymnasium as gym
 import torch
@@ -7,9 +7,8 @@ from torch.utils.data._utils.collate import collate
 
 from leap_c.collate import create_collate_fn_map, pytree_tensor_to
 from leap_c.mpc import MPCInput
-from leap_c.nn.modules import MPCSolutionModule
 from leap_c.nn.extractor import Extractor, IdentityExtractor
-
+from leap_c.nn.modules import MPCSolutionModule
 
 EnvFactory = Callable[[], gym.Env]
 

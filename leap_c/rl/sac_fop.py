@@ -3,7 +3,7 @@ layer for the policy network."""
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 import numpy as np
 import torch
@@ -100,6 +100,10 @@ class MPCSACActor(nn.Module):
         task: Task,
         trainer: Trainer,
         mlp_cfg: MLPConfig,
+        prepare_mpc_state: Callable[
+            [torch.Tensor, torch.Tensor, MPCBatchedState], MPCBatchedState
+        ]
+        | None = None,
     ):
         super().__init__()
 
@@ -115,6 +119,7 @@ class MPCSACActor(nn.Module):
         self.trainer = {"trainer": trainer}
         self.mpc: MPCSolutionModule = task.mpc  # type:ignore
         self.prepare_mpc_input = task.prepare_mpc_input
+        self.prepare_mpc_state = prepare_mpc_state
 
         # add scaling params
         loc = (param_space.high + param_space.low) / 2.0  # type: ignore
@@ -161,6 +166,8 @@ class MPCSACActor(nn.Module):
             )
 
         mpc_input = self.prepare_mpc_input(obs, param)
+        if self.prepare_mpc_state is not None:
+            mpc_state = self.prepare_mpc_state(obs, param, mpc_state)
         mpc_output, state_solution, stats = self.mpc(
             mpc_input, mpc_state
         )  # TODO: We have to catch and probably replace the state_solution somewhere, if its not a converged solution

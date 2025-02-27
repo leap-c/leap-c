@@ -6,9 +6,12 @@ import torch
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 from sklearn.neighbors import KNeighborsClassifier
 
+from leap_c.mpc import MPCBatchedState
+from leap_c.nn.mlp import MLPConfig
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBufferWriteback
 from leap_c.rl.sac_fop import (
+    MPCSACActor,
     MPCSACActorPrimal,
     SACFOPBaseConfig,
     SACFOPTrainer,
@@ -16,6 +19,7 @@ from leap_c.rl.sac_fop import (
     update_mpc_stats_train_rollout,
 )
 from leap_c.task import Task
+from leap_c.trainer import Trainer
 
 
 class NNClassifierBuffer(ReplayBufferWriteback):
@@ -137,6 +141,35 @@ class NNClassifierBuffer(ReplayBufferWriteback):
             self.update_long_term()
 
 
+class MpcSacActorMpcStatePredictor(MPCSACActor):
+    """The same as the MpcSacActor, but it always ignores the input mpc_state and instead
+    asks the predictor what the MPC state should be, dependend on the current state obs
+    and the params from the neural network."""
+
+    def __init__(
+        self,
+        task: Task,
+        trainer: Trainer,
+        mlp_cfg: MLPConfig,
+        predictor: Callable[[np.ndarray, np.ndarray], MPCBatchedState],
+    ):
+        self.predictor = predictor
+
+        def prepare_mpc_state(
+            x: torch.Tensor, p: torch.Tensor, mpc_state: MPCBatchedState
+        ) -> MPCBatchedState:
+            state = x.detach().cpu().numpy()
+            param = p.detach().cpu().numpy()
+            return self.predictor(state, param)
+
+        super().__init__(
+            task=task,
+            trainer=trainer,
+            mlp_cfg=mlp_cfg,
+            prepare_mpc_state=prepare_mpc_state,
+        )
+
+
 @register_trainer("sac_fop_neighbours", SACFOPBaseConfig())
 class NearestNeighbourInitStrategy(SACFOPTrainer):
     """This initialization strategy computes the nearest neighbour for the stored vectors of form (x, param)
@@ -196,7 +229,6 @@ class NearestNeighbourInitStrategy(SACFOPTrainer):
                     stats["episode_return"] = episode_return
                     stats["episode_length"] = episode_length
                     self.report_stats("train_rollout", stats, self.state.step)
-                policy_state = self.init_policy_state()
                 mpc_stats_aggregated_rollout = {}
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
