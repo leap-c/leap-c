@@ -9,7 +9,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.mpc import MPCBatchedState, zero_duals_of_state
+from leap_c.mpc import MPCBatchedState
 from leap_c.nn.mlp import MLP, MLPConfig
 from leap_c.nn.modules import MPCSolutionModule
 from leap_c.registry import register_trainer
@@ -180,15 +180,6 @@ class MPCSACActor(nn.Module):
             param,
             stats,
         )
-
-
-class MPCSACActorPrimal(MPCSACActor):
-    """The same as the MPCSACActor, but it always ignores the input dual variables of the states,
-    i.e., zeros them (hence, keeping only the primal variables)."""
-
-    def forward(self, obs, mpc_state: MPCBatchedState, deterministic=False):
-        mpc_state = zero_duals_of_state(mpc_state, also_slacks=False)  # type:ignore
-        return super().forward(obs, mpc_state, deterministic)
 
 
 @register_trainer("sac_fop", SACFOPBaseConfig())
@@ -407,17 +398,3 @@ class SACFOPTrainer(Trainer):
 
         self.buffer = torch.load(self.output_path / "buffer.pt")
         return super().load()
-
-
-@register_trainer("sac_fop_primal", SACFOPBaseConfig())
-class SACFOPTrainerPrimal(SACFOPTrainer):
-    """The same as SACFOPTrainer, but only the primal variables are being used in the mpc-initialization,
-    the duals are always set to zero."""
-
-    def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: SACFOPBaseConfig
-    ):
-        super().__init__(task, output_path, device, cfg)
-
-        self.pi = MPCSACActorPrimal(task, self, cfg.sac.actor_mlp).to(device)
-        self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)

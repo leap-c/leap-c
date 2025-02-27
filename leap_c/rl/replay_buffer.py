@@ -1,6 +1,6 @@
 import collections
 import random
-from typing import Any, Callable, Iterable
+from typing import Any
 
 import torch
 from torch.utils.data._utils.collate import collate
@@ -58,33 +58,3 @@ class ReplayBuffer:
 
     def __len__(self):
         return len(self.buffer)
-
-
-class ReplayBufferWriteback(ReplayBuffer):
-    """A ReplayBuffer where the data can be updated, e.g., when some information has changed at the time it was sampled."""
-
-    def __init__(
-        self, buffer_limit: int, device: str, tensor_dtype: torch.dtype = torch.float32
-    ):
-        super().__init__(buffer_limit, device, tensor_dtype)
-        self.id = 0
-        self.lookup: dict[int, Any] = (
-            dict()
-        )  # Keep a lookup table for the writeback instead of iterating through the deque
-
-    def put(self, data: Iterable[Any]):
-        """Almost the same as the put of the usual ReplayBuffer, but
-        1. The input has to be an iterable.
-        2. The input is appended with an id that can be used for the writeback.
-        """
-        entry = list(data)
-        entry.append(self.id)
-        self.id += 1
-
-        self.buffer.append(data)
-        self.lookup[self.id % self.buffer.maxlen] = entry  # type:ignore
-
-    def writeback(self, id: int, inplace_modification: Callable[[list[Any]]]):
-        """Apply the inplace_modification function to the data with the given id."""
-        data_old = self.lookup[id % self.buffer.maxlen]  # type:ignore
-        inplace_modification(data_old)
