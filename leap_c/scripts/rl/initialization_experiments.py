@@ -14,7 +14,7 @@ class Experiment(Enum):
     POINTMASS_FOP_RELOAD = 4
     POINTMASS_FOP_RELOAD_PRIMAL = 5
     POINTMASS_FOP_LOADANDWRITEBACK = 6
-    POINTMASS_FOP_NN = 7
+    POINTMASS_FOP_NEIGHBOURS = 7
     # TODO: Dont forget to also try out only using primals
 
 
@@ -39,6 +39,8 @@ if __name__ == "__main__":
             trainer_name = "sac_fop_const"
         elif "LOADANDWRITEBACK" in experiment.name:
             trainer_name = "sac_fop_writeback"
+        elif "NEIGHBOURS" in experiment.name:
+            trainer_name = "sac_fop_neighbours"
         else:
             if "PLAINRL" not in experiment.name:
                 raise ValueError("Unknown initialization")
@@ -56,7 +58,10 @@ if __name__ == "__main__":
     else:
         raise ValueError("Unknown task")
 
-    cfg = create_cfg(trainer_name="sac_fop", seed=seed)
+    cfg = create_cfg(trainer_name=trainer_name, seed=seed)
+
+    cfg.sac.update_freq = 1  # type:ignore
+
     wandb.login()
     cfg.log.wandb_logger = True
     cfg.log.wandb_name = "_".join((experiment.name, "seed", str(seed)))
