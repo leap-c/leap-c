@@ -42,6 +42,52 @@ class AcadosSimModule(nn.Module):
         return DynamicsSimFunction.apply(self.sim, x, u, p)
 
 
+# def put_status_into_stats(status: np.ndarray | torch.Tensor, stats: dict, prefix=""):
+#     status_collection = collect_status(status)
+#     stats[prefix + "status_0"] = status_collection[0]
+#     stats[prefix + "status_1"] = status_collection[1]
+#     stats[prefix + "status_2"] = status_collection[2]
+#     stats[prefix + "status_3"] = status_collection[3]
+#     stats[prefix + "status_4"] = status_collection[4]
+# 
+# 
+# MPC_STATS_NON_STATUS_KEYS = ("qp_iter", "sqp_iter", "time_tot")
+# 
+# 
+# def update_mpc_stats_train_rollout(
+#     mpc_stats: dict, mpc_stats_summed_up: dict, actual_status: np.ndarray | torch.Tensor
+# ):
+#     first_solve_status = mpc_stats.pop("first_solve_status", None)
+#     if first_solve_status is not None:
+#         put_status_into_stats(
+#             status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
+#         )
+#     put_status_into_stats(status=actual_status, stats=mpc_stats, prefix="actual_")
+#     for k in mpc_stats.keys():
+#         mpc_stats_summed_up[k] = mpc_stats_summed_up.get(k, 0) + mpc_stats[k]
+#         if k in MPC_STATS_NON_STATUS_KEYS:
+#             mpc_stats_summed_up["max_" + k] = max(
+#                 mpc_stats_summed_up.get("max_" + k, 0), mpc_stats[k]
+#             )
+#             mpc_stats_summed_up["min_" + k] = min(
+#                 mpc_stats_summed_up.get("min_" + k, np.inf), mpc_stats[k]
+#             )
+# 
+# 
+# def update_mpc_stats_train_loss(
+#     mpc_stats: dict,
+#     loss_stats: dict,
+#     actual_status: np.ndarray | torch.Tensor,
+# ):
+#     first_solve_status = mpc_stats.pop("first_solve_status", None)
+#     if first_solve_status is not None:
+#         put_status_into_stats(
+#             status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
+#         )
+#     put_status_into_stats(status=actual_status, stats=loss_stats, prefix="actual_")
+#     loss_stats.update(mpc_stats)
+
+
 class MPCSolutionModule(nn.Module):
     """A PyTorch module to allow differentiating the solution given by an MPC planner,
     with respect to some inputs.

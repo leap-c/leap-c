@@ -2,6 +2,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
 
+import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
@@ -11,13 +12,7 @@ from leap_c.nn.mlp import MLP, MLPConfig
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.task import Task
-from leap_c.trainer import (
-    BaseConfig,
-    LogConfig,
-    TrainConfig,
-    Trainer,
-    ValConfig,
-)
+from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
 
 
 @dataclass(kw_only=True)
@@ -76,15 +71,16 @@ class SACCritic(nn.Module):
     def __init__(
         self,
         task: Task,
+        env: gym.Env,
         mlp_cfg: MLPConfig,
         num_critics: int,
     ):
         super().__init__()
 
-        action_dim = task.train_env.action_space.shape[0]  # type: ignore
+        action_dim = env.action_space.shape[0]  # type: ignore
 
         self.extractor = nn.ModuleList(
-            [task.create_extractor() for _ in range(num_critics)]
+            [task.create_extractor(env) for _ in range(num_critics)]
         )
         self.mlp = nn.ModuleList(
             [
@@ -102,18 +98,18 @@ class SACCritic(nn.Module):
 
 
 class SACActor(nn.Module):
-    def __init__(self, task, mlp_cfg: MLPConfig):
+    def __init__(self, task, env, mlp_cfg: MLPConfig):
         super().__init__()
 
-        self.extractor = task.create_extractor()
-        action_dim = task.train_env.action_space.shape[0]  # type: ignore
+        self.extractor = task.create_extractor(env)
+        action_dim = env.action_space.shape[0]  # type: ignore
 
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
             output_sizes=(action_dim, action_dim),  # type: ignore
             mlp_cfg=mlp_cfg,
         )
-        self.gaussian = Gaussian(task.train_env.action_space)
+        self.gaussian = Gaussian(env.action_space)
 
     def forward(self, x: torch.Tensor, deterministic=False):
         mean, log_std = self.mlp(x)
@@ -138,14 +134,16 @@ class SACTrainer(Trainer):
         """
         super().__init__(task, output_path, device, cfg)
 
-        self.q = SACCritic(task, cfg.sac.critic_mlp, cfg.sac.num_critics).to(device)
-        self.q_target = SACCritic(task, cfg.sac.critic_mlp, cfg.sac.num_critics).to(
-            device
+        self.q = SACCritic(
+            task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
+        )
+        self.q_target = SACCritic(
+            task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
         )
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = SACActor(task, cfg.sac.actor_mlp).to(device)  # type: ignore
+        self.pi = SACActor(task, self.train_env, cfg.sac.actor_mlp)  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
@@ -153,6 +151,7 @@ class SACTrainer(Trainer):
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
 
+        # TODO: Move to def run of main trainer.
         self.to(device)
 
     def train_loop(self) -> Iterator[int]:
@@ -171,7 +170,7 @@ class SACTrainer(Trainer):
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
 
-            action, _ = self.act(obs)  # type: ignore
+            action, _, _ = self.act(obs)  # type: ignore
             obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
                 action
             )
@@ -255,11 +254,11 @@ class SACTrainer(Trainer):
 
     def act(
         self, obs, deterministic: bool = False, state=None
-    ) -> tuple[np.ndarray, None]:
+    ) -> tuple[np.ndarray, None, None]:
         obs = self.task.collate(obs, self.device)
         with torch.no_grad():
             action, _ = self.pi(obs, deterministic=deterministic)
-        return action.cpu().numpy(), None
+        return action.cpu().numpy(), None, None
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:

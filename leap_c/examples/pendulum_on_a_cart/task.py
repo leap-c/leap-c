@@ -1,11 +1,11 @@
-from typing import Any
+from typing import Any, Optional
 from collections import OrderedDict
 
 import gymnasium as gym
 import torch
 import numpy as np
 from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
-from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC, PARAMS
+from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
 from leap_c.nn.modules import MPCSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
@@ -80,18 +80,30 @@ class PendulumOnCart(Task):
         params = PARAMS_SWINGUP
         learnable_params = ["xref2"]
 
-        mpc = PendulumOnCartMPC(N_horizon=6, T_horizon=0.25, learnable_params=learnable_params, params=params)
+        mpc = PendulumOnCartMPC(
+            N_horizon=6,
+            T_horizon=0.25,
+            learnable_params=learnable_params,
+            params=params,  # type: ignore
+        )
         mpc_layer = MPCSolutionModule(mpc)
-        super().__init__(mpc_layer, PendulumOnCartSwingupEnv)
+        super().__init__(mpc_layer)
 
         y_ref_stage = np.array(
-            [v.item() for k, v in mpc.given_default_param_dict.items() if "xref" in k or "uref" in k]
+            [
+                v.item()
+                for k, v in mpc.given_default_param_dict.items()
+                if "xref" in k or "uref" in k
+            ]
         )
         y_ref_stage_e = np.array(
             [v.item() for k, v in mpc.given_default_param_dict.items() if "xref" in k]
         )
         self.y_ref = np.tile(y_ref_stage, (5, 1))
         self.y_ref_e = y_ref_stage_e
+
+    def create_env(self, train: bool) -> gym.Env:
+        return PendulumOnCartSwingupEnv()
 
     @property
     def param_space(self) -> gym.spaces.Box | None:
@@ -100,19 +112,25 @@ class PendulumOnCart(Task):
     def prepare_mpc_input(
         self,
         obs: Any,
-        param_nn: torch.Tensor,
+        param_nn: Optional[torch.Tensor] = None,
+        action: Optional[torch.Tensor] = None,
     ) -> MPCInput:
+        if param_nn is None:
+            raise ValueError("Parameter tensor is required for MPC task.")
+
         # get batch dim
-        batch_size = param_nn.shape[0]
+        batch_size = param_nn.shape[0]  # type: ignore
 
         # prepare y_ref
         param_y_ref = np.tile(self.y_ref, (batch_size, 1, 1))
-        param_y_ref[:, :, 1] = param_nn.detach().cpu().numpy()
+        param_y_ref[:, :, 1] = param_nn.detach().cpu().numpy()  # type: ignore
 
         # prepare y_ref_e
         param_y_ref_e = np.tile(self.y_ref_e, (batch_size, 1))
-        param_y_ref_e[:, 1] = param_nn.detach().cpu().numpy().squeeze()
+        param_y_ref_e[:, 1] = param_nn.detach().cpu().numpy().squeeze()  # type: ignore
 
-        mpc_param = MPCParameter(p_global=param_nn, p_yref=param_y_ref, p_yref_e=param_y_ref_e)
+        mpc_param = MPCParameter(
+            p_global=param_nn, p_yref=param_y_ref, p_yref_e=param_y_ref_e  # type: ignore
+        )
 
         return MPCInput(x0=obs, parameters=mpc_param)
