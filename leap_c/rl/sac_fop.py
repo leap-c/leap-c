@@ -284,14 +284,12 @@ class SACFOPTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te, tr, ps, ps_prime, param = self.buffer.sample(
+                o, a, r, o_prime, te, tr, ps, ps_sol, param = self.buffer.sample(
                     self.cfg.sac.batch_size
                 )
 
                 # sample action
-                a_pi, log_p, status, state_sol, param_pi, mpc_stats = self.pi(
-                    o, ps_prime
-                )
+                a_pi, log_p, status, state_sol, param_pi, mpc_stats = self.pi(o, ps_sol)
                 log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
@@ -313,7 +311,7 @@ class SACFOPTrainer(Trainer):
                         state_sol_prime,
                         param_pi_prime,
                         mpc_stats_prime,
-                    ) = self.pi(o_prime, ps_prime)
+                    ) = self.pi(o_prime, ps_sol)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1).values
 
