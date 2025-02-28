@@ -380,8 +380,8 @@ class SACFOPTrainer(Trainer):
         return (  # type:ignore
             action.cpu().numpy()[0],
             state_solution,
-            param.detach().cpu().numpy(),
-            status.cpu().numpy(),
+            param[0].detach().cpu().numpy(),
+            status[0].cpu().numpy(),
             mpc_stats,
         )
 
