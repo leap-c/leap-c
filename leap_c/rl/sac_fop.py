@@ -247,7 +247,7 @@ class SACFOPTrainer(Trainer):
                 mpc_stats_aggregated_rollout = {}
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
-            action, policy_state_prime, param, status, mpc_stats = self.act(
+            action, policy_state_sol, param, status, mpc_stats = self.act(
                 obs, state=policy_state
             )
 
@@ -270,13 +270,13 @@ class SACFOPTrainer(Trainer):
                     is_terminated,
                     is_truncated,
                     policy_state,
-                    policy_state_prime,
+                    policy_state_sol,
                     param,
                 )
             )  # type: ignore
 
             obs = obs_prime
-            policy_state = policy_state_prime
+            policy_state = policy_state_sol
 
             if (
                 self.state.step >= self.cfg.train.start
@@ -289,7 +289,9 @@ class SACFOPTrainer(Trainer):
                 )
 
                 # sample action
-                a_pi, log_p, status, state_sol, param, mpc_stats = self.pi(o, ps_prime)
+                a_pi, log_p, status, state_sol, param_pi, mpc_stats = self.pi(
+                    o, ps_prime
+                )
                 log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
@@ -309,7 +311,7 @@ class SACFOPTrainer(Trainer):
                         log_p_prime,
                         status_prime,
                         state_sol_prime,
-                        param_prime,
+                        param_pi_prime,
                         mpc_stats_prime,
                     ) = self.pi(o_prime, ps_prime)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
