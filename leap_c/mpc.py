@@ -393,7 +393,7 @@ def _solve_shared(
     if use_backup_for_first_solve:
         iterate = backup_fn(mpc_input)  # type:ignore
     else:
-        iterate = None
+        iterate = mpc_state
     initialize_ocp_solver(
         ocp_solver=solver,
         mpc_input=mpc_input,
