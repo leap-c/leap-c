@@ -249,7 +249,7 @@ class SACFOPTrainer(Trainer):
                 episode_return = episode_length = 0
             obs_tensor = self.task.collate([obs], device=self.device)
             with torch.no_grad():
-                action, policy_state_sol, param, status, mpc_stats = self.pi(
+                action, _, policy_state_sol, param, status, mpc_stats = self.pi(
                     obs_tensor, mpc_state=policy_state
                 )
             action = action[0].detach().cpu().numpy()
