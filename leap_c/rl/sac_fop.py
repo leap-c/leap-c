@@ -367,7 +367,7 @@ class SACFOPTrainer(Trainer):
         obs,
         deterministic: bool = False,
         state=None,
-    ) -> tuple[np.ndarray, Any | None, np.ndarray, np.ndarray, dict]:
+    ) -> tuple[np.ndarray, Any | None, dict]:
         obs = self.task.collate([obs], device=self.device)
 
         with torch.no_grad():
@@ -375,12 +375,14 @@ class SACFOPTrainer(Trainer):
                 obs, state, deterministic=deterministic
             )
 
+        # TODO: Log these?
+        # mpc_stats,
+        # param[0].detach().cpu().numpy(),
+        # status[0].cpu().numpy(),
+
         return (  # type:ignore
             action.cpu().numpy()[0],
             state_solution,
-            param[0].detach().cpu().numpy(),
-            status[0].cpu().numpy(),
-            mpc_stats,
         )
 
     @property
