@@ -247,9 +247,10 @@ class SACFOPTrainer(Trainer):
                 mpc_stats_aggregated_rollout = {}
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
+            obs_tensor = self.task.collate([obs], device=self.device)
             with torch.no_grad():
                 action, policy_state_sol, param, status, mpc_stats = self.pi(
-                    obs, state=policy_state
+                    obs_tensor, mpc_state=policy_state
                 )
             action = action[0].detach().cpu().numpy()
             param = param[0].detach().cpu().numpy()
