@@ -387,10 +387,9 @@ def _solve_shared(
     backup_fn: Callable[[MPCInput], MPCSingleState | MPCBatchedState] | None,
     throw_error_if_u0_is_outside_ocp_bounds: bool = True,
 ) -> dict[str, Any]:
-    use_backup_for_first_solve = mpc_state is None and backup_fn is not None
     # Use the backup function to get an iterate in the first solve already, if no iterate is given.
     # Else no iterate is used, which means the iterate of the resetted solver is used (i.e. all iterates are set to 0).
-    if use_backup_for_first_solve:
+    if mpc_state is None and backup_fn is not None:
         iterate = backup_fn(mpc_input)  # type:ignore
     else:
         iterate = mpc_state
@@ -409,7 +408,7 @@ def _solve_shared(
         solve_stats["qp_iter"] = solver.get_stats("qp_iter").sum()  # type:ignore
         solve_stats["time_tot"] = solver.get_stats("time_tot")
         if (
-            not use_backup_for_first_solve and solver.status != 0
+            backup_fn is not None and iterate is not None and solver.status != 0
         ):  # Reattempt with backup
             initialize_ocp_solver(
                 ocp_solver=solver,
@@ -439,7 +438,9 @@ def _solve_shared(
             if status != 0:
                 any_failed = True
 
-        if any_failed and not use_backup_for_first_solve:  # Reattempt with backup
+        if (
+            any_failed and backup_fn is not None and iterate is not None
+        ):  # Reattempt with backup
             for i, ocp_solver in enumerate(solver.ocp_solvers):
                 if status_batch[i] != 0:
                     single_input = mpc_input.get_sample(i)
