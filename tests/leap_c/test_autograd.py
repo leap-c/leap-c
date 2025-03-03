@@ -2,12 +2,12 @@ import numpy as np
 import pytest
 import torch
 from leap_c.examples.pointmass.mpc import PointMassMPC
-from leap_c.mpc import MPCParameter, MPCInput
+from leap_c.mpc import MPCInput, MPCParameter
 from leap_c.nn.modules import CleanseAndReducePerSampleLoss, MPCSolutionModule
 
 
 def test_MPCSolutionModule_on_PointMassMPC(
-    learnable_point_mass_mpc: PointMassMPC,
+    learnable_point_mass_mpc_m: PointMassMPC,
     point_mass_mpc_p_global: np.ndarray,
     x0: np.ndarray = np.array([0.5, 0.5, 0.0, 0.0]),
     u0: np.ndarray = np.array([0.5, 0.5]),
@@ -28,7 +28,7 @@ def test_MPCSolutionModule_on_PointMassMPC(
 
     p_rests = None
 
-    mpc_module = MPCSolutionModule(learnable_point_mass_mpc)
+    mpc_module = MPCSolutionModule(learnable_point_mass_mpc_m)
     x0_torch = torch.tensor(x0, dtype=torch.float64)
     x0_torch = torch.tile(x0_torch, (batch_size, 1))
     p = torch.tensor(test_param, dtype=torch.float64)
@@ -81,9 +81,9 @@ def test_MPCSolutionModule_on_PointMassMPC(
             mpc_input=mpc_input,
             mpc_state=None,
         )
-        assert torch.all(torch.isnan(mpc_output.u0)), (
-            "u_star should be nan, since u0 is given."
-        )
+        assert torch.all(
+            torch.isnan(mpc_output.u0)
+        ), "u_star should be nan, since u0 is given."
         return mpc_output.Q, mpc_output.status
 
     torch.autograd.gradcheck(
@@ -131,9 +131,9 @@ def test_MPCSolutionModule_on_PointMassMPC(
             mpc_input=mpc_input,
             mpc_state=None,
         )
-        assert torch.all(torch.isnan(mpc_output.u0)), (
-            "u_star should be nan, since u0 is given."
-        )
+        assert torch.all(
+            torch.isnan(mpc_output.u0)
+        ), "u_star should be nan, since u0 is given."
         return mpc_output.Q, mpc_output.status
 
     torch.autograd.gradcheck(
@@ -150,9 +150,9 @@ def test_MPCSolutionModule_on_PointMassMPC(
             mpc_input=mpc_input,
             mpc_state=None,
         )
-        assert torch.all(torch.isnan(mpc_output.u0)), (
-            "u_star should be nan, since u0 is given."
-        )
+        assert torch.all(
+            torch.isnan(mpc_output.u0)
+        ), "u_star should be nan, since u0 is given."
         return mpc_output.Q, mpc_output.status
 
     torch.autograd.gradcheck(only_dQdu0, u0, atol=1e-2, eps=1e-4, raise_exception=True)

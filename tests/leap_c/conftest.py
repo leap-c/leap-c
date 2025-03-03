@@ -80,7 +80,23 @@ def n_batch() -> int:
 
 
 @pytest.fixture(scope="session")
-def learnable_point_mass_mpc(n_batch: int) -> PointMassMPC:
+def learnable_point_mass_mpc_different_params(n_batch: int) -> PointMassMPC:
+    return PointMassMPC(
+        learnable_params=[
+            "m",
+            "cx",
+            "r_diag",
+            "q_diag_e",
+            "uref",
+            "xref_e",
+            "u_wind",
+        ],
+        n_batch=n_batch,
+    )
+
+
+@pytest.fixture(scope="session")
+def learnable_point_mass_mpc_m(n_batch: int) -> PointMassMPC:
     return PointMassMPC(learnable_params=["m"], n_batch=n_batch)
 
 
@@ -91,11 +107,11 @@ def point_mass_env() -> PointMassEnv:
 
 @pytest.fixture(scope="session")
 def point_mass_mpc_p_global(
-    learnable_point_mass_mpc: PointMassMPC, n_batch: int
+    learnable_point_mass_mpc_m: PointMassMPC, n_batch: int
 ) -> np.ndarray:
     """Fixture for the global parameters of the point mass MPC."""
     return generate_batch_variation(
-        learnable_point_mass_mpc.ocp_solver.acados_ocp.p_global_values, n_batch
+        learnable_point_mass_mpc_m.ocp_solver.acados_ocp.p_global_values, n_batch
     )
 
 
