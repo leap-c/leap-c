@@ -1,15 +1,15 @@
+from pathlib import Path
+
+import casadi as ca
 import numpy as np
 from acados_template import AcadosOcp
-from casadi.tools import struct_symSX, entry
-from leap_c.linear_mpc import LinearMPC
-from leap_c.mpc import MPC
-import casadi as ca
+from casadi.tools import struct_symSX
+from leap_c.examples.pointmass.env import WindParam, _A_disc, _B_disc, get_wind_velocity
 from leap_c.examples.util import (
-    translate_learnable_param_to_p_global,
     find_param_in_p_or_p_global,
+    translate_learnable_param_to_p_global,
 )
-from leap_c.examples.pointmass.env import _A_disc, _B_disc, WindParam, get_wind_velocity
-from pathlib import Path
+from leap_c.mpc import MPC
 
 
 # class PointMassMPC(LinearMPC):
@@ -189,7 +189,7 @@ def export_parametric_ocp(
     ocp.constraints.ubx = np.array([5.0, 5.0, 50.0, 50.0])
     ocp.constraints.idxbx = np.array([0, 1, 2, 3])
 
-    ocp.constraints.idxsbx = np.array([0, 1])
+    ocp.constraints.idxsbx = np.array([0, 1, 2, 3])
 
     ns = 2
     ocp.cost.zl = 100 * np.ones((ns,))
