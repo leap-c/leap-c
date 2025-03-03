@@ -191,7 +191,7 @@ def export_parametric_ocp(
 
     ocp.constraints.idxsbx = np.array([0, 1, 2, 3])
 
-    ns = 2
+    ns = ocp.constraints.idxsbx.size
     ocp.cost.zl = 100 * np.ones((ns,))
     ocp.cost.Zl = 0 * np.ones((ns,))
     ocp.cost.zu = 100 * np.ones((ns,))
