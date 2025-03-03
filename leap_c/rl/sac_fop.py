@@ -381,7 +381,7 @@ class SACFOPTrainer(Trainer):
 
         # TODO: Log these?
         # mpc_stats,
-        # param[0].detach().cpu().numpy(),
+        # param[0].cpu().numpy(),
         # status[0].cpu().numpy(),
 
         return (  # type:ignore
