@@ -16,7 +16,7 @@ from leap_c.nn.mlp import MLP, MLPConfig
 from leap_c.nn.modules import MPCSolutionModule
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
-from leap_c.rl.sac import SACAlgorithmConfig
+from leap_c.rl.sac import SacAlgorithmConfig 
 from leap_c.task import Task
 from leap_c.trainer import (
     BaseConfig,
@@ -36,21 +36,21 @@ class SacZopBaseConfig(BaseConfig):
     """Contains the necessary information for a Trainer.
 
     Attributes:
-        sac: The SAC algorithm configuration.
+        sac: The Sac algorithm configuration.
         train: The training configuration.
         val: The validation configuration.
         log: The logging configuration.
         seed: The seed for the trainer.
     """
 
-    sac: SACAlgorithmConfig = field(default_factory=SACAlgorithmConfig)
+    sac: SacAlgorithmConfig = field(default_factory=SacAlgorithmConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     val: ValConfig = field(default_factory=ValConfig)
     log: LogConfig = field(default_factory=LogConfig)
     seed: int = 0
 
 
-class SACCritic(nn.Module):
+class SacCritic(nn.Module):
     def __init__(
         self,
         task: Task,
@@ -80,7 +80,7 @@ class SACCritic(nn.Module):
         return [mlp(qe(x), a) for qe, mlp in zip(self.extractor, self.mlp)]
 
 
-class MPCSACActor(nn.Module):
+class MPCSacActor(nn.Module):
     def __init__(
         self,
         task: Task,
@@ -181,16 +181,16 @@ class SacZopTrainer(Trainer):
         """
         super().__init__(task, output_path, device, cfg)
 
-        self.q = SACCritic(
+        self.q = SacCritic(
             task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
         ).to(device)
-        self.q_target = SACCritic(
+        self.q_target = SacCritic(
             task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
         ).to(device)
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = MPCSACActor(task, self.train_env, cfg.sac.actor_mlp).to(device)
+        self.pi = MPCSacActor(task, self.train_env, cfg.sac.actor_mlp).to(device)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore

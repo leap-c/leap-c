@@ -75,8 +75,8 @@ def main(
         cfg=cfg,
     )
 
-    cfg.val.interval = 200
-    cfg.val.num_render_rollouts = 0
+    cfg.val.interval = 2000
+    cfg.val.num_render_rollouts = 1
 
     trainer = create_trainer(trainer_name, task, output_path, device, cfg)
     trainer.run()

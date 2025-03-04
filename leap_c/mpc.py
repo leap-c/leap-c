@@ -427,10 +427,6 @@ def _solve_shared(
             solve_stats["time_tot"] += solver.get_stats("time_tot")
         solve_stats["first_solve_status"] = [solver.status]
 
-        if any(isinstance(p, np.ndarray) for p in solve_stats):
-            __import__('pdb').set_trace()
-
-
     elif isinstance(solver, AcadosOcpBatchSolver):
         status_batch = []
         sqp_iter_batch = []
