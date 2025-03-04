@@ -575,7 +575,9 @@ class MPC(ABC):
         self._discount_factor = discount_factor
         self._default_init_state_fn = default_init_state_fn
 
-        self.param_labels = SX_to_labels(self.ocp.model.p_global)
+        # todo: this does not work for empty list of p_global
+        if not isinstance(self.ocp.model.p_global, list):
+            self.param_labels = SX_to_labels(self.ocp.model.p_global)
 
         # size of solver batch
         self.n_batch: int = n_batch
