@@ -563,7 +563,7 @@ class MPC(ABC):
         else:
             self.ocp_sensitivity = ocp_sensitivity
 
-        turn_on_warmstart(self.ocp)
+        # turn_on_warmstart(self.ocp)
         # turn_on_warmstart(self.ocp_sensitivity)
 
         # path management
