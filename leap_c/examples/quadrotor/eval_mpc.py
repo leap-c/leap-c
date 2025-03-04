@@ -19,4 +19,4 @@ if __name__ == "__main__":
         action = solver.get(0, "u")
         obs, reward, done, _, _ = env.step(action)
         print(f"reward:{reward}")
-    env.render()
+    env.render(interactive=False)

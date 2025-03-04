@@ -17,7 +17,7 @@ from ...mpc import MPCInput, MPCParameter
 
 
 @register_task("quadrotor_stop")
-class QuadrotorStop(Task):
+class QuadrotorStopTask(Task):
 
     def __init__(self):
         params = read_from_yaml("./examples/quadrotor/model_params.yaml")
@@ -58,6 +58,5 @@ class QuadrotorStop(Task):
 
     def prepare_mpc_input(self, obs: Any, param_nn: Optional[torch.Tensor] = None, ) -> MPCInput:
         mpc_param = MPCParameter(p_global=param_nn)  # type: ignore
-
         return MPCInput(x0=obs, parameters=mpc_param)
 

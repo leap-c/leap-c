@@ -157,7 +157,7 @@ class MPCSACActor(nn.Module):
 
         if action.shape[0] == 1:
             stats = {
-                param_labels[k]: element for k, element in enumerate(param.squeeze())
+                param_labels[k]: element for k, element in enumerate(param.reshape(-1))
             }
             self.trainer["trainer"].report_stats(
                 "action",

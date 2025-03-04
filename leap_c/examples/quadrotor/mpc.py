@@ -126,7 +126,7 @@ def export_parametric_ocp(
         Q = np.diag([0, 0, 0,
                      1e1, 1e1, 1e1, 1e1,
                      1e6, 1e6, 1e6,
-                     1e-1, 1e-1, 1e-1])
+                     1e-1, 1e-1, 1e5])
         R = np.diag([1, 1, 1, 1])
         Qe = 100 * Q
 
@@ -205,11 +205,11 @@ def export_parametric_ocp(
     #        ocp.translate_cost_to_external_cost(W=W, W_e=W_e, yref=yref, yref_e=yref_e)
     #    set_standard_sensitivity_options(ocp)
 
-    if isinstance(ocp.model.p, struct_symSX):
-        ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
-
-    if isinstance(ocp.model.p_global, struct_symSX):
-        ocp.model.p_global = (
-            ocp.model.p_global.cat if ocp.model.p_global is not None else None
-        )
+    # if isinstance(ocp.model.p, struct_symSX):
+    #     ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
+    #
+    # if isinstance(ocp.model.p_global, struct_symSX):
+    #     ocp.model.p_global = (
+    #         ocp.model.p_global.cat if ocp.model.p_global is not None else None
+    #     )
     return ocp

@@ -16,6 +16,7 @@ class QuadrotorStop(gym.Env):
     ):
         self.weight_velocity = 1
         self.weight_constraint_violation = 1e5
+        self.fig, self.axes = None, None
 
         self.model_params = read_from_yaml("./examples/quadrotor/model_params.yaml")
 
@@ -82,11 +83,11 @@ class QuadrotorStop(gym.Env):
 
         term = False
         trunc = False
-        #(all(self.x < self.x_high) and all(self.x > self.x_low)) and
-        if not bool(np.isnan(self.x).sum()) and (self.x[7:10].sum() <= 1000) and  (self.x[7:10].sum() >= -1000) :
-            if np.isnan(self.x).sum()>=1:
+        # (all(self.x < self.x_high) and all(self.x > self.x_low)) and
+        if not bool(np.isnan(self.x).sum()) and (self.x[7:10].sum() <= 1000) and (self.x[7:10].sum() >= -1000):
+            if np.isnan(self.x).sum() >= 1:
                 print("Bigger 1, should not be")
-            r = - dt * (self.weight_velocity * np.linalg.norm(self.x[7:10])  +
+            r = - dt * (self.weight_velocity * np.linalg.norm(self.x[7:10]) +
                         self.weight_constraint_violation * max(self.x[2] - self.model_params["bound_z"], 0))
 
         else:
@@ -97,6 +98,7 @@ class QuadrotorStop(gym.Env):
 
         if self.t >= self.sim_params["t_sim"]:
             term = True
+        print(r)
         self.reset_needed = trunc or term
 
         return self.x, r, term, trunc, {}
@@ -124,8 +126,18 @@ class QuadrotorStop(gym.Env):
         self.trajectory, self.time_steps, self.action_trajectory = [self.x], [self.t], None
         return self.x, {}
 
-    def render(self):
-        fig, axes = plt.subplots(3, 3, figsize=(12, 9), sharey='row')  # 3 rows, 1 column
+    def render(self, interactive: bool = True):
+
+        if self.fig is None:
+            if interactive:
+                plt.ion()
+            self.fig, self.axes = plt.subplots(3, 3, figsize=(12, 9), sharey='row')
+        fig, axes = self.fig, self.axes
+
+        if int(self.time_steps[-1]/self.sim_params["dt"]) % 10 != 0 and interactive:
+            return
+        for ax in axes.flatten():
+            ax.clear()
         trajectory = np.array(self.trajectory)
         axes[0, 0].plot(self.time_steps, trajectory[:, 0])
         axes[0, 0].set_title(r"position $p_x$")
@@ -173,10 +185,11 @@ class QuadrotorStop(gym.Env):
         axes[2, 2].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
         axes[2, 2].set_xlabel("time (s)")
         axes[2, 2].set_title(r"angular velocity $\omega_z$")
-
         plt.tight_layout()
-        plt.show()
-
+        if interactive:
+            plt.pause(0.001)
+        else:
+            plt.show()
 
 # execute as main to test
 if __name__ == "__main__":
