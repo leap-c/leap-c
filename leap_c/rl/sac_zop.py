@@ -16,7 +16,7 @@ from leap_c.nn.mlp import MLP, MLPConfig
 from leap_c.nn.modules import MPCSolutionModule
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
-from leap_c.rl.sac import SACAlgorithmConfig, SACCritic
+from leap_c.rl.sac import SACAlgorithmConfig
 from leap_c.task import Task
 from leap_c.trainer import (
     BaseConfig,
@@ -50,6 +50,36 @@ class SacZopBaseConfig(BaseConfig):
     seed: int = 0
 
 
+class SACCritic(nn.Module):
+    def __init__(
+        self,
+        task: Task,
+        env: gym.Env,
+        mlp_cfg: MLPConfig,
+        num_critics: int,
+    ):
+        super().__init__()
+
+        action_dim = task.param_space.shape[0]  # type: ignore
+
+        self.extractor = nn.ModuleList(
+            [task.create_extractor(env) for _ in range(num_critics)]
+        )
+        self.mlp = nn.ModuleList(
+            [
+                MLP(
+                    input_sizes=[qe.output_size, action_dim],  # type: ignore
+                    output_sizes=1,
+                    mlp_cfg=mlp_cfg,
+                )
+                for qe in self.extractor
+            ]
+        )
+
+    def forward(self, x: torch.Tensor, a: torch.Tensor):
+        return [mlp(qe(x), a) for qe, mlp in zip(self.extractor, self.mlp)]
+
+
 class MPCSACActor(nn.Module):
     def __init__(
         self,
@@ -79,7 +109,7 @@ class MPCSACActor(nn.Module):
         self.register_buffer("loc", loc)
         self.register_buffer("scale", scale)
 
-    def forward(self, obs, mpc_state: MPCBatchedState, deterministic=False):
+    def forward(self, obs, mpc_state: MPCBatchedState | None, deterministic=False):
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
@@ -113,9 +143,15 @@ class MPCSACActor(nn.Module):
         #         self.trainer["trainer"].state.step,
         #     )
 
+        if mpc_state is None:
+            return param, log_prob
+
+        mpc_input = self.prepare_mpc_input(obs, param)
+
         # TODO: We have to catch and probably replace the state_solution somewhere,
         #       if its not a converged solution
-        mpc_output, state_solution, stats = self.mpc(mpc_input, mpc_state)
+        with torch.no_grad():
+            mpc_output, state_solution, stats = self.mpc(mpc_input, mpc_state)
 
         return (
             mpc_output.u0,
@@ -128,7 +164,7 @@ class MPCSACActor(nn.Module):
         )
 
 
-@register_trainer("sac_fop", SacZopBaseConfig())
+@register_trainer("sac_zop", SacZopBaseConfig())
 class SacZopTrainer(Trainer):
     cfg: SacZopBaseConfig
 
@@ -192,12 +228,14 @@ class SacZopTrainer(Trainer):
                 episode_return = episode_length = 0
                 episode_act_stats = defaultdict(list)
 
-            obs = self.task.collate([obs], device=self.device)
+            obs_batched = self.task.collate([obs], device=self.device)
 
             with torch.no_grad():
                 action, param, _, _, policy_state_prime, _, act_stats = self.pi(
-                    obs, policy_state, deterministic=False
+                    obs_batched, policy_state, deterministic=False
                 )
+                action = action.cpu().numpy()[0]
+                param = param.cpu().numpy()[0]
 
             for key, value in act_stats.items():
                 episode_act_stats[key].append(value)
@@ -217,8 +255,6 @@ class SacZopTrainer(Trainer):
                     obs_prime,
                     is_terminated,
                     is_truncated,
-                    policy_state,
-                    policy_state_prime,
                 )
             )  # type: ignore
 
@@ -231,12 +267,12 @@ class SacZopTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te, tr, ps, ps_prime = self.buffer.sample(
+                o, a, r, o_prime, te, tr = self.buffer.sample(
                     self.cfg.sac.batch_size
                 )
 
                 # sample action
-                a_pi, log_p, status, state_sol, param, mpc_stats = self.pi(o, ps_prime)
+                a_pi, log_p = self.pi(o, None)
                 log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
@@ -251,7 +287,7 @@ class SacZopTrainer(Trainer):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    a_pi_prime, log_p_prime, *_ = self.pi(o_prime, ps_prime)
+                    a_pi_prime, log_p_prime = self.pi(o_prime, None)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1).values
 
@@ -268,10 +304,9 @@ class SacZopTrainer(Trainer):
                 self.q_optim.step()
 
                 # update actor
-                mask_status = status == 0
                 q_pi = torch.cat(self.q(o, a_pi), dim=1)
                 min_q_pi = torch.min(q_pi, dim=1).values
-                pi_loss = (alpha * log_p - min_q_pi)[mask_status].mean()
+                pi_loss = (alpha * log_p - min_q_pi).mean()
 
                 self.pi_optim.zero_grad()
                 pi_loss.backward()
@@ -293,8 +328,6 @@ class SacZopTrainer(Trainer):
                         "alpha": alpha,
                         "q": q.mean().item(),
                         "q_target": target.mean().item(),
-                        "masked_samples": (status != 0).float().mean().item(),
-                        **mpc_stats,
                     }
                     self.report_stats("loss", loss_stats, self.state.step + 1)
 
