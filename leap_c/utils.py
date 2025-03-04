@@ -177,11 +177,6 @@ def add_prefix_extend(prefix: str, extended: dict, extending: dict) -> None:
 
 
 def set_standard_sensitivity_options(ocp_sensitivity: AcadosOcp):
-    ocp_sensitivity.solver_options.nlp_solver_type = "SQP_RTI"
-    ocp_sensitivity.solver_options.globalization_fixed_step_length = 0.0
-    ocp_sensitivity.solver_options.nlp_solver_max_iter = 1
-    ocp_sensitivity.solver_options.qp_solver_iter_max = 200
-    ocp_sensitivity.solver_options.tol = ocp_sensitivity.solver_options.tol / 1e3
     ocp_sensitivity.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp_sensitivity.solver_options.qp_solver_ric_alg = 1
     ocp_sensitivity.solver_options.qp_solver_cond_N = (
