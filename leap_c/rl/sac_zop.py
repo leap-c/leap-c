@@ -222,7 +222,7 @@ class SacZopTrainer(Trainer):
                         "episode_length": episode_length,
                     }
                     self.report_stats("train", episode_stats, self.state.step)
-                    self.report_stats("train_policy", mpc_episode_stats, self.state.step)
+                    self.report_stats("train_policy_rollout", mpc_episode_stats, self.state.step)
                 policy_state = self.init_policy_state()
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0

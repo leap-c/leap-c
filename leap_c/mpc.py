@@ -1,7 +1,9 @@
 from abc import ABC
 from copy import deepcopy
+from enum import IntEnum
 from functools import cached_property
 from pathlib import Path
+import pdb
 from typing import Any, Callable, List, NamedTuple
 
 import casadi as ca
@@ -20,6 +22,17 @@ from leap_c.utils import (
     SX_to_labels,
     set_standard_sensitivity_options,
 )
+
+
+class AcadosStatus(IntEnum):
+    ACADOS_SUCCESS = 0
+    ACADOS_NAN_DETECTED = 1
+    ACADOS_MAXITER = 2
+    ACADOS_MINSTEP = 3
+    ACADOS_QP_FAILURE = 4
+    ACADOS_READY = 5
+    ACADOS_UNBOUNDED = 6
+    ACADOS_TIMEOUT = 7
 
 
 class MPCParameter(NamedTuple):
@@ -425,7 +438,12 @@ def _solve_shared(
             solve_stats["sqp_iter"] += solver.get_stats("sqp_iter")
             solve_stats["qp_iter"] += solver.get_stats("qp_iter").sum()  # type:ignore
             solve_stats["time_tot"] += solver.get_stats("time_tot")
-        solve_stats["first_solve_status"] = [solver.status]
+
+        status = solver.status
+        for status_enum in AcadosStatus:
+            solve_stats[f"status_{status_enum.name.lower()}"] = int(
+                status == status_enum.value
+            )
 
     elif isinstance(solver, AcadosOcpBatchSolver):
         status_batch = []
@@ -461,7 +479,14 @@ def _solve_shared(
                 sqp_iter_batch[i] += ocp_solver.get_stats("sqp_iter")
                 qp_iter_batch[i] += ocp_solver.get_stats("qp_iter").sum()  # type:ignore
                 time_tot_batch[i] += ocp_solver.get_stats("time_tot")
-            solve_stats["first_solve_status"] = status_batch
+
+        # report each status individually
+        status_batch = np.array(status_batch)
+        for i, status_enum in enumerate(AcadosStatus):
+            solve_stats[f"status_{status_enum.name.lower()}"] = int(
+                (status_batch == status_enum.value).sum()
+            )
+
         solve_stats["avg_sqp_iter"] = sum(sqp_iter_batch) / len(sqp_iter_batch)
         solve_stats["avg_qp_iter"] = sum(qp_iter_batch) / len(qp_iter_batch)
         solve_stats["avg_time_tot"] = sum(time_tot_batch) / len(time_tot_batch)
@@ -522,8 +547,9 @@ class MPC(ABC):
         ocp: AcadosOcp,
         ocp_sensitivity: AcadosOcp | None = None,
         discount_factor: float | None = None,
-        default_init_state_fn: Callable[[MPCInput], MPCSingleState | MPCBatchedState]
-        | None = None,
+        default_init_state_fn: (
+            Callable[[MPCInput], MPCSingleState | MPCBatchedState] | None
+        ) = None,
         n_batch: int = 256,
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
@@ -935,9 +961,9 @@ class MPC(ABC):
 
         self.last_call_stats = _solve_shared(
             solver=self.ocp_solver,
-            sensitivity_solver=self.ocp_sensitivity_solver
-            if use_sensitivity_solver
-            else None,
+            sensitivity_solver=(
+                self.ocp_sensitivity_solver if use_sensitivity_solver else None
+            ),
             mpc_input=mpc_input,
             mpc_state=mpc_state,
             backup_fn=self.default_init_state_fn,
@@ -1044,9 +1070,9 @@ class MPC(ABC):
 
         self.last_call_stats = _solve_shared(
             solver=self.ocp_batch_solver,
-            sensitivity_solver=self.ocp_batch_sensitivity_solver
-            if use_sensitivity_solver
-            else None,
+            sensitivity_solver=(
+                self.ocp_batch_sensitivity_solver if use_sensitivity_solver else None
+            ),
             mpc_input=mpc_input,
             mpc_state=mpc_state,
             backup_fn=self.default_init_state_fn,
@@ -1118,7 +1144,9 @@ class MPC(ABC):
                             )["sens_u"]
                             for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
                         ]
-                    ).reshape(self.n_batch, self.ocp.dims.nu, self.p_global_dim)  # type:ignore
+                    ).reshape(
+                        self.n_batch, self.ocp.dims.nu, self.p_global_dim
+                    )  # type:ignore
 
                 assert kw["du0_dp_global"].shape == (
                     self.n_batch,
