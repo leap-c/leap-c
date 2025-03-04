@@ -171,6 +171,8 @@ class SACTrainer(Trainer):
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
 
+            if bool(np.isnan(obs).sum()):
+                print("Observation contains nan, should not be")
             action, _ = self.act(obs)  # type: ignore
             obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
                 action

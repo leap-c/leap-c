@@ -1,66 +1,63 @@
-from typing import Any
-from collections import OrderedDict
+from typing import Any, Optional
 
 import gymnasium as gym
 import torch
 import numpy as np
+from gymnasium import spaces
+
 from leap_c.examples.quadrotor.env import QuadrotorStop
 from leap_c.examples.quadrotor.mpc import QuadrotorMPC
 from leap_c.nn.modules import MPCSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
+from .utils import read_from_yaml
+from functools import cached_property
 
 from ...mpc import MPCInput, MPCParameter
 
 
-PARAMS_QUADROTOR = OrderedDict(
-    [
-        ("m", np.array([0.6])),  # mass of the ball [kg]
-        ("g", np.array([9.81])),  # gravity constant [m/s^2]
-    ]
-)
-
-
 @register_task("quadrotor_stop")
-class PendulumOnCart(Task):
+class QuadrotorStop(Task):
 
     def __init__(self):
-        params = PARAMS_QUADROTOR
+        params = read_from_yaml("./examples/quadrotor/model_params.yaml")
         learnable_params = ["m"]
 
-        mpc = QuadrotorMPC(learnable_params=learnable_params, given_default_param_dict=params)
+        mpc = QuadrotorMPC(learnable_params=learnable_params)
         mpc_layer = MPCSolutionModule(mpc)
-        super().__init__(mpc_layer, PendulumOnCartSwingupEnv)
 
-        y_ref_stage = np.array(
-            [v.item() for k, v in mpc.given_default_param_dict.items() if "xref" in k or "uref" in k]
-        )
-        y_ref_stage_e = np.array(
-            [v.item() for k, v in mpc.given_default_param_dict.items() if "xref" in k]
-        )
-        self.y_ref = np.tile(y_ref_stage, (5, 1))
-        self.y_ref_e = y_ref_stage_e
+        self.param_low = 0.9999 * mpc.ocp.p_global_values
+        self.param_high = 1.0001 * mpc.ocp.p_global_values
+
+        # TODO: Handle params that are nominally zero
+        for i, p in enumerate(mpc.ocp.p_global_values):
+            if p == 0:
+                Exception("This should not happen")
+                self.param_low[i] = -10.0
+                self.param_high[i] = 10.0
+
+        super().__init__(mpc_layer, QuadrotorStop)
 
     @property
-    def param_space(self) -> gym.spaces.Box | None:
-        return gym.spaces.Box(low=-2.0 * torch.pi, high=2.0 * torch.pi, shape=(1,))
+    def param_space(self) -> spaces.Box:
+        low = self.param_low
+        high = self.param_high
+        return spaces.Box(low=low, high=high, dtype=np.float32)
 
-    def prepare_mpc_input(
-        self,
-        obs: Any,
-        param_nn: torch.Tensor,
-    ) -> MPCInput:
-        # get batch dim
-        batch_size = param_nn.shape[0]
+    @cached_property
+    def train_env(self) -> gym.Env:
+        env = QuadrotorStop()
+        env.reset(seed=self.seed)
+        return env
 
-        # prepare y_ref
-        param_y_ref = np.tile(self.y_ref, (batch_size, 1, 1))
-        param_y_ref[:, :, 1] = param_nn.detach().cpu().numpy()
+    @cached_property
+    def eval_env(self) -> gym.Env:
+        env = QuadrotorStop()
+        env.reset(seed=self.seed)
+        return env
 
-        # prepare y_ref_e
-        param_y_ref_e = np.tile(self.y_ref_e, (batch_size, 1))
-        param_y_ref_e[:, 1] = param_nn.detach().cpu().numpy().squeeze()
-
-        mpc_param = MPCParameter(p_global=param_nn, p_yref=param_y_ref, p_yref_e=param_y_ref_e)
+    def prepare_mpc_input(self, obs: Any, param_nn: Optional[torch.Tensor] = None, ) -> MPCInput:
+        mpc_param = MPCParameter(p_global=param_nn)  # type: ignore
 
         return MPCInput(x0=obs, parameters=mpc_param)
+

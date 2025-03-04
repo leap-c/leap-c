@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import casadi as ca
 import numpy as np
 import scipy
@@ -6,9 +8,16 @@ from casadi.tools import struct_symSX
 
 from leap_c.examples.quadrotor.casadi_models import get_rhs_quadrotor
 from leap_c.examples.quadrotor.utils import read_from_yaml
+from leap_c.examples.util import translate_learnable_param_to_p_global
 from leap_c.mpc import MPC
+from leap_c.utils import set_standard_sensitivity_options
 
-PARAMS = None
+PARAMS = OrderedDict(
+    [
+        ("m", np.array([0.6])),
+        ("g", np.array([9.81])),
+    ]
+)
 
 
 class QuadrotorMPC(MPC):
@@ -83,15 +92,20 @@ def export_parametric_ocp(
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = N_horizon*dt
 
+
+
     ######## Model ########
     # Quadrotor parameters
-    model_params = read_from_yaml("model_params.yaml")
+    model_params = read_from_yaml("./examples/quadrotor/model_params.yaml")
 
-    x, u, rhs, rhs_func = get_rhs_quadrotor(model_params, model_fidelity="low")
+    x, u, p, rhs, rhs_func = get_rhs_quadrotor(model_params, model_fidelity="low")
     ocp.model.name = name
     ocp.model.f_expl_expr = rhs
     ocp.model.x = x
     ocp.model.u = u
+    ocp.model.p_global = p[0]
+    ocp.p_global_values = np.array([model_params["mass"]])
+
     xdot = ca.SX.sym('xdot', x.shape)
     ocp.model.xdot = xdot
     ocp.model.f_impl_expr = xdot - rhs
@@ -172,6 +186,10 @@ def export_parametric_ocp(
     ocp.solver_options.sim_method_num_steps = 2
 
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+
+    if sensitivity_ocp:
+        set_standard_sensitivity_options(ocp)
+
     #ocp.solver_options.qp_solver_ric_alg = 1
 
     #####################################################

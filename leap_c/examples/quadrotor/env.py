@@ -7,8 +7,6 @@ from leap_c.examples.quadrotor.casadi_models import get_rhs_quadrotor, integrate
 from leap_c.examples.quadrotor.utils import read_from_yaml
 
 
-
-
 class QuadrotorStop(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
@@ -19,32 +17,37 @@ class QuadrotorStop(gym.Env):
         self.weight_velocity = 1
         self.weight_constraint_violation = 1e5
 
-        self.model_params = read_from_yaml("model_params.yaml")
+        self.model_params = read_from_yaml("./examples/quadrotor/model_params.yaml")
 
         self.sim_params = {
             "dt": 0.005,
             "t_sim": 2.0
         }
-        x, u, rhs, self.rhs_func = get_rhs_quadrotor(self.model_params, model_fidelity="high", scale_disturbances=0.001)
+        x, u, p, rhs, self.rhs_func = get_rhs_quadrotor(self.model_params,
+                                                        model_fidelity="high",
+                                                        scale_disturbances=0.001,
+                                                        sym_params=False)
 
         x_high = np.array(
             [
                 100.0, 100.0, 100.0,  # position
-                1, 1, 1, 1,  # quaternion
-                10, 10, 10,  # velocity
-                10, 10, 10,  # angular velocity
+                1.5, 1.5, 1.5, 1.5,  # quaternion
+                50, 50, 50,  # velocity
+                50, 50, 50,  # angular velocity
             ],
             dtype=np.float32,
         )
         x_low = np.array(
             [
                 -100.0, -100.0, -100.0,  # position
-                0, 0, 0, 0,  # quaternion
-                -10, -10, -10,  # velocity
-                -10, -10, -10,  # angular velocity
+                -1, -1, -1, -1,  # quaternion
+                -50, -50, -50,  # velocity
+                -50, -50, -50,  # angular velocity
             ],
             dtype=np.float32,
         )
+        self.x_low, self.x_high = x_low, x_high
+
         u_high = np.array([self.model_params["motor_omega_max"]] * 4, dtype=np.float32)
         u_low = np.array([0.0] * 4, dtype=np.float32)
 
@@ -71,16 +74,27 @@ class QuadrotorStop(gym.Env):
 
         action = np.clip(action, self.action_space.low, self.action_space.high)
         self.x = integrate_one_step(self.rhs_func, self.x, action, dt).full().flatten()
+        self.x[3:3 + 4] = self.x[3:3 + 4] / np.linalg.norm(self.x[3:3 + 4])
         self.t += dt
         self.trajectory = [self.x] if self.trajectory is None else self.trajectory + [self.x]
         self.time_steps = [self.t] if self.time_steps is None else self.time_steps + [self.t]
         self.action_trajectory = [action] if self.action_trajectory is None else self.action_trajectory + [action]
 
-        r = - dt * (self.weight_velocity * np.sqrt(np.sum(self.x[7:10] ** 2)) +
-                    self.weight_constraint_violation * max(self.x[2] - self.model_params["bound_z"], 0))
-
         term = False
         trunc = False
+        #(all(self.x < self.x_high) and all(self.x > self.x_low)) and
+        if not bool(np.isnan(self.x).sum()) and (self.x[7:10].sum() <= 1000) and  (self.x[7:10].sum() >= -1000) :
+            if np.isnan(self.x).sum()>=1:
+                print("Bigger 1, should not be")
+            r = - dt * (self.weight_velocity * np.linalg.norm(self.x[7:10])  +
+                        self.weight_constraint_violation * max(self.x[2] - self.model_params["bound_z"], 0))
+
+        else:
+            print(f"Truncation at time {self.t} with state {self.x}")
+            r = -1e5
+            trunc = True
+            term = True
+
         if self.t >= self.sim_params["t_sim"]:
             term = True
         self.reset_needed = trunc or term
@@ -92,7 +106,7 @@ class QuadrotorStop(gym.Env):
     ) -> tuple[np.ndarray, dict]:  # type: ignore
         if seed is not None:
             super().reset(seed=seed)
-            np.random.seed = seed
+            np.random.seed(seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
         if self._np_random is None:
@@ -111,7 +125,7 @@ class QuadrotorStop(gym.Env):
         return self.x, {}
 
     def render(self):
-        fig, axes = plt.subplots(2, 3, figsize=(12, 6), sharey='row')  # 3 rows, 1 column
+        fig, axes = plt.subplots(3, 3, figsize=(12, 9), sharey='row')  # 3 rows, 1 column
         trajectory = np.array(self.trajectory)
         axes[0, 0].plot(self.time_steps, trajectory[:, 0])
         axes[0, 0].set_title(r"position $p_x$")
@@ -143,6 +157,22 @@ class QuadrotorStop(gym.Env):
         axes[1, 2].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
         axes[1, 2].set_xlabel("time (s)")
         axes[1, 2].set_title(r"velocity $v_z$")
+
+        axes[2, 0].plot(self.time_steps, trajectory[:, 10])
+        axes[2, 0].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
+        axes[2, 0].set_xlabel("time (s)")
+        axes[2, 0].set_ylabel(r"angular velocity ($\frac{m}{s}$)")
+        axes[2, 0].set_title(r"angular velocity $\omega_x$")
+
+        axes[2, 1].plot(self.time_steps, trajectory[:, 11])
+        axes[2, 1].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
+        axes[2, 1].set_xlabel("time (s)")
+        axes[2, 1].set_title(r"angular velocity $\omega_y$")
+
+        axes[2, 2].plot(self.time_steps, trajectory[:, 12])
+        axes[2, 2].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
+        axes[2, 2].set_xlabel("time (s)")
+        axes[2, 2].set_title(r"angular velocity $\omega_z$")
 
         plt.tight_layout()
         plt.show()

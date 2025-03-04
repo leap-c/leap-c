@@ -5,7 +5,7 @@ import numpy as np
 from leap_c.examples.quadrotor.utils import quaternion_multiply_casadi, quaternion_rotate_vector_casadi, read_from_yaml
 
 
-def get_rhs_quadrotor(params: Dict, model_fidelity: str = "low", scale_disturbances: int = 1):
+def get_rhs_quadrotor(params: Dict, model_fidelity: str = "low", scale_disturbances: int = 1, sym_params: bool = True):
     """
     Returns the right-hand side of the quadrotor dynamics.
     We model 4 rotors which are controlled by the motor speeds.
@@ -17,6 +17,13 @@ def get_rhs_quadrotor(params: Dict, model_fidelity: str = "low", scale_disturban
     x_quat = cs.SX.sym("x_quat", 4)
     x_vel = cs.SX.sym("x_vel", 3)
     x_rot = cs.SX.sym("x_rot", 3)
+
+    if sym_params:
+        p_mass = cs.SX.sym("p_mass", 1)
+        p = [p_mass]
+    else:
+        p_mass = params["mass"]
+        p = None
 
     x = cs.vertcat(x_pos, x_quat, x_vel, x_rot)
 
@@ -41,13 +48,13 @@ def get_rhs_quadrotor(params: Dict, model_fidelity: str = "low", scale_disturban
         mean_sqr_motor_speed = cs.sum1(cs.vertcat(*[u_motor_speeds[i] ** 2 for i in range(4)])) / 4
         v_xy = cs.sqrt(x_vel[0] ** 2 + x_vel[1] ** 2)
         v_x, v_y, v_z = x_vel[0], x_vel[1], x_vel[2]
-        fres_x = params["mass"] * (params["cx1_fres"] * v_x +
+        fres_x = p_mass * (params["cx1_fres"] * v_x +
                                    params["cx2_fres"] * v_x * cs.fabs(v_x) +
                                    params["cx3_fres"] * v_x * mean_sqr_motor_speed)
-        fres_y = params["mass"] * (params["cy1_fres"] * v_y +
+        fres_y = p_mass * (params["cy1_fres"] * v_y +
                                    params["cy2_fres"] * v_y * cs.fabs(v_y) +
                                    params["cy3_fres"] * v_y * mean_sqr_motor_speed)
-        fres_z = params["mass"] * (params["cz1_fres"] * v_z +
+        fres_z = p_mass * (params["cz1_fres"] * v_z +
                                    params["cz2_fres"] * v_z ** 3 +
                                    params["cz3_fres"] * v_xy +
                                    params["cz4_fres"] * v_xy ** 2 +
@@ -63,7 +70,7 @@ def get_rhs_quadrotor(params: Dict, model_fidelity: str = "low", scale_disturban
     dx_quat = quaternion_multiply_casadi(0.5 * x_quat, cs.vertcat(0, x_rot))
 
     acc_gravity = cs.vertcat(0, 0, -params["gravity"])
-    acc_thrust = 1 / params["mass"] * quaternion_rotate_vector_casadi(x_quat, f_prop + f_res)
+    acc_thrust = 1 / p_mass * quaternion_rotate_vector_casadi(x_quat, f_prop + f_res)
     dx_vel = acc_gravity + acc_thrust
 
     intertia = np.array(params["inertia"])
@@ -72,9 +79,13 @@ def get_rhs_quadrotor(params: Dict, model_fidelity: str = "low", scale_disturban
     rhs = cs.vertcat(dx_pos, dx_quat, dx_vel, drot)
 
     u = u_motor_speeds
-    rhs_func = cs.Function("f_ode", [x, u], [rhs])
 
-    return x, u, rhs, rhs_func
+    if sym_params:
+        rhs_func = cs.Function("f_ode", [x, u, *p], [rhs])
+    else:
+        rhs_func = cs.Function("f_ode", [x, u], [rhs])
+
+    return x, u, p, rhs, rhs_func
 
 
 def integrate_one_step(rhs_func, x0, u, dt, method="RK4"):
