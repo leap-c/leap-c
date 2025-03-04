@@ -7,7 +7,6 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.nn.gaussian import Gaussian
 from leap_c.nn.mlp import MLP, MLPConfig
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
