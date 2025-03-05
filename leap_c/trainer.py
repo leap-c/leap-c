@@ -41,6 +41,7 @@ class LogConfig:
             This is calculated by the number of training steps.
         val_window: The moving window size for the validation statistics (note that
             this does not consider the training step but the number of validation episodes).
+        log_actions: If True, the actions from interacting with environments will be logged.
         csv_logger: If True, the statistics will be logged to a CSV file.
         tensorboard_logger: If True, the statistics will be logged to TensorBoard.
         wandb_logger: If True, the statistics will be logged to Weights & Biases.
@@ -52,6 +53,8 @@ class LogConfig:
     train_window: int = 1000
 
     val_window: int = 1
+
+    log_actions: bool = False
 
     csv_logger: bool = True
     tensorboard_logger: bool = True
@@ -158,7 +161,6 @@ class Trainer(ABC, nn.Module):
         super().__init__()
 
         self.task = task
-        task.seed = cfg.seed
         self.cfg = cfg
         self.device = device
 
@@ -166,8 +168,8 @@ class Trainer(ABC, nn.Module):
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
-        self.train_env = self.task.train_env
-        self.eval_env = self.task.eval_env
+        self.train_env = self.task.create_train_env(seed=cfg.seed)
+        self.eval_env = self.task.create_eval_env(seed=cfg.seed)
 
         # trainer state
         self.state = TrainerState()
@@ -211,7 +213,7 @@ class Trainer(ABC, nn.Module):
     @abstractmethod
     def act(
         self, obs, deterministic: bool = False, state=None
-    ) -> tuple[np.ndarray, Any | None]:
+    ) -> tuple[np.ndarray, Any | None, dict[str, float] | None]:
         """Act based on the observation.
 
         This is intended for rollouts (= interaction with the environment).
@@ -223,7 +225,7 @@ class Trainer(ABC, nn.Module):
                 an MPC planner.
 
         Returns:
-            The action and the state of the policy.
+            The action, the state of the policy and potential solving stats.
         """
         ...
 
@@ -327,16 +329,17 @@ class Trainer(ABC, nn.Module):
 
             def policy_fn(obs):
                 nonlocal policy_state
-                action, policy_state = self.act(
+                action, policy_state, policy_stats = self.act(
                     obs, deterministic=self.cfg.val.deterministic, state=policy_state
                 )
-                return action
+                return action, policy_stats
 
             return policy_fn
 
         policy = create_policy_fn()
 
-        parts = []
+        parts_rollout = []
+        parts_policy = []
 
         for idx in range(self.cfg.val.num_rollouts):
             if idx < self.cfg.val.num_render_rollouts:
@@ -346,15 +349,26 @@ class Trainer(ABC, nn.Module):
             else:
                 video_path = None
 
-            p = episode_rollout(
+            r, p = episode_rollout(
                 policy, self.eval_env, render_human=False, video_path=video_path
             )
-            parts.append(p)
+            parts_rollout.append(r)
+            parts_policy.append(p)
 
-        stats = {key: float(np.mean([p[key] for p in parts])) for key in parts[0]}
-        self.report_stats("val", stats, self.state.step, self.cfg.log.val_window)
+        stats_rollout = {
+            key: float(np.mean([p[key] for p in parts_rollout]))
+            for key in parts_rollout[0]
+        }
+        self.report_stats("val", stats_rollout, self.state.step, self.cfg.log.val_window)
 
-        return float(stats["score"])
+        if parts_policy[0]:
+            stats_policy = {
+                key: float(np.mean(np.concatenate([p[key] for p in parts_policy])))
+                for key in parts_policy[0]
+            }
+            self.report_stats("val_policy", stats_policy, self.state.step)
+
+        return float(stats_rollout["score"])
 
     def _ckpt_path(self, name: str, suffix: str) -> Path:
         if self.cfg.val.ckpt_modus == "best":

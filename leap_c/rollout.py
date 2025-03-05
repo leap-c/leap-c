@@ -1,5 +1,7 @@
 """Contains the necessary functions for validation."""
 
+from collections import defaultdict
+
 from gymnasium import Env
 from typing import Callable, Optional
 from pathlib import Path
@@ -30,7 +32,7 @@ def episode_rollout(
     env: Env,
     render_human: bool = False,
     video_path: Optional[str | Path] = None,
-) -> dict[str, float]:
+) -> tuple[dict[str, float], dict[str, list[float]]]:
     """Rollout an episode and returns the cumulative reward.
 
     Args:
@@ -44,7 +46,8 @@ def episode_rollout(
 
     Returns:
         A dictionary containing the information about the rollout, at containing the
-        keys "score", "length", "terminated", and "truncated".
+        keys "score", "length", "terminated", and "truncated" and a dictionary of
+        policy statistics.
     """
     if render_human and video_path is not None:
         raise ValueError("render_human and video_path can not be set at the same time.")
@@ -53,6 +56,7 @@ def episode_rollout(
 
     score = 0
     count = 0
+    policy_stats = defaultdict(list)
     o, _ = env.reset()
 
     frames = []
@@ -61,7 +65,11 @@ def episode_rollout(
 
     with torch.no_grad():
         while not terminated and not truncated:
-            a = policy(o)
+            a, stats = policy(o)
+
+            if stats is not None:
+                for key, value in stats.items():
+                    policy_stats[key].append(value)
 
             if isinstance(a, torch.Tensor):
                 a = a.cpu().numpy()
@@ -89,4 +97,11 @@ def episode_rollout(
 
         save_video(frames, video_path, render_fps)
 
-    return dict(score=score, length=count, terminated=terminated, truncated=truncated)
+    rollout_stats = {
+        "score": score,
+        "length": count,
+        "terminated": terminated,
+        "truncated": truncated,
+    }
+
+    return rollout_stats, policy_stats
