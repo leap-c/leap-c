@@ -146,6 +146,7 @@ class SacActor(nn.Module):
 
         action = action * self.scale[None, :] + self.loc[None, :]
 
+        log_prob = log_prob.sum(dim=-1, keepdims=True)
         return action, log_prob
 
 
@@ -225,7 +226,6 @@ class SacTrainer(Trainer):
 
                 # sample action
                 a_pi, log_p = self.pi(o)
-                log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
                 target_entropy = -np.prod(self.train_env.action_space.shape)  # type: ignore
@@ -243,7 +243,7 @@ class SacTrainer(Trainer):
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1).values
                     # add entropy
-                    q_target = q_target - alpha * log_p_prime[:, 0]
+                    q_target = q_target - alpha * log_p_prime
 
                     target = r + self.cfg.sac.gamma * (1 - te) * q_target
 
