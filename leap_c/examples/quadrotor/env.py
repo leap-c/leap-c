@@ -97,7 +97,7 @@ class QuadrotorStop(gym.Env):
             r = -1e5
             trunc = True
             term = True
-
+        print(r)
         if self.t >= self.sim_params["t_sim"]:
             term = True
 

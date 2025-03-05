@@ -1,15 +1,17 @@
+import json
 from collections import OrderedDict
+from typing import Dict, List
 
 import casadi as ca
 import numpy as np
 import scipy
-from acados_template import AcadosOcp, AcadosOcpSolver
+from acados_template import AcadosOcp, AcadosOcpSolver, AcadosOcpIterate
 from casadi.tools import struct_symSX
 
 from leap_c.examples.quadrotor.casadi_models import get_rhs_quadrotor
 from leap_c.examples.quadrotor.utils import read_from_yaml
 from leap_c.examples.util import translate_learnable_param_to_p_global
-from leap_c.mpc import MPC
+from leap_c.mpc import MPC, MPCInput
 from leap_c.utils import set_standard_sensitivity_options
 
 PARAMS = OrderedDict(
@@ -68,11 +70,27 @@ class QuadrotorMPC(MPC):
 
         self.given_default_param_dict = params
 
+        #def initialize_default():
+
+        #default_init_state_fn =load_iterate("./examples/quadrotor/init_iterate.json")
+        # Load JSON file
+        with open("./examples/quadrotor/init_iterate.json", "r") as file:
+            init_iterate = json.load(file)  # Parse JSON into a Python dictionary
+            init_iterate = parse_ocp_iterate(init_iterate)
+
+        def initialize_default(mpc_input: MPCInput):
+            init_iterate.x_traj = [mpc_input.x0] * (ocp.solver_options.N_horizon + 1)
+            return init_iterate
+
+        default_init_state_fn = initialize_default
+        # Convert dictionary to a namedtuple
+
         super().__init__(
             ocp=ocp,
             ocp_sensitivity=ocp_sens,
             discount_factor=discount_factor,
             n_batch=n_batch,
+            default_init_state_fn=default_init_state_fn,
         )
 
 
@@ -214,3 +232,38 @@ def export_parametric_ocp(
     #         ocp.model.p_global.cat if ocp.model.p_global is not None else None
     #     )
     return ocp
+
+def parse_ocp_iterate(data: Dict[str, List[float]]) -> AcadosOcpIterate:
+    """
+    Parses the given JSON-like dictionary into an instance of AcadosOcpIterate.
+
+    Args:
+        data (dict): The input dictionary containing state, control, and dual variables.
+
+    Returns:
+        AcadosOcpIterate: The parsed iterate structure.
+    """
+    # Extract state trajectory
+    x_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("x_")]
+
+    # Extract control trajectory
+    u_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("u_")]
+
+    # Extract dual variables
+    pi_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("pi_")]
+    lam_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("lam_")]
+    sl_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("sl_")]
+    su_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("su_")]
+
+    # Assuming `z_traj` is empty since there's no "z_" in the given data
+    z_traj = []
+
+    return AcadosOcpIterate(
+        x_traj=x_traj,
+        u_traj=u_traj,
+        z_traj=z_traj,
+        sl_traj=sl_traj,
+        su_traj=su_traj,
+        pi_traj=pi_traj,
+        lam_traj=lam_traj,
+    )

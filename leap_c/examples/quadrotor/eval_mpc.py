@@ -26,6 +26,10 @@ if __name__ == "__main__":
         solver.set(0, "lbx", obs)
         solver.set(0, "ubx", obs)
         status = solver.solve()
+        if env.t >0.8 and False:
+            solver.store_iterate("init_iterate.json")
+            break
+
         action = solver.get(0, "u")
         obs, reward, done, _, _ = env.step(action)
         print(f"reward:{reward}")
