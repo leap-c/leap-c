@@ -165,7 +165,7 @@ class PendulumOnCartMPC(MPC):
             sensitivity_ocp=True,
         )
 
-        self.given_default_param_dict = params
+        self.given_default_param_dict: dict[str, np.ndarray] = params  # type:ignore
 
         super().__init__(
             ocp=ocp,

@@ -1,20 +1,22 @@
 """Provides a trainer for a Soft Actor-Critic algorithm that uses a differentiable MPC
 layer for the policy network."""
 
+from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 import numpy as np
 import torch
 import torch.nn as nn
+import gymnasium as gym
 
 from leap_c.mpc import MPCBatchedState
 from leap_c.nn.mlp import MLP, MLPConfig
 from leap_c.nn.modules import MPCSolutionModule
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
-from leap_c.rl.sac import SACAlgorithmConfig, SACCritic
+from leap_c.rl.sac import SacAlgorithmConfig 
 from leap_c.task import Task
 from leap_c.trainer import (
     BaseConfig,
@@ -23,87 +25,83 @@ from leap_c.trainer import (
     Trainer,
     ValConfig,
 )
-from leap_c.utils import collect_status, sum_up_dict
+
 
 LOG_STD_MIN = -4
 LOG_STD_MAX = 2
 
 
 @dataclass(kw_only=True)
-class SACFOPBaseConfig(BaseConfig):
+class SacZopBaseConfig(BaseConfig):
     """Contains the necessary information for a Trainer.
 
     Attributes:
-        sac: The SAC algorithm configuration.
+        sac: The Sac algorithm configuration.
         train: The training configuration.
         val: The validation configuration.
         log: The logging configuration.
         seed: The seed for the trainer.
     """
 
-    sac: SACAlgorithmConfig = field(default_factory=SACAlgorithmConfig)
+    sac: SacAlgorithmConfig = field(default_factory=SacAlgorithmConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     val: ValConfig = field(default_factory=ValConfig)
     log: LogConfig = field(default_factory=LogConfig)
     seed: int = 0
 
 
-def put_status_into_stats(status: np.ndarray | torch.Tensor, stats: dict, prefix=""):
-    status_collection = collect_status(status)
-    stats[prefix + "status_0"] = status_collection[0]
-    stats[prefix + "status_1"] = status_collection[1]
-    stats[prefix + "status_2"] = status_collection[2]
-    stats[prefix + "status_3"] = status_collection[3]
-    stats[prefix + "status_4"] = status_collection[4]
-
-
-def update_mpc_stats_train_rollout(
-    mpc_stats: dict, mpc_stats_summed_up: dict, actual_status: np.ndarray | torch.Tensor
-):
-    first_solve_status = mpc_stats.pop("first_solve_status")
-    put_status_into_stats(
-        status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
-    )
-    put_status_into_stats(status=actual_status, stats=mpc_stats, prefix="actual_")
-    sum_up_dict(mpc_stats, mpc_stats_summed_up)
-
-
-def update_mpc_stats_train_loss(
-    mpc_stats: dict,
-    loss_stats: dict,
-    actual_status: np.ndarray | torch.Tensor,
-):
-    first_solve_status = mpc_stats.pop("first_solve_status")
-    put_status_into_stats(
-        status=first_solve_status, stats=mpc_stats, prefix="first_solve_"
-    )
-    put_status_into_stats(status=actual_status, stats=loss_stats, prefix="actual_")
-    loss_stats.update(mpc_stats)
-
-
-class MPCSACActor(nn.Module):
+class SacCritic(nn.Module):
     def __init__(
         self,
         task: Task,
-        trainer: Trainer,
+        env: gym.Env,
+        mlp_cfg: MLPConfig,
+        num_critics: int,
+    ):
+        super().__init__()
+
+        action_dim = task.param_space.shape[0]  # type: ignore
+
+        self.extractor = nn.ModuleList(
+            [task.create_extractor(env) for _ in range(num_critics)]
+        )
+        self.mlp = nn.ModuleList(
+            [
+                MLP(
+                    input_sizes=[qe.output_size, action_dim],  # type: ignore
+                    output_sizes=1,
+                    mlp_cfg=mlp_cfg,
+                )
+                for qe in self.extractor
+            ]
+        )
+
+    def forward(self, x: torch.Tensor, a: torch.Tensor):
+        return [mlp(qe(x), a) for qe, mlp in zip(self.extractor, self.mlp)]
+
+
+class MPCSacActor(nn.Module):
+    def __init__(
+        self,
+        task: Task,
+        env: gym.Env,
         mlp_cfg: MLPConfig,
     ):
         super().__init__()
 
         param_space = task.param_space
 
-        self.extractor = task.create_extractor()
+        self.extractor = task.create_extractor(env)
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
             output_sizes=(param_space.shape[0], param_space.shape[0]),  # type:ignore
             mlp_cfg=mlp_cfg,
         )
 
-        self.trainer = {"trainer": trainer}
         self.mpc: MPCSolutionModule = task.mpc  # type:ignore
         self.prepare_mpc_input = task.prepare_mpc_input
 
-        # add scaling params
+        # add scaling params for tanh [-1, 1] -> [low, high]
         loc = (param_space.high + param_space.low) / 2.0  # type: ignore
         scale = (param_space.high - param_space.low) / 2.0  # type: ignore
         loc = torch.tensor(loc, dtype=torch.float32)
@@ -111,7 +109,7 @@ class MPCSACActor(nn.Module):
         self.register_buffer("loc", loc)
         self.register_buffer("scale", scale)
 
-    def forward(self, obs, mpc_state: MPCBatchedState, deterministic=False):
+    def forward(self, obs, mpc_state: MPCBatchedState | None, deterministic=False):
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
@@ -124,9 +122,7 @@ class MPCSACActor(nn.Module):
             action = mean + std * torch.randn_like(mean)
 
         log_prob = (
-            -0.5 * ((action - mean) / (std + 1e-6)).pow(2)
-            - log_std
-            - np.log(np.sqrt(2) * np.pi)
+            -0.5 * ((action - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)
         )
 
         action = torch.tanh(action)
@@ -135,39 +131,44 @@ class MPCSACActor(nn.Module):
 
         param = action * self.scale[None, :] + self.loc[None, :]
 
-        param_labels = self.mpc.mpc.param_labels
+        # param_labels = self.mpc.mpc.param_labels
 
-        if action.shape[0] == 1:
-            stats = {
-                param_labels[k]: element for k, element in enumerate(param.squeeze())
-            }
-            self.trainer["trainer"].report_stats(
-                "action",
-                stats,
-                self.trainer["trainer"].state.step,
-            )
+        # if action.shape[0] == 1:
+        #     stats = {
+        #         param_labels[k]: element for k, element in enumerate(param.squeeze())
+        #     }
+        #     self.trainer["trainer"].report_stats(
+        #         "action",
+        #         stats,
+        #         self.trainer["trainer"].state.step,
+        #     )
+
+        if mpc_state is None:
+            return param, log_prob
 
         mpc_input = self.prepare_mpc_input(obs, param)
-        mpc_output, state_solution, stats = self.mpc(
-            mpc_input, mpc_state
-        )  # TODO: We have to catch and probably replace the state_solution somewhere, if its not a converged solution
+
+        # TODO: We have to catch and probably replace the state_solution somewhere,
+        #       if its not a converged solution
+        with torch.no_grad():
+            mpc_output, state_solution, stats = self.mpc(mpc_input, mpc_state)
 
         return (
             mpc_output.u0,
+            param,
             log_prob,
             mpc_output.status,
             state_solution,
-            param,
             stats,
         )
 
 
-@register_trainer("sac_fop", SACFOPBaseConfig())
-class SACFOPTrainer(Trainer):
-    cfg: SACFOPBaseConfig
+@register_trainer("sac_zop", SacZopBaseConfig())
+class SacZopTrainer(Trainer):
+    cfg: SacZopBaseConfig
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: SACFOPBaseConfig
+        self, task: Task, output_path: str | Path, device: str, cfg: SacZopBaseConfig
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -179,14 +180,16 @@ class SACFOPTrainer(Trainer):
         """
         super().__init__(task, output_path, device, cfg)
 
-        self.q = SACCritic(task, cfg.sac.critic_mlp, cfg.sac.num_critics).to(device)
-        self.q_target = SACCritic(task, cfg.sac.critic_mlp, cfg.sac.num_critics).to(
-            device
-        )
+        self.q = SacCritic(
+            task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
+        ).to(device)
+        self.q_target = SacCritic(
+            task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
+        ).to(device)
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = MPCSACActor(task, self, cfg.sac.actor_mlp).to(device)
+        self.pi = MPCSacActor(task, self.train_env, cfg.sac.actor_mlp).to(device)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
@@ -204,25 +207,37 @@ class SACFOPTrainer(Trainer):
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
         episode_return = episode_length = np.inf
+        episode_act_stats = defaultdict(list)
         policy_state = self.init_policy_state()
-        mpc_stats_summed_up_rollout = {}
+        obs = None
 
         while True:
             if is_terminated or is_truncated:
                 obs, _ = self.train_env.reset()
                 if episode_length < np.inf:
-                    stats = {
+                    mpc_episode_stats = {k: float(np.mean(v)) for k, v in episode_act_stats.items()}
+                    episode_stats = {
                         "episode_return": episode_return,
                         "episode_length": episode_length,
                     }
-                    self.report_stats("train_rollout", stats, self.state.step)
+                    self.report_stats("train", episode_stats, self.state.step)
+                    self.report_stats("train_policy_rollout", mpc_episode_stats, self.state.step)
                 policy_state = self.init_policy_state()
-                mpc_stats_summed_up_rollout = {}
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
-            action, policy_state_prime, param, status, mpc_stats = self.act(
-                obs, state=policy_state
-            )
+                episode_act_stats = defaultdict(list)
+
+            obs_batched = self.task.collate([obs], device=self.device)
+
+            with torch.no_grad():
+                action, param, _, _, policy_state_prime, act_stats = self.pi(
+                    obs_batched, policy_state, deterministic=False
+                )
+                action = action.cpu().numpy()[0]
+                param = param.cpu().numpy()[0]
+
+            for key, value in act_stats.items():
+                episode_act_stats[key].append(value)
 
             obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
                 action
@@ -230,21 +245,15 @@ class SACFOPTrainer(Trainer):
 
             episode_return += float(reward)
             episode_length += 1
-            update_mpc_stats_train_rollout(
-                mpc_stats, mpc_stats_summed_up_rollout, status
-            )
 
             self.buffer.put(
                 (
                     obs,
-                    action,
+                    param,
                     reward,
                     obs_prime,
                     is_terminated,
                     is_truncated,
-                    policy_state,
-                    policy_state_prime,
-                    param,
                 )
             )  # type: ignore
 
@@ -257,12 +266,12 @@ class SACFOPTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te, tr, ps, ps_prime, param = self.buffer.sample(
+                o, a, r, o_prime, te, tr = self.buffer.sample(
                     self.cfg.sac.batch_size
                 )
 
                 # sample action
-                a_pi, log_p, status, state_sol, param, mpc_stats = self.pi(o, ps_prime)
+                a_pi, log_p = self.pi(o, None)
                 log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
@@ -277,14 +286,7 @@ class SACFOPTrainer(Trainer):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    (
-                        a_pi_prime,
-                        log_p_prime,
-                        status_prime,
-                        state_sol_prime,
-                        param_prime,
-                        mpc_stats_prime,
-                    ) = self.pi(o_prime, ps_prime)
+                    a_pi_prime, log_p_prime = self.pi(o_prime, None)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1).values
 
@@ -301,10 +303,9 @@ class SACFOPTrainer(Trainer):
                 self.q_optim.step()
 
                 # update actor
-                mask_status = status == 0
                 q_pi = torch.cat(self.q(o, a_pi), dim=1)
                 min_q_pi = torch.min(q_pi, dim=1).values
-                pi_loss = (alpha * log_p - min_q_pi)[mask_status].mean()
+                pi_loss = (alpha * log_p - min_q_pi).mean()
 
                 self.pi_optim.zero_grad()
                 pi_loss.backward()
@@ -326,35 +327,24 @@ class SACFOPTrainer(Trainer):
                         "alpha": alpha,
                         "q": q.mean().item(),
                         "q_target": target.mean().item(),
-                        "train_not_converged": (status != 0).float().mean().item(),
                     }
-                    update_mpc_stats_train_loss(
-                        mpc_stats=mpc_stats, loss_stats=loss_stats, actual_status=status
-                    )
-                    self.report_stats("train_loss", loss_stats, self.state.step + 1)
+                    self.report_stats("loss", loss_stats, self.state.step + 1)
 
             yield 1
 
     def act(
-        self,
-        obs,
-        deterministic: bool = False,
-        state=None,
-    ) -> tuple[np.ndarray, Any | None, np.ndarray, np.ndarray, dict]:
+        self, obs, deterministic: bool = False, state=None
+    ) -> tuple[np.ndarray, Any, dict[str, float]]:
         obs = self.task.collate([obs], device=self.device)
 
         with torch.no_grad():
-            action_mpc, action_rl, log_prob, status, state_solution, param, mpc_stats = self.pi(
+            action, _, _, _, state_prime, stats = self.pi(
                 obs, state, deterministic=deterministic
             )
 
-        return (  # type:ignore
-            action_mpc.cpu().numpy()[0],
-            state_solution,
-            param.detach().cpu().numpy(),
-            status.cpu().numpy(),
-            mpc_stats,
-        )
+        action = action.cpu().numpy()[0]
+
+        return action, state_prime, stats
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:

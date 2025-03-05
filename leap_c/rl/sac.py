@@ -2,27 +2,25 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterator
 
+import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.nn.gaussian import Gaussian
 from leap_c.nn.mlp import MLP, MLPConfig
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.task import Task
-from leap_c.trainer import (
-    BaseConfig,
-    LogConfig,
-    TrainConfig,
-    Trainer,
-    ValConfig,
-)
+from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
+
+
+LOG_STD_MIN = -4
+LOG_STD_MAX = 2
 
 
 @dataclass(kw_only=True)
-class SACAlgorithmConfig:
-    """Contains the necessary information for a SACTrainer.
+class SacAlgorithmConfig:
+    """Contains the necessary information for a SacTrainer.
 
     Attributes:
         batch_size: The batch size for training.
@@ -54,37 +52,38 @@ class SACAlgorithmConfig:
 
 
 @dataclass(kw_only=True)
-class SACBaseConfig(BaseConfig):
+class SacBaseConfig(BaseConfig):
     """Contains the necessary information for a Trainer.
 
     Attributes:
-        sac: The SAC algorithm configuration.
+        sac: The Sac algorithm configuration.
         train: The training configuration.
         val: The validation configuration.
         log: The logging configuration.
         seed: The seed for the trainer.
     """
 
-    sac: SACAlgorithmConfig = field(default_factory=SACAlgorithmConfig)
+    sac: SacAlgorithmConfig = field(default_factory=SacAlgorithmConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     val: ValConfig = field(default_factory=ValConfig)
     log: LogConfig = field(default_factory=LogConfig)
     seed: int = 0
 
 
-class SACCritic(nn.Module):
+class SacCritic(nn.Module):
     def __init__(
         self,
         task: Task,
+        env: gym.Env,
         mlp_cfg: MLPConfig,
         num_critics: int,
     ):
         super().__init__()
 
-        action_dim = task.train_env.action_space.shape[0]  # type: ignore
+        action_dim = env.action_space.shape[0]  # type: ignore
 
         self.extractor = nn.ModuleList(
-            [task.create_extractor() for _ in range(num_critics)]
+            [task.create_extractor(env) for _ in range(num_critics)]
         )
         self.mlp = nn.ModuleList(
             [
@@ -101,32 +100,62 @@ class SACCritic(nn.Module):
         return [mlp(qe(x), a) for qe, mlp in zip(self.extractor, self.mlp)]
 
 
-class SACActor(nn.Module):
-    def __init__(self, task, mlp_cfg: MLPConfig):
+class SacActor(nn.Module):
+    scale: torch.Tensor
+    loc: torch.Tensor
+
+    def __init__(self, task, env, mlp_cfg: MLPConfig):
         super().__init__()
 
-        self.extractor = task.create_extractor()
-        action_dim = task.train_env.action_space.shape[0]  # type: ignore
+        self.extractor = task.create_extractor(env)
+        action_dim = env.action_space.shape[0]  # type: ignore
 
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
             output_sizes=(action_dim, action_dim),  # type: ignore
             mlp_cfg=mlp_cfg,
         )
-        self.gaussian = Gaussian(task.train_env.action_space)
+
+        # add scaling params for tanh [-1, 1] -> [low, high]
+        action_space = env.action_space
+        loc = (action_space.high + action_space.low) / 2.0  # type: ignore
+        scale = (action_space.high - action_space.low) / 2.0  # type: ignore
+        loc = torch.tensor(loc, dtype=torch.float32)
+        scale = torch.tensor(scale, dtype=torch.float32)
+        self.register_buffer("loc", loc)
+        self.register_buffer("scale", scale)
 
     def forward(self, x: torch.Tensor, deterministic=False):
-        mean, log_std = self.mlp(x)
+        e = self.extractor(x)
+        mean, log_std = self.mlp(e)
 
-        return self.gaussian(mean, log_std, deterministic=deterministic)
+        log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
+        std = torch.exp(log_std)
+
+        if deterministic:
+            action = mean
+        else:
+            action = mean + std * torch.randn_like(mean)
+
+        log_prob = (
+            -0.5 * ((action - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)
+        )
+
+        action = torch.tanh(action)
+
+        log_prob -= torch.log(self.scale[None, :] * (1 - action.pow(2)) + 1e-6)
+
+        action = action * self.scale[None, :] + self.loc[None, :]
+
+        return action, log_prob
 
 
-@register_trainer("sac", SACBaseConfig())
-class SACTrainer(Trainer):
-    cfg: SACBaseConfig
+@register_trainer("sac", SacBaseConfig())
+class SacTrainer(Trainer):
+    cfg: SacBaseConfig
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: SACBaseConfig
+        self, task: Task, output_path: str | Path, device: str, cfg: SacBaseConfig
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -138,14 +167,16 @@ class SACTrainer(Trainer):
         """
         super().__init__(task, output_path, device, cfg)
 
-        self.q = SACCritic(task, cfg.sac.critic_mlp, cfg.sac.num_critics).to(device)
-        self.q_target = SACCritic(task, cfg.sac.critic_mlp, cfg.sac.num_critics).to(
-            device
+        self.q = SacCritic(
+            task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
+        )
+        self.q_target = SacCritic(
+            task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
         )
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = SACActor(task, cfg.sac.actor_mlp).to(device)  # type: ignore
+        self.pi = SacActor(task, self.train_env, cfg.sac.actor_mlp)  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
@@ -153,6 +184,7 @@ class SACTrainer(Trainer):
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
 
+        # TODO: Move to def run of main trainer.
         self.to(device)
 
     def train_loop(self) -> Iterator[int]:
@@ -167,11 +199,11 @@ class SACTrainer(Trainer):
                         "episode_return": episode_return,
                         "episode_length": episode_length,
                     }
-                    self.report_stats("train_rollout", stats, self.state.step)
+                    self.report_stats("train", stats, self.state.step)
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
 
-            action, _ = self.act(obs)  # type: ignore
+            action, _, _ = self.act(obs)  # type: ignore
             obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
                 action
             )
@@ -255,11 +287,11 @@ class SACTrainer(Trainer):
 
     def act(
         self, obs, deterministic: bool = False, state=None
-    ) -> tuple[np.ndarray, None]:
-        obs = self.task.collate(obs, self.device)
+    ) -> tuple[np.ndarray, None, None]:
+        obs = self.task.collate([obs], self.device)
         with torch.no_grad():
             action, _ = self.pi(obs, deterministic=deterministic)
-        return action.cpu().numpy(), None
+        return action.cpu().numpy()[0], None, None
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
