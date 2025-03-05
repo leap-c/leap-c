@@ -126,7 +126,8 @@ def export_parametric_ocp(
         Q = np.diag([0, 0, 0,
                      1e1, 1e1, 1e1, 1e1,
                      1e6, 1e6, 1e6,
-                     1e-1, 1e-1, 1e5])
+                     1e1, 1e1, 1e5])
+
         R = np.diag([1, 1, 1, 1])
         Qe = 100 * Q
 

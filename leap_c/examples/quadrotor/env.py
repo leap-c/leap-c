@@ -6,6 +6,8 @@ from gymnasium import spaces
 from leap_c.examples.quadrotor.casadi_models import get_rhs_quadrotor, integrate_one_step
 from leap_c.examples.quadrotor.utils import read_from_yaml
 
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
+from scipy.spatial.transform import Rotation as R
 
 class QuadrotorStop(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
@@ -86,7 +88,7 @@ class QuadrotorStop(gym.Env):
         # (all(self.x < self.x_high) and all(self.x > self.x_low)) and
         if not bool(np.isnan(self.x).sum()) and (self.x[7:10].sum() <= 1000) and (self.x[7:10].sum() >= -1000):
             if np.isnan(self.x).sum() >= 1:
-                print("Bigger 1, should not be")
+                print("Nans in state, should not happen")
             r = - dt * (self.weight_velocity * np.linalg.norm(self.x[7:10]) +
                         self.weight_constraint_violation * max(self.x[2] - self.model_params["bound_z"], 0))
 
@@ -98,7 +100,7 @@ class QuadrotorStop(gym.Env):
 
         if self.t >= self.sim_params["t_sim"]:
             term = True
-        print(r)
+
         self.reset_needed = trunc or term
 
         return self.x, r, term, trunc, {}
@@ -115,8 +117,8 @@ class QuadrotorStop(gym.Env):
             raise RuntimeError("The first reset needs to be called with a seed.")
         self.t = 0
 
-        vx = np.random.uniform(0, 3)
-        vy = np.random.uniform(0, 3)
+        vx = np.random.uniform(0, 5)
+        vy = np.random.uniform(0, 5)
         self.x = np.array([0, 0, 0,
                            1, 0, 0, 0,
                            vx, vy, 0,
@@ -126,70 +128,148 @@ class QuadrotorStop(gym.Env):
         self.trajectory, self.time_steps, self.action_trajectory = [self.x], [self.t], None
         return self.x, {}
 
-    def render(self, interactive: bool = True):
+    def render(self):
 
-        if self.fig is None:
-            if interactive:
-                plt.ion()
+        if self.render_mode == "human":
             self.fig, self.axes = plt.subplots(3, 3, figsize=(12, 9), sharey='row')
-        fig, axes = self.fig, self.axes
+            fig, axes = self.fig, self.axes
 
-        if int(self.time_steps[-1]/self.sim_params["dt"]) % 10 != 0 and interactive:
-            return
-        for ax in axes.flatten():
-            ax.clear()
-        trajectory = np.array(self.trajectory)
-        axes[0, 0].plot(self.time_steps, trajectory[:, 0])
-        axes[0, 0].set_title(r"position $p_x$")
-        axes[0, 0].set_xlabel("time (s)")
-        axes[0, 0].set_ylabel("position (m)")
+            trajectory = np.array(self.trajectory)
+            axes[0, 0].plot(self.time_steps, trajectory[:, 0])
+            axes[0, 0].set_title(r"position $p_x$")
+            axes[0, 0].set_xlabel("time (s)")
+            axes[0, 0].set_ylabel("position (m)")
 
-        axes[0, 1].plot(self.time_steps, trajectory[:, 1])
-        axes[0, 1].set_title(r"position $p_y$")
-        axes[0, 1].set_xlabel("time (s)")
+            axes[0, 1].plot(self.time_steps, trajectory[:, 1])
+            axes[0, 1].set_title(r"position $p_y$")
+            axes[0, 1].set_xlabel("time (s)")
 
-        axes[0, 2].plot(self.time_steps, trajectory[:, 2])
-        axes[0, 2].hlines(self.model_params["bound_z"], 0, self.sim_params["t_sim"], colors='tab:red',
-                          linestyles='dashed')
-        axes[0, 2].set_title(r"position $p_z$")
-        axes[0, 2].set_xlabel("time (s)")
+            axes[0, 2].plot(self.time_steps, trajectory[:, 2])
+            axes[0, 2].hlines(self.model_params["bound_z"], 0, self.sim_params["t_sim"], colors='tab:red',
+                              linestyles='dashed')
+            axes[0, 2].set_title(r"position $p_z$")
+            axes[0, 2].set_xlabel("time (s)")
 
-        axes[1, 0].plot(self.time_steps, trajectory[:, 7])
-        axes[1, 0].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
-        axes[1, 0].set_xlabel("time (s)")
-        axes[1, 0].set_ylabel(r"velocity ($\frac{m}{s}$)")
-        axes[1, 0].set_title(r"velocity $v_x$")
+            axes[1, 0].plot(self.time_steps, trajectory[:, 7])
+            axes[1, 0].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
+            axes[1, 0].set_xlabel("time (s)")
+            axes[1, 0].set_ylabel(r"velocity ($\frac{m}{s}$)")
+            axes[1, 0].set_title(r"velocity $v_x$")
 
-        axes[1, 1].plot(self.time_steps, trajectory[:, 8])
-        axes[1, 1].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
-        axes[1, 1].set_xlabel("time (s)")
-        axes[1, 1].set_title(r"velocity $v_y$")
+            axes[1, 1].plot(self.time_steps, trajectory[:, 8])
+            axes[1, 1].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
+            axes[1, 1].set_xlabel("time (s)")
+            axes[1, 1].set_title(r"velocity $v_y$")
 
-        axes[1, 2].plot(self.time_steps, trajectory[:, 9])
-        axes[1, 2].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
-        axes[1, 2].set_xlabel("time (s)")
-        axes[1, 2].set_title(r"velocity $v_z$")
+            axes[1, 2].plot(self.time_steps, trajectory[:, 9])
+            axes[1, 2].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
+            axes[1, 2].set_xlabel("time (s)")
+            axes[1, 2].set_title(r"velocity $v_z$")
 
-        axes[2, 0].plot(self.time_steps, trajectory[:, 10])
-        axes[2, 0].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
-        axes[2, 0].set_xlabel("time (s)")
-        axes[2, 0].set_ylabel(r"angular velocity ($\frac{m}{s}$)")
-        axes[2, 0].set_title(r"angular velocity $\omega_x$")
+            axes[2, 0].plot(self.time_steps, trajectory[:, 10])
+            axes[2, 0].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
+            axes[2, 0].set_xlabel("time (s)")
+            axes[2, 0].set_ylabel(r"angular velocity ($\frac{m}{s}$)")
+            axes[2, 0].set_title(r"angular velocity $\omega_x$")
 
-        axes[2, 1].plot(self.time_steps, trajectory[:, 11])
-        axes[2, 1].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
-        axes[2, 1].set_xlabel("time (s)")
-        axes[2, 1].set_title(r"angular velocity $\omega_y$")
+            axes[2, 1].plot(self.time_steps, trajectory[:, 11])
+            axes[2, 1].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
+            axes[2, 1].set_xlabel("time (s)")
+            axes[2, 1].set_title(r"angular velocity $\omega_y$")
 
-        axes[2, 2].plot(self.time_steps, trajectory[:, 12])
-        axes[2, 2].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
-        axes[2, 2].set_xlabel("time (s)")
-        axes[2, 2].set_title(r"angular velocity $\omega_z$")
-        plt.tight_layout()
-        if interactive:
-            plt.pause(0.001)
-        else:
+            axes[2, 2].plot(self.time_steps, trajectory[:, 12])
+            axes[2, 2].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
+            axes[2, 2].set_xlabel("time (s)")
+            axes[2, 2].set_title(r"angular velocity $\omega_z$")
+            plt.tight_layout()
             plt.show()
+        else:
+            image_size = (2*512,2* 512)
+            x, y, z, qw, qx, qy, qz = self.x[0:7]
+
+            # Convert quaternion to rotation matrix
+            r = R.from_quat([qx, qy, qz, qw])
+            rotation_matrix = r.as_matrix()
+
+            # Define drone body (a simple cube centered at (x, y, z))
+            drone_size = 0.5  # Arbitrary size
+            size_half = drone_size/2
+            height_hlf = 0.1
+            cube_vertices = np.array([
+                [-size_half, -size_half, -height_hlf],
+                [size_half, -size_half, -height_hlf],
+                [size_half, size_half, -height_hlf],
+                [-size_half, size_half, -height_hlf],
+                [-size_half, -size_half, height_hlf],
+                [size_half, -size_half, height_hlf],
+                [size_half, size_half, height_hlf],
+                [-size_half, size_half, height_hlf]
+            ])
+
+            # Rotate and translate the cube
+            rotated_vertices = (rotation_matrix @ cube_vertices.T).T + np.array([x, y, z])
+
+            # Define cube faces
+            faces = [
+                [0, 1, 2, 3], [4, 5, 6, 7],  # Top & Bottom
+                [0, 1, 5, 4], [2, 3, 7, 6],  # Sides
+                [1, 2, 6, 5], [4, 7, 3, 0]  # More sides
+            ]
+
+            fig = plt.figure(figsize=(image_size[0] / 100, image_size[1] / 100))
+            ax = fig.add_subplot(111, projection='3d')
+
+            # Draw the cube
+            for face in faces:
+                ax.add_collection3d(Poly3DCollection([rotated_vertices[face]], color='blue', alpha=1))
+
+            # Draw drone orientation axes
+            axis_length = drone_size * 1.5
+            origin = np.array([x, y, z])
+            axes = np.array([
+                [axis_length, 0, 0], [0, axis_length, 0], [0, 0, axis_length]
+            ])
+
+            transformed_axes = (rotation_matrix @ axes.T).T + origin
+            ax.quiver(*origin, *(transformed_axes[0] - origin), color='r', label="X-axis")
+            ax.quiver(*origin, *(transformed_axes[1] - origin), color='g', label="Y-axis")
+            ax.quiver(*origin, *(transformed_axes[2] - origin), color='b', label="Z-axis")
+
+            # Draw planar surface at z = 0.25
+            plane_size = 2.0   # Size of the ground plane
+            plane_z = self.model_params["bound_z"] + drone_size/2  # Fixed height for the plane
+            plane_vertices = np.array([
+                [-plane_size, -plane_size, plane_z],
+                [plane_size, -plane_size, plane_z],
+                [plane_size, plane_size, plane_z],
+                [-plane_size, plane_size, plane_z]
+            ])
+
+            plane_face = [[0, 1, 2, 3]]
+            plane = Poly3DCollection([plane_vertices[face] for face in plane_face], color='lightgray', alpha=0.01)
+            ax.add_collection3d(plane)
+
+            # Set limits and labels
+            ax.view_init(elev=10,
+                         azim=45)  # Set elevation to -30° to look from below, azimuth to 45° for an angled view
+            ax.set_facecolor('white')
+            fig.patch.set_facecolor('white')
+
+            ax.set_xlim([-2.5, 2.5])
+            ax.set_ylim([-2.5, 2.5])
+            ax.set_zlim([-2.5, 2.5])  # Ensure space above the plane
+            ax.set_box_aspect([1, 1, 1])
+            ax.set_xlabel("X")
+            ax.set_ylabel("Y")
+            ax.set_zlabel("Z")
+            ax.set_title("Drone 3D Visualization")
+
+            # Render to an RGB array
+            fig.canvas.draw()
+            image = np.array(fig.canvas.renderer.buffer_rgba())[:, :, :3]
+
+            plt.close(fig)  # Close the figure to avoid memory leaks
+            return image
 
 # execute as main to test
 if __name__ == "__main__":
