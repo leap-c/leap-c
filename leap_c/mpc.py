@@ -419,9 +419,9 @@ def _solve_shared(
         solve_stats["sqp_iter"] = solver.get_stats("sqp_iter")
         solve_stats["qp_iter"] = solver.get_stats("qp_iter").sum()  # type:ignore
         solve_stats["time_tot"] = solver.get_stats("time_tot")
-        if (
-            backup_fn is not None and iterate is not None and solver.status != 0
-        ):  # Reattempt with backup
+        if backup_fn is not None and iterate is not None and solver.status != 0:
+            first_solve_status = solver.status
+            # Reattempt with backup
             initialize_ocp_solver(
                 ocp_solver=solver,
                 mpc_input=mpc_input,
@@ -433,6 +433,10 @@ def _solve_shared(
             solve_stats["sqp_iter"] += solver.get_stats("sqp_iter")
             solve_stats["qp_iter"] += solver.get_stats("qp_iter").sum()  # type:ignore
             solve_stats["time_tot"] += solver.get_stats("time_tot")
+            for status_enum in AcadosStatus:
+                solve_stats[f"first_solve_status_{status_enum.name.lower()}"] = int(
+                    first_solve_status == status_enum.value
+                )
 
         status = solver.status
         for status_enum in AcadosStatus:
@@ -441,14 +445,14 @@ def _solve_shared(
             )
 
     elif isinstance(solver, AcadosOcpBatchSolver):
-        status_batch = []
+        first_solve_status_batch = []
         sqp_iter_batch = []
         qp_iter_batch = []
         time_tot_batch = []
         any_failed = False
         for i, ocp_solver in enumerate(solver.ocp_solvers):
             status = ocp_solver.status
-            status_batch.append(status)
+            first_solve_status_batch.append(status)
             sqp_iter_batch.append(ocp_solver.get_stats("sqp_iter"))
             qp_iter_batch.append(ocp_solver.get_stats("qp_iter").sum())  # type:ignore
             time_tot_batch.append(ocp_solver.get_stats("time_tot"))
@@ -459,7 +463,7 @@ def _solve_shared(
             any_failed and backup_fn is not None and iterate is not None
         ):  # Reattempt with backup
             for i, ocp_solver in enumerate(solver.ocp_solvers):
-                if status_batch[i] != 0:
+                if first_solve_status_batch[i] != 0:
                     single_input = mpc_input.get_sample(i)
                     initialize_ocp_solver(
                         ocp_solver=ocp_solver,
@@ -470,18 +474,33 @@ def _solve_shared(
                     )
             solver.solve()
             for i, ocp_solver in enumerate(solver.ocp_solvers):
-                if status_batch[i] == 0:
+                if first_solve_status_batch[i] == 0:
                     # Only update the stats if a resolve was attempted
                     continue
                 sqp_iter_batch[i] += ocp_solver.get_stats("sqp_iter")
                 qp_iter_batch[i] += ocp_solver.get_stats("qp_iter").sum()  # type:ignore
                 time_tot_batch[i] += ocp_solver.get_stats("time_tot")
+            solve_stats["solved_by_reattempt"] = int(
+                (first_solve_status_batch != AcadosStatus.ACADOS_SUCCESS.value)
+            ) - int(status != AcadosStatus.ACADOS_SUCCESS.value)
 
-        # report each status individually
-        status_batch = np.array(status_batch)
+            # report each status individually
+            first_solve_status_batch = np.array(first_solve_status_batch)
+            for i, status_enum in enumerate(AcadosStatus):
+                solve_stats[f"first_solve_status_{status_enum.name.lower()}"] = int(
+                    (first_solve_status_batch == status_enum.value).sum()
+                )
+            status = np.array([ocp_solver.status for ocp_solver in solver.ocp_solvers])
+            solve_stats["solved_by_reattempt"] = int(
+                (first_solve_status_batch != AcadosStatus.ACADOS_SUCCESS.value).sum()
+                - (status != AcadosStatus.ACADOS_SUCCESS.value).sum()
+            )
+        else:
+            status = np.array(first_solve_status_batch)
+
         for i, status_enum in enumerate(AcadosStatus):
             solve_stats[f"status_{status_enum.name.lower()}"] = int(
-                (status_batch == status_enum.value).sum()
+                (status == status_enum.value).sum()
             )
 
         solve_stats["avg_sqp_iter"] = sum(sqp_iter_batch) / len(sqp_iter_batch)
@@ -1190,7 +1209,6 @@ class MPC(ABC):
                 ]
             )
 
-        # TODO here we return a batch iterate object
         flat_iterate = self.ocp_batch_solver.store_iterate_to_flat_obj()
 
         # Set solvers to default
