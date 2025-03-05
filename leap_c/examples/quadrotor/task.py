@@ -60,3 +60,6 @@ class QuadrotorStopTask(Task):
         mpc_param = MPCParameter(p_global=param_nn)  # type: ignore
         return MPCInput(x0=obs, parameters=mpc_param)
 
+    def create_env(self, train: bool) -> gym.Env:
+        return QuadrotorStop()
+
