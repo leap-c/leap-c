@@ -117,8 +117,10 @@ def export_parametric_ocp(
     model_params = read_from_yaml("./examples/quadrotor/model_params.yaml")
 
     x, u, p, rhs, rhs_func = get_rhs_quadrotor(model_params, model_fidelity="low")
+    ocp.model.disc_dyn_expr = disc_dyn_expr(rhs, x, u, p, dt)
+
     ocp.model.name = name
-    ocp.model.f_expl_expr = rhs
+    #ocp.model.f_expl_expr = rhs
     ocp.model.x = x
     ocp.model.u = u
     ocp.model.p_global = p[0]
@@ -196,7 +198,7 @@ def export_parametric_ocp(
     ocp.constraints.idxbu = np.array(range(4))
 
     ######## Solver configuration ########
-    ocp.solver_options.integrator_type = "ERK"
+    ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP_RTI"
     ocp.solver_options.hessian_approx = (
         "GAUSS_NEWTON" if cost_type == "LINEAR_LS" else "EXACT"
@@ -267,3 +269,13 @@ def parse_ocp_iterate(data: Dict[str, List[float]]) -> AcadosOcpIterate:
         pi_traj=pi_traj,
         lam_traj=lam_traj,
     )
+
+def disc_dyn_expr(rhs, x,u,p, dt: float) -> ca.SX:
+
+    ode = ca.Function("ode", [x, u, *p], [rhs])
+    k1 = ode(x, u, *p)
+    k2 = ode(x + dt / 2 * k1, u, *p)  # type:ignore
+    k3 = ode(x + dt / 2 * k2, u, *p)  # type:ignore
+    k4 = ode(x + dt * k3, u, *p)  # type:ignore
+
+    return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
