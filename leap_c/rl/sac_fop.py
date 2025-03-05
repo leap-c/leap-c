@@ -243,12 +243,12 @@ class SacFopTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te, tr, ps, ps_sol = self.buffer.sample(
+                o, a, r, o_prime, te, _, _, ps_sol = self.buffer.sample(
                     self.cfg.sac.batch_size
                 )
 
                 # sample action
-                a_pi, log_p, status, state_sol, param_pi, mpc_stats = self.pi(o, ps_sol)
+                a_pi, log_p, status, _, _, mpc_stats = self.pi(o, ps_sol)
                 log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
