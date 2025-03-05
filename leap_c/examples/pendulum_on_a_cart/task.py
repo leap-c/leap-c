@@ -1,17 +1,16 @@
-from typing import Any, Optional
 from collections import OrderedDict
+from typing import Any, Optional
 
 import gymnasium as gym
-import torch
 import numpy as np
+import torch
 from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
-from leap_c.nn.modules import MPCSolutionModule
+from leap_c.nn.modules import MpcSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
 
-from ...mpc import MPCInput, MPCParameter
-
+from ...mpc import MpcInput, MpcParameter
 
 PARAMS_SWINGUP = OrderedDict(
     [
@@ -86,7 +85,7 @@ class PendulumOnCart(Task):
             learnable_params=learnable_params,
             params=params,  # type: ignore
         )
-        mpc_layer = MPCSolutionModule(mpc)
+        mpc_layer = MpcSolutionModule(mpc)
         super().__init__(mpc_layer)
 
         y_ref_stage = np.array(
@@ -114,7 +113,7 @@ class PendulumOnCart(Task):
         obs: Any,
         param_nn: Optional[torch.Tensor] = None,
         action: Optional[torch.Tensor] = None,
-    ) -> MPCInput:
+    ) -> MpcInput:
         if param_nn is None:
             raise ValueError("Parameter tensor is required for MPC task.")
 
@@ -129,8 +128,10 @@ class PendulumOnCart(Task):
         param_y_ref_e = np.tile(self.y_ref_e, (batch_size, 1))
         param_y_ref_e[:, 1] = param_nn.detach().cpu().numpy().squeeze()  # type: ignore
 
-        mpc_param = MPCParameter(
-            p_global=param_nn, p_yref=param_y_ref, p_yref_e=param_y_ref_e  # type: ignore
+        mpc_param = MpcParameter(
+            p_global=param_nn,
+            p_yref=param_y_ref,
+            p_yref_e=param_y_ref_e,  # type: ignore
         )
 
-        return MPCInput(x0=obs, parameters=mpc_param)
+        return MpcInput(x0=obs, parameters=mpc_param)

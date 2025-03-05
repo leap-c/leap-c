@@ -19,7 +19,7 @@ def string_to_activation(activation: str) -> nn.Module:
 
 
 @dataclass(kw_only=True)
-class MLPConfig:
+class MlpConfig:
     hidden_dims: Sequence[int] = (256, 256, 256)
     activation: str = "relu"
 
@@ -32,11 +32,12 @@ class MLP(nn.Module):
         activation: The activation function to use in the hidden layers.
         mlp: The multi-layer perceptron model.
     """
+
     def __init__(
         self,
         input_sizes: int | list[int],
         output_sizes: int | list[int],
-        mlp_cfg: MLPConfig,
+        mlp_cfg: MlpConfig,
     ) -> None:
         """Initializes the MLP.
 
@@ -68,7 +69,6 @@ class MLP(nn.Module):
         self.mlp = nn.Sequential(*layers[:-1])
 
     def forward(self, *x: torch.Tensor) -> torch.Tensor | tuple[torch.Tensor, ...]:
-
         if isinstance(x, tuple):
             x = torch.cat(x, dim=-1)  # type: ignore
         y = self.mlp(x)

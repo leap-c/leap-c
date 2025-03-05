@@ -1,37 +1,33 @@
+from pathlib import Path
+from typing import Callable
+
+import numpy as np
 from acados_template import AcadosOcp
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
 )
 
-
 from leap_c.mpc import (
-    MPC,
-    MPCInput,
-    MPCOutput,
-    MPCParameter,
-    MPCSingleState,
-    MPCBatchedState,
+    Mpc,
+    MpcBatchedState,
+    MpcInput,
+    MpcOutput,
+    MpcParameter,
+    MpcSingleState,
     _solve_shared,
     set_ocp_solver_to_default,
 )
 
-import numpy as np
 
-
-from typing import Callable
-
-from pathlib import Path
-
-
-class LinearMPC(MPC):
+class LinearMPC(Mpc):
     """docstring for LinearMPC."""
 
     def __init__(
         self,
         ocp: AcadosOcp,
         discount_factor: float | None = None,
-        default_init_state_fn: Callable[[MPCInput], MPCSingleState | MPCBatchedState]
+        default_init_state_fn: Callable[[MpcInput], MpcSingleState | MpcBatchedState]
         | None = None,
         n_batch: int = 1,
         export_directory: Path | None = None,
@@ -45,15 +41,15 @@ class LinearMPC(MPC):
 
     def __call__(
         self,
-        mpc_input: MPCInput,
-        mpc_state: MPCSingleState | MPCBatchedState | None = None,
+        mpc_input: MpcInput,
+        mpc_state: MpcSingleState | MpcBatchedState | None = None,
         dudx: bool = False,
         dudp: bool = False,
         dvdx: bool = False,
         dvdu: bool = False,
         dvdp: bool = False,
         use_adj_sens: bool = True,
-    ) -> tuple[MPCOutput, MPCSingleState | MPCBatchedState]:
+    ) -> tuple[MpcOutput, MpcSingleState | MpcBatchedState]:
         if not mpc_input.is_batched():
             return self._solve(
                 mpc_input=mpc_input,
@@ -79,15 +75,15 @@ class LinearMPC(MPC):
 
     def _solve(
         self,
-        mpc_input: MPCInput,
-        mpc_state: MPCSingleState | None = None,
+        mpc_input: MpcInput,
+        mpc_state: MpcSingleState | None = None,
         dudx: bool = False,
         dudp: bool = False,
         dvdx: bool = False,
         dvdu: bool = False,
         dvdp: bool = False,
         use_adj_sens: bool = True,
-    ) -> tuple[MPCOutput, AcadosOcpFlattenedIterate]:
+    ) -> tuple[MpcOutput, AcadosOcpFlattenedIterate]:
         if mpc_input.u0 is None and dvdu:
             raise ValueError("dvdu is only allowed if u0 is set in the input.")
 
@@ -160,7 +156,7 @@ class LinearMPC(MPC):
         flat_iterate = self.ocp_solver.store_iterate_to_flat_obj()
 
         # Set solvers to default
-        default_params = MPCParameter(
+        default_params = MpcParameter(
             p_global=self.default_p_global,
             p_stagewise=self.default_p_stagewise,  # type:ignore
         )
@@ -171,19 +167,19 @@ class LinearMPC(MPC):
             unset_u0=unset_u0,
         )
 
-        return MPCOutput(**kw), flat_iterate
+        return MpcOutput(**kw), flat_iterate
 
     def _batch_solve(
         self,
-        mpc_input: MPCInput,
-        mpc_state: MPCBatchedState | None = None,
+        mpc_input: MpcInput,
+        mpc_state: MpcBatchedState | None = None,
         dudx: bool = False,
         dudp: bool = False,
         dvdx: bool = False,
         dvdu: bool = False,
         dvdp: bool = False,
         use_adj_sens: bool = True,
-    ) -> tuple[MPCOutput, AcadosOcpFlattenedBatchIterate]:
+    ) -> tuple[MpcOutput, AcadosOcpFlattenedBatchIterate]:
         if mpc_input.u0 is None and dvdu:
             raise ValueError("dvdu is only allowed if u0 is set in the input.")
 
@@ -318,7 +314,7 @@ class LinearMPC(MPC):
         flat_iterate = self.ocp_batch_solver.store_iterate_to_flat_obj()
 
         # Set solvers to default
-        default_params = MPCParameter(
+        default_params = MpcParameter(
             p_global=self.default_p_global,
             p_stagewise=self.default_p_stagewise,  # type:ignore
         )
@@ -329,4 +325,4 @@ class LinearMPC(MPC):
             unset_u0=unset_u0,
         )
 
-        return MPCOutput(**kw), flat_iterate  # type: ignore
+        return MpcOutput(**kw), flat_iterate  # type: ignore

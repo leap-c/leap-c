@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import torch
 from leap_c.examples.pointmass.mpc import PointMassMPC
-from leap_c.mpc import MPCInput, MPCParameter
-from leap_c.nn.modules import CleanseAndReducePerSampleLoss, MPCSolutionModule
+from leap_c.mpc import MpcInput, MpcParameter
+from leap_c.nn.modules import CleanseAndReducePerSampleLoss, MpcSolutionModule
 
 
 def test_MPCSolutionModule_on_PointMassMPC(
@@ -28,7 +28,7 @@ def test_MPCSolutionModule_on_PointMassMPC(
 
     p_rests = None
 
-    mpc_module = MPCSolutionModule(learnable_point_mass_mpc_m)
+    mpc_module = MpcSolutionModule(learnable_point_mass_mpc_m)
     x0_torch = torch.tensor(x0, dtype=torch.float64)
     x0_torch = torch.tile(x0_torch, (batch_size, 1))
     p = torch.tensor(test_param, dtype=torch.float64)
@@ -40,10 +40,10 @@ def test_MPCSolutionModule_on_PointMassMPC(
     p.requires_grad = True
 
     def only_du0dx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MPCInput(
+        mpc_input = MpcInput(
             x0=x0,
             u0=None,
-            parameters=MPCParameter(p_global=p, p_stagewise=p_rests),
+            parameters=MpcParameter(p_global=p, p_stagewise=p_rests),
         )
         mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
@@ -56,10 +56,10 @@ def test_MPCSolutionModule_on_PointMassMPC(
     )
 
     def only_dVdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MPCInput(
+        mpc_input = MpcInput(
             x0=x0,
             u0=None,
-            parameters=MPCParameter(p_global=p, p_stagewise=p_rests),
+            parameters=MpcParameter(p_global=p, p_stagewise=p_rests),
         )
         mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
@@ -72,10 +72,10 @@ def test_MPCSolutionModule_on_PointMassMPC(
     )
 
     def only_dQdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:  #
-        mpc_input = MPCInput(
+        mpc_input = MpcInput(
             x0=x0,
             u0=u0,
-            parameters=MPCParameter(p_global=p, p_stagewise=p_rests),
+            parameters=MpcParameter(p_global=p, p_stagewise=p_rests),
         )
         mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
@@ -91,9 +91,9 @@ def test_MPCSolutionModule_on_PointMassMPC(
     )
 
     def only_du0dp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MPCInput(
+        mpc_input = MpcInput(
             x0=x0_torch,
-            parameters=MPCParameter(p_global=p_global, p_stagewise=p_rests),
+            parameters=MpcParameter(p_global=p_global, p_stagewise=p_rests),
         )
         mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
@@ -106,9 +106,9 @@ def test_MPCSolutionModule_on_PointMassMPC(
     )
 
     def only_dVdp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MPCInput(
+        mpc_input = MpcInput(
             x0=x0_torch,
-            parameters=MPCParameter(p_global=p_global, p_stagewise=p_rests),
+            parameters=MpcParameter(p_global=p_global, p_stagewise=p_rests),
         )
         mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
@@ -122,10 +122,10 @@ def test_MPCSolutionModule_on_PointMassMPC(
     )
 
     def only_dQdp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MPCInput(
+        mpc_input = MpcInput(
             x0=x0_torch,
             u0=u0,
-            parameters=MPCParameter(p_global=p_global, p_stagewise=p_rests),
+            parameters=MpcParameter(p_global=p_global, p_stagewise=p_rests),
         )
         mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,
@@ -141,10 +141,10 @@ def test_MPCSolutionModule_on_PointMassMPC(
     )
 
     def only_dQdu0(u0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MPCInput(
+        mpc_input = MpcInput(
             x0=x0_torch,
             u0=u0,
-            parameters=MPCParameter(p_global=p, p_stagewise=p_rests),
+            parameters=MpcParameter(p_global=p, p_stagewise=p_rests),
         )
         mpc_output, _, _ = mpc_module.forward(
             mpc_input=mpc_input,

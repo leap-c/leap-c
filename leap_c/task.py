@@ -1,4 +1,4 @@
-from abc import abstractmethod, ABC
+from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional
 
 import gymnasium as gym
@@ -7,9 +7,9 @@ from torch.utils.data._utils.collate import collate
 
 from leap_c.collate import create_collate_fn_map, pytree_tensor_to
 from leap_c.env_wrapper import ActionStatsWrapper
-from leap_c.mpc import MPCInput
+from leap_c.mpc import MpcInput
 from leap_c.nn.extractor import Extractor, IdentityExtractor
-from leap_c.nn.modules import MPCSolutionModule
+from leap_c.nn.modules import MpcSolutionModule
 
 EnvFactory = Callable[[], gym.Env]
 
@@ -30,7 +30,7 @@ class Task(ABC):
 
     def __init__(
         self,
-        mpc: MPCSolutionModule | None,
+        mpc: MpcSolutionModule | None,
         collate_fn_map: dict[type, Callable] | None = None,
     ):
         """Initializes the Task with an MPC planner and a gymnasium environment.
@@ -62,7 +62,7 @@ class Task(ABC):
         obs: Any,
         param_nn: Optional[torch.Tensor] = None,
         action: Optional[torch.Tensor] = None,
-    ) -> MPCInput:
+    ) -> MpcInput:
         """Prepares the MPC input from the state and observation for the MPC class.
 
         Args:

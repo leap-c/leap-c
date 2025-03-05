@@ -9,9 +9,8 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.mpc import MPC
+from leap_c.mpc import Mpc
 from leap_c.utils import set_standard_sensitivity_options
-
 
 # DO NOT TOUCH THE DEFAULT CONFIG!
 PARAMS = OrderedDict(
@@ -71,7 +70,7 @@ PARAMS = OrderedDict(
 )
 
 
-class PendulumOnCartMPC(MPC):
+class PendulumOnCartMPC(Mpc):
     """
     Describes an inverted pendulum on a cart.
     The (possibly learnable) parameters of the system are given by

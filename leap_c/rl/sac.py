@@ -7,12 +7,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.nn.mlp import MLP, MLPConfig
+from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.task import Task
 from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
-
 
 LOG_STD_MIN = -4
 LOG_STD_MAX = 2
@@ -36,8 +35,8 @@ class SacAlgorithmConfig:
         update_freq: The frequency of updating the networks.
     """
 
-    critic_mlp: MLPConfig = field(default_factory=MLPConfig)
-    actor_mlp: MLPConfig = field(default_factory=MLPConfig)
+    critic_mlp: MlpConfig = field(default_factory=MlpConfig)
+    actor_mlp: MlpConfig = field(default_factory=MlpConfig)
     batch_size: int = 64
     buffer_size: int = 1000000
     gamma: float = 0.99
@@ -75,7 +74,7 @@ class SacCritic(nn.Module):
         self,
         task: Task,
         env: gym.Env,
-        mlp_cfg: MLPConfig,
+        mlp_cfg: MlpConfig,
         num_critics: int,
     ):
         super().__init__()
@@ -104,7 +103,7 @@ class SacActor(nn.Module):
     scale: torch.Tensor
     loc: torch.Tensor
 
-    def __init__(self, task, env, mlp_cfg: MLPConfig):
+    def __init__(self, task, env, mlp_cfg: MlpConfig):
         super().__init__()
 
         self.extractor = task.create_extractor(env)

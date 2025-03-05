@@ -7,11 +7,11 @@ from acados_template.acados_ocp_iterate import (
 )
 
 # from leap_c.examples.linear_system import LinearSystemMPC
-from leap_c.mpc import MPC, MPCInput, MPCOutput, MPCParameter
+from leap_c.mpc import Mpc, MpcInput, MpcOutput, MpcParameter
 
 
 def mpc_outputs_assert_allclose(
-    mpc_output: MPCOutput, mpc_output2: MPCOutput, test_u_star: bool
+    mpc_output: MpcOutput, mpc_output2: MpcOutput, test_u_star: bool
 ):
     allclose = True
     for fld in mpc_output._fields:
@@ -68,13 +68,13 @@ def mpc_outputs_assert_allclose(
 #
 #
 def test_statelessness(
-    learnable_point_mass_mpc_different_params: MPC,
+    learnable_point_mass_mpc_different_params: Mpc,
 ):
     x0 = np.array([0.5, 0.5, 0.5, 0.5])
     u0 = np.array([0.5, 0.5])
     # Create MPC with some stateless and some global parameters
     lin_mpc = learnable_point_mass_mpc_different_params
-    mpc_input_standard = MPCInput(x0=x0, u0=u0)
+    mpc_input_standard = MpcInput(x0=x0, u0=u0)
     solution_standard = lin_mpc(
         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
     )
@@ -87,10 +87,10 @@ def test_statelessness(
     assert (
         len(p_stagewise.shape) == 2
     ), f"I assumed this would be of shape ({lin_mpc.N+1}, #p_stagewise) but shape is {p_stagewise.shape}"
-    params = MPCParameter(p_global, p_stagewise)
+    params = MpcParameter(p_global, p_stagewise)
     x0_different = x0 - 0.01
     u0_different = u0 - 0.01
-    mpc_input_different = MPCInput(x0=x0_different, u0=u0_different, parameters=params)
+    mpc_input_different = MpcInput(x0=x0_different, u0=u0_different, parameters=params)
     solution_different = lin_mpc(
         mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True
     )
@@ -108,7 +108,7 @@ def test_statelessness(
 
 
 def test_statelessness_batched(
-    learnable_point_mass_mpc_different_params: MPC,
+    learnable_point_mass_mpc_different_params: Mpc,
 ):
     x0 = np.array([0.5, 0.5, 0.5, 0.5])
     u0 = np.array([0.5, 0.5])
@@ -117,7 +117,7 @@ def test_statelessness_batched(
     n_batch = lin_mpc.n_batch
     x0 = np.tile(x0, (lin_mpc.n_batch, 1))
     u0 = np.tile(u0, (lin_mpc.n_batch, 1))
-    mpc_input_standard = MPCInput(x0=x0, u0=u0)
+    mpc_input_standard = MpcInput(x0=x0, u0=u0)
     solution_standard = lin_mpc(
         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
     )
@@ -132,10 +132,10 @@ def test_statelessness_batched(
         len(p_stagewise.shape) == 2
     ), f"I assumed this would be of shape ({lin_mpc.N+1}, #p_stagewise) but shape is {p_stagewise.shape}"
     p_stagewise = np.tile(p_stagewise, (n_batch, 1, 1))
-    params = MPCParameter(p_global, p_stagewise)
+    params = MpcParameter(p_global, p_stagewise)
     x0_different = x0 - 0.01
     u0_different = u0 - 0.01
-    mpc_input_different = MPCInput(x0=x0_different, u0=u0_different, parameters=params)
+    mpc_input_different = MpcInput(x0=x0_different, u0=u0_different, parameters=params)
     solution_different = lin_mpc(
         mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True
     )
@@ -152,10 +152,10 @@ def test_statelessness_batched(
     )
 
 
-def test_statelessness_LLS(learnable_pendulum_on_cart_mpc_lls_cost: MPC):
+def test_statelessness_LLS(learnable_pendulum_on_cart_mpc_lls_cost: Mpc):
     # Create MPC with some stateless and some global parameters
     x0 = np.array([0, -np.pi, 0, 0])
-    mpc_input_standard = MPCInput(x0=x0)
+    mpc_input_standard = MpcInput(x0=x0)
     solution_standard = learnable_pendulum_on_cart_mpc_lls_cost(
         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
     )
@@ -169,10 +169,10 @@ def test_statelessness_LLS(learnable_pendulum_on_cart_mpc_lls_cost: MPC):
     p_global_def[-1] = 1  # Set reference position to 1
     p_yref_def[:, 0] = 1  # Set reference position to 1
     p_yref_e_def[0] = 1  # Set reference position to 1
-    params = MPCParameter(
+    params = MpcParameter(
         p_global=p_global_def, p_yref=p_yref_def, p_yref_e=p_yref_e_def
     )
-    mpc_input_different = MPCInput(x0=x0, parameters=params)
+    mpc_input_different = MpcInput(x0=x0, parameters=params)
     solution_different = learnable_pendulum_on_cart_mpc_lls_cost(
         mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True
     )
@@ -190,12 +190,12 @@ def test_statelessness_LLS(learnable_pendulum_on_cart_mpc_lls_cost: MPC):
 
 
 def test_statelessness_batched_LLS(
-    n_batch: int, learnable_pendulum_on_cart_mpc_lls_cost: MPC
+    n_batch: int, learnable_pendulum_on_cart_mpc_lls_cost: Mpc
 ):
     # Create MPC with some stateless and some global parameters
     x0 = np.array([0, -np.pi, 0, 0])
     x0 = np.tile(x0, (n_batch, 1))
-    mpc_input_standard = MPCInput(x0=x0)
+    mpc_input_standard = MpcInput(x0=x0)
     solution_standard = learnable_pendulum_on_cart_mpc_lls_cost(
         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
     )
@@ -212,10 +212,10 @@ def test_statelessness_batched_LLS(
     p_global_def[:, -1] = 1  # Set reference position to 1
     p_yref_def[:, :, 0] = 1  # Set reference position to 1
     p_yref_e_def[:, 0] = 1  # Set reference position to 1
-    params = MPCParameter(
+    params = MpcParameter(
         p_global=p_global_def, p_yref=p_yref_def, p_yref_e=p_yref_e_def
     )
-    mpc_input_different = MPCInput(x0=x0, parameters=params)
+    mpc_input_different = MpcInput(x0=x0, parameters=params)
     solution_different = learnable_pendulum_on_cart_mpc_lls_cost(
         mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True
     )
@@ -232,10 +232,10 @@ def test_statelessness_batched_LLS(
     )
 
 
-def test_statelessness_external(learnable_pendulum_on_cart_mpc_ext_cost: MPC):
+def test_statelessness_external(learnable_pendulum_on_cart_mpc_ext_cost: Mpc):
     # Create MPC with some stateless and some global parameters
     x0 = np.array([0, -np.pi, 0, 0])
-    mpc_input_standard = MPCInput(x0=x0)
+    mpc_input_standard = MpcInput(x0=x0)
     solution_standard = learnable_pendulum_on_cart_mpc_ext_cost(
         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
     )
@@ -245,8 +245,8 @@ def test_statelessness_external(learnable_pendulum_on_cart_mpc_ext_cost: MPC):
 
     p_global_def[-2] = 1e-2  # Set quadratic weight to low value
     p_global_def[1] = 1  # Set reference position to 1
-    params = MPCParameter(p_global=p_global_def)
-    mpc_input_different = MPCInput(x0=x0, parameters=params)
+    params = MpcParameter(p_global=p_global_def)
+    mpc_input_different = MpcInput(x0=x0, parameters=params)
     solution_different = learnable_pendulum_on_cart_mpc_ext_cost(
         mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True
     )
@@ -264,12 +264,12 @@ def test_statelessness_external(learnable_pendulum_on_cart_mpc_ext_cost: MPC):
 
 
 def test_statelessness_batched_external(
-    n_batch: int, learnable_pendulum_on_cart_mpc_ext_cost: MPC
+    n_batch: int, learnable_pendulum_on_cart_mpc_ext_cost: Mpc
 ):
     # Create MPC with some stateless and some global parameters
     x0 = np.array([0, -np.pi, 0, 0])
     x0 = np.tile(x0, (n_batch, 1))
-    mpc_input_standard = MPCInput(x0=x0)
+    mpc_input_standard = MpcInput(x0=x0)
     solution_standard = learnable_pendulum_on_cart_mpc_ext_cost(
         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
     )
@@ -280,8 +280,8 @@ def test_statelessness_batched_external(
 
     p_global_def[:, -2] = 1e-2  # Set quadratic weight to low value
     p_global_def[:, 1] = 1  # Set reference position to 1
-    params = MPCParameter(p_global=p_global_def)
-    mpc_input_different = MPCInput(x0=x0, parameters=params)
+    params = MpcParameter(p_global=p_global_def)
+    mpc_input_different = MpcInput(x0=x0, parameters=params)
     solution_different = learnable_pendulum_on_cart_mpc_ext_cost(
         mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True
     )
@@ -299,12 +299,12 @@ def test_statelessness_batched_external(
 
 
 def test_using_mpc_state(
-    learnable_point_mass_mpc_different_params: MPC,
+    learnable_point_mass_mpc_different_params: Mpc,
 ):
     x0 = np.array([0.5, 0.5, 0.5, 0.5])
     u0 = np.array([0.5, 0.5])
     linear_mpc = learnable_point_mass_mpc_different_params
-    inp = MPCInput(x0=x0, u0=u0)
+    inp = MpcInput(x0=x0, u0=u0)
     sol = linear_mpc(inp)
     state = linear_mpc.last_call_state
     first_iters = linear_mpc.ocp_solver.get_stats("qp_iter").sum()  # type:ignore
@@ -316,7 +316,7 @@ def test_using_mpc_state(
 
 
 def test_using_mpc_state_batched(
-    learnable_point_mass_mpc_different_params: MPC,
+    learnable_point_mass_mpc_different_params: Mpc,
     n_batch: int,
 ):
     x0 = np.array([0.5, 0.5, 0.5, 0.5])
@@ -324,7 +324,7 @@ def test_using_mpc_state_batched(
     learnable_linear_mpc = learnable_point_mass_mpc_different_params
     x0 = np.tile(x0, (n_batch, 1))
     u0 = np.tile(u0, (n_batch, 1))
-    inp = MPCInput(x0=x0, u0=u0)
+    inp = MpcInput(x0=x0, u0=u0)
     sol = learnable_linear_mpc(inp)
     state = learnable_linear_mpc.last_call_state
     for solver in learnable_linear_mpc.ocp_batch_solver.ocp_solvers:
@@ -338,12 +338,12 @@ def test_using_mpc_state_batched(
 
 
 def test_backup_fn(
-    learnable_point_mass_mpc_different_params: MPC,
+    learnable_point_mass_mpc_different_params: Mpc,
 ):
     x0 = np.array([0.5, 0.5, 0.5, 0.5])
     u0 = np.array([0.5, 0.5])
     learnable_linear_mpc = learnable_point_mass_mpc_different_params
-    inp = MPCInput(x0=x0, u0=u0)
+    inp = MpcInput(x0=x0, u0=u0)
     default_init = learnable_linear_mpc.default_init_state_fn  # For restoring fixture
     learnable_linear_mpc.default_init_state_fn = (
         None  # Make sure 0 initialization for backup is being used
@@ -366,7 +366,7 @@ def test_backup_fn(
     no_sol = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
     assert no_sol.status != 0
 
-    def backup_fn_single(input: MPCInput):
+    def backup_fn_single(input: MpcInput):
         return template_state
 
     learnable_linear_mpc.default_init_state_fn = backup_fn_single
@@ -376,7 +376,7 @@ def test_backup_fn(
 
 
 def test_backup_fn_batched(
-    learnable_point_mass_mpc_different_params: MPC, n_batch: int
+    learnable_point_mass_mpc_different_params: Mpc, n_batch: int
 ):
     learnable_linear_mpc = learnable_point_mass_mpc_different_params
     x0 = np.array([0.5, 0.5, 0.5, 0.5])
@@ -387,7 +387,7 @@ def test_backup_fn_batched(
     # The exact increment is not important, just that it is different for each sample
     for i in range(n_batch):
         x0[i] = x0[i] + i * increment
-    inp = MPCInput(x0=x0, u0=u0)
+    inp = MpcInput(x0=x0, u0=u0)
     default_init = learnable_linear_mpc.default_init_state_fn  # For restoring fixture
     learnable_linear_mpc.default_init_state_fn = (
         None  # Make sure 0 initialization for backup is being used
@@ -411,7 +411,7 @@ def test_backup_fn_batched(
     no_sol = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
     assert np.all(no_sol.status != 0)
 
-    def backup_fn_batched(input: MPCInput):
+    def backup_fn_batched(input: MpcInput):
         vals = [
             getattr(template_state, field.name)[i]
             for field in fields(template_state)
@@ -429,24 +429,24 @@ def test_backup_fn_batched(
 
 
 def test_fail_consistency_batched_non_batched(
-    learnable_pendulum_on_cart_mpc_lls_cost: MPC, n_batch: int
+    learnable_pendulum_on_cart_mpc_lls_cost: Mpc, n_batch: int
 ):
     x0 = np.tile(np.array([0, -np.pi, 0, 0]), (n_batch, 1))
     p_glob = learnable_pendulum_on_cart_mpc_lls_cost.default_p_global.copy()  # type:ignore
     p_glob[0] = 0  # Set Mass of cart to 0 # type:ignore
     p_glob = np.tile(p_glob, (n_batch, 1))  # type:ignore
     sol = learnable_pendulum_on_cart_mpc_lls_cost(
-        MPCInput(x0=x0, parameters=MPCParameter(p_global=p_glob))
+        MpcInput(x0=x0, parameters=MpcParameter(p_global=p_glob))
     )
     single_sol = learnable_pendulum_on_cart_mpc_lls_cost(
-        MPCInput(x0=x0[0], parameters=MPCParameter(p_global=p_glob[0]))
+        MpcInput(x0=x0[0], parameters=MpcParameter(p_global=p_glob[0]))
     )
     assert single_sol.status != 0
     assert np.all(sol.status != 0)
 
 
 def test_closed_loop(
-    learnable_point_mass_mpc_different_params: MPC,
+    learnable_point_mass_mpc_different_params: Mpc,
 ):
     x0 = np.array([0.5, 0.5, 0.5, 0.5])
     learnable_linear_mpc = learnable_point_mass_mpc_different_params

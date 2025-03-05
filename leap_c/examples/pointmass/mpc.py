@@ -9,11 +9,11 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.mpc import MPC
+from leap_c.mpc import Mpc
 
 
 # class PointMassMPC(LinearMPC):
-class PointMassMPC(MPC):
+class PointMassMPC(Mpc):
     """docstring for PointMassMPC."""
 
     def __init__(

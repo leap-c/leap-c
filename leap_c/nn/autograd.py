@@ -9,7 +9,7 @@ import torch
 import torch.autograd as autograd
 from acados_template import AcadosSimSolver
 
-from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCParameter
+from leap_c.mpc import Mpc, MpcBatchedState, MpcInput, MpcParameter
 from leap_c.utils import tensor_to_numpy
 
 
@@ -123,12 +123,12 @@ class MPCSolutionFunction(autograd.Function):
     @staticmethod
     def forward(
         ctx,
-        mpc: MPC,
+        mpc: Mpc,
         x0: torch.Tensor,
         u0: torch.Tensor | None,
         p_global: torch.Tensor | None,
-        p_the_rest: MPCParameter | None,
-        initializations: MPCBatchedState | None,
+        p_the_rest: MpcParameter | None,
+        initializations: MpcBatchedState | None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         device = x0.device
         dtype = x0.dtype
@@ -144,15 +144,14 @@ class MPCSolutionFunction(autograd.Function):
 
         p_global = p_global.detach().cpu().numpy().astype(np.float64)  # type: ignore
         if p_the_rest is None:
-            p_whole = MPCParameter(p_global=p_global)  # type: ignore
+            p_whole = MpcParameter(p_global=p_global)  # type: ignore
         else:
             p_the_rest = p_the_rest.ensure_float64()
             p_whole = p_the_rest._replace(p_global=p_global)
 
-
         x0_np = tensor_to_numpy(x0)
         u0_np = None if u0 is None else tensor_to_numpy(u0)
-        mpc_input = MPCInput(x0_np, u0_np, parameters=p_whole)
+        mpc_input = MpcInput(x0_np, u0_np, parameters=p_whole)
 
         mpc_output = mpc(
             mpc_input=mpc_input,

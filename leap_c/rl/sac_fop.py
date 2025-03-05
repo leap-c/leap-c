@@ -11,9 +11,9 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.mpc import MPCBatchedState
-from leap_c.nn.mlp import MLP, MLPConfig
-from leap_c.nn.modules import MPCSolutionModule
+from leap_c.mpc import MpcBatchedState
+from leap_c.nn.mlp import MLP, MlpConfig
+from leap_c.nn.modules import MpcSolutionModule
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.rl.sac import SacAlgorithmConfig, SacCritic
@@ -49,14 +49,14 @@ class SacFopBaseConfig(BaseConfig):
     seed: int = 0
 
 
-class MPCSacActor(nn.Module):
+class MpcSacActor(nn.Module):
     def __init__(
         self,
         task: Task,
         env: gym.Env,
-        mlp_cfg: MLPConfig,
+        mlp_cfg: MlpConfig,
         prepare_mpc_state: (
-            Callable[[torch.Tensor, torch.Tensor, MPCBatchedState], MPCBatchedState]
+            Callable[[torch.Tensor, torch.Tensor, MpcBatchedState], MpcBatchedState]
             | None
         ) = None,
     ):
@@ -71,7 +71,7 @@ class MPCSacActor(nn.Module):
             mlp_cfg=mlp_cfg,
         )
 
-        self.mpc: MPCSolutionModule = task.mpc  # type:ignore
+        self.mpc: MpcSolutionModule = task.mpc  # type:ignore
         self.prepare_mpc_input = task.prepare_mpc_input
         self.prepare_mpc_state = prepare_mpc_state
 
@@ -83,7 +83,7 @@ class MPCSacActor(nn.Module):
         self.register_buffer("loc", loc)
         self.register_buffer("scale", scale)
 
-    def forward(self, obs, mpc_state: MPCBatchedState, deterministic=False):
+    def forward(self, obs, mpc_state: MpcBatchedState, deterministic=False):
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
@@ -161,7 +161,7 @@ class SacFopTrainer(Trainer):
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = MPCSacActor(task, self.train_env, cfg.sac.actor_mlp).to(device)
+        self.pi = MpcSacActor(task, self.train_env, cfg.sac.actor_mlp).to(device)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
