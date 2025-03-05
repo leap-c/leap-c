@@ -15,7 +15,7 @@ EnvFactory = Callable[[], gym.Env]
 
 
 class Task(ABC):
-    """A task describes a concrete problem to be solved by a learning problem.
+    """A task describes a problem to be solved by a trainer.
 
     This class serves as a base class for tasks that involve a combination of
     a gymnasium environment and a model predictive control (MPC) planner. It
@@ -25,7 +25,8 @@ class Task(ABC):
     Attributes:
         mpc (MPC): The Model Predictive Control planner to be used for this task.
         collate_fn_map (dict[type, Callable]): A dictionary mapping types to collate
-            functions.
+            functions. This is used to collate data into a tensor. If None, the default
+            collate function map is used, which is often sufficient for most tasks.
     """
 
     def __init__(
@@ -39,7 +40,8 @@ class Task(ABC):
             mpc (MPCSolutionModule): The Model Predictive Control planner to be used
                 for this task.
             collate_fn_map (dict[type, Callable]): A dictionary mapping types to collate
-                functions. If None, the default collate function map is used.
+                functions. If None, the default collate function map is used, which is
+                often sufficient for most tasks.
         """
         super().__init__()
         self.mpc = mpc
@@ -50,6 +52,9 @@ class Task(ABC):
     @abstractmethod
     def create_env(self, train: bool) -> gym.Env:
         """Creates a gymnasium environment for the task.
+
+        Args:
+            train (bool): Whether the environment is for training or evaluation.
 
         Returns:
             gym.Env: The environment for the task.
