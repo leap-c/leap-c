@@ -151,7 +151,7 @@ class MPCSacActor(nn.Module):
         # TODO: We have to catch and probably replace the state_solution somewhere,
         #       if its not a converged solution
         with torch.no_grad():
-            mpc_output, state_solution, stats = self.mpc(mpc_input, mpc_state)
+            mpc_output, state_solution, stats = self.mpc(mpc_input, None)
 
         return (
             mpc_output.u0,

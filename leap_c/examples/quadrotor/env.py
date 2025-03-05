@@ -117,8 +117,8 @@ class QuadrotorStop(gym.Env):
             raise RuntimeError("The first reset needs to be called with a seed.")
         self.t = 0
 
-        vx = np.random.uniform(0, 5)
-        vy = np.random.uniform(0, 5)
+        vx = 2 # np.random.uniform(0, 5)
+        vy = 2 # np.random.uniform(0, 5)
         self.x = np.array([0, 0, 0,
                            1, 0, 0, 0,
                            vx, vy, 0,
