@@ -3,7 +3,6 @@ from copy import deepcopy
 from enum import IntEnum
 from functools import cached_property
 from pathlib import Path
-import pdb
 from typing import Any, Callable, List, NamedTuple
 
 import casadi as ca

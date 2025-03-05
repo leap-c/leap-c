@@ -202,7 +202,13 @@ class SacFopTrainer(Trainer):
                 episode_return = episode_length = 0
                 episode_act_stats = defaultdict(list)
 
-            action, policy_state_prime, act_stats = self.act(obs, state=policy_state)
+            obs_batched = self.task.collate([obs], device=self.device)
+
+            with torch.no_grad():
+                action, _, _, policy_state_prime, _, act_stats = self.pi(
+                    obs_batched, policy_state, deterministic=False
+                )
+                action = action.cpu().numpy()[0]
 
             for key, value in act_stats.items():
                 episode_act_stats[key].append(value)

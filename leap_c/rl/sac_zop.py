@@ -159,7 +159,6 @@ class MPCSacActor(nn.Module):
             log_prob,
             mpc_output.status,
             state_solution,
-            param,
             stats,
         )
 
@@ -231,7 +230,7 @@ class SacZopTrainer(Trainer):
             obs_batched = self.task.collate([obs], device=self.device)
 
             with torch.no_grad():
-                action, param, _, _, policy_state_prime, _, act_stats = self.pi(
+                action, param, _, _, policy_state_prime, act_stats = self.pi(
                     obs_batched, policy_state, deterministic=False
                 )
                 action = action.cpu().numpy()[0]
@@ -339,7 +338,7 @@ class SacZopTrainer(Trainer):
         obs = self.task.collate([obs], device=self.device)
 
         with torch.no_grad():
-            action, _, _, _, state_prime, _, stats = self.pi(
+            action, _, _, _, state_prime, stats = self.pi(
                 obs, state, deterministic=deterministic
             )
 
