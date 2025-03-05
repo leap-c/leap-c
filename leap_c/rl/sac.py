@@ -48,7 +48,7 @@ class SacAlgorithmConfig:
     lr_alpha: float = 1e-4
     num_critics: int = 2
     report_loss_freq: int = 100
-    update_freq: int = 1
+    update_freq: int = 4
 
 
 @dataclass(kw_only=True)

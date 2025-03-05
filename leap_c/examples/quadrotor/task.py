@@ -36,25 +36,13 @@ class QuadrotorStopTask(Task):
                 self.param_low[i] = -10.0
                 self.param_high[i] = 10.0
 
-        super().__init__(mpc_layer, QuadrotorStop)
+        super().__init__(mpc_layer)
 
     @property
     def param_space(self) -> spaces.Box:
         low = self.param_low
         high = self.param_high
         return spaces.Box(low=low, high=high, dtype=np.float32)
-
-    @cached_property
-    def train_env(self) -> gym.Env:
-        env = QuadrotorStop()
-        env.reset(seed=self.seed)
-        return env
-
-    @cached_property
-    def eval_env(self) -> gym.Env:
-        env = QuadrotorStop()
-        env.reset(seed=self.seed)
-        return env
 
     def prepare_mpc_input(self, obs: Any, param_nn: Optional[torch.Tensor] = None, ) -> MPCInput:
         mpc_param = MPCParameter(p_global=param_nn)  # type: ignore

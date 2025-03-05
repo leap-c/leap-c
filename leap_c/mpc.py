@@ -421,10 +421,10 @@ def _solve_shared(
 
     if isinstance(solver, AcadosOcpSolver):
         solve_stats["sqp_iter"] = solver.get_stats("sqp_iter")
-        solve_stats["qp_iter"] = solver.get_stats("qp_iter").sum()  # type:ignore
+        solve_stats["qp_iter"] = int(solver.get_stats("qp_iter").sum())  # type:ignore
         solve_stats["time_tot"] = solver.get_stats("time_tot")
         if (
-            not use_backup_for_first_solve and solver.status != 0
+            not use_backup_for_first_solve and solver.status != 0 and backup_fn is not None
         ):  # Reattempt with backup
             initialize_ocp_solver(
                 ocp_solver=solver,
@@ -435,7 +435,7 @@ def _solve_shared(
             )
             solver.solve()
             solve_stats["sqp_iter"] += solver.get_stats("sqp_iter")
-            solve_stats["qp_iter"] += solver.get_stats("qp_iter").sum()  # type:ignore
+            solve_stats["qp_iter"] += int(solver.get_stats("qp_iter").sum())  # type:ignore
             solve_stats["time_tot"] += solver.get_stats("time_tot")
 
         status = solver.status
@@ -459,7 +459,7 @@ def _solve_shared(
             if status != 0:
                 any_failed = True
 
-        if any_failed and not use_backup_for_first_solve:  # Reattempt with backup
+        if any_failed and not use_backup_for_first_solve and backup_fn is not None:  # Reattempt with backup
             for i, ocp_solver in enumerate(solver.ocp_solvers):
                 if status_batch[i] != 0:
                     single_input = mpc_input.get_sample(i)
