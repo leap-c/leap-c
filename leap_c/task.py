@@ -26,7 +26,9 @@ class Task(ABC):
         mpc (MPC): The Model Predictive Control planner to be used for this task.
         collate_fn_map (dict[type, Callable]): A dictionary mapping types to collate
             functions. This is used to collate data into a tensor. If None, the default
-            collate function map is used, which is often sufficient for most tasks.
+            collate function map is used, which is sufficient for most tasks and contains
+            some extensions to the default PyTorch collate function to handle acados
+            objects.
     """
 
     def __init__(
@@ -41,7 +43,7 @@ class Task(ABC):
                 for this task.
             collate_fn_map (dict[type, Callable]): A dictionary mapping types to collate
                 functions. If None, the default collate function map is used, which is
-                often sufficient for most tasks.
+                sufficient for most tasks.
         """
         super().__init__()
         self.mpc = mpc
