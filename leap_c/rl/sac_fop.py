@@ -172,16 +172,11 @@ class SacFopTrainer(Trainer):
 
         self.to(device)
 
-    def init_policy_state(self) -> Any:
-        return (
-            self.pi.mpc.mpc.ocp_solver.store_iterate_to_flat_obj()
-        )  # State full of zeros
-
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
         episode_return = episode_length = np.inf
         episode_act_stats = defaultdict(list)
-        policy_state = self.init_policy_state()
+        policy_state = None
         obs = None
 
         while True:

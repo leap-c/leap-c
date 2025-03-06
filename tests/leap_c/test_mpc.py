@@ -35,24 +35,6 @@ def mpc_outputs_assert_allclose(
     return allclose
 
 
-# def test_stage_cost(linear_mpc: MPC):
-#     x = np.array([0.0, 0.0])
-#     u = np.array([0.0])
-#
-#     stage_cost = linear_mpc.stage_cost(x, u)
-#
-#     assert stage_cost == 0.0
-#
-#
-# def test_stage_cons(linear_mpc: MPC):
-#     x = np.array([2.0, 1.0])
-#     u = np.array([0.0])
-#
-#     stage_cons = linear_mpc.stage_cons(x, u)
-#
-#     npt.assert_array_equal(stage_cons["ubx"], np.array([1.0, 0.0]))
-#
-#
 # def test_raising_exception_if_u0_outside_bounds(learnable_linear_mpc: MPC):
 #     x0 = np.array([0.5, 0.5])
 #     u0 = np.array([1000.0])
@@ -65,8 +47,8 @@ def mpc_outputs_assert_allclose(
 #     learnable_linear_mpc.throw_error_if_u0_is_outside_ocp_bounds = False
 #     learnable_linear_mpc(MPCInput(x0=x0, u0=u0))
 #     learnable_linear_mpc.throw_error_if_u0_is_outside_ocp_bounds = True
-#
-#
+
+
 def test_statelessness(
     learnable_point_mass_mpc_different_params: Mpc,
 ):
@@ -344,8 +326,8 @@ def test_backup_fn(
     u0 = np.array([0.5, 0.5])
     learnable_linear_mpc = learnable_point_mass_mpc_different_params
     inp = MpcInput(x0=x0, u0=u0)
-    default_init = learnable_linear_mpc.default_init_state_fn  # For restoring fixture
-    learnable_linear_mpc.default_init_state_fn = (
+    default_init = learnable_linear_mpc.init_state_fn  # For restoring fixture
+    learnable_linear_mpc.init_state_fn = (
         None  # Make sure 0 initialization for backup is being used
     )
     sol = learnable_linear_mpc(inp)
@@ -369,9 +351,9 @@ def test_backup_fn(
     def backup_fn_single(input: MpcInput):
         return template_state
 
-    learnable_linear_mpc.default_init_state_fn = backup_fn_single
+    learnable_linear_mpc.init_state_fn = backup_fn_single
     sol_again = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
-    learnable_linear_mpc.default_init_state_fn = default_init  # Restore fixture
+    learnable_linear_mpc.init_state_fn = default_init  # Restore fixture
     mpc_outputs_assert_allclose(sol, sol_again, test_u_star=True)
 
 
@@ -388,8 +370,8 @@ def test_backup_fn_batched(
     for i in range(n_batch):
         x0[i] = x0[i] + i * increment
     inp = MpcInput(x0=x0, u0=u0)
-    default_init = learnable_linear_mpc.default_init_state_fn  # For restoring fixture
-    learnable_linear_mpc.default_init_state_fn = (
+    default_init = learnable_linear_mpc.init_state_fn  # For restoring fixture
+    learnable_linear_mpc.init_state_fn = (
         None  # Make sure 0 initialization for backup is being used
     )
     sol = learnable_linear_mpc(inp)
@@ -419,12 +401,12 @@ def test_backup_fn_batched(
         ]
         return AcadosOcpFlattenedIterate(*vals)
 
-    learnable_linear_mpc.default_init_state_fn = backup_fn_batched
+    learnable_linear_mpc.init_state_fn = backup_fn_batched
     sol_again = learnable_linear_mpc(
         inp,
         mpc_state=ridiculous_state,
     )
-    learnable_linear_mpc.default_init_state_fn = default_init  # Restore fixture
+    learnable_linear_mpc.init_state_fn = default_init  # Restore fixture
     mpc_outputs_assert_allclose(sol, sol_again, test_u_star=True)
 
 
