@@ -354,8 +354,9 @@ def set_ocp_solver_to_default(
     unset_u0: bool,
 ) -> None:
     """Resets the OCP (batch) solver to remove any "state" to be carried over in the next call.
+    Since the init function or a given iterate is being used to override the state of the solver anyways,
+    we don't need to call ocp_solver.reset().
     This entails:
-    - Setting all Iterate-Variables to 0.
     - Setting the parameters to the default values (since the default is consistent over the batch, the given MPCParameter must not be batched).
     - Unsetting the initial control constraints if they were set.
     """
@@ -363,7 +364,6 @@ def set_ocp_solver_to_default(
         if unset_u0:
             unset_ocp_solver_initial_control_constraints(ocp_solver)
         set_ocp_solver_mpc_params(ocp_solver, default_mpc_parameters)
-        ocp_solver.reset()
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         for ocp_solver in ocp_solver.ocp_solvers:
@@ -556,7 +556,9 @@ def turn_on_warmstart(acados_ocp: AcadosOcp):
     acados_ocp.solver_options.nlp_solver_warm_start_first_qp_from_nlp = True
 
 
-def create_zero_init_state_fn(solver: AcadosOcpSolver) -> Callable[[MpcInput], MpcSingleState | MpcBatchedState]:
+def create_zero_init_state_fn(
+    solver: AcadosOcpSolver,
+) -> Callable[[MpcInput], MpcSingleState | MpcBatchedState]:
     """Create a function that initializes the solver iterate with zeros.
 
     Args:
@@ -584,7 +586,7 @@ def create_zero_init_state_fn(solver: AcadosOcpSolver) -> Callable[[MpcInput], M
         for f in fields(iterate):
             n = f.name
             kw[n] = np.tile(getattr(iterate, n), (batch_size, 1))
-        
+
         return AcadosOcpFlattenedBatchIterate(**kw, N_batch=batch_size)
 
     return init_state_fn
@@ -915,27 +917,27 @@ class Mpc(ABC):
         use_adj_sens: bool = True,
     ) -> MpcOutput:
         """
-        # TODO: Remove the None option. However, this requires a lot of changes in the code. Should be done after
-        #       a general discussion.
+                # TODO: Remove the None option. However, this requires a lot of changes in the code. Should be done after
+                #       a general discussion.
 
-        Solve the OCP for the given initial state and parameters. If an mpc_state is given and the solver does not converge,
-        AND the init_state_fn is not None, the solver will attempt another solve reinitialized with the init_state_fn
-        (in the batched solve, only the non-converged samples will be reattempted to solve).
-        NOTE: Information about this call is stored in the public member self.last_call_stats.
-        NOTE: The solution state of this call is stored in the public member self.last_call_state.
+                Solve the OCP for the given initial state and parameters. If an mpc_state is given and the solver does not converge,
+                AND the init_state_fn is not None, the solver will attempt another solve reinitialized with the init_state_fn
+                (in the batched solve, only the non-converged samples will be reattempted to solve).
+                NOTE: Information about this call is stored in the public member self.last_call_stats.
+                NOTE: The solution state of this call is stored in the public member self.last_call_state.
 
-        Args:
-            mpc_input: The input of the MPC controller.
--           mpc_state: The iterate of the solver to use as initialization. If None, the solver is initialized using its init_state_fn.
-            dudx: Whether to compute the sensitivity of the action with respect to the state.
-            dudp: Whether to compute the sensitivity of the action with respect to the parameters.
-            dvdx: Whether to compute the sensitivity of the value function with respect to the state.
-            dvdu: Whether to compute the sensitivity of the value function with respect to the action.
-            dvdp: Whether to compute the sensitivity of the value function with respect to the parameters.
-            use_adj_sens: Whether to use adjoint sensitivity.
+                Args:
+                    mpc_input: The input of the MPC controller.
+        -           mpc_state: The iterate of the solver to use as initialization. If None, the solver is initialized using its init_state_fn.
+                    dudx: Whether to compute the sensitivity of the action with respect to the state.
+                    dudp: Whether to compute the sensitivity of the action with respect to the parameters.
+                    dvdx: Whether to compute the sensitivity of the value function with respect to the state.
+                    dvdu: Whether to compute the sensitivity of the value function with respect to the action.
+                    dvdp: Whether to compute the sensitivity of the value function with respect to the parameters.
+                    use_adj_sens: Whether to use adjoint sensitivity.
 
-        Returns:
-            A collection of outputs from the MPC controller.
+                Returns:
+                    A collection of outputs from the MPC controller.
         """
 
         if mpc_input.is_batched() and mpc_input.x0.shape[0] == 1:
@@ -1261,4 +1263,3 @@ class Mpc(ABC):
             )
 
         return MpcOutput(**kw), flat_iterate
-
