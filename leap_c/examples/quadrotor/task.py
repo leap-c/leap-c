@@ -26,8 +26,8 @@ class QuadrotorStopTask(Task):
         mpc = QuadrotorMPC(learnable_params=learnable_params)
         mpc_layer = MPCSolutionModule(mpc)
 
-        self.param_low = 1 * mpc.ocp.p_global_values
-        self.param_high = 1. * mpc.ocp.p_global_values
+        self.param_low = 0.01 * mpc.ocp.p_global_values
+        self.param_high = 10. * mpc.ocp.p_global_values
 
         # TODO: Handle params that are nominally zero
         for i, p in enumerate(mpc.ocp.p_global_values):

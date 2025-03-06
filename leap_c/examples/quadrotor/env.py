@@ -16,7 +16,7 @@ class QuadrotorStop(gym.Env):
             self,
             render_mode: str | None = None,
     ):
-        self.weight_position = 1
+        self.weight_position = 10
         self.fig, self.axes = None, None
 
         self.model_params = read_from_yaml("./examples/quadrotor/model_params.yaml")
@@ -115,9 +115,18 @@ class QuadrotorStop(gym.Env):
             raise RuntimeError("The first reset needs to be called with a seed.")
         self.t = 0
 
-        px = np.random.uniform(-2, 2)
-        py = np.random.uniform(-2, 2)
-        pz = np.random.uniform(-2, 2)
+        R = 2  # Radius of the sphere
+
+        # Generate random angles
+        phi = np.random.uniform(0, 2 * np.pi)  # Azimuthal angle [0, 2π]
+        cos_theta = np.random.uniform(-1, 1)  # Cosine of polar angle [-1,1]
+        theta = np.arccos(cos_theta)  # Convert to theta
+
+        # Convert to Cartesian coordinates
+        px = R * np.cos(phi) * np.sin(theta)
+        py = R * np.sin(phi) * np.sin(theta)
+        pz = R * np.cos(theta)
+
         self.x = np.array([px, py, pz,
                            1, 0, 0, 0,
                            0, 0, 0,

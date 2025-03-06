@@ -75,10 +75,11 @@ def main(
         cfg=cfg,
     )
 
-    cfg.val.interval = 5000
-    cfg.train.steps = 200_000
+    cfg.val.interval = 100_000
+    cfg.train.steps = 1_000_000
     cfg.val.num_render_rollouts = 1
     cfg.log.wandb_logger = True
+    cfg.log.tensorboard_logger = False
 
     trainer = create_trainer(trainer_name, task, output_path, device, cfg)
     trainer.run()

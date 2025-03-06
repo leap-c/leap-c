@@ -11,6 +11,7 @@ if __name__ == "__main__":
     mpc = QuadrotorMPC()
     solver = mpc.ocp_solver
     render_movie = True
+    record_iterate = False
 
     obs, _ = env.reset(seed=random.randint(0, 1000))
     image = env.render()
@@ -27,8 +28,8 @@ if __name__ == "__main__":
         solver.set(0, "lbx", obs)
         solver.set(0, "ubx", obs)
         status = solver.solve()
-        if env.t > 0.8 and False:
-            solver.store_iterate("init_iterate.json")
+        if env.t > 0.8 and record_iterate:
+            solver.store_iterate("./examples/quadrotor/init_iterate.json")
             break
 
         action = solver.get(0, "u")

@@ -105,7 +105,7 @@ def export_parametric_ocp(
     ocp = AcadosOcp()
 
     ######## Dimensions ########
-    N_horizon = 100#400
+    N_horizon = 5 #20 works well
     dt = 0.04 # 0.005
 
     ocp.solver_options.N_horizon = N_horizon
