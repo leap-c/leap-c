@@ -6,7 +6,7 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.mpc import MPC
+from leap_c.mpc import Mpc
 
 import os
 import numpy as np
@@ -25,7 +25,7 @@ from typing import Tuple
 from pathlib import Path
 
 
-class ChainMpc(MPC):
+class ChainMpc(Mpc):
     def __init__(
         self,
         params: dict[str, np.ndarray] | None = None,
@@ -75,12 +75,15 @@ class ChainMpc(MPC):
             u_init=np.array([-1, 1, 1]),
             with_wall=True,
             yPosWall=-0.05,
-            xPosFirstMass=np.zeros(3),
+            pos_first_mass=np.zeros(3),
             nlp_iter=50,
             nlp_tol=1e-5,
         )
 
+        configure_ocp_solver(ocp, exact_hess_dyn)
+
         self.given_default_param_dict = params
+
         super().__init__(
             ocp=ocp,
             n_batch=n_batch,
@@ -88,6 +91,9 @@ class ChainMpc(MPC):
             export_directory_sensitivity=export_directory_sensitivity,
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
         )
+
+        # status = self.ocp_solver.solve()
+        # print(status)
 
 
 def export_parametric_ocp(
@@ -100,7 +106,7 @@ def export_parametric_ocp(
     u_init=np.array([-1, 1, 1]),
     with_wall=True,
     yPosWall=-0.05,
-    xPosFirstMass=np.zeros(3),
+    pos_first_mass=np.zeros(3),
     nlp_iter=50,
     nlp_tol=1e-5,
 ) -> Tuple[AcadosOcp, DMStruct]:
@@ -124,9 +130,6 @@ def export_parametric_ocp(
         learnable_param=learnable_params,
         ocp=ocp,
     )
-
-    print("ocp.model.p_global", ocp.model.p_global)
-    print("ocp.model.p", ocp.model.p)
 
     ocp.model.x = struct_symSX(
         [
@@ -162,27 +165,20 @@ def export_parametric_ocp(
 
     resting_link_length = np.linalg.norm(nominal_params["L"][:3])
 
-    xEndRef = np.array([resting_link_length * (n_mass - 1), 0.0, 0.0])
+    x_end_ref = np.array([resting_link_length * (n_mass - 1), 0.0, 0.0])
 
     model = ocp.model
 
     p = find_param_in_p_or_p_global(["D", "L", "C", "m"], model)
 
-    # p_ = p(0)
-    # p_["m"] = p["m"]
-    # p_["D"] = p["D"]
-    # p_["L"] = p["L"]
-    # p_["C"] = p["C"]
-
     nx = model.x.shape[0]
 
     # Free masses
-    # M = int((nx / 3 - 1) / 2)
     n_masses = p["m"].shape[0] + 1
     M = n_masses - 2
 
     # initial guess for state
-    pos0_x = np.linspace(xPosFirstMass[0], xEndRef[0], n_masses)
+    pos0_x = np.linspace(pos_first_mass[0], x_end_ref[0], n_masses)
     x0 = np.zeros((nx, 1))
     x0[: 3 * (M + 1) : 3] = pos0_x[1:].reshape((n_masses - 1, 1))
 
@@ -195,7 +191,7 @@ def export_parametric_ocp(
     # constraints
     g = []
     g += [model.f_impl_expr]  # steady state
-    g += [model.x["pos", -1] - xEndRef]  # fix position of last mass
+    g += [model.x["pos", -1] - x_end_ref]  # fix position of last mass
     g += [model.u]  # don't actuate controlled mass
 
     # misuse IPOPT as nonlinear equation solver
@@ -214,7 +210,7 @@ def export_parametric_ocp(
     pos_ss = x_ss[: 3 * (n_mass - 1)]
 
     # Concatenate xPosFirstMass and pos_ss
-    pos_ss = np.concatenate((xPosFirstMass, pos_ss))
+    pos_ss = np.concatenate((pos_first_mass, pos_ss))
 
     vel_ss = x_ss[3 * (n_mass - 1) :]
 
@@ -252,14 +248,7 @@ def export_parametric_ocp(
     nx = ocp.model.x.cat.shape[0]
     nu = ocp.model.u.shape[0]
 
-    M = n_mass - 2  # number of intermediate masses
-    ocp.cost.cost_type_0 = "EXTERNAL"
-    ocp.cost.cost_type = "EXTERNAL"
-    ocp.cost.cost_type_e = "EXTERNAL"
-
-    x_e = ocp.model.x.cat - x_ss
-    u_e = ocp.model.u - np.zeros((nu, 1))
-
+    # M = n_mass - 2  # number of intermediate masses
     # idx = find_idx_for_labels(
     #     define_param_ssymStruct(nominal_params["n_mass"], disturbance=True).cat, "Q"
     # )
@@ -274,42 +263,29 @@ def export_parametric_ocp(
     # R_sym = ca.reshape(ocp.model.p_global[idx], (nu, nu))
     # p["R"] = 2 * np.diagflat(1e-2 * np.ones((nu, 1)))
 
+    x_e = ocp.model.x.cat - x_ss
+    u_e = ocp.model.u - np.zeros((nu, 1))
+
+    print("x_e", x_e)
+    print("u_e", u_e)
+
+    ocp.cost.cost_type_0 = "EXTERNAL"
     ocp.model.cost_expr_ext_cost_0 = 0.5 * (x_e.T @ Q @ x_e + u_e.T @ R @ u_e)
+    ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = 0.5 * (x_e.T @ Q @ x_e + u_e.T @ R @ u_e)
+    ocp.cost.cost_type_e = "EXTERNAL"
     ocp.model.cost_expr_ext_cost_e = 0.5 * (x_e.T @ Q @ x_e)
 
     # ocp.model.cost_y_expr = vertcat(x_e, u_e)
-
-    # ocp.p_global_values = p.cat.full().flatten()
 
     # set constraints
     umax = 1 * np.ones((nu,))
 
     ocp.constraints.lbu = -umax
     ocp.constraints.ubu = umax
-    ocp.constraints.x0 = x0.reshape((nx,))
     ocp.constraints.idxbu = np.array(range(nu))
-
-    # # solver options
-    # ocp.solver_options.qp_solver = qp_solver
-    # ocp.solver_options.hessian_approx = hessian_approx
-    # ocp.solver_options.integrator_type = integrator_type
-    # ocp.solver_options.nlp_solver_type = nlp_solver_type
-    # ocp.solver_options.sim_method_num_stages = 2
-    # ocp.solver_options.sim_method_num_steps = 2
-    # ocp.solver_options.nlp_solver_max_iter = nlp_iter
-
-    # if hessian_approx == "EXACT":
-    #     ocp.solver_options.qp_solver_ric_alg = qp_solver_ric_alg
-    #     ocp.solver_options.qp_solver_cond_N = ocp.solver_options.N_horizon
-    #     ocp.solver_options.with_solution_sens_wrt_params = True
-    # else:
-    #     ocp.solver_options.nlp_solver_max_iter = nlp_iter
-    #     ocp.solver_options.qp_solver_cond_N = ocp.solver_options.N_horizon
-    #     ocp.solver_options.qp_tol = nlp_tol
-    #     ocp.solver_options.tol = nlp_tol
-
-    # ocp.solver_options.tf = ocp.solver_options.N_horizon * nominal_params["Ts"]
+    # ocp.constraints.x0 = x0.reshape((nx,))
+    ocp.constraints.x0 = x_ss.reshape((nx,))
 
     # #############################
     if isinstance(ocp.model.x, struct_symSX):
@@ -327,6 +303,19 @@ def export_parametric_ocp(
         )
 
     ocp.solver_options.tf = ocp.solver_options.N_horizon * Ts
+
+    print("x", ocp.model.x)
+    print("u", ocp.model.u)
+    print("Q", Q)
+    print("R", R)
+
+    print("ocp.p_global_values:")
+    for i, value in enumerate(ocp.p_global_values):
+        print(f"  {ocp.model.p_global[i]} = {value}")
+
+    print("ocp.parameter_values:")
+    for i, value in enumerate(ocp.parameter_values):
+        print(f"  {ocp.model.p[i]} = {value}")
 
     return ocp
 
