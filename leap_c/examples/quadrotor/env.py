@@ -16,19 +16,18 @@ class QuadrotorStop(gym.Env):
             self,
             render_mode: str | None = None,
     ):
-        self.weight_velocity = 1
-        self.weight_constraint_violation = 1e5
+        self.weight_position = 1
         self.fig, self.axes = None, None
 
         self.model_params = read_from_yaml("./examples/quadrotor/model_params.yaml")
 
         self.sim_params = {
-            "dt": 0.005,
-            "t_sim": 2.0
+            "dt": 0.04,
+            "t_sim": 5.0
         }
         x, u, p, rhs, self.rhs_func = get_rhs_quadrotor(self.model_params,
                                                         model_fidelity="high",
-                                                        scale_disturbances=0.001,
+                                                        scale_disturbances=0.0,
                                                         sym_params=False)
 
         x_high = np.array(
@@ -89,15 +88,14 @@ class QuadrotorStop(gym.Env):
         if not bool(np.isnan(self.x).sum()) and (self.x[7:10].sum() <= 1000) and (self.x[7:10].sum() >= -1000):
             if np.isnan(self.x).sum() >= 1:
                 print("Nans in state, should not happen")
-            r = - dt * (self.weight_velocity * np.linalg.norm(self.x[7:10]) +
-                        self.weight_constraint_violation * max(self.x[2] - self.model_params["bound_z"], 0))
+            r = - dt * (self.weight_position * np.linalg.norm(self.x[:3]))
 
         else:
             print(f"Truncation at time {self.t} with state {self.x}")
             r = -1e5
             trunc = True
             term = True
-        print(r)
+
         if self.t >= self.sim_params["t_sim"]:
             term = True
 
@@ -117,11 +115,12 @@ class QuadrotorStop(gym.Env):
             raise RuntimeError("The first reset needs to be called with a seed.")
         self.t = 0
 
-        vx = 2 # np.random.uniform(0, 5)
-        vy = 2 # np.random.uniform(0, 5)
-        self.x = np.array([0, 0, 0,
+        px = np.random.uniform(-2, 2)
+        py = np.random.uniform(-2, 2)
+        pz = np.random.uniform(-2, 2)
+        self.x = np.array([px, py, pz,
                            1, 0, 0, 0,
-                           vx, vy, 0,
+                           0, 0, 0,
                            0, 0, 0], dtype=np.float32)
         self.reset_needed = False
 
@@ -131,22 +130,31 @@ class QuadrotorStop(gym.Env):
     def render(self):
 
         if self.render_mode == "human":
-            self.fig, self.axes = plt.subplots(3, 3, figsize=(12, 9), sharey='row')
+            self.fig, self.axes = plt.subplots(4, 3, figsize=(12, 12))
+            # Share y-axis only for specific rows
+            for col in range(3):  # Iterate through columns
+                self.axes[0, col].sharey(self.axes[0, 0])  # Share y-axis between row 0 and row 1
+                self.axes[1, col].sharey(self.axes[1, 0])
+                self.axes[2, col].sharey(self.axes[2, 0])
             fig, axes = self.fig, self.axes
 
             trajectory = np.array(self.trajectory)
+            action_trajectory = np.array(self.action_trajectory)
             axes[0, 0].plot(self.time_steps, trajectory[:, 0])
+            axes[0, 0].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
             axes[0, 0].set_title(r"position $p_x$")
             axes[0, 0].set_xlabel("time (s)")
             axes[0, 0].set_ylabel("position (m)")
 
             axes[0, 1].plot(self.time_steps, trajectory[:, 1])
+            axes[0, 1].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
             axes[0, 1].set_title(r"position $p_y$")
             axes[0, 1].set_xlabel("time (s)")
 
             axes[0, 2].plot(self.time_steps, trajectory[:, 2])
-            axes[0, 2].hlines(self.model_params["bound_z"], 0, self.sim_params["t_sim"], colors='tab:red',
-                              linestyles='dashed')
+            axes[0, 2].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
+            #axes[0, 2].hlines(self.model_params["bound_z"], 0, self.sim_params["t_sim"], colors='tab:red',
+            #                  linestyles='dashed')
             axes[0, 2].set_title(r"position $p_z$")
             axes[0, 2].set_xlabel("time (s)")
 
@@ -181,6 +189,26 @@ class QuadrotorStop(gym.Env):
             axes[2, 2].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
             axes[2, 2].set_xlabel("time (s)")
             axes[2, 2].set_title(r"angular velocity $\omega_z$")
+
+            axes[3, 0].plot(self.time_steps[:-1], action_trajectory[:,0])
+            axes[3, 0].plot(self.time_steps[:-1], action_trajectory[:, 1])
+            axes[3, 0].plot(self.time_steps[:-1], action_trajectory[:, 2])
+            axes[3, 0].plot(self.time_steps[:-1], action_trajectory[:, 3])
+            axes[3, 0].set_xlabel("time (s)")
+            axes[3, 0].set_title(r"Revolution speeds")
+
+            axes[3, 1].plot(self.time_steps, trajectory[:, 3], label="qw")
+            axes[3, 1].plot(self.time_steps, trajectory[:, 4], label="qx")
+            axes[3, 1].legend()
+            axes[3, 1].set_xlabel("time (s)")
+            axes[3, 1].set_title(r"Quaternions w, x")
+
+            axes[3, 2].plot(self.time_steps, trajectory[:, 5], label="qy")
+            axes[3, 2].plot(self.time_steps, trajectory[:, 6], label="qz")
+            axes[3, 2].legend()
+            axes[3, 2].set_xlabel("time (s)")
+            axes[3, 2].set_title(r"Quaternions y, z")
+
             plt.tight_layout()
             plt.show()
         else:
@@ -234,6 +262,7 @@ class QuadrotorStop(gym.Env):
             ax.quiver(*origin, *(transformed_axes[0] - origin), color='r', label="X-axis")
             ax.quiver(*origin, *(transformed_axes[1] - origin), color='g', label="Y-axis")
             ax.quiver(*origin, *(transformed_axes[2] - origin), color='b', label="Z-axis")
+            ax.scatter(0,0,0, color='black', label="Origin")
 
             # Draw planar surface at z = 0.25
             plane_size = 2.0   # Size of the ground plane

@@ -105,8 +105,9 @@ def export_parametric_ocp(
     ocp = AcadosOcp()
 
     ######## Dimensions ########
-    N_horizon = 50
-    dt = 0.005
+    N_horizon = 100#400
+    dt = 0.04 # 0.005
+
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = N_horizon*dt
 
@@ -143,12 +144,13 @@ def export_parametric_ocp(
 
     ######## Cost ########
     if cost_type == "LINEAR_LS":
-        Q = np.diag([0, 0, 0,
-                     1e1, 1e1, 1e1, 1e1,
-                     1e6, 1e6, 1e6,
-                     1e1, 1e1, 1e5])
+        Q = np.diag([1e4, 1e4, 1e4,
+                     1e0, 1e4, 1e4, 1e0,
+                     1e1, 1e1, 1e3,
+                     1e1, 1e1, 1e1])
 
-        R = np.diag([1, 1, 1, 1])
+
+        R = np.diag([1, 1, 1, 1])/16
         Qe = 100 * Q
 
         ocp.cost.W = scipy.linalg.block_diag(Q, R)
@@ -170,11 +172,8 @@ def export_parametric_ocp(
         ocp.constraints.ubx_e = np.array([model_params["bound_z"]])
 
         ocp.constraints.idxsbx = np.array([0])
-        ocp.cost.zu = ocp.cost.zl = np.array([0])#np.array([5e7])
+        ocp.cost.zu = ocp.cost.zl = np.array([0])
         ocp.cost.Zu = ocp.cost.Zl = np.array([1e10])
-        #ocp.constraints.idxsbx_e = np.array([0])
-        #ocp.cost.zu = ocp.cost.zl_e = np.array([0])
-        #ocp.cost.Zu = ocp.cost.Zl_e = np.array([1e1])
 
         Vx_e = np.zeros((ny_e, nx))
         Vx_e[:nx, :nx] = np.eye(nx)
@@ -189,7 +188,6 @@ def export_parametric_ocp(
 
     else:
         raise ValueError(f"Cost type {cost_type} not supported.")
-        # TODO: Implement NONLINEAR_LS with y_expr = sqrt(Q) * x and sqrt(R) * u
 
     ######## Constraints ########
     ocp.constraints.x0 = np.array([0] * 13)
