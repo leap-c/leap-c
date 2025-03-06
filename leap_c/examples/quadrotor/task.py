@@ -23,7 +23,7 @@ class QuadrotorStopTask(Task):
         params = read_from_yaml("./examples/quadrotor/model_params.yaml")
         learnable_params = ["m"]
 
-        mpc = QuadrotorMPC(learnable_params=learnable_params)
+        mpc = QuadrotorMPC(learnable_params=learnable_params, N_horizon=5)
         mpc_layer = MPCSolutionModule(mpc)
 
         self.param_low = 0.01 * mpc.ocp.p_global_values

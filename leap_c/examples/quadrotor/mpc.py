@@ -1,5 +1,6 @@
 import json
 from collections import OrderedDict
+from copy import copy
 from typing import Dict, List
 
 import casadi as ca
@@ -29,7 +30,8 @@ class QuadrotorMPC(MPC):
             params: dict[str, np.ndarray] | None = None,
             learnable_params: list[str] | None = None,
             discount_factor: float = 0.99,
-            n_batch: int = 64
+            n_batch: int = 64,
+            N_horizon: int = 5,
     ):
         """
         Args:
@@ -55,6 +57,7 @@ class QuadrotorMPC(MPC):
             cost_type="LINEAR_LS",
             exact_hess_dyn=False,
             name="quadrotor_lls",
+            N_horizon=N_horizon,
             learnable_param=learnable_params,
             sensitivity_ocp=False,
         )
@@ -64,6 +67,7 @@ class QuadrotorMPC(MPC):
             cost_type="LINEAR_LS",
             exact_hess_dyn=True,
             name="quadrotor_lls",
+            N_horizon=N_horizon,
             learnable_param=learnable_params,
             sensitivity_ocp=True,
         )
@@ -76,7 +80,7 @@ class QuadrotorMPC(MPC):
         # Load JSON file
         with open("./examples/quadrotor/init_iterate.json", "r") as file:
             init_iterate = json.load(file)  # Parse JSON into a Python dictionary
-            init_iterate = parse_ocp_iterate(init_iterate)
+            init_iterate = parse_ocp_iterate(init_iterate, N=N_horizon)
 
         def initialize_default(mpc_input: MPCInput):
             init_iterate.x_traj = [mpc_input.x0] * (ocp.solver_options.N_horizon + 1)
@@ -99,13 +103,14 @@ def export_parametric_ocp(
         cost_type: str = "LINEAR_LS",
         exact_hess_dyn: bool = True,
         name: str = "quadrotor",
+        N_horizon: int = 5,
         learnable_param: list[str] | None = None,
         sensitivity_ocp=False,
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
     ######## Dimensions ########
-    N_horizon = 5 #20 works well
+    #N_horizon = 5 #20 works well
     dt = 0.04 # 0.005
 
     ocp.solver_options.N_horizon = N_horizon
@@ -233,7 +238,7 @@ def export_parametric_ocp(
     #     )
     return ocp
 
-def parse_ocp_iterate(data: Dict[str, List[float]]) -> AcadosOcpIterate:
+def parse_ocp_iterate(data: Dict[str, List[float]], N= None) -> AcadosOcpIterate:
     """
     Parses the given JSON-like dictionary into an instance of AcadosOcpIterate.
 
@@ -245,15 +250,20 @@ def parse_ocp_iterate(data: Dict[str, List[float]]) -> AcadosOcpIterate:
     """
     # Extract state trajectory
     x_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("x_")]
-
-    # Extract control trajectory
+    # Extact control trajectory
     u_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("u_")]
-
     # Extract dual variables
     pi_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("pi_")]
     lam_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("lam_")]
     sl_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("sl_")]
     su_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("su_")]
+
+    if N is not None and len(x_traj)<N+1:
+        for i in range((N+1) + len(x_traj)):
+            x_traj.append(copy(x_traj[-1]))
+            pi_traj.append(copy(pi_traj[-1]))
+            lam_traj.append(copy(lam_traj[-1]))
+            u_traj.append(copy(u_traj[-1]))
 
     # Assuming `z_traj` is empty since there's no "z_" in the given data
     z_traj = []
