@@ -172,16 +172,11 @@ class SacFopTrainer(Trainer):
 
         self.to(device)
 
-    def init_policy_state(self) -> Any:
-        return (
-            self.pi.mpc.mpc.ocp_solver.store_iterate_to_flat_obj()
-        )  # State full of zeros
-
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
         episode_return = episode_length = np.inf
         episode_act_stats = defaultdict(list)
-        policy_state = self.init_policy_state()
+        policy_state = None
         obs = None
 
         while True:
@@ -199,7 +194,7 @@ class SacFopTrainer(Trainer):
                     self.report_stats(
                         "train_policy_rollout", mpc_episode_stats, self.state.step
                     )
-                policy_state = self.init_policy_state()
+                policy_state = None
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
                 episode_act_stats = defaultdict(list)
@@ -229,8 +224,6 @@ class SacFopTrainer(Trainer):
                     reward,
                     obs_prime,
                     is_terminated,
-                    is_truncated,
-                    policy_state,
                     policy_state_sol,
                 )
             )  # type: ignore
@@ -244,7 +237,7 @@ class SacFopTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te, _, _, ps_sol = self.buffer.sample(
+                o, a, r, o_prime, te, ps_sol = self.buffer.sample(
                     self.cfg.sac.batch_size
                 )
 

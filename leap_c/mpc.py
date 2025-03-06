@@ -1,5 +1,6 @@
 from abc import ABC
 from copy import deepcopy
+from dataclasses import fields
 from enum import IntEnum
 from functools import cached_property
 from pathlib import Path
@@ -353,8 +354,9 @@ def set_ocp_solver_to_default(
     unset_u0: bool,
 ) -> None:
     """Resets the OCP (batch) solver to remove any "state" to be carried over in the next call.
+    Since the init function or a given iterate is being used to override the state of the solver anyways,
+    we don't need to call ocp_solver.reset().
     This entails:
-    - Setting all Iterate-Variables to 0.
     - Setting the parameters to the default values (since the default is consistent over the batch, the given MPCParameter must not be batched).
     - Unsetting the initial control constraints if they were set.
     """
@@ -362,7 +364,6 @@ def set_ocp_solver_to_default(
         if unset_u0:
             unset_ocp_solver_initial_control_constraints(ocp_solver)
         set_ocp_solver_mpc_params(ocp_solver, default_mpc_parameters)
-        ocp_solver.reset()
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         for ocp_solver in ocp_solver.ocp_solvers:
@@ -555,6 +556,42 @@ def turn_on_warmstart(acados_ocp: AcadosOcp):
     acados_ocp.solver_options.nlp_solver_warm_start_first_qp_from_nlp = True
 
 
+def create_zero_init_state_fn(
+    solver: AcadosOcpSolver,
+) -> Callable[[MpcInput], MpcSingleState | MpcBatchedState]:
+    """Create a function that initializes the solver iterate with zeros.
+
+    Args:
+        solver: The solver to initialize.
+
+    Returns:
+        The function that initializes the solver iterate with zeros.
+    """
+    iterate = solver.store_iterate_to_flat_obj()
+
+    # overwrite the iterate with zeros
+    for f in fields(iterate):
+        n = f.name
+        setattr(iterate, n, np.zeros_like(getattr(iterate, n)))  # type: ignore
+
+    def init_state_fn(mpc_input: MpcInput) -> MpcSingleState | MpcBatchedState:
+        # TODO (batch_rules): This should be updated if we switch to only batch solvers.
+
+        if not mpc_input.is_batched():
+            return deepcopy(iterate)
+
+        batch_size = len(mpc_input.x0)
+        kw = {}
+
+        for f in fields(iterate):
+            n = f.name
+            kw[n] = np.tile(getattr(iterate, n), (batch_size, 1))
+
+        return AcadosOcpFlattenedBatchIterate(**kw, N_batch=batch_size)
+
+    return init_state_fn
+
+
 class Mpc(ABC):
     """Mpc abstract base class."""
 
@@ -563,7 +600,7 @@ class Mpc(ABC):
         ocp: AcadosOcp,
         ocp_sensitivity: AcadosOcp | None = None,
         discount_factor: float | None = None,
-        default_init_state_fn: (
+        init_state_fn: (
             Callable[[MpcInput], MpcSingleState | MpcBatchedState] | None
         ) = None,
         n_batch: int = 256,
@@ -580,7 +617,7 @@ class Mpc(ABC):
                 If None, the sensitivity problem is derived from the ocp, however only the EXTERNAL cost type is allowed then.
                 For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
-            default_init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.
+            init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.
             n_batch: Number of batched solvers to use.
             export_directory: Directory to export the generated code.
             export_directory_sensitivity: Directory to export the generated
@@ -615,7 +652,10 @@ class Mpc(ABC):
         self.afm_sens_batch = AcadosFileManager(export_directory_sensitivity)
 
         self._discount_factor = discount_factor
-        self._default_init_state_fn = default_init_state_fn
+        if init_state_fn is None:
+            self.init_state_fn = create_zero_init_state_fn(self.ocp_solver)
+        else:
+            self.init_state_fn = init_state_fn
 
         self.param_labels = SX_to_labels(self.ocp.model.p_global)
 
@@ -769,18 +809,6 @@ class Mpc(ABC):
             p_stagewise=self.default_p_stagewise,
         )
 
-    @property
-    def default_init_state_fn(
-        self,
-    ) -> Callable[[MpcInput], MpcSingleState | MpcBatchedState] | None:
-        return self._default_init_state_fn
-
-    @default_init_state_fn.setter
-    def default_init_state_fn(
-        self, value: Callable[[MpcInput], MpcSingleState | MpcBatchedState] | None
-    ) -> None:
-        self._default_init_state_fn = value
-
     def is_model_p_legal(self, model_p: Any) -> bool:
         if model_p is None:
             return False
@@ -797,6 +825,8 @@ class Mpc(ABC):
         self, state: np.ndarray, p_global: np.ndarray | None, sens: bool = False
     ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
         """
+        # TODO: Discuss removing this method.
+
         Compute the value function for the given state.
 
         Args:
@@ -823,6 +853,8 @@ class Mpc(ABC):
         sens: bool = False,
     ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
         """
+        # TODO: Discuss removing this method.
+
         Compute the state-action value function for the given state and action.
 
         Args:
@@ -852,6 +884,8 @@ class Mpc(ABC):
         use_adj_sens: bool = True,
     ) -> tuple[np.ndarray, np.ndarray | None, np.ndarray]:
         """
+        # TODO: Discuss removing this method.
+
         Compute the policy for the given state.
 
         Args:
@@ -859,6 +893,7 @@ class Mpc(ABC):
             p_global: The global parameters.
             sens: Whether to compute the sensitivity of the policy with respect to the parameters.
             use_adj_sens: Whether to use adjoint sensitivity.
+
         Returns:
             The policy, du0_dp_global if requested, and the status of the computation (whether it succeded, etc.).
         """
@@ -882,21 +917,31 @@ class Mpc(ABC):
         dvdp: bool = False,
         use_adj_sens: bool = True,
     ) -> MpcOutput:
-        """
-        Solve the OCP for the given initial state and parameters. If an mpc_state is given and the solver does not converge,
-        AND the default_init_state_fn is not None, the solver will attempt another solve reinitialized with the default_init_state_fn
-        (in the batched solve, only the non-converged samples will be reattempted to solve).
-        NOTE: Information about this call is stored in the public member self.last_call_stats.
-        NOTE: The solution state of this call is stored in the public member self.last_call_state.
+        """Solve the OCP for the given initial state and parameters.
+
+        If an mpc_state is given and the solver does not converge, the solver does a
+        reattempt using the init_state_fn. If the mpc_state is None, the init_state_fn is
+        used to initialize the solver.
+
+        Note:
+            Information of this call is stored in the public member self.last_call_stats.
+            The solution state of this call is stored in the public member 
+                self.last_call_state.
 
         Args:
             mpc_input: The input of the MPC controller.
-            mpc_state: The iterate of the solver to use as initialization. If None, the solver is initialized using its default_init_state_fn.
-            dudx: Whether to compute the sensitivity of the action with respect to the state.
-            dudp: Whether to compute the sensitivity of the action with respect to the parameters.
-            dvdx: Whether to compute the sensitivity of the value function with respect to the state.
-            dvdu: Whether to compute the sensitivity of the value function with respect to the action.
-            dvdp: Whether to compute the sensitivity of the value function with respect to the parameters.
+            mpc_state: The iterate of the solver to use as initialization. If None, the 
+                solver is initialized using its init_state_fn.
+            dudx: Whether to compute the sensitivity of the action with respect to the
+                state.
+            dudp: Whether to compute the sensitivity of the action with respect to the
+                parameters.
+            dvdx: Whether to compute the sensitivity of the value function with respect
+                to the state.
+            dvdu: Whether to compute the sensitivity of the value function with respect
+                to the action.
+            dvdp: Whether to compute the sensitivity of the value function with respect
+                to the parameters.
             use_adj_sens: Whether to use adjoint sensitivity.
 
         Returns:
@@ -904,8 +949,8 @@ class Mpc(ABC):
         """
 
         if mpc_input.is_batched() and mpc_input.x0.shape[0] == 1:
-            # Jasper (Todo): Quick fix, remove this when automatic proportional batch solving is allowed.
-            # undo the batched solve
+            # Jasper (Todo): Quick fix, remove this when automatic proportional batched
+            # solving is allowed.
             mpc_input = mpc_input.get_sample(0)
             mpc_output, mpc_state = self._solve(
                 mpc_input=mpc_input,
@@ -982,7 +1027,7 @@ class Mpc(ABC):
             ),
             mpc_input=mpc_input,
             mpc_state=mpc_state,
-            backup_fn=self.default_init_state_fn,
+            backup_fn=self.init_state_fn,
             throw_error_if_u0_is_outside_ocp_bounds=self.throw_error_if_u0_is_outside_ocp_bounds,
         )
 
@@ -1091,7 +1136,7 @@ class Mpc(ABC):
             ),
             mpc_input=mpc_input,
             mpc_state=mpc_state,
-            backup_fn=self.default_init_state_fn,
+            backup_fn=self.init_state_fn,
             throw_error_if_u0_is_outside_ocp_bounds=self.throw_error_if_u0_is_outside_ocp_bounds,
         )
 
@@ -1160,7 +1205,9 @@ class Mpc(ABC):
                             )["sens_u"]
                             for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
                         ]
-                    ).reshape(self.n_batch, self.ocp.dims.nu, self.p_global_dim)  # type:ignore
+                    ).reshape(
+                        self.n_batch, self.ocp.dims.nu, self.p_global_dim
+                    )  # type:ignore
 
                 assert kw["du0_dp_global"].shape == (
                     self.n_batch,
@@ -1231,7 +1278,8 @@ class Mpc(ABC):
         self, ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver
     ) -> dict | list[dict]:
         """Print statistics for the last solve and collect QP-diagnostics for the solvers.
-        NOTE: Simpler information about the last call is stored in self.last_call_stats.
+
+        Simpler information about the last call is stored in self.last_call_stats.
         """
 
         if isinstance(ocp_solver, AcadosOcpSolver):
@@ -1240,7 +1288,7 @@ class Mpc(ABC):
             return diagnostics
         elif isinstance(ocp_solver, AcadosOcpBatchSolver):
             diagnostics = []
-            for i, single_solver in enumerate(ocp_solver.ocp_solvers):
+            for single_solver in ocp_solver.ocp_solvers:
                 diagnostics.append(single_solver.qp_diagnostics())
                 single_solver.print_statistics()
             return diagnostics
@@ -1248,207 +1296,3 @@ class Mpc(ABC):
             raise ValueError(
                 f"Unknown solver type, expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
             )
-
-    def fetch_param(
-        self,
-        mpc_param: MpcParameter | None = None,
-        stage: int = 0,
-    ) -> tuple[None | np.ndarray, None | np.ndarray]:
-        """
-        Fetch the parameters for the given stage.
-
-        Args:
-            mpc_param: The parameters.
-            stage: The stage.
-
-        Returns:
-            The parameters for the given stage.
-        """
-        p_global = self.default_p_global
-        p_stage = (
-            self.default_p_stagewise[stage]
-            if self.default_p_stagewise is not None
-            else None
-        )
-
-        if mpc_param is not None:
-            if mpc_param.p_global is not None:
-                p_global = mpc_param.p_global
-
-            if mpc_param.p_stagewise is not None:
-                if mpc_param.p_stagewise_sparse_idx is None:
-                    p_stage = mpc_param.p_stagewise[stage]
-                else:
-                    p_stage = p_stage.copy()  # type:ignore
-                    p_stage[mpc_param.p_stagewise_sparse_idx[stage]] = (
-                        mpc_param.p_stagewise[stage]
-                    )
-
-        return p_global, p_stage
-
-    def stage_cons(
-        self,
-        x: np.ndarray,
-        u: np.ndarray,
-        p: MpcParameter | None = None,
-    ) -> dict[str, np.ndarray]:
-        """
-        Get the value of the stage constraints.
-
-        Args:
-            x: State.
-            u: Control.
-            p: Parameters.
-
-        Returns:
-            stage_cons: Stage constraints.
-        """
-        assert x.ndim == 1 and u.ndim == 1
-
-        def relu(value):
-            return value * (value > 0)
-
-        cons = {}
-
-        # state constraints
-        if self.ocp.constraints.lbx.size > 0:
-            cons["lbx"] = relu(self.ocp.constraints.lbx - x[self.ocp.constraints.idxbx])
-        if self.ocp.constraints.ubx.size > 0:
-            cons["ubx"] = relu(x[self.ocp.constraints.idxbx] - self.ocp.constraints.ubx)
-        # control constraints
-        if self.ocp.constraints.lbu.size > 0:
-            cons["lbu"] = relu(self.ocp.constraints.lbu - u[self.ocp.constraints.idxbu])
-        if self.ocp.constraints.ubu.size > 0:
-            cons["ubu"] = relu(u[self.ocp.constraints.idxbu] - self.ocp.constraints.ubu)
-
-        # h constraints
-        if self.ocp.model.con_h_expr != []:
-            if self._h_fn is None:
-                inputs = [self.ocp.model.x, self.ocp.model.u]
-
-                if self.default_p_global is not None:
-                    inputs.append(self.ocp.model.p_global)
-
-                if self.default_p_stagewise is not None:
-                    inputs.append(self.ocp.model.p)  # type: ignore
-
-                self._h_fn = ca.Function("h", inputs, [self.ocp.model.con_h_expr])
-
-            inputs = [x, u]
-
-            p_global, p_stage = self.fetch_param(p)
-            if p_global is not None:
-                inputs.append(p_global)
-
-            if p_stage is not None:
-                inputs.append(p_stage)
-
-            h = self._h_fn(*inputs)
-            cons["lh"] = relu(self.ocp.constraints.lh - h)
-            cons["uh"] = relu(h - self.ocp.constraints.uh)
-
-        # Todo (Jasper): Add phi constraints.
-
-        return cons
-
-    def stage_cost(
-        self,
-        x: np.ndarray,
-        u: np.ndarray,
-        p: MpcParameter | None = None,
-    ) -> float:
-        """
-        Get the value of the stage cost.
-
-        Args:
-            x: State.
-            u: Control.
-            p: Parameters.
-
-        Returns:
-            stage_cost: Stage cost.
-        """
-        if self.ocp.cost.cost_type == "EXTERNAL":
-            ocp = self.ocp
-        else:
-            ocp = self.ocp_sensitivity
-        assert x.ndim == 1 and u.ndim == 1
-
-        if self._cost_fn is None:
-            inputs = [ocp.model.x, ocp.model.u]
-
-            if self.default_p_global is not None:
-                inputs.append(ocp.model.p_global)
-
-            if self.default_p_stagewise is not None:
-                inputs.append(ocp.model.p)
-
-            self._cost_fn = ca.Function("cost", inputs, [ocp.model.cost_expr_ext_cost])
-
-        inputs = [x, u]
-
-        p_global, p_stage = self.fetch_param(p)
-
-        if p_global is not None:
-            inputs.append(p_global)
-
-        if p_stage is not None:
-            inputs.append(p_stage)
-
-        return self._cost_fn(*inputs).full().item()  # type: ignore
-
-
-# def sequential_batch_solve(
-#     mpc: MPC,
-#     mpc_input: MPCInput,
-#     mpc_state_given: list[MPCState] | None = None,
-#     dudx: bool = False,
-#     dudp: bool = False,
-#     dvdx: bool = False,
-#     dvdu: bool = False,
-#     dvdp: bool = False,
-#     use_adj_sens: bool = True,
-# ) -> tuple[MPCOutput, list[MPCState]]:
-#     """Perform one solve after another for every sample of the batch (contrary to the parallelized batch_solve of the mpc class).
-#     Useful for debugging and timing.
-#     """
-#
-#     def get_idx(data, index):
-#         if isinstance(data, tuple) and hasattr(data, "_fields"):  # namedtuple
-#             elem_type = type(data)
-#             return elem_type(*(get_idx(elem, index) for elem in data))  # type: ignore
-#
-#         return None if data is None else data[index]
-#
-#     batch_size = mpc_input.x0.shape[0]
-#     outputs = []
-#     states = []
-#
-#     for idx in range(batch_size):
-#         mpc_output, mpc_state = mpc._solve(
-#             mpc_input=mpc_input.get_sample(idx),
-#             mpc_state=mpc_state_given[idx] if mpc_state_given is not None else None,
-#             dudx=dudx,
-#             dudp=dudp,
-#             dvdp=dvdp,
-#             dvdx=dvdx,
-#             dvdu=dvdu,
-#             use_adj_sens=use_adj_sens,
-#         )
-#
-#         outputs.append(mpc_output)
-#         states.append(mpc_state)
-#
-#     def collate(key):
-#         value = getattr(outputs[0], key)
-#         if value is None:
-#             return value
-#         return np.stack([getattr(output, key) for output in outputs])
-#
-#     fields = {key: collate(key) for key in MPCOutput._fields}
-#     fields["status"] = fields["status"].squeeze()
-#     fields["V"] = fields["V"].squeeze() if fields["V"] is not None else None
-#     fields["Q"] = fields["Q"].squeeze() if fields["Q"] is not None else None
-#     mpc_output = MPCOutput(**fields)  # type: ignore
-#
-#     return mpc_output, states  # type: ignore

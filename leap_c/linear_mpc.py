@@ -92,7 +92,7 @@ class LinearMPC(Mpc):
             sensitivity_solver=None,
             mpc_input=mpc_input,
             mpc_state=mpc_state,
-            backup_fn=self.default_init_state_fn,
+            backup_fn=self.init_state_fn,
             throw_error_if_u0_is_outside_ocp_bounds=self.throw_error_if_u0_is_outside_ocp_bounds,
         )
 
@@ -188,7 +188,7 @@ class LinearMPC(Mpc):
             sensitivity_solver=None,
             mpc_input=mpc_input,
             mpc_state=mpc_state,
-            backup_fn=self.default_init_state_fn,
+            backup_fn=self.init_state_fn,
             throw_error_if_u0_is_outside_ocp_bounds=self.throw_error_if_u0_is_outside_ocp_bounds,
         )
 

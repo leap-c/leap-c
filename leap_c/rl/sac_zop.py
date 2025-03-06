@@ -108,7 +108,13 @@ class MpcSacActor(nn.Module):
         self.register_buffer("loc", loc)
         self.register_buffer("scale", scale)
 
-    def forward(self, obs, mpc_state: MpcBatchedState | None, deterministic=False):
+    def forward(
+        self,
+        obs,
+        mpc_state: None | MpcBatchedState,
+        deterministic: bool = False,
+        only_param: bool = False,
+    ):
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
@@ -143,7 +149,7 @@ class MpcSacActor(nn.Module):
         #         self.trainer["trainer"].state.step,
         #     )
 
-        if mpc_state is None:
+        if only_param is True:
             return param, log_prob
 
         mpc_input = self.prepare_mpc_input(obs, param)
@@ -199,16 +205,11 @@ class SacZopTrainer(Trainer):
 
         self.to(device)
 
-    def init_policy_state(self) -> Any:
-        return (
-            self.pi.mpc.mpc.ocp_solver.store_iterate_to_flat_obj()
-        )  # State full of zeros
-
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
         episode_return = episode_length = np.inf
         episode_act_stats = defaultdict(list)
-        policy_state = self.init_policy_state()
+        policy_state = None
         obs = None
 
         while True:
@@ -226,7 +227,7 @@ class SacZopTrainer(Trainer):
                     self.report_stats(
                         "train_policy_rollout", mpc_episode_stats, self.state.step
                     )
-                policy_state = self.init_policy_state()
+                policy_state = None
                 is_terminated = is_truncated = False
                 episode_return = episode_length = 0
                 episode_act_stats = defaultdict(list)
@@ -243,7 +244,7 @@ class SacZopTrainer(Trainer):
             for key, value in act_stats.items():
                 episode_act_stats[key].append(value)
 
-            obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
+            obs_prime, reward, is_terminated, _, _ = self.train_env.step(
                 action
             )
 
@@ -257,7 +258,6 @@ class SacZopTrainer(Trainer):
                     reward,
                     obs_prime,
                     is_terminated,
-                    is_truncated,
                 )
             )  # type: ignore
 
@@ -270,10 +270,10 @@ class SacZopTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te, _ = self.buffer.sample(self.cfg.sac.batch_size)
+                o, a, r, o_prime, te  = self.buffer.sample(self.cfg.sac.batch_size)
 
                 # sample action
-                a_pi, log_p = self.pi(o, None)
+                a_pi, log_p = self.pi(o, None, only_param=True)
 
                 # update temperature
                 target_entropy = -np.prod(self.task.param_space.shape)  # type: ignore
@@ -287,7 +287,7 @@ class SacZopTrainer(Trainer):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    a_pi_prime, log_p_prime = self.pi(o_prime, None)
+                    a_pi_prime, log_p_prime = self.pi(o_prime, None, only_param=True)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
