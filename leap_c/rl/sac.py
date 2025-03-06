@@ -241,14 +241,17 @@ class SacTrainer(Trainer):
                 with torch.no_grad():
                     a_pi_prime, log_p_prime = self.pi(o_prime)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
-                    q_target = torch.min(q_target, dim=1).values
+                    q_target = torch.min(q_target, dim=1, keepdim=True).values
+
                     # add entropy
                     q_target = q_target - alpha * log_p_prime
 
-                    target = r + self.cfg.sac.gamma * (1 - te) * q_target
+                    target = (
+                        r[:, None] + self.cfg.sac.gamma * (1 - te[:, None]) * q_target
+                    )
 
                 q = torch.cat(self.q(o, a), dim=1)
-                q_loss = torch.mean((q - target[:, None]).pow(2))
+                q_loss = torch.mean((q - target).pow(2))
 
                 self.q_optim.zero_grad()
                 q_loss.backward()
