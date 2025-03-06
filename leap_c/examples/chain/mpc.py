@@ -6,7 +6,10 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.mpc import Mpc
+from leap_c.mpc import Mpc, MpcInput, MpcSingleState, MpcBatchedState
+from copy import deepcopy
+from dataclasses import fields
+
 
 import os
 import numpy as np
@@ -15,7 +18,14 @@ from casadi import SX, norm_2, vertcat
 from casadi.tools import struct_symSX, entry
 from casadi.tools.structure3 import DMStruct, ssymStruct
 import matplotlib.pyplot as plt
-from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
+from acados_template import (
+    AcadosModel,
+    AcadosOcp,
+    AcadosOcpSolver,
+    AcadosOcpFlattenedIterate,
+)
+
+from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchIterate
 
 # from utils import get_chain_params
 from typing import Tuple
@@ -92,8 +102,29 @@ class ChainMpc(Mpc):
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
         )
 
-        # status = self.ocp_solver.solve()
-        # print(status)
+        # Build the initial state
+        for stage in range(self.ocp_solver.N + 1):
+            self.ocp_solver.set(stage, "x", self.ocp_solver.acados_ocp.constraints.x0)
+        self.ocp_solver.solve()
+
+        iterate = self.ocp_solver.store_iterate_to_obj()
+
+        def init_state_fn(mpc_input: MpcInput) -> MpcSingleState | MpcBatchedState:
+            # TODO (batch_rules): This should be updated if we switch to only batch solvers.
+
+            if not mpc_input.is_batched():
+                return deepcopy(iterate)
+
+            batch_size = len(mpc_input.x0)
+            kw = {}
+
+            for f in fields(iterate):
+                n = f.name
+                kw[n] = np.tile(getattr(iterate, n), (batch_size, 1))
+
+            return AcadosOcpFlattenedBatchIterate(**kw, N_batch=batch_size)
+
+        self.init_state_fn = init_state_fn
 
 
 def export_parametric_ocp(
