@@ -917,11 +917,7 @@ class Mpc(ABC):
         use_adj_sens: bool = True,
     ) -> MpcOutput:
         """
-                # TODO: Remove the None option. However, this requires a lot of changes in the code. Should be done after
-                #       a general discussion.
-
                 Solve the OCP for the given initial state and parameters. If an mpc_state is given and the solver does not converge,
-                AND the init_state_fn is not None, the solver will attempt another solve reinitialized with the init_state_fn
                 (in the batched solve, only the non-converged samples will be reattempted to solve).
                 NOTE: Information about this call is stored in the public member self.last_call_stats.
                 NOTE: The solution state of this call is stored in the public member self.last_call_state.
@@ -1263,3 +1259,26 @@ class Mpc(ABC):
             )
 
         return MpcOutput(**kw), flat_iterate
+
+    def last_solve_diagnostics(
+        self, ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver
+    ) -> dict | list[dict]:
+        """Print statistics for the last solve and collect QP-diagnostics for the solvers.
+        
+        Simpler information about the last call is stored in self.last_call_stats.
+        """
+
+        if isinstance(ocp_solver, AcadosOcpSolver):
+            diagnostics = ocp_solver.qp_diagnostics()
+            ocp_solver.print_statistics()
+            return diagnostics
+        elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+            diagnostics = []
+            for single_solver in ocp_solver.ocp_solvers:
+                diagnostics.append(single_solver.qp_diagnostics())
+                single_solver.print_statistics()
+            return diagnostics
+        else:
+            raise ValueError(
+                f"Unknown solver type, expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
+            ) 
