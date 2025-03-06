@@ -120,7 +120,7 @@ class MpcSacActor(nn.Module):
 
         mpc_input = self.prepare_mpc_input(obs, param)
         if self.prepare_mpc_state is not None:
-            mpc_input, mpc_state = self.prepare_mpc_state(obs, param, mpc_state)  # type:ignore
+            mpc_state = self.prepare_mpc_state(obs, param, mpc_state)  # type:ignore
 
         # TODO: We have to catch and probably replace the state_solution somewhere,
         #       if its not a converged solution
