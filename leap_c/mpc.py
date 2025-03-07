@@ -354,8 +354,9 @@ def set_ocp_solver_to_default(
     unset_u0: bool,
 ) -> None:
     """Resets the OCP (batch) solver to remove any "state" to be carried over in the next call.
+    Since the init function or a given iterate is being used to override the state of the solver anyways,
+    we don't need to call ocp_solver.reset().
     This entails:
-    - Setting all Iterate-Variables to 0.
     - Setting the parameters to the default values (since the default is consistent over the batch, the given MPCParameter must not be batched).
     - Unsetting the initial control constraints if they were set.
     """
@@ -363,7 +364,6 @@ def set_ocp_solver_to_default(
         if unset_u0:
             unset_ocp_solver_initial_control_constraints(ocp_solver)
         set_ocp_solver_mpc_params(ocp_solver, default_mpc_parameters)
-        ocp_solver.reset()
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         for ocp_solver in ocp_solver.ocp_solvers:
@@ -556,7 +556,9 @@ def turn_on_warmstart(acados_ocp: AcadosOcp):
     acados_ocp.solver_options.nlp_solver_warm_start_first_qp_from_nlp = True
 
 
-def create_zero_init_state_fn(solver: AcadosOcpSolver) -> Callable[[MpcInput], MpcSingleState | MpcBatchedState]:
+def create_zero_init_state_fn(
+    solver: AcadosOcpSolver,
+) -> Callable[[MpcInput], MpcSingleState | MpcBatchedState]:
     """Create a function that initializes the solver iterate with zeros.
 
     Args:
@@ -584,7 +586,7 @@ def create_zero_init_state_fn(solver: AcadosOcpSolver) -> Callable[[MpcInput], M
         for f in fields(iterate):
             n = f.name
             kw[n] = np.tile(getattr(iterate, n), (batch_size, 1))
-        
+
         return AcadosOcpFlattenedBatchIterate(**kw, N_batch=batch_size)
 
     return init_state_fn
@@ -891,6 +893,7 @@ class Mpc(ABC):
             p_global: The global parameters.
             sens: Whether to compute the sensitivity of the policy with respect to the parameters.
             use_adj_sens: Whether to use adjoint sensitivity.
+
         Returns:
             The policy, du0_dp_global if requested, and the status of the computation (whether it succeded, etc.).
         """
@@ -914,24 +917,31 @@ class Mpc(ABC):
         dvdp: bool = False,
         use_adj_sens: bool = True,
     ) -> MpcOutput:
-        """
-        # TODO: Remove the None option. However, this requires a lot of changes in the code. Should be done after
-        #       a general discussion.
+        """Solve the OCP for the given initial state and parameters.
 
-        Solve the OCP for the given initial state and parameters. If an mpc_state is given and the solver does not converge,
-        AND the init_state_fn is not None, the solver will attempt another solve reinitialized with the init_state_fn
-        (in the batched solve, only the non-converged samples will be reattempted to solve).
-        NOTE: Information about this call is stored in the public member self.last_call_stats.
-        NOTE: The solution state of this call is stored in the public member self.last_call_state.
+        If an mpc_state is given and the solver does not converge, the solver does a
+        reattempt using the init_state_fn. If the mpc_state is None, the init_state_fn is
+        used to initialize the solver.
+
+        Note:
+            Information of this call is stored in the public member self.last_call_stats.
+            The solution state of this call is stored in the public member 
+                self.last_call_state.
 
         Args:
             mpc_input: The input of the MPC controller.
--           mpc_state: The iterate of the solver to use as initialization. If None, the solver is initialized using its init_state_fn.
-            dudx: Whether to compute the sensitivity of the action with respect to the state.
-            dudp: Whether to compute the sensitivity of the action with respect to the parameters.
-            dvdx: Whether to compute the sensitivity of the value function with respect to the state.
-            dvdu: Whether to compute the sensitivity of the value function with respect to the action.
-            dvdp: Whether to compute the sensitivity of the value function with respect to the parameters.
+            mpc_state: The iterate of the solver to use as initialization. If None, the 
+                solver is initialized using its init_state_fn.
+            dudx: Whether to compute the sensitivity of the action with respect to the
+                state.
+            dudp: Whether to compute the sensitivity of the action with respect to the
+                parameters.
+            dvdx: Whether to compute the sensitivity of the value function with respect
+                to the state.
+            dvdu: Whether to compute the sensitivity of the value function with respect
+                to the action.
+            dvdp: Whether to compute the sensitivity of the value function with respect
+                to the parameters.
             use_adj_sens: Whether to use adjoint sensitivity.
 
         Returns:
@@ -939,8 +949,8 @@ class Mpc(ABC):
         """
 
         if mpc_input.is_batched() and mpc_input.x0.shape[0] == 1:
-            # Jasper (Todo): Quick fix, remove this when automatic proportional batch solving is allowed.
-            # undo the batched solve
+            # Jasper (Todo): Quick fix, remove this when automatic proportional batched
+            # solving is allowed.
             mpc_input = mpc_input.get_sample(0)
             mpc_output, mpc_state = self._solve(
                 mpc_input=mpc_input,
@@ -1195,7 +1205,9 @@ class Mpc(ABC):
                             )["sens_u"]
                             for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
                         ]
-                    ).reshape(self.n_batch, self.ocp.dims.nu, self.p_global_dim)  # type:ignore
+                    ).reshape(
+                        self.n_batch, self.ocp.dims.nu, self.p_global_dim
+                    )  # type:ignore
 
                 assert kw["du0_dp_global"].shape == (
                     self.n_batch,
@@ -1262,3 +1274,25 @@ class Mpc(ABC):
 
         return MpcOutput(**kw), flat_iterate
 
+    def last_solve_diagnostics(
+        self, ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver
+    ) -> dict | list[dict]:
+        """Print statistics for the last solve and collect QP-diagnostics for the solvers.
+
+        Simpler information about the last call is stored in self.last_call_stats.
+        """
+
+        if isinstance(ocp_solver, AcadosOcpSolver):
+            diagnostics = ocp_solver.qp_diagnostics()
+            ocp_solver.print_statistics()
+            return diagnostics
+        elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+            diagnostics = []
+            for single_solver in ocp_solver.ocp_solvers:
+                diagnostics.append(single_solver.qp_diagnostics())
+                single_solver.print_statistics()
+            return diagnostics
+        else:
+            raise ValueError(
+                f"Unknown solver type, expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
+            )

@@ -244,7 +244,7 @@ class SacZopTrainer(Trainer):
             for key, value in act_stats.items():
                 episode_act_stats[key].append(value)
 
-            obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
+            obs_prime, reward, is_terminated, _, _ = self.train_env.step(
                 action
             )
 
@@ -258,7 +258,6 @@ class SacZopTrainer(Trainer):
                     reward,
                     obs_prime,
                     is_terminated,
-                    is_truncated,
                 )
             )  # type: ignore
 
@@ -271,7 +270,7 @@ class SacZopTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te, _ = self.buffer.sample(self.cfg.sac.batch_size)
+                o, a, r, o_prime, te  = self.buffer.sample(self.cfg.sac.batch_size)
 
                 # sample action
                 a_pi, log_p = self.pi(o, None, only_param=True)
