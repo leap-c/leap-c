@@ -14,7 +14,6 @@ from acados_template.acados_multiphase_ocp import AcadosMultiphaseOcp
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
-    AcadosOcpIterate,
 )
 
 from leap_c.utils import (
@@ -117,8 +116,8 @@ class MpcParameter(NamedTuple):
         return MpcParameter(**kw)
 
 
-MpcSingleState = AcadosOcpIterate | AcadosOcpFlattenedIterate
-MpcBatchedState = list[AcadosOcpIterate] | AcadosOcpFlattenedBatchIterate
+MpcSingleState = AcadosOcpFlattenedIterate
+MpcBatchedState = AcadosOcpFlattenedBatchIterate
 
 
 class MpcInput(NamedTuple):
@@ -221,24 +220,19 @@ def set_ocp_solver_iterate(
     if ocp_iterate is None:
         return
     if isinstance(ocp_solver, AcadosOcpSolver):
-        if isinstance(ocp_iterate, AcadosOcpIterate):
-            ocp_solver.load_iterate_from_obj(ocp_iterate)
-        elif isinstance(ocp_iterate, AcadosOcpFlattenedIterate):
+        if isinstance(ocp_iterate, AcadosOcpFlattenedIterate):
             ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
         elif ocp_iterate is not None:
             raise ValueError(
-                f"Expected AcadosOcpIterate or AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}."
+                f"Expected AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}."
             )
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         if isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
             ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
-        elif isinstance(ocp_iterate, list):
-            for i, ocp_iterate in enumerate(ocp_iterate):
-                ocp_solver.ocp_solvers[i].load_iterate_from_obj(ocp_iterate)
         elif ocp_iterate is not None:
             raise ValueError(
-                f"Expected AcadosOcpFlattenedBatchIterate or list of AcadosOcpIterates for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
+                f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
             )
     else:
         raise ValueError(f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}.")
