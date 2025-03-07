@@ -198,7 +198,7 @@ class SacZopTrainer(Trainer):
         self.pi = MpcSacActor(task, self.train_env, cfg.sac.actor_mlp).to(device)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
+        self.log_alpha = nn.Parameter(torch.tensor(np.log(cfg.sac.init_alpha)))  # type: ignore
         self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)

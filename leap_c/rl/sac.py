@@ -45,6 +45,7 @@ class SacAlgorithmConfig:
     lr_q: float = 1e-4
     lr_pi: float = 3e-4
     lr_alpha: float = 1e-4
+    init_alpha: float = 0.01
     num_critics: int = 2
     report_loss_freq: int = 100
     update_freq: int = 1
@@ -179,7 +180,7 @@ class SacTrainer(Trainer):
         self.pi = SacActor(task, self.train_env, cfg.sac.actor_mlp)  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
+        self.log_alpha = nn.Parameter(torch.tensor(np.log(cfg.sac.init_alpha)))  # type: ignore
         self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
