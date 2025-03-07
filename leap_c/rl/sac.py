@@ -283,7 +283,7 @@ class SacTrainer(Trainer):
                         "q": q.mean().item(),
                         "q_target": target.mean().item(),
                     }
-                    self.report_stats("train_loss", loss_stats, self.state.step + 1)
+                    self.report_stats("loss", loss_stats, self.state.step + 1)
 
             yield 1
 
