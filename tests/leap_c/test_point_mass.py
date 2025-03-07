@@ -3,20 +3,9 @@
 import numpy as np
 from leap_c.examples.pointmass.mpc import PointMassMPC
 from leap_c.examples.pointmass.env import PointMassEnv
+
 from leap_c.registry import create_task, create_default_cfg, create_trainer
-
-
-from argparse import ArgumentParser
-from dataclasses import asdict
-import datetime
-from pathlib import Path
-import yaml
-
-import leap_c.examples  # noqa: F401
-import leap_c.rl  # noqa: F401
-from leap_c.registry import create_task, create_default_cfg, create_trainer
-from leap_c.trainer import BaseConfig
-
+from leap_c.mpc import MpcInput, MpcOutput
 
 def run_test_pointmass_functions(mpc: PointMassMPC):
     s = np.array([1.0, 0.0, 0.0, 0.0])
