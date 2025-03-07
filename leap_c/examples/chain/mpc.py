@@ -72,7 +72,7 @@ class ChainMpc(Mpc):
             nlp_tol=1e-5,
         )
 
-        configure_ocp_solver(ocp, exact_hess_dyn)
+        set_ocp_solver_options(ocp, exact_hess_dyn)
 
         self.given_default_param_dict = params
 
@@ -175,9 +175,9 @@ def export_parametric_ocp(
 
     ocp.model.u = ca.SX.sym("u", 3, 1)
 
-    ocp.model.f_expl_expr = f_expl_expr(ocp.model)
+    ocp.model.f_expl_expr = get_f_expl_expr(ocp.model)
     ocp.model.f_impl_expr = ocp.model.xdot - ocp.model.f_expl_expr
-    ocp.model.disc_dyn_expr = disc_dyn_expr(ocp.model, tf / N_horizon)
+    ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp.model, tf / N_horizon)
     ocp.model.name = name
 
     ######## Find steady state ########
@@ -269,7 +269,7 @@ def export_parametric_ocp(
     return ocp
 
 
-def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
+def set_ocp_solver_options(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
@@ -280,7 +280,7 @@ def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.with_solution_sens_wrt_params = True
 
 
-def f_expl_expr(
+def get_f_expl_expr(
     model: AcadosModel,
     x0: ca.SX = ca.SX.zeros(3),
 ) -> ca.SX:
@@ -347,7 +347,7 @@ def f_expl_expr(
     return vertcat(xvel, model.u, f)
 
 
-def disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
+def get_disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
     f_expl_expr = model.f_expl_expr
 
     x = model.x
