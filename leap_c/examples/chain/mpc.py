@@ -1,26 +1,21 @@
+from copy import deepcopy
+from dataclasses import fields
+from pathlib import Path
+
 import casadi as ca
+import matplotlib.pyplot as plt
 import numpy as np
 from acados_template import AcadosModel, AcadosOcp
-from casadi.tools import struct_symSX
+from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchIterate
+from casadi import SX, norm_2, vertcat
+from casadi.tools import entry, struct_symSX
+from casadi.tools.structure3 import DMStruct
+
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.mpc import Mpc, MpcInput, MpcSingleState, MpcBatchedState
-from copy import deepcopy
-from dataclasses import fields
-
-
-from casadi import SX, norm_2, vertcat
-from casadi.tools import entry
-from casadi.tools.structure3 import DMStruct
-import matplotlib.pyplot as plt
-
-from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchIterate
-
-from typing import Tuple
-
-from pathlib import Path
+from leap_c.mpc import Mpc, MpcBatchedState, MpcInput, MpcSingleState
 
 
 class ChainMpc(Mpc):
@@ -32,7 +27,6 @@ class ChainMpc(Mpc):
         T_horizon: float = 1.0,
         discount_factor: float = 1.0,
         n_batch: int = 64,
-        least_squares_cost: bool = True,
         exact_hess_dyn: bool = True,
         n_mass: int = 5,
         export_directory: Path | None = None,
@@ -116,8 +110,8 @@ class ChainMpc(Mpc):
 
 
 def plot_steady_state(
-    x_ss: np.ndarray, u_ss: np.ndarray, n_mass, pos_first_mass
-) -> Tuple[plt.Figure, plt.Figure]:
+    x_ss: np.ndarray, u_ss: np.ndarray, n_mass: int, pos_first_mass: np.ndarray
+) -> tuple[plt.Figure, plt.Figure]:
     pos_ss = x_ss[: 3 * (n_mass - 1)]
 
     # Concatenate xPosFirstMass and pos_ss
@@ -153,22 +147,16 @@ def export_parametric_ocp(
     nominal_params: dict,
     name: str = "chain",
     learnable_params: list[str] | None = None,
-    N_horizon: int = 30,
+    N_horizon: int = 30,  # noqa: N803
     tf: float = 6.0,
-    n_mass=5,
-    u_init=np.array([-1, 1, 1]),
-    with_wall=True,
-    yPosWall=-0.05,
-    pos_first_mass=np.zeros(3),
-    nlp_iter=50,
-    nlp_tol=1e-5,
-) -> Tuple[AcadosOcp, DMStruct]:
+    n_mass: int = 5,
+    pos_first_mass: np.ndarray = np.array([0.0, 0.0, 0.0]),
+) -> tuple[AcadosOcp, DMStruct]:
     # create ocp object to formulate the OCP
     ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.Tsim = tf
     ocp.solver_options.tf = tf
-    Ts = tf / N_horizon
 
     ocp = translate_learnable_param_to_p_global(
         nominal_param=nominal_params,
@@ -189,14 +177,14 @@ def export_parametric_ocp(
 
     ocp.model.f_expl_expr = f_expl_expr(ocp.model)
     ocp.model.f_impl_expr = ocp.model.xdot - ocp.model.f_expl_expr
-    ocp.model.disc_dyn_expr = disc_dyn_expr(ocp.model, Ts)
+    ocp.model.disc_dyn_expr = disc_dyn_expr(ocp.model, tf / N_horizon)
     ocp.model.name = name
 
     ######## Find steady state ########
 
     resting_link_length = np.linalg.norm(nominal_params["L"][:3])
 
-    x_end_ref = np.array([resting_link_length * (n_mass - 1), 0.0, 0.0])
+    pos_last_mass_ref = np.array([resting_link_length * (n_mass - 1), 0.0, 0.0])
 
     model = ocp.model
 
@@ -206,12 +194,11 @@ def export_parametric_ocp(
 
     # Free masses
     n_masses = p["m"].shape[0] + 1
-    M = n_masses - 2
 
     # initial guess for state
-    pos0_x = np.linspace(pos_first_mass[0], x_end_ref[0], n_masses)
+    initial_mass_positions_x = np.linspace(pos_first_mass[0], pos_last_mass_ref[0], n_masses)
     x0 = np.zeros((nx, 1))
-    x0[: 3 * (M + 1) : 3] = pos0_x[1:].reshape((n_masses - 1, 1))
+    x0[: 3 * (n_masses - 1) : 3] = initial_mass_positions_x[1:].reshape((n_masses - 1, 1))
 
     # decision variables
     w = [model.x, model.xdot, model.u]
@@ -222,7 +209,7 @@ def export_parametric_ocp(
     # constraints
     g = []
     g += [model.f_impl_expr]  # steady state
-    g += [model.x["pos", -1] - x_end_ref]  # fix position of last mass
+    g += [model.x["pos", -1] - pos_last_mass_ref]  # fix position of last mass
     g += [model.u]  # don't actuate controlled mass
 
     # misuse IPOPT as nonlinear equation solver
@@ -235,9 +222,7 @@ def export_parametric_ocp(
     u_ss = sol["x"].full()[-model.u.shape[0] :].flatten()
 
     if False:
-        plot_steady_state(
-            x_ss=x_ss, u_ss=u_ss, n_mass=n_masses, pos_first_mass=pos_first_mass
-        )
+        plot_steady_state(x_ss=x_ss, u_ss=u_ss, n_mass=n_masses, pos_first_mass=pos_first_mass)
 
     ########## End of steady state computation ##########
 
@@ -260,8 +245,6 @@ def export_parametric_ocp(
     ocp.cost.cost_type_e = "EXTERNAL"
     ocp.model.cost_expr_ext_cost_e = 0.5 * (x_e.T @ Q @ x_e)
 
-    # ocp.model.cost_y_expr = vertcat(x_e, u_e)
-
     # set constraints
     umax = 1 * np.ones((nu,))
 
@@ -281,20 +264,7 @@ def export_parametric_ocp(
         ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
 
     if isinstance(ocp.model.p_global, struct_symSX):
-        ocp.model.p_global = (
-            ocp.model.p_global.cat if ocp.model.p_global is not None else None
-        )
-
-    # ocp.solver_options.tf = ocp.solver_options.N_horizon * Ts
-
-    # TODO (dirk): Print nominal values for each. Useful for debugging, but should be handled differently.
-    # print("ocp.p_global_values:")
-    # for i, value in enumerate(ocp.p_global_values):
-    #     print(f"  {ocp.model.p_global[i]} = {value}")
-
-    # print("ocp.parameter_values:")
-    # for i, value in enumerate(ocp.parameter_values):
-    #     print(f"  {ocp.model.p[i]} = {value}")
+        ocp.model.p_global = ocp.model.p_global.cat if ocp.model.p_global is not None else None
 
     return ocp
 
@@ -339,9 +309,7 @@ def f_expl_expr(
 
         F = ca.SX.zeros(3, 1)
         for j in range(F.shape[0]):
-            F[j] = (
-                p["D"][i + j] / p["m"][i] * (1 - p["L"][i + j] / norm_2(dist)) * dist[j]
-            )
+            F[j] = p["D"][i + j] / p["m"][i] * (1 - p["L"][i + j] / norm_2(dist)) * dist[j]
 
         # mass on the right
         if i < n_link - 1:
@@ -384,9 +352,7 @@ def disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
 
     x = model.x
     u = model.u
-    p = ca.vertcat(
-        *find_param_in_p_or_p_global(["L", "C", "D", "m", "w"], model).values()
-    )
+    p = ca.vertcat(*find_param_in_p_or_p_global(["L", "C", "D", "m", "w"], model).values())
 
     ode = ca.Function("ode", [x, u, p], [f_expl_expr])
     k1 = ode(x, u, p)
