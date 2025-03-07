@@ -68,7 +68,7 @@ class MpcParameter(NamedTuple):
     p_yref_e: np.ndarray | None = None
 
     def is_batched(self) -> bool:
-        """The empty MPCParameter counts as non-batched."""
+        """The empty MpcParameter counts as non-batched."""
         if self.p_global is not None:
             return self.p_global.ndim == 2
         elif self.p_stagewise is not None:
@@ -87,7 +87,7 @@ class MpcParameter(NamedTuple):
     def get_sample(self, i: int) -> "MpcParameter":
         """Get the sample at index i from the batch."""
         if not self.is_batched():
-            raise ValueError("Cannot sample from non-batched MPCParameter.")
+            raise ValueError("Cannot sample from non-batched MpcParameter.")
         p_global = self.p_global[i] if self.p_global is not None else None
         p_stagewise = self.p_stagewise[i] if self.p_stagewise is not None else None
         p_stagewise_sparse_idx = (
@@ -357,7 +357,7 @@ def set_ocp_solver_to_default(
     Since the init function or a given iterate is being used to override the state of the solver anyways,
     we don't need to call ocp_solver.reset().
     This entails:
-    - Setting the parameters to the default values (since the default is consistent over the batch, the given MPCParameter must not be batched).
+    - Setting the parameters to the default values (since the default is consistent over the batch, the given MpcParameter must not be batched).
     - Unsetting the initial control constraints if they were set.
     """
     if isinstance(ocp_solver, AcadosOcpSolver):
@@ -790,7 +790,7 @@ class Mpc(ABC):
 
     @cached_property
     def default_full_mpcparameter(self) -> MpcParameter:
-        """Return the full default MPCParameter."""
+        """Return the full default MpcParameter."""
         return MpcParameter(
             p_global=self.default_p_global,
             p_stagewise=self.default_p_stagewise,
@@ -802,7 +802,7 @@ class Mpc(ABC):
 
     @cached_property
     def default_sens_mpcparameter(self) -> MpcParameter:
-        """Return the default MPCParameter for sensitivity solver.
+        """Return the default MpcParameter for sensitivity solver.
         It does not contain the LS-parameters"""
         return MpcParameter(
             p_global=self.default_p_global,
@@ -1069,8 +1069,8 @@ class Mpc(ABC):
                 else:
                     kw["du0_dp_global"] = (
                         self.ocp_sensitivity_solver.eval_solution_sensitivity(
-                            0,
-                            "p_global",
+                            stages=0,
+                            with_respect_to="p_global",
                             return_sens_u=True,
                             return_sens_x=False,
                         )["sens_u"]
@@ -1079,7 +1079,7 @@ class Mpc(ABC):
             if dvdp:
                 kw["dvalue_dp_global"] = (
                     self.ocp_sensitivity_solver.eval_and_get_optimal_value_gradient(
-                        "p_global"
+                        with_respect_to="p_global"
                     )
                 )
 
@@ -1198,8 +1198,8 @@ class Mpc(ABC):
                     kw["du0_dp_global"] = np.array(
                         [
                             ocp_sensitivity_solver.eval_solution_sensitivity(
-                                0,
-                                "p_global",
+                                stages=0,
+                                with_respect_to="p_global",
                                 return_sens_u=True,
                                 return_sens_x=False,
                             )["sens_u"]
@@ -1229,7 +1229,7 @@ class Mpc(ABC):
             kw["du0_dx0"] = np.array(
                 [
                     ocp_solver.eval_solution_sensitivity(
-                        0,
+                        stages=0,
                         with_respect_to="initial_state",
                         return_sens_u=True,
                         return_sens_x=False,

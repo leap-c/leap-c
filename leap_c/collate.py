@@ -37,10 +37,10 @@ def safe_collate_possible_nones(
 def create_collate_fn_map():
     """Create the collate function map for the collate function.
     By default, this is the default_collate_fn_map in torch.utils.data._utils.collate, with an additional
-    rule for MPCParameter, AcadosOcpFlattenedIterate and AcadosOcpIterate."""
+    rule for MpcParameter, AcadosOcpFlattenedIterate and AcadosOcpIterate."""
     custom_collate_map = default_collate_fn_map.copy()
 
-    # NOTE: If MPCParameter should also be tensorified, you can turn mpcparam_fn off
+    # NOTE: If MpcParameter should also be tensorified, you can turn mpcparam_fn off
     # and use the following code for handling the Nones
     # def none_fn(batch, *, collate_fn_map=None):
     #     # Collate nones into one none but throws an error if batch contains something else than none.
@@ -49,9 +49,9 @@ def create_collate_fn_map():
     #     return None
     # custom_collate_map[type_(None)]=none_fn
 
-    # Keeps MPCParameter as np.ndarray
+    # Keeps MpcParameter as np.ndarray
     def mpcparam_fn(batch, *, collate_fn_map=None):
-        # Collate MPCParameters by stacking the p_global and p_stagewise parts, but do not convert them to tensors.
+        # Collate MpcParameters by stacking the p_global and p_stagewise parts, but do not convert them to tensors.
 
         glob_data = [x.p_global for x in batch]
         stag_data = [x.p_stagewise for x in batch]
