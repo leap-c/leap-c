@@ -8,7 +8,7 @@ from leap_c.examples.quadrotor.mpc import QuadrotorMpc
 if __name__ == "__main__":
 
     env = QuadrotorStop(render_mode="rgb_array")
-    mpc = QuadrotorMpc()
+    mpc = QuadrotorMpc(N_horizon=3)
     solver = mpc.ocp_solver
     render_movie = True
     record_iterate = False

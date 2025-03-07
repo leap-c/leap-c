@@ -29,10 +29,9 @@ class QuadrotorMpc(Mpc):
     def __init__(
             self,
             params: dict[str, np.ndarray] | None = None,
-            learnable_params: list[str] | None = None,
             discount_factor: float = 0.99,
             n_batch: int = 64,
-            N_horizon: int = 5,
+            N_horizon: int = 3,
     ):
         """
         Args:
@@ -54,31 +53,18 @@ class QuadrotorMpc(Mpc):
         params = params if params is not None else PARAMS
 
         ocp = export_parametric_ocp(
-            nominal_param=params,
-            cost_type="LINEAR_LS",
-            exact_hess_dyn=False,
             name="quadrotor_lls",
             N_horizon=N_horizon,
-            learnable_param=learnable_params,
             sensitivity_ocp=False,
         )
 
         ocp_sens = export_parametric_ocp(
-            nominal_param=params,
-            cost_type="LINEAR_LS",
-            exact_hess_dyn=True,
-            name="quadrotor_lls",
+            name="quadrotor_lls_exact",
             N_horizon=N_horizon,
-            learnable_param=learnable_params,
             sensitivity_ocp=True,
         )
 
         self.given_default_param_dict = params
-
-        #def initialize_default():
-
-        #default_init_state_fn =load_iterate("./examples/quadrotor/init_iterate.json")
-        # Load JSON file
 
         with open(dirname(abspath(__file__)) + "/init_iterate.json", "r") as file:
             init_iterate = json.load(file)  # Parse JSON into a Python dictionary
@@ -101,34 +87,27 @@ class QuadrotorMpc(Mpc):
 
 
 def export_parametric_ocp(
-        nominal_param: dict[str, np.ndarray],
-        cost_type: str = "LINEAR_LS",
-        exact_hess_dyn: bool = True,
         name: str = "quadrotor",
         N_horizon: int = 5,
-        learnable_param: list[str] | None = None,
         sensitivity_ocp=False,
 ) -> AcadosOcp:
+
     ocp = AcadosOcp()
 
     ######## Dimensions ########
-    #N_horizon = 5 #20 works well
-    dt = 0.04 # 0.005
+    dt = 0.04  # 0.005
 
     ocp.solver_options.N_horizon = N_horizon
-    ocp.solver_options.tf = N_horizon*dt
-
-
+    ocp.solver_options.tf = N_horizon * dt
 
     ######## Model ########
     # Quadrotor parameters
-    model_params =  read_from_yaml(dirname(abspath(__file__)) + "/model_params.yaml")
+    model_params = read_from_yaml(dirname(abspath(__file__)) + "/model_params.yaml")
 
     x, u, p, rhs, rhs_func = get_rhs_quadrotor(model_params, model_fidelity="low")
     ocp.model.disc_dyn_expr = disc_dyn_expr(rhs, x, u, p, dt)
 
     ocp.model.name = name
-    #ocp.model.f_expl_expr = rhs
     ocp.model.x = x
     ocp.model.u = u
     ocp.model.p_global = p[0]
@@ -142,7 +121,6 @@ def export_parametric_ocp(
     ocp.dims.nu = u.size()[0]
     nx, nu, ny, ny_e = ocp.dims.nx, ocp.dims.nu, ocp.dims.nx + ocp.dims.nu, ocp.dims.nx
 
-
     # ocp = translate_learnable_param_to_p_global(
     #     nominal_param=nominal_param,
     #     learnable_param=learnable_param if learnable_param is not None else [],
@@ -150,51 +128,47 @@ def export_parametric_ocp(
     # )
 
     ######## Cost ########
-    if cost_type == "LINEAR_LS":
-        Q = np.diag([1e4, 1e4, 1e4,
-                     1e0, 1e4, 1e4, 1e0,
-                     1e1, 1e1, 1e3,
-                     1e1, 1e1, 1e1])
 
+    Q = np.diag([1e4, 1e4, 1e4,
+                 1e0, 1e4, 1e4, 1e0,
+                 1e1, 1e1, 1e3,
+                 1e1, 1e1, 1e1])
 
-        R = np.diag([1, 1, 1, 1])/16
-        Qe = 100 * Q
+    R = np.diag([1, 1, 1, 1]) / 16
+    Qe = 100 * Q
 
-        ocp.cost.W = scipy.linalg.block_diag(Q, R)
-        ocp.cost.W_e = Qe
+    ocp.cost.W = scipy.linalg.block_diag(Q, R)
+    ocp.cost.W_e = Qe
 
-        ocp.cost.Vx = np.zeros((ny, nx))
-        ocp.cost.Vx[:nx, :nx] = np.eye(nx)
+    ocp.cost.Vx = np.zeros((ny, nx))
+    ocp.cost.Vx[:nx, :nx] = np.eye(nx)
 
-        Vu = np.zeros((ny, nu))
-        Vu[nx: nx + nu, :] = np.eye(nu)
-        ocp.cost.Vu = Vu
+    Vu = np.zeros((ny, nu))
+    Vu[nx: nx + nu, :] = np.eye(nu)
+    ocp.cost.Vu = Vu
 
-        # constraints
-        ocp.constraints.idxbx = np.array([2])
-        ocp.constraints.lbx = np.array([-model_params["bound_z"]*10])
-        ocp.constraints.ubx = np.array([model_params["bound_z"]])
-        ocp.constraints.idxbx_e = np.array([2])
-        ocp.constraints.lbx_e = np.array([-model_params["bound_z"]*10])
-        ocp.constraints.ubx_e = np.array([model_params["bound_z"]])
+    # constraints
+    ocp.constraints.idxbx = np.array([2])
+    ocp.constraints.lbx = np.array([-model_params["bound_z"] * 10])
+    ocp.constraints.ubx = np.array([model_params["bound_z"]])
+    ocp.constraints.idxbx_e = np.array([2])
+    ocp.constraints.lbx_e = np.array([-model_params["bound_z"] * 10])
+    ocp.constraints.ubx_e = np.array([model_params["bound_z"]])
 
-        ocp.constraints.idxsbx = np.array([0])
-        ocp.cost.zu = ocp.cost.zl = np.array([0])
-        ocp.cost.Zu = ocp.cost.Zl = np.array([1e10])
+    ocp.constraints.idxsbx = np.array([0])
+    ocp.cost.zu = ocp.cost.zl = np.array([0])
+    ocp.cost.Zu = ocp.cost.Zl = np.array([1e10])
 
-        Vx_e = np.zeros((ny_e, nx))
-        Vx_e[:nx, :nx] = np.eye(nx)
-        ocp.cost.Vx_e = Vx_e
+    Vx_e = np.zeros((ny_e, nx))
+    Vx_e[:nx, :nx] = np.eye(nx)
+    ocp.cost.Vx_e = Vx_e
 
-        ocp.cost.yref = np.zeros((ny,))
-        ocp.cost.yref[3] = 1
-        ocp.cost.yref[nx:nx+nu] = 970.437
-        ocp.cost.yref_e = np.zeros((ny_e,))
-        ocp.cost.yref_e[3] = 1
-        ocp.cost.yref_e[nx:nx + nu] = 970.437
-
-    else:
-        raise ValueError(f"Cost type {cost_type} not supported.")
+    ocp.cost.yref = np.zeros((ny,))
+    ocp.cost.yref[3] = 1
+    ocp.cost.yref[nx:nx + nu] = 970.437
+    ocp.cost.yref_e = np.zeros((ny_e,))
+    ocp.cost.yref_e[3] = 1
+    ocp.cost.yref_e[nx:nx + nu] = 970.437
 
     ######## Constraints ########
     ocp.constraints.x0 = np.array([0] * 13)
@@ -205,10 +179,8 @@ def export_parametric_ocp(
     ######## Solver configuration ########
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
-    ocp.solver_options.nlp_solver_max_iter = 4
-    ocp.solver_options.hessian_approx = (
-        "GAUSS_NEWTON" if cost_type == "LINEAR_LS" else "EXACT"
-    )
+    ocp.solver_options.nlp_solver_max_iter = 1000
+    ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
     ocp.solver_options.sim_method_num_stages = 2
     ocp.solver_options.sim_method_num_steps = 2
 
@@ -217,7 +189,7 @@ def export_parametric_ocp(
     if sensitivity_ocp:
         set_standard_sensitivity_options(ocp)
 
-    #ocp.solver_options.qp_solver_ric_alg = 1
+    # ocp.solver_options.qp_solver_ric_alg = 1
 
     #####################################################
 
@@ -241,7 +213,8 @@ def export_parametric_ocp(
     #     )
     return ocp
 
-def parse_ocp_iterate(data: Dict[str, List[float]], N= None) -> AcadosOcpIterate:
+
+def parse_ocp_iterate(data: Dict[str, List[float]], N=None) -> AcadosOcpIterate:
     """
     Parses the given JSON-like dictionary into an instance of AcadosOcpIterate.
 
@@ -261,8 +234,8 @@ def parse_ocp_iterate(data: Dict[str, List[float]], N= None) -> AcadosOcpIterate
     sl_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("sl_")]
     su_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("su_")]
 
-    if N is not None and len(x_traj)<N+1:
-        for i in range((N+1) + len(x_traj)):
+    if N is not None and len(x_traj) < N + 1:
+        for i in range((N + 1) + len(x_traj)):
             x_traj.append(copy(x_traj[-1]))
             pi_traj.append(copy(pi_traj[-1]))
             lam_traj.append(copy(lam_traj[-1]))
@@ -281,8 +254,8 @@ def parse_ocp_iterate(data: Dict[str, List[float]], N= None) -> AcadosOcpIterate
         lam_traj=lam_traj,
     )
 
-def disc_dyn_expr(rhs, x,u,p, dt: float) -> ca.SX:
 
+def disc_dyn_expr(rhs, x, u, p, dt: float) -> ca.SX:
     ode = ca.Function("ode", [x, u, *p], [rhs])
     k1 = ode(x, u, *p)
     k2 = ode(x + dt / 2 * k1, u, *p)  # type:ignore

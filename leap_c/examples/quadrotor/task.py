@@ -20,21 +20,11 @@ from ...mpc import MpcInput, MpcParameter
 class QuadrotorStopTask(Task):
 
     def __init__(self):
-        params = read_from_yaml("./examples/quadrotor/model_params.yaml")
-        learnable_params = ["m"]
-
-        mpc = QuadrotorMpc(learnable_params=learnable_params, N_horizon=5)
+        mpc = QuadrotorMpc(N_horizon=3)
         mpc_layer = MpcSolutionModule(mpc)
 
-        self.param_low = 0.01 * mpc.ocp.p_global_values
-        self.param_high = 10. * mpc.ocp.p_global_values
-
-        # TODO: Handle params that are nominally zero
-        for i, p in enumerate(mpc.ocp.p_global_values):
-            if p == 0:
-                Exception("This should not happen")
-                self.param_low[i] = -10.0
-                self.param_high[i] = 10.0
+        self.param_low = 0.2 * mpc.ocp.p_global_values
+        self.param_high = 2. * mpc.ocp.p_global_values
 
         super().__init__(mpc_layer)
 
@@ -50,4 +40,3 @@ class QuadrotorStopTask(Task):
 
     def create_env(self, train: bool) -> gym.Env:
         return QuadrotorStop()
-
