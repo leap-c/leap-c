@@ -33,7 +33,7 @@ def safe_collate_possible_nones(
     else:
         return np.stack(field_data, axis=0)  # type:ignore
 
-def _mpcparam_fn(batch, *, collate_fn_map=None):
+def _collate_mpc_param_fn(batch, *, collate_fn_map=None):
     # Collate MPCParameters by stacking the p_global and p_stagewise parts, but do not convert them to tensors.
 
     glob_data = [x.p_global for x in batch]
@@ -46,7 +46,7 @@ def _mpcparam_fn(batch, *, collate_fn_map=None):
         p_stagewise_sparse_idx=safe_collate_possible_nones(idx_data),
     )
 
-def _acados_flattened_iterate_fn(batch, *, collate_fn_map=None):
+def _collate_acados_flattened_iterate_fn(batch, *, collate_fn_map=None):
     return AcadosOcpFlattenedBatchIterate(
         x=np.stack([x.x for x in batch], axis=0),
         u=np.stack([x.u for x in batch], axis=0),
@@ -58,7 +58,7 @@ def _acados_flattened_iterate_fn(batch, *, collate_fn_map=None):
         N_batch=len(batch),
     )
 
-def _acados_iterate_fn(batch, *, collate_fn_map=None):
+def _collate_acados_iterate_fn(batch, *, collate_fn_map=None):
     # NOTE: Could also be a FlattenedBatchIterate (which has a parallelized set in the batch solver),
     # but this seems more intuitive. If the user wants to have a flattened batch iterate, he can
     # just put in AcadosOcpIterate.flatten into the buffer.
@@ -82,9 +82,9 @@ def create_collate_fn_map():
 
     # Keeps MPCParameter as np.ndarray
 
-    custom_collate_map[MpcParameter] = _mpcparam_fn
-    custom_collate_map[AcadosOcpFlattenedIterate] = _acados_flattened_iterate_fn
-    custom_collate_map[AcadosOcpIterate] = _acados_iterate_fn
+    custom_collate_map[MpcParameter] = _collate_mpc_param_fn
+    custom_collate_map[AcadosOcpFlattenedIterate] = _collate_acados_flattened_iterate_fn
+    custom_collate_map[AcadosOcpIterate] = _collate_acados_iterate_fn
 
     return custom_collate_map
 
