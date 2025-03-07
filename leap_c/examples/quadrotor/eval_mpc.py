@@ -3,12 +3,12 @@ from matplotlib import pyplot as plt
 import random
 
 from leap_c.examples.quadrotor.env import QuadrotorStop
-from leap_c.examples.quadrotor.mpc import QuadrotorMPC
+from leap_c.examples.quadrotor.mpc import QuadrotorMpc
 
 if __name__ == "__main__":
 
     env = QuadrotorStop(render_mode="rgb_array")
-    mpc = QuadrotorMPC()
+    mpc = QuadrotorMpc()
     solver = mpc.ocp_solver
     render_movie = True
     record_iterate = False
@@ -28,6 +28,7 @@ if __name__ == "__main__":
         solver.set(0, "lbx", obs)
         solver.set(0, "ubx", obs)
         status = solver.solve()
+        #print(f"SQP Iterations: {solver.get_stats('sqp_iter')}")
         if env.t > 0.8 and record_iterate:
             solver.store_iterate("./examples/quadrotor/init_iterate.json")
             break

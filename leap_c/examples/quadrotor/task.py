@@ -6,14 +6,14 @@ import numpy as np
 from gymnasium import spaces
 
 from leap_c.examples.quadrotor.env import QuadrotorStop
-from leap_c.examples.quadrotor.mpc import QuadrotorMPC
-from leap_c.nn.modules import MPCSolutionModule
+from leap_c.examples.quadrotor.mpc import QuadrotorMpc
+from leap_c.nn.modules import MpcSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
 from .utils import read_from_yaml
 from functools import cached_property
 
-from ...mpc import MPCInput, MPCParameter
+from ...mpc import MpcInput, MpcParameter
 
 
 @register_task("quadrotor_stop")
@@ -23,8 +23,8 @@ class QuadrotorStopTask(Task):
         params = read_from_yaml("./examples/quadrotor/model_params.yaml")
         learnable_params = ["m"]
 
-        mpc = QuadrotorMPC(learnable_params=learnable_params, N_horizon=5)
-        mpc_layer = MPCSolutionModule(mpc)
+        mpc = QuadrotorMpc(learnable_params=learnable_params, N_horizon=5)
+        mpc_layer = MpcSolutionModule(mpc)
 
         self.param_low = 0.01 * mpc.ocp.p_global_values
         self.param_high = 10. * mpc.ocp.p_global_values
@@ -44,9 +44,9 @@ class QuadrotorStopTask(Task):
         high = self.param_high
         return spaces.Box(low=low, high=high, dtype=np.float32)
 
-    def prepare_mpc_input(self, obs: Any, param_nn: Optional[torch.Tensor] = None, ) -> MPCInput:
-        mpc_param = MPCParameter(p_global=param_nn)  # type: ignore
-        return MPCInput(x0=obs, parameters=mpc_param)
+    def prepare_mpc_input(self, obs: Any, param_nn: Optional[torch.Tensor] = None, ) -> MpcInput:
+        mpc_param = MpcParameter(p_global=param_nn)  # type: ignore
+        return MpcInput(x0=obs, parameters=mpc_param)
 
     def create_env(self, train: bool) -> gym.Env:
         return QuadrotorStop()

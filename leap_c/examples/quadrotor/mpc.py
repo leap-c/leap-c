@@ -12,7 +12,7 @@ from casadi.tools import struct_symSX
 from leap_c.examples.quadrotor.casadi_models import get_rhs_quadrotor
 from leap_c.examples.quadrotor.utils import read_from_yaml
 from leap_c.examples.util import translate_learnable_param_to_p_global
-from leap_c.mpc import MPC, MPCInput
+from leap_c.mpc import Mpc, MpcInput
 from leap_c.utils import set_standard_sensitivity_options
 from os.path import dirname, abspath
 
@@ -24,7 +24,7 @@ PARAMS = OrderedDict(
 )
 
 
-class QuadrotorMPC(MPC):
+class QuadrotorMpc(Mpc):
 
     def __init__(
             self,
@@ -84,11 +84,11 @@ class QuadrotorMPC(MPC):
             init_iterate = json.load(file)  # Parse JSON into a Python dictionary
             init_iterate = parse_ocp_iterate(init_iterate, N=N_horizon)
 
-        def initialize_default(mpc_input: MPCInput):
+        def initialize_default(mpc_input: MpcInput):
             init_iterate.x_traj = [mpc_input.x0] * (ocp.solver_options.N_horizon + 1)
             return init_iterate
 
-        default_init_state_fn = initialize_default
+        init_state_fn = initialize_default
         # Convert dictionary to a namedtuple
 
         super().__init__(
@@ -96,7 +96,7 @@ class QuadrotorMPC(MPC):
             ocp_sensitivity=ocp_sens,
             discount_factor=discount_factor,
             n_batch=n_batch,
-            default_init_state_fn=default_init_state_fn,
+            init_state_fn=init_state_fn,
         )
 
 
@@ -204,7 +204,8 @@ def export_parametric_ocp(
 
     ######## Solver configuration ########
     ocp.solver_options.integrator_type = "DISCRETE"
-    ocp.solver_options.nlp_solver_type = "SQP_RTI"
+    ocp.solver_options.nlp_solver_type = "SQP"
+    ocp.solver_options.nlp_solver_max_iter = 4
     ocp.solver_options.hessian_approx = (
         "GAUSS_NEWTON" if cost_type == "LINEAR_LS" else "EXACT"
     )
