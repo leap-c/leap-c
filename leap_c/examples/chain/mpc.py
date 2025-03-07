@@ -3,7 +3,6 @@ from dataclasses import fields
 from pathlib import Path
 
 import casadi as ca
-import matplotlib.pyplot as plt
 import numpy as np
 from acados_template import AcadosModel, AcadosOcp
 from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchIterate
@@ -11,6 +10,7 @@ from casadi import SX, norm_2, vertcat
 from casadi.tools import entry, struct_symSX
 from casadi.tools.structure3 import DMStruct
 
+from leap_c.examples.chain.plot_utils import plot_steady_state
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
@@ -64,12 +64,7 @@ class ChainMpc(Mpc):
             N_horizon=N_horizon,
             tf=T_horizon,
             n_mass=n_mass,
-            u_init=np.array([-1, 1, 1]),
-            with_wall=True,
-            yPosWall=-0.05,
             pos_first_mass=np.zeros(3),
-            nlp_iter=50,
-            nlp_tol=1e-5,
         )
 
         set_ocp_solver_options(ocp, exact_hess_dyn)
@@ -107,40 +102,6 @@ class ChainMpc(Mpc):
             return AcadosOcpFlattenedBatchIterate(**kw, N_batch=batch_size)
 
         self.init_state_fn = init_state_fn
-
-
-def plot_steady_state(
-    x_ss: np.ndarray, u_ss: np.ndarray, n_mass: int, pos_first_mass: np.ndarray
-) -> tuple[plt.Figure, plt.Figure]:
-    pos_ss = x_ss[: 3 * (n_mass - 1)]
-
-    # Concatenate xPosFirstMass and pos_ss
-    pos_ss = np.concatenate((pos_first_mass, pos_ss))
-
-    vel_ss = x_ss[3 * (n_mass - 1) :]
-
-    # Concatenate vel_ss and u_ss
-    vel_first_mass = np.zeros(3)
-    vel_last_mass = u_ss
-    vel_ss = np.concatenate((vel_first_mass, vel_ss, vel_last_mass))
-
-    pos_fig = plt.figure()
-    plt.subplot(3, 1, 1)
-    plt.plot(pos_ss[0::3], "o-")
-    plt.subplot(3, 1, 2)
-    plt.plot(pos_ss[1::3], "o-")
-    plt.subplot(3, 1, 3)
-    plt.plot(pos_ss[2::3], "o-")
-
-    vel_fig = plt.figure()
-    plt.subplot(3, 1, 1)
-    plt.plot(vel_ss[0::3], "o-")
-    plt.subplot(3, 1, 2)
-    plt.plot(vel_ss[1::3], "o-")
-    plt.subplot(3, 1, 3)
-    plt.plot(vel_ss[2::3], "o-")
-
-    return pos_fig, vel_fig
 
 
 def export_parametric_ocp(
