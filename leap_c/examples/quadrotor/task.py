@@ -20,7 +20,7 @@ from ...mpc import MpcInput, MpcParameter
 class QuadrotorStopTask(Task):
 
     def __init__(self):
-        mpc = QuadrotorMpc(N_horizon=3)
+        mpc = QuadrotorMpc(N_horizon=3, params_learnable=["m", "terminal_cost"])
         mpc_layer = MpcSolutionModule(mpc)
 
         self.param_low = 0.2 * mpc.ocp.p_global_values

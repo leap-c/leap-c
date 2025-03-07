@@ -32,6 +32,7 @@ class QuadrotorMpc(Mpc):
             discount_factor: float = 0.99,
             n_batch: int = 64,
             N_horizon: int = 3,
+            params_learnable: list[str] | None = None,
     ):
         """
         Args:
@@ -56,12 +57,14 @@ class QuadrotorMpc(Mpc):
             name="quadrotor_lls",
             N_horizon=N_horizon,
             sensitivity_ocp=False,
+            params_learnable=params_learnable,
         )
 
         ocp_sens = export_parametric_ocp(
             name="quadrotor_lls_exact",
             N_horizon=N_horizon,
             sensitivity_ocp=True,
+            params_learnable=params_learnable,
         )
 
         self.given_default_param_dict = params
@@ -90,9 +93,10 @@ def export_parametric_ocp(
         name: str = "quadrotor",
         N_horizon: int = 5,
         sensitivity_ocp=False,
+        params_learnable: list[str] | None = None,
 ) -> AcadosOcp:
-
     ocp = AcadosOcp()
+    param_external_cost = (params_learnable is not None) and ("terminal_cost" in params_learnable)
 
     ######## Dimensions ########
     dt = 0.04  # 0.005
@@ -121,25 +125,16 @@ def export_parametric_ocp(
     ocp.dims.nu = u.size()[0]
     nx, nu, ny, ny_e = ocp.dims.nx, ocp.dims.nu, ocp.dims.nx + ocp.dims.nu, ocp.dims.nx
 
-    # ocp = translate_learnable_param_to_p_global(
-    #     nominal_param=nominal_param,
-    #     learnable_param=learnable_param if learnable_param is not None else [],
-    #     ocp=ocp,
-    # )
-
     ######## Cost ########
-
+    # stage cost
     Q = np.diag([1e4, 1e4, 1e4,
                  1e0, 1e4, 1e4, 1e0,
                  1e1, 1e1, 1e3,
                  1e1, 1e1, 1e1])
 
     R = np.diag([1, 1, 1, 1]) / 16
-    Qe = 100 * Q
 
     ocp.cost.W = scipy.linalg.block_diag(Q, R)
-    ocp.cost.W_e = Qe
-
     ocp.cost.Vx = np.zeros((ny, nx))
     ocp.cost.Vx[:nx, :nx] = np.eye(nx)
 
@@ -147,10 +142,31 @@ def export_parametric_ocp(
     Vu[nx: nx + nu, :] = np.eye(nu)
     ocp.cost.Vu = Vu
 
+    # terminal cost
+    if param_external_cost:
+        q_e_diag = ca.SX.sym("q_e_diag", nx)
+        Q_sqrt_e = ca.diag(q_e_diag)
+        xref_e = ca.SX.sym("xref_e", nx)
+        ocp.model.p_global = ca.vertcat(ocp.model.p_global, q_e_diag, xref_e)
+        ocp.p_global_values = np.concatenate([ocp.p_global_values, 100 * np.diag(Q), np.zeros(nx)])
+
+        ocp.model.cost_expr_ext_cost_e = 0.5 * ca.mtimes([ca.transpose(x - xref_e), Q_sqrt_e.T, Q_sqrt_e, x - xref_e])
+        ocp.cost.cost_type_e = "EXTERNAL"
+    else:
+        Qe = 100 * Q
+        ocp.cost.W_e = Qe
+        Vx_e = np.zeros((ny_e, nx))
+        Vx_e[:nx, :nx] = np.eye(nx)
+        ocp.cost.Vx_e = Vx_e
+
+        ocp.cost.yref_e = np.zeros((ny_e,))
+        ocp.cost.yref_e[3] = 1
+
     # constraints
     ocp.constraints.idxbx = np.array([2])
     ocp.constraints.lbx = np.array([-model_params["bound_z"] * 10])
     ocp.constraints.ubx = np.array([model_params["bound_z"]])
+
     ocp.constraints.idxbx_e = np.array([2])
     ocp.constraints.lbx_e = np.array([-model_params["bound_z"] * 10])
     ocp.constraints.ubx_e = np.array([model_params["bound_z"]])
@@ -159,16 +175,9 @@ def export_parametric_ocp(
     ocp.cost.zu = ocp.cost.zl = np.array([0])
     ocp.cost.Zu = ocp.cost.Zl = np.array([1e10])
 
-    Vx_e = np.zeros((ny_e, nx))
-    Vx_e[:nx, :nx] = np.eye(nx)
-    ocp.cost.Vx_e = Vx_e
-
     ocp.cost.yref = np.zeros((ny,))
     ocp.cost.yref[3] = 1
     ocp.cost.yref[nx:nx + nu] = 970.437
-    ocp.cost.yref_e = np.zeros((ny_e,))
-    ocp.cost.yref_e[3] = 1
-    ocp.cost.yref_e[nx:nx + nu] = 970.437
 
     ######## Constraints ########
     ocp.constraints.x0 = np.array([0] * 13)
@@ -189,28 +198,6 @@ def export_parametric_ocp(
     if sensitivity_ocp:
         set_standard_sensitivity_options(ocp)
 
-    # ocp.solver_options.qp_solver_ric_alg = 1
-
-    #####################################################
-
-    # if sensitivity_ocp:
-    #    if cost_type == "EXTERNAL":
-    #        pass
-    #    else:
-    #        W = cost_matrix_casadi(ocp.model)
-    #        W_e = W[:4, :4]
-    #        yref = yref_casadi(ocp.model)
-    #        yref_e = yref[:4]
-    #        ocp.translate_cost_to_external_cost(W=W, W_e=W_e, yref=yref, yref_e=yref_e)
-    #    set_standard_sensitivity_options(ocp)
-
-    # if isinstance(ocp.model.p, struct_symSX):
-    #     ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
-    #
-    # if isinstance(ocp.model.p_global, struct_symSX):
-    #     ocp.model.p_global = (
-    #         ocp.model.p_global.cat if ocp.model.p_global is not None else None
-    #     )
     return ocp
 
 
