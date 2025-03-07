@@ -277,7 +277,7 @@ class SacFopTrainer(Trainer):
                 # update actor
                 mask_status = status == 0
                 q_pi = torch.cat(self.q(o, a_pi), dim=1)
-                min_q_pi = torch.min(q_pi, dim=1).values
+                min_q_pi = torch.min(q_pi, dim=1, keepdim=True).values
                 pi_loss = (alpha * log_p - min_q_pi)[mask_status].mean()
 
                 self.pi_optim.zero_grad()

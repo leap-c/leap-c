@@ -244,9 +244,7 @@ class SacZopTrainer(Trainer):
             for key, value in act_stats.items():
                 episode_act_stats[key].append(value)
 
-            obs_prime, reward, is_terminated, _, _ = self.train_env.step(
-                action
-            )
+            obs_prime, reward, is_terminated, _, _ = self.train_env.step(action)
 
             episode_return += float(reward)
             episode_length += 1
@@ -270,7 +268,7 @@ class SacZopTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te  = self.buffer.sample(self.cfg.sac.batch_size)
+                o, a, r, o_prime, te = self.buffer.sample(self.cfg.sac.batch_size)
 
                 # sample action
                 a_pi, log_p = self.pi(o, None, only_param=True)
@@ -307,7 +305,7 @@ class SacZopTrainer(Trainer):
 
                 # update actor
                 q_pi = torch.cat(self.q(o, a_pi), dim=1)
-                min_q_pi = torch.min(q_pi, dim=1).values
+                min_q_pi = torch.min(q_pi, dim=1, keepdim=True).values
                 pi_loss = (alpha * log_p - min_q_pi).mean()
 
                 self.pi_optim.zero_grad()
