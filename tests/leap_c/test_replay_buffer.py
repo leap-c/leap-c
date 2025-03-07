@@ -9,7 +9,7 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpIterate,
 )
 from leap_c.collate import safe_collate_possible_nones
-from leap_c.mpc import MPCParameter
+from leap_c.mpc import MpcParameter
 from leap_c.rl.replay_buffer import ReplayBuffer
 
 
@@ -27,7 +27,7 @@ def test_sample_collation_and_dtype_and_device():
         1,
         np.array([2], dtype=np.float64),
         torch.tensor([3], device="cpu", dtype=torch.float64),
-        MPCParameter(
+        MpcParameter(
             p_global=np.array([1, 2, 3], dtype=np.float32),
             p_stagewise=np.ones((2, 2), dtype=np.float32),
             p_stagewise_sparse_idx=None,
@@ -56,7 +56,7 @@ def test_sample_collation_and_dtype_and_device():
         1,
         np.array([2], dtype=np.float64),
         torch.tensor([3], device="cpu", dtype=torch.float64),
-        MPCParameter(
+        MpcParameter(
             p_global=np.array([1, 2, 3], dtype=np.float32),
             p_stagewise=np.ones((2, 2), dtype=np.float32),
             p_stagewise_sparse_idx=None,
@@ -94,7 +94,7 @@ def test_sample_collation_and_dtype_and_device():
         batch[2], torch.tensor([[3], [3]], device=device, dtype=dtype)
     )
 
-    test_param = MPCParameter(
+    test_param = MpcParameter(
         p_global=np.array([[1, 2, 3], [1, 2, 3]], dtype=np.float32),
         p_stagewise=np.ones((2, 2, 2), dtype=np.float32),
         p_stagewise_sparse_idx=None,
@@ -132,7 +132,7 @@ def test_sample_order_consistency():
     # for which we have custom rules
     buffer = ReplayBuffer(buffer_limit=10, device="cpu", tensor_dtype=torch.float32)
     data_one = (
-        MPCParameter(
+        MpcParameter(
             p_global=np.array([1, 1, 1]),
             p_stagewise=np.ones((2, 2)),
             p_stagewise_sparse_idx=np.ones((2, 2)),
@@ -157,7 +157,7 @@ def test_sample_order_consistency():
         ),
     )
     data_two = (
-        MPCParameter(
+        MpcParameter(
             p_global=np.array([0, 0, 0]),
             p_stagewise=np.zeros((2, 2)),
             p_stagewise_sparse_idx=np.zeros((2, 2)),

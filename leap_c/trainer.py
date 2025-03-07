@@ -222,7 +222,8 @@ class Trainer(ABC, nn.Module):
             obs (Any): The observation for which the action should be determined.
             deterministic (bool): If True, the action is drawn deterministically.
             state: The state of the policy. If the policy is recurrent or includes
-                an MPC planner.
+                an MPC planner. Note, that at the start of an episode, the state
+                assumed to be None.
 
         Returns:
             The action, the state of the policy and potential solving stats.
@@ -233,16 +234,6 @@ class Trainer(ABC, nn.Module):
     def optimizers(self) -> list[torch.optim.Optimizer]:
         """If provided optimizers are also checkpointed."""
         return []
-
-    def init_policy_state(self) -> Any | None:
-        """Initializes the state of the policy.
-
-        This could be useful for recurrent policies or policies that include an MPC planner.
-
-        Returns:
-            The initial state of the policy.
-        """
-        return None
 
     def report_stats(
         self,
@@ -325,10 +316,11 @@ class Trainer(ABC, nn.Module):
         return the mean of the cumulative reward over all validation episodes."""
 
         def create_policy_fn():
-            policy_state = self.init_policy_state()
+            policy_state = None
 
             def policy_fn(obs):
                 nonlocal policy_state
+
                 action, policy_state, policy_stats = self.act(
                     obs, deterministic=self.cfg.val.deterministic, state=policy_state
                 )

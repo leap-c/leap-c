@@ -7,12 +7,11 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.nn.mlp import MLP, MLPConfig
+from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.task import Task
 from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
-
 
 LOG_STD_MIN = -4
 LOG_STD_MAX = 2
@@ -36,8 +35,8 @@ class SacAlgorithmConfig:
         update_freq: The frequency of updating the networks.
     """
 
-    critic_mlp: MLPConfig = field(default_factory=MLPConfig)
-    actor_mlp: MLPConfig = field(default_factory=MLPConfig)
+    critic_mlp: MlpConfig = field(default_factory=MlpConfig)
+    actor_mlp: MlpConfig = field(default_factory=MlpConfig)
     batch_size: int = 64
     buffer_size: int = 1000000
     gamma: float = 0.99
@@ -75,7 +74,7 @@ class SacCritic(nn.Module):
         self,
         task: Task,
         env: gym.Env,
-        mlp_cfg: MLPConfig,
+        mlp_cfg: MlpConfig,
         num_critics: int,
     ):
         super().__init__()
@@ -104,7 +103,7 @@ class SacActor(nn.Module):
     scale: torch.Tensor
     loc: torch.Tensor
 
-    def __init__(self, task, env, mlp_cfg: MLPConfig):
+    def __init__(self, task, env, mlp_cfg: MlpConfig):
         super().__init__()
 
         self.extractor = task.create_extractor(env)
@@ -147,6 +146,7 @@ class SacActor(nn.Module):
 
         action = action * self.scale[None, :] + self.loc[None, :]
 
+        log_prob = log_prob.sum(dim=-1, keepdims=True)
         return action, log_prob
 
 
@@ -226,7 +226,6 @@ class SacTrainer(Trainer):
 
                 # sample action
                 a_pi, log_p = self.pi(o)
-                log_p = log_p.sum(dim=-1).unsqueeze(-1)
 
                 # update temperature
                 target_entropy = -np.prod(self.train_env.action_space.shape)  # type: ignore
@@ -242,14 +241,17 @@ class SacTrainer(Trainer):
                 with torch.no_grad():
                     a_pi_prime, log_p_prime = self.pi(o_prime)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
-                    q_target = torch.min(q_target, dim=1).values
-                    # add entropy
-                    q_target = q_target - alpha * log_p_prime[:, 0]
+                    q_target = torch.min(q_target, dim=1, keepdim=True).values
 
-                    target = r + self.cfg.sac.gamma * (1 - te) * q_target
+                    # add entropy
+                    q_target = q_target - alpha * log_p_prime
+
+                    target = (
+                        r[:, None] + self.cfg.sac.gamma * (1 - te[:, None]) * q_target
+                    )
 
                 q = torch.cat(self.q(o, a), dim=1)
-                q_loss = torch.mean((q - target[:, None]).pow(2))
+                q_loss = torch.mean((q - target).pow(2))
 
                 self.q_optim.zero_grad()
                 q_loss.backward()
@@ -281,7 +283,7 @@ class SacTrainer(Trainer):
                         "q": q.mean().item(),
                         "q_target": target.mean().item(),
                     }
-                    self.report_stats("loss", loss_stats, self.state.step + 1)
+                    self.report_stats("train_loss", loss_stats, self.state.step + 1)
 
             yield 1
 

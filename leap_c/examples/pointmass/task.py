@@ -1,28 +1,23 @@
 from typing import Any, Optional
 
 import gymnasium as gym
-from gymnasium import spaces
 import numpy as np
 import torch
-
+from gymnasium import spaces
 from leap_c.examples.pointmass.env import (
-    PointMassEnv,
-    WindField,
-    WindTunnel,
-    WindTunnelParam,
-    VortexParam,
-    VortexWind,
     InverseVortexWind,
+    PointMassEnv,
     RandomWind,
     RandomWindParam,
     VariationWind,
     VariationWindParam,
-    BaseWind,
-    BaseWindParam,
+    VortexParam,
+    VortexWind,
+    WindField,
 )
 from leap_c.examples.pointmass.mpc import PointMassMPC
-from leap_c.mpc import MPCInput, MPCParameter
-from leap_c.nn.modules import MPCSolutionModule
+from leap_c.mpc import MpcInput, MpcParameter
+from leap_c.nn.modules import MpcSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
 
@@ -44,7 +39,7 @@ class PointMassTask(Task):
                 # "u_wind",
             ]
         )
-        mpc_layer = MPCSolutionModule(mpc)
+        mpc_layer = MpcSolutionModule(mpc)
 
         super().__init__(mpc_layer)
 
@@ -83,15 +78,14 @@ class PointMassTask(Task):
         self,
         obs: Any,
         param_nn: Optional[torch.Tensor] = None,
-    ) -> MPCInput:
-        mpc_param = MPCParameter(p_global=param_nn)  # type: ignore
+    ) -> MpcInput:
+        mpc_param = MpcParameter(p_global=param_nn)  # type: ignore
 
-        return MPCInput(x0=obs, parameters=mpc_param)
+        return MpcInput(x0=obs, parameters=mpc_param)
 
 
 @register_task("point_mass_homo_center")
 class PointMassTaskHomoCenter(PointMassTask):
-
     def create_env(self, train: bool) -> gym.Env:
         if train:
             init_state_dist = {
@@ -118,7 +112,6 @@ class PointMassTaskHomoCenter(PointMassTask):
 
 @register_task("point_mass_vortex")
 class PointMassTaskVortex(PointMassTask):
-
     def create_env(self, train: bool) -> gym.Env:
         if train:
             init_state_dist = {

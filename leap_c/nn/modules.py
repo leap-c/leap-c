@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from acados_template import AcadosSimSolver
 
-from leap_c.mpc import MPC, MPCBatchedState, MPCInput, MPCOutput, MPCSingleState
+from leap_c.mpc import Mpc, MpcBatchedState, MpcInput, MpcOutput, MpcSingleState
 
 from .autograd import AutogradCasadiFunction, DynamicsSimFunction, MPCSolutionFunction
 
@@ -42,7 +42,7 @@ class AcadosSimModule(nn.Module):
         return DynamicsSimFunction.apply(self.sim, x, u, p)
 
 
-class MPCSolutionModule(nn.Module):
+class MpcSolutionModule(nn.Module):
     """A PyTorch module to allow differentiating the solution given by an MPC planner,
     with respect to some inputs.
 
@@ -61,15 +61,15 @@ class MPCSolutionModule(nn.Module):
         mpc: The MPC object to use.
     """
 
-    def __init__(self, mpc: MPC):
+    def __init__(self, mpc: Mpc):
         super().__init__()
         self.mpc = mpc
 
     def forward(
         self,
-        mpc_input: MPCInput,
-        mpc_state: MPCBatchedState | None = None,
-    ) -> tuple[MPCOutput, MPCSingleState | MPCBatchedState, dict[str, Any]]:
+        mpc_input: MpcInput,
+        mpc_state: MpcBatchedState | None = None,
+    ) -> tuple[MpcOutput, MpcSingleState | MpcBatchedState, dict[str, Any]]:
         """Differentiation is only allowed with respect to x0, u0 and p_global.
 
         Args:
@@ -105,7 +105,7 @@ class MPCSolutionModule(nn.Module):
             V = None
 
         return (
-            MPCOutput(u0=u0, Q=Q, V=V, status=status),
+            MpcOutput(u0=u0, Q=Q, V=V, status=status),
             self.mpc.last_call_state,
             self.mpc.last_call_stats,
         )

@@ -7,9 +7,10 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedIterate,
     AcadosOcpIterate,
 )
-from leap_c.mpc import MPCParameter
 from torch.utils._pytree import tree_map_only
 from torch.utils.data._utils.collate import default_collate_fn_map
+
+from leap_c.mpc import MpcParameter
 
 
 def safe_collate_possible_nones(
@@ -36,10 +37,10 @@ def safe_collate_possible_nones(
 def create_collate_fn_map():
     """Create the collate function map for the collate function.
     By default, this is the default_collate_fn_map in torch.utils.data._utils.collate, with an additional
-    rule for MPCParameter, AcadosOcpFlattenedIterate and AcadosOcpIterate."""
+    rule for MpcParameter, AcadosOcpFlattenedIterate and AcadosOcpIterate."""
     custom_collate_map = default_collate_fn_map.copy()
 
-    # NOTE: If MPCParameter should also be tensorified, you can turn mpcparam_fn off
+    # NOTE: If MpcParameter should also be tensorified, you can turn mpcparam_fn off
     # and use the following code for handling the Nones
     # def none_fn(batch, *, collate_fn_map=None):
     #     # Collate nones into one none but throws an error if batch contains something else than none.
@@ -48,15 +49,15 @@ def create_collate_fn_map():
     #     return None
     # custom_collate_map[type_(None)]=none_fn
 
-    # Keeps MPCParameter as np.ndarray
+    # Keeps MpcParameter as np.ndarray
     def mpcparam_fn(batch, *, collate_fn_map=None):
-        # Collate MPCParameters by stacking the p_global and p_stagewise parts, but do not convert them to tensors.
+        # Collate MpcParameters by stacking the p_global and p_stagewise parts, but do not convert them to tensors.
 
         glob_data = [x.p_global for x in batch]
         stag_data = [x.p_stagewise for x in batch]
         idx_data = [x.p_stagewise_sparse_idx for x in batch]
 
-        return MPCParameter(
+        return MpcParameter(
             p_global=safe_collate_possible_nones(glob_data),
             p_stagewise=safe_collate_possible_nones(stag_data),
             p_stagewise_sparse_idx=safe_collate_possible_nones(idx_data),
@@ -80,7 +81,7 @@ def create_collate_fn_map():
         # just put in AcadosOcpIterate.flatten into the buffer.
         return list(batch)
 
-    custom_collate_map[MPCParameter] = mpcparam_fn
+    custom_collate_map[MpcParameter] = mpcparam_fn
     custom_collate_map[AcadosOcpFlattenedIterate] = acados_flattened_iterate_fn
     custom_collate_map[AcadosOcpIterate] = acados_iterate_fn
 
@@ -95,4 +96,3 @@ def pytree_tensor_to(pytree: Any, device: str, tensor_dtype: torch.dtype) -> Any
         lambda t: t.to(device=device, dtype=tensor_dtype),
         pytree,
     )
-

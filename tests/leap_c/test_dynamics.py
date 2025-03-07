@@ -1,10 +1,3 @@
-import numpy as np
-from numpy.testing import assert_almost_equal
-
-from leap_c.dynamics import create_dynamics_from_mpc
-from leap_c.mpc import MPC
-
-
 # def test_casadi_dynamics(linear_mpc: MPC):
 #     dynamics = create_dynamics_from_mpc(linear_mpc)
 
