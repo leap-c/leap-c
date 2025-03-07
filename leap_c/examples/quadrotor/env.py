@@ -8,6 +8,7 @@ from leap_c.examples.quadrotor.utils import read_from_yaml
 
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.spatial.transform import Rotation as R
+from os.path import dirname, abspath
 
 class QuadrotorStop(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
@@ -19,7 +20,7 @@ class QuadrotorStop(gym.Env):
         self.weight_position = 10
         self.fig, self.axes = None, None
 
-        self.model_params = read_from_yaml("./examples/quadrotor/model_params.yaml")
+        self.model_params = read_from_yaml(dirname(abspath(__file__)) + "/model_params.yaml")
 
         self.sim_params = {
             "dt": 0.04,

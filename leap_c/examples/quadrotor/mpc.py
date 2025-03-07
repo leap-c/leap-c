@@ -14,6 +14,7 @@ from leap_c.examples.quadrotor.utils import read_from_yaml
 from leap_c.examples.util import translate_learnable_param_to_p_global
 from leap_c.mpc import MPC, MPCInput
 from leap_c.utils import set_standard_sensitivity_options
+from os.path import dirname, abspath
 
 PARAMS = OrderedDict(
     [
@@ -78,7 +79,8 @@ class QuadrotorMPC(MPC):
 
         #default_init_state_fn =load_iterate("./examples/quadrotor/init_iterate.json")
         # Load JSON file
-        with open("./examples/quadrotor/init_iterate.json", "r") as file:
+
+        with open(dirname(abspath(__file__)) + "/init_iterate.json", "r") as file:
             init_iterate = json.load(file)  # Parse JSON into a Python dictionary
             init_iterate = parse_ocp_iterate(init_iterate, N=N_horizon)
 
@@ -120,7 +122,7 @@ def export_parametric_ocp(
 
     ######## Model ########
     # Quadrotor parameters
-    model_params = read_from_yaml("./examples/quadrotor/model_params.yaml")
+    model_params =  read_from_yaml(dirname(abspath(__file__)) + "/model_params.yaml")
 
     x, u, p, rhs, rhs_func = get_rhs_quadrotor(model_params, model_fidelity="low")
     ocp.model.disc_dyn_expr = disc_dyn_expr(rhs, x, u, p, dt)
