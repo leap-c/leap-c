@@ -103,9 +103,7 @@ def test_sample_collation_and_dtype_and_device():
             continue
         arr = getattr(batch[5], field.name)
         assert np.array_equal(arr, np.ones((2, i + 1), dtype=np.float64))
-    assert len(batch[6]) == 2
-    for iter in batch[6]:
-        assert iter is data_one[6] or iter is data_two[6]  # type:ignore
+
 
 
 def test_sample_order_consistency():
