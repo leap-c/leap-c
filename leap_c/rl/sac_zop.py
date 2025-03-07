@@ -1,10 +1,9 @@
 """Provides a trainer for a Soft Actor-Critic algorithm that uses a differentiable MPC
 layer for the policy network."""
 
-from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, NamedTuple
 
 import gymnasium as gym
 import numpy as np
@@ -79,6 +78,16 @@ class SacCritic(nn.Module):
         return [mlp(qe(x), a) for qe, mlp in zip(self.extractor, self.mlp)]
 
 
+class SacZopActorOutput(NamedTuple):
+    param: torch.Tensor
+    log_prob: torch.Tensor
+    gaussian_stats: dict[str, float]
+    action: torch.Tensor | None = None
+    status: torch.Tensor | None = None
+    state_solution: MpcBatchedState | None = None
+    mpc_stats: dict[str, float] | None = None
+
+
 class MpcSacActor(nn.Module):
     def __init__(
         self,
@@ -114,7 +123,7 @@ class MpcSacActor(nn.Module):
         mpc_state: None | MpcBatchedState,
         deterministic: bool = False,
         only_param: bool = False,
-    ):
+    ) -> SacZopActorOutput:
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
@@ -122,47 +131,38 @@ class MpcSacActor(nn.Module):
         std = torch.exp(log_std)
 
         if deterministic:
-            action = mean
+            param = mean
         else:
-            action = mean + std * torch.randn_like(mean)
+            param = mean + std * torch.randn_like(mean)
 
         log_prob = (
-            -0.5 * ((action - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)
+            -0.5 * ((param - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)
         )
 
-        action = torch.tanh(action)
+        param = torch.tanh(param)
 
-        log_prob -= torch.log(self.scale[None, :] * (1 - action.pow(2)) + 1e-6)
+        log_prob -= torch.log(self.scale[None, :] * (1 - param.pow(2)) + 1e-6)
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
-        param = action * self.scale[None, :] + self.loc[None, :]
-
-        # param_labels = self.mpc.mpc.param_labels
-
-        # if action.shape[0] == 1:
-        #     stats = {
-        #         param_labels[k]: element for k, element in enumerate(param.squeeze())
-        #     }
-        #     self.trainer["trainer"].report_stats(
-        #         "action",
-        #         stats,
-        #         self.trainer["trainer"].state.step,
-        #     )
+        scaled_param = param * self.scale[None, :] + self.loc[None, :]
 
         if only_param is True:
-            return param, log_prob
+            return SacZopActorOutput(
+                scaled_param, log_prob, {"gauss_std": std.mean().item()}
+            )
 
-        mpc_input = self.prepare_mpc_input(obs, param)
+        mpc_input = self.prepare_mpc_input(obs, scaled_param)
 
         # TODO: We have to catch and probably replace the state_solution somewhere,
         #       if its not a converged solution
         with torch.no_grad():
             mpc_output, state_solution, stats = self.mpc(mpc_input, mpc_state)
 
-        return (
-            mpc_output.u0,
-            param,
+        return SacZopActorOutput(
+            scaled_param,
             log_prob,
+            {"gauss_std": std.mean().item()},
+            mpc_output.u0,
             mpc_output.status,
             state_solution,
             stats,
@@ -207,49 +207,33 @@ class SacZopTrainer(Trainer):
 
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
-        episode_return = episode_length = np.inf
-        episode_act_stats = defaultdict(list)
         policy_state = None
         obs = None
 
         while True:
             if is_terminated or is_truncated:
                 obs, _ = self.train_env.reset()
-                if episode_length < np.inf:
-                    mpc_episode_stats = {
-                        k: float(np.mean(v)) for k, v in episode_act_stats.items()
-                    }
-                    episode_stats = {
-                        "episode_return": episode_return,
-                        "episode_length": episode_length,
-                    }
-                    self.report_stats("train", episode_stats, self.state.step)
-                    self.report_stats(
-                        "train_policy_rollout", mpc_episode_stats, self.state.step
-                    )
                 policy_state = None
                 is_terminated = is_truncated = False
-                episode_return = episode_length = 0
-                episode_act_stats = defaultdict(list)
 
             obs_batched = self.task.collate([obs], device=self.device)
 
             with torch.no_grad():
-                action, param, _, _, policy_state_sol, act_stats = self.pi(
-                    obs_batched, policy_state, deterministic=False
-                )
-                action = action.cpu().numpy()[0]
-                param = param.cpu().numpy()[0]
+                pi_output = self.pi(obs_batched, policy_state, deterministic=False)
+                action = pi_output.action.cpu().numpy()[0]
+                param = pi_output.param.cpu().numpy()[0]
 
-            for key, value in act_stats.items():
-                episode_act_stats[key].append(value)
-
-            obs_prime, reward, is_terminated, _, _ = self.train_env.step(
-                action
+            self.report_stats(
+                "train_policy_rollout", {"action": action, "param": param}
+            )
+            self.report_stats(
+                "train_trajectory",
+                {**pi_output.gaussian_stats, **pi_output.mpc_stats},
             )
 
-            episode_return += float(reward)
-            episode_length += 1
+            obs_prime, reward, is_terminated, _, info = self.train_env.step(action)
+            if "episode" in info:
+                self.report_stats("train", info["episode"])
 
             self.buffer.put(
                 (
@@ -262,7 +246,7 @@ class SacZopTrainer(Trainer):
             )  # type: ignore
 
             obs = obs_prime
-            policy_state = policy_state_sol
+            policy_state = pi_output.state_solution
 
             if (
                 self.state.step >= self.cfg.train.start
@@ -270,10 +254,12 @@ class SacZopTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te  = self.buffer.sample(self.cfg.sac.batch_size)
+                o, a, r, o_prime, te = self.buffer.sample(self.cfg.sac.batch_size)
 
                 # sample action
-                a_pi, log_p = self.pi(o, None, only_param=True)
+                pi_o = self.pi(o, None, only_param=True)
+                a_pi = pi_o.param
+                log_p = pi_o.log_prob
 
                 # update temperature
                 target_entropy = -np.prod(self.task.param_space.shape)  # type: ignore
@@ -287,12 +273,14 @@ class SacZopTrainer(Trainer):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    a_pi_prime, log_p_prime = self.pi(o_prime, None, only_param=True)
-                    q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
+                    pi_o_prime = self.pi(o_prime, None, only_param=True)
+                    q_target = torch.cat(
+                        self.q_target(o_prime, pi_o_prime.param), dim=1
+                    )
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
                     # add entropy
-                    q_target = q_target - alpha * log_p_prime
+                    q_target = q_target - alpha * pi_o_prime.log_prob
 
                     target = (
                         r[:, None] + self.cfg.sac.gamma * (1 - te[:, None]) * q_target
@@ -341,13 +329,11 @@ class SacZopTrainer(Trainer):
         obs = self.task.collate([obs], device=self.device)
 
         with torch.no_grad():
-            action, _, _, _, state_prime, stats = self.pi(
-                obs, state, deterministic=deterministic
-            )
+            pi_output = self.pi(obs, state, deterministic=deterministic)
 
-        action = action.cpu().numpy()[0]
+        action = pi_output.action.cpu().numpy()[0]
 
-        return action, state_prime, stats
+        return action, pi_output.state_solution, pi_output.mpc_stats
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:

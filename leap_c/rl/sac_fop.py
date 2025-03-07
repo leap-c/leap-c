@@ -4,7 +4,7 @@ layer for the policy network."""
 from collections import defaultdict
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterator
+from typing import Any, Callable, Iterator, NamedTuple
 
 import gymnasium as gym
 import numpy as np
@@ -47,6 +47,15 @@ class SacFopBaseConfig(BaseConfig):
     val: ValConfig = field(default_factory=ValConfig)
     log: LogConfig = field(default_factory=LogConfig)
     seed: int = 0
+
+
+class SacFopActorOutput(NamedTuple):
+    action: torch.Tensor
+    log_prob: torch.Tensor
+    status: torch.Tensor
+    state_solution: MpcBatchedState
+    param: torch.Tensor
+    mpc_stats: dict[str, float]
 
 
 class MpcSacActor(nn.Module):
@@ -106,18 +115,6 @@ class MpcSacActor(nn.Module):
 
         param = action * self.scale[None, :] + self.loc[None, :]
 
-        # param_labels = self.mpc.mpc.param_labels
-
-        # if action.shape[0] == 1:
-        #     stats = {
-        #         param_labels[k]: element for k, element in enumerate(param.squeeze())
-        #     }
-        #     self.trainer["trainer"].report_stats(
-        #         "action",
-        #         stats,
-        #         self.trainer["trainer"].state.step,
-        #     )
-
         mpc_input = self.prepare_mpc_input(obs, param)
         if self.prepare_mpc_state is not None:
             mpc_state = self.prepare_mpc_state(obs, param, mpc_state)  # type:ignore
@@ -126,7 +123,7 @@ class MpcSacActor(nn.Module):
         #       if its not a converged solution
         mpc_output, state_solution, stats = self.mpc(mpc_input, mpc_state)
 
-        return (
+        return SacFopActorOutput(
             mpc_output.u0,
             log_prob,
             mpc_output.status,
@@ -174,48 +171,35 @@ class SacFopTrainer(Trainer):
 
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
-        episode_return = episode_length = np.inf
-        episode_act_stats = defaultdict(list)
         policy_state = None
         obs = None
 
         while True:
             if is_terminated or is_truncated:
                 obs, _ = self.train_env.reset()
-                if episode_length < np.inf:
-                    mpc_episode_stats = {
-                        k: float(np.mean(v)) for k, v in episode_act_stats.items()
-                    }
-                    episode_stats = {
-                        "episode_return": episode_return,
-                        "episode_length": episode_length,
-                    }
-                    self.report_stats("train", episode_stats, self.state.step)
-                    self.report_stats(
-                        "train_policy_rollout", mpc_episode_stats, self.state.step
-                    )
                 policy_state = None
                 is_terminated = is_truncated = False
-                episode_return = episode_length = 0
-                episode_act_stats = defaultdict(list)
 
             obs_batched = self.task.collate([obs], device=self.device)
 
             with torch.no_grad():
-                action, _, _, policy_state_sol, _, act_stats = self.pi(
-                    obs_batched, policy_state, deterministic=False
-                )
-                action = action.cpu().numpy()[0]
+                # TODO (Jasper): Argument order is not consistent
+                pi_output = self.pi(obs_batched, policy_state, deterministic=False)
+                action = pi_output.action.cpu().numpy()[0]
+                param = pi_output.param.cpu().numpy()[0]
 
-            for key, value in act_stats.items():
-                episode_act_stats[key].append(value)
+            self.report_stats("train_trajectory", {"param": param, "action": action})
+            self.report_stats(
+                "train_policy_rollout",
+                {**pi_output.mpc_stats, **pi_output.gaussian_stats},
+            )
 
-            obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
+            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
 
-            episode_return += float(reward)
-            episode_length += 1
+            if "episode" in info:
+                self.report_stats("train", info["episode"])
 
             self.buffer.put(
                 (
@@ -224,12 +208,12 @@ class SacFopTrainer(Trainer):
                     reward,
                     obs_prime,
                     is_terminated,
-                    policy_state_sol,
+                    pi_output.state_solution,
                 )
             )  # type: ignore
 
             obs = obs_prime
-            policy_state = policy_state_sol
+            policy_state = pi_output.state_solution
 
             if (
                 self.state.step >= self.cfg.train.start

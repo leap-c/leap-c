@@ -189,27 +189,21 @@ class SacTrainer(Trainer):
 
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
-        episode_return = episode_length = np.inf
 
         while True:
             if is_terminated or is_truncated:
                 obs, _ = self.train_env.reset()
-                if episode_length < np.inf:
-                    stats = {
-                        "episode_return": episode_return,
-                        "episode_length": episode_length,
-                    }
-                    self.report_stats("train", stats, self.state.step)
                 is_terminated = is_truncated = False
-                episode_return = episode_length = 0
 
             action, _, _ = self.act(obs)  # type: ignore
-            obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
+            self.report_stats("train_trajectory", {"action": action}, self.state.step)
+
+            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
 
-            episode_return += float(reward)
-            episode_length += 1
+            if "episode" in info:
+                self.report_stats("train", info["episode"])
 
             # TODO (Jasper): Add is_truncated to buffer.
             self.buffer.put((obs, action, reward, obs_prime, is_terminated))  # type: ignore
