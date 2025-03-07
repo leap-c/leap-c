@@ -45,7 +45,7 @@ class SacAlgorithmConfig:
     lr_q: float = 1e-4
     lr_pi: float = 3e-4
     lr_alpha: float = 1e-4
-    init_alpha: float = 0.01
+    init_alpha: float = 1
     num_critics: int = 2
     report_loss_freq: int = 100
     update_freq: int = 1
