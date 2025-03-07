@@ -68,6 +68,8 @@ class MLP(nn.Module):
 
         self.mlp = nn.Sequential(*layers[:-1])
 
+        self.mlp.apply(weight_init)
+
     def forward(self, *x: torch.Tensor) -> torch.Tensor | tuple[torch.Tensor, ...]:
         if isinstance(x, tuple):
             x = torch.cat(x, dim=-1)  # type: ignore
@@ -77,3 +79,9 @@ class MLP(nn.Module):
             return y
         y = torch.split(y, self._output_dims, dim=-1)
         return y
+
+
+def weight_init(tensor):
+    if isinstance(tensor, nn.Linear):
+        nn.init.orthogonal_(tensor.weight.data)
+        tensor.bias.data.fill_(0.0)
