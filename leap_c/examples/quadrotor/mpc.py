@@ -144,11 +144,13 @@ def export_parametric_ocp(
 
     # terminal cost
     if param_external_cost:
-        q_e_diag = ca.SX.sym("q_e_diag", nx)
-        Q_sqrt_e = ca.diag(q_e_diag)
+        q_e_diag_sqrt = ca.SX.sym("q_e_diag", nx)
+        Q_sqrt_e = ca.diag(q_e_diag_sqrt)
         xref_e = ca.SX.sym("xref_e", nx)
-        ocp.model.p_global = ca.vertcat(ocp.model.p_global, q_e_diag, xref_e)
-        ocp.p_global_values = np.concatenate([ocp.p_global_values, 100 * np.diag(Q), np.zeros(nx)])
+        ocp.model.p_global = ca.vertcat(ocp.model.p_global, q_e_diag_sqrt, xref_e)
+        xref_e_par = np.zeros(nx)
+        xref_e_par[3] = 1
+        ocp.p_global_values = np.concatenate([ocp.p_global_values, (100 * np.diag(Q))**(1/2), xref_e_par])
 
         ocp.model.cost_expr_ext_cost_e = 0.5 * ca.mtimes([ca.transpose(x - xref_e), Q_sqrt_e.T, Q_sqrt_e, x - xref_e])
         ocp.cost.cost_type_e = "EXTERNAL"
@@ -188,7 +190,7 @@ def export_parametric_ocp(
     ######## Solver configuration ########
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
-    ocp.solver_options.nlp_solver_max_iter = 1000
+    ocp.solver_options.nlp_solver_max_iter = 100
     ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
     ocp.solver_options.sim_method_num_stages = 2
     ocp.solver_options.sim_method_num_steps = 2
@@ -217,15 +219,15 @@ def parse_ocp_iterate(data: Dict[str, List[float]], N=None) -> AcadosOcpIterate:
     u_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("u_")]
     # Extract dual variables
     pi_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("pi_")]
-    lam_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("lam_")]
+    #lam_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("lam_")]
     sl_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("sl_")]
     su_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("su_")]
 
     if N is not None and len(x_traj) < N + 1:
-        for i in range((N + 1) + len(x_traj)):
+        for i in range((N + 1) - len(x_traj)):
             x_traj.append(copy(x_traj[-1]))
             pi_traj.append(copy(pi_traj[-1]))
-            lam_traj.append(copy(lam_traj[-1]))
+   #         lam_traj.append(copy(lam_traj[-1]))
             u_traj.append(copy(u_traj[-1]))
 
     # Assuming `z_traj` is empty since there's no "z_" in the given data
@@ -238,7 +240,7 @@ def parse_ocp_iterate(data: Dict[str, List[float]], N=None) -> AcadosOcpIterate:
         sl_traj=sl_traj,
         su_traj=su_traj,
         pi_traj=pi_traj,
-        lam_traj=lam_traj,
+        lam_traj=[],
     )
 
 
