@@ -159,9 +159,6 @@ class SacTrainer(Trainer):
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
 
-        # TODO: Move to def run of main trainer.
-        self.to(device)
-
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
 

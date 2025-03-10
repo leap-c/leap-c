@@ -194,14 +194,14 @@ class SacZopTrainer(Trainer):
 
         self.q = SacCritic(
             task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
-        ).to(device)
+        )
         self.q_target = SacCritic(
             task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
-        ).to(device)
+        )
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = MpcSacActor(task, self.train_env, cfg.sac.actor_mlp).to(device)
+        self.pi = MpcSacActor(task, self.train_env, cfg.sac.actor_mlp)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(cfg.sac.init_alpha).log())  # type: ignore
@@ -212,8 +212,6 @@ class SacZopTrainer(Trainer):
         self.entropy_norm = param_dim / action_dim
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
-
-        self.to(device)
 
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True

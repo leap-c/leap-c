@@ -163,10 +163,10 @@ class SacFopTrainer(Trainer):
 
         self.q = SacCritic(
             task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
-        ).to(device)
+        )
         self.q_target = SacCritic(
             task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
-        ).to(device)
+        )
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
