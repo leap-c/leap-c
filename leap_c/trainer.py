@@ -252,18 +252,38 @@ class Trainer(ABC, nn.Module):
     def report_stats(
         self,
         group: str,
-        stats: dict[str, float],
-        timestamp: int,
+        stats: dict[str, float | np.ndarray],
+        timestamp: int | None = None,
         window_size: int | None = None,
     ):
         """Report the statistics of the training loop.
 
+        If the statistics are a numpy array, the array is split into multiple
+        statistics of the form `key_{i}`.
+
         Args:
             group: The group of the statistics.
             stats: The statistics to be reported.
-            timestamp: The timestamp of the logging entry.
+            timestamp: The timestamp of the logging entry. If None, the step
+                saved in the trainer state is used.
             window_size: The window size for smoothing the statistics.
         """
+        if timestamp is None:
+            timestamp = self.state.step
+
+        for key, value in list(stats.items()):
+            if not isinstance(value, np.ndarray):
+                continue
+
+            if value.size == 1:
+                stats[key] = float(value)
+                continue
+
+            assert value.ndim == 1, "Only 1D arrays are supported."
+
+            stats.pop(key)
+            for i, v in enumerate(value):
+                stats[f"{key}_{i}"] = float(v)
 
         self.state.timestamps[group].append(timestamp)
         for key, value in stats.items():
@@ -271,7 +291,7 @@ class Trainer(ABC, nn.Module):
 
         if window_size is not None:
             window_idx = bisect.bisect_left(
-                self.state.timestamps[group], timestamp - window_size
+                self.state.timestamps[group], timestamp - window_size  # type: ignore
             )
             stats = {
                 key: float(np.mean(values[-window_idx:]))
@@ -303,6 +323,8 @@ class Trainer(ABC, nn.Module):
 
     def run(self) -> float:
         """Call this function in your script to start the training loop."""
+        self.to(self.device)
+
         train_loop_iter = self.train_loop()
 
         while self.state.step < self.cfg.train.steps:

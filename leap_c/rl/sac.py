@@ -8,13 +8,11 @@ import torch
 import torch.nn as nn
 
 from leap_c.nn.mlp import MLP, MlpConfig
+from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.task import Task
 from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
-
-LOG_STD_MIN = -4
-LOG_STD_MAX = 2
 
 
 @dataclass(kw_only=True)
@@ -44,7 +42,8 @@ class SacAlgorithmConfig:
     soft_update_freq: int = 1
     lr_q: float = 1e-4
     lr_pi: float = 3e-4
-    lr_alpha: float = 1e-4
+    lr_alpha: float = 1e-3  # 1e-4
+    init_alpha: float = 0.1
     num_critics: int = 2
     report_loss_freq: int = 100
     update_freq: int = 1
@@ -115,39 +114,15 @@ class SacActor(nn.Module):
             mlp_cfg=mlp_cfg,
         )
 
-        # add scaling params for tanh [-1, 1] -> [low, high]
-        action_space = env.action_space
-        loc = (action_space.high + action_space.low) / 2.0  # type: ignore
-        scale = (action_space.high - action_space.low) / 2.0  # type: ignore
-        loc = torch.tensor(loc, dtype=torch.float32)
-        scale = torch.tensor(scale, dtype=torch.float32)
-        self.register_buffer("loc", loc)
-        self.register_buffer("scale", scale)
+        self.squashed_gaussian = SquashedGaussian(env.action_space)
 
     def forward(self, x: torch.Tensor, deterministic=False):
         e = self.extractor(x)
         mean, log_std = self.mlp(e)
 
-        log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
-        std = torch.exp(log_std)
+        action, log_prob, stats = self.squashed_gaussian(mean, log_std, deterministic)
 
-        if deterministic:
-            action = mean
-        else:
-            action = mean + std * torch.randn_like(mean)
-
-        log_prob = (
-            -0.5 * ((action - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)
-        )
-
-        action = torch.tanh(action)
-
-        log_prob -= torch.log(self.scale[None, :] * (1 - action.pow(2)) + 1e-6)
-
-        action = action * self.scale[None, :] + self.loc[None, :]
-
-        log_prob = log_prob.sum(dim=-1, keepdims=True)
-        return action, log_prob
+        return action, log_prob, stats
 
 
 @register_trainer("sac", SacBaseConfig())
@@ -179,37 +154,29 @@ class SacTrainer(Trainer):
         self.pi = SacActor(task, self.train_env, cfg.sac.actor_mlp)  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
+        self.log_alpha = nn.Parameter(torch.tensor(self.cfg.sac.init_alpha).log())  # type: ignore
         self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
 
-        # TODO: Move to def run of main trainer.
-        self.to(device)
-
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
-        episode_return = episode_length = np.inf
 
         while True:
             if is_terminated or is_truncated:
                 obs, _ = self.train_env.reset()
-                if episode_length < np.inf:
-                    stats = {
-                        "episode_return": episode_return,
-                        "episode_length": episode_length,
-                    }
-                    self.report_stats("train", stats, self.state.step)
                 is_terminated = is_truncated = False
-                episode_return = episode_length = 0
 
-            action, _, _ = self.act(obs)  # type: ignore
-            obs_prime, reward, is_terminated, is_truncated, _ = self.train_env.step(
+            action, _, stats = self.act(obs)  # type: ignore
+            self.report_stats("train_trajectory", {"action": action}, self.state.step)
+            self.report_stats("train_policy_rollout", stats, self.state.step)  # type: ignore
+
+            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
 
-            episode_return += float(reward)
-            episode_length += 1
+            if "episode" in info:
+                self.report_stats("train", info["episode"])
 
             # TODO (Jasper): Add is_truncated to buffer.
             self.buffer.put((obs, action, reward, obs_prime, is_terminated))  # type: ignore
@@ -225,7 +192,7 @@ class SacTrainer(Trainer):
                 o, a, r, o_prime, te = self.buffer.sample(self.cfg.sac.batch_size)
 
                 # sample action
-                a_pi, log_p = self.pi(o)
+                a_pi, log_p, _ = self.pi(o)
 
                 # update temperature
                 target_entropy = -np.prod(self.train_env.action_space.shape)  # type: ignore
@@ -239,7 +206,7 @@ class SacTrainer(Trainer):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    a_pi_prime, log_p_prime = self.pi(o_prime)
+                    a_pi_prime, log_p_prime, _ = self.pi(o_prime)
                     q_target = torch.cat(self.q_target(o_prime, a_pi_prime), dim=1)
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
@@ -282,18 +249,19 @@ class SacTrainer(Trainer):
                         "alpha": alpha,
                         "q": q.mean().item(),
                         "q_target": target.mean().item(),
+                        "entropy": -log_p.mean().item(),
                     }
-                    self.report_stats("train_loss", loss_stats, self.state.step + 1)
+                    self.report_stats("loss", loss_stats, self.state.step + 1)
 
             yield 1
 
     def act(
         self, obs, deterministic: bool = False, state=None
-    ) -> tuple[np.ndarray, None, None]:
+    ) -> tuple[np.ndarray, None, dict[str, float]]:
         obs = self.task.collate([obs], self.device)
         with torch.no_grad():
-            action, _ = self.pi(obs, deterministic=deterministic)
-        return action.cpu().numpy()[0], None, None
+            action, _, stats = self.pi(obs, deterministic=deterministic)
+        return action.cpu().numpy()[0], None, stats
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
