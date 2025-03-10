@@ -6,7 +6,6 @@ import torch
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
-    AcadosOcpIterate,
 )
 from leap_c.collate import safe_collate_possible_nones
 from leap_c.mpc import MpcParameter
@@ -42,15 +41,6 @@ def test_sample_collation_and_dtype_and_device():
             pi=np.ones(6, dtype=np.float64),
             lam=np.ones(7, dtype=np.float64),
         ),
-        AcadosOcpIterate(
-            x_traj=[np.ones(3, dtype=np.float64)],
-            u_traj=[np.ones(2, dtype=np.float64)],
-            z_traj=[np.ones(1, dtype=np.float64)],
-            sl_traj=[np.ones(1, dtype=np.float64)],
-            su_traj=[np.ones(1, dtype=np.float64)],
-            pi_traj=[np.ones(1, dtype=np.float64)],
-            lam_traj=[np.ones(1, dtype=np.float64)],
-        ),
     )
     data_two = (
         1,
@@ -70,15 +60,6 @@ def test_sample_collation_and_dtype_and_device():
             su=np.ones(5, dtype=np.float64),
             pi=np.ones(6, dtype=np.float64),
             lam=np.ones(7, dtype=np.float64),
-        ),
-        AcadosOcpIterate(
-            x_traj=[np.ones(1, dtype=np.float64)],
-            u_traj=[np.ones(2, dtype=np.float64)],
-            z_traj=[np.ones(3, dtype=np.float64)],
-            sl_traj=[np.ones(4, dtype=np.float64)],
-            su_traj=[np.ones(5, dtype=np.float64)],
-            pi_traj=[np.ones(6, dtype=np.float64)],
-            lam_traj=[np.ones(7, dtype=np.float64)],
         ),
     )
     buffer.put(data_one)
@@ -122,9 +103,7 @@ def test_sample_collation_and_dtype_and_device():
             continue
         arr = getattr(batch[5], field.name)
         assert np.array_equal(arr, np.ones((2, i + 1), dtype=np.float64))
-    assert len(batch[6]) == 2
-    for iter in batch[6]:
-        assert iter is data_one[6] or iter is data_two[6]  # type:ignore
+
 
 
 def test_sample_order_consistency():
@@ -146,15 +125,6 @@ def test_sample_order_consistency():
             pi=np.ones(1),
             lam=np.ones(1),
         ),
-        AcadosOcpIterate(
-            x_traj=[np.ones(1)],
-            u_traj=[np.ones(1)],
-            z_traj=[np.ones(1)],
-            sl_traj=[np.ones(1)],
-            su_traj=[np.ones(1)],
-            pi_traj=[np.ones(1)],
-            lam_traj=[np.ones(1)],
-        ),
     )
     data_two = (
         MpcParameter(
@@ -170,15 +140,6 @@ def test_sample_order_consistency():
             su=np.zeros(1),
             pi=np.zeros(1),
             lam=np.zeros(1),
-        ),
-        AcadosOcpIterate(
-            x_traj=[np.zeros(1)],
-            u_traj=[np.zeros(1)],
-            z_traj=[np.zeros(1)],
-            sl_traj=[np.zeros(1)],
-            su_traj=[np.zeros(1)],
-            pi_traj=[np.zeros(1)],
-            lam_traj=[np.zeros(1)],
         ),
     )
     buffer.put(data_one)
@@ -197,10 +158,6 @@ def test_sample_order_consistency():
                 assert np.array_equal(
                     getattr(batch[1], field.name)[sample_idx], np.ones(1)
                 )
-            for field in fields(AcadosOcpIterate):
-                assert np.array_equal(
-                    getattr(batch[2][sample_idx], field.name)[0], np.ones(1)
-                )
 
         elif np.array_equal(batch[0].p_global[sample_idx], np.array([0, 0, 0])):
             assert np.array_equal(batch[0].p_stagewise[sample_idx], np.zeros((2, 2)))
@@ -212,10 +169,6 @@ def test_sample_order_consistency():
                     continue
                 assert np.array_equal(
                     getattr(batch[1], field.name)[sample_idx], np.zeros(1)
-                )
-            for field in fields(AcadosOcpIterate):
-                assert np.array_equal(
-                    getattr(batch[2][sample_idx], field.name)[0], np.zeros(1)
                 )
         else:
             assert False

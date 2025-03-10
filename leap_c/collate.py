@@ -5,7 +5,6 @@ import torch
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
-    AcadosOcpIterate,
 )
 from torch.utils._pytree import tree_map_only
 from torch.utils.data._utils.collate import default_collate_fn_map
@@ -70,7 +69,7 @@ def _collate_acados_iterate_fn(batch, *, collate_fn_map=None):
 def create_collate_fn_map():
     """Create the collate function map for the collate function.
     By default, this is the default_collate_fn_map in torch.utils.data._utils.collate, with an additional
-    rule for MpcParameter, AcadosOcpFlattenedIterate and AcadosOcpIterate."""
+    rule for MpcParameter and AcadosOcpFlattenedIterate."""
     custom_collate_map = default_collate_fn_map.copy()
 
     # NOTE: If MpcParameter should also be tensorified, you can turn mpcparam_fn off
