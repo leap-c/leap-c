@@ -2,11 +2,11 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional
 
 import gymnasium as gym
+from gymnasium.wrappers import OrderEnforcing, RecordEpisodeStatistics
 import torch
 from torch.utils.data._utils.collate import collate
 
 from leap_c.collate import create_collate_fn_map, pytree_tensor_to
-from leap_c.env_wrapper import ActionStatsWrapper
 from leap_c.mpc import MpcInput
 from leap_c.nn.extractor import Extractor, IdentityExtractor
 from leap_c.nn.modules import MpcSolutionModule
@@ -121,37 +121,32 @@ class Task(ABC):
         """
         return None
 
-    def create_train_env(self, seed: int = 0, record_action: bool = False) -> gym.Env:
+    def create_train_env(self, seed: int = 0) -> gym.Env:
         """Returns a gymnasium environment for training.
 
         Args:
             seed: The seed for the environment.
-            record_action: Whether to add the actions taken by the agent as stats.
 
         Returns:
             gym.Env: The environment for training.
         """
         env = self.create_env(train=True)
-
-        if record_action:
-            env = ActionStatsWrapper(env)
+        env = RecordEpisodeStatistics(env, buffer_length=1)
+        env = OrderEnforcing(env)
 
         env.reset(seed=seed)
         env.observation_space.seed(seed)
         env.action_space.seed(seed)
         return env
 
-    def create_eval_env(self, seed: int = 1, record_action: bool = False) -> gym.Env:
+    def create_eval_env(self, seed: int = 1) -> gym.Env:
         """Returns a gymnasium environment for evaluation.
 
         Args:
             seed: The seed for the environment.
-            record_action: Whether to add the actions taken by the agent as stats.
         """
         env = self.create_env(train=False)
-
-        if record_action:
-            env = ActionStatsWrapper(env)
+        env = OrderEnforcing(env)
 
         env.reset(seed=seed)
         env.observation_space.seed(seed)
