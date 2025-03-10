@@ -1,9 +1,9 @@
 import bisect
 from abc import ABC, abstractmethod
 from collections import defaultdict
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, DefaultDict, Iterator
 
 import numpy as np
 import pandas as pd
@@ -107,6 +107,20 @@ class BaseConfig:
     seed: int
 
 
+def defaultdict_list() -> DefaultDict[str, list]:
+    """Returns a defaultdict with a list as default value.
+
+    We make this explicit to avoid issues with pickling."""
+    return defaultdict(list)
+
+
+def nested_defaultdict_list() -> DefaultDict[str, DefaultDict[str, list]]:
+    """Returns a nested defaultdict with a list as default value.
+
+    We make this explicit to avoid issues with pickling."""
+    return defaultdict(defaultdict_list)
+
+
 @dataclass(kw_only=True)
 class TrainerState:
     """The state of a trainer.
@@ -124,10 +138,10 @@ class TrainerState:
     """
 
     step: int = 0
-    timestamps: dict = field(default_factory=lambda: defaultdict(list))
-    logs: dict = field(default_factory=lambda: defaultdict(lambda: defaultdict(list)))
+    timestamps: dict = field(default_factory=defaultdict_list)
+    logs: dict = field(default_factory=nested_defaultdict_list)
     scores: list[float] = field(default_factory=list)
-    min_score: float = float("inf")
+    min_score: float = -float("inf")
 
 
 class Trainer(ABC, nn.Module):
@@ -191,7 +205,7 @@ class Trainer(ABC, nn.Module):
 
         # log dataclass config as yaml
         with open(self.output_path / "config.yaml", "w") as f:
-            dump(cfg, f)
+            dump(asdict(cfg), f)
 
         # seed
         set_seed(cfg.seed)
@@ -362,13 +376,19 @@ class Trainer(ABC, nn.Module):
 
         return float(stats_rollout["score"])
 
-    def _ckpt_path(self, name: str, suffix: str) -> Path:
-        if self.cfg.val.ckpt_modus == "best":
-            return self.output_path / "ckpts" / f"best_{name}.{suffix}"
-        elif self.cfg.val.ckpt_modus == "last":
-            return self.output_path / "ckpts" / f"last_{name}.{suffix}"
+    def _ckpt_path(self, name: str, suffix: str, basedir: Path | None = None) -> Path:
+        """Returns the path to a checkpoint file."""
+        if basedir is None:
+            basedir = self.output_path
 
-        return self.output_path / "ckpts" / f"{self.step}_{name}.{suffix}"
+        (basedir / "ckpts").mkdir(exist_ok=True)
+
+        if self.cfg.val.ckpt_modus == "best":
+            return basedir / "ckpts" / f"best_{name}.{suffix}"
+        elif self.cfg.val.ckpt_modus == "last":
+            return basedir / "ckpts" / f"last_{name}.{suffix}"
+
+        return basedir / "ckpts" / f"{self.step}_{name}.{suffix}"
 
     def save(self) -> None:
         """Save the trainer state in a checkpoint folder."""
@@ -383,13 +403,15 @@ class Trainer(ABC, nn.Module):
             }
             torch.save(state_dict, self._ckpt_path("optimizers", "pth"))
 
-    def load(self) -> None:
+    def load(self, path: str | Path) -> None:
         """Loads the state of a trainer from the output_path."""
+        # TODO (Jasper): Think about partial loading...
+        basedir = Path(path) 
 
-        self.load_state_dict(torch.load(self._ckpt_path("model", "pth")))
-        self.state = torch.load(self._ckpt_path("trainer", "pkl"))
+        self.load_state_dict(torch.load(self._ckpt_path("model", "pth", basedir)))
+        self.state = torch.load(self._ckpt_path("trainer", "pkl", basedir))
 
         if self.optimizers:
-            state_dict = torch.load(self._ckpt_path("optimizers", "pth"))
+            state_dict = torch.load(self._ckpt_path("optimizers", "pth", basedir))
             for i, opt in enumerate(self.optimizers):
                 opt.load_state_dict(state_dict[f"optimizer_{i}"])

@@ -84,7 +84,7 @@ class ChainMpc(Mpc):
             self.ocp_solver.set(stage, "x", self.ocp_solver.acados_ocp.constraints.x0)
         self.ocp_solver.solve()
 
-        iterate = self.ocp_solver.store_iterate_to_obj()
+        iterate = self.ocp_solver.store_iterate_to_flat_obj()
 
         def init_state_fn(mpc_input: MpcInput) -> MpcSingleState | MpcBatchedState:
             # TODO (batch_rules): This should be updated if we switch to only batch solvers.

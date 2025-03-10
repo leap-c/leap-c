@@ -29,6 +29,7 @@ class ReplayBuffer:
         self.device = device
         self.tensor_dtype = tensor_dtype
 
+        # TODO (Jasper): This should be derived from task.
         self.collate_fn_map = create_collate_fn_map()
 
     def put(self, data: Any):
