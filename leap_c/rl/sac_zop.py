@@ -13,9 +13,9 @@ import torch.nn as nn
 from leap_c.mpc import MpcBatchedState
 from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.nn.modules import MpcSolutionModule
+from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
-from leap_c.rl.sac import SacAlgorithmConfig
 from leap_c.task import Task
 from leap_c.trainer import (
     BaseConfig,
@@ -25,8 +25,39 @@ from leap_c.trainer import (
     ValConfig,
 )
 
-LOG_STD_MIN = -4
-LOG_STD_MAX = 2
+
+@dataclass(kw_only=True)
+class SacZopAlgorithmConfig:
+    """Contains the necessary information for a SacTrainer.
+
+    Attributes:
+        batch_size: The batch size for training.
+        buffer_size: The size of the replay buffer.
+        gamma: The discount factor.
+        tau: The soft update factor.
+        soft_update_freq: The frequency of soft updates.
+        lr_q: The learning rate for the Q networks.
+        lr_pi: The learning rate for the policy network.
+        lr_alpha: The learning rate for the temperature parameter.
+        num_critics: The number of critic networks.
+        report_loss_freq: The frequency of reporting the loss.
+        update_freq: The frequency of updating the networks.
+    """
+
+    critic_mlp: MlpConfig = field(default_factory=MlpConfig)
+    actor_mlp: MlpConfig = field(default_factory=MlpConfig)
+    batch_size: int = 64
+    buffer_size: int = 1000000
+    gamma: float = 0.99
+    tau: float = 0.005
+    soft_update_freq: int = 1
+    lr_q: float = 1e-4
+    lr_pi: float = 1e-5  # set lower otherwise can become unstable
+    lr_alpha: float = 1e-3  # 1e-4
+    init_alpha: float = 0.1
+    num_critics: int = 2
+    report_loss_freq: int = 100
+    update_freq: int = 1
 
 
 @dataclass(kw_only=True)
@@ -41,7 +72,7 @@ class SacZopBaseConfig(BaseConfig):
         seed: The seed for the trainer.
     """
 
-    sac: SacAlgorithmConfig = field(default_factory=SacAlgorithmConfig)
+    sac: SacZopAlgorithmConfig = field(default_factory=SacZopAlgorithmConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     val: ValConfig = field(default_factory=ValConfig)
     log: LogConfig = field(default_factory=LogConfig)
@@ -81,11 +112,10 @@ class SacCritic(nn.Module):
 class SacZopActorOutput(NamedTuple):
     param: torch.Tensor
     log_prob: torch.Tensor
-    gaussian_stats: dict[str, float]
+    stats: dict[str, float]
     action: torch.Tensor | None = None
     status: torch.Tensor | None = None
     state_solution: MpcBatchedState | None = None
-    mpc_stats: dict[str, float] | None = None
 
 
 class MpcSacActor(nn.Module):
@@ -109,13 +139,7 @@ class MpcSacActor(nn.Module):
         self.mpc: MpcSolutionModule = task.mpc  # type:ignore
         self.prepare_mpc_input = task.prepare_mpc_input
 
-        # add scaling params for tanh [-1, 1] -> [low, high]
-        loc = (param_space.high + param_space.low) / 2.0  # type: ignore
-        scale = (param_space.high - param_space.low) / 2.0  # type: ignore
-        loc = torch.tensor(loc, dtype=torch.float32)
-        scale = torch.tensor(scale, dtype=torch.float32)
-        self.register_buffer("loc", loc)
-        self.register_buffer("scale", scale)
+        self.squashed_gaussian = SquashedGaussian(param_space)  # type:ignore
 
     def forward(
         self,
@@ -127,45 +151,27 @@ class MpcSacActor(nn.Module):
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
-        log_std = torch.clamp(log_std, LOG_STD_MIN, LOG_STD_MAX)
-        std = torch.exp(log_std)
-
-        if deterministic:
-            param = mean
-        else:
-            param = mean + std * torch.randn_like(mean)
-
-        log_prob = (
-            -0.5 * ((param - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)
+        param, log_prob, gauss_stats = self.squashed_gaussian(
+            mean, log_std, deterministic
         )
 
-        param = torch.tanh(param)
+        if only_param:
+            return SacZopActorOutput(param, log_prob, gauss_stats)
 
-        log_prob -= torch.log(self.scale[None, :] * (1 - param.pow(2)) + 1e-6)
-        log_prob = log_prob.sum(dim=-1, keepdim=True)
-
-        scaled_param = param * self.scale[None, :] + self.loc[None, :]
-
-        if only_param is True:
-            return SacZopActorOutput(
-                scaled_param, log_prob, {"gauss_std": std.mean().item()}
-            )
-
-        mpc_input = self.prepare_mpc_input(obs, scaled_param)
+        mpc_input = self.prepare_mpc_input(obs, param)
 
         # TODO: We have to catch and probably replace the state_solution somewhere,
         #       if its not a converged solution
         with torch.no_grad():
-            mpc_output, state_solution, stats = self.mpc(mpc_input, mpc_state)
+            mpc_output, state_solution, mpc_stats = self.mpc(mpc_input, mpc_state)
 
         return SacZopActorOutput(
-            scaled_param,
+            param,
             log_prob,
-            {"gauss_std": std.mean().item()},
+            {**gauss_stats, **mpc_stats},
             mpc_output.u0,
             mpc_output.status,
-            state_solution,
-            stats,
+            state_solution,  # type: ignore
         )
 
 
@@ -198,8 +204,12 @@ class SacZopTrainer(Trainer):
         self.pi = MpcSacActor(task, self.train_env, cfg.sac.actor_mlp).to(device)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(0.0))  # type: ignore
+        self.log_alpha = nn.Parameter(torch.tensor(cfg.sac.init_alpha).log())  # type: ignore
         self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
+        action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
+        param_dim = np.prod(task.param_space.shape)  # type: ignore
+        self.target_normalized_entropy = -action_dim
+        self.entropy_norm = param_dim / action_dim
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
 
@@ -223,13 +233,8 @@ class SacZopTrainer(Trainer):
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
-            self.report_stats(
-                "train_policy_rollout", {"action": action, "param": param}
-            )
-            self.report_stats(
-                "train_trajectory",
-                {**pi_output.gaussian_stats, **pi_output.mpc_stats},
-            )
+            self.report_stats("train_trajectory", {"action": action, "param": param})
+            self.report_stats("train_policy_rollout", pi_output.stats)
 
             obs_prime, reward, is_terminated, _, info = self.train_env.step(action)
             if "episode" in info:
@@ -259,12 +264,12 @@ class SacZopTrainer(Trainer):
                 # sample action
                 pi_o = self.pi(o, None, only_param=True)
                 a_pi = pi_o.param
-                log_p = pi_o.log_prob
+                log_p = pi_o.log_prob / self.entropy_norm
 
                 # update temperature
-                target_entropy = -np.prod(self.task.param_space.shape)  # type: ignore
                 alpha_loss = -torch.mean(
-                    self.log_alpha.exp() * (log_p + target_entropy).detach()
+                    self.log_alpha.exp()
+                    * (log_p + self.target_normalized_entropy).detach()
                 )
                 self.alpha_optim.zero_grad()
                 alpha_loss.backward()
@@ -280,7 +285,9 @@ class SacZopTrainer(Trainer):
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
                     # add entropy
-                    q_target = q_target - alpha * pi_o_prime.log_prob
+                    q_target = (
+                        q_target - alpha * pi_o_prime.log_prob / self.entropy_norm
+                    )
 
                     target = (
                         r[:, None] + self.cfg.sac.gamma * (1 - te[:, None]) * q_target
@@ -318,6 +325,7 @@ class SacZopTrainer(Trainer):
                         "alpha": alpha,
                         "q": q.mean().item(),
                         "q_target": target.mean().item(),
+                        "entropy": -log_p.mean().item(),
                     }
                     self.report_stats("loss", loss_stats, self.state.step + 1)
 
@@ -333,7 +341,7 @@ class SacZopTrainer(Trainer):
 
         action = pi_output.action.cpu().numpy()[0]
 
-        return action, pi_output.state_solution, pi_output.mpc_stats
+        return action, pi_output.state_solution, pi_output.stats
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
