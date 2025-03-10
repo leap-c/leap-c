@@ -52,7 +52,7 @@ class SacZopAlgorithmConfig:
     tau: float = 0.005
     soft_update_freq: int = 1
     lr_q: float = 1e-4
-    lr_pi: float = 1e-5  # set lower otherwise can become unstable
+    lr_pi: float = 3e-4  # this can be lowered to make it more stable
     lr_alpha: float = 1e-3  # 1e-4
     init_alpha: float = 0.1
     num_critics: int = 2
@@ -234,7 +234,7 @@ class SacZopTrainer(Trainer):
             self.report_stats("train_trajectory", {"action": action, "param": param})
             self.report_stats("train_policy_rollout", pi_output.stats)
 
-            obs_prime, reward, is_terminated, _, info = self.train_env.step(action)
+            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
             if "episode" in info:
                 self.report_stats("train", info["episode"])
 
