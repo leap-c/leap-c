@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, DefaultDict, Iterator
 
 import numpy as np
 import pandas as pd
@@ -107,11 +107,17 @@ class BaseConfig:
     seed: int
 
 
-def defaultdict_list():
+def defaultdict_list() -> DefaultDict[str, list]:
+    """Returns a defaultdict with a list as default value.
+
+    We make this explicit to avoid issues with pickling."""
     return defaultdict(list)
 
 
-def nested_defaultdict_list():
+def nested_defaultdict_list() -> DefaultDict[str, DefaultDict[str, list]]:
+    """Returns a nested defaultdict with a list as default value.
+
+    We make this explicit to avoid issues with pickling."""
     return defaultdict(defaultdict_list)
 
 

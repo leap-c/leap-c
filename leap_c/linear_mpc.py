@@ -1,6 +1,3 @@
-from pathlib import Path
-from typing import Callable
-
 import numpy as np
 from acados_template import AcadosOcp
 from acados_template.acados_ocp_iterate import (
@@ -26,14 +23,7 @@ class LinearMPC(Mpc):
     def __init__(
         self,
         ocp: AcadosOcp,
-        discount_factor: float | None = None,
-        default_init_state_fn: Callable[[MpcInput], MpcSingleState | MpcBatchedState]
-        | None = None,
         n_batch: int = 1,
-        export_directory: Path | None = None,
-        export_directory_sensitivity: Path | None = None,
-        cleanup: bool = True,
-        throw_error_if_u0_is_outside_ocp_bounds: bool = True,
     ):
         self.ocp = ocp
 
