@@ -114,6 +114,7 @@ class MpcSacActor(nn.Module):
         self.mpc: MpcSolutionModule = task.mpc  # type:ignore
         self.prepare_mpc_input = task.prepare_mpc_input
         self.prepare_mpc_state = prepare_mpc_state
+        self.actual_used_mpc_state = None
 
         self.squashed_gaussian = SquashedGaussian(param_space)  # type:ignore
 
@@ -132,6 +133,7 @@ class MpcSacActor(nn.Module):
         # TODO: We have to catch and probably replace the state_solution somewhere,
         #       if its not a converged solution
         mpc_output, state_solution, mpc_stats = self.mpc(mpc_input, mpc_state)
+        self.actual_used_mpc_state = mpc_state
 
         return SacFopActorOutput(
             param,
