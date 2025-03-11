@@ -24,7 +24,7 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest", "pygame", "moviepy", "wandb", "tensorboard", "gymnasium[mujoco]"]
+test = ["pytest", "pygame", "moviepy", "wandb", "tensorboard", "gymnasium[mujoco]", "numpy-quaternion", "matplotlib", "PyQt5"]
 rendering = ["pygame", "moviepy"]
 docs = ["sphinx", "sphinx_rtd_theme", "myst-parser"]
 dev = ["leap_c[rendering]", "leap_c[docs]", "leap_c[test]"]

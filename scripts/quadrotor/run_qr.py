@@ -75,7 +75,11 @@ def main(
         cfg=cfg,
     )
 
+    cfg.val.interval = 100_000
+    cfg.train.steps = 1_000_000
     cfg.val.num_render_rollouts = 1
+    cfg.log.wandb_logger = True
+    cfg.log.tensorboard_logger = False
 
     trainer = create_trainer(trainer_name, task, output_path, device, cfg)
     trainer.run()
@@ -85,7 +89,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--output_path", type=Path, default=None)
     parser.add_argument("--trainer", type=str, default="sac")
-    parser.add_argument("--task", type=str, default="half_cheetah")
+    parser.add_argument("--task", type=str, default="quadrotor_mass")
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=0)
     args = parser.parse_args()
