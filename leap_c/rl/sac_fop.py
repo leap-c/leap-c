@@ -118,7 +118,9 @@ class MpcSacActor(nn.Module):
 
         self.squashed_gaussian = SquashedGaussian(param_space)  # type:ignore
 
-    def forward(self, obs, mpc_state: MpcBatchedState, deterministic=False):
+    def forward(
+        self, obs, mpc_state: MpcBatchedState, deterministic=False
+    ) -> SacFopActorOutput:
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
