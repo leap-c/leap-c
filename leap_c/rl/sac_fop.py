@@ -33,6 +33,8 @@ class SacFopAlgorithmConfig:
     """Contains the necessary information for a SacTrainer.
 
     Attributes:
+        critic_mlp: The configuration for the critic networks.
+        actor_mlp: The configuration for the policy network.
         batch_size: The batch size for training.
         buffer_size: The size of the replay buffer.
         gamma: The discount factor.
@@ -41,6 +43,8 @@ class SacFopAlgorithmConfig:
         lr_q: The learning rate for the Q networks.
         lr_pi: The learning rate for the policy network.
         lr_alpha: The learning rate for the temperature parameter.
+        init_alpha: The initial value for the temperature parameter.
+        entropy_reward_bonus: Whether to add an entropy bonus to the reward.
         num_critics: The number of critic networks.
         report_loss_freq: The frequency of reporting the loss.
         update_freq: The frequency of updating the networks.
@@ -57,6 +61,7 @@ class SacFopAlgorithmConfig:
     lr_pi: float = 3e-4
     lr_alpha: float = 1e-3
     init_alpha: float = 0.1
+    entropy_reward_bonus: bool = True
     num_critics: int = 2
     report_loss_freq: int = 100
     update_freq: int = 1
@@ -260,8 +265,9 @@ class SacFopTrainer(Trainer):
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
                     # add entropy
+                    factor = self.cfg.sac.entropy_reward_bonus / self.entropy_norm
                     q_target = (
-                        q_target - alpha * pi_o_prime.log_prob / self.entropy_norm
+                        q_target - alpha * pi_o_prime.log_prob * factor
                     )
 
                     target = (
