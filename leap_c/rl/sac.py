@@ -11,6 +11,7 @@ from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
+from leap_c.rl.utils import soft_target_update
 from leap_c.task import Task
 from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
 
@@ -242,11 +243,7 @@ class SacTrainer(Trainer):
                 self.pi_optim.step()
 
                 # soft updates
-                for q, q_target in zip(self.q.parameters(), self.q_target.parameters()):
-                    q_target.data = (
-                        self.cfg.sac.tau * q.data
-                        + (1 - self.cfg.sac.tau) * q_target.data
-                    )
+                soft_target_update(self.q, self.q_target, self.cfg.sac.tau)
 
                 report_freq = self.cfg.sac.report_loss_freq * self.cfg.sac.update_freq
 

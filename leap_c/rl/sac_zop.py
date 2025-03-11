@@ -16,14 +16,9 @@ from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.nn.modules import MpcSolutionModule
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
+from leap_c.rl.utils import soft_target_update
 from leap_c.task import Task
-from leap_c.trainer import (
-    BaseConfig,
-    LogConfig,
-    TrainConfig,
-    Trainer,
-    ValConfig,
-)
+from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
 
 
 @dataclass(kw_only=True)
@@ -292,9 +287,7 @@ class SacZopTrainer(Trainer):
 
                     # add entropy
                     factor = self.cfg.sac.entropy_reward_bonus / self.entropy_norm
-                    q_target = (
-                        q_target - alpha * pi_o_prime.log_prob * factor
-                    )
+                    q_target = q_target - alpha * pi_o_prime.log_prob * factor
 
                     target = (
                         r[:, None] + self.cfg.sac.gamma * (1 - te[:, None]) * q_target
@@ -317,11 +310,7 @@ class SacZopTrainer(Trainer):
                 self.pi_optim.step()
 
                 # soft updates
-                for q, q_target in zip(self.q.parameters(), self.q_target.parameters()):
-                    q_target.data = (
-                        self.cfg.sac.tau * q.data
-                        + (1 - self.cfg.sac.tau) * q_target.data
-                    )
+                soft_target_update(self.q, self.q_target, self.cfg.sac.tau)
 
                 report_freq = self.cfg.sac.report_loss_freq * self.cfg.sac.update_freq
 
