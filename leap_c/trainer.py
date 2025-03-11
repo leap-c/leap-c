@@ -323,6 +323,8 @@ class Trainer(ABC, nn.Module):
 
     def run(self) -> float:
         """Call this function in your script to start the training loop."""
+        self.to(self.device)
+
         train_loop_iter = self.train_loop()
 
         while self.state.step < self.cfg.train.steps:

@@ -52,7 +52,7 @@ class SacZopAlgorithmConfig:
     tau: float = 0.005
     soft_update_freq: int = 1
     lr_q: float = 1e-4
-    lr_pi: float = 1e-5  # set lower otherwise can become unstable
+    lr_pi: float = 3e-4  # this can be lowered to make it more stable
     lr_alpha: float = 1e-3  # 1e-4
     init_alpha: float = 0.1
     num_critics: int = 2
@@ -194,14 +194,14 @@ class SacZopTrainer(Trainer):
 
         self.q = SacCritic(
             task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
-        ).to(device)
+        )
         self.q_target = SacCritic(
             task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
-        ).to(device)
+        )
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = MpcSacActor(task, self.train_env, cfg.sac.actor_mlp).to(device)
+        self.pi = MpcSacActor(task, self.train_env, cfg.sac.actor_mlp)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(cfg.sac.init_alpha).log())  # type: ignore
@@ -212,8 +212,6 @@ class SacZopTrainer(Trainer):
         self.entropy_norm = param_dim / action_dim
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
-
-        self.to(device)
 
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
@@ -236,7 +234,9 @@ class SacZopTrainer(Trainer):
             self.report_stats("train_trajectory", {"action": action, "param": param})
             self.report_stats("train_policy_rollout", pi_output.stats)
 
-            obs_prime, reward, is_terminated, _, info = self.train_env.step(action)
+
+            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
+  
             if "episode" in info:
                 self.report_stats("train", info["episode"])
 
