@@ -10,6 +10,7 @@ from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 from scipy.spatial.transform import Rotation as R
 from os.path import dirname, abspath
 
+
 class QuadrotorStop(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
@@ -17,7 +18,7 @@ class QuadrotorStop(gym.Env):
             self,
             render_mode: str | None = None,
     ):
-        self.weight_position = 10
+        self.weight_position = 1
         self.fig, self.axes = None, None
 
         self.model_params = read_from_yaml(dirname(abspath(__file__)) + "/model_params.yaml")
@@ -33,7 +34,7 @@ class QuadrotorStop(gym.Env):
 
         x_high = np.array(
             [
-                100.0, 100.0, 100.0,  # position
+                4.0, 4.0, 4.0,  # position
                 1.5, 1.5, 1.5, 1.5,  # quaternion
                 50, 50, 50,  # velocity
                 50, 50, 50,  # angular velocity
@@ -42,7 +43,7 @@ class QuadrotorStop(gym.Env):
         )
         x_low = np.array(
             [
-                -100.0, -100.0, -100.0,  # position
+                -4.0, -4.0, -4.0,  # position
                 -1, -1, -1, -1,  # quaternion
                 -50, -50, -50,  # velocity
                 -50, -50, -50,  # angular velocity
@@ -85,17 +86,20 @@ class QuadrotorStop(gym.Env):
 
         term = False
         trunc = False
-        # (all(self.x < self.x_high) and all(self.x > self.x_low)) and
-        if not bool(np.isnan(self.x).sum()) and (self.x[7:10].sum() <= 1000) and (self.x[7:10].sum() >= -1000):
-            if np.isnan(self.x).sum() >= 1:
-                print("Nans in state, should not happen")
-            r = - dt * (self.weight_position * np.linalg.norm(self.x[:3]))
 
-        else:
-            print(f"Truncation at time {self.t} with state {self.x}")
-            r = -1e5
+        if bool(np.isnan(self.x).sum()):  # or (self.x[7:10].sum() <= 1000) and (self.x[7:10].sum() >= -1000):
+            print(f"Truncation due to nans at time {self.t} with state {self.x}")
+            r = -10
             trunc = True
             term = True
+
+        elif (any(self.x > self.x_high) or any(self.x < self.x_low)):
+            print(f"Truncation due to state limits at time {self.t} with state {self.x}")
+            r = -10
+            trunc = True
+            term = True
+        else:
+            r = dt * (self.weight_position * (2 - np.linalg.norm(self.x[:3])))
 
         if self.t >= self.sim_params["t_sim"]:
             term = True
@@ -163,7 +167,7 @@ class QuadrotorStop(gym.Env):
 
             axes[0, 2].plot(self.time_steps, trajectory[:, 2])
             axes[0, 2].hlines(0, 0, self.sim_params["t_sim"], colors='tab:green', linestyles='dashed')
-            #axes[0, 2].hlines(self.model_params["bound_z"], 0, self.sim_params["t_sim"], colors='tab:red',
+            # axes[0, 2].hlines(self.model_params["bound_z"], 0, self.sim_params["t_sim"], colors='tab:red',
             #                  linestyles='dashed')
             axes[0, 2].set_title(r"position $p_z$")
             axes[0, 2].set_xlabel("time (s)")
@@ -200,7 +204,7 @@ class QuadrotorStop(gym.Env):
             axes[2, 2].set_xlabel("time (s)")
             axes[2, 2].set_title(r"angular velocity $\omega_z$")
 
-            axes[3, 0].plot(self.time_steps[:-1], action_trajectory[:,0])
+            axes[3, 0].plot(self.time_steps[:-1], action_trajectory[:, 0])
             axes[3, 0].plot(self.time_steps[:-1], action_trajectory[:, 1])
             axes[3, 0].plot(self.time_steps[:-1], action_trajectory[:, 2])
             axes[3, 0].plot(self.time_steps[:-1], action_trajectory[:, 3])
@@ -222,7 +226,7 @@ class QuadrotorStop(gym.Env):
             plt.tight_layout()
             plt.show()
         else:
-            image_size = (2*512,2* 512)
+            image_size = (2 * 512, 2 * 512)
             x, y, z, qw, qx, qy, qz = self.x[0:7]
 
             # Convert quaternion to rotation matrix
@@ -231,7 +235,7 @@ class QuadrotorStop(gym.Env):
 
             # Define drone body (a simple cube centered at (x, y, z))
             drone_size = 0.5  # Arbitrary size
-            size_half = drone_size/2
+            size_half = drone_size / 2
             height_hlf = 0.1
             cube_vertices = np.array([
                 [-size_half, -size_half, -height_hlf],
@@ -272,11 +276,11 @@ class QuadrotorStop(gym.Env):
             ax.quiver(*origin, *(transformed_axes[0] - origin), color='r', label="X-axis")
             ax.quiver(*origin, *(transformed_axes[1] - origin), color='g', label="Y-axis")
             ax.quiver(*origin, *(transformed_axes[2] - origin), color='b', label="Z-axis")
-            ax.scatter(0,0,0, color='black', label="Origin")
+            ax.scatter(0, 0, 0, color='black', label="Origin")
 
             # Draw planar surface at z = 0.25
-            plane_size = 2.0   # Size of the ground plane
-            plane_z = self.model_params["bound_z"] + drone_size/2  # Fixed height for the plane
+            plane_size = 2.0  # Size of the ground plane
+            plane_z = self.model_params["bound_z"] + drone_size / 2  # Fixed height for the plane
             plane_vertices = np.array([
                 [-plane_size, -plane_size, plane_z],
                 [plane_size, -plane_size, plane_z],
@@ -309,6 +313,7 @@ class QuadrotorStop(gym.Env):
 
             plt.close(fig)  # Close the figure to avoid memory leaks
             return image
+
 
 # execute as main to test
 if __name__ == "__main__":

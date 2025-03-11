@@ -6,7 +6,7 @@ from typing import Dict, List
 import casadi as ca
 import numpy as np
 import scipy
-from acados_template import AcadosOcp, AcadosOcpSolver, AcadosOcpIterate
+from acados_template import AcadosOcp, AcadosOcpSolver, AcadosOcpIterate, AcadosOcpFlattenedIterate
 from casadi.tools import struct_symSX
 
 from leap_c.examples.quadrotor.casadi_models import get_rhs_quadrotor
@@ -69,15 +69,15 @@ class QuadrotorMpc(Mpc):
 
         self.given_default_param_dict = params
 
-        with open(dirname(abspath(__file__)) + "/init_iterate.json", "r") as file:
-            init_iterate = json.load(file)  # Parse JSON into a Python dictionary
-            init_iterate = parse_ocp_iterate(init_iterate, N=N_horizon)
+        # with open(dirname(abspath(__file__)) + "/init_iterateN5.json", "r") as file:
+        #     init_iterate = json.load(file)  # Parse JSON into a Python dictionary
+        #     init_iterate = parse_ocp_iterate(init_iterate, N=N_horizon)
+        #
+        # def initialize_default(mpc_input: MpcInput):
+        #     init_iterate.x_traj = [mpc_input.x0] * (ocp.solver_options.N_horizon + 1)
+        #     return init_iterate
 
-        def initialize_default(mpc_input: MpcInput):
-            init_iterate.x_traj = [mpc_input.x0] * (ocp.solver_options.N_horizon + 1)
-            return init_iterate
-
-        init_state_fn = initialize_default
+        # init_state_fn = initialize_default
         # Convert dictionary to a namedtuple
 
         super().__init__(
@@ -85,7 +85,7 @@ class QuadrotorMpc(Mpc):
             ocp_sensitivity=ocp_sens,
             discount_factor=discount_factor,
             n_batch=n_batch,
-            init_state_fn=init_state_fn,
+            init_state_fn=None,
         )
 
 
@@ -96,7 +96,6 @@ def export_parametric_ocp(
         params_learnable: list[str] | None = None,
 ) -> AcadosOcp:
     ocp = AcadosOcp()
-    param_external_cost = (params_learnable is not None) and ("terminal_cost" in params_learnable)
 
     ######## Dimensions ########
     dt = 0.04  # 0.005
@@ -142,20 +141,20 @@ def export_parametric_ocp(
     Vu[nx: nx + nu, :] = np.eye(nu)
     ocp.cost.Vu = Vu
 
-    # terminal cost
-    if param_external_cost:
+    # append terminal cost values if learnable
+    if params_learnable is not None and "terminal_cost" in params_learnable:
         q_e_diag_sqrt = ca.SX.sym("q_e_diag", nx)
         Q_sqrt_e = ca.diag(q_e_diag_sqrt)
         xref_e = ca.SX.sym("xref_e", nx)
         ocp.model.p_global = ca.vertcat(ocp.model.p_global, q_e_diag_sqrt, xref_e)
         xref_e_par = np.zeros(nx)
         xref_e_par[3] = 1
-        ocp.p_global_values = np.concatenate([ocp.p_global_values, (100 * np.diag(Q))**(1/2), xref_e_par])
+        ocp.p_global_values = np.concatenate([ocp.p_global_values, (100 * np.diag(Q)) ** (1 / 2), xref_e_par])
 
         ocp.model.cost_expr_ext_cost_e = 0.5 * ca.mtimes([ca.transpose(x - xref_e), Q_sqrt_e.T, Q_sqrt_e, x - xref_e])
         ocp.cost.cost_type_e = "EXTERNAL"
     else:
-        Qe = 100 * Q
+        Qe = 10 * Q
         ocp.cost.W_e = Qe
         Vx_e = np.zeros((ny_e, nx))
         Vx_e[:nx, :nx] = np.eye(nx)
@@ -201,47 +200,6 @@ def export_parametric_ocp(
         set_standard_sensitivity_options(ocp)
 
     return ocp
-
-
-def parse_ocp_iterate(data: Dict[str, List[float]], N=None) -> AcadosOcpIterate:
-    """
-    Parses the given JSON-like dictionary into an instance of AcadosOcpIterate.
-
-    Args:
-        data (dict): The input dictionary containing state, control, and dual variables.
-
-    Returns:
-        AcadosOcpIterate: The parsed iterate structure.
-    """
-    # Extract state trajectory
-    x_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("x_")]
-    # Extact control trajectory
-    u_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("u_")]
-    # Extract dual variables
-    pi_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("pi_")]
-    #lam_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("lam_")]
-    sl_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("sl_")]
-    su_traj = [np.array(data[key]) for key in sorted(data.keys()) if key.startswith("su_")]
-
-    if N is not None and len(x_traj) < N + 1:
-        for i in range((N + 1) - len(x_traj)):
-            x_traj.append(copy(x_traj[-1]))
-            pi_traj.append(copy(pi_traj[-1]))
-   #         lam_traj.append(copy(lam_traj[-1]))
-            u_traj.append(copy(u_traj[-1]))
-
-    # Assuming `z_traj` is empty since there's no "z_" in the given data
-    z_traj = []
-
-    return AcadosOcpIterate(
-        x_traj=x_traj,
-        u_traj=u_traj,
-        z_traj=z_traj,
-        sl_traj=sl_traj,
-        su_traj=su_traj,
-        pi_traj=pi_traj,
-        lam_traj=[],
-    )
 
 
 def disc_dyn_expr(rhs, x, u, p, dt: float) -> ca.SX:
