@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from typing import Callable
 
 import torch
 import torch.nn as nn
@@ -18,10 +19,24 @@ def string_to_activation(activation: str) -> nn.Module:
         raise ValueError(f"Activation function {activation} not recognized.")
 
 
+def orthogonal_init(module: nn.Module) -> None:
+    if isinstance(module, nn.Linear):
+        nn.init.orthogonal_(module.weight.data)
+        module.bias.data.fill_(0.0)
+
+
+def string_to_weight_init(weight_init: str) -> Callable[[nn.Module], None]:
+    if weight_init == "orthogonal":
+        return orthogonal_init
+    else:
+        raise ValueError(f"Weight initialization {weight_init} not recognized.")
+
+
 @dataclass(kw_only=True)
 class MlpConfig:
     hidden_dims: Sequence[int] = (256, 256, 256)
     activation: str = "relu"
+    weight_init: str | None = "orthogonal"  # If None, no init will be used
 
 
 class MLP(nn.Module):
@@ -68,7 +83,8 @@ class MLP(nn.Module):
 
         self.mlp = nn.Sequential(*layers[:-1])
 
-        self.mlp.apply(weight_init)
+        if mlp_cfg.weight_init is not None:
+            self.mlp.apply(string_to_weight_init(mlp_cfg.weight_init))
 
     def forward(self, *x: torch.Tensor) -> torch.Tensor | tuple[torch.Tensor, ...]:
         if isinstance(x, tuple):
@@ -79,9 +95,3 @@ class MLP(nn.Module):
             return y
         y = torch.split(y, self._output_dims, dim=-1)
         return y
-
-
-def weight_init(tensor):
-    if isinstance(tensor, nn.Linear):
-        nn.init.orthogonal_(tensor.weight.data)
-        tensor.bias.data.fill_(0.0)
