@@ -75,10 +75,10 @@ class ChainTask(Task):
     def create_env(self, train: bool) -> gym.Env:
         if train:
             phi_range = (0.5 * np.pi, 1.5 * np.pi)
-            theta_range = (0 * np.pi, 1 * np.pi)
+            theta_range = (-0.1 * np.pi, 0.1 * np.pi)
         else:
             phi_range = (0.9 * np.pi, 1.1 * np.pi)
-            theta_range = (0.45 * np.pi, 0.55 * np.pi)
+            theta_range = (-0.1 * np.pi, 0.1 * np.pi)
 
         return ChainEnv(
             max_time=10.0,
