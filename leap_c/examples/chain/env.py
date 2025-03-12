@@ -282,9 +282,9 @@ class ChainEnv(gym.Env):
         return self.state
 
     def _init_state_and_action(self):
-        phi = self.rng.uniform(self.phi_range[0], self.phi_range[1])
-        theta = self.rng.uniform(self.theta_range[0], self.theta_range[1])
-        p_last = self.ellipsoid.spherical_to_cartesian(phi=phi, theta=theta)
+        phi = self.rng.uniform(low=self.phi_range[0], high=self.phi_range[1])
+        theta = self.rng.uniform(low=self.theta_range[0], high=self.theta_range[1])
+        p_last = self.ellipsoid.spherical_to_cartesian(phi=phi, theta=theta).squeeze()
         x_ss, u_ss = self.resting_chain_solver(p_last=p_last)
 
         return x_ss, u_ss
