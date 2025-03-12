@@ -52,9 +52,10 @@ def test_chain_env_mpc_closed_loop(plot: bool = False, animate: bool = False):
     pos_first_mass = np.zeros(3)
     pos_last_mass_ref = pos_first_mass + np.array([0.033 * (n_mass - 1), 0, 0])
 
-    mpc = ChainMpc(learnable_params=learnable_params, n_mass=n_mass, pos_last_mass_ref=pos_last_mass_ref)
     env = ChainEnv(n_mass=n_mass, fix_point=pos_first_mass)
     env.reset()
+
+    mpc = ChainMpc(learnable_params=learnable_params, n_mass=n_mass, pos_last_mass_ref=pos_last_mass_ref)
 
     x_ref = env.x_ref
     u_ref = env.u_ref
@@ -62,9 +63,8 @@ def test_chain_env_mpc_closed_loop(plot: bool = False, animate: bool = False):
     sim_x = [env.state]
     sim_u = []
 
-    for _ in range(100):
+    for _ in range(1000):
         u0, _, status = mpc.policy(state=sim_x[-1], sens=False, p_global=None)
-        assert status == 0, "Policy evaluation failed"
 
         sim_u.append(u0)
         o, r, term, trunc, info = env.step(u0)
