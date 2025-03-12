@@ -1,5 +1,6 @@
 from abc import ABC
 from copy import deepcopy
+from collections import defaultdict
 from dataclasses import fields
 from enum import IntEnum
 from functools import cached_property
@@ -385,11 +386,12 @@ def _solve_shared(
     solve_stats = dict()
 
     if isinstance(solver, AcadosOcpSolver):
+        status = solver.status
         solve_stats["sqp_iter"] = solver.get_stats("sqp_iter")
         solve_stats["qp_iter"] = solver.get_stats("qp_iter").sum()  # type:ignore
         solve_stats["time_tot"] = solver.get_stats("time_tot")
+
         if backup_fn is not None and iterate is not None and solver.status != 0:
-            first_solve_status = solver.status
             # Reattempt with backup
             initialize_ocp_solver(
                 ocp_solver=solver,
@@ -399,34 +401,43 @@ def _solve_shared(
                 throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
             )
             solver.solve()
+
+            backup_status = solver.status
             solve_stats["sqp_iter"] += solver.get_stats("sqp_iter")
             solve_stats["qp_iter"] += solver.get_stats("qp_iter").sum()  # type:ignore
             solve_stats["time_tot"] += solver.get_stats("time_tot")
-            for status_enum in AcadosStatus:
-                solve_stats[f"first_solve_status_{status_enum.name.lower()}"] = int(first_solve_status == status_enum.value)
+        else:
+            backup_status = None
 
-        status = solver.status
         for status_enum in AcadosStatus:
-            solve_stats[f"status_{status_enum.name.lower()}"] = int(status == status_enum.value)
+            name = status_enum.name.lower()
+            solve_stats[f"status_{name}"] = int(status == status_enum.value)
+
+            if backup_status is not None:
+                solve_stats[f"backup_status_{name}"] = int(backup_status == status_enum.value)
+
+            solve_stats["backup_rate"] = 1.0 if backup_status is not None else 0.0
 
     elif isinstance(solver, AcadosOcpBatchSolver):
-        first_solve_status_batch = []
-        sqp_iter_batch = []
-        qp_iter_batch = []
-        time_tot_batch = []
+        batch_size = mpc_input.x0.shape[0]
+        stats_batch = defaultdict(list)
+        status_batch = []
+        backup_status_batch = []
         any_failed = False
+
         for i, ocp_solver in enumerate(solver.ocp_solvers):
+            # TODO (Jasper): Providing batch statistics could be moved to acados
             status = ocp_solver.status
-            first_solve_status_batch.append(status)
-            sqp_iter_batch.append(ocp_solver.get_stats("sqp_iter"))
-            qp_iter_batch.append(ocp_solver.get_stats("qp_iter").sum())  # type:ignore
-            time_tot_batch.append(ocp_solver.get_stats("time_tot"))
+            status_batch.append(status)
+            stats_batch["sqp_iter"].append(ocp_solver.get_stats("sqp_iter"))
+            stats_batch["qp_iter"].append(ocp_solver.get_stats("qp_iter").sum())  # type:ignore
+            stats_batch["time_tot"].append(ocp_solver.get_stats("time_tot"))
             if status != 0:
                 any_failed = True
 
         if any_failed and backup_fn is not None and iterate is not None:  # Reattempt with backup
             for i, ocp_solver in enumerate(solver.ocp_solvers):
-                if first_solve_status_batch[i] != 0:
+                if status_batch[i] != 0:
                     single_input = mpc_input.get_sample(i)
                     initialize_ocp_solver(
                         ocp_solver=ocp_solver,
@@ -435,44 +446,44 @@ def _solve_shared(
                         set_params=False,
                         throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
                     )
+            # TODO (Jasper): We also resolve when it already converged...
             solver.solve()
-            for i, ocp_solver in enumerate(solver.ocp_solvers):
-                if first_solve_status_batch[i] == 0:
-                    # Only update the stats if a resolve was attempted
-                    continue
-                sqp_iter_batch[i] += ocp_solver.get_stats("sqp_iter")
-                qp_iter_batch[i] += ocp_solver.get_stats("qp_iter").sum()  # type:ignore
-                time_tot_batch[i] += ocp_solver.get_stats("time_tot")
-            solve_stats["solved_by_reattempt"] = int((first_solve_status_batch != AcadosStatus.ACADOS_SUCCESS.value)) - int(
-                status != AcadosStatus.ACADOS_SUCCESS.value
-            )
 
-            # report each status individually
-            first_solve_status_batch = np.array(first_solve_status_batch)
-            for i, status_enum in enumerate(AcadosStatus):
-                solve_stats[f"first_solve_status_{status_enum.name.lower()}"] = int(
-                    (first_solve_status_batch == status_enum.value).sum()
-                )
-            status = np.array([ocp_solver.status for ocp_solver in solver.ocp_solvers])
-            solve_stats["solved_by_reattempt"] = int(
-                (first_solve_status_batch != AcadosStatus.ACADOS_SUCCESS.value).sum()
-                - (status != AcadosStatus.ACADOS_SUCCESS.value).sum()
-            )
-        else:
-            status = np.array(first_solve_status_batch)
+            reattempts = 0
+
+            for i, ocp_solver in enumerate(solver.ocp_solvers):
+                # Only update the stats if a resolve was attempted
+                if status_batch[i] == 0:
+                    continue
+                reattempts += 1
+                stats_batch["sqp_iter"][i] += ocp_solver.get_stats("sqp_iter")
+                stats_batch["qp_iter"][i] += ocp_solver.get_stats("qp_iter").sum()  # type:ignore
+                stats_batch["time_tot"][i] += ocp_solver.get_stats("time_tot")  # type:ignore
+
+                backup_status_batch.append(ocp_solver.status)
+
+            solve_stats["backup_rate"] = reattempts / batch_size
+
+        # report each status individually
+        status_batch = np.array(status_batch)
+        backup_status_batch = np.array(backup_status_batch)
 
         for i, status_enum in enumerate(AcadosStatus):
-            solve_stats[f"status_{status_enum.name.lower()}"] = int((status == status_enum.value).sum())
+            name = status_enum.name.lower()
 
-        solve_stats["avg_sqp_iter"] = sum(sqp_iter_batch) / len(sqp_iter_batch)
-        solve_stats["avg_qp_iter"] = sum(qp_iter_batch) / len(qp_iter_batch)
-        solve_stats["avg_time_tot"] = sum(time_tot_batch) / len(time_tot_batch)
-        solve_stats["max_sqp_iter"] = max(sqp_iter_batch)
-        solve_stats["max_qp_iter"] = max(qp_iter_batch)
-        solve_stats["max_time_tot"] = max(time_tot_batch)
-        solve_stats["min_sqp_iter"] = min(sqp_iter_batch)
-        solve_stats["min_qp_iter"] = min(qp_iter_batch)
-        solve_stats["min_time_tot"] = min(time_tot_batch)
+            n_equal = (status_batch == status_enum.value).sum()
+            solve_stats[f"status_{name}"] = float(n_equal / batch_size)
+
+            if len(backup_status_batch) > 0:
+                backup_n_equal = (backup_status_batch == status_enum.value).sum()
+                solve_stats[f"backup_status_{name}"] = float(backup_n_equal / len(backup_status_batch))
+
+        # report batch statistics with avg, min, max
+        for key, values in stats_batch.items():
+            values = np.array(values)
+            solve_stats[f"{key}_avg"] = values.mean()
+            solve_stats[f"{key}_min"] = values.min()
+            solve_stats[f"{key}_max"] = values.max()
     else:
         raise ValueError(f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(solver)}.")
 
@@ -497,6 +508,7 @@ def _solve_shared(
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
         )
         sensitivity_solver.setup_qp_matrices_and_factorize()
+
     return solve_stats
 
 
