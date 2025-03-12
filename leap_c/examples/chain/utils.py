@@ -413,20 +413,35 @@ def define_param_struct(n_mass: int) -> struct_symSX:
             entry("L", shape=(3,), repeat=n_mass - 1),
             entry("C", shape=(3,), repeat=n_mass - 1),
             entry("w", shape=(3,), repeat=n_mass - 2),
-            entry("p_first", shape=(3,)),
+            entry("fix_point", shape=(3,)),
             entry("p_last", shape=(3,)),
         ]
     )
 
 
+def nominal_params_to_structured_nominal_params(nominal_params: dict[str, np.ndarray]) -> dict:
+    n_mass = nominal_params["m"].shape[0] + 1
+    structured_nominal_params = {}
+    for key in ["D", "L", "C"]:
+        structured_nominal_params[key] = [nominal_params[key][3 * i : 3 * (i + 1)] for i in range(n_mass - 1)]
+
+    for key in ["m"]:
+        structured_nominal_params[key] = [nominal_params[key][i] for i in range(n_mass - 1)]
+
+    for key in ["w"]:
+        structured_nominal_params[key] = [nominal_params[key][3 * i : 3 * (i + 1)] for i in range(n_mass - 2)]
+
+    return structured_nominal_params
+
+
 class RestingChainSolver:
-    def __init__(self, n_mass: int, p_first: np.ndarray, f_expl_expr: Callable):
+    def __init__(self, n_mass: int, fix_point: np.ndarray, f_expl_expr: Callable):
         super().__init__()
         self.n_mass = n_mass
         self.f_expl_expr = f_expl_expr
         self.nlp_solver, x0, p0 = self.define_nlp_solver(n_mass=n_mass, f_expl_expr=f_expl_expr)
 
-        p0["p_first"] = p_first
+        p0["fix_point"] = fix_point
         for i_mass in range(n_mass - 1):
             p0["m", i_mass] = 0.033
             p0["D", i_mass] = np.array([1.0, 1.0, 1.0])
@@ -436,7 +451,7 @@ class RestingChainSolver:
         for i_pos in range(len(x0["pos"])):
             x0["pos", i_pos] = x0["pos", 0] + p0["L", i_pos] * (i_pos + 1)
 
-        p0["p_last"] = p0["p_first"] + np.array([1.0, 0.0, 0.0])
+        p0["p_last"] = p0["fix_point"] + np.array([1.0, 0.0, 0.0])
 
         self.x0 = x0
         self.p0 = p0
@@ -479,7 +494,8 @@ class RestingChainSolver:
 
         g = vertcat(
             *[
-                xdot - f_expl_expr(x=x, u=u, p={key: vertcat(*p[key]) for key in ["m", "D", "L", "C", "w"]}, x0=p["p_first"]),
+                xdot
+                - f_expl_expr(x=x, u=u, p={key: vertcat(*p[key]) for key in ["m", "D", "L", "C", "w"]}, x0=p["fix_point"]),
                 x["pos", -1] - p["p_last"],
                 u,
             ]
