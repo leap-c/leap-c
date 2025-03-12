@@ -434,14 +434,42 @@ def nominal_params_to_structured_nominal_params(nominal_params: dict[str, np.nda
     return structured_nominal_params
 
 
-class RestingChainSolver:
-    def __init__(self, n_mass: int, fix_point: np.ndarray, f_expl_expr: Callable):
-        super().__init__()
-        self.n_mass = n_mass
-        self.f_expl_expr = f_expl_expr
-        self.nlp_solver, x0, p0 = self.define_nlp_solver(n_mass=n_mass, f_expl_expr=f_expl_expr)
+def _define_nlp_solver(n_mass: int, f_expl: Callable) -> Callable:
+    x = struct_symSX(
+        [
+            entry("pos", shape=(3, 1), repeat=n_mass - 1),
+            entry("vel", shape=(3, 1), repeat=n_mass - 2),
+        ]
+    )
 
-        p0["fix_point"] = fix_point
+    xdot = ca.SX.sym("xdot", x.cat.shape)
+
+    u = ca.SX.sym("u", 3, 1)
+
+    p = define_param_struct(n_mass=n_mass)
+    # decision variables
+    w = vertcat(*[x.cat, xdot, u])
+
+    g = vertcat(
+        *[
+            xdot - f_expl(x=x, u=u, p={key: vertcat(*p[key]) for key in ["m", "D", "L", "C", "w"]}, x0=p["fix_point"]),
+            x["pos", -1] - p["p_last"],
+            u,
+        ]
+    )
+
+    nlp = {"x": w, "f": 0, "g": g, "p": p.cat}
+
+    return ca.nlpsol("solver", "ipopt", nlp), x(0), p(0)
+
+
+class RestingChainSolver:
+    def __init__(self, n_mass: int, fix_point: np.ndarray, f_expl: Callable):
+        self.n_mass = n_mass
+        self.f_expl = f_expl
+        self.nlp_solver, x0, p0 = _define_nlp_solver(n_mass=n_mass, f_expl=f_expl)
+
+        p0["fix_point"] = fix_point  # Anchor point of the chain. See f_expl for more details.
         for i_mass in range(n_mass - 1):
             p0["m", i_mass] = 0.033
             p0["D", i_mass] = np.array([1.0, 1.0, 1.0])
@@ -474,33 +502,3 @@ class RestingChainSolver:
         u_ss = sol["x"].full()[-3:].flatten()
 
         return x_ss, u_ss
-
-    @abstractmethod
-    def define_nlp_solver(self, n_mass: int, f_expl_expr: Callable) -> Callable:
-        x = struct_symSX(
-            [
-                entry("pos", shape=(3, 1), repeat=n_mass - 1),
-                entry("vel", shape=(3, 1), repeat=n_mass - 2),
-            ]
-        )
-
-        xdot = ca.SX.sym("xdot", x.cat.shape)
-
-        u = ca.SX.sym("u", 3, 1)
-
-        p = define_param_struct(n_mass=n_mass)
-        # decision variables
-        w = vertcat(*[x.cat, xdot, u])
-
-        g = vertcat(
-            *[
-                xdot
-                - f_expl_expr(x=x, u=u, p={key: vertcat(*p[key]) for key in ["m", "D", "L", "C", "w"]}, x0=p["fix_point"]),
-                x["pos", -1] - p["p_last"],
-                u,
-            ]
-        )
-
-        nlp = {"x": w, "f": 0, "g": g, "p": p.cat}
-
-        return ca.nlpsol("solver", "ipopt", nlp), x(0), p(0)
