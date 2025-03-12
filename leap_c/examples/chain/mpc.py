@@ -158,7 +158,7 @@ def export_parametric_ocp(
     ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp.model, tf / N_horizon)
     ocp.model.name = name
 
-    resting_chain_solver = RestingChainSolver(n_mass=n_mass, fix_point=fix_point, f_expl_expr=get_f_expl_expr)
+    resting_chain_solver = RestingChainSolver(n_mass=n_mass, fix_point=fix_point, f_expl=get_f_expl_expr)
 
     structured_nominal_params = nominal_params_to_structured_nominal_params(nominal_params=nominal_params)
     for i in range(n_mass - 1):

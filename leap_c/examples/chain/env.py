@@ -206,7 +206,7 @@ class ChainEnv(gym.Env):
 
         self.trajectory = []
 
-        self.resting_chain_solver = RestingChainSolver(n_mass=n_mass, fix_point=self.fix_point, f_expl_expr=get_f_expl_expr)
+        self.resting_chain_solver = RestingChainSolver(n_mass=n_mass, fix_point=self.fix_point, f_expl=get_f_expl_expr)
 
         self.x_ref, self.u_ref = self.resting_chain_solver(p_last=self.pos_last_ref)
 
