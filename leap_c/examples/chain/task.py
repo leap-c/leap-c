@@ -1,10 +1,12 @@
 from typing import Any, Optional
+
 import gymnasium as gym
 import numpy as np
 import torch
 from gymnasium import spaces
-from leap_c.examples.chain.mpc import ChainMpc
+
 from leap_c.examples.chain.env import ChainEnv
+from leap_c.examples.chain.mpc import ChainMpc
 from leap_c.examples.chain.utils import Ellipsoid
 from leap_c.mpc import MpcInput, MpcParameter
 from leap_c.nn.modules import MpcSolutionModule
