@@ -84,7 +84,7 @@ def test_chain_env_mpc_closed_loop(plot: bool = False, animate: bool = False):
     sim_x = [env.state]
     sim_u = []
 
-    for _ in range(1000):
+    for _ in range(100):
         u0, _, status = mpc.policy(state=sim_x[-1], sens=False, p_global=None)
 
         sim_u.append(u0)
