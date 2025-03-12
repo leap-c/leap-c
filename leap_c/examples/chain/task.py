@@ -15,7 +15,7 @@ from leap_c.task import Task
 
 
 @register_task("chain")
-class PointMassTask(Task):
+class ChainTask(Task):
     def __init__(self):
         n_mass = 5
         params = {}
