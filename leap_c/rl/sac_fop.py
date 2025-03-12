@@ -290,9 +290,7 @@ class SacFopTrainer(Trainer):
                 # soft updates
                 soft_target_update(self.q, self.q_target, self.cfg.sac.tau)
 
-                report_freq = self.cfg.sac.report_loss_freq * self.cfg.sac.update_freq
-
-                if self.state.step % report_freq == 0:
+                if self.state.step % self.cfg.sac.report_loss_freq == 0:
                     loss_stats = {
                         "q_loss": q_loss.item(),
                         "pi_loss": pi_loss.item(),

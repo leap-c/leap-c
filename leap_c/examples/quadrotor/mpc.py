@@ -30,7 +30,7 @@ class QuadrotorMpc(Mpc):
             self,
             params: dict[str, np.ndarray] | None = None,
             discount_factor: float = 0.99,
-            n_batch: int = 64,
+            n_batch: int = 256,
             N_horizon: int = 3,
             params_learnable: list[str] | None = None,
     ):
