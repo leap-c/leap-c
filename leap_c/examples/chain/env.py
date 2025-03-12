@@ -224,7 +224,7 @@ class ChainEnv(gym.Env):
         # self.ellipsoid_center = self.fix_point
         # self.ellispoid_variability_matrix = np.diag()
 
-        # self._set_canvas()
+        self._set_canvas()
 
         # For rendering
         # if render_mode is not None:
@@ -274,7 +274,7 @@ class ChainEnv(gym.Env):
         self.canvas = None
         self.line = None
 
-        # self._set_canvas()
+        self._set_canvas()
 
         return self.state, {}
 
@@ -299,7 +299,10 @@ class ChainEnv(gym.Env):
         return norm_2(self.x_ref - self.state) < 1e-3
 
     def _set_canvas(self):
-        pass
+        fig = plt.figure(figsize=(10, 10))
+        plt.xlabel("x")
+        plt.ylabel("y")
 
     def render(self):
-        pass
+        # Create a blank (zeros = black) RGB array
+        return np.zeros((300, 400, 3), dtype=np.uint8)
