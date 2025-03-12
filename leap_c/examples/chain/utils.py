@@ -526,7 +526,7 @@ class Ellipsoid:
         ax.plot(points[..., 0], points[..., 1], points[..., 2], "o", color="r")
         return fig
 
-    def spherical_to_cartesian(self, phi: np.ndarray, theta: np.ndarray) -> np.ndarray:
+    def spherical_to_cartesian(self, phi: np.ndarray | float, theta: np.ndarray | float) -> np.ndarray:
         x = np.outer(np.cos(phi), np.sin(theta))
         y = np.outer(np.sin(phi), np.sin(theta))
         z = np.outer(np.ones_like(phi), np.cos(theta))
@@ -536,7 +536,12 @@ class Ellipsoid:
         s = v @ np.diag(np.sqrt(e)) @ v.T
 
         bias = np.array([10, 0, 0])
-        return (s @ sphere).squeeze(-1) + bias
+        out = (s @ sphere).squeeze(-1) + bias
+
+        if type(phi) is float:
+            return out.squeeze()
+
+        return out
 
     def sample_within_range(self, phi_range: list[float, float], theta_range: list[float, float], size: int) -> np.ndarray:
         phi = self.rng.uniform(low=phi_range[0], high=phi_range[1], size=size)
