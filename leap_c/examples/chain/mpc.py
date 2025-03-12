@@ -10,13 +10,16 @@ from casadi import SX, norm_2, vertcat
 from casadi.tools import entry, struct_symSX
 from casadi.tools.structure3 import DMStruct, ssymStruct
 
-from leap_c.examples.chain.utils import plot_steady_state, RestingChainSolver, define_param_struct
+from leap_c.examples.chain.utils import (
+    RestingChainSolver,
+    nominal_params_to_structured_nominal_params,
+    plot_steady_state,
+)
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
 from leap_c.mpc import Mpc, MpcBatchedState, MpcInput, MpcSingleState
-import matplotlib.pyplot as plt
 
 
 class ChainMpc(Mpc):
@@ -33,29 +36,38 @@ class ChainMpc(Mpc):
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
         throw_error_if_u0_is_outside_ocp_bounds: bool = True,
+        fix_point: np.ndarray | None = None,
+        pos_last_mass_ref: np.ndarray | None = None,
     ):
-        params = {}
+        if params is None:
+            params = {}
 
-        # rest length of spring
-        params["L"] = np.repeat([0.033, 0.033, 0.033], n_mass - 1)
+            # rest length of spring
+            params["L"] = np.repeat([0.033, 0.033, 0.033], n_mass - 1)
 
-        # spring constant
-        params["D"] = np.repeat([1.0, 1.0, 1.0], n_mass - 1)
+            # spring constant
+            params["D"] = np.repeat([1.0, 1.0, 1.0], n_mass - 1)
 
-        # damping constant
-        params["C"] = np.repeat([0.1, 0.1, 0.1], n_mass - 1)
+            # damping constant
+            params["C"] = np.repeat([0.1, 0.1, 0.1], n_mass - 1)
 
-        # mass of the balls
-        params["m"] = np.repeat([0.033], n_mass - 1)
+            # mass of the balls
+            params["m"] = np.repeat([0.033], n_mass - 1)
 
-        # disturbance on intermediate balls
-        params["w"] = np.repeat([0.0, 0.0, 0.0], n_mass - 2)
+            # disturbance on intermediate balls
+            params["w"] = np.repeat([0.0, 0.0, 0.0], n_mass - 2)
 
-        # Weight on state
-        params["q_sqrt_diag"] = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
+            # Weight on state
+            params["q_sqrt_diag"] = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
 
-        # Weight on control inputs
-        params["r_sqrt_diag"] = 1e-1 * np.ones(3)
+            # Weight on control inputs
+            params["r_sqrt_diag"] = 1e-1 * np.ones(3)
+
+        if fix_point is None:
+            fix_point = np.zeros(3)
+
+        if pos_last_mass_ref is None:
+            pos_last_mass_ref = fix_point + np.array([0.033 * (n_mass - 1), 0, 0])
 
         learnable_params = learnable_params if learnable_params is not None else []
 
@@ -65,7 +77,8 @@ class ChainMpc(Mpc):
             N_horizon=N_horizon,
             tf=T_horizon,
             n_mass=n_mass,
-            pos_first_mass=np.zeros(3),
+            fix_point=fix_point,
+            pos_last_mass_ref=pos_last_mass_ref,
         )
 
         set_ocp_solver_options(ocp, exact_hess_dyn)
@@ -112,7 +125,8 @@ def export_parametric_ocp(
     N_horizon: int = 30,  # noqa: N803
     tf: float = 6.0,
     n_mass: int = 5,
-    pos_first_mass: np.ndarray = np.array([0.0, 0.0, 0.0]),
+    fix_point: np.ndarray = np.array([0.0, 0.0, 0.0]),
+    pos_last_mass_ref: np.ndarray = np.array([1.0, 0.0, 0.0]),
 ) -> tuple[AcadosOcp, DMStruct]:
     # create ocp object to formulate the OCP
     ocp = AcadosOcp()
@@ -139,38 +153,30 @@ def export_parametric_ocp(
 
     p = find_param_in_p_or_p_global(["D", "L", "C", "m", "w"], ocp.model)
 
-    ocp.model.f_expl_expr = get_f_expl_expr(x=ocp.model.x, u=ocp.model.u, p=p, x0=pos_first_mass)
+    ocp.model.f_expl_expr = get_f_expl_expr(x=ocp.model.x, u=ocp.model.u, p=p, x0=fix_point)
     ocp.model.f_impl_expr = ocp.model.xdot - ocp.model.f_expl_expr
     ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp.model, tf / N_horizon)
     ocp.model.name = name
 
-    structured_nominal_params = {}
-    for key in ["D", "L", "C"]:
-        structured_nominal_params[key] = [nominal_params[key][3 * i : 3 * (i + 1)] for i in range(n_mass - 1)]
+    resting_chain_solver = RestingChainSolver(n_mass=n_mass, fix_point=fix_point, f_expl_expr=get_f_expl_expr)
 
-    for key in ["m"]:
-        structured_nominal_params[key] = [nominal_params[key][i] for i in range(n_mass - 1)]
-
-    for key in ["w"]:
-        structured_nominal_params[key] = [nominal_params[key][3 * i : 3 * (i + 1)] for i in range(n_mass - 2)]
-
-    resting_chain_solver = RestingChainSolver(n_mass=n_mass, p_first=pos_first_mass, f_expl_expr=get_f_expl_expr)
-
-    pos_last_mass = pos_first_mass + np.array([1.0, 0.0, 0.0])
-
+    structured_nominal_params = nominal_params_to_structured_nominal_params(nominal_params=nominal_params)
     for i in range(n_mass - 1):
         resting_chain_solver.set_mass_param(i, "D", structured_nominal_params["D"][i])
         resting_chain_solver.set_mass_param(i, "L", structured_nominal_params["L"][i])
         resting_chain_solver.set_mass_param(i, "C", structured_nominal_params["C"][i])
         resting_chain_solver.set_mass_param(i, "m", structured_nominal_params["m"][i])
 
-    resting_chain_solver.set("p_first", pos_first_mass)
-    resting_chain_solver.set("p_last", pos_last_mass)
+    resting_chain_solver.set("fix_point", fix_point)
 
-    x_ss, u_ss = resting_chain_solver(p_last=pos_last_mass)
+    # pos_last_mass = pos_first_mass + np.array([1.0, 0.0, 0.0])
+
+    resting_chain_solver.set("p_last", pos_last_mass_ref)
+
+    x_ss, u_ss = resting_chain_solver(p_last=pos_last_mass_ref)
 
     if False:
-        plot_steady_state(x_ss=x_ss, u_ss=u_ss, n_mass=n_mass, pos_first_mass=pos_first_mass)
+        plot_steady_state(x_ss=x_ss, u_ss=u_ss, n_mass=n_mass, pos_first_mass=fix_point)
 
     q_sqrt_diag = find_param_in_p_or_p_global(["q_sqrt_diag"], ocp.model)["q_sqrt_diag"]
     r_sqrt_diag = find_param_in_p_or_p_global(["r_sqrt_diag"], ocp.model)["r_sqrt_diag"]
