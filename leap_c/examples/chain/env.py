@@ -17,19 +17,6 @@ from leap_c.examples.chain.utils import (
 from dataclasses import dataclass
 
 
-@dataclass
-class NominalChainParams:
-    m: float = 0.033
-    D: tuple[float, float, float] = (1.0, 1.0, 1.0)
-    L: tuple[float, float, float] = (0.033, 0.033, 0.033)
-    C: tuple[float, float, float] = (0.1, 0.1, 0.1)
-    w: tuple[float, float, float] = (0.0, 0.0, 0.0)
-
-
-def get_chain_params(n_mass: int, nominal_chain_params: NominalChainParams) -> dict[str, np.ndarray]:
-    pass
-
-
 def _cont_f_expl(
     x: np.ndarray,
     u: np.ndarray,
