@@ -502,3 +502,44 @@ class RestingChainSolver:
         u_ss = sol["x"].full()[-3:].flatten()
 
         return x_ss, u_ss
+
+
+class Ellipsoid:
+    """docstring for Ellipsoid."""
+
+    def __init__(self, center: np.ndarray, radii: np.ndarray, seed: int = 0):
+        self.center = center
+        self.covariance = np.diag(1 // radii**2)
+        self.ellipsoid = self.spherical_to_cartesian(phi=np.linspace(0, 2 * np.pi, 100), theta=np.linspace(0, np.pi, 100))
+        self.seed = seed
+        self.rng = np.random.default_rng(seed)
+
+    def plot_surface(self) -> plt.Figure:
+        fig = plt.figure(figsize=plt.figaspect(1))
+        ax = fig.add_subplot(111, projection="3d")
+        ax.plot_wireframe(*self.ellipsoid.transpose(2, 0, 1), rstride=4, cstride=4, color="b", alpha=0.75)
+        return fig
+
+    def plot_points(self, points: np.ndarray) -> plt.Figure:
+        fig = self.plot_surface()
+        ax = fig.get_axes()[0]
+        ax.plot(points[..., 0], points[..., 1], points[..., 2], "o", color="r")
+        return fig
+
+    def spherical_to_cartesian(self, phi: np.ndarray, theta: np.ndarray) -> np.ndarray:
+        x = np.outer(np.cos(phi), np.sin(theta))
+        y = np.outer(np.sin(phi), np.sin(theta))
+        z = np.outer(np.ones_like(phi), np.cos(theta))
+        sphere = np.stack((x, y, z), axis=-1)[..., None]
+
+        e, v = np.linalg.eig(self.covariance)
+        s = v @ np.diag(np.sqrt(e)) @ v.T
+
+        bias = np.array([10, 0, 0])
+        return (s @ sphere).squeeze(-1) + bias
+
+    def sample_within_range(self, phi_range: list[float, float], theta_range: list[float, float], size: int) -> np.ndarray:
+        phi = self.rng.uniform(low=phi_range[0], high=phi_range[1], size=size)
+        theta = self.rng.uniform(low=theta_range[0], high=theta_range[1], size=size)
+
+        return self.spherical_to_cartesian(phi, theta)
