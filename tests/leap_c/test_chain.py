@@ -25,7 +25,7 @@ def test_chain_policy_evaluation_works():
 
 def test_chain_env_mpc_closed_loop(plot: bool = False, animate: bool = False):
     learnable_params = ["m", "D", "L", "C", "w"]
-    n_mass = 3
+    n_mass = 5
 
     params = {}
 
