@@ -69,12 +69,16 @@ def main(
 
     cfg.val.interval = 10_000
     cfg.train.steps = 1_000_000
-    cfg.sac.update_freq = 10
+    cfg.sac.update_freq = 1
     cfg.val.num_render_rollouts = 1
     cfg.log.wandb_logger = False
     cfg.log.tensorboard_logger = True
     cfg.sac.entropy_reward_bonus = False  # type: ignore
     cfg.sac.batch_size = 256
+    cfg.sac.lr_pi = 1e-4
+    cfg.sac.lr_q = 1e-4
+    cfg.sac.lr_alpha = 1e-3
+    cfg.sac.init_alpha = 0.10
 
     print_inputs(
         trainer_name=trainer_name,

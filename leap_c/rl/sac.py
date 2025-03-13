@@ -9,6 +9,7 @@ import torch.nn as nn
 
 from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.nn.mlp import MLP, MlpConfig
+from leap_c.nn.utils import normalize
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.rl.utils import soft_target_update
@@ -47,7 +48,7 @@ class SacAlgorithmConfig:
     soft_update_freq: int = 1
     lr_q: float = 1e-4
     lr_pi: float = 3e-4
-    lr_alpha: float = 1e-3  # 1e-4
+    lr_alpha: float = 1e-4
     init_alpha: float = 0.1
     entropy_reward_bonus: bool = True
     num_critics: int = 2
@@ -99,9 +100,11 @@ class SacCritic(nn.Module):
                 for qe in self.extractor
             ]
         )
+        self.action_space = env.action_space
 
     def forward(self, x: torch.Tensor, a: torch.Tensor):
-        return [mlp(qe(x), a) for qe, mlp in zip(self.extractor, self.mlp)]
+        a_norm = normalize(a, self.action_space)  # type: ignore
+        return [mlp(qe(x), a_norm) for qe, mlp in zip(self.extractor, self.mlp)]
 
 
 class SacActor(nn.Module):

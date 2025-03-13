@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, NamedTuple
 
 import gymnasium as gym
+from gymnasium import spaces
 import numpy as np
 import torch
 import torch.nn as nn
@@ -87,6 +88,17 @@ class SacFopActorOutput(NamedTuple):
     action: torch.Tensor
     status: torch.Tensor
     state_solution: MpcBatchedState
+
+    def select(self, mask: torch.Tensor) -> "SacFopActorOutput":
+        return SacFopActorOutput(
+            self.param[mask],
+            self.log_prob[mask],
+            None,  # type:ignore
+            self.action[mask],
+            self.status[mask],
+            None,  # type:ignore
+        )
+        
 
 
 class MpcSacActor(nn.Module):
@@ -206,6 +218,7 @@ class SacFopTrainer(Trainer):
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
+            # print("weight", param.item(), "log_prob", pi_output.log_prob.item())
             self.report_stats("train_trajectory", {"param": param, "action": action})
             self.report_stats("train_policy_rollout", pi_output.stats)
 
@@ -242,6 +255,25 @@ class SacFopTrainer(Trainer):
 
                 # sample action
                 pi_o = self.pi(o, ps_sol)
+                with torch.no_grad():
+                    pi_o_prime = self.pi(o_prime, ps_sol)
+
+                pi_o_stats = pi_o.stats
+
+                # compute mask
+                mask_status = (pi_o.status == 0) & (pi_o_prime.status == 0)
+
+
+                # reduce batch
+                o = o[mask_status]
+                a = a[mask_status]
+                r = r[mask_status]
+                o_prime = o_prime[mask_status]
+                te = te[mask_status]
+                pi_o = pi_o.select(mask_status)
+                pi_o_prime = pi_o_prime.select(mask_status)
+
+
                 log_p = pi_o.log_prob / self.entropy_norm
 
                 # update temperature
@@ -256,7 +288,6 @@ class SacFopTrainer(Trainer):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    pi_o_prime = self.pi(o_prime, ps_sol)
                     q_target = torch.cat(
                         self.q_target(o_prime, pi_o_prime.action), dim=1
                     )
@@ -264,6 +295,7 @@ class SacFopTrainer(Trainer):
 
                     # add entropy
                     factor = self.cfg.sac.entropy_reward_bonus / self.entropy_norm
+                    print("factor", factor)
                     q_target = q_target - alpha * pi_o_prime.log_prob * factor
 
                     target = (
@@ -278,10 +310,10 @@ class SacFopTrainer(Trainer):
                 self.q_optim.step()
 
                 # update actor
-                mask_status = pi_o.status == 0
+                # mask_status = pi_o.status == 0
                 q_pi = torch.cat(self.q(o, pi_o.action), dim=1)
                 min_q_pi = torch.min(q_pi, dim=1).values
-                pi_loss = (alpha * log_p - min_q_pi)[mask_status].mean()
+                pi_loss = (alpha * log_p - min_q_pi).mean()
 
                 self.pi_optim.zero_grad()
                 pi_loss.backward()
@@ -302,7 +334,7 @@ class SacFopTrainer(Trainer):
                     }
                     self.report_stats("loss", loss_stats, self.state.step + 1)
                     self.report_stats(
-                        "train_policy_update", pi_o.stats, self.state.step + 1
+                        "train_policy_update", pi_o_stats, self.state.step + 1
                     )
 
             yield 1

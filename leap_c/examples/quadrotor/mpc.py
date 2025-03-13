@@ -189,7 +189,7 @@ def export_parametric_ocp(
     ######## Solver configuration ########
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
-    ocp.solver_options.nlp_solver_max_iter = 100
+    ocp.solver_options.nlp_solver_max_iter = 30
     ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
     ocp.solver_options.sim_method_num_stages = 2
     ocp.solver_options.sim_method_num_steps = 2
