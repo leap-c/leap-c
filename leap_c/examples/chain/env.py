@@ -10,6 +10,7 @@ from leap_c.examples.chain.utils import (
     RestingChainSolver,
     nominal_params_to_structured_nominal_params,
 )
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 
 def _cont_f_expl(
@@ -104,26 +105,6 @@ def _disc_f_expl(
     k4 = _cont_f_expl(x + dt * k3, u, p, fix_point)
 
     return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
-
-
-# def _sample_initial_positions(L: tuple[float, float, float], w0: tuple[float, float, float], n_masses: int) -> np.ndarray:
-#     w = np.array([0.0, 0.0, 0.0] * (n_masses - 1))
-#     w[:3] = w0
-
-#     for i in range(n_masses - 1):
-#         w[i + 1] = sample_from_ellipsoid_surface(w[i], np.diag(L))
-
-#     return np.array(w)
-
-
-# def _sample_initial_velocities(n_masses: int) -> np.ndarray:
-#     return np.zeros(3 * (n_masses - 2))
-
-
-# def _sample_initial_state(L: tuple[float, float, float], w0: tuple[float, float, float], n_masses: int) -> np.ndarray:
-#     return np.concatenate(
-#         [_sample_initial_positions(L=L, w0=w0, n_masses=n_masses), _sample_initial_velocities(n_masses=n_masses)]
-#     )
 
 
 def _compute_observation_space(param: dict[str, np.ndarray]) -> spaces.Box:
@@ -276,11 +257,6 @@ class ChainEnv(gym.Env):
         self.state_trajectory = None
         self.state, self.action = self._init_state_and_action()
         self.time = 0.0
-
-        # x_ss, u_ss = self.resting_chain_solver(p_last=self.pos_first_mass + np.array([1.0, 0.0, 0.0]))
-        # plot_steady_state(x_ss=x_ss, u_ss=u_ss, n_mass=self.n_mass, pos_first_mass=self.pos_first_mass)
-        # plt.show()
-
         self.trajectory = []
         plt.close("all")
         self.canvas = None
@@ -289,6 +265,9 @@ class ChainEnv(gym.Env):
         self._set_canvas()
 
         return self.state, {}
+
+    def set_state(self, state: np.ndarray):
+        self.state = state
 
     def _current_observation(self):
         return self.state
@@ -313,10 +292,31 @@ class ChainEnv(gym.Env):
         return bool(np.linalg.norm(self.x_ref - self.state, axis=0, ord=2) < 1e-3)
 
     def _set_canvas(self):
-        fig = plt.figure(figsize=(10, 10))
-        plt.xlabel("x")
-        plt.ylabel("y")
+        plt.figure()
+        ax = [plt.subplot(3, 1, i) for i in range(1, 4)]
+
+        # Plot reference
+        ref_pos = np.vstack([self.fix_point, self.x_ref[: self.nx_pos].reshape(-1, 3)])
+        labels = ["x", "y", "z"]
+        self.lines = []
+        for k, ax_k in enumerate(ax):
+            ax_k.plot(ref_pos[:, k], "ro--")
+            ax_k.grid()
+            ax_k.set_xticks(range(self.n_mass + 1))
+            ax_k.set_xlim(0, self.n_mass + 1)
+            ax_k.set_ylabel(labels[k])
+            self.lines.append(
+                ax_k.plot(range(ref_pos[:, k].shape[0]), ref_pos[:, k], ".-")[0]
+            )
+
+        self.canvas = FigureCanvas(plt.gcf())
 
     def render(self):
-        # Create a blank (zeros = black) RGB array
-        return np.zeros((300, 400, 3), dtype=np.uint8)
+        pos = np.vstack([self.fix_point, self.state[: self.nx_pos].reshape(-1, 3)])
+        for k, line in enumerate(self.lines):
+            line.set_ydata(pos[:, k])
+        # Convert the plot to an RGB string
+        s, (width, height) = self.canvas.print_to_buffer()
+
+        # Convert the RGB string to a NumPy array
+        return np.frombuffer(s, np.uint8).reshape((height, width, 4))[:, :, :3]

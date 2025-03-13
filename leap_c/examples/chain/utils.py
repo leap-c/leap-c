@@ -9,6 +9,8 @@ from casadi import vertcat
 from casadi.tools import entry, struct_symSX
 from matplotlib import animation
 
+from matplotlib.gridspec import GridSpec
+
 latexify_plot()
 
 
@@ -284,10 +286,20 @@ def get_plot_lims(a):
     return (a_min, a_max)
 
 
-def animate_chain_position(simX, xPosFirstMass, Ts=0.1, yPosWall=None):
+def animate_chain_position(
+    simX: np.ndarray,
+    xPosFirstMass: np.ndarray | None,
+    refX: np.ndarray | None = None,
+    Ts: float = 0.1,
+    yPosWall: np.ndarray | None = None,
+):
     """Creates animation of the chain, where simX contains the state trajectory.
     dt defines the time gap (in seconds) between two succesive entries.
     """
+
+    if xPosFirstMass is None:
+        xPosFirstMass = np.zeros(3)
+
     # chain positions
     Nsim = simX.shape[0]
     nx = simX.shape[1]
@@ -322,6 +334,17 @@ def animate_chain_position(simX, xPosFirstMass, Ts=0.1, yPosWall=None):
     ax3 = fig.add_subplot(313, autoscale_on=False, xlim=(0, M + 2), ylim=ylim_z)
     plt.grid(True)
 
+    if refX is not None:
+        ref_pos = np.vstack([xPosFirstMass, refX[: 3 * (M + 1)].reshape(-1, 3)])
+        ax1.plot(ref_pos[:, 0], "r--")
+        ax2.plot(ref_pos[:, 1], "r--")
+        ax3.plot(ref_pos[:, 2], "r--")
+
+    xticks = range(M + 2)
+    ax1.set_xticks(xticks)
+    ax2.set_xticks(xticks)
+    ax3.set_xticks(xticks)
+
     ax1.set_ylabel("x")
     ax2.set_ylabel("y")
     ax3.set_ylabel("z")
@@ -351,7 +374,6 @@ def animate_chain_position(simX, xPosFirstMass, Ts=0.1, yPosWall=None):
         return lines
 
     ani = animation.FuncAnimation(fig, animate, Nsim, interval=Ts * 1000, repeat_delay=500, blit=True, init_func=init)
-    plt.show()
     return ani
 
 
@@ -374,18 +396,23 @@ def animate_chain_position_3D(simX, xPosFirstMass, Ts=0.1):
     zlim = get_plot_lims(pos_z)
 
     fig = plt.figure()
-    ax = fig.add_subplot(111, projection="3d", autoscale_on=False, xlim=xlim, ylim=ylim, zlim=zlim)
+    plt.subplot(111, projection="3d", autoscale_on=False, xlim=xlim, ylim=ylim, zlim=zlim)
+    # ax = fig.add_subplot(111, projection="3d", autoscale_on=False, xlim=xlim, ylim=ylim, zlim=zlim)
+    plt.xlabel("x")
+    plt.ylabel("y")
+    plt.gca().set_zlabel("z")
+    plt.grid(True)
 
-    ax.set_xlabel("x")
-    ax.set_ylabel("y")
-    ax.set_zlabel("z")
+    # ax.set_xlabel("x")
+    # ax.set_ylabel("y")
+    # ax.set_zlabel("z")
 
     # ax.set_aspect('equal')
     # ax.axis('off')
 
     # create empty plot
     # line, = ax.plot([], [], [], '.-')
-    (line,) = ax.plot(pos_x[0, :], pos_y[1, :], pos_z[2, :], ".-")
+    (line,) = plt.gca().plot(pos_x[0, :], pos_y[1, :], pos_z[2, :], ".-")
 
     def animate(i):
         line.set_data(pos_x[i, :], pos_y[i, :])
