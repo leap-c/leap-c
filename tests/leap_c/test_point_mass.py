@@ -1,67 +1,58 @@
-"""Prototyping for testing the PointMassMPC and PointMassEnv classes."""
-
 import numpy as np
-from leap_c.examples.pointmass.mpc import PointMassMPC
-from leap_c.examples.pointmass.env import PointMassEnv
-from leap_c.registry import create_task, create_default_cfg, create_trainer
 
-
-from argparse import ArgumentParser
-from dataclasses import asdict
-import datetime
-from pathlib import Path
-import yaml
-
-import leap_c.examples  # noqa: F401
+import leap_c.examples
 import leap_c.rl  # noqa: F401
-from leap_c.registry import create_task, create_default_cfg, create_trainer
-from leap_c.trainer import BaseConfig
+from leap_c.examples.pointmass.env import PointMassEnv
+from leap_c.examples.pointmass.mpc import PointMassMPC
 
-
-def run_test_pointmass_functions(mpc: PointMassMPC):
-    s = np.array([1.0, 0.0, 0.0, 0.0])
-    a = np.array([0.0, 0.0])
-
-    _ = mpc.policy(state=s, p_global=None)[0]
-    _ = mpc.state_value(state=s, p_global=None)[0]
-    _ = mpc.state_action_value(state=s, action=a, p_global=None)[0]
-
-
-def run_closed_loop_test(mpc: PointMassMPC, env: PointMassEnv, n_iter: int = int(2e2)):
-    s, _ = env.reset(seed=0)
-    for _ in range(n_iter):
-        a = mpc.policy(state=s, p_global=None)[0]
-        s, _, _, _, _ = env.step(a)
-
-    assert np.linalg.norm(s) < 1e-1
+MAX_FINAL_DIST = 1.0
+MAX_FINAL_VEL = 0.1
 
 
 def run_closed_loop(
     mpc: PointMassMPC,
     env: PointMassEnv,
-    dt: float | None = None,
     n_iter: int = int(2e2),
-):
+) -> np.ndarray:
+    """Run a closed-loop simulation of a point mass system using a given model predictive controller (MPC) and environment.
+
+    Args:
+        mpc (PointMassMPC): The model predictive controller to use for generating actions.
+        env (PointMassEnv): The environment representing the point mass system.
+        n_iter (int, optional): The number of iterations to run the simulation. Defaults to 200.
+
+    Returns:
+        np.ndarray: A numpy array containing the states and actions over the simulation. The array has shape (n_iter, 6),
+                    where the first 4 columns are the states and the last 2 columns are the actions.
+
+    """
     s, _ = env.reset()
 
-    S = np.zeros((n_iter, 4))
-    S[0, :] = s
-    A = np.zeros((n_iter, 2))
+    states = np.zeros((n_iter, 4))
+    states[0, :] = s
+    actions = np.zeros((n_iter, 2))
     for i in range(n_iter - 1):
-        A[i, :] = mpc.policy(state=S[i, :], p_global=None)[0]
-        S[i + 1, :], _, _, _, _ = env.step(A[i, :])
+        actions[i, :] = mpc.policy(state=states[i, :], p_global=None)[0]
+        states[i + 1, :], _, _, _, _ = env.step(actions[i, :])
 
-    plot_data = np.hstack([S, A])
-    return plot_data
+    return np.hstack([states, actions])
 
 
-if __name__ == "__main__":
-    trainer = create_trainer(
-        name="sac_fou",
-        task=create_task("point_mass"),
-        output_path="output/videos",
-        device="cpu",
-        cfg=create_default_cfg("sac_fou"),
-    )
+def test_run_closed_loop(
+    learnable_point_mass_mpc_m: PointMassMPC, point_mass_env: PointMassEnv, n_iter: int = int(2e2)
+) -> None:
+    """Test the closed-loop performance of a learnable point mass MPC (Model Predictive Control) in a point mass environment.
 
-    trainer.validate()
+    Args:
+    learnable_point_mass_mpc_m (PointMassMPC): The learnable point mass MPC to be tested.
+    point_mass_env (PointMassEnv): The point mass environment in which the MPC will be tested.
+    n_iter (int, optional): The number of iterations for the closed-loop simulation. Default is 200.
+
+    Asserts:
+    - The final position of the point mass is close to the origin (within MAX_FINAL_DIST).
+    - The final velocity of the point mass is close to zero (within MAX_FINAL_VEL).
+
+    """
+    sim_data = run_closed_loop(mpc=learnable_point_mass_mpc_m, env=point_mass_env, n_iter=n_iter)
+    assert np.linalg.norm(sim_data[-1, :2]) < MAX_FINAL_DIST  # Check that the final position is close to the origin
+    assert np.linalg.norm(sim_data[-1, 2:4]) < MAX_FINAL_VEL  # Check that the final velocity is close to zero
