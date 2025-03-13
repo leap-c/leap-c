@@ -302,9 +302,26 @@ class ChainEnv(gym.Env):
         return norm_2(self.x_ref - self.state) < 1e-3
 
     def _set_canvas(self):
-        fig = plt.figure(figsize=(10, 10))
-        plt.xlabel("x")
-        plt.ylabel("y")
+        plt.figure()
+        ax = [plt.subplot(3, 1, i) for i in range(1, 4)]
+
+        # Plot reference
+        ref_pos = np.vstack([self.fix_point, self.x_ref[: self.nx_pos].reshape(-1, 3)])
+        for k, ax_k in enumerate(ax):
+            ax_k.plot(ref_pos[:, k], "ro--")
+            ax_k.grid()
+            ax_k.set_xticks(range(self.n_mass + 1))
+            ax_k.set_xlim(0, self.n_mass + 1)
+
+        lines = []
+        for axis, label in zip(ax, ["x", "y", "z"]):
+            axis.set_ylabel(label)
+            lines.append(axis.plot([], [], ".-")[0])
+
+        self.lines = lines
+
+        plt.show()
+        exit(0)
 
     def render(self):
         # Create a blank (zeros = black) RGB array
