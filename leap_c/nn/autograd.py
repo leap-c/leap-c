@@ -259,16 +259,16 @@ class MPCSolutionFunction(autograd.Function):
         else:
             grad_u = None
 
-        print("Before: Grad p min", grad_p.min(), "Grad p max", grad_p.max())
+        # print("Before: Grad p min", grad_p.min(), "Grad p max", grad_p.max())
 
-        # gradient clipping
-        norm_grad_p = torch.norm(grad_p, p=2, dim=-1)
-        max_norm = 5e-3
-        ratios = (norm_grad_p / max_norm).clamp(min=1.0)
+        # # gradient clipping
+        # norm_grad_p = torch.norm(grad_p, p=2, dim=-1)
+        # max_norm = 5e-3
+        # ratios = (norm_grad_p / max_norm).clamp(min=1.0)
 
-        grad_p = grad_p / ratios.unsqueeze(-1)
+        # grad_p = grad_p / ratios.unsqueeze(-1)
 
 
-        print("After: Grad p min", grad_p.min(), "Grad p max", grad_p.max())
+        # print("After: Grad p min", grad_p.min(), "Grad p max", grad_p.max())
 
         return (None, grad_x, grad_u, grad_p, None, None)
