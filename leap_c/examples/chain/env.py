@@ -278,6 +278,9 @@ class ChainEnv(gym.Env):
 
         return self.state, {}
 
+    def set_state(self, state: np.ndarray):
+        self.state = state
+
     def _current_observation(self):
         return self.state
 
