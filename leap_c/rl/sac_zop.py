@@ -108,7 +108,7 @@ class SacCritic(nn.Module):
         self.param_space = task.param_space
 
     def forward(self, x: torch.Tensor, p: torch.Tensor):
-        p_norm = min_max_scaling(p, self.param_space)
+        p_norm = min_max_scaling(p, self.param_space)  # type: ignore
         return [mlp(qe(x), p_norm) for qe, mlp in zip(self.extractor, self.mlp)]
 
 
