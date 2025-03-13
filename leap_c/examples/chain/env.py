@@ -19,9 +19,9 @@ def _cont_f_expl(
     p: dict[str, np.ndarray],
     fix_point: np.ndarray | None = None,
 ) -> np.ndarray:
-    assert all(
-        key in p for key in ["D", "L", "C", "m", "w"]
-    ), "Not all necessary parameters are in p."
+    assert all(key in p for key in ["D", "L", "C", "m", "w"]), (
+        "Not all necessary parameters are in p."
+    )
 
     if fix_point is None:
         fix_point = np.zeros(3, 1)
@@ -75,7 +75,7 @@ def _cont_f_expl(
 
         F = np.zeros(3)
         for j in range(3):
-            F[j] = p["C"][i + j] * vel[j]
+            F[j] = p["C"][i + j] * abs(vel[j]) * vel[j]
 
         # mass on the right
         if i < n_masses - 2:

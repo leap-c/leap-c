@@ -41,9 +41,13 @@ class ChainTask(Task):
         params["r_sqrt_diag"] = 1e-1 * np.ones(3)
 
         fix_point = np.zeros(3)
-        ellipsoid = Ellipsoid(center=fix_point, radii=0.033 * (n_mass - 1) * np.ones(3))
+        ellipsoid = Ellipsoid(
+            center=fix_point, radii=10 * 0.033 * (n_mass - 1) * np.ones(3)
+        )
 
-        pos_last_mass_ref = ellipsoid.spherical_to_cartesian(phi=0.75 * np.pi, theta=np.pi / 2)
+        pos_last_mass_ref = ellipsoid.spherical_to_cartesian(
+            phi=0.75 * np.pi, theta=np.pi / 2
+        )
 
         mpc = ChainMpc(
             params=params,

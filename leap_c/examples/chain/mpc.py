@@ -153,14 +153,20 @@ def export_parametric_ocp(
 
     p = find_param_in_p_or_p_global(["D", "L", "C", "m", "w"], ocp.model)
 
-    ocp.model.f_expl_expr = get_f_expl_expr(x=ocp.model.x, u=ocp.model.u, p=p, x0=fix_point)
+    ocp.model.f_expl_expr = get_f_expl_expr(
+        x=ocp.model.x, u=ocp.model.u, p=p, x0=fix_point
+    )
     ocp.model.f_impl_expr = ocp.model.xdot - ocp.model.f_expl_expr
     ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp.model, tf / N_horizon)
     ocp.model.name = name
 
-    resting_chain_solver = RestingChainSolver(n_mass=n_mass, fix_point=fix_point, f_expl=get_f_expl_expr)
+    resting_chain_solver = RestingChainSolver(
+        n_mass=n_mass, fix_point=fix_point, f_expl=get_f_expl_expr
+    )
 
-    structured_nominal_params = nominal_params_to_structured_nominal_params(nominal_params=nominal_params)
+    structured_nominal_params = nominal_params_to_structured_nominal_params(
+        nominal_params=nominal_params
+    )
     for i in range(n_mass - 1):
         resting_chain_solver.set_mass_param(i, "D", structured_nominal_params["D"][i])
         resting_chain_solver.set_mass_param(i, "L", structured_nominal_params["L"][i])
@@ -216,7 +222,9 @@ def export_parametric_ocp(
         ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
 
     if isinstance(ocp.model.p_global, struct_symSX):
-        ocp.model.p_global = ocp.model.p_global.cat if ocp.model.p_global is not None else None
+        ocp.model.p_global = (
+            ocp.model.p_global.cat if ocp.model.p_global is not None else None
+        )
 
     return ocp
 
@@ -261,7 +269,9 @@ def get_f_expl_expr(
 
         F = ca.SX.zeros(3, 1)
         for j in range(F.shape[0]):
-            F[j] = p["D"][i + j] / p["m"][i] * (1 - p["L"][i + j] / norm_2(dist)) * dist[j]
+            F[j] = (
+                p["D"][i + j] / p["m"][i] * (1 - p["L"][i + j] / norm_2(dist)) * dist[j]
+            )
 
         # mass on the right
         if i < n_link - 1:
@@ -282,7 +292,7 @@ def get_f_expl_expr(
 
         F = ca.SX.zeros(3, 1)
         for j in range(3):
-            F[j] = p["C"][i + j] * vel[j]
+            F[j] = p["C"][i + j] * ca.norm_1(vel[j]) * vel[j]
 
         # mass on the right
         if i < n_masses - 2:
@@ -304,7 +314,9 @@ def get_disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
 
     x = model.x
     u = model.u
-    p = ca.vertcat(*find_param_in_p_or_p_global(["L", "C", "D", "m", "w"], model).values())
+    p = ca.vertcat(
+        *find_param_in_p_or_p_global(["L", "C", "D", "m", "w"], model).values()
+    )
 
     ode = ca.Function("ode", [x, u, p], [f_expl_expr])
     k1 = ode(x, u, p)
