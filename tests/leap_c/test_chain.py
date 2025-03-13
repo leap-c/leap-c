@@ -23,9 +23,9 @@ def test_chain_policy_evaluation_works():
     assert status == 0, "Policy evaluation failed"
 
 
-def test_chain_env_mpc_closed_loop(plot: bool = False, animate: bool = False):
+def test_chain_env_mpc_closed_loop():
     learnable_params = ["m", "D", "L", "C", "w"]
-    n_mass = 5
+    n_mass = 3
 
     params = {}
 
@@ -51,14 +51,8 @@ def test_chain_env_mpc_closed_loop(plot: bool = False, animate: bool = False):
     params["r_sqrt_diag"] = 1e-1 * np.ones(3)
 
     fix_point = np.zeros(3)
-    pos_last_mass_ref = fix_point + 10 * np.array([0.033 * (n_mass - 1), 0, 0])
 
     ellipsoid = Ellipsoid(center=fix_point, radii=np.array(params["L"]).reshape(-1, 3).sum(axis=0))
-    # ellipsoid.plot_surface()
-
-    # points = np.vstack([xstart, xend])
-    # ellipsoid.plot_points(points)
-    # plt.show()
 
     resting_chain_solver = RestingChainSolver(
         n_mass=n_mass,
@@ -68,7 +62,6 @@ def test_chain_env_mpc_closed_loop(plot: bool = False, animate: bool = False):
 
     xstart, _ = resting_chain_solver(p_last=ellipsoid.spherical_to_cartesian(phi=0.0, theta=np.pi))
     pos_last_mass_ref = ellipsoid.spherical_to_cartesian(phi=0.75 * np.pi, theta=np.pi / 2)
-    # xref = resting_chain_solver(p_last=pos_last_mass_ref)
 
     mpc = ChainMpc(learnable_params=learnable_params, n_mass=n_mass, pos_last_mass_ref=pos_last_mass_ref)
 
@@ -77,7 +70,6 @@ def test_chain_env_mpc_closed_loop(plot: bool = False, animate: bool = False):
     env.set_state(xstart)
 
     x_ref = env.x_ref
-    u_ref = env.u_ref
 
     sim_x = [env.state]
     sim_u = []
@@ -94,29 +86,23 @@ def test_chain_env_mpc_closed_loop(plot: bool = False, animate: bool = False):
 
     error_norm = np.linalg.norm(x_ref - sim_x, axis=1)
 
-    # assert error_norm[-1] < 1e-2, "Error norm is too high"
-
-    if plot:
-        plt.figure()
-        plt.plot(error_norm, label="x_ref - x")
-
-    if animate:
-        # animate_chain_position_3D(sim_x, fix_point)
-        animate_chain_position(simX=sim_x, xPosFirstMass=fix_point, refX=x_ref)
-
-    plt.show()
+    assert error_norm[-1] < 1e-2, "Error norm is too high"
 
 
 if __name__ == "__main__":
     # test_chain_policy_evaluation_works()
-    test_chain_env_mpc_closed_loop(animate=True, plot=True)
+    test_chain_env_mpc_closed_loop()
+
+    # cfg = create_default_cfg("sac_fop")
+
+    # cfg.val.interval = 1
 
     # trainer = create_trainer(
     #     name="sac_fop",
     #     task=create_task("chain"),
     #     output_path="output/videos",
     #     device="cpu",
-    #     cfg=create_default_cfg("sac_fop"),
+    #     cfg=cfg,
     # )
 
     # trainer.validate()
