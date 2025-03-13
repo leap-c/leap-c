@@ -184,3 +184,7 @@ test.gin
 # Acados generated stuff (json files, c_generated_code)
 *.json
 c_generated_code
+
+# Logs and videos
+*.csv
+*.mp4
