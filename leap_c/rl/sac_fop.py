@@ -291,7 +291,6 @@ class SacFopTrainer(Trainer):
 
                     # add entropy
                     factor = self.cfg.sac.entropy_reward_bonus / self.entropy_norm
-                    print("factor", factor)
                     q_target = q_target - alpha * pi_o_prime.log_prob * factor
 
                     target = (
