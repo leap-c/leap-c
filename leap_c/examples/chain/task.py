@@ -17,7 +17,7 @@ from leap_c.task import Task
 @register_task("chain")
 class ChainTask(Task):
     def __init__(self):
-        n_mass = 5
+        n_mass = 3
         params = {}
         # rest length of spring
         params["L"] = np.repeat([0.033, 0.033, 0.033], n_mass - 1)
@@ -42,7 +42,8 @@ class ChainTask(Task):
 
         fix_point = np.zeros(3)
         ellipsoid = Ellipsoid(center=fix_point, radii=0.033 * (n_mass - 1) * np.ones(3))
-        pos_last_mass_ref = ellipsoid.spherical_to_cartesian(phi=0.0, theta=0.0)
+
+        pos_last_mass_ref = ellipsoid.spherical_to_cartesian(phi=0.75 * np.pi, theta=np.pi / 2)
 
         mpc = ChainMpc(
             params=params,
