@@ -1,21 +1,15 @@
-from dataclasses import dataclass
 from typing import Any
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
-from casadi import norm_2
 from gymnasium import spaces
-
 from leap_c.examples.chain.mpc import get_f_expl_expr
 from leap_c.examples.chain.utils import (
     Ellipsoid,
     RestingChainSolver,
     nominal_params_to_structured_nominal_params,
-    sample_from_ellipsoid_surface,
 )
-
-from dataclasses import dataclass
 
 
 def _cont_f_expl(
@@ -24,7 +18,9 @@ def _cont_f_expl(
     p: dict[str, np.ndarray],
     fix_point: np.ndarray | None = None,
 ) -> np.ndarray:
-    assert all(key in p for key in ["D", "L", "C", "m", "w"]), "Not all necessary parameters are in p."
+    assert all(
+        key in p for key in ["D", "L", "C", "m", "w"]
+    ), "Not all necessary parameters are in p."
 
     if fix_point is None:
         fix_point = np.zeros(3, 1)
@@ -52,7 +48,12 @@ def _cont_f_expl(
 
         F = np.zeros(3)
         for j in range(F.shape[0]):
-            F[j] = p["D"][i + j] / p["m"][i] * (1 - p["L"][i + j] / np.linalg.norm(dist)) * dist[j]
+            F[j] = (
+                p["D"][i + j]
+                / p["m"][i]
+                * (1 - p["L"][i + j] / np.linalg.norm(dist))
+                * dist[j]
+            )
 
         # mass on the right
         if i < n_link - 1:
@@ -133,7 +134,11 @@ def _compute_observation_space(param: dict[str, np.ndarray]) -> spaces.Box:
     vel_max = np.array([2.0, 2.0, 2.0] * (n_mass - 2))
     vel_min = -vel_max
 
-    return spaces.Box(low=np.concatenate([pos_min, vel_min]), high=np.concatenate([pos_max, vel_max]), dtype=np.float32)
+    return spaces.Box(
+        low=np.concatenate([pos_min, vel_min]),
+        high=np.concatenate([pos_max, vel_max]),
+        dtype=np.float32,
+    )
 
 
 def get_params(n_mass: int) -> dict[str, np.ndarray]:
@@ -210,11 +215,16 @@ class ChainEnv(gym.Env):
 
         self.trajectory = []
 
-        self.resting_chain_solver = RestingChainSolver(n_mass=n_mass, fix_point=self.fix_point, f_expl=get_f_expl_expr)
+        self.resting_chain_solver = RestingChainSolver(
+            n_mass=n_mass, fix_point=self.fix_point, f_expl=get_f_expl_expr
+        )
 
         self.x_ref, self.u_ref = self.resting_chain_solver(p_last=self.pos_last_ref)
 
-        self.ellipsoid = Ellipsoid(center=self.fix_point, radii=np.sum(np.array(self.structured_param["L"]), axis=0))
+        self.ellipsoid = Ellipsoid(
+            center=self.fix_point,
+            radii=np.sum(np.array(self.structured_param["L"]), axis=0),
+        )
 
         self.phi_range = phi_range
         self.theta_range = theta_range
@@ -259,7 +269,9 @@ class ChainEnv(gym.Env):
 
         return o, r, term, trunc, info
 
-    def reset(self, *, seed: int | None = None, options: dict | None = None) -> tuple[Any, dict]:  # type: ignore
+    def reset(
+        self, *, seed: int | None = None, options: dict | None = None
+    ) -> tuple[Any, dict]:  # type: ignore
         self._np_random = np.random.RandomState(seed)
         self.state_trajectory = None
         self.state, self.action = self._init_state_and_action()
@@ -293,10 +305,12 @@ class ChainEnv(gym.Env):
         pos_last = self.state[self.nx_pos - 3 : self.nx_pos]
         vel = self.state[self.nx_pos :]
 
-        return -norm_2(pos_last - self.pos_last_ref) - 0.1 * norm_2(vel)
+        return -np.linalg.norm(
+            pos_last - self.pos_last_ref, axis=0, ord=2
+        ) - 0.1 * np.linalg.norm(vel, axis=0, ord=2)
 
     def _is_done(self):
-        return norm_2(self.x_ref - self.state) < 1e-3
+        return bool(np.linalg.norm(self.x_ref - self.state, axis=0, ord=2) < 1e-3)
 
     def _set_canvas(self):
         fig = plt.figure(figsize=(10, 10))
