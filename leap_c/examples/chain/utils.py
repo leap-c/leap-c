@@ -374,7 +374,6 @@ def animate_chain_position(
         return lines
 
     ani = animation.FuncAnimation(fig, animate, Nsim, interval=Ts * 1000, repeat_delay=500, blit=True, init_func=init)
-    plt.show()
     return ani
 
 

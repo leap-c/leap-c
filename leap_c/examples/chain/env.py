@@ -320,9 +320,6 @@ class ChainEnv(gym.Env):
 
         self.lines = lines
 
-        plt.show()
-        exit(0)
-
     def render(self):
         # Create a blank (zeros = black) RGB array
         return np.zeros((300, 400, 3), dtype=np.uint8)
