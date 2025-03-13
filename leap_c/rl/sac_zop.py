@@ -14,6 +14,7 @@ from leap_c.mpc import MpcBatchedState
 from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.nn.modules import MpcSolutionModule
+from leap_c.nn.utils import min_max_scaling
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.rl.utils import soft_target_update
@@ -104,9 +105,11 @@ class SacCritic(nn.Module):
                 for qe in self.extractor
             ]
         )
+        self.param_space = task.param_space
 
-    def forward(self, x: torch.Tensor, a: torch.Tensor):
-        return [mlp(qe(x), a) for qe, mlp in zip(self.extractor, self.mlp)]
+    def forward(self, x: torch.Tensor, p: torch.Tensor):
+        p_norm = min_max_scaling(p, self.param_space)
+        return [mlp(qe(x), p_norm) for qe, mlp in zip(self.extractor, self.mlp)]
 
 
 class SacZopActorOutput(NamedTuple):

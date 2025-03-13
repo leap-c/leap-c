@@ -9,7 +9,7 @@ import torch.nn as nn
 
 from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.nn.mlp import MLP, MlpConfig
-from leap_c.nn.utils import normalize
+from leap_c.nn.utils import min_max_scaling
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.rl.utils import soft_target_update
@@ -103,7 +103,7 @@ class SacCritic(nn.Module):
         self.action_space = env.action_space
 
     def forward(self, x: torch.Tensor, a: torch.Tensor):
-        a_norm = normalize(a, self.action_space)  # type: ignore
+        a_norm = min_max_scaling(a, self.action_space)  # type: ignore
         return [mlp(qe(x), a_norm) for qe, mlp in zip(self.extractor, self.mlp)]
 
 

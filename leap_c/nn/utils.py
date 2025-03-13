@@ -18,7 +18,7 @@ def string_to_activation(activation: str) -> nn.Module:
         raise ValueError(f"Activation function {activation} not recognized.")
 
 
-class NormalizeStraightThroughFunction(autograd.Function):
+class MinMaxStraightThroughFunction(autograd.Function):
     @staticmethod
     def forward(ctx, x: torch.Tensor, space: spaces.Box) -> torch.Tensor:
         low = torch.tensor(space.low, dtype=x.dtype, device=x.device)
@@ -31,7 +31,7 @@ class NormalizeStraightThroughFunction(autograd.Function):
         return grad_output, None
 
 
-def normalize(
+def min_max_scaling(
     x: torch.Tensor, space: spaces.Box, straight_through: bool = False
 ) -> torch.Tensor:
     """Normalize a tensor x to the range [0, 1] given a Box space.
@@ -45,7 +45,7 @@ def normalize(
         The normalized tensor.
     """
     if straight_through:
-        return NormalizeStraightThroughFunction.apply(x, space)  # type: ignore
+        return MinMaxStraightThroughFunction.apply(x, space)  # type: ignore
 
     low = torch.tensor(space.low, dtype=x.dtype, device=x.device)
     high = torch.tensor(space.high, dtype=x.dtype, device=x.device)

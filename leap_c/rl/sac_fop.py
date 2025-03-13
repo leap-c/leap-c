@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any, Callable, Iterator, NamedTuple
 
 import gymnasium as gym
-from gymnasium import spaces
 import numpy as np
 import torch
 import torch.nn as nn
@@ -98,7 +97,6 @@ class SacFopActorOutput(NamedTuple):
             self.status[mask],
             None,  # type:ignore
         )
-        
 
 
 class MpcSacActor(nn.Module):
@@ -263,7 +261,6 @@ class SacFopTrainer(Trainer):
                 # compute mask
                 mask_status = (pi_o.status == 0) & (pi_o_prime.status == 0)
 
-
                 # reduce batch
                 o = o[mask_status]
                 a = a[mask_status]
@@ -272,7 +269,6 @@ class SacFopTrainer(Trainer):
                 te = te[mask_status]
                 pi_o = pi_o.select(mask_status)
                 pi_o_prime = pi_o_prime.select(mask_status)
-
 
                 log_p = pi_o.log_prob / self.entropy_norm
 
