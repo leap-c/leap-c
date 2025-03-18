@@ -1,5 +1,7 @@
 import numpy as np
 import pytest
+from leap_c.examples.chain.env import ChainEnv
+from leap_c.examples.chain.utils import Ellipsoid
 from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
 from leap_c.examples.pointmass.env import PointMassEnv
@@ -161,12 +163,36 @@ def pendulum_on_cart_ocp_swingup_env() -> PendulumOnCartSwingupEnv:
 
 
 @pytest.fixture(scope="session")
+def chain_mass_cost_env() -> ChainEnv:
+    n_mass = 3
+    phi_range = (0.5 * np.pi, 1.5 * np.pi)
+    theta_range = (-0.1 * np.pi, 0.1 * np.pi)
+    fix_point = np.zeros(3)
+    ellipsoid = Ellipsoid(
+        center=fix_point, radii=10 * 0.033 * (n_mass - 1) * np.ones(3)
+    )
+
+    pos_last_mass_ref = ellipsoid.spherical_to_cartesian(
+        phi=0.75 * np.pi, theta=np.pi / 2
+    )
+
+    return ChainEnv(
+        max_time=10.0,
+        phi_range=phi_range,
+        theta_range=theta_range,
+        fix_point=fix_point,
+        n_mass=n_mass,
+        pos_last_ref=pos_last_mass_ref,
+    )
+
+
+@pytest.fixture(scope="session")
 def all_env(
     pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv,
+    chain_mass_cost_env: ChainEnv,
+    point_mass_env: PointMassEnv,
 ):
-    return [
-        pendulum_on_cart_ocp_swingup_env,
-    ]
+    return [pendulum_on_cart_ocp_swingup_env, chain_mass_cost_env, point_mass_env]
 
 
 @pytest.fixture(scope="session")
