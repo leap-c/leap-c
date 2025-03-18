@@ -1,11 +1,11 @@
-from typing import Any, Callable
 from dataclasses import dataclass
+from typing import Any, Callable
 
+import casadi as ca
 import gymnasium as gym
+import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
-import casadi as ca
-import matplotlib.pyplot as plt
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 
@@ -476,7 +476,12 @@ class PointMassEnv(gym.Env):
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
     ) -> tuple[Any, dict]:  # type: ignore
-        self._np_random = np.random.RandomState(seed)
+        if seed is not None:
+            super().reset(seed=seed)
+            self.observation_space.seed(seed)
+            self.action_space.seed(seed)
+        if self._np_random is None:
+            raise RuntimeError("The first reset needs to be called with a seed.")
         self.state_trajectory = None
         self.action_to_take = None
         self.state = self._init_state()
@@ -495,7 +500,9 @@ class PointMassEnv(gym.Env):
         return self.state
 
     def _init_state(self):
-        return np.random.uniform(
+        if self._np_random is None:
+            raise ValueError("First, reset needs to be called with a seed.")
+        return self._np_random.uniform(
             low=self.init_state_dist["low"], high=self.init_state_dist["high"]
         )
 
