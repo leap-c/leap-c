@@ -209,8 +209,6 @@ class ChainEnv(gym.Env):
         self.phi_range = phi_range
         self.theta_range = theta_range
 
-        self.rng = None
-
         # self.ellipsoid_center = self.fix_point
         # self.ellispoid_variability_matrix = np.diag()
 
@@ -256,7 +254,6 @@ class ChainEnv(gym.Env):
             super().reset(seed=seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
-            self.rng = np.random.default_rng(seed)
         self.state_trajectory = None
         self.state, self.action = self._init_state_and_action()
         self.time = 0.0
@@ -276,8 +273,10 @@ class ChainEnv(gym.Env):
         return self.state
 
     def _init_state_and_action(self):
-        phi = self.rng.uniform(low=self.phi_range[0], high=self.phi_range[1])  # type:ignore
-        theta = self.rng.uniform(low=self.theta_range[0], high=self.theta_range[1])  # type:ignore
+        phi = self.np_random.uniform(low=self.phi_range[0], high=self.phi_range[1])  # type:ignore
+        theta = self.np_random.uniform(
+            low=self.theta_range[0], high=self.theta_range[1]
+        )  # type:ignore
         p_last = self.ellipsoid.spherical_to_cartesian(phi=phi, theta=theta)
         x_ss, u_ss = self.resting_chain_solver(p_last=p_last)
 
