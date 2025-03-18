@@ -156,7 +156,7 @@ class ChainEnv(gym.Env):
         n_mass: int = 3,
         fix_point: np.ndarray | None = None,
         pos_last_ref: np.ndarray | None = None,
-        phi_range: list[tuple[float, float]] = (np.pi / 6, np.pi / 3),
+        phi_range: tuple[float, float] = (np.pi / 6, np.pi / 3),
         theta_range: tuple[float, float] = (-np.pi / 4, np.pi / 4),
     ):
         super().__init__()
@@ -278,8 +278,8 @@ class ChainEnv(gym.Env):
         return self.state
 
     def _init_state_and_action(self):
-        phi = self.rng.uniform(low=self.phi_range[0], high=self.phi_range[1])
-        theta = self.rng.uniform(low=self.theta_range[0], high=self.theta_range[1])
+        phi = self.rng.uniform(low=self.phi_range[0], high=self.phi_range[1])  # type:ignore
+        theta = self.rng.uniform(low=self.theta_range[0], high=self.theta_range[1])  # type:ignore
         p_last = self.ellipsoid.spherical_to_cartesian(phi=phi, theta=theta)
         x_ss, u_ss = self.resting_chain_solver(p_last=p_last)
 
