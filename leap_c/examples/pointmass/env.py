@@ -416,7 +416,6 @@ class PointMassEnv(gym.Env):
 
         # Will be added after doing a step.
         self.input_noise = 0.0
-        self._np_random = None
 
         if dt is not None:
             param.dt = dt
@@ -480,8 +479,6 @@ class PointMassEnv(gym.Env):
             super().reset(seed=seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
-        if self._np_random is None:
-            raise RuntimeError("The first reset needs to be called with a seed.")
         self.state_trajectory = None
         self.action_to_take = None
         self.state = self._init_state()
@@ -500,17 +497,13 @@ class PointMassEnv(gym.Env):
         return self.state
 
     def _init_state(self):
-        if self._np_random is None:
-            raise ValueError("First, reset needs to be called with a seed.")
-        return self._np_random.uniform(
+        return self.np_random.uniform(
             low=self.init_state_dist["low"], high=self.init_state_dist["high"]
         )
 
     def _get_input_noise(self) -> float:
         """Return the next noise to be added to the state."""
-        if self._np_random is None:
-            raise ValueError("First, reset needs to be called with a seed.")
-        return self._np_random.uniform(
+        return self.np_random.uniform(
             low=self.input_noise_dist["low"],
             high=self.input_noise_dist["high"],
             size=1,

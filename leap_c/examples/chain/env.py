@@ -257,8 +257,6 @@ class ChainEnv(gym.Env):
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
             self.rng = np.random.default_rng(seed)
-        if self._np_random is None:
-            raise RuntimeError("The first reset needs to be called with a seed.")
         self.state_trajectory = None
         self.state, self.action = self._init_state_and_action()
         self.time = 0.0
