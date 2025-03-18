@@ -52,5 +52,10 @@ def test_env_step(all_env: list[gym.Env]):
         assert np.allclose(x_next, x_next_)
 
 
+# def test_env_gym_check(all_env: list[gym.Env]):
+#     for env in all_env:
+#         check_env(env)
+
+
 if __name__ == "__main__":
     pytest.main([__file__])
