@@ -137,7 +137,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
         """Execute the dynamics of the pendulum on cart."""
         if self.reset_needed:
             raise Exception("Call reset before using the step method.")
-        print(self.x) 
+        print(self.x)
         self.x = self.integrator(self.x, action, self.dt)
         print(self.x)
         self.t += self.dt
@@ -169,8 +169,6 @@ class PendulumOnCartSwingupEnv(gym.Env):
             super().reset(seed=seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
-        if self._np_random is None:
-            raise RuntimeError("The first reset needs to be called with a seed.")
         self.t = 0
         self.x = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
         self.reset_needed = False
