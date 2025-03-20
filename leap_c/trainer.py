@@ -291,7 +291,8 @@ class Trainer(ABC, nn.Module):
 
         if window_size is not None:
             window_idx = bisect.bisect_left(
-                self.state.timestamps[group], timestamp - window_size  # type: ignore
+                self.state.timestamps[group],
+                timestamp - window_size,  # type: ignore
             )
             stats = {
                 key: float(np.mean(values[-window_idx:]))
@@ -387,7 +388,9 @@ class Trainer(ABC, nn.Module):
             key: float(np.mean([p[key] for p in parts_rollout]))
             for key in parts_rollout[0]
         }
-        self.report_stats("val", stats_rollout, self.state.step, self.cfg.log.val_window)
+        self.report_stats(
+            "val", stats_rollout, self.state.step, self.cfg.log.val_window
+        )
 
         if parts_policy[0]:
             stats_policy = {
@@ -410,7 +413,7 @@ class Trainer(ABC, nn.Module):
         elif self.cfg.val.ckpt_modus == "last":
             return basedir / "ckpts" / f"last_{name}.{suffix}"
 
-        return basedir / "ckpts" / f"{self.step}_{name}.{suffix}"
+        return basedir / "ckpts" / f"{self.state.step}_{name}.{suffix}"
 
     def save(self) -> None:
         """Save the trainer state in a checkpoint folder."""
@@ -428,7 +431,7 @@ class Trainer(ABC, nn.Module):
     def load(self, path: str | Path) -> None:
         """Loads the state of a trainer from the output_path."""
         # TODO (Jasper): Think about partial loading...
-        basedir = Path(path) 
+        basedir = Path(path)
 
         self.load_state_dict(torch.load(self._ckpt_path("model", "pth", basedir)))
         self.state = torch.load(self._ckpt_path("trainer", "pkl", basedir))
