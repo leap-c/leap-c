@@ -342,9 +342,9 @@ class Trainer(ABC, nn.Module):
                     if self.cfg.val.ckpt_modus == "best":
                         self.save()
 
-            # save model
-            if self.cfg.val.ckpt_modus != "best":
-                self.save()
+                # save model
+                if self.cfg.val.ckpt_modus != "best":
+                    self.save()
 
         return self.state.min_score  # Return last validation score for testing purposes
 

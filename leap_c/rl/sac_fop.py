@@ -353,11 +353,11 @@ class SacFopTrainer(Trainer):
     def save(self) -> None:
         """Save the trainer state in a checkpoint folder."""
 
-        torch.save(self.buffer, self.output_path / "buffer.pt")
+        torch.save(self.buffer, self._ckpt_path("buffer", "pt"))
         return super().save()
 
-    def load(self) -> None:
-        """Loads the state of a trainer from the output_path."""
+    def load(self, path: Path) -> None:
+        """Loads the state of a trainer from the given path."""
 
-        self.buffer = torch.load(self.output_path / "buffer.pt")
-        return super().load()
+        self.buffer = torch.load(self._ckpt_path("buffer", "pt", path))
+        return super().load(path)
