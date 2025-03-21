@@ -1,6 +1,5 @@
 import collections
 import random
-from enum import Enum
 from typing import Any
 
 import torch
@@ -60,35 +59,3 @@ class ReplayBuffer:
 
     def __len__(self):
         return len(self.buffer)
-
-
-class InitializationStrategy(Enum):
-    PREVIOUS = 0
-    DEFAULTINIT = 1
-    RELOAD = 2
-    RELOADWRITEBACK = 3
-    NN = 4
-
-
-# TODO finish when its time
-# class ReplayBufferReloadWriteback(ReplayBuffer):
-#     """This implements the initialization strategy where the previous solution is reloaded,
-#     but samples in the buffer can be updated."""
-
-#     def __init__(
-#         self, buffer_limit: int, device: str, tensor_dtype: torch.dtype = torch.float32
-#     ):
-#         super().__init__(buffer_limit, device, tensor_dtype)
-#         self.id = 0
-#         self.lookup: dict[int, Any] = dict()
-
-#     def rollout_state(self, input: MPCInput, state: MPCSingleState) -> MPCSingleState:
-#         return state
-
-#     def put(self, data: Any):
-#         """The same as the put of the usual ReplayBuffer, but also"""
-#         # append id for lookup later
-#         self.buffer.append(data)
-
-#     def writeback(self, id: int, data: Any):
-#         self.lookup[id] = data
