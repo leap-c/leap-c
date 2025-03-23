@@ -147,7 +147,7 @@ class ChainTaskLessParams(ChainTask):
         )
         mpc_layer = MpcSolutionModule(mpc)
 
-        super().__init__(mpc_layer)
+        Task.__init__(self, mpc_layer)
 
         self.param_low = 0.5 * mpc.ocp.p_global_values
         self.param_high = 1.5 * mpc.ocp.p_global_values
