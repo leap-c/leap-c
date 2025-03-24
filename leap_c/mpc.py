@@ -188,17 +188,13 @@ def set_ocp_solver_iterate(
         if isinstance(ocp_iterate, AcadosOcpFlattenedIterate):
             ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
         elif ocp_iterate is not None:
-            raise ValueError(
-                f"Expected AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}."
-            )
+            raise ValueError(f"Expected AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}.")
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         if isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
             ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
         elif ocp_iterate is not None:
-            raise ValueError(
-                f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
-            )
+            raise ValueError(f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}.")
     else:
         raise ValueError(f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}.")
 
@@ -666,11 +662,8 @@ class Mpc(ABC):
     def default_p_stagewise(self) -> np.ndarray | None:
         """Return the default p_stagewise."""
         return (
-            np.tile(self.ocp.parameter_values, (self.N + 1, 1))
-            if self.is_model_p_legal(self.ocp_sensitivity.model.p)
-            else None
+            np.tile(self.ocp.parameter_values, (self.N + 1, 1)) if self.is_model_p_legal(self.ocp_sensitivity.model.p) else None
         )
-
 
     @cached_property
     def default_full_mpcparameter(self) -> MpcParameter:
