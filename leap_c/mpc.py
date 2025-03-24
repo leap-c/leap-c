@@ -562,11 +562,16 @@ class Mpc(ABC):
             if ocp.cost.cost_type != "EXTERNAL" or ocp.cost.cost_type_0 != "EXTERNAL" or ocp.cost.cost_type_e != "EXTERNAL":
                 raise ValueError("Automatic derivation of sensitivity problem is only supported for EXTERNAL cost types.")
             self.ocp_sensitivity = deepcopy(ocp)
+
             set_standard_sensitivity_options(self.ocp_sensitivity)
         else:
             self.ocp_sensitivity = ocp_sensitivity
 
+        self.ocp.translate_cost_to_external_cost(cost_hessian="GAUSS_NEWTON")
+        self.ocp_sensitivity.translate_cost_to_external_cost(cost_hessian="EXACT")
+
         turn_on_warmstart(self.ocp)
+
         # turn_on_warmstart(self.ocp_sensitivity)
 
         # path management
