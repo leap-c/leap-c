@@ -29,23 +29,23 @@ PARAMS = OrderedDict(
         (
             "c1",
             np.array([0.0]),
-        ),  # position linear cost, only used for non-LS (!) cost
+        ),
         (
             "c2",
             np.array([0.0]),
-        ),  # theta linear cost, only used for non-LS (!) cost
+        ),
         (
             "c3",
             np.array([0.0]),
-        ),  # v linear cost, only used for non-LS (!) cost
+        ),
         (
             "c4",
             np.array([0.0]),
-        ),  # thetadot linear cost, only used for non-LS (!) cost
+        ),
         (
             "c5",
             np.array([0.0]),
-        ),  # u linear cost, only used for non-LS (!) cost
+        ),
         (
             "xref1",
             np.array([0.0]),
