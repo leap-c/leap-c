@@ -396,6 +396,8 @@ def export_parametric_ocp(
     ocp.solver_options.exact_hess_dyn = exact_hess_dyn
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
+    ocp.solver_options.tol = 1e-6  # Is default
+    ocp.solver_options.qp_tol = 1e-7
 
     #####################################################
 
