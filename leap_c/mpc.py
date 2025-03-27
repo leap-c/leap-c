@@ -608,6 +608,7 @@ class Mpc(ABC):
             Callable[[MpcInput], MpcSingleState | MpcBatchedState] | None
         ) = None,
         n_batch: int = 256,
+        n_threads: int = 1,
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
         throw_error_if_u0_is_outside_ocp_bounds: bool = True,
@@ -623,6 +624,7 @@ class Mpc(ABC):
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
             init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.
             n_batch: Number of batched solvers to use.
+            n_threads: Number of threads to use for parallelizing the batch solve.
             export_directory: Directory to export the generated code.
             export_directory_sensitivity: Directory to export the generated
                 code for the sensitivity problem.
@@ -647,7 +649,8 @@ class Mpc(ABC):
             self.ocp_sensitivity = ocp_sensitivity
 
         turn_on_warmstart(self.ocp)
-        # turn_on_warmstart(self.ocp_sensitivity)
+        self.ocp.solver_options.num_threads_in_batch_solve = n_threads
+        self.ocp_sensitivity.solver_options.num_threads_in_batch_solve = n_threads
 
         # path management
         self.afm = AcadosFileManager(export_directory)
