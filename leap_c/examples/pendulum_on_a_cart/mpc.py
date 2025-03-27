@@ -348,17 +348,6 @@ def export_parametric_ocp(
 
     #####################################################
 
-    # if sensitivity_ocp:
-    #     if cost_type == "EXTERNAL":
-    #         pass
-    #     else:
-    #         W = cost_matrix_casadi(ocp.model)
-    #         W_e = W[:4, :4]
-    #         yref = yref_casadi(ocp.model)
-    #         yref_e = yref[:4]
-    #         ocp.translate_cost_to_external_cost(W=W, W_e=W_e, yref=yref, yref_e=yref_e)
-    #     set_standard_sensitivity_options(ocp)
-
     if isinstance(ocp.model.p, struct_symSX):
         ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
 
