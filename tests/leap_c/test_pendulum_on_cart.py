@@ -55,7 +55,6 @@ def test_solution(
             "c5",
         ],
         exact_hess_dyn=False,
-        least_squares_cost=False,
     ),
 ):
     ocp_solver = mpc.ocp_solver
@@ -170,5 +169,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # pytest.main([__file__])
-    main()
+    pytest.main([__file__])
