@@ -29,43 +29,43 @@ PARAMS = OrderedDict(
         (
             "c1",
             np.array([0.0]),
-        ),
+        ), # position linear cost, only used for EXTERNAL cost
         (
             "c2",
             np.array([0.0]),
-        ),
+        ), # theta linear cost, only used for EXTERNAL cost
         (
             "c3",
             np.array([0.0]),
-        ),
+        ), # v linear cost, only used for EXTERNAL cost
         (
             "c4",
             np.array([0.0]),
-        ),
+        ), # thetadot linear cost, only used for EXTERNAL cost
         (
             "c5",
             np.array([0.0]),
-        ),
+        ), # u linear cost, only used for EXTERNAL cost
         (
             "xref1",
             np.array([0.0]),
-        ),  # reference position, only used for LS cost
+        ),  # reference position
         (
             "xref2",
             np.array([0.0]),
-        ),  # reference theta, only used for LS cost
+        ),  # reference theta
         (
             "xref3",
             np.array([0.0]),
-        ),  # reference v, only used for LS cost
+        ),  # reference v
         (
             "xref4",
             np.array([0.0]),
-        ),  # reference thetadot, only used for LS cost
+        ),  # reference thetadot
         (
             "uref",
             np.array([0.0]),
-        ),  # reference u, only used for LS cost
+        ),  # reference u
     ]
 )
 
@@ -300,12 +300,12 @@ def export_parametric_ocp(
     ocp.model.disc_dyn_expr = disc_dyn_expr(model=ocp.model, dt=dt)  # type:ignore
 
     ######## Cost ########
-    # if cost_type == "EXTERNAL":
-    #     ocp.cost.cost_type = cost_type
-    #     ocp.model.cost_expr_ext_cost = cost_expr_ext_cost(ocp.model)  # type:ignore
+    if cost_type == "EXTERNAL":
+        ocp.cost.cost_type = cost_type
+        ocp.model.cost_expr_ext_cost = cost_expr_ext_cost(ocp.model)  # type:ignore
 
-    #     ocp.cost.cost_type_e = cost_type
-    #     ocp.model.cost_expr_ext_cost_e = cost_expr_ext_cost_e(ocp.model)  # type:ignore
+        ocp.cost.cost_type_e = cost_type
+        ocp.model.cost_expr_ext_cost_e = cost_expr_ext_cost_e(ocp.model)  # type:ignore
     if cost_type == "NONLINEAR_LS":
         ocp.cost.cost_type = "NONLINEAR_LS"
         ocp.cost.cost_type_e = "NONLINEAR_LS"
