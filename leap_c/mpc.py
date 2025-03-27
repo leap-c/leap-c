@@ -577,10 +577,6 @@ class Mpc(ABC):
             self.ocp.translate_terminal_cost_term_to_external(cost_hessian="GAUSS_NEWTON")
             self.ocp_sensitivity.translate_terminal_cost_term_to_external(cost_hessian="EXACT")
 
-        
-            # self.ocp.translate_cost_to_external_cost(cost_hessian="GAUSS_NEWTON")
-            # self.ocp_sensitivity.translate_cost_to_external_cost(cost_hessian="EXACT")
-
         turn_on_warmstart(self.ocp)
 
         # turn_on_warmstart(self.ocp_sensitivity)
