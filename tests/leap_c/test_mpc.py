@@ -115,7 +115,7 @@ def test_statelessness_batched(
     mpc_outputs_assert_allclose(solution_standard, solution_supposedly_standard, test_u_star=True)
 
 
-def test_statelessness(learnable_pendulum_on_cart_mpc: Mpc):
+def test_statelessness_pendulum_on_cart(learnable_pendulum_on_cart_mpc: Mpc):
     # Create MPC with some stateless and some global parameters
     x0 = np.array([0, -np.pi, 0, 0])
     mpc_input_standard = MpcInput(x0=x0)
@@ -142,7 +142,7 @@ def test_statelessness(learnable_pendulum_on_cart_mpc: Mpc):
     mpc_outputs_assert_allclose(solution_standard, solution_supposedly_standard, test_u_star=True)
 
 
-def test_statelessness_batched(n_batch: int, learnable_pendulum_on_cart_mpc: Mpc):
+def test_statelessness_batched_pendulum_on_cart(n_batch: int, learnable_pendulum_on_cart_mpc: Mpc):
     # Create MPC with some stateless and some global parameters
     x0 = np.array([0, -np.pi, 0, 0])
     x0 = np.tile(x0, (n_batch, 1))
