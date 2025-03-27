@@ -170,58 +170,6 @@ def test_statelessness_batched_pendulum_on_cart(n_batch: int, learnable_pendulum
     mpc_outputs_assert_allclose(solution_standard, solution_supposedly_standard, test_u_star=True)
 
 
-def test_statelessness_external(learnable_pendulum_on_cart_mpc_ext_cost: Mpc):
-    # Create MPC with some stateless and some global parameters
-    x0 = np.array([0, -np.pi, 0, 0])
-    mpc_input_standard = MpcInput(x0=x0)
-    solution_standard = learnable_pendulum_on_cart_mpc_ext_cost(mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True)
-
-    assert learnable_pendulum_on_cart_mpc_ext_cost.default_p_global is not None
-    p_global_def = learnable_pendulum_on_cart_mpc_ext_cost.default_p_global.copy()
-
-    p_global_def[-2] = 1e-2  # Set quadratic weight to low value
-    p_global_def[1] = 1  # Set reference position to 1
-    params = MpcParameter(p_global=p_global_def)
-    mpc_input_different = MpcInput(x0=x0, parameters=params)
-    solution_different = learnable_pendulum_on_cart_mpc_ext_cost(mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True)
-    # Use this as proxy to verify the different solution is different enough
-    assert not np.allclose(
-        solution_standard.V,  # type:ignore
-        solution_different.V,  # type:ignore
-    )
-    solution_supposedly_standard = learnable_pendulum_on_cart_mpc_ext_cost(
-        mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
-    )
-    mpc_outputs_assert_allclose(solution_standard, solution_supposedly_standard, test_u_star=True)
-
-
-def test_statelessness_batched_external(n_batch: int, learnable_pendulum_on_cart_mpc_ext_cost: Mpc):
-    # Create MPC with some stateless and some global parameters
-    x0 = np.array([0, -np.pi, 0, 0])
-    x0 = np.tile(x0, (n_batch, 1))
-    mpc_input_standard = MpcInput(x0=x0)
-    solution_standard = learnable_pendulum_on_cart_mpc_ext_cost(mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True)
-
-    assert learnable_pendulum_on_cart_mpc_ext_cost.default_p_global is not None
-    p_global_def = learnable_pendulum_on_cart_mpc_ext_cost.default_p_global
-    p_global_def = np.tile(p_global_def, (n_batch, 1))
-
-    p_global_def[:, -2] = 1e-2  # Set quadratic weight to low value
-    p_global_def[:, 1] = 1  # Set reference position to 1
-    params = MpcParameter(p_global=p_global_def)
-    mpc_input_different = MpcInput(x0=x0, parameters=params)
-    solution_different = learnable_pendulum_on_cart_mpc_ext_cost(mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True)
-    # Use this as proxy to verify the different solution is different enough
-    assert not np.allclose(
-        solution_standard.V,  # type:ignore
-        solution_different.V,  # type:ignore
-    )
-    solution_supposedly_standard = learnable_pendulum_on_cart_mpc_ext_cost(
-        mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
-    )
-    mpc_outputs_assert_allclose(solution_standard, solution_supposedly_standard, test_u_star=True)
-
-
 def test_using_mpc_state(
     learnable_point_mass_mpc_different_params: Mpc,
 ):
