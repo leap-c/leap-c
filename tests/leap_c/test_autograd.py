@@ -174,7 +174,6 @@ def test_MPCSolutionModule_on_PendulumOnCart(
     chosen_samples = []
     for i in range(batch_size):
         vary_idx = varying_params_to_test[i % len(varying_params_to_test)]
-        print(vary_idx)
         chosen_samples.append(pendulum_on_cart_p_global[i, :, vary_idx].squeeze())
     test_param = np.stack(chosen_samples, axis=0)
 
