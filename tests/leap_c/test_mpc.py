@@ -8,6 +8,7 @@ from acados_template.acados_ocp_iterate import (
 
 # from leap_c.examples.linear_system import LinearSystemMPC
 from leap_c.mpc import Mpc, MpcInput, MpcOutput, MpcParameter
+from leap_c.utils import find_idx_for_labels
 
 
 def mpc_outputs_assert_allclose(mpc_output: MpcOutput, mpc_output2: MpcOutput, test_u_star: bool):
@@ -114,63 +115,56 @@ def test_statelessness_batched(
     mpc_outputs_assert_allclose(solution_standard, solution_supposedly_standard, test_u_star=True)
 
 
-def test_statelessness_LLS(learnable_pendulum_on_cart_mpc_lls_cost: Mpc):
+def test_statelessness(learnable_pendulum_on_cart_mpc: Mpc):
     # Create MPC with some stateless and some global parameters
     x0 = np.array([0, -np.pi, 0, 0])
     mpc_input_standard = MpcInput(x0=x0)
-    solution_standard = learnable_pendulum_on_cart_mpc_lls_cost(mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True)
+    solution_standard = learnable_pendulum_on_cart_mpc(mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True)
 
-    assert learnable_pendulum_on_cart_mpc_lls_cost.default_p_global is not None
-    p_global_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_global.copy()
-    assert learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref is not None
-    p_yref_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref.copy()
-    assert learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref_e is not None
-    p_yref_e_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref_e.copy()
-    p_global_def[-1] = 1  # Set reference position to 1
-    p_yref_def[:, 0] = 1  # Set reference position to 1
-    p_yref_e_def[0] = 1  # Set reference position to 1
-    params = MpcParameter(p_global=p_global_def, p_yref=p_yref_def, p_yref_e=p_yref_e_def)
+
+    assert learnable_pendulum_on_cart_mpc.default_p_global is not None
+    p_global_def = learnable_pendulum_on_cart_mpc.default_p_global.copy()
+
+    idx = find_idx_for_labels(learnable_pendulum_on_cart_mpc.ocp_solver.acados_ocp.model.p_global, "xref1")
+    p_global_def[idx] = 1  # Set reference position to 1
+
+    params = MpcParameter(p_global=p_global_def)
     mpc_input_different = MpcInput(x0=x0, parameters=params)
-    solution_different = learnable_pendulum_on_cart_mpc_lls_cost(mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True)
+    solution_different = learnable_pendulum_on_cart_mpc(mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True)
     # Use this as proxy to verify the different solution is different enough
     assert not np.allclose(
         solution_standard.V,  # type:ignore
         solution_different.V,  # type:ignore
     )
-    solution_supposedly_standard = learnable_pendulum_on_cart_mpc_lls_cost(
+    solution_supposedly_standard = learnable_pendulum_on_cart_mpc(
         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
     )
     mpc_outputs_assert_allclose(solution_standard, solution_supposedly_standard, test_u_star=True)
 
 
-def test_statelessness_batched_LLS(n_batch: int, learnable_pendulum_on_cart_mpc_lls_cost: Mpc):
+def test_statelessness_batched(n_batch: int, learnable_pendulum_on_cart_mpc: Mpc):
     # Create MPC with some stateless and some global parameters
     x0 = np.array([0, -np.pi, 0, 0])
     x0 = np.tile(x0, (n_batch, 1))
     mpc_input_standard = MpcInput(x0=x0)
-    solution_standard = learnable_pendulum_on_cart_mpc_lls_cost(mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True)
+    solution_standard = learnable_pendulum_on_cart_mpc(mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True)
 
-    assert learnable_pendulum_on_cart_mpc_lls_cost.default_p_global is not None
-    p_global_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_global
+    assert learnable_pendulum_on_cart_mpc.default_p_global is not None
+    p_global_def = learnable_pendulum_on_cart_mpc.default_p_global
     p_global_def = np.tile(p_global_def, (n_batch, 1))
-    assert learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref is not None
-    p_yref_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref
-    p_yref_def = np.tile(p_yref_def, (n_batch, 1, 1))
-    assert learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref_e is not None
-    p_yref_e_def = learnable_pendulum_on_cart_mpc_lls_cost.default_p_yref_e
-    p_yref_e_def = np.tile(p_yref_e_def, (n_batch, 1))
-    p_global_def[:, -1] = 1  # Set reference position to 1
-    p_yref_def[:, :, 0] = 1  # Set reference position to 1
-    p_yref_e_def[:, 0] = 1  # Set reference position to 1
-    params = MpcParameter(p_global=p_global_def, p_yref=p_yref_def, p_yref_e=p_yref_e_def)
+
+    idx = find_idx_for_labels(learnable_pendulum_on_cart_mpc.ocp_solver.acados_ocp.model.p_global, "xref1")
+
+    p_global_def[:, idx] = 1  # Set reference position to 1
+    params = MpcParameter(p_global=p_global_def)
     mpc_input_different = MpcInput(x0=x0, parameters=params)
-    solution_different = learnable_pendulum_on_cart_mpc_lls_cost(mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True)
+    solution_different = learnable_pendulum_on_cart_mpc(mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True)
     # Use this as proxy to verify the different solution is different enough
     assert not np.allclose(
         solution_standard.V,  # type:ignore
         solution_different.V,  # type:ignore
     )
-    solution_supposedly_standard = learnable_pendulum_on_cart_mpc_lls_cost(
+    solution_supposedly_standard = learnable_pendulum_on_cart_mpc(
         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
     )
     mpc_outputs_assert_allclose(solution_standard, solution_supposedly_standard, test_u_star=True)
@@ -348,13 +342,13 @@ def test_backup_fn_batched(learnable_point_mass_mpc_different_params: Mpc, n_bat
     mpc_outputs_assert_allclose(sol, sol_again, test_u_star=True)
 
 
-def test_fail_consistency_batched_non_batched(learnable_pendulum_on_cart_mpc_lls_cost: Mpc, n_batch: int):
+def test_fail_consistency_batched_non_batched(learnable_pendulum_on_cart_mpc: Mpc, n_batch: int):
     x0 = np.tile(np.array([0, -np.pi, 0, 0]), (n_batch, 1))
-    p_glob = learnable_pendulum_on_cart_mpc_lls_cost.default_p_global.copy()  # type:ignore
+    p_glob = learnable_pendulum_on_cart_mpc.default_p_global.copy()  # type:ignore
     p_glob[0] = 0  # Set Mass of cart to 0 # type:ignore
     p_glob = np.tile(p_glob, (n_batch, 1))  # type:ignore
-    sol = learnable_pendulum_on_cart_mpc_lls_cost(MpcInput(x0=x0, parameters=MpcParameter(p_global=p_glob)))
-    single_sol = learnable_pendulum_on_cart_mpc_lls_cost(MpcInput(x0=x0[0], parameters=MpcParameter(p_global=p_glob[0])))
+    sol = learnable_pendulum_on_cart_mpc(MpcInput(x0=x0, parameters=MpcParameter(p_global=p_glob)))
+    single_sol = learnable_pendulum_on_cart_mpc(MpcInput(x0=x0[0], parameters=MpcParameter(p_global=p_glob[0])))
     assert single_sol.status != 0
     assert np.all(sol.status != 0)
 

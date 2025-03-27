@@ -553,18 +553,33 @@ class Mpc(ABC):
         """
         self.ocp = ocp
 
+
         if ocp_sensitivity is None:
             # setup OCP for sensitivity solver
-            if ocp.cost.cost_type != "EXTERNAL" or ocp.cost.cost_type_0 != "EXTERNAL" or ocp.cost.cost_type_e != "EXTERNAL":
-                raise ValueError("Automatic derivation of sensitivity problem is only supported for EXTERNAL cost types.")
+            if ocp.cost.cost_type not in  ["EXTERNAL", "NONLINEAR_LS"] or ocp.cost.cost_type_0 not in ["EXTERNAL", "NONLINEAR_LS", None] or ocp.cost.cost_type_e not in ["EXTERNAL", "NONLINEAR_LS"]:
+                raise ValueError("Automatic derivation of sensitivity problem is only supported for EXTERNAL or NONLINEAR_LS cost types.")
             self.ocp_sensitivity = deepcopy(ocp)
 
             set_standard_sensitivity_options(self.ocp_sensitivity)
         else:
             self.ocp_sensitivity = ocp_sensitivity
 
-        self.ocp.translate_cost_to_external_cost(cost_hessian="GAUSS_NEWTON")
-        self.ocp_sensitivity.translate_cost_to_external_cost(cost_hessian="EXACT")
+
+        if self.ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
+            self.ocp.translate_intial_cost_term_to_external(cost_hessian="GAUSS_NEWTON")
+            self.ocp_sensitivity.translate_intial_cost_term_to_external(cost_hessian="EXACT")
+
+        if self.ocp.cost.cost_type not in ["EXTERNAL"]:
+            self.ocp.translate_intermediate_cost_term_to_external(cost_hessian="GAUSS_NEWTON")
+            self.ocp_sensitivity.translate_intermediate_cost_term_to_external(cost_hessian="EXACT")
+
+        if self.ocp.cost.cost_type_e not in ["EXTERNAL"]:
+            self.ocp.translate_terminal_cost_term_to_external(cost_hessian="GAUSS_NEWTON")
+            self.ocp_sensitivity.translate_terminal_cost_term_to_external(cost_hessian="EXACT")
+
+        
+            # self.ocp.translate_cost_to_external_cost(cost_hessian="GAUSS_NEWTON")
+            # self.ocp_sensitivity.translate_cost_to_external_cost(cost_hessian="EXACT")
 
         turn_on_warmstart(self.ocp)
 
