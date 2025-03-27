@@ -1,6 +1,6 @@
 from abc import ABC
-from copy import deepcopy
 from collections import defaultdict
+from copy import deepcopy
 from dataclasses import fields
 from enum import IntEnum
 from functools import cached_property
@@ -90,7 +90,11 @@ class MpcParameter(NamedTuple):
             raise ValueError("Cannot sample from non-batched MpcParameter.")
         p_global = self.p_global[i] if self.p_global is not None else None
         p_stagewise = self.p_stagewise[i] if self.p_stagewise is not None else None
-        p_stagewise_sparse_idx = self.p_stagewise_sparse_idx[i] if self.p_stagewise_sparse_idx is not None else None
+        p_stagewise_sparse_idx = (
+            self.p_stagewise_sparse_idx[i]
+            if self.p_stagewise_sparse_idx is not None
+            else None
+        )
         p_W = self.p_W[i] if self.p_W is not None else None
         p_yref = self.p_yref[i] if self.p_yref is not None else None
         p_W_e = self.p_W_e[i] if self.p_W_e is not None else None
@@ -144,7 +148,9 @@ class MpcInput(NamedTuple):
             raise ValueError("Cannot sample from non-batched MPCInput.")
         x0 = self.x0[i]
         u0 = self.u0[i] if self.u0 is not None else None
-        parameters = self.parameters.get_sample(i) if self.parameters is not None else None
+        parameters = (
+            self.parameters.get_sample(i) if self.parameters is not None else None
+        )
         return MpcInput(x0=x0, u0=u0, parameters=parameters)
 
 
@@ -183,7 +189,9 @@ def set_ocp_solver_mpc_params(
     if isinstance(ocp_solver, AcadosOcpSolver):
         if mpc_parameter is not None:
             if mpc_parameter.p_global is not None:
-                ocp_solver.set_p_global_and_precompute_dependencies(mpc_parameter.p_global)
+                ocp_solver.set_p_global_and_precompute_dependencies(
+                    mpc_parameter.p_global
+                )
 
             if mpc_parameter.p_stagewise is not None:
                 if mpc_parameter.p_stagewise_sparse_idx is not None:
@@ -211,7 +219,9 @@ def set_ocp_solver_mpc_params(
         for i, single_solver in enumerate(ocp_solver.ocp_solvers):
             set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
     else:
-        raise ValueError(f"expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}.")
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
+        )
 
 
 def set_ocp_solver_iterate(
@@ -236,7 +246,9 @@ def set_ocp_solver_iterate(
                 f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
             )
     else:
-        raise ValueError(f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}.")
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        )
 
 
 def set_ocp_solver_initial_condition(
@@ -259,9 +271,13 @@ def set_ocp_solver_initial_condition(
                     else ocp_solver.acados_ocp.constraints
                 )
                 if constr.lbu.size != 0 and np.any(u0 < constr.lbu):
-                    raise ValueError("You are about to set an initial control that is below the defined lower bound.")
+                    raise ValueError(
+                        "You are about to set an initial control that is below the defined lower bound."
+                    )
                 elif constr.ubu.size != 0 and np.any(u0 > constr.ubu):
-                    raise ValueError("You are about to set an initial control that is above the defined upper bound.")
+                    raise ValueError(
+                        "You are about to set an initial control that is above the defined upper bound."
+                    )
             ocp_solver.constraints_set(0, "lbu", u0)
             ocp_solver.constraints_set(0, "ubu", u0)
 
@@ -274,7 +290,9 @@ def set_ocp_solver_initial_condition(
             )
 
     else:
-        raise ValueError(f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}.")
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        )
 
 
 def initialize_ocp_solver(
@@ -320,7 +338,9 @@ def unset_ocp_solver_initial_control_constraints(
             unset_ocp_solver_initial_control_constraints(ocp_solver)
 
     else:
-        raise ValueError(f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}.")
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        )
 
 
 def set_ocp_solver_to_default(
@@ -345,10 +365,14 @@ def set_ocp_solver_to_default(
             set_ocp_solver_to_default(ocp_solver, default_mpc_parameters, unset_u0)
 
     else:
-        raise ValueError(f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}.")
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        )
 
 
-def set_discount_factor(ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver, discount_factor: float) -> None:
+def set_discount_factor(
+    ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver, discount_factor: float
+) -> None:
     if isinstance(ocp_solver, AcadosOcpSolver):
         for stage in range(ocp_solver.acados_ocp.solver_options.N_horizon + 1):  # type: ignore
             ocp_solver.cost_set(stage, "scaling", discount_factor**stage)
@@ -358,7 +382,9 @@ def set_discount_factor(ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver, disc
             set_discount_factor(ocp_solver, discount_factor)
 
     else:
-        raise ValueError(f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}.")
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
+        )
 
 
 def _solve_shared(
@@ -414,7 +440,9 @@ def _solve_shared(
             solve_stats[f"status_{name}"] = int(status == status_enum.value)
 
             if backup_status is not None:
-                solve_stats[f"backup_status_{name}"] = int(backup_status == status_enum.value)
+                solve_stats[f"backup_status_{name}"] = int(
+                    backup_status == status_enum.value
+                )
 
             solve_stats["backup_rate"] = 1.0 if backup_status is not None else 0.0
 
@@ -435,7 +463,9 @@ def _solve_shared(
             if status != 0:
                 any_failed = True
 
-        if any_failed and backup_fn is not None and iterate is not None:  # Reattempt with backup
+        if (
+            any_failed and backup_fn is not None and iterate is not None
+        ):  # Reattempt with backup
             for i, ocp_solver in enumerate(solver.ocp_solvers):
                 if status_batch[i] != 0:
                     single_input = mpc_input.get_sample(i)
@@ -476,7 +506,9 @@ def _solve_shared(
 
             if len(backup_status_batch) > 0:
                 backup_n_equal = (backup_status_batch == status_enum.value).sum()
-                solve_stats[f"backup_status_{name}"] = float(backup_n_equal / len(backup_status_batch))
+                solve_stats[f"backup_status_{name}"] = float(
+                    backup_n_equal / len(backup_status_batch)
+                )
 
         # report batch statistics with avg, min, max
         for key, values in stats_batch.items():
@@ -485,7 +517,9 @@ def _solve_shared(
             solve_stats[f"{key}_min"] = values.min()
             solve_stats[f"{key}_max"] = values.max()
     else:
-        raise ValueError(f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(solver)}.")
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(solver)}."
+        )
 
     if sensitivity_solver is not None:
         # Mask LS-parameters
@@ -518,7 +552,9 @@ def turn_on_warmstart(acados_ocp: AcadosOcp):
         and acados_ocp.solver_options.nlp_solver_warm_start_first_qp
         and acados_ocp.solver_options.nlp_solver_warm_start_first_qp_from_nlp
     ):
-        print("WARNING: Warmstart is not enabled. We will enable it for our initialization strategies to work properly.")
+        print(
+            "WARNING: Warmstart is not enabled. We will enable it for our initialization strategies to work properly."
+        )
     acados_ocp.solver_options.qp_solver_warm_start = 0
     acados_ocp.solver_options.nlp_solver_warm_start_first_qp = True
     acados_ocp.solver_options.nlp_solver_warm_start_first_qp_from_nlp = True
@@ -568,7 +604,9 @@ class Mpc(ABC):
         ocp: AcadosOcp,
         ocp_sensitivity: AcadosOcp | None = None,
         discount_factor: float | None = None,
-        init_state_fn: (Callable[[MpcInput], MpcSingleState | MpcBatchedState] | None) = None,
+        init_state_fn: (
+            Callable[[MpcInput], MpcSingleState | MpcBatchedState] | None
+        ) = None,
         n_batch: int = 256,
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
@@ -595,8 +633,14 @@ class Mpc(ABC):
 
         if ocp_sensitivity is None:
             # setup OCP for sensitivity solver
-            if ocp.cost.cost_type != "EXTERNAL" or ocp.cost.cost_type_0 != "EXTERNAL" or ocp.cost.cost_type_e != "EXTERNAL":
-                raise ValueError("Automatic derivation of sensitivity problem is only supported for EXTERNAL cost types.")
+            if (
+                ocp.cost.cost_type != "EXTERNAL"
+                or ocp.cost.cost_type_0 != "EXTERNAL"
+                or ocp.cost.cost_type_e != "EXTERNAL"
+            ):
+                raise ValueError(
+                    "Automatic derivation of sensitivity problem is only supported for EXTERNAL cost types."
+                )
             self.ocp_sensitivity = deepcopy(ocp)
             set_standard_sensitivity_options(self.ocp_sensitivity)
         else:
@@ -622,7 +666,9 @@ class Mpc(ABC):
         # size of solver batch
         self.n_batch: int = n_batch
 
-        self.throw_error_if_u0_is_outside_ocp_bounds = throw_error_if_u0_is_outside_ocp_bounds
+        self.throw_error_if_u0_is_outside_ocp_bounds = (
+            throw_error_if_u0_is_outside_ocp_bounds
+        )
 
         self.last_call_stats: dict = dict()
         self.last_call_state: MpcSingleState | MpcBatchedState
@@ -662,7 +708,9 @@ class Mpc(ABC):
 
         if self._discount_factor is not None:
             set_discount_factor(batch_solver, self._discount_factor)
-        set_ocp_solver_to_default(batch_solver, self.default_full_mpcparameter, unset_u0=True)
+        set_ocp_solver_to_default(
+            batch_solver, self.default_full_mpcparameter, unset_u0=True
+        )
 
         return batch_solver
 
@@ -671,18 +719,24 @@ class Mpc(ABC):
         ocp = deepcopy(self.ocp_sensitivity)
         ocp.model.name += "_batch"  # type:ignore
 
-        batch_solver = self.afm_sens_batch.setup_acados_ocp_batch_solver(ocp, self.n_batch)
+        batch_solver = self.afm_sens_batch.setup_acados_ocp_batch_solver(
+            ocp, self.n_batch
+        )
 
         if self._discount_factor is not None:
             set_discount_factor(batch_solver, self._discount_factor)
-        set_ocp_solver_to_default(batch_solver, self.default_sens_mpcparameter, unset_u0=True)
+        set_ocp_solver_to_default(
+            batch_solver, self.default_sens_mpcparameter, unset_u0=True
+        )
 
         return batch_solver
 
     @property
     def p_global_dim(self) -> int:
         """Return the dimension of p_global."""
-        return self.default_p_global.shape[0] if self.default_p_global is not None else 0
+        return (
+            self.default_p_global.shape[0] if self.default_p_global is not None else 0
+        )
 
     @property
     def N(self) -> int:
@@ -691,7 +745,11 @@ class Mpc(ABC):
     @cached_property
     def default_p_global(self) -> np.ndarray | None:
         """Return the default p_global."""
-        return self.ocp.p_global_values if self.is_model_p_legal(self.ocp.model.p_global) else None
+        return (
+            self.ocp.p_global_values
+            if self.is_model_p_legal(self.ocp.model.p_global)
+            else None
+        )
 
     @cached_property
     def default_p_stagewise(self) -> np.ndarray | None:
@@ -705,12 +763,20 @@ class Mpc(ABC):
     @cached_property
     def default_p_W(self) -> np.ndarray | None:
         """Return the default p_W."""
-        return np.tile(self.ocp.cost.W, (self.N, 1, 1)) if self.is_model_p_legal(self.ocp.cost.W) else None
+        return (
+            np.tile(self.ocp.cost.W, (self.N, 1, 1))
+            if self.is_model_p_legal(self.ocp.cost.W)
+            else None
+        )
 
     @cached_property
     def default_p_yref(self) -> np.ndarray | None:
         """Return the default p_yref."""
-        return np.tile(self.ocp.cost.yref, (self.N, 1)) if self.is_model_p_legal(self.ocp.cost.yref) else None
+        return (
+            np.tile(self.ocp.cost.yref, (self.N, 1))
+            if self.is_model_p_legal(self.ocp.cost.yref)
+            else None
+        )
 
     @cached_property
     def default_p_W_e(self) -> np.ndarray | None:
@@ -720,7 +786,11 @@ class Mpc(ABC):
     @cached_property
     def default_p_yref_e(self) -> np.ndarray | None:
         """Return the default p_yref_e."""
-        return self.ocp.cost.yref_e if self.is_model_p_legal(self.ocp.cost.yref_e) else None
+        return (
+            self.ocp.cost.yref_e
+            if self.is_model_p_legal(self.ocp.cost.yref_e)
+            else None
+        )
 
     @cached_property
     def default_full_mpcparameter(self) -> MpcParameter:
@@ -799,7 +869,9 @@ class Mpc(ABC):
             The state-action value function, dQ_dp_global if requested, and the status of the computation (whether it succeded, etc.).
         """
 
-        mpc_input = MpcInput(x0=state, u0=action, parameters=MpcParameter(p_global=p_global))
+        mpc_input = MpcInput(
+            x0=state, u0=action, parameters=MpcParameter(p_global=p_global)
+        )
         mpc_output = self.__call__(mpc_input=mpc_input, dvdp=sens)
 
         return (
@@ -832,7 +904,9 @@ class Mpc(ABC):
 
         mpc_input = MpcInput(x0=state, parameters=MpcParameter(p_global=p_global))
 
-        mpc_output = self.__call__(mpc_input=mpc_input, dudp=sens, use_adj_sens=use_adj_sens)
+        mpc_output = self.__call__(
+            mpc_input=mpc_input, dudp=sens, use_adj_sens=use_adj_sens
+        )
 
         return mpc_output.u0, mpc_output.du0_dp_global, mpc_output.status  # type:ignore
 
@@ -899,7 +973,9 @@ class Mpc(ABC):
                     return np.array([value])
                 return value
 
-            mpc_output = MpcOutput(**{k: add_dim(v) for k, v in mpc_output._asdict().items()})
+            mpc_output = MpcOutput(
+                **{k: add_dim(v) for k, v in mpc_output._asdict().items()}
+            )
 
             self.last_call_state = mpc_state
             return mpc_output
@@ -950,7 +1026,9 @@ class Mpc(ABC):
 
         self.last_call_stats = _solve_shared(
             solver=self.ocp_solver,
-            sensitivity_solver=(self.ocp_sensitivity_solver if use_sensitivity_solver else None),
+            sensitivity_solver=(
+                self.ocp_sensitivity_solver if use_sensitivity_solver else None
+            ),
             mpc_input=mpc_input,
             mpc_state=mpc_state,
             backup_fn=self.init_state_fn,
@@ -979,36 +1057,46 @@ class Mpc(ABC):
 
             if dudp:
                 if use_adj_sens:
-                    kw["du0_dp_global"] = self.ocp_sensitivity_solver.eval_adjoint_solution_sensitivity(
-                        seed_x=[],
-                        seed_u=[
-                            (
-                                0,
-                                np.eye(self.ocp.dims.nu),  # type:ignore
-                            )
-                        ],
-                        with_respect_to="p_global",
-                        sanity_checks=True,
+                    kw["du0_dp_global"] = (
+                        self.ocp_sensitivity_solver.eval_adjoint_solution_sensitivity(
+                            seed_x=[],
+                            seed_u=[
+                                (
+                                    0,
+                                    np.eye(self.ocp.dims.nu),  # type:ignore
+                                )
+                            ],
+                            with_respect_to="p_global",
+                            sanity_checks=True,
+                        )
                     )
                 else:
-                    kw["du0_dp_global"] = self.ocp_sensitivity_solver.eval_solution_sensitivity(
-                        stages=0,
-                        with_respect_to="p_global",
-                        return_sens_u=True,
-                        return_sens_x=False,
-                    )["sens_u"]
+                    kw["du0_dp_global"] = (
+                        self.ocp_sensitivity_solver.eval_solution_sensitivity(
+                            stages=0,
+                            with_respect_to="p_global",
+                            return_sens_u=True,
+                            return_sens_x=False,
+                        )["sens_u"]
+                    )
 
             if dvdp:
-                kw["dvalue_dp_global"] = self.ocp_sensitivity_solver.eval_and_get_optimal_value_gradient(
-                    with_respect_to="p_global"
+                kw["dvalue_dp_global"] = (
+                    self.ocp_sensitivity_solver.eval_and_get_optimal_value_gradient(
+                        with_respect_to="p_global"
+                    )
                 )
 
         if dvdx:
-            kw["dvalue_dx0"] = self.ocp_solver.eval_and_get_optimal_value_gradient(with_respect_to="initial_state")
+            kw["dvalue_dx0"] = self.ocp_solver.eval_and_get_optimal_value_gradient(
+                with_respect_to="initial_state"
+            )
 
         # NB: Assumes we are evaluating dQdu0 here
         if dvdu:
-            kw["dvalue_du0"] = self.ocp_solver.eval_and_get_optimal_value_gradient(with_respect_to="initial_control")
+            kw["dvalue_du0"] = self.ocp_solver.eval_and_get_optimal_value_gradient(
+                with_respect_to="initial_control"
+            )
 
         # get mpc state
         flat_iterate = self.ocp_solver.store_iterate_to_flat_obj()
@@ -1047,7 +1135,9 @@ class Mpc(ABC):
 
         self.last_call_stats = _solve_shared(
             solver=self.ocp_batch_solver,
-            sensitivity_solver=(self.ocp_batch_sensitivity_solver if use_sensitivity_solver else None),
+            sensitivity_solver=(
+                self.ocp_batch_sensitivity_solver if use_sensitivity_solver else None
+            ),
             mpc_input=mpc_input,
             mpc_state=mpc_state,
             backup_fn=self.init_state_fn,
@@ -1055,14 +1145,28 @@ class Mpc(ABC):
         )
 
         kw = {}
-        kw["status"] = np.array([ocp_solver.status for ocp_solver in self.ocp_batch_solver.ocp_solvers])
+        kw["status"] = np.array(
+            [ocp_solver.status for ocp_solver in self.ocp_batch_solver.ocp_solvers]
+        )
 
-        kw["u0"] = np.array([ocp_solver.get(0, "u") for ocp_solver in self.ocp_batch_solver.ocp_solvers])
+        kw["u0"] = np.array(
+            [ocp_solver.get(0, "u") for ocp_solver in self.ocp_batch_solver.ocp_solvers]
+        )
 
         if mpc_input.u0 is not None:
-            kw["Q"] = np.array([ocp_solver.get_cost() for ocp_solver in self.ocp_batch_solver.ocp_solvers])
+            kw["Q"] = np.array(
+                [
+                    ocp_solver.get_cost()
+                    for ocp_solver in self.ocp_batch_solver.ocp_solvers
+                ]
+            )
         else:
-            kw["V"] = np.array([ocp_solver.get_cost() for ocp_solver in self.ocp_batch_solver.ocp_solvers])
+            kw["V"] = np.array(
+                [
+                    ocp_solver.get_cost()
+                    for ocp_solver in self.ocp_batch_solver.ocp_solvers
+                ]
+            )
 
         if use_sensitivity_solver:
             if dudx:
@@ -1081,13 +1185,17 @@ class Mpc(ABC):
             if dudp:
                 if use_adj_sens:
                     single_seed = np.eye(self.ocp.dims.nu)
-                    seed_vec = np.repeat(single_seed[np.newaxis, :, :], self.n_batch, axis=0)
+                    seed_vec = np.repeat(
+                        single_seed[np.newaxis, :, :], self.n_batch, axis=0
+                    )
 
-                    kw["du0_dp_global"] = self.ocp_batch_sensitivity_solver.eval_adjoint_solution_sensitivity(
-                        seed_x=[],
-                        seed_u=[(0, seed_vec)],
-                        with_respect_to="p_global",
-                        sanity_checks=True,
+                    kw["du0_dp_global"] = (
+                        self.ocp_batch_sensitivity_solver.eval_adjoint_solution_sensitivity(
+                            seed_x=[],
+                            seed_u=[(0, seed_vec)],
+                            with_respect_to="p_global",
+                            sanity_checks=True,
+                        )
                     )
 
                 else:
@@ -1112,7 +1220,9 @@ class Mpc(ABC):
             if dvdp:
                 kw["dvalue_dp_global"] = np.array(
                     [
-                        ocp_sensitivity_solver.eval_and_get_optimal_value_gradient("p_global")
+                        ocp_sensitivity_solver.eval_and_get_optimal_value_gradient(
+                            "p_global"
+                        )
                         for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
                     ]
                 )
@@ -1132,14 +1242,18 @@ class Mpc(ABC):
         if dvdx:
             kw["dvalue_dx0"] = np.array(
                 [
-                    solver.eval_and_get_optimal_value_gradient(with_respect_to="initial_state")
+                    solver.eval_and_get_optimal_value_gradient(
+                        with_respect_to="initial_state"
+                    )
                     for solver in self.ocp_batch_solver.ocp_solvers
                 ]
             )
         if dvdu:
             kw["dvalue_du0"] = np.array(
                 [
-                    solver.eval_and_get_optimal_value_gradient(with_respect_to="initial_control")
+                    solver.eval_and_get_optimal_value_gradient(
+                        with_respect_to="initial_control"
+                    )
                     for solver in self.ocp_batch_solver.ocp_solvers
                 ]
             )
@@ -1162,7 +1276,9 @@ class Mpc(ABC):
 
         return MpcOutput(**kw), flat_iterate
 
-    def last_solve_diagnostics(self, ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver) -> dict | list[dict]:
+    def last_solve_diagnostics(
+        self, ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver
+    ) -> dict | list[dict]:
         """Print statistics for the last solve and collect QP-diagnostics for the solvers.
 
         Simpler information about the last call is stored in self.last_call_stats.
