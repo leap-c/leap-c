@@ -137,7 +137,7 @@ class AcadosFileManager:
         return solver
 
     def setup_acados_ocp_batch_solver(
-        self, ocp: AcadosOcp, N: int
+        self, ocp: AcadosOcp, N_batch: int, n_threads: int
     ) -> AcadosOcpBatchSolver:
         """Setup an acados ocp batch solver with path management.
 
@@ -145,7 +145,8 @@ class AcadosFileManager:
 
         Args:
             ocp: The acados ocp object.
-            N: The number of shooting nodes.
+            N: The batch size.
+            n_threads: The number of threads to use for the batched methods.
 
         Returns:
             AcadosOcpBatchSolver: The acados ocp batch solver.
@@ -153,7 +154,12 @@ class AcadosFileManager:
         ocp.code_export_directory = str(self.export_directory / "c_generated_code")
         json_file = str(self.export_directory / "acados_ocp.json")
 
-        solver = AcadosOcpBatchSolver(ocp, json_file=json_file, N_batch=N)
+        solver = AcadosOcpBatchSolver(
+            ocp,
+            json_file=json_file,
+            N_batch=N_batch,
+            num_threads_in_batch_solve=n_threads,
+        )
 
         # we add the acados file manager to the solver to ensure
         # the export directory is deleted when the solver is garbage collected
