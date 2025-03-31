@@ -84,6 +84,7 @@ jobs:
       uses: peaceiris/actions-gh-pages@v3
       if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
       with:
+          path: ${{github.workspace}}/leap_c/docs
           publish_branch: gh-pages
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: _build/
