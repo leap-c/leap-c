@@ -5,9 +5,10 @@ from argparse import ArgumentParser
 from dataclasses import asdict
 from pathlib import Path
 
+import yaml
+
 import leap_c.examples  # noqa: F401
 import leap_c.rl  # noqa: F401
-import yaml
 from leap_c.registry import create_default_cfg, create_task, create_trainer
 from leap_c.trainer import BaseConfig
 
@@ -74,8 +75,6 @@ def main(
         device=device,
         cfg=cfg,
     )
-
-    cfg.val.num_render_rollouts = 1
 
     trainer = create_trainer(trainer_name, task, output_path, device, cfg)
     trainer.run()
