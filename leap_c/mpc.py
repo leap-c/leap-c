@@ -565,15 +565,15 @@ class Mpc(ABC):
 
 
         if self.ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
-            self.ocp.translate_intial_cost_term_to_external(cost_hessian="GAUSS_NEWTON")
+            self.ocp.translate_intial_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
             self.ocp_sensitivity.translate_intial_cost_term_to_external(cost_hessian="EXACT")
 
         if self.ocp.cost.cost_type not in ["EXTERNAL"]:
-            self.ocp.translate_intermediate_cost_term_to_external(cost_hessian="GAUSS_NEWTON")
+            self.ocp.translate_intermediate_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
             self.ocp_sensitivity.translate_intermediate_cost_term_to_external(cost_hessian="EXACT")
 
         if self.ocp.cost.cost_type_e not in ["EXTERNAL"]:
-            self.ocp.translate_terminal_cost_term_to_external(cost_hessian="GAUSS_NEWTON")
+            self.ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
             self.ocp_sensitivity.translate_terminal_cost_term_to_external(cost_hessian="EXACT")
 
         turn_on_warmstart(self.ocp)
