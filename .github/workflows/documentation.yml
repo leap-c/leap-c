@@ -70,10 +70,12 @@ jobs:
         pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
     - name: Install dependencies
+      working-directory: ${{github.workspace}}/leap_c
       run: |
           pip install sphinx sphinx_rtd_theme myst_parser
    
     - name: Sphinx build
+      working-directory: ${{github.workspace}}/leap_c
       run: |
           sphinx-build docs/source _build
           
