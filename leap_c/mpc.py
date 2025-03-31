@@ -608,7 +608,7 @@ class Mpc(ABC):
             Callable[[MpcInput], MpcSingleState | MpcBatchedState] | None
         ) = None,
         n_batch: int = 256,
-        n_threads_batch_methods: int = 1,
+        num_threads_in_batch_methods: int = 1,
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
         throw_error_if_u0_is_outside_ocp_bounds: bool = True,
@@ -624,7 +624,7 @@ class Mpc(ABC):
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
             init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.
             n_batch: Number of batched solvers to use.
-            n_threads_batch_methods: Number of threads to use in the batch methods.
+            num_threads_in_batch_methods: Number of threads to use in the batch methods.
             export_directory: Directory to export the generated code.
             export_directory_sensitivity: Directory to export the generated
                 code for the sensitivity problem.
@@ -666,7 +666,7 @@ class Mpc(ABC):
         self.param_labels = SX_to_labels(self.ocp.model.p_global)
 
         self.n_batch: int = n_batch
-        self._n_threads_batch_methods: int = n_threads_batch_methods
+        self._num_threads_in_batch_methods: int = num_threads_in_batch_methods
 
         self.throw_error_if_u0_is_outside_ocp_bounds = (
             throw_error_if_u0_is_outside_ocp_bounds
@@ -703,7 +703,7 @@ class Mpc(ABC):
         ocp.model.name += "_batch"  # type:ignore
 
         batch_solver = self.afm_batch.setup_acados_ocp_batch_solver(
-            ocp, self.n_batch, self._n_threads_batch_methods
+            ocp, self.n_batch, self._num_threads_in_batch_methods
         )
 
         if self._discount_factor is not None:
@@ -720,7 +720,7 @@ class Mpc(ABC):
         ocp.model.name += "_batch"  # type:ignore
 
         batch_solver = self.afm_sens_batch.setup_acados_ocp_batch_solver(
-            ocp, self.n_batch, self._n_threads_batch_methods
+            ocp, self.n_batch, self._num_threads_in_batch_methods
         )
 
         if self._discount_factor is not None:
@@ -741,11 +741,11 @@ class Mpc(ABC):
     @property
     def num_threads_batch_methods(self) -> int:
         """The number of threads to use in the batch methods."""
-        return self._n_threads_batch_methods
+        return self._num_threads_in_batch_methods
 
     @num_threads_batch_methods.setter
     def num_threads_batch_methods(self, n_threads):
-        self._n_threads_batch_methods = n_threads
+        self._num_threads_in_batch_methods = n_threads
         self.ocp_batch_solver.num_threads_in_batch_solve = n_threads
         self.ocp_batch_sensitivity_solver.num_threads_in_batch_solve = n_threads
 

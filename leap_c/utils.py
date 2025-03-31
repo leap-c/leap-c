@@ -137,7 +137,7 @@ class AcadosFileManager:
         return solver
 
     def setup_acados_ocp_batch_solver(
-        self, ocp: AcadosOcp, N_batch: int, n_threads: int
+        self, ocp: AcadosOcp, N_batch: int, num_threads_in_batch_methods: int
     ) -> AcadosOcpBatchSolver:
         """Setup an acados ocp batch solver with path management.
 
@@ -146,7 +146,7 @@ class AcadosFileManager:
         Args:
             ocp: The acados ocp object.
             N: The batch size.
-            n_threads: The number of threads to use for the batched methods.
+            num_threads_in_batch_methods: The number of threads to use for the batched methods.
 
         Returns:
             AcadosOcpBatchSolver: The acados ocp batch solver.
@@ -158,7 +158,7 @@ class AcadosFileManager:
             ocp,
             json_file=json_file,
             N_batch=N_batch,
-            num_threads_in_batch_solve=n_threads,
+            num_threads_in_batch_solve=num_threads_in_batch_methods,
         )
 
         # we add the acados file manager to the solver to ensure
