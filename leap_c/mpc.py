@@ -538,7 +538,7 @@ class Mpc(ABC):
         Initialize the MPC object.
 
         Args:
-            ocp: Optimal control problem.
+            ocp: Optimal control problem formulation used for solving the OCP.
             ocp_sensitivity: The optimal control problem formulation to use for sensitivities.
                 If None, the sensitivity problem is derived from the ocp, however only the EXTERNAL cost type is allowed then.
                 For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
@@ -552,7 +552,6 @@ class Mpc(ABC):
                 is outside the box constraints defined in the ocp.
         """
         self.ocp = ocp
-
 
         if ocp_sensitivity is None:
             # setup OCP for sensitivity solver
