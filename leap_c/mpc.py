@@ -675,10 +675,6 @@ class Mpc(ABC):
         self.last_call_stats: dict = dict()
         self.last_call_state: MpcSingleState | MpcBatchedState
 
-        # constraints and cost functions
-        self._h_fn = None
-        self._cost_fn = None
-
     @cached_property
     def ocp_solver(self) -> AcadosOcpSolver:
         solver = self.afm.setup_acados_ocp_solver(self.ocp)
