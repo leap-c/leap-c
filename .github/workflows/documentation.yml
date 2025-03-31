@@ -6,8 +6,10 @@ permissions:
   contents: write
 
 jobs:
+
   docs:
     runs-on: ubuntu-latest
+    
     steps:
     - name: Checkout leap-c
       uses: actions/checkout@v4
@@ -68,16 +70,16 @@ jobs:
         pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
         
 	- name: Install dependencies
-        run: |
+	  run: |
           pip install sphinx sphinx_rtd_theme myst_parser
    
   	- name: Sphinx build
-        run: |
+      run: |
           sphinx-build docs/source _build
           
     - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+      uses: peaceiris/actions-gh-pages@v3
+      if: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
         with:
           publish_branch: gh-pages
           github_token: ${{ secrets.GITHUB_TOKEN }}
