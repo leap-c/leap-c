@@ -145,23 +145,10 @@ class PendulumOnCartMPC(Mpc):
             sensitivity_ocp=False,
         )
 
-        # ocp_sens = export_parametric_ocp(
-        #     nominal_param=params.copy(),
-        #     cost_type="LINEAR_LS" if least_squares_cost else "EXTERNAL",
-        #     exact_hess_dyn=exact_hess_dyn,
-        #     name="pendulum_on_cart_lls" if least_squares_cost else "pendulum_on_cart_ext",
-        #     learnable_param=learnable_params,
-        #     N_horizon=N_horizon,
-        #     tf=T_horizon,
-        #     Fmax=Fmax,
-        #     sensitivity_ocp=True,
-        # )
-
         self.given_default_param_dict: dict[str, np.ndarray] = params  # type:ignore
 
         super().__init__(
             ocp=ocp,
-            # ocp_sensitivity=ocp_sens,
             discount_factor=discount_factor,
             n_batch=n_batch,
         )
@@ -265,7 +252,6 @@ def cost_expr_ext_cost_e(model: AcadosModel) -> ca.SX:
 
 def export_parametric_ocp(
     nominal_param: dict[str, np.ndarray],
-    # cost_type: str = "EXTERNAL",
     cost_type: str = "NONLINEAR_LS",
     exact_hess_dyn: bool = True,
     name: str = "pendulum_on_cart",
