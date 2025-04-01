@@ -122,14 +122,16 @@ def point_mass_mpc_p_global(
 #     """Fixture for the pendulum on cart MPC with learnable parameters."""
 #     return PendulumOnCartMPC(learnable_params=["M", "m", "g", "l"], n_batch=n_batch)
 
+PENDULUM_ON_CART_LEARNABLE_PARAMS = ["M", "m", "g", "L11", "xref1"]
+PENDULUM_ON_CART_EXT_COST_LEARNABLE_PARAMS = PENDULUM_ON_CART_LEARNABLE_PARAMS + ["c1"]
 
 @pytest.fixture(scope="session")
 def learnable_pendulum_on_cart_mpc_ext_cost(n_batch: int) -> PendulumOnCartMPC:
     """Fixture for the pendulum on cart MPC with learnable parameters, using a general quadratic cost."""
     return PendulumOnCartMPC(
-        learnable_params=["M", "m", "g", "L11", "c1"],
+        learnable_params=PENDULUM_ON_CART_EXT_COST_LEARNABLE_PARAMS,
         n_batch=n_batch,
-        least_squares_cost=False,
+        cost_type="EXTERNAL",
     )
 
 
@@ -139,8 +141,9 @@ def learnable_pendulum_on_cart_mpc(
 ) -> PendulumOnCartMPC:
     """Fixture for the pendulum on cart MPC with learnable parameters."""
     return PendulumOnCartMPC(
-        learnable_params=["M", "m", "g", "L11", "xref1"],
+        learnable_params=PENDULUM_ON_CART_LEARNABLE_PARAMS,
         n_batch=n_batch,
+        cost_type="NONLINEAR_LS",
     )
 
 
@@ -148,10 +151,11 @@ def learnable_pendulum_on_cart_mpc(
 def learnable_pendulum_on_cart_mpc_only_cost_params(
     n_batch: int,
 ) -> PendulumOnCartMPC:
-    """Fixture for the pendulum on cart MPC with learnable parameters, using Linear Least Squares cost and only cost params are learnable."""
+    """Fixture for the pendulum on cart MPC with learnable parameters where only cost params are learnable."""
     return PendulumOnCartMPC(
         learnable_params=["L11", "xref1"],
         n_batch=n_batch,
+        cost_type="NONLINEAR_LS",
     )
 
 
@@ -201,5 +205,16 @@ def pendulum_on_cart_p_global(
     """Fixture for the global parameters of the pendulum on cart MPC."""
     return generate_batch_variation(
         learnable_pendulum_on_cart_mpc.ocp_solver.acados_ocp.p_global_values,
+        n_batch,
+    )
+
+@pytest.fixture(scope="session")
+def pendulum_on_cart_ext_cost_p_global(
+    learnable_pendulum_on_cart_mpc_ext_cost: PendulumOnCartMPC,
+    n_batch: int,
+) -> np.ndarray:
+    """Fixture for the global parameters of the pendulum on cart MPC."""
+    return generate_batch_variation(
+        learnable_pendulum_on_cart_mpc_ext_cost.ocp_solver.acados_ocp.p_global_values,
         n_batch,
     )
