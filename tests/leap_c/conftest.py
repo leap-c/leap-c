@@ -117,11 +117,6 @@ def point_mass_mpc_p_global(
     )
 
 
-# @pytest.fixture(scope="session")
-# def learnable_pendulum_on_cart_mpc(n_batch: int) -> PendulumOnCartMPC:
-#     """Fixture for the pendulum on cart MPC with learnable parameters."""
-#     return PendulumOnCartMPC(learnable_params=["M", "m", "g", "l"], n_batch=n_batch)
-
 PENDULUM_ON_CART_LEARNABLE_PARAMS = ["M", "m", "g", "L11", "xref1"]
 PENDULUM_ON_CART_EXT_COST_LEARNABLE_PARAMS = PENDULUM_ON_CART_LEARNABLE_PARAMS + ["c1"]
 
