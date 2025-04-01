@@ -170,12 +170,15 @@ class PendulumOnCartSwingupEnv(gym.Env):
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
         self.t = 0
-        self.x = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        self.x = self.init_state()
         self.reset_needed = False
 
         self.pos_trajectory = None
         self.pole_end_trajectory = None
         return self.x, {}
+
+    def init_state(self) -> np.ndarray:
+        return np.array([0.0, np.pi, 0.0, 0.0], dtype=np.float32)
 
     def include_this_state_trajectory_to_rendering(self, state_trajectory: np.ndarray):
         """Meant for setting a state trajectory for rendering.
@@ -332,3 +335,8 @@ class PendulumOnCartSwingupEnv(gym.Env):
 
             pygame.display.quit()
             pygame.quit()
+
+
+class PendulumOnCartBalanceEnv(PendulumOnCartSwingupEnv):
+    def init_state(self) -> np.ndarray:
+        return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
