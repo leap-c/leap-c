@@ -114,6 +114,7 @@ class PendulumOnCartMPC(Mpc):
         discount_factor: float = 0.99,
         n_batch: int = 64,
         exact_hess_dyn: bool = True,
+        cost_type: str = "NONLINEAR_LS",
     ):
         """
         Args:
@@ -135,7 +136,7 @@ class PendulumOnCartMPC(Mpc):
 
         ocp = export_parametric_ocp(
             nominal_param=params.copy(),
-            cost_type="NONLINEAR_LS",
+            cost_type=cost_type,
             exact_hess_dyn=exact_hess_dyn,
             name="pendulum_on_cart",
             learnable_param=learnable_params,
