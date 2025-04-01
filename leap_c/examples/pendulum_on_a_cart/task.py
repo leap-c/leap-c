@@ -4,7 +4,10 @@ from typing import Any, Optional
 import gymnasium as gym
 import numpy as np
 import torch
-from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
+from leap_c.examples.pendulum_on_a_cart.env import (
+    PendulumOnCartBalanceEnv,
+    PendulumOnCartSwingupEnv,
+)
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
 from leap_c.nn.modules import MpcSolutionModule
 from leap_c.registry import register_task
@@ -70,7 +73,7 @@ PARAMS_SWINGUP = OrderedDict(
 
 
 @register_task("pendulum_swingup")
-class PendulumOnCart(Task):
+class PendulumOnCartSwingup(Task):
     """Swing-up task for the pendulum on a cart system.
     The task is to swing up the pendulum from a downward position to the upright position
     (and balance it there)."""
@@ -135,3 +138,11 @@ class PendulumOnCart(Task):
         )
 
         return MpcInput(x0=obs, parameters=mpc_param)
+
+
+@register_task("pendulum_balance")
+class PendulumOnCartBalance(PendulumOnCartSwingupEnv):
+    """The same as PendulumOnCartSwingup, but the starting position of the pendulum is upright, making the task a balancing task."""
+
+    def create_env(self, train: bool) -> gym.Env:
+        return PendulumOnCartBalanceEnv()
