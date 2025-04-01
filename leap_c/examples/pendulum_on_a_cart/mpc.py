@@ -293,7 +293,7 @@ def export_parametric_ocp(
 
         ocp.cost.cost_type_e = cost_type
         ocp.model.cost_expr_ext_cost_e = cost_expr_ext_cost_e(ocp.model)  # type:ignore
-    if cost_type == "NONLINEAR_LS":
+    elif cost_type == "NONLINEAR_LS":
         ocp.cost.cost_type = "NONLINEAR_LS"
         ocp.cost.cost_type_e = "NONLINEAR_LS"
 
