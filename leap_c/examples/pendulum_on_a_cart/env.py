@@ -137,9 +137,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
         """Execute the dynamics of the pendulum on cart."""
         if self.reset_needed:
             raise Exception("Call reset before using the step method.")
-        print(self.x)
         self.x = self.integrator(self.x, action, self.dt)
-        print(self.x)
         self.t += self.dt
         theta = self.x[1]
         if theta > 2 * np.pi:
@@ -154,10 +152,8 @@ class PendulumOnCartSwingupEnv(gym.Env):
         trunc = False
         if self.x[0] > self.x_threshold or self.x[0] < -self.x_threshold:
             term = True  # Just terminating should be enough punishment when reward is positive
-            print("out of bounds")
         if self.t > self.max_time:
             trunc = True
-            print("time out")
         self.reset_needed = trunc or term
 
         return self.x, r, term, trunc, {}
