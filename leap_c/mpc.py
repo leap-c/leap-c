@@ -51,21 +51,11 @@ class MpcParameter(NamedTuple):
         p_stagewise_sparse_idx: If not None, stagewise parameters are set in a sparse manner, using these indices.
             The indices are in shape (N+1, n_p_stagewise_sparse_idx) or (B, N+1, n_p_stagewise_sparse_idx).
             If a multi-phase MPC is used this is a list containing the above arrays for the respective phases.
-        p_W: The weights for the least squares cost formulation in shape (N, n_x+n_u, n_x+n_u) or (B, N, n_x+n_u, n_x+n_u).
-        p_yref: The reference for the least squares cost formulation in shape (N, n_x+n_u) or (B, N, n_x+n_u).
-        p_W_e: The weights for the least squares cost formulation in the terminal stage in shape (n_x, n_x) or (B, n_x, n_x).
-        p_yref_e: The reference for the least squares cost formulation in the terminal stage in shape (n_x,) or (B, n_x).
     """
 
     p_global: np.ndarray | None = None
     p_stagewise: List[np.ndarray] | np.ndarray | None = None
     p_stagewise_sparse_idx: List[np.ndarray] | np.ndarray | None = None
-
-    # Only used in least squares cost formulations
-    p_W: np.ndarray | None = None
-    p_yref: np.ndarray | None = None
-    p_W_e: np.ndarray | None = None
-    p_yref_e: np.ndarray | None = None
 
     def is_batched(self) -> bool:
         """The empty MpcParameter counts as non-batched."""
@@ -73,14 +63,6 @@ class MpcParameter(NamedTuple):
             return self.p_global.ndim == 2
         elif self.p_stagewise is not None:
             return self.p_stagewise[0].ndim == 3
-        elif self.p_W is not None:
-            return self.p_W.ndim == 4
-        elif self.p_yref is not None:
-            return self.p_yref.ndim == 3
-        elif self.p_W_e is not None:
-            return self.p_W_e.ndim == 3
-        elif self.p_yref_e is not None:
-            return self.p_yref_e.ndim == 2
         else:
             return False
 
@@ -91,19 +73,11 @@ class MpcParameter(NamedTuple):
         p_global = self.p_global[i] if self.p_global is not None else None
         p_stagewise = self.p_stagewise[i] if self.p_stagewise is not None else None
         p_stagewise_sparse_idx = self.p_stagewise_sparse_idx[i] if self.p_stagewise_sparse_idx is not None else None
-        p_W = self.p_W[i] if self.p_W is not None else None
-        p_yref = self.p_yref[i] if self.p_yref is not None else None
-        p_W_e = self.p_W_e[i] if self.p_W_e is not None else None
-        p_yref_e = self.p_yref_e[i] if self.p_yref_e is not None else None
 
         return MpcParameter(
             p_global=p_global,
             p_stagewise=p_stagewise,
             p_stagewise_sparse_idx=p_stagewise_sparse_idx,
-            p_W=p_W,
-            p_yref=p_yref,
-            p_W_e=p_W_e,
-            p_yref_e=p_yref_e,
         )
 
     def ensure_float64(self) -> "MpcParameter":
@@ -197,16 +171,6 @@ def set_ocp_solver_mpc_params(
                 else:
                     for stage, p in enumerate(mpc_parameter.p_stagewise):
                         ocp_solver.set(stage, "p", p)
-            if mpc_parameter.p_W is not None:
-                for stage, W in enumerate(mpc_parameter.p_W):
-                    ocp_solver.cost_set(stage, "W", W)
-            if mpc_parameter.p_yref is not None:
-                for stage, yref in enumerate(mpc_parameter.p_yref):
-                    ocp_solver.cost_set(stage, "yref", yref)
-            if mpc_parameter.p_W_e is not None:
-                ocp_solver.cost_set(ocp_solver.N, "W", mpc_parameter.p_W_e)
-            if mpc_parameter.p_yref_e is not None:
-                ocp_solver.cost_set(ocp_solver.N, "yref", mpc_parameter.p_yref_e)
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         for i, single_solver in enumerate(ocp_solver.ocp_solvers):
             set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
@@ -224,17 +188,13 @@ def set_ocp_solver_iterate(
         if isinstance(ocp_iterate, AcadosOcpFlattenedIterate):
             ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
         elif ocp_iterate is not None:
-            raise ValueError(
-                f"Expected AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}."
-            )
+            raise ValueError(f"Expected AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}.")
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         if isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
             ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
         elif ocp_iterate is not None:
-            raise ValueError(
-                f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
-            )
+            raise ValueError(f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}.")
     else:
         raise ValueError(f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}.")
 
@@ -578,7 +538,7 @@ class Mpc(ABC):
         Initialize the MPC object.
 
         Args:
-            ocp: Optimal control problem.
+            ocp: Optimal control problem formulation used for solving the OCP.
             ocp_sensitivity: The optimal control problem formulation to use for sensitivities.
                 If None, the sensitivity problem is derived from the ocp, however only the EXTERNAL cost type is allowed then.
                 For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
@@ -595,14 +555,29 @@ class Mpc(ABC):
 
         if ocp_sensitivity is None:
             # setup OCP for sensitivity solver
-            if ocp.cost.cost_type != "EXTERNAL" or ocp.cost.cost_type_0 != "EXTERNAL" or ocp.cost.cost_type_e != "EXTERNAL":
-                raise ValueError("Automatic derivation of sensitivity problem is only supported for EXTERNAL cost types.")
+            if ocp.cost.cost_type not in  ["EXTERNAL", "NONLINEAR_LS"] or ocp.cost.cost_type_0 not in ["EXTERNAL", "NONLINEAR_LS", None] or ocp.cost.cost_type_e not in ["EXTERNAL", "NONLINEAR_LS"]:
+                raise ValueError("Automatic derivation of sensitivity problem is only supported for EXTERNAL or NONLINEAR_LS cost types.")
             self.ocp_sensitivity = deepcopy(ocp)
+
             set_standard_sensitivity_options(self.ocp_sensitivity)
         else:
             self.ocp_sensitivity = ocp_sensitivity
 
+
+        if self.ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
+            self.ocp.translate_intial_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
+            self.ocp_sensitivity.translate_intial_cost_term_to_external(cost_hessian="EXACT")
+
+        if self.ocp.cost.cost_type not in ["EXTERNAL"]:
+            self.ocp.translate_intermediate_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
+            self.ocp_sensitivity.translate_intermediate_cost_term_to_external(cost_hessian="EXACT")
+
+        if self.ocp.cost.cost_type_e not in ["EXTERNAL"]:
+            self.ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
+            self.ocp_sensitivity.translate_terminal_cost_term_to_external(cost_hessian="EXACT")
+
         turn_on_warmstart(self.ocp)
+
         # turn_on_warmstart(self.ocp_sensitivity)
 
         # path management
@@ -697,30 +672,8 @@ class Mpc(ABC):
     def default_p_stagewise(self) -> np.ndarray | None:
         """Return the default p_stagewise."""
         return (
-            np.tile(self.ocp.parameter_values, (self.N + 1, 1))
-            if self.is_model_p_legal(self.ocp_sensitivity.model.p)
-            else None
+            np.tile(self.ocp.parameter_values, (self.N + 1, 1)) if self.is_model_p_legal(self.ocp_sensitivity.model.p) else None
         )
-
-    @cached_property
-    def default_p_W(self) -> np.ndarray | None:
-        """Return the default p_W."""
-        return np.tile(self.ocp.cost.W, (self.N, 1, 1)) if self.is_model_p_legal(self.ocp.cost.W) else None
-
-    @cached_property
-    def default_p_yref(self) -> np.ndarray | None:
-        """Return the default p_yref."""
-        return np.tile(self.ocp.cost.yref, (self.N, 1)) if self.is_model_p_legal(self.ocp.cost.yref) else None
-
-    @cached_property
-    def default_p_W_e(self) -> np.ndarray | None:
-        """Return the default p_W_e."""
-        return self.ocp.cost.W_e if self.is_model_p_legal(self.ocp.cost.W_e) else None
-
-    @cached_property
-    def default_p_yref_e(self) -> np.ndarray | None:
-        """Return the default p_yref_e."""
-        return self.ocp.cost.yref_e if self.is_model_p_legal(self.ocp.cost.yref_e) else None
 
     @cached_property
     def default_full_mpcparameter(self) -> MpcParameter:
@@ -728,10 +681,6 @@ class Mpc(ABC):
         return MpcParameter(
             p_global=self.default_p_global,
             p_stagewise=self.default_p_stagewise,
-            p_W=self.default_p_W,
-            p_yref=self.default_p_yref,
-            p_W_e=self.default_p_W_e,
-            p_yref_e=self.default_p_yref_e,
         )
 
     @cached_property
