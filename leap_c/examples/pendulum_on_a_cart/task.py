@@ -113,7 +113,7 @@ class PendulumOnCartSwingup(Task):
 
 
 @register_task("pendulum_balance")
-class PendulumOnCartBalance(PendulumOnCartSwingupEnv):
+class PendulumOnCartBalance(PendulumOnCartSwingup):
     """The same as PendulumOnCartSwingup, but the starting position of the pendulum is upright, making the task a balancing task."""
 
     def create_env(self, train: bool) -> gym.Env:
