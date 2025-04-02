@@ -10,7 +10,6 @@ from leap_c.examples.util import (
     translate_learnable_param_to_p_global,
 )
 from leap_c.mpc import Mpc
-from leap_c.utils import set_standard_sensitivity_options
 
 # DO NOT TOUCH THE DEFAULT CONFIG!
 PARAMS = OrderedDict(
@@ -49,23 +48,23 @@ PARAMS = OrderedDict(
         (
             "xref1",
             np.array([0.0]),
-        ),  # reference position
+        ),  # reference position, only used for NONLINEAR_LS cost
         (
             "xref2",
             np.array([0.0]),
-        ),  # reference theta
+        ),  # reference theta, only used for NONLINEAR_LS cost
         (
             "xref3",
             np.array([0.0]),
-        ),  # reference v
+        ),  # reference v, only used for NONLINEAR_LS cost
         (
             "xref4",
             np.array([0.0]),
-        ),  # reference thetadot
+        ),  # reference thetadot, only used for NONLINEAR_LS cost
         (
             "uref",
             np.array([0.0]),
-        ),  # reference u
+        ),  # reference u, only used for NONLINEAR_LS cost
     ]
 )
 
@@ -131,6 +130,7 @@ class PendulumOnCartMPC(Mpc):
             n_batch: The batch size the MPC should be able to process
                 (currently this is static).
             exact_hess_dyn: If False, the contributions of the dynamics will be left out of the Hessian.
+            cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
         """
         params = params if params is not None else PARAMS  # type:ignore
 
