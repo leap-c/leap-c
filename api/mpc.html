@@ -1,0 +1,755 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Model Predictive Control &mdash; leap-c 2024 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../_static/documentation_options.js?v=6fefd858"></script>
+      <script src="../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="OCP Environment" href="ocp_env.html" />
+    <link rel="prev" title="Dynamics" href="dynamics.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../index.html" class="icon icon-home">
+            leap-c
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../getting_started/index.html">Getting Started</a></li>
+<li class="toctree-l1 current"><a class="reference internal" href="../api.html">API Documentation</a><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="dynamics.html">Dynamics</a></li>
+<li class="toctree-l2 current"><a class="current reference internal" href="#">Model Predictive Control</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.AcadosStatus"><code class="docutils literal notranslate"><span class="pre">AcadosStatus</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.AcadosStatus.ACADOS_MAXITER"><code class="docutils literal notranslate"><span class="pre">AcadosStatus.ACADOS_MAXITER</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.AcadosStatus.ACADOS_MINSTEP"><code class="docutils literal notranslate"><span class="pre">AcadosStatus.ACADOS_MINSTEP</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.AcadosStatus.ACADOS_NAN_DETECTED"><code class="docutils literal notranslate"><span class="pre">AcadosStatus.ACADOS_NAN_DETECTED</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.AcadosStatus.ACADOS_QP_FAILURE"><code class="docutils literal notranslate"><span class="pre">AcadosStatus.ACADOS_QP_FAILURE</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.AcadosStatus.ACADOS_READY"><code class="docutils literal notranslate"><span class="pre">AcadosStatus.ACADOS_READY</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.AcadosStatus.ACADOS_SUCCESS"><code class="docutils literal notranslate"><span class="pre">AcadosStatus.ACADOS_SUCCESS</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.AcadosStatus.ACADOS_TIMEOUT"><code class="docutils literal notranslate"><span class="pre">AcadosStatus.ACADOS_TIMEOUT</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.AcadosStatus.ACADOS_UNBOUNDED"><code class="docutils literal notranslate"><span class="pre">AcadosStatus.ACADOS_UNBOUNDED</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.Mpc"><code class="docutils literal notranslate"><span class="pre">Mpc</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.N"><code class="docutils literal notranslate"><span class="pre">Mpc.N</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.default_full_mpcparameter"><code class="docutils literal notranslate"><span class="pre">Mpc.default_full_mpcparameter</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.default_p_global"><code class="docutils literal notranslate"><span class="pre">Mpc.default_p_global</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.default_p_stagewise"><code class="docutils literal notranslate"><span class="pre">Mpc.default_p_stagewise</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.default_sens_mpcparameter"><code class="docutils literal notranslate"><span class="pre">Mpc.default_sens_mpcparameter</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.is_model_p_legal"><code class="docutils literal notranslate"><span class="pre">Mpc.is_model_p_legal()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.last_solve_diagnostics"><code class="docutils literal notranslate"><span class="pre">Mpc.last_solve_diagnostics()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.ocp_batch_sensitivity_solver"><code class="docutils literal notranslate"><span class="pre">Mpc.ocp_batch_sensitivity_solver</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.ocp_batch_solver"><code class="docutils literal notranslate"><span class="pre">Mpc.ocp_batch_solver</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.ocp_sensitivity_solver"><code class="docutils literal notranslate"><span class="pre">Mpc.ocp_sensitivity_solver</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.ocp_solver"><code class="docutils literal notranslate"><span class="pre">Mpc.ocp_solver</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.p_global_dim"><code class="docutils literal notranslate"><span class="pre">Mpc.p_global_dim</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.policy"><code class="docutils literal notranslate"><span class="pre">Mpc.policy()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.state_action_value"><code class="docutils literal notranslate"><span class="pre">Mpc.state_action_value()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.Mpc.state_value"><code class="docutils literal notranslate"><span class="pre">Mpc.state_value()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.MpcInput"><code class="docutils literal notranslate"><span class="pre">MpcInput</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcInput.x0"><code class="docutils literal notranslate"><span class="pre">MpcInput.x0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcInput.u0"><code class="docutils literal notranslate"><span class="pre">MpcInput.u0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcInput.parameters"><code class="docutils literal notranslate"><span class="pre">MpcInput.parameters</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcInput.get_sample"><code class="docutils literal notranslate"><span class="pre">MpcInput.get_sample()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcInput.is_batched"><code class="docutils literal notranslate"><span class="pre">MpcInput.is_batched()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id0"><code class="docutils literal notranslate"><span class="pre">MpcInput.parameters</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id1"><code class="docutils literal notranslate"><span class="pre">MpcInput.u0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id2"><code class="docutils literal notranslate"><span class="pre">MpcInput.x0</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.MpcOutput"><code class="docutils literal notranslate"><span class="pre">MpcOutput</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcOutput.status"><code class="docutils literal notranslate"><span class="pre">MpcOutput.status</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcOutput.u0"><code class="docutils literal notranslate"><span class="pre">MpcOutput.u0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcOutput.Q"><code class="docutils literal notranslate"><span class="pre">MpcOutput.Q</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcOutput.V"><code class="docutils literal notranslate"><span class="pre">MpcOutput.V</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcOutput.dvalue_du0"><code class="docutils literal notranslate"><span class="pre">MpcOutput.dvalue_du0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcOutput.dvalue_dp_global"><code class="docutils literal notranslate"><span class="pre">MpcOutput.dvalue_dp_global</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcOutput.du0_dp_global"><code class="docutils literal notranslate"><span class="pre">MpcOutput.du0_dp_global</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcOutput.du0_dx0"><code class="docutils literal notranslate"><span class="pre">MpcOutput.du0_dx0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id3"><code class="docutils literal notranslate"><span class="pre">MpcOutput.Q</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id4"><code class="docutils literal notranslate"><span class="pre">MpcOutput.V</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id5"><code class="docutils literal notranslate"><span class="pre">MpcOutput.du0_dp_global</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id6"><code class="docutils literal notranslate"><span class="pre">MpcOutput.du0_dx0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id7"><code class="docutils literal notranslate"><span class="pre">MpcOutput.dvalue_dp_global</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id8"><code class="docutils literal notranslate"><span class="pre">MpcOutput.dvalue_du0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcOutput.dvalue_dx0"><code class="docutils literal notranslate"><span class="pre">MpcOutput.dvalue_dx0</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id9"><code class="docutils literal notranslate"><span class="pre">MpcOutput.status</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id10"><code class="docutils literal notranslate"><span class="pre">MpcOutput.u0</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.MpcParameter"><code class="docutils literal notranslate"><span class="pre">MpcParameter</span></code></a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcParameter.p_global"><code class="docutils literal notranslate"><span class="pre">MpcParameter.p_global</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcParameter.p_stagewise"><code class="docutils literal notranslate"><span class="pre">MpcParameter.p_stagewise</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcParameter.p_stagewise_sparse_idx"><code class="docutils literal notranslate"><span class="pre">MpcParameter.p_stagewise_sparse_idx</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcParameter.ensure_float64"><code class="docutils literal notranslate"><span class="pre">MpcParameter.ensure_float64()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcParameter.get_sample"><code class="docutils literal notranslate"><span class="pre">MpcParameter.get_sample()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#leap_c.mpc.MpcParameter.is_batched"><code class="docutils literal notranslate"><span class="pre">MpcParameter.is_batched()</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id11"><code class="docutils literal notranslate"><span class="pre">MpcParameter.p_global</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id12"><code class="docutils literal notranslate"><span class="pre">MpcParameter.p_stagewise</span></code></a></li>
+<li class="toctree-l4"><a class="reference internal" href="#id13"><code class="docutils literal notranslate"><span class="pre">MpcParameter.p_stagewise_sparse_idx</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.create_zero_init_state_fn"><code class="docutils literal notranslate"><span class="pre">create_zero_init_state_fn()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.initialize_ocp_solver"><code class="docutils literal notranslate"><span class="pre">initialize_ocp_solver()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.set_discount_factor"><code class="docutils literal notranslate"><span class="pre">set_discount_factor()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.set_ocp_solver_initial_condition"><code class="docutils literal notranslate"><span class="pre">set_ocp_solver_initial_condition()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.set_ocp_solver_iterate"><code class="docutils literal notranslate"><span class="pre">set_ocp_solver_iterate()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.set_ocp_solver_mpc_params"><code class="docutils literal notranslate"><span class="pre">set_ocp_solver_mpc_params()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.set_ocp_solver_to_default"><code class="docutils literal notranslate"><span class="pre">set_ocp_solver_to_default()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.turn_on_warmstart"><code class="docutils literal notranslate"><span class="pre">turn_on_warmstart()</span></code></a></li>
+<li class="toctree-l3"><a class="reference internal" href="#leap_c.mpc.unset_ocp_solver_initial_control_constraints"><code class="docutils literal notranslate"><span class="pre">unset_ocp_solver_initial_control_constraints()</span></code></a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="ocp_env.html">OCP Environment</a></li>
+<li class="toctree-l2"><a class="reference internal" href="utils.html">Utils</a></li>
+<li class="toctree-l2"><a class="reference internal" href="il/index.html">Imitation Learning</a></li>
+<li class="toctree-l2"><a class="reference internal" href="nn/index.html">Modules</a></li>
+<li class="toctree-l2"><a class="reference internal" href="rl/index.html">Reinforcement Learning</a></li>
+</ul>
+</li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../index.html">leap-c</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../api.html">API Documentation</a></li>
+      <li class="breadcrumb-item active">Model Predictive Control</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="../_sources/api/mpc.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="module-leap_c.mpc">
+<span id="model-predictive-control"></span><h1>Model Predictive Control<a class="headerlink" href="#module-leap_c.mpc" title="Link to this heading"></a></h1>
+<dl class="py class">
+<dt class="sig sig-object py" id="leap_c.mpc.AcadosStatus">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">AcadosStatus</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">value</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/leap_c/mpc.html#AcadosStatus"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.AcadosStatus" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">IntEnum</span></code></p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.AcadosStatus.ACADOS_MAXITER">
+<span class="sig-name descname"><span class="pre">ACADOS_MAXITER</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">2</span></em><a class="headerlink" href="#leap_c.mpc.AcadosStatus.ACADOS_MAXITER" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.AcadosStatus.ACADOS_MINSTEP">
+<span class="sig-name descname"><span class="pre">ACADOS_MINSTEP</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">3</span></em><a class="headerlink" href="#leap_c.mpc.AcadosStatus.ACADOS_MINSTEP" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.AcadosStatus.ACADOS_NAN_DETECTED">
+<span class="sig-name descname"><span class="pre">ACADOS_NAN_DETECTED</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1</span></em><a class="headerlink" href="#leap_c.mpc.AcadosStatus.ACADOS_NAN_DETECTED" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.AcadosStatus.ACADOS_QP_FAILURE">
+<span class="sig-name descname"><span class="pre">ACADOS_QP_FAILURE</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">4</span></em><a class="headerlink" href="#leap_c.mpc.AcadosStatus.ACADOS_QP_FAILURE" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.AcadosStatus.ACADOS_READY">
+<span class="sig-name descname"><span class="pre">ACADOS_READY</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">5</span></em><a class="headerlink" href="#leap_c.mpc.AcadosStatus.ACADOS_READY" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.AcadosStatus.ACADOS_SUCCESS">
+<span class="sig-name descname"><span class="pre">ACADOS_SUCCESS</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0</span></em><a class="headerlink" href="#leap_c.mpc.AcadosStatus.ACADOS_SUCCESS" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.AcadosStatus.ACADOS_TIMEOUT">
+<span class="sig-name descname"><span class="pre">ACADOS_TIMEOUT</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">7</span></em><a class="headerlink" href="#leap_c.mpc.AcadosStatus.ACADOS_TIMEOUT" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.AcadosStatus.ACADOS_UNBOUNDED">
+<span class="sig-name descname"><span class="pre">ACADOS_UNBOUNDED</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">6</span></em><a class="headerlink" href="#leap_c.mpc.AcadosStatus.ACADOS_UNBOUNDED" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">Mpc</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ocp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcp</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ocp_sensitivity</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcp</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">discount_factor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">init_state_fn</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#leap_c.mpc.MpcInput" title="leap_c.mpc.MpcInput"><span class="pre">MpcInput</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">AcadosOcpFlattenedIterate</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpFlattenedBatchIterate</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">n_batch</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">256</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">export_directory</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">export_directory_sensitivity</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Path</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">throw_error_if_u0_is_outside_ocp_bounds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/leap_c/mpc.html#Mpc"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.Mpc" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></p>
+<p>Mpc abstract base class.</p>
+<dl class="py property">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.N">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">N</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#leap_c.mpc.Mpc.N" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.default_full_mpcparameter">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">default_full_mpcparameter</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#leap_c.mpc.MpcParameter" title="leap_c.mpc.MpcParameter"><span class="pre">MpcParameter</span></a></em><a class="headerlink" href="#leap_c.mpc.Mpc.default_full_mpcparameter" title="Link to this definition"></a></dt>
+<dd><p>Return the full default MpcParameter.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.default_p_global">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">default_p_global</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#leap_c.mpc.Mpc.default_p_global" title="Link to this definition"></a></dt>
+<dd><p>Return the default p_global.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.default_p_stagewise">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">default_p_stagewise</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#leap_c.mpc.Mpc.default_p_stagewise" title="Link to this definition"></a></dt>
+<dd><p>Return the default p_stagewise.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.default_sens_mpcparameter">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">default_sens_mpcparameter</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#leap_c.mpc.MpcParameter" title="leap_c.mpc.MpcParameter"><span class="pre">MpcParameter</span></a></em><a class="headerlink" href="#leap_c.mpc.Mpc.default_sens_mpcparameter" title="Link to this definition"></a></dt>
+<dd><p>Return the default MpcParameter for sensitivity solver.
+It does not contain the LS-parameters</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.is_model_p_legal">
+<span class="sig-name descname"><span class="pre">is_model_p_legal</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">model_p</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">Any</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#Mpc.is_model_p_legal"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.Mpc.is_model_p_legal" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.last_solve_diagnostics">
+<span class="sig-name descname"><span class="pre">last_solve_diagnostics</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ocp_solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcpSolver</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpBatchSolver</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">dict</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">list</span><span class="p"><span class="pre">[</span></span><span class="pre">dict</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#Mpc.last_solve_diagnostics"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.Mpc.last_solve_diagnostics" title="Link to this definition"></a></dt>
+<dd><p>Print statistics for the last solve and collect QP-diagnostics for the solvers.</p>
+<p>Simpler information about the last call is stored in self.last_call_stats.</p>
+</dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.ocp_batch_sensitivity_solver">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ocp_batch_sensitivity_solver</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">AcadosOcpBatchSolver</span></em><a class="headerlink" href="#leap_c.mpc.Mpc.ocp_batch_sensitivity_solver" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.ocp_batch_solver">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ocp_batch_solver</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">AcadosOcpBatchSolver</span></em><a class="headerlink" href="#leap_c.mpc.Mpc.ocp_batch_solver" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.ocp_sensitivity_solver">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ocp_sensitivity_solver</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">AcadosOcpSolver</span></em><a class="headerlink" href="#leap_c.mpc.Mpc.ocp_sensitivity_solver" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.ocp_solver">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">ocp_solver</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">AcadosOcpSolver</span></em><a class="headerlink" href="#leap_c.mpc.Mpc.ocp_solver" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py property">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.p_global_dim">
+<em class="property"><span class="k"><span class="pre">property</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">p_global_dim</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">int</span></em><a class="headerlink" href="#leap_c.mpc.Mpc.p_global_dim" title="Link to this definition"></a></dt>
+<dd><p>Return the dimension of p_global.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.policy">
+<span class="sig-name descname"><span class="pre">policy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_global</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sens</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">use_adj_sens</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#Mpc.policy"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.Mpc.policy" title="Link to this definition"></a></dt>
+<dd><p># TODO: Discuss removing this method.</p>
+<p>Compute the policy for the given state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> – The state for which to compute the policy.</p></li>
+<li><p><strong>p_global</strong> – The global parameters.</p></li>
+<li><p><strong>sens</strong> – Whether to compute the sensitivity of the policy with respect to the parameters.</p></li>
+<li><p><strong>use_adj_sens</strong> – Whether to use adjoint sensitivity.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The policy, du0_dp_global if requested, and the status of the computation (whether it succeded, etc.).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.state_action_value">
+<span class="sig-name descname"><span class="pre">state_action_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">action</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_global</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sens</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#Mpc.state_action_value"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.Mpc.state_action_value" title="Link to this definition"></a></dt>
+<dd><p># TODO: Discuss removing this method.</p>
+<p>Compute the state-action value function for the given state and action.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>state</strong> – The state for which to compute the value function.</p></li>
+<li><p><strong>action</strong> – The action for which to compute the value function.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The state-action value function, dQ_dp_global if requested, and the status of the computation (whether it succeded, etc.).</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.mpc.Mpc.state_value">
+<span class="sig-name descname"><span class="pre">state_value</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">state</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_global</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">sens</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">False</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">tuple</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#Mpc.state_value"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.Mpc.state_value" title="Link to this definition"></a></dt>
+<dd><p># TODO: Discuss removing this method.</p>
+<p>Compute the value function for the given state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>state</strong> – The state for which to compute the value function.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The value function, dvalue_dp_global if requested, and the status of the computation (whether it succeded, etc.).</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcInput">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">MpcInput</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">x0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#leap_c.mpc.MpcParameter" title="leap_c.mpc.MpcParameter"><span class="pre">MpcParameter</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/leap_c/mpc.html#MpcInput"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.MpcInput" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></p>
+<p>A named tuple to store the input of the MPC planner.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcInput.x0">
+<span class="sig-name descname"><span class="pre">x0</span></span><a class="headerlink" href="#leap_c.mpc.MpcInput.x0" title="Link to this definition"></a></dt>
+<dd><p>The initial states in shape (B, x_dim) or (x_dim, ).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcInput.u0">
+<span class="sig-name descname"><span class="pre">u0</span></span><a class="headerlink" href="#leap_c.mpc.MpcInput.u0" title="Link to this definition"></a></dt>
+<dd><p>The initial actions in shape (B, u_dim) or (u_dim, ).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcInput.parameters">
+<span class="sig-name descname"><span class="pre">parameters</span></span><a class="headerlink" href="#leap_c.mpc.MpcInput.parameters" title="Link to this definition"></a></dt>
+<dd><p>The parameters of the MPC planner.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p><a class="reference internal" href="#leap_c.mpc.MpcParameter" title="leap_c.mpc.MpcParameter">leap_c.mpc.MpcParameter</a> | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcInput.get_sample">
+<span class="sig-name descname"><span class="pre">get_sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#leap_c.mpc.MpcInput" title="leap_c.mpc.MpcInput"><span class="pre">MpcInput</span></a></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#MpcInput.get_sample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.MpcInput.get_sample" title="Link to this definition"></a></dt>
+<dd><p>Get the sample at index i from the batch.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcInput.is_batched">
+<span class="sig-name descname"><span class="pre">is_batched</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#MpcInput.is_batched"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.MpcInput.is_batched" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id0">
+<span class="sig-name descname"><span class="pre">parameters</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#leap_c.mpc.MpcParameter" title="leap_c.mpc.MpcParameter"><span class="pre">MpcParameter</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id0" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id1">
+<span class="sig-name descname"><span class="pre">u0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id1" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id2">
+<span class="sig-name descname"><span class="pre">x0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span></em><a class="headerlink" href="#id2" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcOutput">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">MpcOutput</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">status</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">u0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">Q</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">V</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dvalue_dx0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dvalue_du0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dvalue_dp_global</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">du0_dp_global</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">du0_dx0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/leap_c/mpc.html#MpcOutput"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.MpcOutput" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></p>
+<p>A named tuple to store the solution of the MPC planner.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcOutput.status">
+<span class="sig-name descname"><span class="pre">status</span></span><a class="headerlink" href="#leap_c.mpc.MpcOutput.status" title="Link to this definition"></a></dt>
+<dd><p>The status of the solver.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray | torch.Tensor | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcOutput.u0">
+<span class="sig-name descname"><span class="pre">u0</span></span><a class="headerlink" href="#leap_c.mpc.MpcOutput.u0" title="Link to this definition"></a></dt>
+<dd><p>The first optimal action.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray | torch.Tensor | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcOutput.Q">
+<span class="sig-name descname"><span class="pre">Q</span></span><a class="headerlink" href="#leap_c.mpc.MpcOutput.Q" title="Link to this definition"></a></dt>
+<dd><p>The state-action value function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray | torch.Tensor | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcOutput.V">
+<span class="sig-name descname"><span class="pre">V</span></span><a class="headerlink" href="#leap_c.mpc.MpcOutput.V" title="Link to this definition"></a></dt>
+<dd><p>The value function.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray | torch.Tensor | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcOutput.dvalue_du0">
+<span class="sig-name descname"><span class="pre">dvalue_du0</span></span><a class="headerlink" href="#leap_c.mpc.MpcOutput.dvalue_du0" title="Link to this definition"></a></dt>
+<dd><p>The sensitivity of the value function with respect to the initial action.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcOutput.dvalue_dp_global">
+<span class="sig-name descname"><span class="pre">dvalue_dp_global</span></span><a class="headerlink" href="#leap_c.mpc.MpcOutput.dvalue_dp_global" title="Link to this definition"></a></dt>
+<dd><p>The sensitivity of the value function with respect to the global parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcOutput.du0_dp_global">
+<span class="sig-name descname"><span class="pre">du0_dp_global</span></span><a class="headerlink" href="#leap_c.mpc.MpcOutput.du0_dp_global" title="Link to this definition"></a></dt>
+<dd><p>The sensitivity of the initial action with respect to the global parameters.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcOutput.du0_dx0">
+<span class="sig-name descname"><span class="pre">du0_dx0</span></span><a class="headerlink" href="#leap_c.mpc.MpcOutput.du0_dx0" title="Link to this definition"></a></dt>
+<dd><p>The sensitivity of the initial action with respect to the initial state.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id3">
+<span class="sig-name descname"><span class="pre">Q</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id3" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id4">
+<span class="sig-name descname"><span class="pre">V</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id4" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 3</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id5">
+<span class="sig-name descname"><span class="pre">du0_dp_global</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id5" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 7</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id6">
+<span class="sig-name descname"><span class="pre">du0_dx0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id6" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 8</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id7">
+<span class="sig-name descname"><span class="pre">dvalue_dp_global</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id7" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 6</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id8">
+<span class="sig-name descname"><span class="pre">dvalue_du0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id8" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 5</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcOutput.dvalue_dx0">
+<span class="sig-name descname"><span class="pre">dvalue_dx0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#leap_c.mpc.MpcOutput.dvalue_dx0" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 4</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id9">
+<span class="sig-name descname"><span class="pre">status</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id9" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id10">
+<span class="sig-name descname"><span class="pre">u0</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">Tensor</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id10" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcParameter">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">MpcParameter</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">p_global</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_stagewise</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">p_stagewise_sparse_idx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/leap_c/mpc.html#MpcParameter"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.MpcParameter" title="Link to this definition"></a></dt>
+<dd><p>Bases: <code class="xref py py-class docutils literal notranslate"><span class="pre">NamedTuple</span></code></p>
+<p>A named tuple to store the parameters of the MPC planner.
+NOTE: If the non-sensitivity solver is using something else than EXTERNAL cost, like LLS cost, then
+only the first few entries of the here given p_global is set (such that its shape matches the shape of the default p_global
+in that solver). This is due to the fact that “unused” (wrt. casadi expressions) p_global entries are currently not allowed in the solver.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcParameter.p_global">
+<span class="sig-name descname"><span class="pre">p_global</span></span><a class="headerlink" href="#leap_c.mpc.MpcParameter.p_global" title="Link to this definition"></a></dt>
+<dd><p>The part of p_global that should be learned in shape (n_p_global_learnable, ) or (B, n_p_global_learnable).</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>numpy.ndarray | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcParameter.p_stagewise">
+<span class="sig-name descname"><span class="pre">p_stagewise</span></span><a class="headerlink" href="#leap_c.mpc.MpcParameter.p_stagewise" title="Link to this definition"></a></dt>
+<dd><p>The stagewise parameters in shape
+(N+1, p_stagewise_dim) or (N+1, len(p_stagewise_sparse_idx)) if the next field is set or
+(B, N+1, p_stagewise_dim) or (B, N+1, len(p_stagewise_sparse_idx)) if the next field is set.
+If a multi-phase MPC is used this is a list containing the above arrays for the respective phases.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>List[numpy.ndarray] | numpy.ndarray | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcParameter.p_stagewise_sparse_idx">
+<span class="sig-name descname"><span class="pre">p_stagewise_sparse_idx</span></span><a class="headerlink" href="#leap_c.mpc.MpcParameter.p_stagewise_sparse_idx" title="Link to this definition"></a></dt>
+<dd><p>If not None, stagewise parameters are set in a sparse manner, using these indices.
+The indices are in shape (N+1, n_p_stagewise_sparse_idx) or (B, N+1, n_p_stagewise_sparse_idx).
+If a multi-phase MPC is used this is a list containing the above arrays for the respective phases.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>List[numpy.ndarray] | numpy.ndarray | None</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcParameter.ensure_float64">
+<span class="sig-name descname"><span class="pre">ensure_float64</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#leap_c.mpc.MpcParameter" title="leap_c.mpc.MpcParameter"><span class="pre">MpcParameter</span></a></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#MpcParameter.ensure_float64"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.MpcParameter.ensure_float64" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcParameter.get_sample">
+<span class="sig-name descname"><span class="pre">get_sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">i</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">int</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference internal" href="#leap_c.mpc.MpcParameter" title="leap_c.mpc.MpcParameter"><span class="pre">MpcParameter</span></a></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#MpcParameter.get_sample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.MpcParameter.get_sample" title="Link to this definition"></a></dt>
+<dd><p>Get the sample at index i from the batch.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.mpc.MpcParameter.is_batched">
+<span class="sig-name descname"><span class="pre">is_batched</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">bool</span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#MpcParameter.is_batched"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.MpcParameter.is_batched" title="Link to this definition"></a></dt>
+<dd><p>The empty MpcParameter counts as non-batched.</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id11">
+<span class="sig-name descname"><span class="pre">p_global</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id11" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 0</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id12">
+<span class="sig-name descname"><span class="pre">p_stagewise</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id12" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 1</p>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="id13">
+<span class="sig-name descname"><span class="pre">p_stagewise_sparse_idx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">List</span><span class="p"><span class="pre">[</span></span><span class="pre">ndarray</span><span class="p"><span class="pre">]</span></span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">ndarray</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></em><a class="headerlink" href="#id13" title="Link to this definition"></a></dt>
+<dd><p>Alias for field number 2</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="leap_c.mpc.create_zero_init_state_fn">
+<span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">create_zero_init_state_fn</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcpSolver</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">Callable</span><span class="p"><span class="pre">[</span></span><span class="p"><span class="pre">[</span></span><a class="reference internal" href="#leap_c.mpc.MpcInput" title="leap_c.mpc.MpcInput"><span class="pre">MpcInput</span></a><span class="p"><span class="pre">]</span></span><span class="p"><span class="pre">,</span></span><span class="w"> </span><span class="pre">AcadosOcpFlattenedIterate</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpFlattenedBatchIterate</span><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#create_zero_init_state_fn"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.create_zero_init_state_fn" title="Link to this definition"></a></dt>
+<dd><p>Create a function that initializes the solver iterate with zeros.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>solver</strong> – The solver to initialize.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>The function that initializes the solver iterate with zeros.</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="leap_c.mpc.initialize_ocp_solver">
+<span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">initialize_ocp_solver</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ocp_solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcpSolver</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpBatchSolver</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mpc_input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#leap_c.mpc.MpcInput" title="leap_c.mpc.MpcInput"><span class="pre">MpcInput</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">ocp_iterate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcpFlattenedIterate</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpFlattenedBatchIterate</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">set_params</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">throw_error_if_u0_is_outside_ocp_bounds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">True</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#initialize_ocp_solver"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.initialize_ocp_solver" title="Link to this definition"></a></dt>
+<dd><p>Initializes the fields of the OCP (batch) solver with the given values.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>ocp_solver</strong> – The OCP (batch) solver to initialize.</p></li>
+<li><p><strong>mpc_input</strong> – The MPCInput containing the parameters to set in the OCP (batch) solver
+and the state and possibly control that will be used for the initial conditions.</p></li>
+<li><p><strong>ocp_iterate</strong> – The iterate of the solver to use as initialization.</p></li>
+<li><p><strong>set_params</strong> – Whether to set the MPC parameters of the OCP (batch) solver.</p></li>
+<li><p><strong>throw_error_if_u0_is_outside_ocp_bounds</strong> – If True, an error will be thrown when given an u0 in mpc_input that
+is outside the box constraints defined in the cop</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="leap_c.mpc.set_discount_factor">
+<span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">set_discount_factor</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ocp_solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcpSolver</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpBatchSolver</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">discount_factor</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">float</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#set_discount_factor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.set_discount_factor" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="leap_c.mpc.set_ocp_solver_initial_condition">
+<span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">set_ocp_solver_initial_condition</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ocp_solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcpSolver</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpBatchSolver</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mpc_input</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#leap_c.mpc.MpcInput" title="leap_c.mpc.MpcInput"><span class="pre">MpcInput</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">throw_error_if_u0_is_outside_ocp_bounds</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#set_ocp_solver_initial_condition"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.set_ocp_solver_initial_condition" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="leap_c.mpc.set_ocp_solver_iterate">
+<span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">set_ocp_solver_iterate</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ocp_solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcpSolver</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpBatchSolver</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ocp_iterate</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcpFlattenedIterate</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpFlattenedBatchIterate</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#set_ocp_solver_iterate"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.set_ocp_solver_iterate" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="leap_c.mpc.set_ocp_solver_mpc_params">
+<span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">set_ocp_solver_mpc_params</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ocp_solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcpSolver</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpBatchSolver</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mpc_parameter</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#leap_c.mpc.MpcParameter" title="leap_c.mpc.MpcParameter"><span class="pre">MpcParameter</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#set_ocp_solver_mpc_params"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.set_ocp_solver_mpc_params" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="leap_c.mpc.set_ocp_solver_to_default">
+<span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">set_ocp_solver_to_default</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ocp_solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcpSolver</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpBatchSolver</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">default_mpc_parameters</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#leap_c.mpc.MpcParameter" title="leap_c.mpc.MpcParameter"><span class="pre">MpcParameter</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">unset_u0</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">bool</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#set_ocp_solver_to_default"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.set_ocp_solver_to_default" title="Link to this definition"></a></dt>
+<dd><p>Resets the OCP (batch) solver to remove any “state” to be carried over in the next call.
+Since the init function or a given iterate is being used to override the state of the solver anyways,
+we don’t need to call ocp_solver.reset().
+This entails:
+- Setting the parameters to the default values (since the default is consistent over the batch, the given MpcParameter must not be batched).
+- Unsetting the initial control constraints if they were set.</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="leap_c.mpc.turn_on_warmstart">
+<span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">turn_on_warmstart</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">acados_ocp</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcp</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../_modules/leap_c/mpc.html#turn_on_warmstart"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.turn_on_warmstart" title="Link to this definition"></a></dt>
+<dd></dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="leap_c.mpc.unset_ocp_solver_initial_control_constraints">
+<span class="sig-prename descclassname"><span class="pre">leap_c.mpc.</span></span><span class="sig-name descname"><span class="pre">unset_ocp_solver_initial_control_constraints</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ocp_solver</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">AcadosOcpSolver</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><span class="pre">AcadosOcpBatchSolver</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="pre">None</span></span></span><a class="reference internal" href="../_modules/leap_c/mpc.html#unset_ocp_solver_initial_control_constraints"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.mpc.unset_ocp_solver_initial_control_constraints" title="Link to this definition"></a></dt>
+<dd><p>Unset the initial control constraints of the OCP (batch) solver.</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="dynamics.html" class="btn btn-neutral float-left" title="Dynamics" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="ocp_env.html" class="btn btn-neutral float-right" title="OCP Environment" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Dirk, Jasper, Leonard.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

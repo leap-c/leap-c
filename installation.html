@@ -1,0 +1,195 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="./">
+<head>
+  <meta charset="utf-8" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Installation &mdash; leap-c 2024 documentation</title>
+      <link rel="stylesheet" type="text/css" href="_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="_static/jquery.js?v=5d32c60e"></script>
+      <script src="_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="_static/documentation_options.js?v=6fefd858"></script>
+      <script src="_static/doctools.js?v=9bcbadda"></script>
+      <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Getting Started" href="getting_started/index.html" />
+    <link rel="prev" title="leap-c" href="index.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="index.html" class="icon icon-home">
+            leap-c
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Installation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="#linux-macos">Linux/MacOS</a><ul>
+<li class="toctree-l3"><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li class="toctree-l3"><a class="reference internal" href="#python">Python</a><ul>
+<li class="toctree-l4"><a class="reference internal" href="#casadi-nightly">CasADi nightly</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#acados">acados</a></li>
+<li class="toctree-l4"><a class="reference internal" href="#pytorch">PyTorch</a></li>
+</ul>
+</li>
+<li class="toctree-l3"><a class="reference internal" href="#install-leap-c">Install leap-c</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="#testing">Testing</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started/index.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="api.html">API Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">leap-c</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home" aria-label="Home"></a></li>
+      <li class="breadcrumb-item active">Installation</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/installation.md.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <section id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Link to this heading"></a></h1>
+<section id="linux-macos">
+<h2>Linux/MacOS<a class="headerlink" href="#linux-macos" title="Link to this heading"></a></h2>
+<section id="prerequisites">
+<h3>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading"></a></h3>
+<ul class="simple">
+<li><p>git</p></li>
+<li><p>Python 3.11 or higher</p></li>
+<li><p><a class="reference external" href="https://docs.acados.org/installation/index.html">acados dependencies</a></p></li>
+<li><p><a class="reference external" href="https://github.com/casadi/casadi/releases/tag/nightly-se2">CasADi nightly-se2 </a></p></li>
+</ul>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">    </span>git<span class="w"> </span>clone<span class="w"> </span>git@github.com:leap-c/leap-c.git<span class="w"> </span>leap_c
+<span class="w">    </span><span class="nb">cd</span><span class="w"> </span>leap_c
+<span class="w">    </span>git<span class="w"> </span>submodule<span class="w"> </span>update<span class="w"> </span>--init<span class="w"> </span>--recursive
+</pre></div>
+</div>
+</section>
+<section id="python">
+<h3>Python<a class="headerlink" href="#python" title="Link to this heading"></a></h3>
+<p>We work with Python 3.11. A virtual environment is recommended. For example, to create a virtual environment called <code class="docutils literal notranslate"><span class="pre">.venv</span></code>
+and activate it, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">    </span>pip3<span class="w"> </span>install<span class="w"> </span>virtualenv
+<span class="w">    </span>virtualenv<span class="w"> </span>--python<span class="o">=</span>/usr/bin/python3.11<span class="w"> </span>.venv
+<span class="w">    </span><span class="nb">source</span><span class="w"> </span>.venv/bin/activate
+</pre></div>
+</div>
+<p>The following steps assume that the virtual environment is activated.</p>
+<section id="casadi-nightly">
+<h4>CasADi nightly<a class="headerlink" href="#casadi-nightly" title="Link to this heading"></a></h4>
+<p>We need the <a class="reference external" href="https://github.com/casadi/casadi/releases/tag/nightly-se2">nightly-se2 release of CasADi</a> to work with the gradient functionality of acados. Install the correct wheel for your system, for example for Linux x86_64:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-L<span class="w"> </span>--remote-name<span class="w"> </span>https://github.com/casadi/casadi/releases/download/nightly-se2/casadi-3.6.6.dev+se2-cp311-none-manylinux2014_x86_64.whl
+pip<span class="w"> </span>install<span class="w"> </span>casadi-3.6.6.dev+se2-cp311-none-manylinux2014_x86_64.whl
+rm<span class="w"> </span>casadi-3.6.6.dev+se2-cp311-none-manylinux2014_x86_64.whl
+</pre></div>
+</div>
+</section>
+<section id="acados">
+<h4>acados<a class="headerlink" href="#acados" title="Link to this heading"></a></h4>
+<p>Then change into the acados directory</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">cd</span><span class="w"> </span>external/acados
+</pre></div>
+</div>
+<p>and build it as described in the <a class="reference external" href="https://docs.acados.org/installation/index.html">acados documentation</a>. When running the
+<code class="docutils literal notranslate"><span class="pre">cmake</span></code> command, make sure to include the options <code class="docutils literal notranslate"><span class="pre">-DACADOS_WITH_OPENMP=ON</span></code> and <code class="docutils literal notranslate"><span class="pre">-DACADOS_PYTHON=ON</span></code>, <code class="docutils literal notranslate"><span class="pre">-DACADOS_NUM_THREADS=1</span></code>.</p>
+</section>
+<section id="pytorch">
+<h4>PyTorch<a class="headerlink" href="#pytorch" title="Link to this heading"></a></h4>
+<p>Install PyTorch as described on the <a class="reference external" href="https://pytorch.org/get-started/locally/">PyTorch website</a>.</p>
+</section>
+</section>
+<section id="install-leap-c">
+<h3>Install leap-c<a class="headerlink" href="#install-leap-c" title="Link to this heading"></a></h3>
+<p>To install the package in the root directory of the repository, run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.
+</pre></div>
+</div>
+<p>For development, you might want to install additional dependencies::</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">    </span>pip<span class="w"> </span>install<span class="w"> </span>-e<span class="w"> </span>.<span class="o">[</span>dev<span class="o">]</span>
+</pre></div>
+</div>
+<p>See the <a class="reference external" href="https://github.com/leap-c/leap-c/blob/main/pyproject.toml">pyproject.toml</a> for more information on the installated packages.</p>
+</section>
+</section>
+<section id="testing">
+<h2>Testing<a class="headerlink" href="#testing" title="Link to this heading"></a></h2>
+<p>To run the tests, use:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="w">    </span>pytest
+</pre></div>
+</div>
+</section>
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="index.html" class="btn btn-neutral float-left" title="leap-c" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="getting_started/index.html" class="btn btn-neutral float-right" title="Getting Started" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2024, Dirk, Jasper, Leonard.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
