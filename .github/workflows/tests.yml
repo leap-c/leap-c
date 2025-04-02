@@ -55,11 +55,6 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
-    - name: Install new Casadi
-      working-directory: ${{github.workspace}}/leap_c
-      run: |
-        ./install_new_casadi_py311_x86_64.sh
-
     - name: Install Python interface
       working-directory: ${{github.workspace}}/leap_c/external/acados
       run: |
