@@ -18,7 +18,11 @@ git submodule update --init --recursive
 
 ### Python
 
-We work with Python 3.11. If it is not already installed on your system, you can obtain it using [deadsnakes](https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa).
+We work with Python 3.11. If it is not already installed on your system, you can obtain it using [deadsnakes](https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa):
+```bash
+sudo add-apt-repository ppa:deadsnakes/ppa
+sudo apt install python3.11
+```
 
 A virtual environment is recommended. For example, to create a virtual environment called `.venv`
 and activate it, run:

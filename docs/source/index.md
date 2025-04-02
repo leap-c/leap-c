@@ -8,7 +8,7 @@ A framework for integrating optimal control solvers into deep learning pipelines
 
 - Combines model predictive control with reinforcement learning and imitation learning
 - Built on top of community-standard tools [acados](https://docs.acados.org/) and [CasADi](https://web.casadi.org/)
-- Seamless integration with [PyTorch](https://pytorch.org/) for deep learning. The ocp solver is wrapped into a PyTorch module and can be differentiated end-to-end.
+- Seamless integration with [PyTorch](https://pytorch.org/) for deep learning. The OCP solver is wrapped into a PyTorch module and can be differentiated end-to-end.
 
 ### Development
 
