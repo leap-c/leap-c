@@ -293,6 +293,10 @@ def export_parametric_ocp(
 
         ocp.cost.cost_type_e = cost_type
         ocp.model.cost_expr_ext_cost_e = cost_expr_ext_cost_e(ocp.model)  # type:ignore
+
+        ocp.solver_options.hessian_approx = "EXACT"
+        ocp.solver_options.exact_hess_cost = True
+        ocp.solver_options.exact_hess_constr = True
     elif cost_type == "NONLINEAR_LS":
         ocp.cost.cost_type = "NONLINEAR_LS"
         ocp.cost.cost_type_e = "NONLINEAR_LS"
@@ -304,6 +308,8 @@ def export_parametric_ocp(
         ocp.cost.W_e = ocp.cost.W[:4, :4]
         ocp.cost.yref_e = ocp.cost.yref[:4]
         ocp.model.cost_y_expr_e = ocp.model.x
+
+        ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
     else:
         raise ValueError(f"Cost type {cost_type} not supported.")
 
@@ -326,7 +332,6 @@ def export_parametric_ocp(
     ######## Solver configuration ########
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
-    ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
 
     ocp.solver_options.exact_hess_dyn = exact_hess_dyn
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
