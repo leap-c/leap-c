@@ -9,7 +9,6 @@ from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchItera
 from casadi import SX, norm_2, vertcat
 from casadi.tools import entry, struct_symSX
 from casadi.tools.structure3 import DMStruct, ssymStruct
-
 from leap_c.examples.chain.utils import (
     RestingChainSolver,
     nominal_params_to_structured_nominal_params,
@@ -238,6 +237,7 @@ def set_ocp_solver_options(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.qp_solver_ric_alg = 1
     ocp.solver_options.with_value_sens_wrt_params = True
     ocp.solver_options.with_solution_sens_wrt_params = True
+    ocp.solver_options.with_batch_functionality = True
 
 
 def get_f_expl_expr(

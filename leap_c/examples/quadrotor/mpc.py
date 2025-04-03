@@ -1,20 +1,14 @@
-import json
 from collections import OrderedDict
-from copy import copy
-from typing import Dict, List
+from os.path import abspath, dirname
 
 import casadi as ca
 import numpy as np
 import scipy
-from acados_template import AcadosOcp, AcadosOcpSolver, AcadosOcpIterate, AcadosOcpFlattenedIterate
-from casadi.tools import struct_symSX
-
+from acados_template import AcadosOcp
 from leap_c.examples.quadrotor.casadi_models import get_rhs_quadrotor
 from leap_c.examples.quadrotor.utils import read_from_yaml
-from leap_c.examples.util import translate_learnable_param_to_p_global
-from leap_c.mpc import Mpc, MpcInput
+from leap_c.mpc import Mpc
 from leap_c.utils import set_standard_sensitivity_options
-from os.path import dirname, abspath
 
 PARAMS = OrderedDict(
     [
@@ -25,14 +19,13 @@ PARAMS = OrderedDict(
 
 
 class QuadrotorMpc(Mpc):
-
     def __init__(
-            self,
-            params: dict[str, np.ndarray] | None = None,
-            discount_factor: float = 0.99,
-            n_batch: int = 64,
-            N_horizon: int = 3,
-            params_learnable: list[str] | None = None,
+        self,
+        params: dict[str, np.ndarray] | None = None,
+        discount_factor: float = 0.99,
+        n_batch: int = 64,
+        N_horizon: int = 3,
+        params_learnable: list[str] | None = None,
     ):
         """
         Args:
@@ -90,10 +83,10 @@ class QuadrotorMpc(Mpc):
 
 
 def export_parametric_ocp(
-        name: str = "quadrotor",
-        N_horizon: int = 5,
-        sensitivity_ocp=False,
-        params_learnable: list[str] | None = None,
+    name: str = "quadrotor",
+    N_horizon: int = 5,
+    sensitivity_ocp=False,
+    params_learnable: list[str] | None = None,
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
@@ -116,7 +109,7 @@ def export_parametric_ocp(
     ocp.model.p_global = p[0]
     ocp.p_global_values = np.array([model_params["mass"]])
 
-    xdot = ca.SX.sym('xdot', x.shape)
+    xdot = ca.SX.sym("xdot", x.shape)
     ocp.model.xdot = xdot
     ocp.model.f_impl_expr = xdot - rhs
 
@@ -126,10 +119,7 @@ def export_parametric_ocp(
 
     ######## Cost ########
     # stage cost
-    Q = np.diag([1e4, 1e4, 1e4,
-                 1e0, 1e4, 1e4, 1e0,
-                 1e1, 1e1, 1e3,
-                 1e1, 1e1, 1e1])
+    Q = np.diag([1e4, 1e4, 1e4, 1e0, 1e4, 1e4, 1e0, 1e1, 1e1, 1e3, 1e1, 1e1, 1e1])
 
     R = np.diag([1, 1, 1, 1]) / 16
 
@@ -138,7 +128,7 @@ def export_parametric_ocp(
     ocp.cost.Vx[:nx, :nx] = np.eye(nx)
 
     Vu = np.zeros((ny, nu))
-    Vu[nx: nx + nu, :] = np.eye(nu)
+    Vu[nx : nx + nu, :] = np.eye(nu)
     ocp.cost.Vu = Vu
 
     # append terminal cost values if learnable
@@ -149,9 +139,13 @@ def export_parametric_ocp(
         ocp.model.p_global = ca.vertcat(ocp.model.p_global, q_e_diag_sqrt, xref_e)
         xref_e_par = np.zeros(nx)
         xref_e_par[3] = 1
-        ocp.p_global_values = np.concatenate([ocp.p_global_values, (100 * np.diag(Q)) ** (1 / 2), xref_e_par])
+        ocp.p_global_values = np.concatenate(
+            [ocp.p_global_values, (100 * np.diag(Q)) ** (1 / 2), xref_e_par]
+        )
 
-        ocp.model.cost_expr_ext_cost_e = 0.5 * ca.mtimes([ca.transpose(x - xref_e), Q_sqrt_e.T, Q_sqrt_e, x - xref_e])
+        ocp.model.cost_expr_ext_cost_e = 0.5 * ca.mtimes(
+            [ca.transpose(x - xref_e), Q_sqrt_e.T, Q_sqrt_e, x - xref_e]
+        )
         ocp.cost.cost_type_e = "EXTERNAL"
     else:
         Qe = 10 * Q
@@ -178,7 +172,7 @@ def export_parametric_ocp(
 
     ocp.cost.yref = np.zeros((ny,))
     ocp.cost.yref[3] = 1
-    ocp.cost.yref[nx:nx + nu] = 970.437
+    ocp.cost.yref[nx : nx + nu] = 970.437
 
     ######## Constraints ########
     ocp.constraints.x0 = np.array([0] * 13)
@@ -195,6 +189,7 @@ def export_parametric_ocp(
     ocp.solver_options.sim_method_num_steps = 2
 
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    ocp.solver_options.with_batch_functionality = True
 
     if sensitivity_ocp:
         set_standard_sensitivity_options(ocp)
