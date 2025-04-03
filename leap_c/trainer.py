@@ -414,25 +414,40 @@ class Trainer(ABC, nn.Module):
     def save(self) -> None:
         """Save the trainer state in a checkpoint folder."""
 
-        torch.save(self.state_dict(), self._ckpt_path("model", "pth"))
-        torch.save(self.state, self._ckpt_path("trainer", "pkl"))
+        state_dict = self.state_dict()
+        # we split the state dict into different parts
+        # to allow for loading only parts of the state dict
+
+        for key, value in state_dict.items():
+            torch.save(value, self._ckpt_path(key, "ckpt"))
+
+        torch.save(self.state, self._ckpt_path("trainer_state", "ckpt"))
 
         if self.optimizers:
             state_dict = {
                 f"optimizer_{i}": opt.state_dict()
                 for i, opt in enumerate(self.optimizers)
             }
-            torch.save(state_dict, self._ckpt_path("optimizers", "pth"))
+            torch.save(state_dict, self._ckpt_path("optimizers", "ckpt"))
 
     def load(self, path: str | Path) -> None:
-        """Loads the state of a trainer from the output_path."""
-        # TODO (Jasper): Think about partial loading...
+        """Loads the state of a trainer from the output_path.
+
+        Args:
+            path: The path to the checkpoint folder.
+        """
         basedir = Path(path)
 
-        self.load_state_dict(torch.load(self._ckpt_path("model", "pth", basedir)))
-        self.state = torch.load(self._ckpt_path("trainer", "pkl", basedir))
+        # load all children module seperately
+        for name, module in self.named_children():
+            if isinstance(module, nn.Module):
+                module.load_state_dict(
+                    torch.load(self._ckpt_path(name, "ckpt", basedir))
+                )
+
+        self.state = torch.load(self._ckpt_path("trainer_state", "ckpt", basedir))
 
         if self.optimizers:
-            state_dict = torch.load(self._ckpt_path("optimizers", "pth", basedir))
+            state_dict = torch.load(self._ckpt_path("optimizers", "ckpt", basedir))
             for i, opt in enumerate(self.optimizers):
                 opt.load_state_dict(state_dict[f"optimizer_{i}"])
