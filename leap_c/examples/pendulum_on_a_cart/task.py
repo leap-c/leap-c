@@ -4,7 +4,10 @@ from typing import Any, Optional
 import gymnasium as gym
 import numpy as np
 import torch
-from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
+from leap_c.examples.pendulum_on_a_cart.env import (
+    PendulumOnCartBalanceEnv,
+    PendulumOnCartSwingupEnv,
+)
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
 from leap_c.nn.modules import MpcSolutionModule
 from leap_c.registry import register_task
@@ -70,7 +73,7 @@ PARAMS_SWINGUP = OrderedDict(
 
 
 @register_task("pendulum_swingup")
-class PendulumOnCart(Task):
+class PendulumOnCartSwingup(Task):
     """Swing-up task for the pendulum on a cart system.
     The task is to swing up the pendulum from a downward position to the upright position
     (and balance it there)."""
@@ -88,19 +91,6 @@ class PendulumOnCart(Task):
         mpc_layer = MpcSolutionModule(mpc)
         super().__init__(mpc_layer)
 
-        y_ref_stage = np.array(
-            [
-                v.item()
-                for k, v in mpc.given_default_param_dict.items()
-                if "xref" in k or "uref" in k
-            ]
-        )
-        y_ref_stage_e = np.array(
-            [v.item() for k, v in mpc.given_default_param_dict.items() if "xref" in k]
-        )
-        self.y_ref = np.tile(y_ref_stage, (5, 1))
-        self.y_ref_e = y_ref_stage_e
-
     def create_env(self, train: bool) -> gym.Env:
         return PendulumOnCartSwingupEnv()
 
@@ -117,21 +107,14 @@ class PendulumOnCart(Task):
         if param_nn is None:
             raise ValueError("Parameter tensor is required for MPC task.")
 
-        # get batch dim
-        batch_size = param_nn.shape[0]  # type: ignore
-
-        # prepare y_ref
-        param_y_ref = np.tile(self.y_ref, (batch_size, 1, 1))
-        param_y_ref[:, :, 1] = param_nn.detach().cpu().numpy()  # type: ignore
-
-        # prepare y_ref_e
-        param_y_ref_e = np.tile(self.y_ref_e, (batch_size, 1))
-        param_y_ref_e[:, 1] = param_nn.detach().cpu().numpy().squeeze()  # type: ignore
-
-        mpc_param = MpcParameter(
-            p_global=param_nn,
-            p_yref=param_y_ref,
-            p_yref_e=param_y_ref_e,  # type: ignore
-        )
+        mpc_param = MpcParameter(p_global=param_nn)  # type: ignore
 
         return MpcInput(x0=obs, parameters=mpc_param)
+
+
+@register_task("pendulum_balance")
+class PendulumOnCartBalance(PendulumOnCartSwingup):
+    """The same as PendulumOnCartSwingup, but the starting position of the pendulum is upright, making the task a balancing task."""
+
+    def create_env(self, train: bool) -> gym.Env:
+        return PendulumOnCartBalanceEnv()

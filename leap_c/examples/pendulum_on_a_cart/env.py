@@ -137,9 +137,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
         """Execute the dynamics of the pendulum on cart."""
         if self.reset_needed:
             raise Exception("Call reset before using the step method.")
-        print(self.x)
         self.x = self.integrator(self.x, action, self.dt)
-        print(self.x)
         self.t += self.dt
         theta = self.x[1]
         if theta > 2 * np.pi:
@@ -154,10 +152,8 @@ class PendulumOnCartSwingupEnv(gym.Env):
         trunc = False
         if self.x[0] > self.x_threshold or self.x[0] < -self.x_threshold:
             term = True  # Just terminating should be enough punishment when reward is positive
-            print("out of bounds")
         if self.t > self.max_time:
             trunc = True
-            print("time out")
         self.reset_needed = trunc or term
 
         return self.x, r, term, trunc, {}
@@ -170,12 +166,15 @@ class PendulumOnCartSwingupEnv(gym.Env):
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
         self.t = 0
-        self.x = np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        self.x = self.init_state()
         self.reset_needed = False
 
         self.pos_trajectory = None
         self.pole_end_trajectory = None
         return self.x, {}
+
+    def init_state(self) -> np.ndarray:
+        return np.array([0.0, np.pi, 0.0, 0.0], dtype=np.float32)
 
     def include_this_state_trajectory_to_rendering(self, state_trajectory: np.ndarray):
         """Meant for setting a state trajectory for rendering.
@@ -332,3 +331,8 @@ class PendulumOnCartSwingupEnv(gym.Env):
 
             pygame.display.quit()
             pygame.quit()
+
+
+class PendulumOnCartBalanceEnv(PendulumOnCartSwingupEnv):
+    def init_state(self) -> np.ndarray:
+        return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
