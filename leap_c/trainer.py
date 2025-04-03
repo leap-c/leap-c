@@ -187,7 +187,7 @@ class Trainer(ABC, nn.Module):
 
         # init wandb
         if cfg.log.wandb_logger:
-            if not cfg.log.wandb_init_kwargs.get(key="dir", default=False): #type:ignore               
+            if not cfg.log.wandb_init_kwargs.get("dir", False): #type:ignore               
                 wandbdir = self.output_path / "wandb"
                 wandbdir.mkdir(exist_ok=True)
                 cfg.log.wandb_init_kwargs["dir"] = wandbdir
