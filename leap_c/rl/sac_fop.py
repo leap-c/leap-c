@@ -30,7 +30,7 @@ class SacFopAlgorithmConfig:
         critic_mlp: The configuration for the critic networks.
         actor_mlp: The configuration for the policy network.
         batch_size: The batch size for training.
-        num_threads_in_mpc_batch_methods: The number of threads to use for mpc batch methods.
+        num_threads_mpc: The number of threads to use for the parallelization of the mpc.
         buffer_size: The size of the replay buffer.
         gamma: The discount factor.
         tau: The soft update factor.
@@ -48,7 +48,7 @@ class SacFopAlgorithmConfig:
     critic_mlp: MlpConfig = field(default_factory=MlpConfig)
     actor_mlp: MlpConfig = field(default_factory=MlpConfig)
     batch_size: int = 64
-    num_threads_in_mpc_batch_methods: int = 4
+    num_threads_mpc: int = 4
     buffer_size: int = 1000000
     gamma: float = 0.99
     tau: float = 0.005
@@ -187,7 +187,7 @@ class SacFopTrainer(Trainer):
 
         self.pi = MpcSacActor(task, self.train_env, cfg.sac.actor_mlp)
         self.pi.mpc.mpc.num_threads_batch_methods = (
-            cfg.sac.num_threads_in_mpc_batch_methods
+            cfg.sac.num_threads_mpc
         )
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
