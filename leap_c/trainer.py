@@ -45,8 +45,7 @@ class LogConfig:
         csv_logger: If True, the statistics will be logged to a CSV file.
         tensorboard_logger: If True, the statistics will be logged to TensorBoard.
         wandb_logger: If True, the statistics will be logged to Weights & Biases.
-        wandb_name: The name of the Weights & Biases run.
-        wandb_tags: The tags for the Weights & Biases run.
+        wandb_init_kwargs: The kwargs to pass to wandb.init. If "dir" is not specified, it is set to output path / "wandb".
     """
 
     train_interval: int = 1000
@@ -59,9 +58,7 @@ class LogConfig:
     csv_logger: bool = True
     tensorboard_logger: bool = True
     wandb_logger: bool = False
-    wandb_project: str = "leap"
-    wandb_name: str = "leap_run"
-    wandb_tags: list[str] = field(default_factory=list)
+    wandb_init_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(kw_only=True)
@@ -190,13 +187,12 @@ class Trainer(ABC, nn.Module):
 
         # init wandb
         if cfg.log.wandb_logger:
-            wandbdir = self.output_path / "wandb"
-            wandbdir.mkdir(exist_ok=True)
+            if not cfg.log.wandb_init_kwargs.get("dir", False): #type:ignore               
+                wandbdir = self.output_path / "wandb"
+                wandbdir.mkdir(exist_ok=True)
+                cfg.log.wandb_init_kwargs["dir"] = wandbdir
             wandb.init(
-                project=cfg.log.wandb_project,
-                name=cfg.log.wandb_name,
-                dir=wandbdir,
-                tags=cfg.log.wandb_tags,
+                **cfg.log.wandb_init_kwargs   
             )
 
         # tensorboard

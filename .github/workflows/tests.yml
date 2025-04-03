@@ -26,7 +26,7 @@ jobs:
         path: ${{github.workspace}}/leap_c/external/acados
         repository: acados/acados
         github-token: ${{ secrets.GITHUB_TOKEN }}
-        run-id: 13584239471
+        run-id: 14128429097
 
     - name: Install Tera
       working-directory: ${{github.workspace}}/leap_c/external/acados
@@ -54,11 +54,6 @@ jobs:
         key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
         restore-keys: |
           ${{ runner.os }}-pip-
-
-    - name: Install new Casadi
-      working-directory: ${{github.workspace}}/leap_c
-      run: |
-        ./install_new_casadi_py311_x86_64.sh
 
     - name: Install Python interface
       working-directory: ${{github.workspace}}/leap_c/external/acados

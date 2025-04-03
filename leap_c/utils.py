@@ -137,7 +137,7 @@ class AcadosFileManager:
         return solver
 
     def setup_acados_ocp_batch_solver(
-        self, ocp: AcadosOcp, N: int
+        self, ocp: AcadosOcp, N_batch: int, num_threads_in_batch_methods: int
     ) -> AcadosOcpBatchSolver:
         """Setup an acados ocp batch solver with path management.
 
@@ -145,7 +145,8 @@ class AcadosFileManager:
 
         Args:
             ocp: The acados ocp object.
-            N: The number of shooting nodes.
+            N: The batch size.
+            num_threads_in_batch_methods: The number of threads to use for the batched methods.
 
         Returns:
             AcadosOcpBatchSolver: The acados ocp batch solver.
@@ -153,7 +154,12 @@ class AcadosFileManager:
         ocp.code_export_directory = str(self.export_directory / "c_generated_code")
         json_file = str(self.export_directory / "acados_ocp.json")
 
-        solver = AcadosOcpBatchSolver(ocp, json_file=json_file, N_batch=N)
+        solver = AcadosOcpBatchSolver(
+            ocp,
+            json_file=json_file,
+            N_batch=N_batch,
+            num_threads_in_batch_solve=num_threads_in_batch_methods,
+        )
 
         # we add the acados file manager to the solver to ensure
         # the export directory is deleted when the solver is garbage collected
@@ -188,6 +194,7 @@ def set_standard_sensitivity_options(ocp_sensitivity: AcadosOcp):
     ocp_sensitivity.solver_options.exact_hess_constr = True
     ocp_sensitivity.solver_options.with_solution_sens_wrt_params = True
     ocp_sensitivity.solver_options.with_value_sens_wrt_params = True
+    ocp_sensitivity.solver_options.with_batch_functionality = True
     ocp_sensitivity.model.name += "_sensitivity"  # type:ignore
 
 

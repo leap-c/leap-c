@@ -55,7 +55,6 @@ def test_solution(
             "c5",
         ],
         exact_hess_dyn=False,
-        least_squares_cost=False,
     ),
 ):
     ocp_solver = mpc.ocp_solver
@@ -126,13 +125,15 @@ def test_env_types(pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv):
 
 
 def test_closed_loop_rendering(
-    learnable_pendulum_on_cart_mpc_lls_cost: PendulumOnCartMPC,
-    learnable_pendulum_on_cart_mpc_lls_cost_only_cost_params: PendulumOnCartMPC,
+    learnable_pendulum_on_cart_mpc: PendulumOnCartMPC,
+    learnable_pendulum_on_cart_mpc_ext_cost: PendulumOnCartMPC,
+    learnable_pendulum_on_cart_mpc_only_cost_params: PendulumOnCartMPC,
     pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv,
 ):
     for pendulum_mpc in [
-        learnable_pendulum_on_cart_mpc_lls_cost,
-        learnable_pendulum_on_cart_mpc_lls_cost_only_cost_params,
+        learnable_pendulum_on_cart_mpc,
+        learnable_pendulum_on_cart_mpc_ext_cost,
+        learnable_pendulum_on_cart_mpc_only_cost_params,
     ]:
         obs, _ = pendulum_on_cart_ocp_swingup_env.reset(seed=1337)
 

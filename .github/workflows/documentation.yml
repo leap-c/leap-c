@@ -1,0 +1,74 @@
+name: documentation
+
+on: workflow_dispatch
+
+permissions:
+ contents: write
+
+jobs:
+
+ docs:
+   runs-on: ubuntu-latest
+
+   steps:
+   - name: Checkout leap-c
+     uses: actions/checkout@v4
+     with:
+       path: ${{github.workspace}}/leap_c
+       submodules: 'recursive'
+
+   - name: Download acados artifacts (build, lib, include) into acados repository
+     uses: actions/download-artifact@v4
+     with:
+       path: ${{github.workspace}}/leap_c/external/acados
+       repository: acados/acados
+       github-token: ${{ secrets.GITHUB_TOKEN }}
+       run-id: 14106777487
+
+   - name: Install Tera
+     working-directory: ${{github.workspace}}/leap_c/external/acados
+     shell: bash
+     run: |
+       .github/linux/install_tera.sh
+   - name: Export Paths
+     working-directory: ${{github.workspace}}
+     shell: bash
+     run: |
+       echo "ACADOS_SOURCE_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
+       echo "ACADOS_INSTALL_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
+       echo "LD_LIBRARY_PATH=${{github.workspace}}/leap_c/external/acados/lib" >> $GITHUB_ENV
+   - name: Set up Python 3.11
+     uses: actions/setup-python@v5
+     with:
+       python-version: "3.11"
+
+   - name: Cache pip dependencies
+     uses: actions/cache@v4
+     with:
+       path: ~/.cache/pip
+       key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+       restore-keys: |
+         ${{ runner.os }}-pip-
+   - name: Install Python interface
+     working-directory: ${{github.workspace}}/leap_c/external/acados
+     run: |
+       pip install --upgrade pip
+       pip install interfaces/acados_template
+   - name: Install leap_c
+     working-directory: ${{github.workspace}}/leap_c
+     run: |
+       pip install -e .[dev]
+       pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+  
+   - name: Sphinx build
+     working-directory: ${{github.workspace}}/leap_c
+     run: |
+         sphinx-build docs/source _build
+         
+   - name: Deploy to GitHub Pages
+     uses: peaceiris/actions-gh-pages@v3
+     with:
+         publish_branch: gh-pages
+         github_token: ${{ secrets.GITHUB_TOKEN }}
+         publish_dir: leap_c/_build
+         force_orphan: true
