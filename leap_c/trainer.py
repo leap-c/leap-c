@@ -45,7 +45,7 @@ class LogConfig:
         csv_logger: If True, the statistics will be logged to a CSV file.
         tensorboard_logger: If True, the statistics will be logged to TensorBoard.
         wandb_logger: If True, the statistics will be logged to Weights & Biases.
-        wandb_init_kwargs: The kwargs to pass to wandb.init.
+        wandb_init_kwargs: The kwargs to pass to wandb.init. If "dir" is not specified, it is set to output path / "wandb".
     """
 
     train_interval: int = 1000
