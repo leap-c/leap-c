@@ -77,6 +77,8 @@ def main(
     )
 
     trainer = create_trainer(trainer_name, task, output_path, device, cfg)
+
+    cfg.val.interval = 10
     trainer.run()
 
 
