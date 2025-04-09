@@ -345,15 +345,3 @@ class SacZopTrainer(Trainer):
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
         return [self.q_optim, self.pi_optim, self.alpha_optim]
-
-    def save(self) -> None:
-        """Save the trainer state in a checkpoint folder."""
-
-        torch.save(self.buffer, self.output_path / "buffer.pt")
-        return super().save()
-
-    def load(self) -> None:
-        """Loads the state of a trainer from the output_path."""
-
-        self.buffer = torch.load(self.output_path / "buffer.pt")
-        return super().load()
