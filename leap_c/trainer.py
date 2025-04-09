@@ -159,7 +159,7 @@ class Trainer(ABC, nn.Module):
     """
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: BaseConfig
+        self, task: Task, output_path: str | Path | None, device: str, cfg: BaseConfig
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -175,8 +175,11 @@ class Trainer(ABC, nn.Module):
         self.cfg = cfg
         self.device = device
 
-        self.output_path = Path(output_path)
-        self.output_path.mkdir(parents=True, exist_ok=True)
+        if output_path is None:
+            self.output_path = None
+        else:
+            self.output_path = Path(output_path)
+            self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
         self.train_env = self.task.create_train_env(seed=cfg.seed)
@@ -185,23 +188,24 @@ class Trainer(ABC, nn.Module):
         # trainer state
         self.state = TrainerState()
 
-        # init wandb
-        if cfg.log.wandb_logger:
-            if not cfg.log.wandb_init_kwargs.get("dir", False): #type:ignore               
-                wandbdir = self.output_path / "wandb"
-                wandbdir.mkdir(exist_ok=True)
-                cfg.log.wandb_init_kwargs["dir"] = wandbdir
-            wandb.init(
-                **cfg.log.wandb_init_kwargs   
-            )
+        if self.output_path is not None:
+            # init wandb
+            if cfg.log.wandb_logger:
+                if not cfg.log.wandb_init_kwargs.get("dir", False): #type:ignore               
+                    wandbdir = self.output_path / "wandb"
+                    wandbdir.mkdir(exist_ok=True)
+                    cfg.log.wandb_init_kwargs["dir"] = wandbdir
+                wandb.init(
+                    **cfg.log.wandb_init_kwargs   
+                )
 
-        # tensorboard
-        if cfg.log.tensorboard_logger:
-            self.writer = SummaryWriter(self.output_path)
+            # tensorboard
+            if cfg.log.tensorboard_logger:
+                self.writer = SummaryWriter(self.output_path)
 
-        # log dataclass config as yaml
-        with open(self.output_path / "config.yaml", "w") as f:
-            dump(asdict(cfg), f)
+            # log dataclass config as yaml
+            with open(self.output_path / "config.yaml", "w") as f:
+                dump(asdict(cfg), f)
 
         # seed
         set_seed(cfg.seed)
@@ -408,18 +412,22 @@ class Trainer(ABC, nn.Module):
 
         return basedir / "ckpts" / f"{self.step}_{name}.{suffix}"
 
-    def save(self) -> None:
-        """Save the trainer state in a checkpoint folder."""
+    def save(self, path: Path | None) -> None:
+        """Save the trainer state in a checkpoint folder.
 
-        torch.save(self.state_dict(), self._ckpt_path("model", "pth"))
-        torch.save(self.state, self._ckpt_path("trainer", "pkl"))
+        Args:
+            path: The folder where to save the checkpoint.
+        """
+
+        torch.save(self.state_dict(), self._ckpt_path("model", "pth", path))
+        torch.save(self.state, self._ckpt_path("trainer", "pkl", path))
 
         if self.optimizers:
             state_dict = {
                 f"optimizer_{i}": opt.state_dict()
                 for i, opt in enumerate(self.optimizers)
             }
-            torch.save(state_dict, self._ckpt_path("optimizers", "pth"))
+            torch.save(state_dict, self._ckpt_path("optimizers", "pth", path))
 
     def load(self, path: str | Path) -> None:
         """Loads the state of a trainer from the output_path."""
