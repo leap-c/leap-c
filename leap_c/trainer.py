@@ -399,7 +399,8 @@ class Trainer(ABC, nn.Module):
 
     def _ckpt_path(self, name: str, suffix: str, basedir: str | Path | None = None) -> Path:
         """Returns the path to a checkpoint file."""
-        basedir = self.output_path
+        if basedir is None:
+            basedir = self.output_path
 
         basedir = Path(basedir)
         (basedir / "ckpts").mkdir(exist_ok=True)
