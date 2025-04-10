@@ -215,3 +215,24 @@ def test_length():
         assert False
     except ValueError:
         pass
+
+
+def test_state_dict():
+    buffer = ReplayBuffer(buffer_limit=3, device="cpu", tensor_dtype=torch.float32)
+
+    dummy = 1
+    dummy_tensor = torch.tensor([1, 1], device="cpu", dtype=torch.float32)
+
+    for _ in range(3):
+        buffer.put(dummy)
+
+    state_dict = buffer.state_dict()
+    assert torch.equal(buffer.sample(2), dummy_tensor)
+
+    buffer = ReplayBuffer(buffer_limit=2, device="cpu", tensor_dtype=torch.float32)
+
+    buffer.load_state_dict(state_dict)
+
+    assert len(buffer) == 2
+    assert torch.equal(buffer.sample(2), dummy_tensor)
+

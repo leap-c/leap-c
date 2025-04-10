@@ -1,4 +1,5 @@
 import atexit
+from dataclasses import fields, is_dataclass
 import os
 import random
 import shutil
@@ -205,3 +206,38 @@ def set_seed(seed: int):
     torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+
+def update_dataclass_from_dict(dataclass_instance, update_dict):
+    """Recursively update a dataclass instance with values from a dictionary."""
+    for field in fields(dataclass_instance):
+        # Check if the field is present in the update dictionary
+        if field.name in update_dict:
+            # If the field is a dataclass itself, recursively update it
+            if is_dataclass(getattr(dataclass_instance, field.name)):
+                update_dataclass_from_dict(getattr(dataclass_instance, field.name), update_dict[field.name])
+            else:
+                # Otherwise, directly update the field
+                setattr(dataclass_instance, field.name, update_dict[field.name])
+
+
+def log_git_hash_and_diff(filename: Path):
+    """Log the git hash and diff of the current commit to a file."""
+    try:
+        git_hash = (
+            os.popen("git rev-parse HEAD").read().strip()
+            if os.path.exists(".git")
+            else "No git repository"
+        )
+        git_diff = (
+            os.popen("git diff").read().strip()
+            if os.path.exists(".git")
+            else "No git repository"
+        )
+
+        with open(filename, "w") as f:
+            f.write(f"Git hash: {git_hash}\n")
+            f.write(f"Git diff:\n{git_diff}\n")
+    except Exception as e:
+        print(f"Error logging git hash and diff: {e}")
+

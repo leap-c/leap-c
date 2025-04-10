@@ -1,15 +1,28 @@
 import collections
 import random
-from enum import Enum
 from typing import Any
 
 import torch
+import torch.nn as nn
 from torch.utils.data._utils.collate import collate
 
 from leap_c.collate import create_collate_fn_map, pytree_tensor_to
 
 
-class ReplayBuffer:
+class ReplayBuffer(nn.Module):
+    """Replay buffer for storing transitions.
+
+    The replay buffer is a deque that stores transitions in a FIFO manner. The buffer has
+    a maximum size, and when the buffer is full, the oldest transitions are discarded
+    when putting in a new one.
+
+    Attributes:
+        buffer: A deque that stores the transitions.
+        device: The device to which all sampled tensors will be cast.
+        collate_fn_map: The collate function map that informs the buffer how to form batches.
+        tensor_dtype: The data type to which the tensors in the observation will be cast.
+    """
+
     def __init__(
         self,
         buffer_limit: int,
@@ -17,14 +30,16 @@ class ReplayBuffer:
         tensor_dtype: torch.dtype = torch.float32,
     ):
         """
+        Initialize the replay buffer.
+
         Args:
             buffer_limit: The maximum number of transitions that can be stored in the buffer.
                 If the buffer is full, the oldest transitions are discarded when putting in a new one.
             device: The device to which all sampled tensors will be cast.
             collate_fn_map: The collate function map that informs the buffer how to form batches.
             tensor_dtype: The data type to which the tensors in the observation will be cast.
-            input_transformation: A function that transforms the data before it is put into the buffer.
         """
+        super().__init__()
         self.buffer = collections.deque(maxlen=buffer_limit)
         self.device = device
         self.tensor_dtype = tensor_dtype
@@ -35,7 +50,7 @@ class ReplayBuffer:
     def put(self, data: Any):
         """Put the data into the replay buffer. If the buffer is full, the oldest data is discarded.
 
-        Parameters:
+        Args:
             data: The data to put into the buffer.
                 It should be collatable according to the custom_collate function.
         """
@@ -48,7 +63,7 @@ class ReplayBuffer:
         and cast all tensors in the collated mini-batch (must be a pytree structure)
         to the device and dtype of the buffer.
 
-        Parameters:
+        Args:
             n: The number of samples to draw.
         """
         mini_batch = random.sample(self.buffer, n)
@@ -61,34 +76,20 @@ class ReplayBuffer:
     def __len__(self):
         return len(self.buffer)
 
+    def get_extra_state(self) -> dict:
+        """State of the replay buffer.
 
-class InitializationStrategy(Enum):
-    PREVIOUS = 0
-    DEFAULTINIT = 1
-    RELOAD = 2
-    RELOADWRITEBACK = 3
-    NN = 4
+        This interface is used by state_dict and load_state_dict of nn.Module.
+        """
+        return {"buffer": self.buffer}
 
+    def set_extra_state(self, state: dict):
+        """Set the state dict of the replay buffer.
 
-# TODO finish when its time
-# class ReplayBufferReloadWriteback(ReplayBuffer):
-#     """This implements the initialization strategy where the previous solution is reloaded,
-#     but samples in the buffer can be updated."""
+        This interface is used by state_dict and load_state_dict of nn.Module.
 
-#     def __init__(
-#         self, buffer_limit: int, device: str, tensor_dtype: torch.dtype = torch.float32
-#     ):
-#         super().__init__(buffer_limit, device, tensor_dtype)
-#         self.id = 0
-#         self.lookup: dict[int, Any] = dict()
-
-#     def rollout_state(self, input: MPCInput, state: MPCSingleState) -> MPCSingleState:
-#         return state
-
-#     def put(self, data: Any):
-#         """The same as the put of the usual ReplayBuffer, but also"""
-#         # append id for lookup later
-#         self.buffer.append(data)
-
-#     def writeback(self, id: int, data: Any):
-#         self.lookup[id] = data
+        Args:
+            state: The state dict to set.
+        """
+        buffer = state["buffer"]
+        self.buffer = collections.deque(buffer, maxlen=self.buffer.maxlen)

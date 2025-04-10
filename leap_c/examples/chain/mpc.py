@@ -9,6 +9,7 @@ from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchItera
 from casadi import SX, norm_2, vertcat
 from casadi.tools import entry, struct_symSX
 from casadi.tools.structure3 import DMStruct, ssymStruct
+
 from leap_c.examples.chain.utils import (
     RestingChainSolver,
     nominal_params_to_structured_nominal_params,

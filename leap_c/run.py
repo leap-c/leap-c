@@ -1,16 +1,16 @@
-"""Main script to run experiments."""
-
-import datetime
+"""Module for experiments and resurrecting trainers."""
 from argparse import ArgumentParser
 from dataclasses import asdict
+import datetime
 from pathlib import Path
 
 import yaml
 
 import leap_c.examples  # noqa: F401
-import leap_c.rl  # noqa: F401
 from leap_c.registry import create_default_cfg, create_task, create_trainer
+import leap_c.rl
 from leap_c.trainer import BaseConfig
+from leap_c.utils import log_git_hash_and_diff
 
 
 def print_inputs(
@@ -40,21 +40,16 @@ def default_output_path(trainer_name: str, task_name: str, seed: int) -> Path:
     return Path(f"output/{date}/{time}_{task_name}_{trainer_name}_seed_{seed}")
 
 
-def create_cfg(trainer_name: str, seed: int) -> BaseConfig:
-    cfg = create_default_cfg(trainer_name)
-    cfg.seed = seed
-
-    return cfg
-
-
 def main(
     trainer_name: str,
     task_name: str,
     cfg: BaseConfig,
     output_path: Path,
     device: str,
-):
+) -> float:
     """Main function to run experiments.
+
+    If the output path already exists, the run continues from the last checkpoint.
 
     Args:
         trainer_name: Name of the trainer to use.
@@ -62,9 +57,11 @@ def main(
         cfg: The configuration to use.
         output_path: Path to save output to.
         device: Device to run on.
+
+    Returns:
+        The final score of the trainer.
     """
-    if output_path.exists():
-        raise ValueError(f"Output path {output_path} already exists")
+    continue_run = output_path.exists()
 
     task = create_task(task_name)
 
@@ -77,19 +74,45 @@ def main(
     )
 
     trainer = create_trainer(trainer_name, task, output_path, device, cfg)
-    trainer.run()
+
+    if continue_run and (output_path / "ckpts").exists():
+        trainer.load(output_path)
+
+    # store task name and trainer name for resurrection
+    with open(output_path / "resurrect.txt", "w") as f:
+        f.write(f"{trainer_name}\n")
+        f.write(f"{task_name}\n")
+
+    # store git hash and diff
+    log_git_hash_and_diff(output_path / "git.txt") 
+
+    return trainer.run()
+
+
+def create_parser() -> ArgumentParser:
+    """Create an argument parser for the script.
+
+    Returns:
+        An ArgumentParser object.
+    """
+    parser = ArgumentParser()
+    parser.add_argument("--output_path", type=Path, default=None)
+    parser.add_argument("--trainer", type=str, default="sac_fop")
+    parser.add_argument("--task", type=str, default="pendulum_swingup")
+    parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--steps", type=int, default="200_000")
+
+    return parser
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("--output_path", type=Path, default=None)
-    parser.add_argument("--trainer", type=str, default="sac")
-    parser.add_argument("--task", type=str, default="half_cheetah")
-    parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--seed", type=int, default=0)
+    parser = create_parser()
     args = parser.parse_args()
 
-    cfg = create_cfg(args.trainer, args.seed)
+    cfg = create_default_cfg(args.trainer)
+    cfg.seed = args.seed
+    cfg.train.steps = args.steps
 
     if args.output_path is None:
         output_path = default_output_path(args.trainer, args.task, cfg.seed)

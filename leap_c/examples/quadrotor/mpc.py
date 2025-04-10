@@ -187,6 +187,8 @@ def export_parametric_ocp(
     ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
     ocp.solver_options.sim_method_num_stages = 2
     ocp.solver_options.sim_method_num_steps = 2
+    ocp.solver_options.tol = 1e-6  # Is default
+    ocp.solver_options.qp_tol = 1e-7
 
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.with_batch_functionality = True
