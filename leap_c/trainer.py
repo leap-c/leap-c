@@ -425,6 +425,8 @@ class Trainer(ABC, nn.Module):
         Args:
             path: The folder where to save the checkpoint.
         """
+        if path is None:
+            path = self.output_path
 
         # split the state_dict into seperate parts
         split_state_dicts = defaultdict(dict)
