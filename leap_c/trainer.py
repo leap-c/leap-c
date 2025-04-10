@@ -159,7 +159,7 @@ class Trainer(ABC, nn.Module):
     """
 
     def __init__(
-        self, task: Task, output_path: str | Path | None, device: str, cfg: BaseConfig
+        self, task: Task, output_path: str | Path, device: str, cfg: BaseConfig
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -175,11 +175,8 @@ class Trainer(ABC, nn.Module):
         self.cfg = cfg
         self.device = device
 
-        if output_path is None:
-            self.output_path = None
-        else:
-            self.output_path = Path(output_path)
-            self.output_path.mkdir(parents=True, exist_ok=True)
+        self.output_path = Path(output_path)
+        self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
         self.train_env = self.task.create_train_env(seed=cfg.seed)
@@ -188,24 +185,23 @@ class Trainer(ABC, nn.Module):
         # trainer state
         self.state = TrainerState()
 
-        if self.output_path is not None:
-            # init wandb
-            if cfg.log.wandb_logger:
-                if not cfg.log.wandb_init_kwargs.get("dir", False): #type:ignore               
-                    wandbdir = self.output_path / "wandb"
-                    wandbdir.mkdir(exist_ok=True)
-                    cfg.log.wandb_init_kwargs["dir"] = wandbdir
-                wandb.init(
-                    **cfg.log.wandb_init_kwargs   
-                )
+        # init wandb
+        if cfg.log.wandb_logger:
+            if not cfg.log.wandb_init_kwargs.get("dir", False): #type:ignore               
+                wandbdir = self.output_path / "wandb"
+                wandbdir.mkdir(exist_ok=True)
+                cfg.log.wandb_init_kwargs["dir"] = wandbdir
+            wandb.init(
+                **cfg.log.wandb_init_kwargs   
+            )
 
-            # tensorboard
-            if cfg.log.tensorboard_logger:
-                self.writer = SummaryWriter(self.output_path)
+        # tensorboard
+        if cfg.log.tensorboard_logger:
+            self.writer = SummaryWriter(self.output_path)
 
-            # log dataclass config as yaml
-            with open(self.output_path / "config.yaml", "w") as f:
-                safe_dump(asdict(cfg), f)
+        # log dataclass config as yaml
+        with open(self.output_path / "config.yaml", "w") as f:
+            safe_dump(asdict(cfg), f)
 
         # seed
         set_seed(cfg.seed)
@@ -401,14 +397,13 @@ class Trainer(ABC, nn.Module):
 
         return float(stats_rollout["score"])
 
-    def _ckpt_path(self, name: str, suffix: str, basedir: Path | None = None) -> Path:
+    def _ckpt_path(self, name: str, suffix: str, basedir: str | Path | None = None) -> Path:
         """Returns the path to a checkpoint file."""
         if basedir is None:
             basedir = self.output_path
-
-        if basedir is None:
             raise ValueError("Output path is not set. Either set it in the init or pass it to the function.")
 
+        basedir = Path(basedir)
         (basedir / "ckpts").mkdir(exist_ok=True)
 
         if self.cfg.val.ckpt_modus == "best":
@@ -418,7 +413,7 @@ class Trainer(ABC, nn.Module):
 
         return basedir / "ckpts" / f"{self.state.step}_{name}.{suffix}"
 
-    def save(self, path: Path | None = None) -> None:
+    def save(self, path: str | Path | None = None) -> None:
         """Save the trainer state in a checkpoint folder.
 
         If the path is None, the checkpoint is saved in the output path of the trainer.
@@ -454,7 +449,7 @@ class Trainer(ABC, nn.Module):
             }
             torch.save(state_dict, self._ckpt_path("optimizers", "ckpt", path))
 
-    def load(self, path: Path) -> None:
+    def load(self, path: str | Path) -> None:
         """Loads the state of a trainer from the output_path.
 
         Args:
@@ -488,4 +483,3 @@ class Trainer(ABC, nn.Module):
             state_dict = torch.load(self._ckpt_path("optimizers", "ckpt", basedir))
             for i, opt in enumerate(self.optimizers):
                 opt.load_state_dict(state_dict[f"optimizer_{i}"])
-

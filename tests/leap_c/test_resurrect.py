@@ -1,8 +1,30 @@
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
-from leap_c.resurrect import resurrect_cfg, resurrect_task, resurrect_trainer
-from leap_c.rl.sac import SacTrainer, SacBaseConfig
+import pytest
+
 from leap_c.examples.pointmass.task import PointMassTask
+from leap_c.resurrect import resurrect_cfg, resurrect_task, resurrect_trainer
+from leap_c.rl.sac import SacBaseConfig, SacTrainer
+from leap_c.run import main
+
+
+@pytest.fixture(scope="session")
+def resurrect_dir():
+    """Fixture for the SAC trainer."""
+    cfg: SacBaseConfig = create_default_cfg("sac")  # type: ignore
+
+    cfg.sac.lr_q = 12345
+    cfg.train.steps = 10 
+    cfg.val.interval = 1
+    cfg.val.num_rollouts = 1
+    cfg.val.num_render_rollouts = 0
+
+    with TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        main("sac", "point_mass", cfg, tmpdir, "cpu")
+
+        yield tmpdir
 
 
 def test_resurrect_cfg(resurrect_dir: Path):

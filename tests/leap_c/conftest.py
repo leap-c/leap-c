@@ -233,24 +233,12 @@ def task(request):
     return create_task(request.param)
 
 
-@pytest.fixture(scope="session", params=list(TRAINER_REGISTRY.keys()))
-def trainer(request, task) -> Trainer:
-    cfg = create_default_cfg(request.param)
-    trainer = create_trainer(request.param, task, None, "cpu", cfg)
-
-    return trainer
-
-@pytest.fixture(scope="session")
-def resurrect_dir():
-    """Fixture for the SAC trainer."""
-    cfg: SacBaseConfig = create_default_cfg("sac")  # type: ignore
-
-    cfg.sac.lr_q = 12345
-    cfg.train.steps = 10 
-    cfg.val.interval = 1
-    cfg.val.num_rollouts = 1
-    cfg.val.num_render_rollouts = 0
+@pytest.fixture(scope="function", params=list(TRAINER_REGISTRY.keys()))
+def trainer(request, task):
 
     with TemporaryDirectory() as tmpdir:
-        main("sac", "point_mass", cfg, Path(tmpdir), "cpu")
-        yield Path(tmpdir)
+        tmpdir = Path(tmpdir)
+        cfg = create_default_cfg(request.param)
+        trainer = create_trainer(request.param, task, tmpdir, "cpu", cfg)
+
+        yield trainer
