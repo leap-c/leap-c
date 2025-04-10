@@ -399,9 +399,7 @@ class Trainer(ABC, nn.Module):
 
     def _ckpt_path(self, name: str, suffix: str, basedir: str | Path | None = None) -> Path:
         """Returns the path to a checkpoint file."""
-        if basedir is None:
-            basedir = self.output_path
-            raise ValueError("Output path is not set. Either set it in the init or pass it to the function.")
+        basedir = self.output_path
 
         basedir = Path(basedir)
         (basedir / "ckpts").mkdir(exist_ok=True)
@@ -425,8 +423,6 @@ class Trainer(ABC, nn.Module):
         Args:
             path: The folder where to save the checkpoint.
         """
-        if path is None:
-            path = self.output_path
 
         # split the state_dict into seperate parts
         split_state_dicts = defaultdict(dict)
