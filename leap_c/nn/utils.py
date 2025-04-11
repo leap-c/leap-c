@@ -50,4 +50,10 @@ def min_max_scaling(
     low = torch.tensor(space.low, dtype=x.dtype, device=x.device)
     high = torch.tensor(space.high, dtype=x.dtype, device=x.device)
 
+    # check if low and high are correctly set
+    if not (low < high).all():
+        raise ValueError("The low bound must be less than the high bound.")
+    if torch.isinf(low).any() or torch.isinf(high).any():
+        raise ValueError("The low and high bounds must not be infinite.")
+
     return (x - low) / (high - low)

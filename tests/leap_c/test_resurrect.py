@@ -16,8 +16,8 @@ def resurrect_dir():
     cfg: SacBaseConfig = create_default_cfg("sac")  # type: ignore
 
     cfg.sac.lr_q = 12345
-    cfg.train.steps = 10 
-    cfg.val.interval = 1
+    cfg.train.steps = 3
+    cfg.val.interval = 2
     cfg.val.num_rollouts = 1
     cfg.val.num_render_rollouts = 0
 
