@@ -2,6 +2,8 @@ import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 
+from gymnasium.envs.classic_control import utils as gym_utils
+from typing import Optional
 
 class PendulumOnCartSwingupEnv(gym.Env):
     """
@@ -166,14 +168,14 @@ class PendulumOnCartSwingupEnv(gym.Env):
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
         self.t = 0
-        self.x = self.init_state()
+        self.x = self.init_state(options)
         self.reset_needed = False
 
         self.pos_trajectory = None
         self.pole_end_trajectory = None
         return self.x, {}
 
-    def init_state(self) -> np.ndarray:
+    def init_state(self, options: Optional[dict] = None) -> np.ndarray:
         return np.array([0.0, np.pi, 0.0, 0.0], dtype=np.float32)
 
     def include_this_state_trajectory_to_rendering(self, state_trajectory: np.ndarray):
@@ -334,5 +336,8 @@ class PendulumOnCartSwingupEnv(gym.Env):
 
 
 class PendulumOnCartBalanceEnv(PendulumOnCartSwingupEnv):
-    def init_state(self) -> np.ndarray:
-        return np.array([0.0, 0.0, 0.0, 0.0], dtype=np.float32)
+    def init_state(self, options: Optional[dict] = None) -> np.ndarray:
+        low, high = gym_utils.maybe_parse_reset_bounds(
+            options, -0.05, 0.05  # default low
+        )  # default high
+        return self.np_random.uniform(low=low, high=high, size=(4,))
