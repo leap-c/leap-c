@@ -182,11 +182,17 @@ def set_ocp_solver_mpc_params(
         ):  # not sparse
             p = mpc_parameter.p_stagewise.reshape(ocp_solver.N_batch, -1)  # type:ignore
             ocp_solver.set_flat("p", p)
-        for i, ocp_solver in enumerate(ocp_solver.ocp_solvers):
-            set_ocp_solver_mpc_params(
-                ocp_solver,
-                mpc_parameter.get_sample(i),
-            )
+            if mpc_parameter.p_global is not None:
+                for i, single_solver in enumerate(ocp_solver.ocp_solvers):
+                    single_solver.set_p_global_and_precompute_dependencies(
+                        mpc_parameter.p_global[i]
+                    )
+        else:
+            for i, single_solver in enumerate(ocp_solver.ocp_solvers):
+                set_ocp_solver_mpc_params(
+                    single_solver,
+                    mpc_parameter.get_sample(i),
+                )
 
     else:
         raise ValueError(
