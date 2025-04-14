@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from acados_template import AcadosSimSolver
 
-from leap_c.mpc import Mpc, MpcBatchedState, MpcInput, MpcOutput, MpcSingleState
+from leap_c.mpc import Mpc, MpcBatchedState, MpcInput, MpcOutput
 
 from .autograd import AutogradCasadiFunction, DynamicsSimFunction, MPCSolutionFunction
 
@@ -69,7 +69,7 @@ class MpcSolutionModule(nn.Module):
         self,
         mpc_input: MpcInput,
         mpc_state: MpcBatchedState | None = None,
-    ) -> tuple[MpcOutput, MpcSingleState | MpcBatchedState, dict[str, Any]]:
+    ) -> tuple[MpcOutput, MpcBatchedState, dict[str, Any]]:
         """Differentiation is only allowed with respect to x0, u0 and p_global.
 
         Args:

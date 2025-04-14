@@ -19,7 +19,7 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.mpc import Mpc, MpcBatchedState, MpcInput, MpcSingleState
+from leap_c.mpc import Mpc, MpcBatchedState, MpcInput
 
 
 class ChainMpc(Mpc):
@@ -87,7 +87,7 @@ class ChainMpc(Mpc):
 
         super().__init__(
             ocp=ocp,
-            n_batch=n_batch,
+            n_batch_max=n_batch,
             export_directory=export_directory,
             export_directory_sensitivity=export_directory_sensitivity,
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
@@ -100,11 +100,9 @@ class ChainMpc(Mpc):
 
         iterate = self.ocp_solver.store_iterate_to_flat_obj()
 
-        def init_state_fn(mpc_input: MpcInput) -> MpcSingleState | MpcBatchedState:
-            # TODO (batch_rules): This should be updated if we switch to only batch solvers.
-
+        def init_state_fn(mpc_input: MpcInput) -> MpcBatchedState:
             if not mpc_input.is_batched():
-                return deepcopy(iterate)
+                raise ValueError("The input needs to be batched.")
 
             batch_size = len(mpc_input.x0)
             kw = {}
