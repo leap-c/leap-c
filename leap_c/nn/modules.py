@@ -88,13 +88,14 @@ class MpcSolutionModule(nn.Module):
             p_glob = mpc_input.parameters.p_global
             p_rest = mpc_input.parameters._replace(p_global=None)
 
-        u0, value, status = MPCSolutionFunction.apply(  # type:ignore
+        u0, value, status, state = MPCSolutionFunction.apply(  # type:ignore
             self.mpc,
             mpc_input.x0,
             mpc_input.u0,
             p_glob,
             p_rest,
             mpc_state,
+            
         )
 
         if mpc_input.u0 is None:
@@ -106,7 +107,7 @@ class MpcSolutionModule(nn.Module):
 
         return (
             MpcOutput(u0=u0, Q=Q, V=V, status=status),
-            self.mpc.last_call_state,
+            state,
             self.mpc.last_call_stats,
         )
 

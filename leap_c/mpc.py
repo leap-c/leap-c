@@ -72,7 +72,11 @@ class MpcParameter(NamedTuple):
             raise ValueError("Cannot sample from non-batched MpcParameter.")
         p_global = self.p_global[i] if self.p_global is not None else None
         p_stagewise = self.p_stagewise[i] if self.p_stagewise is not None else None
-        p_stagewise_sparse_idx = self.p_stagewise_sparse_idx[i] if self.p_stagewise_sparse_idx is not None else None
+        p_stagewise_sparse_idx = (
+            self.p_stagewise_sparse_idx[i]
+            if self.p_stagewise_sparse_idx is not None
+            else None
+        )
 
         return MpcParameter(
             p_global=p_global,
@@ -130,6 +134,8 @@ class MpcOutput(NamedTuple):
     Attributes:
         status: The status of the solver.
         u0: The first optimal action.
+        x_traj: The state trajectory.
+        u_traj: The action trajectory.
         Q: The state-action value function.
         V: The value function.
         dvalue_du0: The sensitivity of the value function with respect to the initial action.
@@ -140,6 +146,8 @@ class MpcOutput(NamedTuple):
 
     status: np.ndarray | torch.Tensor | None = None  # (B, ) or (1, )
     u0: np.ndarray | torch.Tensor | None = None  # (B, u_dim) or (u_dim, )
+    x_traj: np.ndarray | torch.Tensor | None = None  # (B, N+1, x_dim) or (N+1, x_dim)
+    u_traj: np.ndarray | torch.Tensor | None = None  # (B, N, u_dim) or (N, u_dim)
     Q: np.ndarray | torch.Tensor | None = None  # (B, ) or (1, )
     V: np.ndarray | torch.Tensor | None = None  # (B, ) or (1, )
     dvalue_dx0: np.ndarray | None = None  # (B, x_dim) or (x_dim, )
@@ -196,13 +204,17 @@ def set_ocp_solver_iterate(
         if isinstance(ocp_iterate, AcadosOcpFlattenedIterate):
             ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
         elif ocp_iterate is not None:
-            raise ValueError(f"Expected AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}.")
+            raise ValueError(
+                f"Expected AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}."
+            )
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         if isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
             ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
         elif ocp_iterate is not None:
-            raise ValueError(f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}.")
+            raise ValueError(
+                f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
+            )
     else:
         raise ValueError(
             f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
@@ -283,7 +295,9 @@ def initialize_ocp_solver(
 
     set_ocp_solver_iterate(ocp_solver, ocp_iterate)
     if set_params:
-        set_ocp_solver_mpc_params(ocp_solver, mpc_input.parameters, batch_size=batch_size)
+        set_ocp_solver_mpc_params(
+            ocp_solver, mpc_input.parameters, batch_size=batch_size
+        )
     # Set the initial conditions after setting the iterate, in case the given iterate contains a different value
     set_ocp_solver_initial_condition(
         ocp_solver,
@@ -365,7 +379,7 @@ def _solve_shared(
     throw_error_if_u0_is_outside_ocp_bounds: bool = True,
 ) -> dict[str, Any]:
     batch_size = mpc_input.x0.shape[0]
-    
+
     # Use the backup function to get an iterate in the first solve already, if no iterate is given.
     # Else no iterate is used, which means the iterate of the resetted solver is used (i.e. all iterates are set to 0).
     if mpc_state is None and backup_fn is not None:
@@ -392,12 +406,16 @@ def _solve_shared(
         status = ocp_solver.status
         status_batch.append(status)
         stats_batch["sqp_iter"].append(ocp_solver.get_stats("sqp_iter"))
-        stats_batch["qp_iter"].append(ocp_solver.get_stats("qp_iter").sum())  # type:ignore
+        stats_batch["qp_iter"].append(
+            ocp_solver.get_stats("qp_iter").sum()
+        )  # type:ignore
         stats_batch["time_tot"].append(ocp_solver.get_stats("time_tot"))
         if status != 0:
             any_failed = True
 
-    if any_failed and backup_fn is not None and iterate is not None:  # Reattempt with backup
+    if (
+        any_failed and backup_fn is not None and iterate is not None
+    ):  # Reattempt with backup
         for i, ocp_solver in enumerate(solver.ocp_solvers):
             if status_batch[i] != 0:
                 single_input = mpc_input.get_sample(i)
@@ -419,8 +437,12 @@ def _solve_shared(
                 continue
             reattempts += 1
             stats_batch["sqp_iter"][i] += ocp_solver.get_stats("sqp_iter")
-            stats_batch["qp_iter"][i] += ocp_solver.get_stats("qp_iter").sum()  # type:ignore
-            stats_batch["time_tot"][i] += ocp_solver.get_stats("time_tot")  # type:ignore
+            stats_batch["qp_iter"][i] += ocp_solver.get_stats(
+                "qp_iter"
+            ).sum()  # type:ignore
+            stats_batch["time_tot"][i] += ocp_solver.get_stats(
+                "time_tot"
+            )  # type:ignore
 
             backup_status_batch.append(ocp_solver.status)
 
@@ -532,9 +554,7 @@ class Mpc(ABC):
         ocp: AcadosOcp,
         ocp_sensitivity: AcadosOcp | None = None,
         discount_factor: float | None = None,
-        init_state_fn: (
-            Callable[[MpcInput], MpcBatchedState] | None
-        ) = None,
+        init_state_fn: Callable[[MpcInput], MpcBatchedState] | None = None,
         n_batch_max: int = 256,
         num_threads_in_batch_methods: int = 1,
         export_directory: Path | None = None,
@@ -551,7 +571,7 @@ class Mpc(ABC):
                 For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
             init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.
-            n_batch_max: Number of batched solvers that are used at maximum.
+            n_batch_max: Maximum batch size.
             num_threads_in_batch_methods: Number of threads to use in the batch methods.
             export_directory: Directory to export the generated code.
             export_directory_sensitivity: Directory to export the generated
@@ -563,26 +583,43 @@ class Mpc(ABC):
 
         if ocp_sensitivity is None:
             # setup OCP for sensitivity solver
-            if ocp.cost.cost_type not in  ["EXTERNAL", "NONLINEAR_LS"] or ocp.cost.cost_type_0 not in ["EXTERNAL", "NONLINEAR_LS", None] or ocp.cost.cost_type_e not in ["EXTERNAL", "NONLINEAR_LS"]:
-                raise ValueError("Automatic derivation of sensitivity problem is only supported for EXTERNAL or NONLINEAR_LS cost types.")
+            if (
+                ocp.cost.cost_type not in ["EXTERNAL", "NONLINEAR_LS"]
+                or ocp.cost.cost_type_0 not in ["EXTERNAL", "NONLINEAR_LS", None]
+                or ocp.cost.cost_type_e not in ["EXTERNAL", "NONLINEAR_LS"]
+            ):
+                raise ValueError(
+                    "Automatic derivation of sensitivity problem is only supported for EXTERNAL or NONLINEAR_LS cost types."
+                )
             self.ocp_sensitivity = deepcopy(ocp)
 
             set_standard_sensitivity_options(self.ocp_sensitivity)
         else:
             self.ocp_sensitivity = ocp_sensitivity
 
-
         if self.ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
-            self.ocp.translate_intial_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-            self.ocp_sensitivity.translate_intial_cost_term_to_external(cost_hessian="EXACT")
+            self.ocp.translate_intial_cost_term_to_external(
+                cost_hessian=ocp.solver_options.hessian_approx
+            )
+            self.ocp_sensitivity.translate_intial_cost_term_to_external(
+                cost_hessian="EXACT"
+            )
 
         if self.ocp.cost.cost_type not in ["EXTERNAL"]:
-            self.ocp.translate_intermediate_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-            self.ocp_sensitivity.translate_intermediate_cost_term_to_external(cost_hessian="EXACT")
+            self.ocp.translate_intermediate_cost_term_to_external(
+                cost_hessian=ocp.solver_options.hessian_approx
+            )
+            self.ocp_sensitivity.translate_intermediate_cost_term_to_external(
+                cost_hessian="EXACT"
+            )
 
         if self.ocp.cost.cost_type_e not in ["EXTERNAL"]:
-            self.ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-            self.ocp_sensitivity.translate_terminal_cost_term_to_external(cost_hessian="EXACT")
+            self.ocp.translate_terminal_cost_term_to_external(
+                cost_hessian=ocp.solver_options.hessian_approx
+            )
+            self.ocp_sensitivity.translate_terminal_cost_term_to_external(
+                cost_hessian="EXACT"
+            )
 
         turn_on_warmstart(self.ocp)
 
@@ -610,28 +647,6 @@ class Mpc(ABC):
         )
 
         self.last_call_stats: dict = dict()
-
-    @cached_property
-    def ocp_solver(self) -> AcadosOcpSolver:
-        solver = self.afm.setup_acados_ocp_solver(self.ocp)
-
-        if self._discount_factor is not None:
-            set_discount_factor(solver, self._discount_factor)
-
-        set_ocp_solver_to_default(solver, self.default_full_mpcparameter, unset_u0=True)
-
-        return solver
-
-    @cached_property
-    def ocp_sensitivity_solver(self) -> AcadosOcpSolver:
-        solver = self.afm_sens.setup_acados_ocp_solver(self.ocp_sensitivity)
-
-        if self._discount_factor is not None:
-            set_discount_factor(solver, self._discount_factor)
-
-        set_ocp_solver_to_default(solver, self.default_sens_mpcparameter, unset_u0=True)
-
-        return solver
 
     @cached_property
     def ocp_batch_solver(self) -> AcadosOcpBatchSolver:
@@ -702,7 +717,9 @@ class Mpc(ABC):
     def default_p_stagewise(self) -> np.ndarray | None:
         """Return the default p_stagewise."""
         return (
-            np.tile(self.ocp.parameter_values, (self.N + 1, 1)) if self.is_model_p_legal(self.ocp_sensitivity.model.p) else None
+            np.tile(self.ocp.parameter_values, (self.N + 1, 1))
+            if self.is_model_p_legal(self.ocp_sensitivity.model.p)
+            else None
         )
 
     @cached_property
@@ -733,14 +750,14 @@ class Mpc(ABC):
             return len(model_p) != 0
         else:
             raise ValueError(f"Unknown case for model_p, type is {type(model_p)}")
-        
+
     def policy(
         self,
         state: np.ndarray,
         p_global: np.ndarray | None,
         p_stagewise: np.ndarray | None = None,
         p_stagewise_sparse_idx: np.ndarray | None = None,
-        solver_state: MpcBatchedState | None = None, 
+        solver_state: MpcBatchedState | None = None,
     ) -> tuple[np.ndarray, MpcBatchedState, np.ndarray]:
         """Compute the policy for a given state.
 
@@ -765,20 +782,24 @@ class Mpc(ABC):
             return x.reshape(1, -1)
 
         state = batchify(state)
-        p_global = batchify(p_global)
-        p_stagewise = batchify(p_stagewise)
-        p_stagewise_sparse_idx = batchify(p_stagewise_sparse_idx)
 
-        param = MpcParameter(
-            p_global=p_global,
-            p_stagewise=p_stagewise,
-            p_stagewise_sparse_idx=p_stagewise_sparse_idx,
-        )
+        if all(p is None for p in [p_global, p_stagewise, p_stagewise_sparse_idx]):
+            param = None
+        else:
+            p_global = batchify(p_global)
+            p_stagewise = batchify(p_stagewise)
+            p_stagewise_sparse_idx = batchify(p_stagewise_sparse_idx)
+
+            param = MpcParameter(
+                p_global=p_global,
+                p_stagewise=p_stagewise,
+                p_stagewise_sparse_idx=p_stagewise_sparse_idx,
+            )
 
         mpc_input = MpcInput(x0=state, parameters=param)
         mpc_output, mpc_state = self(mpc_input=mpc_input, mpc_state=solver_state)
 
-        return mpc_output.u0, mpc_state, mpc_output.status[0]   # type:ignore
+        return mpc_output.u0, mpc_state, mpc_output.status[0]  # type:ignore
 
     def __call__(
         self,
@@ -821,6 +842,10 @@ class Mpc(ABC):
         Returns:
             A collection of outputs from the MPC controller.
         """
+        batch_size = mpc_input.x0.shape[0]
+
+        if not mpc_input.is_batched():
+            raise ValueError("The input to `__call__` of MPC must be batched.")
 
         if mpc_input.u0 is None and dvdu:
             raise ValueError("dvdu is only allowed if u0 is set in the input.")
@@ -838,117 +863,113 @@ class Mpc(ABC):
             throw_error_if_u0_is_outside_ocp_bounds=self.throw_error_if_u0_is_outside_ocp_bounds,
         )
 
-        kw = {}
-        kw["status"] = np.array(
-            [ocp_solver.status for ocp_solver in self.ocp_batch_solver.ocp_solvers]
-        )
+        solvers = self.ocp_batch_solver.ocp_solvers[:batch_size]
+        if use_sensitivity_solver:
+            sens_solvers = self.ocp_batch_sensitivity_solver.ocp_solvers[:batch_size]
 
-        kw["u0"] = np.array(
-            [ocp_solver.get(0, "u") for ocp_solver in self.ocp_batch_solver.ocp_solvers]
+        kw = {}
+        kw["status"] = np.array([s.status for s in solvers])
+        kw["u0"] = np.array([s.get(0, "u") for s in solvers])
+
+        kw["x_traj"] = np.array(
+            [[s.get(i, "x") for i in range(self.N)] for s in solvers]
+        )
+        kw["u_traj"] = np.array(
+            [[s.get(i, "u") for i in range(self.N)] for s in solvers]
         )
 
         if mpc_input.u0 is not None:
-            kw["Q"] = np.array(
-                [
-                    ocp_solver.get_cost()
-                    for ocp_solver in self.ocp_batch_solver.ocp_solvers
-                ]
-            )
+            kw["Q"] = np.array([s.get_cost() for s in solvers])
         else:
-            kw["V"] = np.array(
-                [
-                    ocp_solver.get_cost()
-                    for ocp_solver in self.ocp_batch_solver.ocp_solvers
-                ]
-            )
-
-        if use_sensitivity_solver:
-            if dudx:
-                kw["du0_dx0"] = np.array(
-                    [
-                        ocp_sensitivity_solver.eval_solution_sensitivity(
-                            stages=0,
-                            with_respect_to="initial_state",
-                            return_sens_u=True,
-                            return_sens_x=False,
-                        )["sens_u"]
-                        for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
-                    ]
-                )
-
-            if dudp:
-                if use_adj_sens:
-                    single_seed = np.eye(self.ocp.dims.nu)
-                    seed_vec = np.repeat(
-                        single_seed[np.newaxis, :, :], self.n_batch_max, axis=0
-                    )
-
-                    kw["du0_dp_global"] = (
-                        self.ocp_batch_sensitivity_solver.eval_adjoint_solution_sensitivity(
-                            seed_x=[],
-                            seed_u=[(0, seed_vec)],
-                            with_respect_to="p_global",
-                            sanity_checks=True,
-                        )
-                    )
-
-                else:
-                    kw["du0_dp_global"] = np.array(
-                        [
-                            ocp_sensitivity_solver.eval_solution_sensitivity(
-                                stages=0,
-                                with_respect_to="p_global",
-                                return_sens_u=True,
-                                return_sens_x=False,
-                            )["sens_u"]
-                            for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
-                        ]
-                    ).reshape(self.n_batch_max, self.ocp.dims.nu, self.p_global_dim)  # type:ignore
-
-                assert kw["du0_dp_global"].shape == (
-                    self.n_batch_max,
-                    self.ocp.dims.nu,
-                    self.p_global_dim,
-                )
-
-            if dvdp:
-                kw["dvalue_dp_global"] = np.array(
-                    [
-                        ocp_sensitivity_solver.eval_and_get_optimal_value_gradient(
-                            "p_global"
-                        )
-                        for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
-                    ]
-                )
+            kw["V"] = np.array([s.get_cost() for s in solvers])
 
         if dudx:
             kw["du0_dx0"] = np.array(
                 [
-                    ocp_solver.eval_solution_sensitivity(
+                    s.eval_solution_sensitivity(
                         stages=0,
                         with_respect_to="initial_state",
                         return_sens_u=True,
                         return_sens_x=False,
                     )["sens_u"]
-                    for ocp_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
+                    for s in sens_solvers
+                ]
+            )
+
+        if dudp:
+            if use_adj_sens:
+                single_seed = np.eye(self.ocp.dims.nu)
+                # TODO (Jasper): update
+                seed_vec = np.repeat(
+                    single_seed[np.newaxis, :, :], self.n_batch_max, axis=0
+                )
+
+                kw["du0_dp_global"] = (
+                    self.ocp_batch_sensitivity_solver.eval_adjoint_solution_sensitivity(
+                        seed_x=[],
+                        seed_u=[(0, seed_vec)],
+                        with_respect_to="p_global",
+                        sanity_checks=True,
+                    )
+                )
+
+            else:
+                kw["du0_dp_global"] = np.array(
+                    [
+                        s.eval_solution_sensitivity(
+                            stages=0,
+                            with_respect_to="p_global",
+                            return_sens_u=True,
+                            return_sens_x=False,
+                        )["sens_u"]
+                        for s in sens_solvers
+                    ]
+                ).reshape(
+                    self.n_batch_max, self.ocp.dims.nu, self.p_global_dim
+                )  # type:ignore
+
+            assert kw["du0_dp_global"].shape == (
+                self.n_batch_max,
+                self.ocp.dims.nu,
+                self.p_global_dim,
+            )
+
+        if dvdp:
+            kw["dvalue_dp_global"] = np.array(
+                [
+                    s.eval_and_get_optimal_value_gradient("p_global")
+                    for s in sens_solvers
+                ]
+            )
+
+        if dudx:
+            kw["du0_dx0"] = np.array(
+                [
+                    s.eval_solution_sensitivity(
+                        stages=0,
+                        with_respect_to="initial_state",
+                        return_sens_u=True,
+                        return_sens_x=False,
+                    )["sens_u"]
+                    for s in sens_solvers
                 ]
             )
         if dvdx:
             kw["dvalue_dx0"] = np.array(
                 [
-                    solver.eval_and_get_optimal_value_gradient(
+                    s.eval_and_get_optimal_value_gradient(
                         with_respect_to="initial_state"
                     )
-                    for solver in self.ocp_batch_solver.ocp_solvers
+                    for s in sens_solvers
                 ]
             )
         if dvdu:
             kw["dvalue_du0"] = np.array(
                 [
-                    solver.eval_and_get_optimal_value_gradient(
+                    s.eval_and_get_optimal_value_gradient(
                         with_respect_to="initial_control"
                     )
-                    for solver in self.ocp_batch_solver.ocp_solvers
+                    for s in sens_solvers
                 ]
             )
 
