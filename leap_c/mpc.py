@@ -594,6 +594,7 @@ class Mpc(ABC):
             if ocp.cost.cost_type not in  ["EXTERNAL", "NONLINEAR_LS"] or ocp.cost.cost_type_0 not in ["EXTERNAL", "NONLINEAR_LS", None] or ocp.cost.cost_type_e not in ["EXTERNAL", "NONLINEAR_LS"]:
                 raise ValueError("Automatic derivation of sensitivity problem is only supported for EXTERNAL or NONLINEAR_LS cost types.")
             self.ocp_sensitivity = deepcopy(ocp)
+            # TODO: check using acados if sens solver is needed.
 
             set_standard_sensitivity_options(self.ocp_sensitivity)
         else:
