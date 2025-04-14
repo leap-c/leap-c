@@ -38,16 +38,13 @@ class AcadosStatus(IntEnum):
 class MpcParameter(NamedTuple):
     """
     A named tuple to store the parameters of the MPC planner.
-    NOTE: If the non-sensitivity solver is using something else than EXTERNAL cost, like LLS cost, then
-    only the first few entries of the here given p_global is set (such that its shape matches the shape of the default p_global
-    in that solver). This is due to the fact that "unused" (wrt. casadi expressions) p_global entries are currently not allowed in the solver.
 
     Attributes:
         p_global: The part of p_global that should be learned in shape (n_p_global_learnable, ) or (B, n_p_global_learnable).
         p_stagewise: The stagewise parameters in shape
             (N+1, p_stagewise_dim) or (N+1, len(p_stagewise_sparse_idx)) if the next field is set or
             (B, N+1, p_stagewise_dim) or (B, N+1, len(p_stagewise_sparse_idx)) if the next field is set.
-            If a multi-phase MPC is used this is a list containing the above arrays for the respective phases.
+            If a multi-phase MPC is used and p_stagewise_sparse_idx is given, this is a list containing the above arrays for the respective phases.
         p_stagewise_sparse_idx: If not None, stagewise parameters are set in a sparse manner, using these indices.
             The indices are in shape (N+1, n_p_stagewise_sparse_idx) or (B, N+1, n_p_stagewise_sparse_idx).
             If a multi-phase MPC is used this is a list containing the above arrays for the respective phases.
@@ -72,7 +69,11 @@ class MpcParameter(NamedTuple):
             raise ValueError("Cannot sample from non-batched MpcParameter.")
         p_global = self.p_global[i] if self.p_global is not None else None
         p_stagewise = self.p_stagewise[i] if self.p_stagewise is not None else None
-        p_stagewise_sparse_idx = self.p_stagewise_sparse_idx[i] if self.p_stagewise_sparse_idx is not None else None
+        p_stagewise_sparse_idx = (
+            self.p_stagewise_sparse_idx[i]
+            if self.p_stagewise_sparse_idx is not None
+            else None
+        )
 
         return MpcParameter(
             p_global=p_global,
@@ -173,11 +174,20 @@ def set_ocp_solver_mpc_params(
                     ):
                         ocp_solver.set_params_sparse(stage, p, idx)
                 else:
-                    for stage, p in enumerate(mpc_parameter.p_stagewise):
-                        ocp_solver.set(stage, "p", p)
+                    ocp_solver.set_flat("p", mpc_parameter.p_stagewise.reshape(-1))  # type:ignore
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
-        for i, single_solver in enumerate(ocp_solver.ocp_solvers):
-            set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
+        if (
+            mpc_parameter.p_stagewise_sparse_idx is None
+            and mpc_parameter.p_stagewise is not None
+        ):  # not sparse
+            p = mpc_parameter.p_stagewise.reshape(ocp_solver.N_batch, -1)  # type:ignore
+            ocp_solver.set_flat("p", p)
+        for i, ocp_solver in enumerate(ocp_solver.ocp_solvers):
+            set_ocp_solver_mpc_params(
+                ocp_solver,
+                mpc_parameter.get_sample(i),
+            )
+
     else:
         raise ValueError(
             f"expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
@@ -194,13 +204,17 @@ def set_ocp_solver_iterate(
         if isinstance(ocp_iterate, AcadosOcpFlattenedIterate):
             ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
         elif ocp_iterate is not None:
-            raise ValueError(f"Expected AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}.")
+            raise ValueError(
+                f"Expected AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}."
+            )
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         if isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
             ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
         elif ocp_iterate is not None:
-            raise ValueError(f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}.")
+            raise ValueError(
+                f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
+            )
     else:
         raise ValueError(
             f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
@@ -591,26 +605,43 @@ class Mpc(ABC):
 
         if ocp_sensitivity is None:
             # setup OCP for sensitivity solver
-            if ocp.cost.cost_type not in  ["EXTERNAL", "NONLINEAR_LS"] or ocp.cost.cost_type_0 not in ["EXTERNAL", "NONLINEAR_LS", None] or ocp.cost.cost_type_e not in ["EXTERNAL", "NONLINEAR_LS"]:
-                raise ValueError("Automatic derivation of sensitivity problem is only supported for EXTERNAL or NONLINEAR_LS cost types.")
+            if (
+                ocp.cost.cost_type not in ["EXTERNAL", "NONLINEAR_LS"]
+                or ocp.cost.cost_type_0 not in ["EXTERNAL", "NONLINEAR_LS", None]
+                or ocp.cost.cost_type_e not in ["EXTERNAL", "NONLINEAR_LS"]
+            ):
+                raise ValueError(
+                    "Automatic derivation of sensitivity problem is only supported for EXTERNAL or NONLINEAR_LS cost types."
+                )
             self.ocp_sensitivity = deepcopy(ocp)
 
             set_standard_sensitivity_options(self.ocp_sensitivity)
         else:
             self.ocp_sensitivity = ocp_sensitivity
 
-
         if self.ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
-            self.ocp.translate_intial_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-            self.ocp_sensitivity.translate_intial_cost_term_to_external(cost_hessian="EXACT")
+            self.ocp.translate_intial_cost_term_to_external(
+                cost_hessian=ocp.solver_options.hessian_approx
+            )
+            self.ocp_sensitivity.translate_intial_cost_term_to_external(
+                cost_hessian="EXACT"
+            )
 
         if self.ocp.cost.cost_type not in ["EXTERNAL"]:
-            self.ocp.translate_intermediate_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-            self.ocp_sensitivity.translate_intermediate_cost_term_to_external(cost_hessian="EXACT")
+            self.ocp.translate_intermediate_cost_term_to_external(
+                cost_hessian=ocp.solver_options.hessian_approx
+            )
+            self.ocp_sensitivity.translate_intermediate_cost_term_to_external(
+                cost_hessian="EXACT"
+            )
 
         if self.ocp.cost.cost_type_e not in ["EXTERNAL"]:
-            self.ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-            self.ocp_sensitivity.translate_terminal_cost_term_to_external(cost_hessian="EXACT")
+            self.ocp.translate_terminal_cost_term_to_external(
+                cost_hessian=ocp.solver_options.hessian_approx
+            )
+            self.ocp_sensitivity.translate_terminal_cost_term_to_external(
+                cost_hessian="EXACT"
+            )
 
         turn_on_warmstart(self.ocp)
 
@@ -731,7 +762,9 @@ class Mpc(ABC):
     def default_p_stagewise(self) -> np.ndarray | None:
         """Return the default p_stagewise."""
         return (
-            np.tile(self.ocp.parameter_values, (self.N + 1, 1)) if self.is_model_p_legal(self.ocp_sensitivity.model.p) else None
+            np.tile(self.ocp.parameter_values, (self.N + 1, 1))
+            if self.is_model_p_legal(self.ocp_sensitivity.model.p)
+            else None
         )
 
     @cached_property
