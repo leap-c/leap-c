@@ -1,11 +1,16 @@
 import matplotlib.pyplot as plt
 import numpy as np
 
-import leap_c.examples
+import leap_c.examples  # noqa: F401
 import leap_c.rl  # noqa: F401
 from leap_c.examples.chain.env import ChainEnv
 from leap_c.examples.chain.mpc import ChainMpc, get_f_expl_expr
-from leap_c.examples.chain.utils import animate_chain_position_3D, animate_chain_position, Ellipsoid, RestingChainSolver
+from leap_c.examples.chain.utils import (
+    animate_chain_position_3D,
+    animate_chain_position,
+    Ellipsoid,
+    RestingChainSolver,
+)
 from leap_c.registry import create_default_cfg, create_task, create_trainer
 
 
@@ -18,7 +23,7 @@ def test_chain_policy_evaluation_works():
     # Move the second mass a bit in x direction
     x0[3] += 0.1
 
-    u0, du0_dp_global, status = mpc.policy(state=x0, sens=False, p_global=None)
+    u0, _, status = mpc.policy(state=x0, p_global=None)
 
     assert status == 0, "Policy evaluation failed"
 
@@ -52,7 +57,9 @@ def test_chain_env_mpc_closed_loop():
 
     fix_point = np.zeros(3)
 
-    ellipsoid = Ellipsoid(center=fix_point, radii=np.array(params["L"]).reshape(-1, 3).sum(axis=0))
+    ellipsoid = Ellipsoid(
+        center=fix_point, radii=np.array(params["L"]).reshape(-1, 3).sum(axis=0)
+    )
 
     resting_chain_solver = RestingChainSolver(
         n_mass=n_mass,
@@ -60,12 +67,22 @@ def test_chain_env_mpc_closed_loop():
         f_expl=get_f_expl_expr,
     )
 
-    xstart, _ = resting_chain_solver(p_last=ellipsoid.spherical_to_cartesian(phi=0.0, theta=np.pi))
-    pos_last_mass_ref = ellipsoid.spherical_to_cartesian(phi=0.75 * np.pi, theta=np.pi / 2)
+    xstart, _ = resting_chain_solver(
+        p_last=ellipsoid.spherical_to_cartesian(phi=0.0, theta=np.pi)
+    )
+    pos_last_mass_ref = ellipsoid.spherical_to_cartesian(
+        phi=0.75 * np.pi, theta=np.pi / 2
+    )
 
-    mpc = ChainMpc(learnable_params=learnable_params, n_mass=n_mass, pos_last_mass_ref=pos_last_mass_ref)
+    mpc = ChainMpc(
+        learnable_params=learnable_params,
+        n_mass=n_mass,
+        pos_last_mass_ref=pos_last_mass_ref,
+    )
 
-    env = ChainEnv(n_mass=n_mass, fix_point=fix_point, pos_last_ref=pos_last_mass_ref, param=params)
+    env = ChainEnv(
+        n_mass=n_mass, fix_point=fix_point, pos_last_ref=pos_last_mass_ref, param=params
+    )
     env.reset()
     env.set_state(xstart)
 
@@ -75,7 +92,7 @@ def test_chain_env_mpc_closed_loop():
     sim_u = []
 
     for _ in range(100):
-        u0, _, status = mpc.policy(state=sim_x[-1], sens=False, p_global=None)
+        u0, _, status = mpc.policy(state=sim_x[-1], p_global=None)
 
         sim_u.append(u0)
         o, r, term, trunc, info = env.step(u0)
@@ -87,22 +104,3 @@ def test_chain_env_mpc_closed_loop():
     error_norm = np.linalg.norm(x_ref - sim_x, axis=1)
 
     assert error_norm[-1] < 1e-2, "Error norm is too high"
-
-
-if __name__ == "__main__":
-    # test_chain_policy_evaluation_works()
-    test_chain_env_mpc_closed_loop()
-
-    # cfg = create_default_cfg("sac_fop")
-
-    # cfg.val.interval = 1
-
-    # trainer = create_trainer(
-    #     name="sac_fop",
-    #     task=create_task("chain"),
-    #     output_path="output/videos",
-    #     device="cpu",
-    #     cfg=cfg,
-    # )
-
-    # trainer.validate()
