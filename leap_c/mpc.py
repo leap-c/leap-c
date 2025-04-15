@@ -595,6 +595,7 @@ class Mpc(ABC):
                     "Automatic derivation of sensitivity problem is only supported for EXTERNAL or NONLINEAR_LS cost types."
                 )
             self.ocp_sensitivity = deepcopy(ocp)
+            # TODO: check using acados if sens solver is needed, see __uses_exact_hessian in acados. Then remove linear_mpc class.
 
             set_standard_sensitivity_options(self.ocp_sensitivity)
         else:
@@ -906,7 +907,7 @@ class Mpc(ABC):
             if use_adj_sens:
                 single_seed = np.eye(self.ocp.dims.nu)
                 seed_vec = np.repeat(
-                    single_seed[np.newaxis, :, :], self.n_batch_max, axis=0
+                    single_seed[np.newaxis, :, :], batch_size, axis=0
                 )
 
                 kw["du0_dp_global"] = (
