@@ -134,8 +134,6 @@ class MpcOutput(NamedTuple):
     Attributes:
         status: The status of the solver.
         u0: The first optimal action.
-        x_traj: The state trajectory.
-        u_traj: The action trajectory.
         Q: The state-action value function.
         V: The value function.
         dvalue_du0: The sensitivity of the value function with respect to the initial action.
@@ -146,8 +144,6 @@ class MpcOutput(NamedTuple):
 
     status: np.ndarray | torch.Tensor | None = None  # (B, ) or (1, )
     u0: np.ndarray | torch.Tensor | None = None  # (B, u_dim) or (u_dim, )
-    x_traj: np.ndarray | torch.Tensor | None = None  # (B, N+1, x_dim) or (N+1, x_dim)
-    u_traj: np.ndarray | torch.Tensor | None = None  # (B, N, u_dim) or (N, u_dim)
     Q: np.ndarray | torch.Tensor | None = None  # (B, ) or (1, )
     V: np.ndarray | torch.Tensor | None = None  # (B, ) or (1, )
     dvalue_dx0: np.ndarray | None = None  # (B, x_dim) or (x_dim, )
@@ -880,13 +876,6 @@ class Mpc(ABC):
         kw = {}
         kw["status"] = np.array([s.status for s in solvers])
         kw["u0"] = np.array([s.get(0, "u") for s in solvers])
-
-        kw["x_traj"] = np.array(
-            [[s.get(i, "x") for i in range(self.N)] for s in solvers]
-        )
-        kw["u_traj"] = np.array(
-            [[s.get(i, "u") for i in range(self.N)] for s in solvers]
-        )
 
         if mpc_input.u0 is not None:
             kw["Q"] = np.array([s.get_cost() for s in solvers])
