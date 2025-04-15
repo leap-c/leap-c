@@ -38,16 +38,13 @@ class AcadosStatus(IntEnum):
 class MpcParameter(NamedTuple):
     """
     A named tuple to store the parameters of the MPC planner.
-    NOTE: If the non-sensitivity solver is using something else than EXTERNAL cost, like LLS cost, then
-    only the first few entries of the here given p_global is set (such that its shape matches the shape of the default p_global
-    in that solver). This is due to the fact that "unused" (wrt. casadi expressions) p_global entries are currently not allowed in the solver.
 
     Attributes:
         p_global: The part of p_global that should be learned in shape (n_p_global_learnable, ) or (B, n_p_global_learnable).
         p_stagewise: The stagewise parameters in shape
             (N+1, p_stagewise_dim) or (N+1, len(p_stagewise_sparse_idx)) if the next field is set or
             (B, N+1, p_stagewise_dim) or (B, N+1, len(p_stagewise_sparse_idx)) if the next field is set.
-            If a multi-phase MPC is used this is a list containing the above arrays for the respective phases.
+            If a multi-phase MPC is used and p_stagewise_sparse_idx is given, this is a list containing the above arrays for the respective phases.
         p_stagewise_sparse_idx: If not None, stagewise parameters are set in a sparse manner, using these indices.
             The indices are in shape (N+1, n_p_stagewise_sparse_idx) or (B, N+1, n_p_stagewise_sparse_idx).
             If a multi-phase MPC is used this is a list containing the above arrays for the respective phases.
@@ -153,6 +150,61 @@ class MpcOutput(NamedTuple):
     du0_dx0: np.ndarray | None = None  # (B, u_dim, x_dim) or (u_dim, x_dim)
 
 
+def set_ocp_solver_mpc_params_global(
+    ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
+    mpc_parameter: MpcParameter,
+    batch_size: int | None = None,
+) -> None:
+    if mpc_parameter.p_global is None:
+        return
+    if isinstance(ocp_solver, AcadosOcpSolver):
+        ocp_solver.set_p_global_and_precompute_dependencies(mpc_parameter.p_global)
+    elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        for i, single_solver in enumerate(ocp_solver.ocp_solvers):
+            if batch_size is not None and i >= batch_size:
+                break
+            single_solver.set_p_global_and_precompute_dependencies(
+                mpc_parameter.p_global[i]
+            )
+    else:
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
+        )
+
+
+def set_ocp_solver_mpc_params_stagewise(
+    ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
+    mpc_parameter: MpcParameter,
+    batch_size: int | None = None,
+):
+    if mpc_parameter.p_stagewise is None:
+        return
+    if isinstance(ocp_solver, AcadosOcpSolver):
+        if mpc_parameter.p_stagewise_sparse_idx is not None:
+            for stage, (p, idx) in enumerate(
+                zip(
+                    mpc_parameter.p_stagewise,
+                    mpc_parameter.p_stagewise_sparse_idx,
+                )
+            ):
+                ocp_solver.set_params_sparse(stage, p, idx)
+        else:
+            ocp_solver.set_flat("p", mpc_parameter.p_stagewise.reshape(-1))  # type:ignore
+    elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        if mpc_parameter.p_stagewise_sparse_idx is None:  # not sparse
+            p = mpc_parameter.p_stagewise.reshape(batch_size, -1)  # type:ignore
+            ocp_solver.set_flat("p", p)
+        else:
+            for i, single_solver in enumerate(ocp_solver.ocp_solvers):
+                if batch_size is not None and i >= batch_size:
+                    break
+                set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
+    else:
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
+        )
+
+
 def set_ocp_solver_mpc_params(
     ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
     mpc_parameter: MpcParameter | None,
@@ -160,34 +212,8 @@ def set_ocp_solver_mpc_params(
 ) -> None:
     if mpc_parameter is None:
         return
-    if isinstance(ocp_solver, AcadosOcpSolver):
-        if mpc_parameter is not None:
-            if mpc_parameter.p_global is not None:
-                ocp_solver.set_p_global_and_precompute_dependencies(
-                    mpc_parameter.p_global
-                )
-
-            if mpc_parameter.p_stagewise is not None:
-                if mpc_parameter.p_stagewise_sparse_idx is not None:
-                    for stage, (p, idx) in enumerate(
-                        zip(
-                            mpc_parameter.p_stagewise,
-                            mpc_parameter.p_stagewise_sparse_idx,
-                        )
-                    ):
-                        ocp_solver.set_params_sparse(stage, p, idx)
-                else:
-                    for stage, p in enumerate(mpc_parameter.p_stagewise):
-                        ocp_solver.set(stage, "p", p)
-    elif isinstance(ocp_solver, AcadosOcpBatchSolver):
-        for i, single_solver in enumerate(ocp_solver.ocp_solvers):
-            if batch_size is not None and i >= batch_size:
-                break
-            set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
-    else:
-        raise ValueError(
-            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
-        )
+    set_ocp_solver_mpc_params_global(ocp_solver, mpc_parameter, batch_size)
+    set_ocp_solver_mpc_params_stagewise(ocp_solver, mpc_parameter, batch_size)
 
 
 def set_ocp_solver_iterate(
@@ -396,16 +422,14 @@ def _solve_shared(
     backup_status_batch = []
     any_failed = False
 
-    ocp_solvers = solver.ocp_solvers[: batch_size]
+    ocp_solvers = solver.ocp_solvers[:batch_size]
 
     for i, ocp_solver in enumerate(ocp_solvers):
         # TODO (Jasper): Providing batch statistics could be moved to acados
         status = ocp_solver.status
         status_batch.append(status)
         stats_batch["sqp_iter"].append(ocp_solver.get_stats("sqp_iter"))
-        stats_batch["qp_iter"].append(
-            ocp_solver.get_stats("qp_iter").sum()
-        )  # type:ignore
+        stats_batch["qp_iter"].append(ocp_solver.get_stats("qp_iter").sum())  # type:ignore
         stats_batch["time_tot"].append(ocp_solver.get_stats("time_tot"))
         if status != 0:
             any_failed = True
@@ -440,12 +464,8 @@ def _solve_shared(
                 continue
             reattempts += 1
             stats_batch["sqp_iter"][i] += ocp_solver.get_stats("sqp_iter")
-            stats_batch["qp_iter"][i] += ocp_solver.get_stats(
-                "qp_iter"
-            ).sum()  # type:ignore
-            stats_batch["time_tot"][i] += ocp_solver.get_stats(
-                "time_tot"
-            )  # type:ignore
+            stats_batch["qp_iter"][i] += ocp_solver.get_stats("qp_iter").sum()  # type:ignore
+            stats_batch["time_tot"][i] += ocp_solver.get_stats("time_tot")  # type:ignore
 
             backup_status_batch.append(ocp_solver.status)
 
@@ -602,10 +622,10 @@ class Mpc(ABC):
             self.ocp_sensitivity = ocp_sensitivity
 
         if self.ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
-            self.ocp.translate_intial_cost_term_to_external(
+            self.ocp.translate_initial_cost_term_to_external(
                 cost_hessian=ocp.solver_options.hessian_approx
             )
-            self.ocp_sensitivity.translate_intial_cost_term_to_external(
+            self.ocp_sensitivity.translate_initial_cost_term_to_external(
                 cost_hessian="EXACT"
             )
 
@@ -647,7 +667,6 @@ class Mpc(ABC):
 
         self.param_labels = SX_to_labels(self.ocp.model.p_global)
 
-
         self.throw_error_if_u0_is_outside_ocp_bounds = (
             throw_error_if_u0_is_outside_ocp_bounds
         )
@@ -657,7 +676,7 @@ class Mpc(ABC):
     @cached_property
     def ocp_solver(self) -> AcadosOcpSolver:
         return self.ocp_batch_solver.ocp_solvers[0]
- 
+
     @cached_property
     def ocp_sensitivity_solver(self) -> AcadosOcpSolver:
         return self.ocp_batch_sensitivity_solver.ocp_solvers[0]
@@ -906,9 +925,7 @@ class Mpc(ABC):
         if dudp:
             if use_adj_sens:
                 single_seed = np.eye(self.ocp.dims.nu)
-                seed_vec = np.repeat(
-                    single_seed[np.newaxis, :, :], batch_size, axis=0
-                )
+                seed_vec = np.repeat(single_seed[np.newaxis, :, :], batch_size, axis=0)
 
                 kw["du0_dp_global"] = (
                     self.ocp_batch_sensitivity_solver.eval_adjoint_solution_sensitivity(
@@ -930,9 +947,7 @@ class Mpc(ABC):
                         )["sens_u"]
                         for s in sens_solvers
                     ]
-                ).reshape(
-                    self.n_batch_max, self.ocp.dims.nu, self.p_global_dim
-                )  # type:ignore
+                ).reshape(self.n_batch_max, self.ocp.dims.nu, self.p_global_dim)  # type:ignore
 
             assert kw["du0_dp_global"].shape == (
                 self.n_batch_max,
@@ -979,7 +994,9 @@ class Mpc(ABC):
                 ]
             )
 
-        flat_iterate = self.ocp_batch_solver.store_iterate_to_flat_obj(n_batch=batch_size)
+        flat_iterate = self.ocp_batch_solver.store_iterate_to_flat_obj(
+            n_batch=batch_size
+        )
 
         # Set solvers to default
         unset_u0 = True if mpc_input.u0 is not None else False
