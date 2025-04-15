@@ -35,7 +35,7 @@ class RolloutBuffer:
         self.actions = np.zeros((buffer_limit,) + action_shape, dtype=np.float32)
         self.log_probs = np.zeros(buffer_limit, dtype=np.float32)
         self.rewards = np.zeros(buffer_limit, dtype=np.float32)
-        self.dones = np.zeros(buffer_limit, dtype=np.bool)
+        self.dones = np.zeros(buffer_limit, dtype=np.float32)
         self.values = np.zeros(buffer_limit, dtype=np.float32)
 
         self.device = device

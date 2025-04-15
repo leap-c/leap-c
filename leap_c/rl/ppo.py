@@ -32,6 +32,8 @@ class PpoAlgorithmConfig:
     num_steps: int = 128
     lr_q: float = 2.5e-4
     lr_pi: float = 2.5e-4
+    gamma: float = 0.99
+    gae_lambda: float = 0.95
 
 @dataclass(kw_only=True)
 class PpoBaseConfig(BaseConfig):
@@ -144,22 +146,46 @@ class PpoTrainer(Trainer):
             if is_terminated or is_truncated:
                 obs, _ = self.train_env.reset()
 
-            value = self.value(obs)
+            #region Rollout Collection
+            value = self.value(obs).cpu().numpy()[0]
             action, log_prob, stats = self.act(obs)
             self.report_stats("train_trajectory", {"action": action}, self.state.step)
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
+            done = float(is_terminated or is_truncated)
             self.buffer[self.state.step % self.cfg.ppo.num_steps] = (
-                obs, action, log_prob, reward, is_terminated or is_truncated, value
+                obs, action, log_prob, reward, done, value
             )
-
-            obs = obs_prime
+            #endregion
 
             if (self.state.step + 1) % self.cfg.ppo.num_steps == 0:
-                # TODO: data have been collected
-                pass
+                #region Generalized Advantage Estimation (GAE)
+                returns = torch.zeros(self.cfg.ppo.num_steps, device=self.device)
+                advantage = 0.0
+                with torch.no_grad():
+                    for t in reversed(range(self.cfg.ppo.num_steps)):
+                        value_prime = self.value(obs_prime) if t == self.cfg.ppo.num_steps - 1\
+                            else self.buffer[t + 1][5]
+                        obs, action, log_prob, reward, done, value = self.buffer[t]
+
+                        # TD Error: δ = r + γ * V' - V
+                        delta = reward + self.cfg.ppo.gamma * value_prime * (1.0 - done.item()) - value
+
+                        # GAE: A = δ + γ * λ * A'
+                        advantage = delta + self.cfg.ppo.gamma * self.cfg.ppo.gae_lambda\
+                                    * (1.0 - done.item()) * advantage
+
+                        # Returns: G = A + V
+                        returns[t] = advantage + value
+                #endregion
+
+                #region Loss Calculation and Parameter Optimization
+                # TODO (Mazen)
+                #endregion
+
+            obs = obs_prime
 
             yield 1
 
@@ -171,11 +197,10 @@ class PpoTrainer(Trainer):
             action, log_prob, stats = self.pi(obs, deterministic=deterministic)
         return action.cpu().numpy()[0], log_prob, stats
 
-    def value(self, obs) -> float:
+    def value(self, obs) -> torch.Tensor:
         obs = self.task.collate([obs], self.device)
         with torch.no_grad():
-            value = self.q(obs)
-        return value.cpu().numpy()[0]
+            return self.q(obs)
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
