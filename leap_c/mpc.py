@@ -594,6 +594,7 @@ class Mpc(ABC):
             if ocp.cost.cost_type not in  ["EXTERNAL", "NONLINEAR_LS"] or ocp.cost.cost_type_0 not in ["EXTERNAL", "NONLINEAR_LS", None] or ocp.cost.cost_type_e not in ["EXTERNAL", "NONLINEAR_LS"]:
                 raise ValueError("Automatic derivation of sensitivity problem is only supported for EXTERNAL or NONLINEAR_LS cost types.")
             self.ocp_sensitivity = deepcopy(ocp)
+            # TODO: check using acados if sens solver is needed, see __uses_exact_hessian in acados. Then remove linear_mpc class.
 
             set_standard_sensitivity_options(self.ocp_sensitivity)
         else:
@@ -1106,64 +1107,63 @@ class Mpc(ABC):
                 ]
             )
 
-        if use_sensitivity_solver:
-            if dudx:
-                kw["du0_dx0"] = np.array(
+        if dudx:
+            kw["du0_dx0"] = np.array(
+                [
+                    ocp_sensitivity_solver.eval_solution_sensitivity(
+                        stages=0,
+                        with_respect_to="initial_state",
+                        return_sens_u=True,
+                        return_sens_x=False,
+                    )["sens_u"]
+                    for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
+                ]
+            )
+
+        if dudp:
+            if use_adj_sens:
+                single_seed = np.eye(self.ocp.dims.nu)
+                seed_vec = np.repeat(
+                    single_seed[np.newaxis, :, :], self.n_batch, axis=0
+                )
+
+                kw["du0_dp_global"] = (
+                    self.ocp_batch_sensitivity_solver.eval_adjoint_solution_sensitivity(
+                        seed_x=[],
+                        seed_u=[(0, seed_vec)],
+                        with_respect_to="p_global",
+                        sanity_checks=True,
+                    )
+                )
+
+            else:
+                kw["du0_dp_global"] = np.array(
                     [
                         ocp_sensitivity_solver.eval_solution_sensitivity(
                             stages=0,
-                            with_respect_to="initial_state",
+                            with_respect_to="p_global",
                             return_sens_u=True,
                             return_sens_x=False,
                         )["sens_u"]
                         for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
                     ]
-                )
+                ).reshape(self.n_batch, self.ocp.dims.nu, self.p_global_dim)  # type:ignore
 
-            if dudp:
-                if use_adj_sens:
-                    single_seed = np.eye(self.ocp.dims.nu)
-                    seed_vec = np.repeat(
-                        single_seed[np.newaxis, :, :], self.n_batch, axis=0
+            assert kw["du0_dp_global"].shape == (
+                self.n_batch,
+                self.ocp.dims.nu,
+                self.p_global_dim,
+            )
+
+        if dvdp:
+            kw["dvalue_dp_global"] = np.array(
+                [
+                    ocp_sensitivity_solver.eval_and_get_optimal_value_gradient(
+                        "p_global"
                     )
-
-                    kw["du0_dp_global"] = (
-                        self.ocp_batch_sensitivity_solver.eval_adjoint_solution_sensitivity(
-                            seed_x=[],
-                            seed_u=[(0, seed_vec)],
-                            with_respect_to="p_global",
-                            sanity_checks=True,
-                        )
-                    )
-
-                else:
-                    kw["du0_dp_global"] = np.array(
-                        [
-                            ocp_sensitivity_solver.eval_solution_sensitivity(
-                                stages=0,
-                                with_respect_to="p_global",
-                                return_sens_u=True,
-                                return_sens_x=False,
-                            )["sens_u"]
-                            for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
-                        ]
-                    ).reshape(self.n_batch, self.ocp.dims.nu, self.p_global_dim)  # type:ignore
-
-                assert kw["du0_dp_global"].shape == (
-                    self.n_batch,
-                    self.ocp.dims.nu,
-                    self.p_global_dim,
-                )
-
-            if dvdp:
-                kw["dvalue_dp_global"] = np.array(
-                    [
-                        ocp_sensitivity_solver.eval_and_get_optimal_value_gradient(
-                            "p_global"
-                        )
-                        for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
-                    ]
-                )
+                    for ocp_sensitivity_solver in self.ocp_batch_sensitivity_solver.ocp_solvers
+                ]
+            )
 
         if dudx:
             kw["du0_dx0"] = np.array(
