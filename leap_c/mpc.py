@@ -283,7 +283,6 @@ def initialize_ocp_solver(
         throw_error_if_u0_is_outside_ocp_bounds: If True, an error will be thrown when given an u0 in mpc_input that
             is outside the box constraints defined in the cop
     """
-    # TODO (Jasper): Should we simplify the logic here.
     if mpc_input.is_batched():
         batch_size = mpc_input.x0.shape[0]
     else:
@@ -397,7 +396,9 @@ def _solve_shared(
     backup_status_batch = []
     any_failed = False
 
-    for i, ocp_solver in enumerate(solver.ocp_solvers):
+    ocp_solvers = solver.ocp_solvers[: batch_size]
+
+    for i, ocp_solver in enumerate(ocp_solvers):
         # TODO (Jasper): Providing batch statistics could be moved to acados
         status = ocp_solver.status
         status_batch.append(status)
@@ -412,7 +413,14 @@ def _solve_shared(
     if (
         any_failed and backup_fn is not None and iterate is not None
     ):  # Reattempt with backup
-        for i, ocp_solver in enumerate(solver.ocp_solvers):
+        # TODO (Jasper): Currently we do a global resolve!
+        #   - It is not clear how problematic this is, as the individual solver directly converges.
+        #   - Option A: We leave it like this.
+        #   - Option B: We generate a new batch and load the iterate into the first n solvers.
+        #   - Option C: Acados provides an idx functionality allowing to select which solvers to run.
+
+        # build new batch
+        for i, ocp_solver in enumerate(ocp_solvers):
             if status_batch[i] != 0:
                 single_input = mpc_input.get_sample(i)
                 initialize_ocp_solver(
@@ -422,12 +430,11 @@ def _solve_shared(
                     set_params=False,
                     throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
                 )
-        # TODO (Jasper): We also resolve when it already converged...
-        solver.solve()
+        solver.solve(n_batch=batch_size)
 
         reattempts = 0
 
-        for i, ocp_solver in enumerate(solver.ocp_solvers):
+        for i, ocp_solver in enumerate(ocp_solvers):
             # Only update the stats if a resolve was attempted
             if status_batch[i] == 0:
                 continue
@@ -525,9 +532,9 @@ def create_zero_init_state_fn(
         setattr(iterate, n, np.zeros_like(getattr(iterate, n)))  # type: ignore
 
     def init_state_fn(mpc_input: MpcInput) -> MpcBatchedState:
-        # TODO (batch_rules): This should be updated if we switch to only batch solvers.
-
         if not mpc_input.is_batched():
+            # TOOD: The non batched case should be removed depending on how
+            #   we update the solve_shared.
             return deepcopy(iterate)
 
         batch_size = len(mpc_input.x0)
@@ -649,7 +656,7 @@ class Mpc(ABC):
     @cached_property
     def ocp_solver(self) -> AcadosOcpSolver:
         return self.ocp_batch_solver.ocp_solvers[0]
-    
+ 
     @cached_property
     def ocp_sensitivity_solver(self) -> AcadosOcpSolver:
         return self.ocp_batch_sensitivity_solver.ocp_solvers[0]
@@ -817,7 +824,7 @@ class Mpc(ABC):
         dvdu: bool = False,
         dvdp: bool = False,
         use_adj_sens: bool = True,
-    ) -> MpcOutput:
+    ) -> tuple[MpcOutput, MpcBatchedState]:
         """Solve the OCP for the given initial state and parameters.
 
         If an mpc_state is given and the solver does not converge, the solver does a
@@ -846,7 +853,7 @@ class Mpc(ABC):
             use_adj_sens: Whether to use adjoint sensitivity.
 
         Returns:
-            A collection of outputs from the MPC controller.
+            A collection of outputs from the MPC controller and the state of the solver.
         """
         batch_size = mpc_input.x0.shape[0]
 
@@ -898,7 +905,6 @@ class Mpc(ABC):
         if dudp:
             if use_adj_sens:
                 single_seed = np.eye(self.ocp.dims.nu)
-                # TODO (Jasper): update
                 seed_vec = np.repeat(
                     single_seed[np.newaxis, :, :], self.n_batch_max, axis=0
                 )
@@ -972,7 +978,7 @@ class Mpc(ABC):
                 ]
             )
 
-        flat_iterate = self.ocp_batch_solver.store_iterate_to_flat_obj()
+        flat_iterate = self.ocp_batch_solver.store_iterate_to_flat_obj(n_batch=batch_size)
 
         # Set solvers to default
         unset_u0 = True if mpc_input.u0 is not None else False

@@ -59,6 +59,18 @@ def _collate_acados_flattened_iterate_fn(batch, *, collate_fn_map=None):
         N_batch=len(batch),
     )
 
+def _collate_acados_flattened_batch_iterate_fn(batch, *, collate_fn_map=None):
+    return AcadosOcpFlattenedBatchIterate(
+        x=np.concat([x.x for x in batch], axis=0),
+        u=np.concat([x.u for x in batch], axis=0),
+        z=np.concat([x.z for x in batch], axis=0),
+        sl=np.concat([x.sl for x in batch], axis=0),
+        su=np.concat([x.su for x in batch], axis=0),
+        pi=np.concat([x.pi for x in batch], axis=0),
+        lam=np.concat([x.lam for x in batch], axis=0),
+        N_batch=len(batch),
+    ) 
+
 def _collate_acados_iterate_fn(batch, *, collate_fn_map=None):
 
     # NOTE: Could also be a FlattenedBatchIterate (which has a parallelized set in the batch solver),
@@ -86,6 +98,7 @@ def create_collate_fn_map():
 
     custom_collate_map[MpcParameter] = _collate_mpc_param_fn
     custom_collate_map[AcadosOcpFlattenedIterate] = _collate_acados_flattened_iterate_fn
+    custom_collate_map[AcadosOcpFlattenedBatchIterate] = _collate_acados_flattened_batch_iterate_fn
     custom_collate_map[AcadosOcpIterate] = _collate_acados_iterate_fn
 
     return custom_collate_map
