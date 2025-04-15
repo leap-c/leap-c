@@ -151,53 +151,62 @@ class MpcOutput(NamedTuple):
     du0_dx0: np.ndarray | None = None  # (B, u_dim, x_dim) or (u_dim, x_dim)
 
 
+def set_ocp_solver_mpc_params_global(
+    ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
+    mpc_parameter: MpcParameter,
+):
+    if mpc_parameter.p_global is None:
+        return
+    if isinstance(ocp_solver, AcadosOcpSolver):
+        ocp_solver.set_p_global_and_precompute_dependencies(mpc_parameter.p_global)
+    elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        for i, single_solver in enumerate(ocp_solver.ocp_solvers):
+            single_solver.set_p_global_and_precompute_dependencies(
+                mpc_parameter.p_global[i]
+            )
+    else:
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
+        )
+
+
+def set_ocp_solver_mpc_params_stagewise(
+    ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver, mpc_parameter: MpcParameter
+):
+    if mpc_parameter.p_stagewise is None:
+        return
+    if isinstance(ocp_solver, AcadosOcpSolver):
+        if mpc_parameter.p_stagewise_sparse_idx is not None:
+            for stage, (p, idx) in enumerate(
+                zip(
+                    mpc_parameter.p_stagewise,
+                    mpc_parameter.p_stagewise_sparse_idx,
+                )
+            ):
+                ocp_solver.set_params_sparse(stage, p, idx)
+        else:
+            ocp_solver.set_flat("p", mpc_parameter.p_stagewise.reshape(-1))  # type:ignore
+    elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        if mpc_parameter.p_stagewise_sparse_idx is None:  # not sparse
+            p = mpc_parameter.p_stagewise.reshape(ocp_solver.N_batch, -1)  # type:ignore
+            ocp_solver.set_flat("p", p)
+        else:
+            for i, single_solver in enumerate(ocp_solver.ocp_solvers):
+                set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
+    else:
+        raise ValueError(
+            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
+        )
+
+
 def set_ocp_solver_mpc_params(
     ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
     mpc_parameter: MpcParameter | None,
 ) -> None:
     if mpc_parameter is None:
         return
-    if isinstance(ocp_solver, AcadosOcpSolver):
-        if mpc_parameter is not None:
-            if mpc_parameter.p_global is not None:
-                ocp_solver.set_p_global_and_precompute_dependencies(
-                    mpc_parameter.p_global
-                )
-
-            if mpc_parameter.p_stagewise is not None:
-                if mpc_parameter.p_stagewise_sparse_idx is not None:
-                    for stage, (p, idx) in enumerate(
-                        zip(
-                            mpc_parameter.p_stagewise,
-                            mpc_parameter.p_stagewise_sparse_idx,
-                        )
-                    ):
-                        ocp_solver.set_params_sparse(stage, p, idx)
-                else:
-                    ocp_solver.set_flat("p", mpc_parameter.p_stagewise.reshape(-1))  # type:ignore
-    elif isinstance(ocp_solver, AcadosOcpBatchSolver):
-        if (
-            mpc_parameter.p_stagewise_sparse_idx is None
-            and mpc_parameter.p_stagewise is not None
-        ):  # not sparse
-            p = mpc_parameter.p_stagewise.reshape(ocp_solver.N_batch, -1)  # type:ignore
-            ocp_solver.set_flat("p", p)
-            if mpc_parameter.p_global is not None:
-                for i, single_solver in enumerate(ocp_solver.ocp_solvers):
-                    single_solver.set_p_global_and_precompute_dependencies(
-                        mpc_parameter.p_global[i]
-                    )
-        else:
-            for i, single_solver in enumerate(ocp_solver.ocp_solvers):
-                set_ocp_solver_mpc_params(
-                    single_solver,
-                    mpc_parameter.get_sample(i),
-                )
-
-    else:
-        raise ValueError(
-            f"expected AcadosOcpSolver or AcadosOcpBatchSolver, but got {type(ocp_solver)}."
-        )
+    set_ocp_solver_mpc_params_global(ocp_solver, mpc_parameter)
+    set_ocp_solver_mpc_params_stagewise(ocp_solver, mpc_parameter)
 
 
 def set_ocp_solver_iterate(
