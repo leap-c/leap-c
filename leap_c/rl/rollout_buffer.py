@@ -1,5 +1,6 @@
 from typing import Tuple, Callable
 
+import numpy as np
 import torch
 from torch.utils.data._utils.collate import collate
 
@@ -16,8 +17,7 @@ class RolloutBuffer:
             tensor_dtype: torch.dtype = torch.float32,
             collate_fn_map: dict[type, Callable] | None = None,
     ):
-        """
-        Rollout buffer for storing transitions.
+        """Rollout buffer for storing transitions.
 
         A group of tensors to store the transitions, it allows for random access on both read and write. This is not intended
         to be used as a replay buffer, since it does not support sampling. Also, it's optimized as a reusable buffer, and not
@@ -31,12 +31,12 @@ class RolloutBuffer:
             tensor_dtype: The data type to which the tensors in the observation will be cast.
             collate_fn_map: The collate function map that informs the buffer how to form batches.
         """
-        self.observations = torch.zeros((buffer_limit,) + obs_shape)
-        self.actions = torch.zeros((buffer_limit,) + action_shape)
-        self.log_probs = torch.zeros(buffer_limit)
-        self.rewards = torch.zeros(buffer_limit)
-        self.dones = torch.zeros(buffer_limit)
-        self.values = torch.zeros(buffer_limit)
+        self.observations = np.zeros((buffer_limit,) + obs_shape, dtype=np.float32)
+        self.actions = np.zeros((buffer_limit,) + action_shape, dtype=np.float32)
+        self.log_probs = np.zeros(buffer_limit, dtype=np.float32)
+        self.rewards = np.zeros(buffer_limit, dtype=np.float32)
+        self.dones = np.zeros(buffer_limit, dtype=np.bool)
+        self.values = np.zeros(buffer_limit, dtype=np.float32)
 
         self.device = device
         self.tensor_dtype = tensor_dtype
@@ -54,7 +54,7 @@ class RolloutBuffer:
                 self.values[idx]
             )]
         else:
-            indices = list(range(*idx.indices(self.observations.size(0))))
+            indices = list(range(*idx.indices(self.observations.shape[0])))
             mini_batch = [(
                 self.observations[i],
                 self.actions[i],

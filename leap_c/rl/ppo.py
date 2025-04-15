@@ -84,23 +84,23 @@ class PpoActor(nn.Module):
         super().__init__()
 
         self.extractor = task.create_extractor(env)
-        action_dim = env.action_space.shape[0]
+        action_dim = env.action_space.n
 
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
-            output_sizes=action_dim,
+            output_sizes=int(action_dim),
             mlp_cfg=mlp_cfg,
         )
 
-    def forward(self, x: torch.Tensor, action=None):
+    def forward(self, x: torch.Tensor, deterministic: bool = False, action=None):
         e = self.extractor(x)
         logits = self.mlp(e)
         probs = Categorical(logits=logits)
 
         if action is None:
-            action = probs.sample()
+            action = probs.mode if deterministic else probs.sample()
 
-        return action, probs.log_prob(action), probs.entropy()
+        return action, probs.log_prob(action), { "entropy" : probs.entropy() }
 
 
 @register_trainer("ppo", PpoBaseConfig())
@@ -120,7 +120,7 @@ class PpoTrainer(Trainer):
         """
         super().__init__(task, output_path, device, cfg)
 
-        assert isinstance(self.train_env.single_action_space, gym.spaces.Discrete),\
+        assert isinstance(self.train_env.action_space, gym.spaces.Discrete),\
             "only discrete action space is supported"
 
         self.q = PpoCritic(task, self.train_env, cfg.ppo.critic_mlp)
@@ -144,31 +144,38 @@ class PpoTrainer(Trainer):
             if is_terminated or is_truncated:
                 obs, _ = self.train_env.reset()
 
-            action, _, stats = self.act(obs)
+            value = self.value(obs)
+            action, log_prob, stats = self.act(obs)
             self.report_stats("train_trajectory", {"action": action}, self.state.step)
-            self.report_stats("train_policy_rollout", stats, self.state.step)
 
-            for step in range(0, self.cfg.ppo.num_steps):
-                with torch.no_grad():
-                    value = self.q(obs)
-                    action, log_prob, _ = self.pi(obs)
+            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
+                action
+            )
+            self.buffer[self.state.step % self.cfg.ppo.num_steps] = (
+                obs, action, log_prob, reward, is_terminated or is_truncated, value
+            )
 
-                obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
-                    action
-                )
-                self.buffer[step] = (obs, action, log_prob, reward, is_terminated or is_truncated, value)
+            obs = obs_prime
 
-            # TODO: rollout has been stored
+            if (self.state.step + 1) % self.cfg.ppo.num_steps == 0:
+                # TODO: data have been collected
+                pass
 
-            yield self.cfg.ppo.num_steps
+            yield 1
 
     def act(
         self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, None, dict[str, float]]:
         obs = self.task.collate([obs], self.device)
         with torch.no_grad():
-            action, _, stats = self.pi(obs, deterministic=deterministic)
-        return action.cpu().numpy()[0], None, stats
+            action, log_prob, stats = self.pi(obs, deterministic=deterministic)
+        return action.cpu().numpy()[0], log_prob, stats
+
+    def value(self, obs) -> float:
+        obs = self.task.collate([obs], self.device)
+        with torch.no_grad():
+            value = self.q(obs)
+        return value.cpu().numpy()[0]
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
