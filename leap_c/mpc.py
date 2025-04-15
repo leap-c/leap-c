@@ -631,22 +631,32 @@ class Mpc(ABC):
         self.afm_sens = AcadosFileManager(export_directory_sensitivity)
         self.afm_sens_batch = AcadosFileManager(export_directory_sensitivity)
 
+        self._num_threads_in_batch_methods: int = num_threads_in_batch_methods
+        self.n_batch_max: int = n_batch_max
+
         self._discount_factor = discount_factor
         if init_state_fn is None:
-            self.init_state_fn = create_zero_init_state_fn(self.ocp_solver)
+            ocp_solver = self.ocp_batch_solver.ocp_solvers[0]
+            self.init_state_fn = create_zero_init_state_fn(ocp_solver)
         else:
             self.init_state_fn = init_state_fn
 
         self.param_labels = SX_to_labels(self.ocp.model.p_global)
 
-        self.n_batch_max: int = n_batch_max
-        self._num_threads_in_batch_methods: int = num_threads_in_batch_methods
 
         self.throw_error_if_u0_is_outside_ocp_bounds = (
             throw_error_if_u0_is_outside_ocp_bounds
         )
 
         self.last_call_stats: dict = dict()
+
+    @cached_property
+    def ocp_solver(self) -> AcadosOcpSolver:
+        return self.ocp_batch_solver.ocp_solvers[0]
+    
+    @cached_property
+    def ocp_sensitivity_solver(self) -> AcadosOcpSolver:
+        return self.ocp_batch_sensitivity_solver.ocp_solvers[0]
 
     @cached_property
     def ocp_batch_solver(self) -> AcadosOcpBatchSolver:
@@ -799,7 +809,7 @@ class Mpc(ABC):
         mpc_input = MpcInput(x0=state, parameters=param)
         mpc_output, mpc_state = self(mpc_input=mpc_input, mpc_state=solver_state)
 
-        return mpc_output.u0, mpc_state, mpc_output.status[0]  # type:ignore
+        return mpc_output.u0[0], mpc_state, mpc_output.status[0]  # type:ignore
 
     def __call__(
         self,
