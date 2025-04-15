@@ -622,10 +622,10 @@ class Mpc(ABC):
             self.ocp_sensitivity = ocp_sensitivity
 
         if self.ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
-            self.ocp.translate_intial_cost_term_to_external(
+            self.ocp.translate_initial_cost_term_to_external(
                 cost_hessian=ocp.solver_options.hessian_approx
             )
-            self.ocp_sensitivity.translate_intial_cost_term_to_external(
+            self.ocp_sensitivity.translate_initial_cost_term_to_external(
                 cost_hessian="EXACT"
             )
 
