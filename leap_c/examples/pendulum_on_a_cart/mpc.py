@@ -151,7 +151,7 @@ class PendulumOnCartMPC(Mpc):
         super().__init__(
             ocp=ocp,
             discount_factor=discount_factor,
-            n_batch=n_batch,
+            n_batch_max=n_batch,
         )
 
 

@@ -77,7 +77,7 @@ class QuadrotorMpc(Mpc):
             ocp=ocp,
             ocp_sensitivity=ocp_sens,
             discount_factor=discount_factor,
-            n_batch=n_batch,
+            n_batch_max=n_batch,
             init_state_fn=None,
         )
 

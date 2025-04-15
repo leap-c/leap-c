@@ -62,7 +62,7 @@ class PointMassMPC(Mpc):
         self.given_default_param_dict = params
         super().__init__(
             ocp=ocp,
-            n_batch=n_batch,
+            n_batch_max=n_batch,
             export_directory=export_directory,
             export_directory_sensitivity=export_directory_sensitivity,
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
