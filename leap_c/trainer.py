@@ -8,11 +8,11 @@ from typing import Any, DefaultDict, Iterator
 import numpy as np
 import pandas as pd
 import torch
+import wandb
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
 from yaml import safe_dump
 
-import wandb
 from leap_c.rollout import episode_rollout
 from leap_c.task import Task
 from leap_c.utils import add_prefix_extend, set_seed
@@ -187,13 +187,11 @@ class Trainer(ABC, nn.Module):
 
         # init wandb
         if cfg.log.wandb_logger:
-            if not cfg.log.wandb_init_kwargs.get("dir", False): #type:ignore               
+            if not cfg.log.wandb_init_kwargs.get("dir", False):  # type:ignore
                 wandbdir = self.output_path / "wandb"
                 wandbdir.mkdir(exist_ok=True)
-                cfg.log.wandb_init_kwargs["dir"] = wandbdir
-            wandb.init(
-                **cfg.log.wandb_init_kwargs   
-            )
+                cfg.log.wandb_init_kwargs["dir"] = str(wandbdir)
+            wandb.init(**cfg.log.wandb_init_kwargs)
 
         # tensorboard
         if cfg.log.tensorboard_logger:
@@ -397,7 +395,9 @@ class Trainer(ABC, nn.Module):
 
         return float(stats_rollout["score"])
 
-    def _ckpt_path(self, name: str, suffix: str, basedir: str | Path | None = None) -> Path:
+    def _ckpt_path(
+        self, name: str, suffix: str, basedir: str | Path | None = None
+    ) -> Path:
         """Returns the path to a checkpoint file."""
         if basedir is None:
             basedir = self.output_path
@@ -467,7 +467,9 @@ class Trainer(ABC, nn.Module):
         # load the state dicts
         state_dict = {}
         for name in groups:
-            part = torch.load(self._ckpt_path(name, "ckpt", basedir), weights_only=False)
+            part = torch.load(
+                self._ckpt_path(name, "ckpt", basedir), weights_only=False
+            )
 
             if isinstance(part, dict):
                 for key, value in part.items():
@@ -476,8 +478,10 @@ class Trainer(ABC, nn.Module):
                 state_dict[name] = part
 
         self.load_state_dict(state_dict, strict=True)
-        self.state = torch.load(self._ckpt_path("trainer_state", "ckpt", basedir), weights_only=False)
-        
+        self.state = torch.load(
+            self._ckpt_path("trainer_state", "ckpt", basedir), weights_only=False
+        )
+
         if self.optimizers:
             state_dict = torch.load(self._ckpt_path("optimizers", "ckpt", basedir))
             for i, opt in enumerate(self.optimizers):
