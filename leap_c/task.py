@@ -2,13 +2,13 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional
 
 import gymnasium as gym
-from gymnasium.wrappers import OrderEnforcing, RecordEpisodeStatistics
 import torch
+from gymnasium.wrappers import OrderEnforcing, RecordEpisodeStatistics
 from torch.utils.data._utils.collate import collate
 
 from leap_c.collate import create_collate_fn_map, pytree_tensor_to
 from leap_c.mpc import MpcInput
-from leap_c.nn.extractor import Extractor, ScalingExtractor
+from leap_c.nn.extractor import Extractor, IdentityExtractor
 from leap_c.nn.modules import MpcSolutionModule
 
 EnvFactory = Callable[[], gym.Env]
@@ -96,7 +96,7 @@ class Task(ABC):
         Returns:
             Extractor: The extractor for the task.
         """
-        return ScalingExtractor(env)
+        return IdentityExtractor(env)
 
     def prepare_nn_input(self, obs: Any) -> torch.Tensor:
         """Prepares the neural network input from the observation.
