@@ -70,7 +70,7 @@ def _collate_acados_flattened_batch_iterate_fn(batch, *, collate_fn_map=None):
         su=np.concat([x.su for x in batch], axis=0),
         pi=np.concat([x.pi for x in batch], axis=0),
         lam=np.concat([x.lam for x in batch], axis=0),
-        N_batch=sum([x.N_Batch for x in batch]),
+        N_batch=sum([x.N_batch for x in batch]),
     )
 
 
