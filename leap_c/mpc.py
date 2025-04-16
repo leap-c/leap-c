@@ -954,10 +954,10 @@ class Mpc(ABC):
                         )["sens_u"]
                         for s in sens_solvers
                     ]
-                ).reshape(self.n_batch_max, self.ocp.dims.nu, self.p_global_dim)  # type:ignore
+                ).reshape(mpc_input.x0.shape[0], self.ocp.dims.nu, self.p_global_dim)  # type:ignore
 
             assert kw["du0_dp_global"].shape == (
-                self.n_batch_max,
+                mpc_input.x0.shape[0],
                 self.ocp.dims.nu,
                 self.p_global_dim,
             )
