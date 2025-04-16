@@ -1,3 +1,4 @@
+import time
 from abc import ABC
 from collections import defaultdict
 from copy import deepcopy
@@ -413,9 +414,12 @@ def _solve_shared(
         ocp_iterate=iterate,
         throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
     )
+    start = time.perf_counter()
     solver.solve(n_batch=batch_size)
+    stop = time.perf_counter()
 
     solve_stats = dict()
+    solve_stats["whole_solve"] = stop - start  # type:ignore
 
     stats_batch = defaultdict(list)
     status_batch = []
@@ -454,7 +458,10 @@ def _solve_shared(
                     set_params=False,
                     throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
                 )
+        start = time.perf_counter()
         solver.solve(n_batch=batch_size)
+        stop = time.perf_counter()
+        solve_stats["whole_solve"] += stop - start
 
         reattempts = 0
 
