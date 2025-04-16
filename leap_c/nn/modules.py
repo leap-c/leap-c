@@ -79,6 +79,7 @@ class MpcSolutionModule(nn.Module):
 
         Returns:
             mpc_output: An MPCOutput object containing tensors of u0, value (or Q, if u0 was given) and status of the solution.
+            mpc_state: The MPCBatchedState containing the iterates of the solution.
             stats: A dictionary containing statistics from the MPC evaluation.
         """
         if mpc_input.parameters is None:
@@ -95,7 +96,6 @@ class MpcSolutionModule(nn.Module):
             p_glob,
             p_rest,
             mpc_state,
-            
         )
 
         if mpc_input.u0 is None:
