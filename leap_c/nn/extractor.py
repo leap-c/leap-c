@@ -3,6 +3,7 @@
 We provide an abstraction to allow algorithms to be aplied to different
 types of observations and using different neural network architectures.
 """
+
 from abc import ABC, abstractmethod
 
 import gymnasium as gym
@@ -41,14 +42,10 @@ class ScalingExtractor(Extractor):
         super().__init__(env)
 
         if not hasattr(env, "observation_space"):
-            raise ValueError(
-                "The environment must have an observation space."
-            )
+            raise ValueError("The environment must have an observation space.")
 
         if len(env.observation_space.shape) != 1:  # type: ignore
-            raise ValueError(
-                "ScalingExtractor only supports 1D observations."
-            )
+            raise ValueError("ScalingExtractor only supports 1D observations.")
 
     def forward(self, x):
         """Returns the input as is.
@@ -66,3 +63,33 @@ class ScalingExtractor(Extractor):
         """Returns the embedded vector size."""
         return self.env.observation_space.shape[0]  # type: ignore
 
+
+class IdentityExtractor(Extractor):
+    """An extractor that returns the input as is."""
+
+    def __init__(self, env: gym.Env) -> None:
+        """Initializes the extractor.
+
+        Args:
+            env: The environment to extract features from.
+        """
+        super().__init__(env)
+        assert (
+            len(env.observation_space.shape) == 1  # type: ignore
+        ), "IdentityExtractor only supports 1D observations."
+
+    def forward(self, x):
+        """Returns the input as is.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The input tensor.
+        """
+        return x
+
+    @property
+    def output_size(self) -> int:
+        """Returns the embedded vector size."""
+        return self.env.observation_space.shape[0]  # type: ignore
