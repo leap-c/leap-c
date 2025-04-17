@@ -259,13 +259,13 @@ class PpoTrainer(Trainer):
                         self.q_optim.step()
                         self.pi_optim.step()
 
-                    if self.cfg.ppo.anneal_lr:
-                        self.q_lr_scheduler.step()
-                        self.pi_lr_scheduler.step()
-
                     if self.cfg.ppo.target_kl is not None and approx_kl > self.cfg.ppo.target_kl:
                         break
-                #endregion
+                # endregion
+
+                if self.cfg.ppo.anneal_lr:
+                    self.q_lr_scheduler.step()
+                    self.pi_lr_scheduler.step()
 
             obs = obs_prime
             yield 1
