@@ -36,12 +36,10 @@ class PpoAlgorithmConfig:
     gamma: float = 0.99
     gae_lambda: float = 0.95
     clip_coef: float = 0.2
-    norm_adv: bool = True
     clip_vloss: bool = True
     ent_coef: float = 0.01
     vf_coef: float = 0.5
     max_grad_norm: float = 0.5
-    target_kl: float = None
     num_mini_batches: int = 4
     update_epochs: int = 4
 
@@ -214,20 +212,15 @@ class PpoTrainer(Trainer):
                         new_values = self.q(observations)
                         _, new_log_probs, stats = self.pi(observations, action=actions)
 
-                        log_ratio = new_log_probs - log_probs
-                        ratio = log_ratio.exp()
+                        ratio = torch.exp(new_log_probs - log_probs)
 
-                        with torch.no_grad():
-                            approx_kl = ((ratio - 1) - log_ratio).mean()
-
+                        # Clipped Surrogate Loss
                         mb_advantages = advantages[start:end]
-                        if self.cfg.ppo.norm_adv:
-                            mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
-
                         pg_loss1 = -mb_advantages * ratio
                         pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - self.cfg.ppo.clip_coef, 1 + self.cfg.ppo.clip_coef)
                         pg_loss = torch.max(pg_loss1, pg_loss2).mean()
 
+                        # Squared-error loss for Value Function (optionally clipped)
                         new_values = new_values.view(-1)
                         mb_returns = returns[start:end]
                         if self.cfg.ppo.clip_vloss:
@@ -243,11 +236,15 @@ class PpoTrainer(Trainer):
                         else:
                             v_loss = 0.5 * ((new_values - mb_returns) ** 2).mean()
 
+                        # Entropy Loss
                         entropy_loss = stats["entropy"].mean()
+
+                        # Final Loss
                         loss = pg_loss - self.cfg.ppo.ent_coef * entropy_loss + v_loss * self.cfg.ppo.vf_coef
 
                         self.report_stats("train", {"loss": loss.item()}, self.state.step)
 
+                        # Updating Parameters
                         self.q_optim.zero_grad()
                         self.pi_optim.zero_grad()
 
@@ -258,9 +255,6 @@ class PpoTrainer(Trainer):
 
                         self.q_optim.step()
                         self.pi_optim.step()
-
-                    if self.cfg.ppo.target_kl is not None and approx_kl > self.cfg.ppo.target_kl:
-                        break
                 # endregion
 
                 if self.cfg.ppo.anneal_lr:
