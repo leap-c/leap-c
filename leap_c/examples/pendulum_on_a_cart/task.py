@@ -118,3 +118,23 @@ class PendulumOnCartBalance(PendulumOnCartSwingup):
 
     def create_env(self, train: bool) -> gym.Env:
         return PendulumOnCartBalanceEnv()
+
+
+@register_task("pendulum_swingup_long_horizon")
+class PendulumOnCartSwingupLong(Task):
+    """Swing-up task for the pendulum on a cart system,
+    like PendulumOnCartSwingup, but with a much longer horizon.
+    """
+
+    def __init__(self):
+        params = PARAMS_SWINGUP
+        learnable_params = ["xref2"]
+
+        mpc = PendulumOnCartMPC(
+            N_horizon=20,
+            T_horizon=1,
+            learnable_params=learnable_params,
+            params=params,  # type: ignore
+        )
+        mpc_layer = MpcSolutionModule(mpc)
+        super().__init__(mpc_layer)
