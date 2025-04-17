@@ -15,7 +15,7 @@ class CartPoleTask(Task):
         super().__init__(mpc=None)
 
     def create_env(self, train: bool) -> gym.Env:
-        return gym.make("CartPole-v1")
+        return gym.make("CartPole-v1") if train else gym.make("CartPole-v1", render_mode="rgb_array")
 
     def prepare_mpc_input(
         self,

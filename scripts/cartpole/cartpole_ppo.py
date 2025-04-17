@@ -16,6 +16,9 @@ if __name__ == "__main__":
         activation="tanh",
         weight_init="orthogonal",
     )
+    cfg.ppo.num_steps = 128
+    cfg.train.steps = 1000 * 128
+    cfg.val.interval = 100 * 128
 
     output_path = Path(f"output/cartpole/ppo")
 

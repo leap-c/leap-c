@@ -69,6 +69,8 @@ def episode_rollout(
 
             if stats is not None:
                 for key, value in stats.items():
+                    if isinstance(value, torch.Tensor):
+                        value = value.cpu().numpy()
                     policy_stats[key].append(value)
 
             if isinstance(a, torch.Tensor):

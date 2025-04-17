@@ -35,11 +35,9 @@ class PpoAlgorithmConfig:
     anneal_lr: bool = True
     gamma: float = 0.99
     gae_lambda: float = 0.95
-    clip_coef: float = 0.2
-    clip_vloss: bool = True
-    ent_coef: float = 0.01
-    vf_coef: float = 0.5
-    max_grad_norm: float = 0.5
+    clipping_epsilon: float = 0.2
+    l_vf_weight: float = 0.25
+    l_ent_weight: float = 0.01
     num_mini_batches: int = 4
     update_epochs: int = 4
 
@@ -108,6 +106,18 @@ class PpoActor(nn.Module):
         return action, probs.log_prob(action), { "entropy" : probs.entropy() }
 
 
+class ClippedSurrogateLoss(nn.Module):
+    def __init__(self, epsilon: float):
+        super().__init__()
+        self.epsilon = epsilon
+
+    def forward(self, new_log_prob: torch.Tensor, old_log_prob: torch.Tensor, advantage: torch.Tensor) -> torch.Tensor:
+        ratio = torch.exp(new_log_prob - old_log_prob)
+        unclipped_loss = -advantage * ratio
+        clipped_loss = -advantage * torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon)
+        return torch.max(unclipped_loss, clipped_loss)
+
+
 @register_trainer("ppo", PpoBaseConfig())
 class PpoTrainer(Trainer):
     cfg: PpoBaseConfig
@@ -145,6 +155,9 @@ class PpoTrainer(Trainer):
             end_factor=0.0,
             total_iters=self.cfg.train.steps // self.cfg.ppo.num_steps
         )
+
+        self.clipped_loss = ClippedSurrogateLoss(self.cfg.ppo.clipping_epsilon)
+        self.mse_loss = nn.MSELoss()
 
         self.buffer = RolloutBuffer(
             cfg.ppo.num_steps,
@@ -203,8 +216,8 @@ class PpoTrainer(Trainer):
 
                 #region Loss Calculation and Parameter Optimization
                 mini_batch_size = self.cfg.ppo.num_steps // self.cfg.ppo.num_mini_batches
-
                 for epoch in range(self.cfg.ppo.update_epochs):
+                    losses = []
                     for start in range(0, self.cfg.ppo.num_steps, mini_batch_size):
                         end = start + mini_batch_size
                         observations, actions, log_probs, rewards, dones, values = self.buffer[start:end]
@@ -212,49 +225,21 @@ class PpoTrainer(Trainer):
                         new_values = self.q(observations)
                         _, new_log_probs, stats = self.pi(observations, action=actions)
 
-                        ratio = torch.exp(new_log_probs - log_probs)
+                        # Calculating Loss
+                        l_clip = self.clipped_loss(new_log_probs, log_probs, advantages[start:end]).mean()
+                        l_vf = self.mse_loss(new_values.view(-1), returns[start:end])
+                        l_ent = -stats["entropy"].mean()
 
-                        # Clipped Surrogate Loss
-                        mb_advantages = advantages[start:end]
-                        pg_loss1 = -mb_advantages * ratio
-                        pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - self.cfg.ppo.clip_coef, 1 + self.cfg.ppo.clip_coef)
-                        pg_loss = torch.max(pg_loss1, pg_loss2).mean()
-
-                        # Squared-error loss for Value Function (optionally clipped)
-                        new_values = new_values.view(-1)
-                        mb_returns = returns[start:end]
-                        if self.cfg.ppo.clip_vloss:
-                            v_loss_unclipped = (new_values - mb_returns) ** 2
-                            v_clipped = values + torch.clamp(
-                                new_values - values,
-                                -self.cfg.ppo.clip_coef,
-                                self.cfg.ppo.clip_coef,
-                            )
-                            v_loss_clipped = (v_clipped - mb_returns) ** 2
-                            v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
-                            v_loss = 0.5 * v_loss_max.mean()
-                        else:
-                            v_loss = 0.5 * ((new_values - mb_returns) ** 2).mean()
-
-                        # Entropy Loss
-                        entropy_loss = stats["entropy"].mean()
-
-                        # Final Loss
-                        loss = pg_loss - self.cfg.ppo.ent_coef * entropy_loss + v_loss * self.cfg.ppo.vf_coef
-
-                        self.report_stats("train", {"loss": loss.item()}, self.state.step)
+                        loss = l_clip + self.cfg.ppo.l_ent_weight * l_ent + self.cfg.ppo.l_vf_weight * l_vf
+                        losses.append(loss.item())
 
                         # Updating Parameters
                         self.q_optim.zero_grad()
                         self.pi_optim.zero_grad()
-
                         loss.backward()
-
-                        nn.utils.clip_grad_norm_(self.q.parameters(), self.cfg.ppo.max_grad_norm)
-                        nn.utils.clip_grad_norm_(self.pi.parameters(), self.cfg.ppo.max_grad_norm)
-
                         self.q_optim.step()
                         self.pi_optim.step()
+                    self.report_stats("train", {"epoch": epoch + 1, "loss": sum(losses)}, self.state.step)
                 # endregion
 
                 if self.cfg.ppo.anneal_lr:
