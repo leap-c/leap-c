@@ -32,8 +32,18 @@ class PpoAlgorithmConfig:
     num_steps: int = 128
     lr_q: float = 2.5e-4
     lr_pi: float = 2.5e-4
+    anneal_lr: bool = True
     gamma: float = 0.99
     gae_lambda: float = 0.95
+    clip_coef: float = 0.2
+    norm_adv: bool = True
+    clip_vloss: bool = True
+    ent_coef: float = 0.01
+    vf_coef: float = 0.5
+    max_grad_norm: float = 0.5
+    target_kl: float = None
+    num_mini_batches: int = 4
+    update_epochs: int = 4
 
 @dataclass(kw_only=True)
 class PpoBaseConfig(BaseConfig):
@@ -55,12 +65,7 @@ class PpoBaseConfig(BaseConfig):
 
 
 class PpoCritic(nn.Module):
-    def __init__(
-        self,
-        task: Task,
-        env: gym.Env,
-        mlp_cfg: MlpConfig,
-    ):
+    def __init__(self, task: Task, env: gym.Env, mlp_cfg: MlpConfig):
         super().__init__()
 
         self.extractor = task.create_extractor(env)
@@ -127,9 +132,21 @@ class PpoTrainer(Trainer):
 
         self.q = PpoCritic(task, self.train_env, cfg.ppo.critic_mlp)
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.ppo.lr_q)
+        self.q_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+            self.q_optim,
+            start_factor=1.0,
+            end_factor=0.0,
+            total_iters=self.cfg.train.steps // self.cfg.ppo.num_steps
+        )
 
         self.pi = PpoActor(task, self.train_env, cfg.ppo.actor_mlp)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.ppo.lr_pi)
+        self.pi_lr_scheduler = torch.optim.lr_scheduler.LinearLR(
+            self.pi_optim,
+            start_factor=1.0,
+            end_factor=0.0,
+            total_iters=self.cfg.train.steps // self.cfg.ppo.num_steps
+        )
 
         self.buffer = RolloutBuffer(
             cfg.ppo.num_steps,
@@ -140,14 +157,17 @@ class PpoTrainer(Trainer):
         )
 
     def train_loop(self) -> Iterator[int]:
-        is_terminated = is_truncated = True
+        obs, _ = self.train_env.reset()
+        is_terminated = is_truncated = False
 
         while True:
             if is_terminated or is_truncated:
                 obs, _ = self.train_env.reset()
 
             #region Rollout Collection
-            value = self.value(obs).cpu().numpy()[0]
+            obs_collate = self.task.collate([obs], self.device)
+            with torch.no_grad():
+                value = self.q(obs_collate).cpu().numpy()[0]
             action, log_prob, stats = self.act(obs)
             self.report_stats("train_trajectory", {"action": action}, self.state.step)
 
@@ -162,11 +182,12 @@ class PpoTrainer(Trainer):
 
             if (self.state.step + 1) % self.cfg.ppo.num_steps == 0:
                 #region Generalized Advantage Estimation (GAE)
+                advantages = torch.zeros(self.cfg.ppo.num_steps, device=self.device)
                 returns = torch.zeros(self.cfg.ppo.num_steps, device=self.device)
-                advantage = 0.0
                 with torch.no_grad():
                     for t in reversed(range(self.cfg.ppo.num_steps)):
-                        value_prime = self.value(obs_prime) if t == self.cfg.ppo.num_steps - 1\
+                        obs_prime_collate = self.task.collate([obs_prime], self.device)
+                        value_prime = self.q(obs_prime_collate) if t == self.cfg.ppo.num_steps - 1\
                             else self.buffer[t + 1][5]
                         obs, action, log_prob, reward, done, value = self.buffer[t]
 
@@ -174,19 +195,79 @@ class PpoTrainer(Trainer):
                         delta = reward + self.cfg.ppo.gamma * value_prime * (1.0 - done.item()) - value
 
                         # GAE: A = δ + γ * λ * A'
-                        advantage = delta + self.cfg.ppo.gamma * self.cfg.ppo.gae_lambda\
-                                    * (1.0 - done.item()) * advantage
+                        advantage_prime = 0.0 if t == self.cfg.ppo.num_steps - 1 else advantages[t + 1]
+                        advantages[t] = delta + self.cfg.ppo.gamma * self.cfg.ppo.gae_lambda\
+                                    * (1.0 - done.item()) * advantage_prime
 
                         # Returns: G = A + V
-                        returns[t] = advantage + value
+                        returns[t] = advantages[t] + value
                 #endregion
 
                 #region Loss Calculation and Parameter Optimization
-                # TODO (Mazen)
+                mini_batch_size = self.cfg.ppo.num_steps // self.cfg.ppo.num_mini_batches
+
+                for epoch in range(self.cfg.ppo.update_epochs):
+                    for start in range(0, self.cfg.ppo.num_steps, mini_batch_size):
+                        end = start + mini_batch_size
+                        observations, actions, log_probs, rewards, dones, values = self.buffer[start:end]
+
+                        new_values = self.q(observations)
+                        _, new_log_probs, stats = self.pi(observations, action=actions)
+
+                        log_ratio = new_log_probs - log_probs
+                        ratio = log_ratio.exp()
+
+                        with torch.no_grad():
+                            approx_kl = ((ratio - 1) - log_ratio).mean()
+
+                        mb_advantages = advantages[start:end]
+                        if self.cfg.ppo.norm_adv:
+                            mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
+
+                        pg_loss1 = -mb_advantages * ratio
+                        pg_loss2 = -mb_advantages * torch.clamp(ratio, 1 - self.cfg.ppo.clip_coef, 1 + self.cfg.ppo.clip_coef)
+                        pg_loss = torch.max(pg_loss1, pg_loss2).mean()
+
+                        new_values = new_values.view(-1)
+                        mb_returns = returns[start:end]
+                        if self.cfg.ppo.clip_vloss:
+                            v_loss_unclipped = (new_values - mb_returns) ** 2
+                            v_clipped = values + torch.clamp(
+                                new_values - values,
+                                -self.cfg.ppo.clip_coef,
+                                self.cfg.ppo.clip_coef,
+                            )
+                            v_loss_clipped = (v_clipped - mb_returns) ** 2
+                            v_loss_max = torch.max(v_loss_unclipped, v_loss_clipped)
+                            v_loss = 0.5 * v_loss_max.mean()
+                        else:
+                            v_loss = 0.5 * ((new_values - mb_returns) ** 2).mean()
+
+                        entropy_loss = stats["entropy"].mean()
+                        loss = pg_loss - self.cfg.ppo.ent_coef * entropy_loss + v_loss * self.cfg.ppo.vf_coef
+
+                        self.report_stats("train", {"loss": loss.item()}, self.state.step)
+
+                        self.q_optim.zero_grad()
+                        self.pi_optim.zero_grad()
+
+                        loss.backward()
+
+                        nn.utils.clip_grad_norm_(self.q.parameters(), self.cfg.ppo.max_grad_norm)
+                        nn.utils.clip_grad_norm_(self.pi.parameters(), self.cfg.ppo.max_grad_norm)
+
+                        self.q_optim.step()
+                        self.pi_optim.step()
+
+                    if self.cfg.ppo.anneal_lr:
+                        self.q_lr_scheduler.step()
+                        self.pi_lr_scheduler.step()
+
+                    if self.cfg.ppo.target_kl is not None and approx_kl > self.cfg.ppo.target_kl:
+                        break
                 #endregion
 
             obs = obs_prime
-
             yield 1
 
     def act(
@@ -196,11 +277,6 @@ class PpoTrainer(Trainer):
         with torch.no_grad():
             action, log_prob, stats = self.pi(obs, deterministic=deterministic)
         return action.cpu().numpy()[0], log_prob, stats
-
-    def value(self, obs) -> torch.Tensor:
-        obs = self.task.collate([obs], self.device)
-        with torch.no_grad():
-            return self.q(obs)
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:

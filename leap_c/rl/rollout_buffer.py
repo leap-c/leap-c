@@ -2,6 +2,7 @@ from typing import Tuple, Callable
 
 import numpy as np
 import torch
+from torch import Tensor
 from torch.utils.data._utils.collate import collate
 
 from leap_c.collate import create_collate_fn_map, pytree_tensor_to
@@ -43,7 +44,7 @@ class RolloutBuffer:
 
         self.collate_fn_map = collate_fn_map if collate_fn_map is not None else create_collate_fn_map()
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx: int | slice) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         if isinstance(idx, int):
             mini_batch = [(
                 self.observations[idx],
