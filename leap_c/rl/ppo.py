@@ -144,7 +144,7 @@ class PpoTrainer(Trainer):
             self.q_optim,
             start_factor=1.0,
             end_factor=0.0,
-            total_iters=self.cfg.train.steps // self.cfg.ppo.num_steps
+            total_iters=cfg.train.steps // cfg.ppo.num_steps
         )
 
         self.pi = PpoActor(task, self.train_env, cfg.ppo.actor_mlp)
@@ -153,10 +153,10 @@ class PpoTrainer(Trainer):
             self.pi_optim,
             start_factor=1.0,
             end_factor=0.0,
-            total_iters=self.cfg.train.steps // self.cfg.ppo.num_steps
+            total_iters=cfg.train.steps // cfg.ppo.num_steps
         )
 
-        self.clipped_loss = ClippedSurrogateLoss(self.cfg.ppo.clipping_epsilon)
+        self.clipped_loss = ClippedSurrogateLoss(cfg.ppo.clipping_epsilon)
         self.mse_loss = nn.MSELoss()
 
         self.buffer = RolloutBuffer(
@@ -255,20 +255,11 @@ class PpoTrainer(Trainer):
         obs = self.task.collate([obs], self.device)
         with torch.no_grad():
             action, log_prob, stats = self.pi(obs, deterministic=deterministic)
+        for key, value in stats.items():
+            if isinstance(value, torch.Tensor):
+                stats[key] = value.cpu().numpy()
         return action.cpu().numpy()[0], log_prob, stats
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
         return [self.q_optim, self.pi_optim]
-
-    def save(self, path: str | Path | None = None) -> None:
-        """Save the trainer state in a checkpoint folder."""
-
-        torch.save(self.buffer, self.output_path / "buffer.pt")
-        return super().save()
-
-    def load(self, path: str | Path) -> None:
-        """Loads the state of a trainer from the output_path."""
-
-        self.buffer = torch.load(self.output_path / "buffer.pt")
-        return super().load(path)

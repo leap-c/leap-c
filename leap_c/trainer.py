@@ -322,6 +322,12 @@ class Trainer(ABC, nn.Module):
         """Call this function in your script to start the training loop."""
         self.to(self.device)
 
+        for optimizer in self.optimizers:
+            for state in optimizer.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        state[k] = v.to(self.device)
+
         train_loop_iter = self.train_loop()
 
         while self.state.step < self.cfg.train.steps:
