@@ -212,8 +212,9 @@ class PpoTrainer(Trainer):
 
                 #region Loss Calculation and Parameter Optimization
                 mini_batch_size = self.cfg.ppo.num_steps // self.cfg.ppo.num_mini_batches
+                losses = []
                 for epoch in range(self.cfg.ppo.update_epochs):
-                    losses = []
+                    total_loss = 0.0
                     for start in range(0, self.cfg.ppo.num_steps, mini_batch_size):
                         end = start + mini_batch_size
                         observations, actions, log_probs, _, _, _, _ = self.buffer[start:end]
@@ -224,10 +225,10 @@ class PpoTrainer(Trainer):
                         # Calculating Loss
                         l_clip = self.clipped_loss(new_log_probs, log_probs, advantages[start:end]).mean()
                         l_vf = self.mse_loss(new_values.view(-1), returns[start:end])
-                        l_ent = -stats["entropy"].mean()
+                        l_ent = -stats["entropy"]
 
                         loss = l_clip + self.cfg.ppo.l_ent_weight * l_ent + self.cfg.ppo.l_vf_weight * l_vf
-                        losses.append(loss.item())
+                        total_loss += loss.item()
 
                         # Updating Parameters
                         self.q_optim.zero_grad()
@@ -235,7 +236,8 @@ class PpoTrainer(Trainer):
                         loss.backward()
                         self.q_optim.step()
                         self.pi_optim.step()
-                    self.report_stats("train", {"epoch": epoch + 1, "loss": sum(losses)}, self.state.step)
+                    losses.append(total_loss)
+                self.report_stats("train", {"loss": sum(losses) / len(losses)}, self.state.step)
                 # endregion
 
                 if self.cfg.ppo.anneal_lr:

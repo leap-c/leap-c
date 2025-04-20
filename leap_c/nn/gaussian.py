@@ -80,10 +80,11 @@ class SquashedGaussian(nn.Module):
         y_scaled = y * self.scale[None, :] + self.loc[None, :]
 
         entropy = log_std + 0.5 * np.log(2 * np.pi * np.e)
-        entropy = entropy.sum(dim=-1, keepdim=True)
+        entropy = entropy.sum(dim=-1)
         stats = {
             "gaussian_unsquashed_std": std.mean().item(),
-            "entropy": entropy
+            # TODO (Mazen): stats shouldn't be included in the computation graph, should move it outside.
+            "entropy": entropy.mean()
         }
 
         return y_scaled, log_prob, stats
