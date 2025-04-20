@@ -102,7 +102,7 @@ class PpoActor(nn.Module):
         e = self.extractor(x)
         mean, log_std = self.mlp(e)
 
-        action, log_prob, stats = self.squashed_gaussian(mean, log_std, deterministic)
+        action, log_prob, stats = self.squashed_gaussian(mean, log_std, deterministic, action)
 
         return action, log_prob, stats
 
