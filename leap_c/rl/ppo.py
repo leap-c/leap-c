@@ -92,7 +92,7 @@ class PpoActor(nn.Module):
 
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
-            output_sizes=int(action_dim, action_dim),
+            output_sizes=(action_dim, action_dim), # type: ignore
             mlp_cfg=mlp_cfg,
         )
 
@@ -135,9 +135,6 @@ class PpoTrainer(Trainer):
             cfg: The configuration for the trainer.
         """
         super().__init__(task, output_path, device, cfg)
-
-        assert isinstance(self.train_env.action_space, gym.spaces.Discrete),\
-            "only discrete action space is supported"
 
         self.q = PpoCritic(task, self.train_env, cfg.ppo.critic_mlp)
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.ppo.lr_q)

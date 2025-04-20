@@ -30,34 +30,6 @@ class Extractor(nn.Module, ABC):
         """Returns the embedded vector size."""
 
 
-class IdentityExtractor(Extractor):
-    """An extractor that returns the input as is."""
-
-    def __init__(self, env: gym.Env) -> None:
-        """Initializes the extractor.
-
-        Args:
-            env: The environment to extract features from.
-        """
-        super().__init__(env)
-
-    def forward(self, x):
-        """Returns the input as is.
-
-        Args:
-            x: The input tensor.
-
-        Returns:
-            The input tensor.
-        """
-        return x
-
-    @property
-    def output_size(self) -> int:
-        """Returns the embedded vector size."""
-        return self.env.observation_space.shape[0]
-
-
 class ScalingExtractor(Extractor):
     """An extractor that returns the input as is."""
 

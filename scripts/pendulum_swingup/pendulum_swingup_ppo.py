@@ -16,9 +16,11 @@ if __name__ == "__main__":
         activation="tanh",
         weight_init="orthogonal",
     )
-    cfg.ppo.num_steps = 128
-    cfg.train.steps = 1000 * 128
-    cfg.val.interval = 100 * 128
+    cfg.ppo.num_steps = 256
+    cfg.ppo.num_mini_batches = 8
+    cfg.ppo.update_epochs = 10
+    cfg.train.steps = 500 * 256
+    cfg.val.interval = 50 * 256
 
     output_path = Path(f"output/pendulum_swingup/ppo")
 
