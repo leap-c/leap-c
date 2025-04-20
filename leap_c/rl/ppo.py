@@ -6,8 +6,9 @@ import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.distributions import Categorical
+from torch.distributions import Normal
 
+from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.registry import register_trainer
 from leap_c.rl.rollout_buffer import RolloutBuffer
@@ -87,23 +88,23 @@ class PpoActor(nn.Module):
         super().__init__()
 
         self.extractor = task.create_extractor(env)
-        action_dim = env.action_space.n
+        action_dim = env.action_space.shape[0]
 
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
-            output_sizes=int(action_dim),
+            output_sizes=int(action_dim, action_dim),
             mlp_cfg=mlp_cfg,
         )
 
+        self.squashed_gaussian = SquashedGaussian(env.action_space)
+
     def forward(self, x: torch.Tensor, deterministic: bool = False, action=None):
         e = self.extractor(x)
-        logits = self.mlp(e)
-        probs = Categorical(logits=logits)
+        mean, log_std = self.mlp(e)
 
-        if action is None:
-            action = probs.mode if deterministic else probs.sample()
+        action, log_prob, stats = self.squashed_gaussian(mean, log_std, deterministic)
 
-        return action, probs.log_prob(action), { "entropy" : probs.entropy() }
+        return action, log_prob, stats
 
 
 class ClippedSurrogateLoss(nn.Module):

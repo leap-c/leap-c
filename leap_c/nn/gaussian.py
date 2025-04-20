@@ -43,13 +43,14 @@ class SquashedGaussian(nn.Module):
         self.register_buffer("scale", scale)
 
     def forward(
-        self, mean: torch.Tensor, log_std: torch.Tensor, deterministic: bool = False
+        self, mean: torch.Tensor, log_std: torch.Tensor, deterministic: bool = False, y: torch.Tensor | None = None
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """
         Args:
             mean: The mean of the distribution.
             log_std: The logarithm of the standard deviation of the distribution.
             deterministic: If True, the output will just be tanh(mean), no sampling is taking place.
+            y: The y value to evaluate if given.
 
         Returns:
             An output sampled from the TanhNormal, the log probability of this output
@@ -58,7 +59,10 @@ class SquashedGaussian(nn.Module):
         log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
         std = torch.exp(log_std)
 
-        if deterministic:
+        if y is not None: # unsquash y if given
+            y = (y - self.loc[None, :]) / self.scale[None, :]
+            y = torch.atanh(y)
+        elif deterministic:
             y = mean
         else:
             # reparameterization trick
@@ -75,6 +79,11 @@ class SquashedGaussian(nn.Module):
 
         y_scaled = y * self.scale[None, :] + self.loc[None, :]
 
-        stats = {"gaussian_unsquashed_std": std.mean().item()}
+        entropy = log_std + 0.5 * np.log(2 * np.pi * np.e)
+        entropy = entropy.sum(dim=-1, keepdim=True)
+        stats = {
+            "gaussian_unsquashed_std": std.mean().item(),
+            "entropy": entropy
+        }
 
         return y_scaled, log_prob, stats

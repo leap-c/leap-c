@@ -20,6 +20,6 @@ if __name__ == "__main__":
     cfg.train.steps = 1000 * 128
     cfg.val.interval = 100 * 128
 
-    output_path = Path(f"output/cartpole/ppo")
+    output_path = Path(f"output/pendulum_swingup/ppo")
 
-    main("ppo", "cartpole", cfg, output_path, "cuda")
+    main("ppo", "pendulum_swingup", cfg, output_path, "cuda")
