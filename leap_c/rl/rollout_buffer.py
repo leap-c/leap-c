@@ -36,23 +36,25 @@ class RolloutBuffer:
         self.actions = np.zeros((buffer_limit,) + action_shape, dtype=np.float32)
         self.log_probs = np.zeros(buffer_limit, dtype=np.float32)
         self.rewards = np.zeros(buffer_limit, dtype=np.float32)
+        self.next_observations = np.zeros((buffer_limit,) + obs_shape, dtype=np.float32)
+        self.terminations = np.zeros(buffer_limit, dtype=np.float32)
         self.dones = np.zeros(buffer_limit, dtype=np.float32)
-        self.values = np.zeros(buffer_limit, dtype=np.float32)
 
         self.device = device
         self.tensor_dtype = tensor_dtype
 
         self.collate_fn_map = collate_fn_map if collate_fn_map is not None else create_collate_fn_map()
 
-    def __getitem__(self, idx: int | slice) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
+    def __getitem__(self, idx: int | slice) -> Tuple[Tensor, Tensor, Tensor, Tensor, Tensor, Tensor, Tensor]:
         if isinstance(idx, int):
             mini_batch = [(
                 self.observations[idx],
                 self.actions[idx],
                 self.log_probs[idx],
                 self.rewards[idx],
-                self.dones[idx],
-                self.values[idx]
+                self.next_observations[idx],
+                self.terminations[idx],
+                self.dones[idx]
             )]
         else:
             indices = list(range(*idx.indices(self.observations.shape[0])))
@@ -61,8 +63,9 @@ class RolloutBuffer:
                 self.actions[i],
                 self.log_probs[i],
                 self.rewards[i],
-                self.dones[i],
-                self.values[i]
+                self.next_observations[i],
+                self.terminations[i],
+                self.dones[i]
             ) for i in indices]
 
         return pytree_tensor_to(
@@ -72,10 +75,11 @@ class RolloutBuffer:
         )
 
     def __setitem__(self, idx, data: tuple) -> None:
-        obs, action, log_prob, reward, done, value = data
+        obs, action, log_prob, reward, obs_prime, termination, done = data
         self.observations[idx] = obs
         self.actions[idx] = action
         self.log_probs[idx] = log_prob
         self.rewards[idx] = reward
+        self.next_observations[idx] = obs_prime
+        self.terminations[idx] = termination
         self.dones[idx] = done
-        self.values[idx] = value

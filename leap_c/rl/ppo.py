@@ -185,9 +185,8 @@ class PpoTrainer(Trainer):
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
-            done = float(is_terminated or is_truncated)
             self.buffer[self.state.step % self.cfg.ppo.num_steps] = (
-                obs, action, log_prob, reward, done, value
+                obs, action, log_prob, reward, obs_prime, is_terminated, is_terminated or is_truncated
             )
             #endregion
 
@@ -197,13 +196,12 @@ class PpoTrainer(Trainer):
                 returns = torch.zeros(self.cfg.ppo.num_steps, device=self.device)
                 with torch.no_grad():
                     for t in reversed(range(self.cfg.ppo.num_steps)):
-                        obs_prime_collate = self.task.collate([obs_prime], self.device)
-                        value_prime = self.q(obs_prime_collate) if t == self.cfg.ppo.num_steps - 1\
-                            else self.buffer[t + 1][5]
-                        obs, action, log_prob, reward, done, value = self.buffer[t]
+                        obs, _, _, reward, next_obs, termination, done = self.buffer[t]
+                        value = self.q(obs)
+                        value_prime = self.q(next_obs)
 
                         # TD Error: δ = r + γ * V' - V
-                        delta = reward + self.cfg.ppo.gamma * value_prime * (1.0 - done.item()) - value
+                        delta = reward + self.cfg.ppo.gamma * value_prime * (1.0 - termination.item()) - value
 
                         # GAE: A = δ + γ * λ * A'
                         advantage_prime = 0.0 if t == self.cfg.ppo.num_steps - 1 else advantages[t + 1]
@@ -220,7 +218,7 @@ class PpoTrainer(Trainer):
                     losses = []
                     for start in range(0, self.cfg.ppo.num_steps, mini_batch_size):
                         end = start + mini_batch_size
-                        observations, actions, log_probs, rewards, dones, values = self.buffer[start:end]
+                        observations, actions, log_probs, _, _, _, _ = self.buffer[start:end]
 
                         new_values = self.q(observations)
                         _, new_log_probs, stats = self.pi(observations, action=actions)
