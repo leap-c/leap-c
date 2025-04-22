@@ -69,7 +69,7 @@ class ValConfig:
         interval: The interval at which validation episodes will be run.
         num_rollouts: The number of rollouts during validation.
         deterministic: If True, the policy will act deterministically during validation.
-        ckpt_modus: How to save the model, which can be "best", "last" or "all".
+        ckpt_modus: How to save the model, which can be "best", "last", "all" or "none".
         render_mode: The mode in which the episodes will be rendered.
         render_deterministic: If True, the episodes will be rendered deterministically (e.g., no exploration).
         render_interval_exploration: The interval at which exploration episodes will be rendered.
@@ -102,6 +102,25 @@ class BaseConfig:
     val: ValConfig
     log: LogConfig
     seed: int
+
+
+def set_to_test_cfg(cfg: BaseConfig) -> BaseConfig:
+    """Set the configuration to test mode.
+
+    Args:
+        cfg: The configuration to be modified.
+
+    Returns:
+        The modified configuration.
+    """
+    cfg.train.steps = 10
+    cfg.val.num_rollouts = 1
+    cfg.val.num_render_rollouts = 0;
+    cfg.val.ckpt_modus = "none"
+    cfg.log.csv_logger = False
+    cfg.log.tensorboard_logger = False
+    cfg.log.wandb_logger = False
+    return cfg
 
 
 def defaultdict_list() -> DefaultDict[str, list]:
@@ -337,7 +356,7 @@ class Trainer(ABC, nn.Module):
                         self.save()
 
                 # save model
-                if self.cfg.val.ckpt_modus != "best":
+                if self.cfg.val.ckpt_modus in ["last", "all"]:
                     self.save()
 
         return self.state.min_score  # Return last validation score for testing purposes
