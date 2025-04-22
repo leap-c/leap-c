@@ -115,7 +115,8 @@ def set_to_test_cfg(cfg: BaseConfig) -> BaseConfig:
     """
     cfg.train.steps = 10
     cfg.val.num_rollouts = 1
-    cfg.val.num_render_rollouts = 0;
+    cfg.val.interval = 10
+    cfg.val.num_render_rollouts = 0
     cfg.val.ckpt_modus = "none"
     cfg.log.csv_logger = False
     cfg.log.tensorboard_logger = False
@@ -157,7 +158,7 @@ class TrainerState:
     timestamps: dict = field(default_factory=defaultdict_list)
     logs: dict = field(default_factory=nested_defaultdict_list)
     scores: list[float] = field(default_factory=list)
-    min_score: float = -float("inf")
+    min_score: float = float("inf")
 
 
 class Trainer(ABC, nn.Module):
@@ -350,7 +351,7 @@ class Trainer(ABC, nn.Module):
                 val_score = self.validate()
                 self.state.scores.append(val_score)
 
-                if val_score > self.state.min_score:
+                if val_score < self.state.min_score:
                     self.state.min_score = val_score
                     if self.cfg.val.ckpt_modus == "best":
                         self.save()
@@ -412,7 +413,7 @@ class Trainer(ABC, nn.Module):
             }
             self.report_stats("val_policy", stats_policy, self.state.step)
 
-        return float(stats_rollout["score"])
+        return -float(stats_rollout["score"])
 
     def _ckpt_path(
         self, name: str, suffix: str, basedir: str | Path | None = None
