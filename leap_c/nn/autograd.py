@@ -153,7 +153,7 @@ class MPCSolutionFunction(autograd.Function):
         u0_np = None if u0 is None else tensor_to_numpy(u0)
         mpc_input = MpcInput(x0_np, u0_np, parameters=p_whole)
 
-        mpc_output = mpc(
+        mpc_output, mpc_state = mpc(
             mpc_input=mpc_input,
             mpc_state=initializations,
             dudx=need_dudx0,
@@ -193,12 +193,12 @@ class MPCSolutionFunction(autograd.Function):
 
         ctx.mark_non_differentiable(status)
 
-        return u_star, value, status
+        return u_star, value, status, mpc_state
 
     @staticmethod
     @autograd.function.once_differentiable
     def backward(ctx, *grad_outputs):
-        dLossdu, dLossdvalue, _ = grad_outputs
+        dLossdu, dLossdvalue, _, _ = grad_outputs
 
         device = dLossdvalue.device
         dtype = dLossdvalue.dtype

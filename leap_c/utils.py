@@ -1,4 +1,5 @@
 import atexit
+from dataclasses import fields, is_dataclass
 import os
 import random
 import shutil
@@ -137,7 +138,7 @@ class AcadosFileManager:
         return solver
 
     def setup_acados_ocp_batch_solver(
-        self, ocp: AcadosOcp, N: int
+        self, ocp: AcadosOcp, N_batch_max: int, num_threads_in_batch_methods: int
     ) -> AcadosOcpBatchSolver:
         """Setup an acados ocp batch solver with path management.
 
@@ -145,7 +146,8 @@ class AcadosFileManager:
 
         Args:
             ocp: The acados ocp object.
-            N: The number of shooting nodes.
+            N_batch_max: The batch size.
+            num_threads_in_batch_methods: The number of threads to use for the batched methods.
 
         Returns:
             AcadosOcpBatchSolver: The acados ocp batch solver.
@@ -153,7 +155,12 @@ class AcadosFileManager:
         ocp.code_export_directory = str(self.export_directory / "c_generated_code")
         json_file = str(self.export_directory / "acados_ocp.json")
 
-        solver = AcadosOcpBatchSolver(ocp, json_file=json_file, N_batch=N)
+        solver = AcadosOcpBatchSolver(
+            ocp,
+            json_file=json_file,
+            N_batch_max=N_batch_max,
+            num_threads_in_batch_solve=num_threads_in_batch_methods,
+        )
 
         # we add the acados file manager to the solver to ensure
         # the export directory is deleted when the solver is garbage collected
@@ -188,6 +195,7 @@ def set_standard_sensitivity_options(ocp_sensitivity: AcadosOcp):
     ocp_sensitivity.solver_options.exact_hess_constr = True
     ocp_sensitivity.solver_options.with_solution_sens_wrt_params = True
     ocp_sensitivity.solver_options.with_value_sens_wrt_params = True
+    ocp_sensitivity.solver_options.with_batch_functionality = True
     ocp_sensitivity.model.name += "_sensitivity"  # type:ignore
 
 
@@ -198,3 +206,38 @@ def set_seed(seed: int):
     torch.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+
+def update_dataclass_from_dict(dataclass_instance, update_dict):
+    """Recursively update a dataclass instance with values from a dictionary."""
+    for field in fields(dataclass_instance):
+        # Check if the field is present in the update dictionary
+        if field.name in update_dict:
+            # If the field is a dataclass itself, recursively update it
+            if is_dataclass(getattr(dataclass_instance, field.name)):
+                update_dataclass_from_dict(getattr(dataclass_instance, field.name), update_dict[field.name])
+            else:
+                # Otherwise, directly update the field
+                setattr(dataclass_instance, field.name, update_dict[field.name])
+
+
+def log_git_hash_and_diff(filename: Path):
+    """Log the git hash and diff of the current commit to a file."""
+    try:
+        git_hash = (
+            os.popen("git rev-parse HEAD").read().strip()
+            if os.path.exists(".git")
+            else "No git repository"
+        )
+        git_diff = (
+            os.popen("git diff").read().strip()
+            if os.path.exists(".git")
+            else "No git repository"
+        )
+
+        with open(filename, "w") as f:
+            f.write(f"Git hash: {git_hash}\n")
+            f.write(f"Git diff:\n{git_diff}\n")
+    except Exception as e:
+        print(f"Error logging git hash and diff: {e}")
+

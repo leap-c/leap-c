@@ -1,4 +1,3 @@
-from copy import deepcopy
 from dataclasses import fields
 from pathlib import Path
 
@@ -9,7 +8,6 @@ from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchItera
 from casadi import SX, norm_2, vertcat
 from casadi.tools import entry, struct_symSX
 from casadi.tools.structure3 import DMStruct, ssymStruct
-
 from leap_c.examples.chain.utils import (
     RestingChainSolver,
     nominal_params_to_structured_nominal_params,
@@ -19,7 +17,7 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.mpc import Mpc, MpcBatchedState, MpcInput, MpcSingleState
+from leap_c.mpc import Mpc, MpcBatchedState, MpcInput
 
 
 class ChainMpc(Mpc):
@@ -87,7 +85,7 @@ class ChainMpc(Mpc):
 
         super().__init__(
             ocp=ocp,
-            n_batch=n_batch,
+            n_batch_max=n_batch,
             export_directory=export_directory,
             export_directory_sensitivity=export_directory_sensitivity,
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
@@ -100,11 +98,9 @@ class ChainMpc(Mpc):
 
         iterate = self.ocp_solver.store_iterate_to_flat_obj()
 
-        def init_state_fn(mpc_input: MpcInput) -> MpcSingleState | MpcBatchedState:
-            # TODO (batch_rules): This should be updated if we switch to only batch solvers.
-
+        def init_state_fn(mpc_input: MpcInput) -> MpcBatchedState:
             if not mpc_input.is_batched():
-                return deepcopy(iterate)
+                raise ValueError("The input needs to be batched.")
 
             batch_size = len(mpc_input.x0)
             kw = {}
@@ -236,8 +232,10 @@ def set_ocp_solver_options(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.exact_hess_dyn = exact_hess_dyn
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
+    ocp.solver_options.qp_tol = 1e-7
     ocp.solver_options.with_value_sens_wrt_params = True
     ocp.solver_options.with_solution_sens_wrt_params = True
+    ocp.solver_options.with_batch_functionality = True
 
 
 def get_f_expl_expr(

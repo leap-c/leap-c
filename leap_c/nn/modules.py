@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from acados_template import AcadosSimSolver
 
-from leap_c.mpc import Mpc, MpcBatchedState, MpcInput, MpcOutput, MpcSingleState
+from leap_c.mpc import Mpc, MpcBatchedState, MpcInput, MpcOutput
 
 from .autograd import AutogradCasadiFunction, DynamicsSimFunction, MPCSolutionFunction
 
@@ -69,7 +69,7 @@ class MpcSolutionModule(nn.Module):
         self,
         mpc_input: MpcInput,
         mpc_state: MpcBatchedState | None = None,
-    ) -> tuple[MpcOutput, MpcSingleState | MpcBatchedState, dict[str, Any]]:
+    ) -> tuple[MpcOutput, MpcBatchedState, dict[str, Any]]:
         """Differentiation is only allowed with respect to x0, u0 and p_global.
 
         Args:
@@ -79,6 +79,7 @@ class MpcSolutionModule(nn.Module):
 
         Returns:
             mpc_output: An MPCOutput object containing tensors of u0, value (or Q, if u0 was given) and status of the solution.
+            mpc_state: The MPCBatchedState containing the iterates of the solution.
             stats: A dictionary containing statistics from the MPC evaluation.
         """
         if mpc_input.parameters is None:
@@ -88,7 +89,7 @@ class MpcSolutionModule(nn.Module):
             p_glob = mpc_input.parameters.p_global
             p_rest = mpc_input.parameters._replace(p_global=None)
 
-        u0, value, status = MPCSolutionFunction.apply(  # type:ignore
+        u0, value, status, state = MPCSolutionFunction.apply(  # type:ignore
             self.mpc,
             mpc_input.x0,
             mpc_input.u0,
@@ -106,7 +107,7 @@ class MpcSolutionModule(nn.Module):
 
         return (
             MpcOutput(u0=u0, Q=Q, V=V, status=status),
-            self.mpc.last_call_state,
+            state,
             self.mpc.last_call_stats,
         )
 

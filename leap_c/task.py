@@ -2,8 +2,8 @@ from abc import ABC, abstractmethod
 from typing import Any, Callable, Optional
 
 import gymnasium as gym
-from gymnasium.wrappers import OrderEnforcing, RecordEpisodeStatistics
 import torch
+from gymnasium.wrappers import OrderEnforcing, RecordEpisodeStatistics
 from torch.utils.data._utils.collate import collate
 
 from leap_c.collate import create_collate_fn_map, pytree_tensor_to

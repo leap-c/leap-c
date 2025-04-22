@@ -62,7 +62,7 @@ class PointMassMPC(Mpc):
         self.given_default_param_dict = params
         super().__init__(
             ocp=ocp,
-            n_batch=n_batch,
+            n_batch_max=n_batch,
             export_directory=export_directory,
             export_directory_sensitivity=export_directory_sensitivity,
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
@@ -218,3 +218,4 @@ def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.qp_solver_ric_alg = 1
     ocp.solver_options.with_value_sens_wrt_params = True
     ocp.solver_options.with_solution_sens_wrt_params = True
+    ocp.solver_options.with_batch_functionality = True

@@ -1,11 +1,23 @@
 import numpy as np
 import pytest
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
 from leap_c.examples.chain.env import ChainEnv
 from leap_c.examples.chain.utils import Ellipsoid
 from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
 from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pointmass.mpc import PointMassMPC
+from leap_c.registry import (
+    TRAINER_REGISTRY,
+    create_default_cfg,
+    create_task,
+    create_trainer,
+)
+import leap_c.rl
+from leap_c.run import main
+from leap_c.trainer import Trainer  # noqa: F401
 
 
 def generate_batch_variation(
@@ -213,3 +225,20 @@ def pendulum_on_cart_ext_cost_p_global(
         learnable_pendulum_on_cart_mpc_ext_cost.ocp_solver.acados_ocp.p_global_values,
         n_batch,
     )
+
+
+@pytest.fixture(scope="session", params=["point_mass"])
+def task(request):
+    """Fixture for the task."""
+    return create_task(request.param)
+
+
+@pytest.fixture(scope="function", params=list(TRAINER_REGISTRY.keys()))
+def trainer(request, task):
+
+    with TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+        cfg = create_default_cfg(request.param)
+        trainer = create_trainer(request.param, task, tmpdir, "cpu", cfg)
+
+        yield trainer

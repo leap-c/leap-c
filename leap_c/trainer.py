@@ -8,11 +8,11 @@ from typing import Any, DefaultDict, Iterator
 import numpy as np
 import pandas as pd
 import torch
+import wandb
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
-from yaml import dump
+from yaml import safe_dump
 
-import wandb
 from leap_c.rollout import episode_rollout
 from leap_c.task import Task
 from leap_c.utils import add_prefix_extend, set_seed
@@ -45,8 +45,7 @@ class LogConfig:
         csv_logger: If True, the statistics will be logged to a CSV file.
         tensorboard_logger: If True, the statistics will be logged to TensorBoard.
         wandb_logger: If True, the statistics will be logged to Weights & Biases.
-        wandb_name: The name of the Weights & Biases run.
-        wandb_tags: The tags for the Weights & Biases run.
+        wandb_init_kwargs: The kwargs to pass to wandb.init. If "dir" is not specified, it is set to output path / "wandb".
     """
 
     train_interval: int = 1000
@@ -59,9 +58,7 @@ class LogConfig:
     csv_logger: bool = True
     tensorboard_logger: bool = True
     wandb_logger: bool = False
-    wandb_project: str = "leap"
-    wandb_name: str = "leap_run"
-    wandb_tags: list[str] = field(default_factory=list)
+    wandb_init_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(kw_only=True)
@@ -190,14 +187,11 @@ class Trainer(ABC, nn.Module):
 
         # init wandb
         if cfg.log.wandb_logger:
-            wandbdir = self.output_path / "wandb"
-            wandbdir.mkdir(exist_ok=True)
-            wandb.init(
-                project=cfg.log.wandb_project,
-                name=cfg.log.wandb_name,
-                dir=wandbdir,
-                tags=cfg.log.wandb_tags,
-            )
+            if not cfg.log.wandb_init_kwargs.get("dir", False):  # type:ignore
+                wandbdir = self.output_path / "wandb"
+                wandbdir.mkdir(exist_ok=True)
+                cfg.log.wandb_init_kwargs["dir"] = str(wandbdir)
+            wandb.init(**cfg.log.wandb_init_kwargs)
 
         # tensorboard
         if cfg.log.tensorboard_logger:
@@ -205,7 +199,7 @@ class Trainer(ABC, nn.Module):
 
         # log dataclass config as yaml
         with open(self.output_path / "config.yaml", "w") as f:
-            dump(asdict(cfg), f)
+            safe_dump(asdict(cfg), f)
 
         # seed
         set_seed(cfg.seed)
@@ -291,7 +285,8 @@ class Trainer(ABC, nn.Module):
 
         if window_size is not None:
             window_idx = bisect.bisect_left(
-                self.state.timestamps[group], timestamp - window_size  # type: ignore
+                self.state.timestamps[group],
+                timestamp - window_size,  # type: ignore
             )
             stats = {
                 key: float(np.mean(values[-window_idx:]))
@@ -341,9 +336,9 @@ class Trainer(ABC, nn.Module):
                     if self.cfg.val.ckpt_modus == "best":
                         self.save()
 
-            # save model
-            if self.cfg.val.ckpt_modus != "best":
-                self.save()
+                # save model
+                if self.cfg.val.ckpt_modus != "best":
+                    self.save()
 
         return self.state.min_score  # Return last validation score for testing purposes
 
@@ -387,7 +382,9 @@ class Trainer(ABC, nn.Module):
             key: float(np.mean([p[key] for p in parts_rollout]))
             for key in parts_rollout[0]
         }
-        self.report_stats("val", stats_rollout, self.state.step, self.cfg.log.val_window)
+        self.report_stats(
+            "val", stats_rollout, self.state.step, self.cfg.log.val_window
+        )
 
         if parts_policy[0]:
             stats_policy = {
@@ -398,11 +395,14 @@ class Trainer(ABC, nn.Module):
 
         return float(stats_rollout["score"])
 
-    def _ckpt_path(self, name: str, suffix: str, basedir: Path | None = None) -> Path:
+    def _ckpt_path(
+        self, name: str, suffix: str, basedir: str | Path | None = None
+    ) -> Path:
         """Returns the path to a checkpoint file."""
         if basedir is None:
             basedir = self.output_path
 
+        basedir = Path(basedir)
         (basedir / "ckpts").mkdir(exist_ok=True)
 
         if self.cfg.val.ckpt_modus == "best":
@@ -410,30 +410,79 @@ class Trainer(ABC, nn.Module):
         elif self.cfg.val.ckpt_modus == "last":
             return basedir / "ckpts" / f"last_{name}.{suffix}"
 
-        return basedir / "ckpts" / f"{self.step}_{name}.{suffix}"
+        return basedir / "ckpts" / f"{self.state.step}_{name}.{suffix}"
 
-    def save(self) -> None:
-        """Save the trainer state in a checkpoint folder."""
+    def save(self, path: str | Path | None = None) -> None:
+        """Save the trainer state in a checkpoint folder.
 
-        torch.save(self.state_dict(), self._ckpt_path("model", "pth"))
-        torch.save(self.state, self._ckpt_path("trainer", "pkl"))
+        If the path is None, the checkpoint is saved in the output path of the trainer.
+        The state_dict is split into different parts. For example if the trainer has
+        as submodule "pi" and "q", the state_dict is saved separately as "pi.ckpt" and
+        "q.ckpt". Additionally, the optimizers are saved as "optimizers.ckpt" and the
+        trainer state is saved as "trainer_state.ckpt".
+
+        Args:
+            path: The folder where to save the checkpoint.
+        """
+
+        # split the state_dict into seperate parts
+        split_state_dicts = defaultdict(dict)
+        for name, param in self.state_dict().items():
+            if "." in name:
+                group_name = name.split(".")[0]
+                sub_name = ".".join(name.split(".")[1:])
+                split_state_dicts[group_name][sub_name] = param
+            else:
+                split_state_dicts[name] = param  # type: ignore
+
+        # save the state dicts
+        for name, state_dict in split_state_dicts.items():
+            torch.save(state_dict, self._ckpt_path(name, "ckpt", path))
+
+        torch.save(self.state, self._ckpt_path("trainer_state", "ckpt", path))
 
         if self.optimizers:
             state_dict = {
                 f"optimizer_{i}": opt.state_dict()
                 for i, opt in enumerate(self.optimizers)
             }
-            torch.save(state_dict, self._ckpt_path("optimizers", "pth"))
+            torch.save(state_dict, self._ckpt_path("optimizers", "ckpt", path))
 
     def load(self, path: str | Path) -> None:
-        """Loads the state of a trainer from the output_path."""
-        # TODO (Jasper): Think about partial loading...
-        basedir = Path(path) 
+        """Loads the state of a trainer from the output_path.
 
-        self.load_state_dict(torch.load(self._ckpt_path("model", "pth", basedir)))
-        self.state = torch.load(self._ckpt_path("trainer", "pkl", basedir))
+        Args:
+            path: The path to the checkpoint folder.
+        """
+        basedir = Path(path)
+
+        groups = set()
+        for name in self.state_dict().keys():
+            if "." in name:
+                group_name = name.split(".")[0]
+                groups.add(group_name)
+            else:
+                groups.add(name)
+
+        # load the state dicts
+        state_dict = {}
+        for name in groups:
+            part = torch.load(
+                self._ckpt_path(name, "ckpt", basedir), weights_only=False
+            )
+
+            if isinstance(part, dict):
+                for key, value in part.items():
+                    state_dict[f"{name}.{key}"] = value
+            else:
+                state_dict[name] = part
+
+        self.load_state_dict(state_dict, strict=True)
+        self.state = torch.load(
+            self._ckpt_path("trainer_state", "ckpt", basedir), weights_only=False
+        )
 
         if self.optimizers:
-            state_dict = torch.load(self._ckpt_path("optimizers", "pth", basedir))
+            state_dict = torch.load(self._ckpt_path("optimizers", "ckpt", basedir))
             for i, opt in enumerate(self.optimizers):
                 opt.load_state_dict(state_dict[f"optimizer_{i}"])
