@@ -690,7 +690,7 @@ class Mpc(ABC):
 
     @cached_property
     def ocp_batch_solver(self) -> AcadosOcpBatchSolver:
-        ocp = deepcopy(self.ocp)
+        ocp = self.ocp
         ocp.model.name += "_batch"  # type:ignore
 
         batch_solver = self.afm_batch.setup_acados_ocp_batch_solver(
@@ -707,7 +707,7 @@ class Mpc(ABC):
 
     @cached_property
     def ocp_batch_sensitivity_solver(self) -> AcadosOcpBatchSolver:
-        ocp = deepcopy(self.ocp_sensitivity)
+        ocp = self.ocp_sensitivity
         ocp.model.name += "_batch"  # type:ignore
 
         batch_solver = self.afm_sens_batch.setup_acados_ocp_batch_solver(
