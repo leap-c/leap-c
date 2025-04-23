@@ -7,12 +7,12 @@ A framework for integrating optimal control solvers into deep learning pipelines
 ### Key Features
 
 - Combines model predictive control with reinforcement learning and imitation learning
-- Built on top of community-standard tools [acados](https://docs.acados.org/) and [casadi](https://web.casadi.org/)
-- Seamless integration with [PyTorch](https://pytorch.org/) for deep learning. The ocp solver is wrapped into a PyTorch module and can be differentiated end-to-end.
+- Built on top of community-standard tools [acados](https://docs.acados.org/) and [CasADi](https://web.casadi.org/)
+- Seamless integration with [PyTorch](https://pytorch.org/) for deep learning. The OCP solver is wrapped into a PyTorch module and can be differentiated end-to-end.
 
 ### Development
 
-leap-c is developed through collaboration between:
+leap-c is developed through a collaboration between:
 
 - [Department of Engineering Cybernetics](https://www.ntnu.edu/itk) - Norwegian University of Science and Technology (Prof. Sebastien Gros)
 - [Neurobotics Lab](https://nr.informatik.uni-freiburg.de/welcome) - University of Freiburg (Prof. Joschka Boedeker)  

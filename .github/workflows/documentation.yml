@@ -1,6 +1,10 @@
 name: documentation
 
-on: workflow_dispatch
+on: 
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 permissions:
  contents: write
@@ -30,6 +34,7 @@ jobs:
      shell: bash
      run: |
        .github/linux/install_tera.sh
+
    - name: Export Paths
      working-directory: ${{github.workspace}}
      shell: bash
@@ -37,6 +42,7 @@ jobs:
        echo "ACADOS_SOURCE_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
        echo "ACADOS_INSTALL_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
        echo "LD_LIBRARY_PATH=${{github.workspace}}/leap_c/external/acados/lib" >> $GITHUB_ENV
+       
    - name: Set up Python 3.11
      uses: actions/setup-python@v5
      with:
@@ -49,11 +55,13 @@ jobs:
        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
        restore-keys: |
          ${{ runner.os }}-pip-
+
    - name: Install Python interface
      working-directory: ${{github.workspace}}/leap_c/external/acados
      run: |
        pip install --upgrade pip
        pip install interfaces/acados_template
+
    - name: Install leap_c
      working-directory: ${{github.workspace}}/leap_c
      run: |

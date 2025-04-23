@@ -1,4 +1,4 @@
-To build the documentation from this folder, run:
+To build the documentation from this folder locally, run:
 
 ```bash
 make html
