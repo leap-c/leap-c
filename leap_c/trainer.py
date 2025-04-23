@@ -151,14 +151,14 @@ class TrainerState:
         timestamps: A dictionary containing the timestamps of the statistics.
         logs: A dictionary of dictionaries containing the statistics.
         scores: A list containing the scores of the validation episodes.
-        min_score: The minimum score of the validation episodes
+        max_score: The maximum score of the validation episodes.
     """
 
     step: int = 0
     timestamps: dict = field(default_factory=defaultdict_list)
     logs: dict = field(default_factory=nested_defaultdict_list)
     scores: list[float] = field(default_factory=list)
-    min_score: float = float("inf")
+    max_score: float = -float("inf")
 
 
 class Trainer(ABC, nn.Module):
@@ -351,8 +351,8 @@ class Trainer(ABC, nn.Module):
                 val_score = self.validate()
                 self.state.scores.append(val_score)
 
-                if val_score < self.state.min_score:
-                    self.state.min_score = val_score
+                if val_score > self.state.max_score:
+                    self.state.max_score= val_score
                     if self.cfg.val.ckpt_modus == "best":
                         self.save()
 
@@ -360,7 +360,7 @@ class Trainer(ABC, nn.Module):
                 if self.cfg.val.ckpt_modus in ["last", "all"]:
                     self.save()
 
-        return self.state.min_score  # Return last validation score for testing purposes
+        return self.state.max_score  # Return last validation score for testing purposes
 
     def validate(self) -> float:
         """Do a deterministic validation run of the policy and
@@ -413,7 +413,7 @@ class Trainer(ABC, nn.Module):
             }
             self.report_stats("val_policy", stats_policy, self.state.step)
 
-        return -float(stats_rollout["score"])
+        return float(stats_rollout["score"])
 
     def _ckpt_path(
         self, name: str, suffix: str, basedir: str | Path | None = None
