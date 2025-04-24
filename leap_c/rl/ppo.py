@@ -6,12 +6,11 @@ import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
-from torch.distributions import Normal
 
 from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.registry import register_trainer
-from leap_c.rl.rollout_buffer import RolloutBuffer
+from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.task import Task
 from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
 
@@ -41,6 +40,7 @@ class PpoAlgorithmConfig:
     l_ent_weight: float = 0.01
     num_mini_batches: int = 4
     update_epochs: int = 4
+
 
 @dataclass(kw_only=True)
 class PpoBaseConfig(BaseConfig):
@@ -157,13 +157,7 @@ class PpoTrainer(Trainer):
         self.clipped_loss = ClippedSurrogateLoss(cfg.ppo.clipping_epsilon)
         self.mse_loss = nn.MSELoss()
 
-        self.buffer = RolloutBuffer(
-            cfg.ppo.num_steps,
-            self.train_env.observation_space.shape,
-            self.train_env.action_space.shape,
-            device=device,
-            collate_fn_map=task.collate_fn_map
-        )
+        self.buffer = ReplayBuffer(cfg.ppo.num_steps, device)
 
     def train_loop(self) -> Iterator[int]:
         obs, _ = self.train_env.reset()
@@ -174,18 +168,21 @@ class PpoTrainer(Trainer):
                 obs, _ = self.train_env.reset()
 
             #region Rollout Collection
-            obs_collate = self.task.collate([obs], self.device)
-            with torch.no_grad():
-                value = self.q(obs_collate).cpu().numpy()[0]
             action, log_prob, stats = self.act(obs)
             self.report_stats("train_trajectory", {"action": action}, self.state.step)
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
-            self.buffer[self.state.step % self.cfg.ppo.num_steps] = (
-                obs, action, log_prob, reward, obs_prime, is_terminated, is_terminated or is_truncated
-            )
+            self.buffer.put((
+                obs,
+                action,
+                log_prob,
+                reward,
+                obs_prime,
+                is_terminated,
+                is_terminated or is_truncated
+            ))
             #endregion
 
             if (self.state.step + 1) % self.cfg.ppo.num_steps == 0:
@@ -244,7 +241,10 @@ class PpoTrainer(Trainer):
                     self.q_lr_scheduler.step()
                     self.pi_lr_scheduler.step()
 
+                self.buffer.clear()
+
             obs = obs_prime
+
             yield 1
 
     def act(
