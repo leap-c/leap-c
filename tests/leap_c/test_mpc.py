@@ -3,7 +3,6 @@ from dataclasses import fields
 import numpy as np
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
-    AcadosOcpFlattenedIterate,
 )
 
 # from leap_c.examples.linear_system import LinearSystemMPC
@@ -143,8 +142,6 @@ def test_backup_fn(learnable_point_mass_mpc_different_params: Mpc, n_batch: int)
     for i in range(n_batch):
         x0[i] = x0[i] + i * increment
     inp = MpcInput(x0=x0, u0=u0)
-    default_init = learnable_linear_mpc.init_state_fn  # For restoring fixture
-    learnable_linear_mpc.init_state_fn = None  # Make sure 0 initialization for backup is being used
     sol, template_state = learnable_linear_mpc(inp)
     assert np.all(sol.status == 0)
     assert isinstance(template_state, AcadosOcpFlattenedBatchIterate), (
@@ -163,11 +160,23 @@ def test_backup_fn(learnable_point_mass_mpc_different_params: Mpc, n_batch: int)
     no_sol, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
     assert np.all(no_sol.status != 0)
 
+    default_init = learnable_linear_mpc.init_state_fn  # For restoring fixture
     def backup_fn_batched(input: MpcInput):
-        vals = [getattr(template_state, field.name)[i] for field in fields(template_state) if field.type is not int]
-        return AcadosOcpFlattenedIterate(*vals)
+        if not input.is_batched():
+            batch_size = 1
+        else:
+            batch_size = input.x0.shape[0]
+        
+        kw = {}
 
+        for f in fields(template_state):
+            n = f.name
+            kw[n] = np.tile(getattr(template_state, n), (batch_size, 1))
+
+        return AcadosOcpFlattenedBatchIterate(**kw, N_batch=batch_size)
+    
     learnable_linear_mpc.init_state_fn = backup_fn_batched
+
     sol_again, _ = learnable_linear_mpc(
         inp,
         mpc_state=ridiculous_state,
