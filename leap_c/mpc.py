@@ -227,21 +227,27 @@ def set_ocp_solver_iterate(
 ) -> None:
     if ocp_iterate is None:
         return
+    elif not isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
+        raise ValueError(
+            f"Expected AcadosOcpFlattenedBatchIterate, got {type(ocp_iterate)}."
+        )
+
     if isinstance(ocp_solver, AcadosOcpSolver):
-        if isinstance(ocp_iterate, AcadosOcpFlattenedIterate):
-            ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
-        elif ocp_iterate is not None:
-            raise ValueError(
-                f"Expected AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}."
-            )
+        if ocp_iterate.N_batch != 1:
+            raise ValueError("Expected a batch size of 1 for a single AcadosOcpSolver.")
+        single_iterate = AcadosOcpFlattenedIterate(
+            x=ocp_iterate.x[0],
+            u=ocp_iterate.u[0],
+            z=ocp_iterate.z[0],
+            pi=ocp_iterate.pi[0],
+            lam=ocp_iterate.lam[0],
+            sl=ocp_iterate.sl[0],
+            su=ocp_iterate.su[0],
+        )
+        ocp_solver.load_iterate_from_flat_obj(single_iterate)
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
-        if isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
-            ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
-        elif ocp_iterate is not None:
-            raise ValueError(
-                f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
-            )
+        ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
     else:
         raise ValueError(
             f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
