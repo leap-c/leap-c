@@ -574,11 +574,9 @@ def create_zero_init_state_fn(
 
     def init_state_fn(mpc_input: MpcInput) -> MpcBatchedState:
         if not mpc_input.is_batched():
-            # TOOD: The non batched case should be removed depending on how
-            #   we update the solve_shared.
-            return deepcopy(iterate)
-
-        batch_size = len(mpc_input.x0)
+            batch_size = 1
+        else:
+            batch_size = len(mpc_input.x0)
         kw = {}
 
         for f in fields(iterate):
