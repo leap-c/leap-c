@@ -161,8 +161,10 @@ def set_ocp_solver_mpc_params_global(
     if isinstance(ocp_solver, AcadosOcpSolver):
         ocp_solver.set_p_global_and_precompute_dependencies(mpc_parameter.p_global)
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        if batch_size is None:
+            raise ValueError("batch_size must be set when using AcadosOcpBatchSolver.")
         for i, single_solver in enumerate(ocp_solver.ocp_solvers):
-            if batch_size is not None and i >= batch_size:
+            if i >= batch_size:
                 break
             single_solver.set_p_global_and_precompute_dependencies(
                 mpc_parameter.p_global[i]
@@ -192,12 +194,14 @@ def set_ocp_solver_mpc_params_stagewise(
         else:
             ocp_solver.set_flat("p", mpc_parameter.p_stagewise.reshape(-1))  # type:ignore
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        if batch_size is None:
+            raise ValueError("batch_size must be set when using AcadosOcpBatchSolver.")
         if mpc_parameter.p_stagewise_sparse_idx is None:  # not sparse
             p = mpc_parameter.p_stagewise.reshape(batch_size, -1)  # type:ignore
             ocp_solver.set_flat("p", p)
         else:
             for i, single_solver in enumerate(ocp_solver.ocp_solvers):
-                if batch_size is not None and i >= batch_size:
+                if i >= batch_size:
                     break
                 set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
     else:
@@ -276,8 +280,10 @@ def set_ocp_solver_initial_condition(
             ocp_solver.constraints_set(0, "ubu", u0)
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        if batch_size is None:
+            raise ValueError("batch_size must be set when using AcadosOcpBatchSolver.")
         for i, ocp in enumerate(ocp_solver.ocp_solvers):
-            if batch_size is not None and i >= batch_size:
+            if i >= batch_size:
                 break
 
             set_ocp_solver_initial_condition(
@@ -313,6 +319,8 @@ def initialize_ocp_solver(
     if mpc_input.is_batched():
         batch_size = mpc_input.x0.shape[0]
     else:
+        if isinstance(ocp_solver, AcadosOcpBatchSolver):
+            raise ValueError("Input has to be batched when using a batch solver")
         batch_size = None
 
     set_ocp_solver_iterate(ocp_solver, ocp_iterate)
