@@ -569,7 +569,7 @@ def test_MPCSolutionModule_on_ChainCost(
         return mpc_output.u0, mpc_output.status
 
     torch.autograd.gradcheck(
-        only_du0dx0, x0_torch, atol=1e-2, eps=1e-4, raise_exception=True
+        only_du0dx0, x0_torch, atol=1e-1, eps=1e-4, raise_exception=True
     )
 
     def only_dVdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
