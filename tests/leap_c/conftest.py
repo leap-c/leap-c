@@ -222,6 +222,18 @@ def learnable_chain_cost_mpc(
 
 
 @pytest.fixture(scope="session")
+def chain_cost_p_global(
+    learnable_chain_cost_mpc: ChainMpc,
+    n_batch: int,
+) -> np.ndarray:
+    """Fixture for the global parameters of the pendulum on cart MPC."""
+    return generate_batch_variation(
+        learnable_chain_cost_mpc.ocp_solver.acados_ocp.p_global_values,
+        n_batch,
+    )
+
+
+@pytest.fixture(scope="session")
 def chain_mass_cost_env() -> ChainEnv:
     n_mass = 3
     phi_range = (0.5 * np.pi, 1.5 * np.pi)
