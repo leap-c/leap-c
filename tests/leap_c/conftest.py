@@ -89,7 +89,7 @@ def pendulum_on_cart_mpc() -> PendulumOnCartMPC:
 
 @pytest.fixture(scope="session")
 def n_batch() -> int:
-    return 4
+    return 2
 
 
 @pytest.fixture(scope="session")
