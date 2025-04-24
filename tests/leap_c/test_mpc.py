@@ -6,7 +6,7 @@ from acados_template.acados_ocp_iterate import (
 )
 
 # from leap_c.examples.linear_system import LinearSystemMPC
-from leap_c.mpc import Mpc, MpcInput, MpcOutput, MpcParameter
+from leap_c.mpc import Mpc, MpcInput, MpcOutput, MpcParameter, create_zero_init_state_fn
 from leap_c.utils import find_idx_for_labels
 
 
@@ -143,6 +143,8 @@ def test_backup_fn(learnable_point_mass_mpc_different_params: Mpc, n_batch: int)
         x0[i] = x0[i] + i * increment
     inp = MpcInput(x0=x0, u0=u0)
     sol, template_state = learnable_linear_mpc(inp)
+    default_init = learnable_linear_mpc.init_state_fn  # For restoring fixture
+    learnable_linear_mpc.init_state_fn = None # Make sure no backup is used
     assert np.all(sol.status == 0)
     assert isinstance(template_state, AcadosOcpFlattenedBatchIterate), (
         f"This test assumed state would be of type AcadosOcpFlattenedBatchIterate, but got {type(template_state)}"
@@ -160,20 +162,27 @@ def test_backup_fn(learnable_point_mass_mpc_different_params: Mpc, n_batch: int)
     no_sol, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
     assert np.all(no_sol.status != 0)
 
-    default_init = learnable_linear_mpc.init_state_fn  # For restoring fixture
     def backup_fn_batched(input: MpcInput):
+        """Simplified backup function for the resolve."""
         if not input.is_batched():
-            batch_size = 1
+            index = -1
+            for ind in range(n_batch):
+                if np.allclose(input.x0, inp.x0[ind]):
+                    index = ind
+                    break
+            assert ind != -1, "There has to be a corresponding x0 in the batch."
+            return AcadosOcpFlattenedBatchIterate(
+                x=template_state.x[[index]],
+                u=template_state.u[[index]],
+                z=template_state.z[[index]],
+                sl=template_state.sl[[index]],
+                su=template_state.su[[index]],
+                pi=template_state.pi[[index]],
+                lam=template_state.lam[[index]],
+                N_batch=1,
+            )
         else:
-            batch_size = input.x0.shape[0]
-        
-        kw = {}
-
-        for f in fields(template_state):
-            n = f.name
-            kw[n] = np.tile(getattr(template_state, n), (batch_size, 1))
-
-        return AcadosOcpFlattenedBatchIterate(**kw, N_batch=batch_size)
+            raise ValueError("Is assumed to not happen here.")
     
     learnable_linear_mpc.init_state_fn = backup_fn_batched
 
