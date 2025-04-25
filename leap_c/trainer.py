@@ -96,12 +96,14 @@ class BaseConfig:
         val: The validation configuration.
         log: The logging configuration.
         seed: The seed for the trainer.
+        num_envs: The number of environments to train on.
     """
 
     train: TrainConfig
     val: ValConfig
     log: LogConfig
     seed: int
+    num_envs: int
 
 
 def defaultdict_list() -> DefaultDict[str, list]:
@@ -179,7 +181,10 @@ class Trainer(ABC, nn.Module):
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
-        self.train_env = self.task.create_train_env(seed=cfg.seed)
+        if cfg.num_envs > 1:
+            self.train_env = self.task.create_train_env_vectorized(seed=cfg.seed)
+        else:
+            self.train_env = self.task.create_train_env(seed=cfg.seed)
         self.eval_env = self.task.create_eval_env(seed=cfg.seed)
 
         # trainer state
@@ -273,11 +278,15 @@ class Trainer(ABC, nn.Module):
                 stats[key] = float(value)
                 continue
 
-            assert value.ndim == 1, "Only 1D arrays are supported."
+            assert value.ndim in [1, 2], "Only 1D and 2D arrays are supported."
 
             stats.pop(key)
             for i, v in enumerate(value):
-                stats[f"{key}_{i}"] = float(v)
+                if value.ndim == 1:
+                    stats[f"{key}_{i}"] = float(v) # type: ignore
+                else:
+                    for j, v_ in enumerate(v):
+                        stats[f"{key}_{i}_{j}"] = float(v_)
 
         self.state.timestamps[group].append(timestamp)
         for key, value in stats.items():

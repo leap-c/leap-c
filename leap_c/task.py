@@ -139,6 +139,31 @@ class Task(ABC):
         env.action_space.seed(seed)
         return env
 
+    def create_train_env_vectorized(self, seed: int = 0, num_envs: int = 4) -> gym.vector.SyncVectorEnv:
+        """Returns a gymnasium vectorized environment for training.
+
+        Args:
+            seed: The seed for the environment.
+            num_envs: Number of environments for
+
+        Returns:
+            gym.vector.SyncVectorEnv: The vectorized environment for training.
+        """
+
+        def single_env():
+            e = self.create_env(train=True)
+            e = RecordEpisodeStatistics(e, buffer_length=1)
+            e = OrderEnforcing(e)
+
+            return e
+
+        env = gym.vector.SyncVectorEnv([single_env for _ in range(num_envs)])
+
+        env.reset(seed=seed)
+        env.observation_space.seed(seed)
+        env.action_space.seed(seed)
+        return env
+
     def create_eval_env(self, seed: int = 1) -> gym.Env:
         """Returns a gymnasium environment for evaluation.
 

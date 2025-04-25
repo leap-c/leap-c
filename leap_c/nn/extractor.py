@@ -67,7 +67,7 @@ class ScalingExtractor(Extractor):
 class IdentityExtractor(Extractor):
     """An extractor that returns the input as is."""
 
-    def __init__(self, env: gym.Env) -> None:
+    def __init__(self, env: gym.Env | gym.vector.SyncVectorEnv) -> None:
         """Initializes the extractor.
 
         Args:
@@ -75,7 +75,8 @@ class IdentityExtractor(Extractor):
         """
         super().__init__(env)
         assert (
-            len(env.observation_space.shape) == 1  # type: ignore
+            (isinstance(env, gym.Env) and len(env.observation_space.shape) == 1)  # type: ignore
+            or (isinstance(env, gym.vector.SyncVectorEnv) and len(env.observation_space.shape) == 2)
         ), "IdentityExtractor only supports 1D observations."
 
     def forward(self, x):
@@ -92,4 +93,7 @@ class IdentityExtractor(Extractor):
     @property
     def output_size(self) -> int:
         """Returns the embedded vector size."""
+        if isinstance(self.env, gym.vector.SyncVectorEnv):
+            return self.env.single_observation_space.shape[0]
+
         return self.env.observation_space.shape[0]  # type: ignore

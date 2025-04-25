@@ -1,4 +1,10 @@
+from typing import Any, Optional
+
 import gymnasium as gym
+import torch
+import numpy as np
+
+from leap_c.mpc import MpcInput
 from leap_c.task import Task
 from leap_c.registry import register_task
 
@@ -11,3 +17,10 @@ class HalfCheetahTask(Task):
     def create_env(self, train: bool = True) -> gym.Env:
         return gym.make("HalfCheetah-v5")
 
+    def prepare_mpc_input(
+        self,
+        obs: Any,
+        param_nn: Optional[torch.Tensor] = None,
+        action: Optional[torch.Tensor] = None,
+    ) -> MpcInput:
+        return MpcInput(obs, param_nn, action)

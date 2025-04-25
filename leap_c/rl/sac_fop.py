@@ -73,6 +73,7 @@ class SacFopBaseConfig(BaseConfig):
         val: The validation configuration.
         log: The logging configuration.
         seed: The seed for the trainer.
+        num_envs: The number of environments to train on.
     """
 
     sac: SacFopAlgorithmConfig = field(default_factory=SacFopAlgorithmConfig)
@@ -80,6 +81,7 @@ class SacFopBaseConfig(BaseConfig):
     val: ValConfig = field(default_factory=ValConfig)
     log: LogConfig = field(default_factory=LogConfig)
     seed: int = 0
+    num_envs: int = 1
 
 
 class SacFopActorOutput(NamedTuple):
