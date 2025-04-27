@@ -62,7 +62,7 @@ class PpoBaseConfig(BaseConfig):
 
 
 class PpoCritic(nn.Module):
-    def __init__(self, task: Task, env: gym.Env, mlp_cfg: MlpConfig):
+    def __init__(self, task: Task, env: gym.vector.SyncVectorEnv, mlp_cfg: MlpConfig):
         super().__init__()
 
         self.extractor = task.create_extractor(env)
@@ -135,6 +135,8 @@ class PpoTrainer(Trainer):
             cfg: The configuration for the trainer.
         """
         super().__init__(task, output_path, device, cfg)
+
+        assert isinstance(self.train_env, gym.vector.SyncVectorEnv), "Only vectorized tasks are supported"
 
         self.q = PpoCritic(task, self.train_env, cfg.ppo.critic_mlp)
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.ppo.lr_q)
@@ -215,8 +217,6 @@ class PpoTrainer(Trainer):
 
                         # Returns: G = A + V
                         returns[t] = advantages[t] + value
-                advantages = advantages.flatten()
-                returns = returns.flatten()
                 #endregion
 
                 #region Loss Calculation and Parameter Optimization
@@ -232,8 +232,8 @@ class PpoTrainer(Trainer):
                         actions = actions.flatten(start_dim=0, end_dim=1)
                         log_probs = log_probs.flatten(start_dim=0, end_dim=1)
 
-                        mb_advantages = advantages[start * self.cfg.train.num_envs:end * self.cfg.train.num_envs]
-                        mb_returns = returns[start * self.cfg.train.num_envs:end * self.cfg.train.num_envs]
+                        mb_advantages = advantages[start:end].flatten()
+                        mb_returns = returns[start:end].flatten()
 
                         new_values = self.q(observations)
                         _, new_log_probs, stats = self.pi(observations, action=actions)
@@ -274,7 +274,7 @@ class PpoTrainer(Trainer):
         for key, value in stats.items():
             if isinstance(value, torch.Tensor):
                 stats[key] = value.cpu().numpy()
-        return action.cpu().numpy(), log_prob, stats
+        return action.cpu().numpy()[0], None, stats
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:

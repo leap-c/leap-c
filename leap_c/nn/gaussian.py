@@ -61,6 +61,7 @@ class SquashedGaussian(nn.Module):
 
         if y is not None: # unsquash y if given
             y = (y - self.loc[None, :]) / self.scale[None, :]
+            y = torch.clamp(y, -1.0 + 1e-6, 1.0 - 1e-6)
             y = torch.atanh(y)
         elif deterministic:
             y = mean

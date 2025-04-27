@@ -16,8 +16,19 @@ if __name__ == "__main__":
         activation="tanh",
         weight_init="orthogonal",
     )
-    cfg.train.steps = 100 * 4 * 512
-    cfg.val.interval = 10 * 4 * 512
+    cfg.train.steps = 512 * 2048
+    cfg.train.num_envs = 8
+    cfg.train.vectorized = True
+    cfg.ppo.lr_q = 3e-4
+    cfg.ppo.lr_pi = 3e-4
+    cfg.ppo.update_epochs = 10
+    cfg.ppo.num_steps = 2048
+    cfg.ppo.num_mini_batches = 32
+    cfg.ppo.clipping_epsilon = 0.2
+    cfg.ppo.l_vf_weight = 0.25
+    cfg.ppo.l_ent_weight = 0.0
+    cfg.ppo.gamma = 0.99
+    cfg.ppo.gae_lambda = 0.95
 
     output_path = Path(f"output/half_cheetah/ppo")
 

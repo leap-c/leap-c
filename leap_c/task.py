@@ -84,7 +84,7 @@ class Task(ABC):
         """
         ...
 
-    def create_extractor(self, env: gym.Env) -> Extractor:
+    def create_extractor(self, env: gym.Env | gym.vector.SyncVectorEnv) -> Extractor:
         """Creates an extractor for the task.
 
         This could be used to extract features from images or other complex

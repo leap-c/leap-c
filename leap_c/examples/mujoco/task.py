@@ -15,7 +15,7 @@ class HalfCheetahTask(Task):
         super().__init__(None)
 
     def create_env(self, train: bool = True) -> gym.Env:
-        return gym.make("HalfCheetah-v5")
+        return gym.make("HalfCheetah-v5") if train else gym.make("HalfCheetah-v5", render_mode="rgb_array")
 
     def prepare_mpc_input(
         self,

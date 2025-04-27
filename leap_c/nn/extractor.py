@@ -76,7 +76,7 @@ class IdentityExtractor(Extractor):
         super().__init__(env)
         assert (
             (isinstance(env, gym.Env) and len(env.observation_space.shape) == 1)  # type: ignore
-            or (isinstance(env, gym.vector.SyncVectorEnv) and len(env.observation_space.shape) == 2)
+            or (isinstance(env, gym.vector.SyncVectorEnv) and len(env.single_observation_space.shape) == 1)
         ), "IdentityExtractor only supports 1D observations."
 
     def forward(self, x):
