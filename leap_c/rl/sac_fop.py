@@ -55,12 +55,12 @@ class SacFopAlgorithmConfig:
     soft_update_freq: int = 1
     lr_q: float = 1e-4
     lr_pi: float = 3e-4
-    lr_alpha: float = 1e-3
+    lr_alpha: float = 1e-4
     init_alpha: float = 0.1
     entropy_reward_bonus: bool = True
     num_critics: int = 2
     report_loss_freq: int = 100
-    update_freq: int = 1
+    update_freq: int = 4
 
 
 @dataclass(kw_only=True)
@@ -217,7 +217,7 @@ class SacFopTrainer(Trainer):
 
             with torch.no_grad():
                 # TODO (Jasper): Argument order is not consistent
-                pi_output = self.pi(obs_batched, policy_state, deterministic=False)
+                pi_output: SacFopActorOutput = self.pi(obs_batched, policy_state, deterministic=False)
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
@@ -228,6 +228,10 @@ class SacFopTrainer(Trainer):
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
+            if is_terminated:
+                print(obs_prime)
+                print(pi_output.state_solution.x.reshape(-1, 4))
+                print(pi_output.state_solution.u.reshape(-1, 2))
 
             if "episode" in info:
                 self.report_stats("train", info["episode"])
