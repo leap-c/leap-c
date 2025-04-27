@@ -66,7 +66,6 @@ class SacBaseConfig(BaseConfig):
         val: The validation configuration.
         log: The logging configuration.
         seed: The seed for the trainer.
-        num_envs: The number of environments to train on.
     """
 
     sac: SacAlgorithmConfig = field(default_factory=SacAlgorithmConfig)
@@ -74,7 +73,6 @@ class SacBaseConfig(BaseConfig):
     val: ValConfig = field(default_factory=ValConfig)
     log: LogConfig = field(default_factory=LogConfig)
     seed: int = 0
-    num_envs: int = 1
 
 
 class SacCritic(nn.Module):

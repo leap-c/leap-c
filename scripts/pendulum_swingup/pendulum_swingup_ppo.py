@@ -20,6 +20,8 @@ if __name__ == "__main__":
     cfg.ppo.num_mini_batches = 8
     cfg.ppo.update_epochs = 10
     cfg.train.steps = 500 * 256
+    cfg.train.vectorized = True
+    cfg.train.num_envs = 4
     cfg.val.interval = 50 * 256
 
     output_path = Path(f"output/pendulum_swingup/ppo")

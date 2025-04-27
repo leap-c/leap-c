@@ -25,10 +25,13 @@ class TrainConfig:
     Args:
         steps: The number of steps in the training loop.
         start: The number of training steps before training starts.
+        num_envs: The number of environments to train on.
     """
 
     steps: int = 100000
     start: int = 0
+    vectorized: bool = False
+    num_envs: int = 4
 
 
 @dataclass(kw_only=True)
@@ -96,14 +99,12 @@ class BaseConfig:
         val: The validation configuration.
         log: The logging configuration.
         seed: The seed for the trainer.
-        num_envs: The number of environments to train on.
     """
 
     train: TrainConfig
     val: ValConfig
     log: LogConfig
     seed: int
-    num_envs: int
 
 
 def defaultdict_list() -> DefaultDict[str, list]:
@@ -181,8 +182,8 @@ class Trainer(ABC, nn.Module):
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
-        if cfg.num_envs > 1:
-            self.train_env = self.task.create_train_env_vectorized(seed=cfg.seed)
+        if cfg.train.vectorized:
+            self.train_env = self.task.create_train_env_vectorized(seed=cfg.seed, num_envs=cfg.train.num_envs)
         else:
             self.train_env = self.task.create_train_env(seed=cfg.seed)
         self.eval_env = self.task.create_eval_env(seed=cfg.seed)
