@@ -69,7 +69,7 @@ class ValConfig:
         interval: The interval at which validation episodes will be run.
         num_rollouts: The number of rollouts during validation.
         deterministic: If True, the policy will act deterministically during validation.
-        ckpt_modus: How to save the model, which can be "best", "last" or "all".
+        ckpt_modus: How to save the model, which can be "best", "last", "all" or "none".
         render_mode: The mode in which the episodes will be rendered.
         render_deterministic: If True, the episodes will be rendered deterministically (e.g., no exploration).
         render_interval_exploration: The interval at which exploration episodes will be rendered.
@@ -104,6 +104,26 @@ class BaseConfig:
     seed: int
 
 
+def set_to_test_cfg(cfg: BaseConfig) -> BaseConfig:
+    """Set the configuration to test mode.
+
+    Args:
+        cfg: The configuration to be modified.
+
+    Returns:
+        The modified configuration.
+    """
+    cfg.train.steps = 10
+    cfg.val.num_rollouts = 1
+    cfg.val.interval = 10
+    cfg.val.num_render_rollouts = 0
+    cfg.val.ckpt_modus = "none"
+    cfg.log.csv_logger = False
+    cfg.log.tensorboard_logger = False
+    cfg.log.wandb_logger = False
+    return cfg
+
+
 def defaultdict_list() -> DefaultDict[str, list]:
     """Returns a defaultdict with a list as default value.
 
@@ -131,14 +151,14 @@ class TrainerState:
         timestamps: A dictionary containing the timestamps of the statistics.
         logs: A dictionary of dictionaries containing the statistics.
         scores: A list containing the scores of the validation episodes.
-        min_score: The minimum score of the validation episodes
+        max_score: The maximum score of the validation episodes.
     """
 
     step: int = 0
     timestamps: dict = field(default_factory=defaultdict_list)
     logs: dict = field(default_factory=nested_defaultdict_list)
     scores: list[float] = field(default_factory=list)
-    min_score: float = -float("inf")
+    max_score: float = -float("inf")
 
 
 class Trainer(ABC, nn.Module):
@@ -331,16 +351,16 @@ class Trainer(ABC, nn.Module):
                 val_score = self.validate()
                 self.state.scores.append(val_score)
 
-                if val_score > self.state.min_score:
-                    self.state.min_score = val_score
+                if val_score > self.state.max_score:
+                    self.state.max_score= val_score
                     if self.cfg.val.ckpt_modus == "best":
                         self.save()
 
                 # save model
-                if self.cfg.val.ckpt_modus != "best":
+                if self.cfg.val.ckpt_modus in ["last", "all"]:
                     self.save()
 
-        return self.state.min_score  # Return last validation score for testing purposes
+        return self.state.max_score  # Return last validation score for testing purposes
 
     def validate(self) -> float:
         """Do a deterministic validation run of the policy and
