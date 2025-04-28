@@ -51,12 +51,12 @@ class PointMassTask(Task):
         if train:
             init_state_dist = {
                 "low": np.array([0.1, 0.1, 0.0, 0.0]),
-                "high": np.array([0.3, 0.9, 0.0, 0.0]),
+                "high": np.array([3.9, 0.9, 0.0, 0.0]),
             }
         else:
             init_state_dist = {
-                "low": np.array([0.1, 0.1, 0.0, 0.0]),
-                "high": np.array([0.3, 0.9, 0.0, 0.0]),
+                "low": np.array([0.20, 0.85, 0.0, 0.0]),
+                "high": np.array([0.30, 0.95, 0.0, 0.0]),
             }
 
         return PointMassEnv(
