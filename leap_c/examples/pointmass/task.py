@@ -60,7 +60,7 @@ class PointMassTask(Task):
             }
 
         return PointMassEnv(
-            max_time=10.0, init_state_dist=init_state_dist, render_mode="rgb_array"
+            max_time=20.0, init_state_dist=init_state_dist, render_mode="rgb_array"
         )
 
     def create_extractor(self, env):
