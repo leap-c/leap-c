@@ -9,7 +9,7 @@ from leap_c.rl.sac import SacBaseConfig
 
 parser = ArgumentParser()
 parser.add_argument("--output_path", type=Path, default=None)
-parser.add_argument("--task", type-str, default="point_mass")
+parser.add_argument("--task", type=str, default="point_mass")
 parser.add_argument("--trainer", type=str, default="sac_fop")
 parser.add_argument("--device", type=str, default="cpu")
 parser.add_argument("--seed", type=int, default=0)
