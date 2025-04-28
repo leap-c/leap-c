@@ -1,7 +1,7 @@
 import collections
 import random
 from itertools import islice
-from typing import Any
+from typing import Any, Iterable
 
 import torch
 import torch.nn as nn
@@ -73,12 +73,14 @@ class ReplayBuffer(nn.Module):
             device=self.device,
             tensor_dtype=self.tensor_dtype,
         )
-    
-    def __getitem__(self, idx: int | slice):
+
+    def __getitem__(self, idx: int | slice | Iterable):
         if isinstance(idx, int):
             mini_batch = [self.buffer.__getitem__(idx)]
-        if isinstance(idx, slice):
+        elif isinstance(idx, slice):
             mini_batch = list(islice(self.buffer, idx.start, idx.stop, idx.step))
+        elif isinstance(idx, Iterable):
+            mini_batch = [self.buffer.__getitem__(i) for i in idx]
         return pytree_tensor_to(
             collate(mini_batch, collate_fn_map=self.collate_fn_map),
             device=self.device,

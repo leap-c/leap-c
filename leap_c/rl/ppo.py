@@ -36,10 +36,13 @@ class PpoAlgorithmConfig:
     gamma: float = 0.99
     gae_lambda: float = 0.95
     clipping_epsilon: float = 0.2
-    l_vf_weight: float = 0.25
+    l_vf_weight: float = 0.5
     l_ent_weight: float = 0.01
     num_mini_batches: int = 4
     update_epochs: int = 4
+    normalize_advantages: bool = True
+    clip_value_loss: bool = True
+    max_grad_norm: float = 0.5
 
 
 @dataclass(kw_only=True)
@@ -119,6 +122,22 @@ class ClippedSurrogateLoss(nn.Module):
         return torch.max(unclipped_loss, clipped_loss)
 
 
+class ValueSquaredErrorLoss(nn.Module):
+    def __init__(self, clipped: bool = False, epsilon: float = 0.2):
+        super().__init__()
+        self.clipped = clipped
+        self.epsilon = epsilon
+
+    def forward(self, new_values: torch.Tensor, old_values: torch.Tensor, returns: torch.Tensor) -> torch.Tensor:
+        if self.clipped:
+            unclipped_loss = (new_values - returns) ** 2
+            clipped_values = old_values + torch.clamp(new_values - old_values, -self.epsilon, self.epsilon)
+            clipped_loss = (clipped_values - returns) ** 2
+            return 0.5 * torch.max(unclipped_loss, clipped_loss).mean()
+        else:
+            return 0.5 * ((new_values - returns) ** 2).mean()
+
+
 @register_trainer("ppo", PpoBaseConfig())
 class PpoTrainer(Trainer):
     cfg: PpoBaseConfig
@@ -157,7 +176,7 @@ class PpoTrainer(Trainer):
         )
 
         self.clipped_loss = ClippedSurrogateLoss(cfg.ppo.clipping_epsilon)
-        self.mse_loss = nn.MSELoss()
+        self.value_loss = ValueSquaredErrorLoss(cfg.ppo.clip_value_loss, cfg.ppo.clipping_epsilon)
 
         self.buffer = ReplayBuffer(cfg.ppo.num_steps, device)
 
@@ -169,6 +188,7 @@ class PpoTrainer(Trainer):
             obs_collate = self.task.collate(obs, self.device)
             with torch.no_grad():
                 action, log_prob, _ = self.pi(obs_collate)
+                value = self.q(obs_collate).cpu().numpy()
                 action = action.cpu().numpy()
                 log_prob = log_prob.cpu().numpy()
             self.report_stats("train_trajectory", {"action": action}, self.state.step)
@@ -183,7 +203,8 @@ class PpoTrainer(Trainer):
                 reward,
                 obs_prime,
                 is_terminated,
-                np.logical_or(is_terminated, is_truncated)
+                np.logical_or(is_terminated, is_truncated),
+                value
             ))
             #endregion
 
@@ -195,15 +216,14 @@ class PpoTrainer(Trainer):
                 returns = torch.zeros((self.cfg.ppo.num_steps, self.cfg.train.num_envs), device=self.device)
                 with torch.no_grad():
                     for t in reversed(range(self.cfg.ppo.num_steps)):
-                        obs, _, _, reward, obs_prime, termination, done = self.buffer[t]
+                        _, _, _, reward, obs_prime, termination, done, value = self.buffer[t]
 
-                        obs = obs.squeeze(0)
                         reward = reward.squeeze(0)
                         obs_prime = obs_prime.squeeze(0)
                         termination = termination.squeeze(0)
                         done = done.squeeze(0)
+                        value = value.squeeze(0)
 
-                        value = self.q(obs)
                         value_prime = self.q(obs_prime)
 
                         # TD Error: δ = r + γ * V' - V
@@ -220,40 +240,49 @@ class PpoTrainer(Trainer):
                 #endregion
 
                 #region Loss Calculation and Parameter Optimization
-                mini_batch_size = self.cfg.ppo.num_steps // self.cfg.ppo.num_mini_batches
-                losses = []
+                mini_batch_size = (self.cfg.ppo.num_steps * self.cfg.train.num_envs) // self.cfg.ppo.num_mini_batches
+                indices = np.arange(self.cfg.ppo.num_steps * self.cfg.train.num_envs)
                 for epoch in range(self.cfg.ppo.update_epochs):
-                    total_loss = 0.0
-                    for start in range(0, self.cfg.ppo.num_steps, mini_batch_size):
+                    np.random.shuffle(indices)
+                    for start in range(0, self.cfg.ppo.num_steps * self.cfg.train.num_envs, mini_batch_size):
                         end = start + mini_batch_size
-                        observations, actions, log_probs, _, _, _, _ = self.buffer[start:end]
+                        mb_indices = indices[start:end]
+                        observations, actions, log_probs, _, _, _, _, values = self.buffer[mb_indices]
 
                         observations = observations.flatten(start_dim=0, end_dim=1)
                         actions = actions.flatten(start_dim=0, end_dim=1)
                         log_probs = log_probs.flatten(start_dim=0, end_dim=1)
 
-                        mb_advantages = advantages[start:end].flatten()
-                        mb_returns = returns[start:end].flatten()
+                        mb_advantages = advantages[mb_indices].flatten()
+                        mb_returns = returns[mb_indices].flatten()
+
+                        if self.cfg.ppo.normalize_advantages:
+                            mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
 
                         new_values = self.q(observations)
                         _, new_log_probs, stats = self.pi(observations, action=actions)
 
                         # Calculating Loss
                         l_clip = self.clipped_loss(new_log_probs, log_probs, mb_advantages).mean()
-                        l_vf = self.mse_loss(new_values, mb_returns)
+                        l_vf = self.value_loss(new_values, values, mb_returns)
                         l_ent = -stats["entropy"]
 
                         loss = l_clip + self.cfg.ppo.l_ent_weight * l_ent + self.cfg.ppo.l_vf_weight * l_vf
-                        total_loss += loss.item()
 
                         # Updating Parameters
                         self.q_optim.zero_grad()
                         self.pi_optim.zero_grad()
                         loss.backward()
+                        nn.utils.clip_grad_norm_(self.q.parameters(), self.cfg.ppo.max_grad_norm)
+                        nn.utils.clip_grad_norm_(self.pi.parameters(), self.cfg.ppo.max_grad_norm)
                         self.q_optim.step()
                         self.pi_optim.step()
-                    losses.append(total_loss)
-                self.report_stats("train", {"loss": sum(losses) / len(losses)}, self.state.step)
+                self.report_stats("train", {
+                    "policy_loss": l_clip.item(),
+                    "value_loss": l_vf.item(),
+                    "entropy": -l_ent.item(),
+                    "learning_rate": self.q_optim.param_groups[0]["lr"]
+                }, self.state.step)
                 # endregion
 
                 if self.cfg.ppo.anneal_lr:

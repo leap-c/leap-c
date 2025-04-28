@@ -35,10 +35,13 @@ if __name__ == "__main__":
     cfg.ppo.num_steps = 2048
     cfg.ppo.num_mini_batches = 32
     cfg.ppo.clipping_epsilon = 0.2
-    cfg.ppo.l_vf_weight = 0.25
+    cfg.ppo.l_vf_weight = 0.5
     cfg.ppo.l_ent_weight = 0.0
     cfg.ppo.gamma = 0.99
     cfg.ppo.gae_lambda = 0.95
+    cfg.ppo.clip_value_loss = True
+    cfg.ppo.normalize_advantages = True
+    cfg.ppo.max_grad_norm = 0.5
     cfg.seed = args.seed
 
     if args.wandb_team is not None and args.wandb_project is not None:
