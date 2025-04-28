@@ -8,6 +8,7 @@ from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pointmass.mpc import PointMassMPC
 from leap_c.mpc import MpcInput, MpcParameter
 from leap_c.nn.modules import MpcSolutionModule
+from leap_c.nn.extractor import ScalingExtractor
 from leap_c.registry import register_task
 from leap_c.task import Task
 
@@ -49,16 +50,21 @@ class PointMassTask(Task):
     def create_env(self, train: bool) -> gym.Env:
         if train:
             init_state_dist = {
-                "low": np.array([0.1, -0.9, 0.0, 0.0]),
-                "high": np.array([4.5, 0.9, 0.0, 0.0]),
+                "low": np.array([0.1, 0.1, 0.0, 0.0]),
+                "high": np.array([0.3, 0.9, 0.0, 0.0]),
             }
         else:
             init_state_dist = {
-                "low": np.array([0.1, 0.0, 0.0, 0.0]),
-                "high": np.array([0.9, 0.9, 0.0, 0.0]),
+                "low": np.array([0.1, 0.1, 0.0, 0.0]),
+                "high": np.array([0.3, 0.9, 0.0, 0.0]),
             }
 
-        return PointMassEnv(max_time=10.0, init_state_dist=init_state_dist, render_mode="rgb_array")
+        return PointMassEnv(
+            max_time=10.0, init_state_dist=init_state_dist, render_mode="rgb_array"
+        )
+
+    def create_extractor(self, env):
+        return ScalingExtractor(env)
 
     def prepare_mpc_input(
         self,
@@ -67,6 +73,6 @@ class PointMassTask(Task):
         action: Optional[torch.Tensor] = None,
     ) -> MpcInput:
         mpc_param = MpcParameter(p_global=param_nn)  # type: ignore
+        obs = obs[..., :4]
 
         return MpcInput(x0=obs, parameters=mpc_param)
-    

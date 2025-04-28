@@ -138,8 +138,8 @@ class WindParcour(WindField):
     def __init__(self, magnitude: float = 10.0):
         self.magnitude = magnitude
         self.boxes = [
-            [np.array([1.0, -0.8]), np.array([2.0, 1.0])],
-            [np.array([3.0, -1.0]), np.array([4.0, 0.8])],
+            [np.array([1.0, 0.2]), np.array([2.0, 0.0])],
+            [np.array([3.0, 1.0]), np.array([4.0, 0.8])],
         ]
 
     def plot_XY(
@@ -262,8 +262,8 @@ class PointMassEnv(gym.Env):
     def __init__(
         self,
         init_state_dist: dict = {
-            "low": np.array([0.1, -0.9, 0.0, 0.0]),
-            "high": np.array([4.0, 0.9, 0.0, 0.0]),
+            "low": np.array([0.1, 0.1, 0.0, 0.0]),
+            "high": np.array([4.9, 0.9, 0.0, 0.0]),
         },
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=0.1, cy=0.1),
         Fmax: float = 10,
@@ -272,8 +272,13 @@ class PointMassEnv(gym.Env):
     ):
         # gymnasium setup
         max_v = 20
-        self.obs_low = np.array([0.0, -1.0, -max_v, -max_v], dtype=np.float32)
-        self.obs_high = np.array([5.0, 1.0, max_v, max_v], dtype=np.float32)
+        max_wind_force = 10.0
+        self.state_low = np.array([0.0, 0.0, -max_v, -max_v], dtype=np.float32)
+        self.state_high = np.array([5.0, 1.0, max_v, max_v], dtype=np.float32)
+        self.wind_low = np.array([-max_wind_force, -max_wind_force], dtype=np.float32)
+        self.wind_high = np.array([max_wind_force, max_wind_force], dtype=np.float32)
+        self.obs_high = np.concatenate([self.state_high, self.wind_high])
+        self.obs_low = np.concatenate([self.state_low, self.wind_low])
         self.action_low = np.array([-Fmax, -Fmax], dtype=np.float32)
         self.action_high = np.array([Fmax, Fmax], dtype=np.float32)
         self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
@@ -287,9 +292,8 @@ class PointMassEnv(gym.Env):
         self.Fmax = Fmax
         self.A = _A_disc(param.m, param.cx, param.cy, param.dt)
         self.B = _B_disc(param.m, param.cx, param.cy, param.dt)
-        self.goal = Circle(pos=np.array([4.5, -0.6]), radius=0.2)
-        needed_wind_force = 0  # 40
-        self.wind_field = WindParcour(magnitude=needed_wind_force)
+        self.goal = Circle(pos=np.array([4.5, 0.5]), radius=0.25)
+        self.wind_field = WindParcour(magnitude=max_wind_force)
 
         # env state
         self.state: np.ndarray | None = None
@@ -310,31 +314,29 @@ class PointMassEnv(gym.Env):
 
         # transition
         action = np.clip(action, self.action_low, self.action_high)  # type: ignore
-        force_wind = self.wind_field(self.state[:2])  # type: ignore
-        self.state = self.A @ self.state + self.B @ (action + force_wind)
+        force_wind = self.wind_field(self.state[:2])
+        self.state = self.A @ self.state + self.B @ (action + force_wind)  # type: ignore
         self.action = action  # Store the action taken
         self.time += self.dt
 
         # observation
-        o = self._observation()
         self.trajectory.append(self.state.copy())  # type: ignore
 
         # termination and truncation
-        out_of_bounds = not self.observation_space.contains(o)
-        if out_of_bounds:
-            print("Out of bounds:", o)
+        out_of_bounds = (self.state_high < self.state).any() or (self.state_low > self.state).any()
         reached_goal = self.state[:2] in self.goal  # type: ignore
-
         term = out_of_bounds or reached_goal
         trunc = self.time >= self.max_time
 
         # reward
-        dist_to_goal_x = np.abs(self.state[0] - self.goal.pos[0])  # type: ignore
-        r_dist = 1 - dist_to_goal_x / (self.obs_high[0] - self.obs_low[0])
-        r_goal = (40.0 - 20.0 * self.time / self.max_time) if reached_goal else 0.0
+        # dist_to_goal_x = np.abs(self.state[0] - self.goal.pos[0])  # type: ignore
+        # r_dist = 1 -  dist_to_goal_x / (self.state_high[0] - self.state_low[0])
+        dist_max = np.linalg.norm(self.goal.pos - self.state_low[:2])
+        r_dist = 1.0 - np.linalg.norm(self.state[:2] - self.goal.pos) / dist_max
+        r_goal = 60 * (1. - 0.5 * self.time / self.max_time) if reached_goal else 0.0
         r = 0.1 * r_dist + r_goal
 
-        return o, float(r), bool(term), bool(trunc), {}
+        return self._observation(), float(r), bool(term), bool(trunc), {}
 
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
@@ -352,14 +354,24 @@ class PointMassEnv(gym.Env):
         return self._observation(), {}
 
     def _observation(self) -> np.ndarray:
-        return self.state.copy().astype(np.float32)  # type: ignore
+        ode_state = self.state.copy().astype(np.float32)  # type: ignore
+        wind_field = self.wind_field(self.state[:2]).astype(np.float32)  # type: ignore
+        return np.concatenate([ode_state, wind_field])
 
-    def _init_state(self) -> np.ndarray:
-        # Ensure init state is float64 for internal calcs, but matches space bounds
-        # Uses the potentially updated self.init_state_dist from __init__
+    def _init_state(self, num_tries: int = 100) -> np.ndarray:
+        if num_tries <= 0:
+            raise ValueError("Could not find a valid initial state.")
+
+        # ensure that the state is not in the goal or in the wind field
         low = np.array(self.init_state_dist["low"], dtype=np.float64)
         high = np.array(self.init_state_dist["high"], dtype=np.float64)
-        return self.np_random.uniform(low=low, high=high)
+        state = self.np_random.uniform(low=low, high=high)
+
+        # check if the state is in the wind field
+        if (self.wind_field(state[:2]) != 0).any():
+            return self._init_state(num_tries - 1)
+        
+        return state
 
     def render(self) -> np.ndarray | None:
         if self.render_mode is None:
@@ -375,8 +387,8 @@ class PointMassEnv(gym.Env):
             self.fig, self.ax = plt.subplots(figsize=(10, 4))  # Wider than tall
 
             # Set limits based on observation space position with padding
-            self.ax.set_xlim(self.obs_low[0], self.obs_high[0])
-            self.ax.set_ylim(self.obs_low[1], self.obs_high[1])
+            self.ax.set_xlim(self.state_low[0], self.obs_high[0])
+            self.ax.set_ylim(self.state_low[1], self.obs_high[1])
             self.ax.set_yticks(np.arange(-1.0, 1.1, 0.5))
 
             self.ax.set_aspect(
@@ -405,8 +417,8 @@ class PointMassEnv(gym.Env):
             if self.wind_field:
                 self.wind_field.plot_wind_field(
                     self.ax,
-                    xlim=(self.obs_low[0], self.obs_high[0]),
-                    ylim=(self.obs_low[1], self.obs_high[1]),
+                    xlim=(self.state_low[0], self.obs_high[0]),
+                    ylim=(self.state_low[1], self.obs_high[1]),
                 )
 
             (self.trajectory_plot,) = self.ax.plot(

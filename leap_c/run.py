@@ -74,6 +74,10 @@ def main(
     )
 
     trainer = create_trainer(trainer_name, task, output_path, device, cfg)
+    cfg.train.steps = 1_000_000
+    # cfg.val.deterministic = False
+    cfg.sac.entropy_reward_bonus = False
+    cfg.val.ckpt_modus = "none"
 
     if continue_run and (output_path / "ckpts").exists():
         trainer.load(output_path)
