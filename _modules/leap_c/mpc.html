@@ -1,0 +1,1233 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>leap_c.mpc &mdash; leap-c 2025 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=cb975c41"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            leap-c
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">leap-c</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">leap_c.mpc</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for leap_c.mpc</h1><div class="highlight"><pre>
+<span></span><span class="kn">import</span><span class="w"> </span><span class="nn">time</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">collections</span><span class="w"> </span><span class="kn">import</span> <span class="n">defaultdict</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">fields</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">enum</span><span class="w"> </span><span class="kn">import</span> <span class="n">IntEnum</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">cached_property</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Callable</span><span class="p">,</span> <span class="n">List</span><span class="p">,</span> <span class="n">NamedTuple</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">casadi</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ca</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acados_template</span><span class="w"> </span><span class="kn">import</span> <span class="n">AcadosOcp</span><span class="p">,</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">,</span> <span class="n">AcadosOcpSolver</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acados_template.acados_multiphase_ocp</span><span class="w"> </span><span class="kn">import</span> <span class="n">AcadosMultiphaseOcp</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acados_template.acados_ocp_iterate</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AcadosOcpFlattenedBatchIterate</span><span class="p">,</span>
+    <span class="n">AcadosOcpFlattenedIterate</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.utils</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AcadosFileManager</span><span class="p">,</span>
+    <span class="n">SX_to_labels</span><span class="p">,</span>
+    <span class="n">set_standard_sensitivity_options</span><span class="p">,</span>
+<span class="p">)</span>
+
+
+<div class="viewcode-block" id="AcadosStatus">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.AcadosStatus">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AcadosStatus</span><span class="p">(</span><span class="n">IntEnum</span><span class="p">):</span>
+    <span class="n">ACADOS_SUCCESS</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">ACADOS_NAN_DETECTED</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">ACADOS_MAXITER</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">ACADOS_MINSTEP</span> <span class="o">=</span> <span class="mi">3</span>
+    <span class="n">ACADOS_QP_FAILURE</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">ACADOS_READY</span> <span class="o">=</span> <span class="mi">5</span>
+    <span class="n">ACADOS_UNBOUNDED</span> <span class="o">=</span> <span class="mi">6</span>
+    <span class="n">ACADOS_TIMEOUT</span> <span class="o">=</span> <span class="mi">7</span></div>
+
+
+
+<div class="viewcode-block" id="MpcParameter">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.MpcParameter">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MpcParameter</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A named tuple to store the parameters of the MPC planner.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        p_global: The part of p_global that should be learned in shape (n_p_global_learnable, ) or (B, n_p_global_learnable).</span>
+<span class="sd">        p_stagewise: The stagewise parameters in shape</span>
+<span class="sd">            (N+1, p_stagewise_dim) or (N+1, len(p_stagewise_sparse_idx)) if the next field is set or</span>
+<span class="sd">            (B, N+1, p_stagewise_dim) or (B, N+1, len(p_stagewise_sparse_idx)) if the next field is set.</span>
+<span class="sd">            If a multi-phase MPC is used and p_stagewise_sparse_idx is given, this is a list containing the above arrays for the respective phases.</span>
+<span class="sd">        p_stagewise_sparse_idx: If not None, stagewise parameters are set in a sparse manner, using these indices.</span>
+<span class="sd">            The indices are in shape (N+1, n_p_stagewise_sparse_idx) or (B, N+1, n_p_stagewise_sparse_idx).</span>
+<span class="sd">            If a multi-phase MPC is used this is a list containing the above arrays for the respective phases.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">p_global</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">p_stagewise</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">|</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">p_stagewise_sparse_idx</span><span class="p">:</span> <span class="n">List</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">|</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="MpcParameter.is_batched">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.MpcParameter.is_batched">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_batched</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The empty MpcParameter counts as non-batched.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_global</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_global</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span>
+        <span class="k">elif</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_stagewise</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_stagewise</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">3</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span></div>
+
+
+<div class="viewcode-block" id="MpcParameter.get_sample">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.MpcParameter.get_sample">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;MpcParameter&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the sample at index i from the batch.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_batched</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot sample from non-batched MpcParameter.&quot;</span><span class="p">)</span>
+        <span class="n">p_global</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_global</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_global</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">p_stagewise</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_stagewise</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_stagewise</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">p_stagewise_sparse_idx</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">p_stagewise_sparse_idx</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_stagewise_sparse_idx</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">MpcParameter</span><span class="p">(</span>
+            <span class="n">p_global</span><span class="o">=</span><span class="n">p_global</span><span class="p">,</span>
+            <span class="n">p_stagewise</span><span class="o">=</span><span class="n">p_stagewise</span><span class="p">,</span>
+            <span class="n">p_stagewise_sparse_idx</span><span class="o">=</span><span class="n">p_stagewise_sparse_idx</span><span class="p">,</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="MpcParameter.ensure_float64">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.MpcParameter.ensure_float64">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ensure_float64</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;MpcParameter&quot;</span><span class="p">:</span>
+        <span class="k">def</span><span class="w"> </span><span class="nf">convert</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">k</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;p_stagewise_sparse_idx&quot;</span><span class="p">]:</span>
+                <span class="k">return</span> <span class="n">v</span><span class="o">.</span><span class="n">astype</span><span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">float64</span><span class="p">)</span> <span class="k">if</span> <span class="n">v</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="k">return</span> <span class="n">v</span>
+
+        <span class="n">kw</span> <span class="o">=</span> <span class="p">{</span><span class="n">k</span><span class="p">:</span> <span class="n">convert</span><span class="p">(</span><span class="n">k</span><span class="p">,</span> <span class="n">v</span><span class="p">)</span> <span class="k">for</span> <span class="n">k</span><span class="p">,</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_asdict</span><span class="p">()</span><span class="o">.</span><span class="n">items</span><span class="p">()}</span>
+
+        <span class="k">return</span> <span class="n">MpcParameter</span><span class="p">(</span><span class="o">**</span><span class="n">kw</span><span class="p">)</span></div>
+</div>
+
+
+
+<span class="n">MpcBatchedState</span> <span class="o">=</span> <span class="n">AcadosOcpFlattenedBatchIterate</span>
+
+
+<div class="viewcode-block" id="MpcInput">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.MpcInput">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MpcInput</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A named tuple to store the input of the MPC planner.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        x0: The initial states in shape (B, x_dim) or (x_dim, ).</span>
+<span class="sd">        u0: The initial actions in shape (B, u_dim) or (u_dim, ).</span>
+<span class="sd">        parameters: The parameters of the MPC planner.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">x0</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="n">u0</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">parameters</span><span class="p">:</span> <span class="n">MpcParameter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+
+<div class="viewcode-block" id="MpcInput.is_batched">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.MpcInput.is_batched">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_batched</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">x0</span><span class="o">.</span><span class="n">ndim</span> <span class="o">==</span> <span class="mi">2</span></div>
+
+
+<div class="viewcode-block" id="MpcInput.get_sample">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.MpcInput.get_sample">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_sample</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">i</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;MpcInput&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the sample at index i from the batch.&quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_batched</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot sample from non-batched MPCInput.&quot;</span><span class="p">)</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">x0</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+        <span class="n">u0</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">u0</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="n">parameters</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">get_sample</span><span class="p">(</span><span class="n">i</span><span class="p">)</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">MpcInput</span><span class="p">(</span><span class="n">x0</span><span class="o">=</span><span class="n">x0</span><span class="p">,</span> <span class="n">u0</span><span class="o">=</span><span class="n">u0</span><span class="p">,</span> <span class="n">parameters</span><span class="o">=</span><span class="n">parameters</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="MpcOutput">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.MpcOutput">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">MpcOutput</span><span class="p">(</span><span class="n">NamedTuple</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">    A named tuple to store the solution of the MPC planner.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        status: The status of the solver.</span>
+<span class="sd">        u0: The first optimal action.</span>
+<span class="sd">        Q: The state-action value function.</span>
+<span class="sd">        V: The value function.</span>
+<span class="sd">        dvalue_du0: The sensitivity of the value function with respect to the initial action.</span>
+<span class="sd">        dvalue_dp_global: The sensitivity of the value function with respect to the global parameters.</span>
+<span class="sd">        du0_dp_global: The sensitivity of the initial action with respect to the global parameters.</span>
+<span class="sd">        du0_dx0: The sensitivity of the initial action with respect to the initial state.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">status</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># (B, ) or (1, )</span>
+    <span class="n">u0</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># (B, u_dim) or (u_dim, )</span>
+    <span class="n">Q</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># (B, ) or (1, )</span>
+    <span class="n">V</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># (B, ) or (1, )</span>
+    <span class="n">dvalue_dx0</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># (B, x_dim) or (x_dim, )</span>
+    <span class="n">dvalue_du0</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># (B, u_dim) or (u_dim, )</span>
+    <span class="n">dvalue_dp_global</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># (B, p_dim) or (p_dim, )</span>
+    <span class="n">du0_dp_global</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># (B, udim, p_dim) or (udim, p_dim)</span>
+    <span class="n">du0_dx0</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>  <span class="c1"># (B, u_dim, x_dim) or (u_dim, x_dim)</span></div>
+
+
+
+<div class="viewcode-block" id="set_ocp_solver_mpc_params_global">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.set_ocp_solver_mpc_params_global">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_ocp_solver_mpc_params_global</span><span class="p">(</span>
+    <span class="n">ocp_solver</span><span class="p">:</span> <span class="n">AcadosOcpSolver</span> <span class="o">|</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">,</span>
+    <span class="n">mpc_parameter</span><span class="p">:</span> <span class="n">MpcParameter</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">mpc_parameter</span><span class="o">.</span><span class="n">p_global</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpSolver</span><span class="p">):</span>
+        <span class="n">ocp_solver</span><span class="o">.</span><span class="n">set_p_global_and_precompute_dependencies</span><span class="p">(</span><span class="n">mpc_parameter</span><span class="o">.</span><span class="n">p_global</span><span class="p">)</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">batch_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;batch_size must be set when using AcadosOcpBatchSolver.&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">single_solver</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ocp_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;=</span> <span class="n">batch_size</span><span class="p">:</span>
+                <span class="k">break</span>
+            <span class="n">single_solver</span><span class="o">.</span><span class="n">set_p_global_and_precompute_dependencies</span><span class="p">(</span>
+                <span class="n">mpc_parameter</span><span class="o">.</span><span class="n">p_global</span><span class="p">[</span><span class="n">i</span><span class="p">]</span>
+            <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;expected AcadosOcpSolver or AcadosOcpBatchSolver, but got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="set_ocp_solver_mpc_params_stagewise">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.set_ocp_solver_mpc_params_stagewise">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_ocp_solver_mpc_params_stagewise</span><span class="p">(</span>
+    <span class="n">ocp_solver</span><span class="p">:</span> <span class="n">AcadosOcpSolver</span> <span class="o">|</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">,</span>
+    <span class="n">mpc_parameter</span><span class="p">:</span> <span class="n">MpcParameter</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">):</span>
+    <span class="k">if</span> <span class="n">mpc_parameter</span><span class="o">.</span><span class="n">p_stagewise</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpSolver</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">mpc_parameter</span><span class="o">.</span><span class="n">p_stagewise_sparse_idx</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">stage</span><span class="p">,</span> <span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span>
+                <span class="nb">zip</span><span class="p">(</span>
+                    <span class="n">mpc_parameter</span><span class="o">.</span><span class="n">p_stagewise</span><span class="p">,</span>
+                    <span class="n">mpc_parameter</span><span class="o">.</span><span class="n">p_stagewise_sparse_idx</span><span class="p">,</span>
+                <span class="p">)</span>
+            <span class="p">):</span>
+                <span class="n">ocp_solver</span><span class="o">.</span><span class="n">set_params_sparse</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="n">p</span><span class="p">,</span> <span class="n">idx</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">ocp_solver</span><span class="o">.</span><span class="n">set_flat</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">mpc_parameter</span><span class="o">.</span><span class="n">p_stagewise</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">))</span>  <span class="c1"># type:ignore</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">batch_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;batch_size must be set when using AcadosOcpBatchSolver.&quot;</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mpc_parameter</span><span class="o">.</span><span class="n">p_stagewise_sparse_idx</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>  <span class="c1"># not sparse</span>
+            <span class="n">p</span> <span class="o">=</span> <span class="n">mpc_parameter</span><span class="o">.</span><span class="n">p_stagewise</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>  <span class="c1"># type:ignore</span>
+            <span class="n">ocp_solver</span><span class="o">.</span><span class="n">set_flat</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">single_solver</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ocp_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">):</span>
+                <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;=</span> <span class="n">batch_size</span><span class="p">:</span>
+                    <span class="k">break</span>
+                <span class="n">set_ocp_solver_mpc_params</span><span class="p">(</span><span class="n">single_solver</span><span class="p">,</span> <span class="n">mpc_parameter</span><span class="o">.</span><span class="n">get_sample</span><span class="p">(</span><span class="n">i</span><span class="p">))</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;expected AcadosOcpSolver or AcadosOcpBatchSolver, but got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="set_ocp_solver_mpc_params">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.set_ocp_solver_mpc_params">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_ocp_solver_mpc_params</span><span class="p">(</span>
+    <span class="n">ocp_solver</span><span class="p">:</span> <span class="n">AcadosOcpSolver</span> <span class="o">|</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">,</span>
+    <span class="n">mpc_parameter</span><span class="p">:</span> <span class="n">MpcParameter</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">mpc_parameter</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="n">set_ocp_solver_mpc_params_global</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">mpc_parameter</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">)</span>
+    <span class="n">set_ocp_solver_mpc_params_stagewise</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">mpc_parameter</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="set_ocp_solver_iterate">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.set_ocp_solver_iterate">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_ocp_solver_iterate</span><span class="p">(</span>
+    <span class="n">ocp_solver</span><span class="p">:</span> <span class="n">AcadosOcpSolver</span> <span class="o">|</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">,</span>
+    <span class="n">ocp_iterate</span><span class="p">:</span> <span class="n">MpcBatchedState</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="n">ocp_iterate</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span>
+    <span class="k">elif</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_iterate</span><span class="p">,</span> <span class="n">AcadosOcpFlattenedBatchIterate</span><span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Expected AcadosOcpFlattenedBatchIterate, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ocp_iterate</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpSolver</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">ocp_iterate</span><span class="o">.</span><span class="n">N_batch</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Expected a batch size of 1 for a single AcadosOcpSolver.&quot;</span><span class="p">)</span>
+        <span class="n">single_iterate</span> <span class="o">=</span> <span class="n">AcadosOcpFlattenedIterate</span><span class="p">(</span>
+            <span class="n">x</span><span class="o">=</span><span class="n">ocp_iterate</span><span class="o">.</span><span class="n">x</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">u</span><span class="o">=</span><span class="n">ocp_iterate</span><span class="o">.</span><span class="n">u</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">z</span><span class="o">=</span><span class="n">ocp_iterate</span><span class="o">.</span><span class="n">z</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">pi</span><span class="o">=</span><span class="n">ocp_iterate</span><span class="o">.</span><span class="n">pi</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">lam</span><span class="o">=</span><span class="n">ocp_iterate</span><span class="o">.</span><span class="n">lam</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">sl</span><span class="o">=</span><span class="n">ocp_iterate</span><span class="o">.</span><span class="n">sl</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+            <span class="n">su</span><span class="o">=</span><span class="n">ocp_iterate</span><span class="o">.</span><span class="n">su</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+        <span class="p">)</span>
+        <span class="n">ocp_solver</span><span class="o">.</span><span class="n">load_iterate_from_flat_obj</span><span class="p">(</span><span class="n">single_iterate</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">):</span>
+        <span class="n">ocp_solver</span><span class="o">.</span><span class="n">load_iterate_from_flat_obj</span><span class="p">(</span><span class="n">ocp_iterate</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;expected AcadosOcpSolver or AcadosOcpBatchSolver, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="set_ocp_solver_initial_condition">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.set_ocp_solver_initial_condition">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_ocp_solver_initial_condition</span><span class="p">(</span>
+    <span class="n">ocp_solver</span><span class="p">:</span> <span class="n">AcadosOcpSolver</span> <span class="o">|</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">,</span>
+    <span class="n">mpc_input</span><span class="p">:</span> <span class="n">MpcInput</span><span class="p">,</span>
+    <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpSolver</span><span class="p">):</span>
+        <span class="n">x0</span> <span class="o">=</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">x0</span>
+        <span class="n">ocp_solver</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
+        <span class="n">ocp_solver</span><span class="o">.</span><span class="n">constraints_set</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;lbx&quot;</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
+        <span class="n">ocp_solver</span><span class="o">.</span><span class="n">constraints_set</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;ubx&quot;</span><span class="p">,</span> <span class="n">x0</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">u0</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">u0</span> <span class="o">=</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">u0</span>
+            <span class="n">ocp_solver</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;u&quot;</span><span class="p">,</span> <span class="n">u0</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="p">:</span>
+                <span class="n">constr</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="n">ocp_solver</span><span class="o">.</span><span class="n">acados_ocp</span><span class="o">.</span><span class="n">constraints</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="o">.</span><span class="n">acados_ocp</span><span class="p">,</span> <span class="n">AcadosMultiphaseOcp</span><span class="p">)</span>
+                    <span class="k">else</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">acados_ocp</span><span class="o">.</span><span class="n">constraints</span>
+                <span class="p">)</span>
+                <span class="k">if</span> <span class="n">constr</span><span class="o">.</span><span class="n">lbu</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">u0</span> <span class="o">&lt;</span> <span class="n">constr</span><span class="o">.</span><span class="n">lbu</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;You are about to set an initial control that is below the defined lower bound.&quot;</span>
+                    <span class="p">)</span>
+                <span class="k">elif</span> <span class="n">constr</span><span class="o">.</span><span class="n">ubu</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="mi">0</span> <span class="ow">and</span> <span class="n">np</span><span class="o">.</span><span class="n">any</span><span class="p">(</span><span class="n">u0</span> <span class="o">&gt;</span> <span class="n">constr</span><span class="o">.</span><span class="n">ubu</span><span class="p">):</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="s2">&quot;You are about to set an initial control that is above the defined upper bound.&quot;</span>
+                    <span class="p">)</span>
+            <span class="n">ocp_solver</span><span class="o">.</span><span class="n">constraints_set</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;lbu&quot;</span><span class="p">,</span> <span class="n">u0</span><span class="p">)</span>
+            <span class="n">ocp_solver</span><span class="o">.</span><span class="n">constraints_set</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;ubu&quot;</span><span class="p">,</span> <span class="n">u0</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">batch_size</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;batch_size must be set when using AcadosOcpBatchSolver.&quot;</span><span class="p">)</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">ocp</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ocp_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">i</span> <span class="o">&gt;=</span> <span class="n">batch_size</span><span class="p">:</span>
+                <span class="k">break</span>
+
+            <span class="n">set_ocp_solver_initial_condition</span><span class="p">(</span>
+                <span class="n">ocp</span><span class="p">,</span>
+                <span class="n">mpc_input</span><span class="o">.</span><span class="n">get_sample</span><span class="p">(</span><span class="n">i</span><span class="p">),</span>
+                <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="o">=</span><span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="p">,</span>
+            <span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;expected AcadosOcpSolver or AcadosOcpBatchSolver, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="initialize_ocp_solver">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.initialize_ocp_solver">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">initialize_ocp_solver</span><span class="p">(</span>
+    <span class="n">ocp_solver</span><span class="p">:</span> <span class="n">AcadosOcpSolver</span> <span class="o">|</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">,</span>
+    <span class="n">mpc_input</span><span class="p">:</span> <span class="n">MpcInput</span><span class="p">,</span>
+    <span class="n">ocp_iterate</span><span class="p">:</span> <span class="n">MpcBatchedState</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">set_params</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Initializes the fields of the OCP (batch) solver with the given values.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        ocp_solver: The OCP (batch) solver to initialize.</span>
+<span class="sd">        mpc_input: The MPCInput containing the parameters to set in the OCP (batch) solver</span>
+<span class="sd">            and the state and possibly control that will be used for the initial conditions.</span>
+<span class="sd">        ocp_iterate: The iterate of the solver to use as initialization.</span>
+<span class="sd">        set_params: Whether to set the MPC parameters of the OCP (batch) solver.</span>
+<span class="sd">        throw_error_if_u0_is_outside_ocp_bounds: If True, an error will be thrown when given an u0 in mpc_input that</span>
+<span class="sd">            is outside the box constraints defined in the cop</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">is_batched</span><span class="p">():</span>
+        <span class="n">batch_size</span> <span class="o">=</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">x0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Input has to be batched when using a batch solver&quot;</span><span class="p">)</span>
+        <span class="n">batch_size</span> <span class="o">=</span> <span class="kc">None</span>
+
+    <span class="n">set_ocp_solver_iterate</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">ocp_iterate</span><span class="p">)</span>
+    <span class="k">if</span> <span class="n">set_params</span><span class="p">:</span>
+        <span class="n">set_ocp_solver_mpc_params</span><span class="p">(</span>
+            <span class="n">ocp_solver</span><span class="p">,</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">parameters</span><span class="p">,</span> <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span>
+        <span class="p">)</span>
+    <span class="c1"># Set the initial conditions after setting the iterate, in case the given iterate contains a different value</span>
+    <span class="n">set_ocp_solver_initial_condition</span><span class="p">(</span>
+        <span class="n">ocp_solver</span><span class="p">,</span>
+        <span class="n">mpc_input</span><span class="p">,</span>
+        <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="o">=</span><span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="o">=</span><span class="n">batch_size</span><span class="p">,</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="unset_ocp_solver_initial_control_constraints">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.unset_ocp_solver_initial_control_constraints">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">unset_ocp_solver_initial_control_constraints</span><span class="p">(</span>
+    <span class="n">ocp_solver</span><span class="p">:</span> <span class="n">AcadosOcpSolver</span> <span class="o">|</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Unset the initial control constraints of the OCP (batch) solver.&quot;&quot;&quot;</span>
+
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpSolver</span><span class="p">):</span>
+        <span class="n">ocp_solver</span><span class="o">.</span><span class="n">constraints_set</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;lbu&quot;</span><span class="p">,</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">acados_ocp</span><span class="o">.</span><span class="n">constraints</span><span class="o">.</span><span class="n">lbu</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+        <span class="n">ocp_solver</span><span class="o">.</span><span class="n">constraints_set</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;ubu&quot;</span><span class="p">,</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">acados_ocp</span><span class="o">.</span><span class="n">constraints</span><span class="o">.</span><span class="n">ubu</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">ocp_solver</span> <span class="ow">in</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">:</span>
+            <span class="n">unset_ocp_solver_initial_control_constraints</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;expected AcadosOcpSolver or AcadosOcpBatchSolver, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="set_ocp_solver_to_default">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.set_ocp_solver_to_default">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_ocp_solver_to_default</span><span class="p">(</span>
+    <span class="n">ocp_solver</span><span class="p">:</span> <span class="n">AcadosOcpSolver</span> <span class="o">|</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">,</span>
+    <span class="n">default_mpc_parameters</span><span class="p">:</span> <span class="n">MpcParameter</span><span class="p">,</span>
+    <span class="n">unset_u0</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Resets the OCP (batch) solver to remove any &quot;state&quot; to be carried over in the next call.</span>
+<span class="sd">    Since the init function or a given iterate is being used to override the state of the solver anyways,</span>
+<span class="sd">    we don&#39;t need to call ocp_solver.reset().</span>
+<span class="sd">    This entails:</span>
+<span class="sd">    - Setting the parameters to the default values (since the default is consistent over the batch, the given MpcParameter must not be batched).</span>
+<span class="sd">    - Unsetting the initial control constraints if they were set.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpSolver</span><span class="p">):</span>
+        <span class="k">if</span> <span class="n">unset_u0</span><span class="p">:</span>
+            <span class="n">unset_ocp_solver_initial_control_constraints</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">)</span>
+        <span class="n">set_ocp_solver_mpc_params</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">default_mpc_parameters</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">ocp_solver</span> <span class="ow">in</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">:</span>
+            <span class="n">set_ocp_solver_to_default</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">default_mpc_parameters</span><span class="p">,</span> <span class="n">unset_u0</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;expected AcadosOcpSolver or AcadosOcpBatchSolver, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="set_discount_factor">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.set_discount_factor">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">set_discount_factor</span><span class="p">(</span>
+    <span class="n">ocp_solver</span><span class="p">:</span> <span class="n">AcadosOcpSolver</span> <span class="o">|</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">,</span> <span class="n">discount_factor</span><span class="p">:</span> <span class="nb">float</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpSolver</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">stage</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">ocp_solver</span><span class="o">.</span><span class="n">acados_ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">N_horizon</span> <span class="o">+</span> <span class="mi">1</span><span class="p">):</span>  <span class="c1"># type: ignore</span>
+            <span class="n">ocp_solver</span><span class="o">.</span><span class="n">cost_set</span><span class="p">(</span><span class="n">stage</span><span class="p">,</span> <span class="s2">&quot;scaling&quot;</span><span class="p">,</span> <span class="n">discount_factor</span><span class="o">**</span><span class="n">stage</span><span class="p">)</span>
+
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">):</span>
+        <span class="k">for</span> <span class="n">ocp_solver</span> <span class="ow">in</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">:</span>
+            <span class="n">set_discount_factor</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">discount_factor</span><span class="p">)</span>
+
+    <span class="k">else</span><span class="p">:</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;expected AcadosOcpSolver or AcadosOcpBatchSolver, got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span></div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_solve_shared</span><span class="p">(</span>
+    <span class="n">solver</span><span class="p">:</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">,</span>
+    <span class="n">sensitivity_solver</span><span class="p">:</span> <span class="n">AcadosOcpBatchSolver</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">mpc_input</span><span class="p">:</span> <span class="n">MpcInput</span><span class="p">,</span>
+    <span class="n">mpc_state</span><span class="p">:</span> <span class="n">MpcBatchedState</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">backup_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">MpcInput</span><span class="p">],</span> <span class="n">MpcBatchedState</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">Any</span><span class="p">]:</span>
+    <span class="n">batch_size</span> <span class="o">=</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">x0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="c1"># Use the backup function to get an iterate in the first solve already, if no iterate is given.</span>
+    <span class="c1"># Else no iterate is used, which means the iterate of the resetted solver is used (i.e. all iterates are set to 0).</span>
+    <span class="k">if</span> <span class="n">mpc_state</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">backup_fn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">iterate</span> <span class="o">=</span> <span class="n">backup_fn</span><span class="p">(</span><span class="n">mpc_input</span><span class="p">)</span>  <span class="c1"># type:ignore</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">iterate</span> <span class="o">=</span> <span class="n">mpc_state</span>
+    <span class="n">initialize_ocp_solver</span><span class="p">(</span>
+        <span class="n">ocp_solver</span><span class="o">=</span><span class="n">solver</span><span class="p">,</span>
+        <span class="n">mpc_input</span><span class="o">=</span><span class="n">mpc_input</span><span class="p">,</span>
+        <span class="n">ocp_iterate</span><span class="o">=</span><span class="n">iterate</span><span class="p">,</span>
+        <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="o">=</span><span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+    <span class="n">solver</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">n_batch</span><span class="o">=</span><span class="n">batch_size</span><span class="p">)</span>
+    <span class="n">stop</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+
+    <span class="n">solve_stats</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+    <span class="n">solve_stats</span><span class="p">[</span><span class="s2">&quot;whole_solve&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">stop</span> <span class="o">-</span> <span class="n">start</span>  <span class="c1"># type:ignore</span>
+
+    <span class="n">stats_batch</span> <span class="o">=</span> <span class="n">defaultdict</span><span class="p">(</span><span class="nb">list</span><span class="p">)</span>
+    <span class="n">status_batch</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">backup_status_batch</span> <span class="o">=</span> <span class="p">[]</span>
+    <span class="n">any_failed</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="n">ocp_solvers</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">[:</span><span class="n">batch_size</span><span class="p">]</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">ocp_solver</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ocp_solvers</span><span class="p">):</span>
+        <span class="c1"># TODO (Jasper): Providing batch statistics could be moved to acados</span>
+        <span class="n">status</span> <span class="o">=</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">status</span>
+        <span class="n">status_batch</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">status</span><span class="p">)</span>
+        <span class="n">stats_batch</span><span class="p">[</span><span class="s2">&quot;sqp_iter&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ocp_solver</span><span class="o">.</span><span class="n">get_stats</span><span class="p">(</span><span class="s2">&quot;sqp_iter&quot;</span><span class="p">))</span>
+        <span class="n">stats_batch</span><span class="p">[</span><span class="s2">&quot;qp_iter&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ocp_solver</span><span class="o">.</span><span class="n">get_stats</span><span class="p">(</span><span class="s2">&quot;qp_iter&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">())</span>  <span class="c1"># type:ignore</span>
+        <span class="n">stats_batch</span><span class="p">[</span><span class="s2">&quot;time_tot&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ocp_solver</span><span class="o">.</span><span class="n">get_stats</span><span class="p">(</span><span class="s2">&quot;time_tot&quot;</span><span class="p">))</span>
+        <span class="k">if</span> <span class="n">status</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">any_failed</span> <span class="o">=</span> <span class="kc">True</span>
+
+    <span class="k">if</span> <span class="p">(</span>
+        <span class="n">any_failed</span> <span class="ow">and</span> <span class="n">backup_fn</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">iterate</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+    <span class="p">):</span>  <span class="c1"># Reattempt with backup</span>
+        <span class="c1"># TODO (Jasper): Currently we do a global resolve!</span>
+        <span class="c1">#   - It is not clear how problematic this is, as the individual solver directly converges.</span>
+        <span class="c1">#   - Option A: We leave it like this.</span>
+        <span class="c1">#   - Option B: We generate a new batch and load the iterate into the first n solvers.</span>
+        <span class="c1">#   - Option C: Acados provides an idx functionality allowing to select which solvers to run.</span>
+
+        <span class="c1"># build new batch</span>
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">ocp_solver</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ocp_solvers</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">status_batch</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">!=</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="n">single_input</span> <span class="o">=</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">get_sample</span><span class="p">(</span><span class="n">i</span><span class="p">)</span>
+                <span class="n">initialize_ocp_solver</span><span class="p">(</span>
+                    <span class="n">ocp_solver</span><span class="o">=</span><span class="n">ocp_solver</span><span class="p">,</span>
+                    <span class="n">mpc_input</span><span class="o">=</span><span class="n">single_input</span><span class="p">,</span>
+                    <span class="n">ocp_iterate</span><span class="o">=</span><span class="n">backup_fn</span><span class="p">(</span><span class="n">single_input</span><span class="p">),</span>  <span class="c1"># type:ignore</span>
+                    <span class="n">set_params</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                    <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="o">=</span><span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="p">,</span>
+                <span class="p">)</span>
+        <span class="n">start</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+        <span class="n">solver</span><span class="o">.</span><span class="n">solve</span><span class="p">(</span><span class="n">n_batch</span><span class="o">=</span><span class="n">batch_size</span><span class="p">)</span>
+        <span class="n">stop</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">perf_counter</span><span class="p">()</span>
+        <span class="n">solve_stats</span><span class="p">[</span><span class="s2">&quot;whole_solve&quot;</span><span class="p">]</span> <span class="o">+=</span> <span class="n">stop</span> <span class="o">-</span> <span class="n">start</span>
+
+        <span class="n">reattempts</span> <span class="o">=</span> <span class="mi">0</span>
+
+        <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">ocp_solver</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">ocp_solvers</span><span class="p">):</span>
+            <span class="c1"># Only update the stats if a resolve was attempted</span>
+            <span class="k">if</span> <span class="n">status_batch</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                <span class="k">continue</span>
+            <span class="n">reattempts</span> <span class="o">+=</span> <span class="mi">1</span>
+            <span class="n">stats_batch</span><span class="p">[</span><span class="s2">&quot;sqp_iter&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">get_stats</span><span class="p">(</span><span class="s2">&quot;sqp_iter&quot;</span><span class="p">)</span>
+            <span class="n">stats_batch</span><span class="p">[</span><span class="s2">&quot;qp_iter&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">get_stats</span><span class="p">(</span><span class="s2">&quot;qp_iter&quot;</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>  <span class="c1"># type:ignore</span>
+            <span class="n">stats_batch</span><span class="p">[</span><span class="s2">&quot;time_tot&quot;</span><span class="p">][</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">get_stats</span><span class="p">(</span><span class="s2">&quot;time_tot&quot;</span><span class="p">)</span>  <span class="c1"># type:ignore</span>
+
+            <span class="n">backup_status_batch</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ocp_solver</span><span class="o">.</span><span class="n">status</span><span class="p">)</span>
+
+        <span class="n">solve_stats</span><span class="p">[</span><span class="s2">&quot;backup_rate&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">reattempts</span> <span class="o">/</span> <span class="n">batch_size</span>
+
+    <span class="c1"># report each status individually</span>
+    <span class="n">status_batch</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">status_batch</span><span class="p">)</span>
+    <span class="n">backup_status_batch</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">backup_status_batch</span><span class="p">)</span>
+
+    <span class="k">for</span> <span class="n">i</span><span class="p">,</span> <span class="n">status_enum</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="n">AcadosStatus</span><span class="p">):</span>
+        <span class="n">name</span> <span class="o">=</span> <span class="n">status_enum</span><span class="o">.</span><span class="n">name</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span>
+
+        <span class="n">n_equal</span> <span class="o">=</span> <span class="p">(</span><span class="n">status_batch</span> <span class="o">==</span> <span class="n">status_enum</span><span class="o">.</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+        <span class="n">solve_stats</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;status_</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span><span class="n">n_equal</span> <span class="o">/</span> <span class="n">batch_size</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">backup_status_batch</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">:</span>
+            <span class="n">backup_n_equal</span> <span class="o">=</span> <span class="p">(</span><span class="n">backup_status_batch</span> <span class="o">==</span> <span class="n">status_enum</span><span class="o">.</span><span class="n">value</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+            <span class="n">solve_stats</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;backup_status_</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="nb">float</span><span class="p">(</span>
+                <span class="n">backup_n_equal</span> <span class="o">/</span> <span class="nb">len</span><span class="p">(</span><span class="n">backup_status_batch</span><span class="p">)</span>
+            <span class="p">)</span>
+
+    <span class="c1"># report batch statistics with avg, min, max</span>
+    <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="n">stats_batch</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+        <span class="n">values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span><span class="n">values</span><span class="p">)</span>
+        <span class="n">solve_stats</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">_avg&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+        <span class="n">solve_stats</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">_min&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">min</span><span class="p">()</span>
+        <span class="n">solve_stats</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">key</span><span class="si">}</span><span class="s2">_max&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">values</span><span class="o">.</span><span class="n">max</span><span class="p">()</span>
+
+    <span class="k">if</span> <span class="n">sensitivity_solver</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="c1"># Mask LS-parameters</span>
+        <span class="k">if</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">parameters</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">sens_input</span> <span class="o">=</span> <span class="n">MpcInput</span><span class="p">(</span>
+                <span class="n">x0</span><span class="o">=</span><span class="n">mpc_input</span><span class="o">.</span><span class="n">x0</span><span class="p">,</span>
+                <span class="n">u0</span><span class="o">=</span><span class="n">mpc_input</span><span class="o">.</span><span class="n">u0</span><span class="p">,</span>
+                <span class="n">parameters</span><span class="o">=</span><span class="n">MpcParameter</span><span class="p">(</span>
+                    <span class="n">p_global</span><span class="o">=</span><span class="n">mpc_input</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">p_global</span><span class="p">,</span>
+                    <span class="n">p_stagewise</span><span class="o">=</span><span class="n">mpc_input</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">p_stagewise</span><span class="p">,</span>
+                    <span class="n">p_stagewise_sparse_idx</span><span class="o">=</span><span class="n">mpc_input</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">p_stagewise_sparse_idx</span><span class="p">,</span>
+                <span class="p">),</span>
+            <span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">sens_input</span> <span class="o">=</span> <span class="n">mpc_input</span>
+        <span class="n">initialize_ocp_solver</span><span class="p">(</span>
+            <span class="n">ocp_solver</span><span class="o">=</span><span class="n">sensitivity_solver</span><span class="p">,</span>
+            <span class="n">mpc_input</span><span class="o">=</span><span class="n">sens_input</span><span class="p">,</span>
+            <span class="n">ocp_iterate</span><span class="o">=</span><span class="n">solver</span><span class="o">.</span><span class="n">store_iterate_to_flat_obj</span><span class="p">(),</span>
+            <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="o">=</span><span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">sensitivity_solver</span><span class="o">.</span><span class="n">setup_qp_matrices_and_factorize</span><span class="p">(</span><span class="n">n_batch</span><span class="o">=</span><span class="n">batch_size</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">solve_stats</span>
+
+
+<div class="viewcode-block" id="turn_on_warmstart">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.turn_on_warmstart">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">turn_on_warmstart</span><span class="p">(</span><span class="n">acados_ocp</span><span class="p">:</span> <span class="n">AcadosOcp</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span>
+        <span class="n">acados_ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">qp_solver_warm_start</span>
+        <span class="ow">and</span> <span class="n">acados_ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">nlp_solver_warm_start_first_qp</span>
+        <span class="ow">and</span> <span class="n">acados_ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">nlp_solver_warm_start_first_qp_from_nlp</span>
+    <span class="p">):</span>
+        <span class="nb">print</span><span class="p">(</span>
+            <span class="s2">&quot;WARNING: Warmstart is not enabled. We will enable it for our initialization strategies to work properly.&quot;</span>
+        <span class="p">)</span>
+    <span class="n">acados_ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">qp_solver_warm_start</span> <span class="o">=</span> <span class="mi">0</span>
+    <span class="n">acados_ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">nlp_solver_warm_start_first_qp</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">acados_ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">nlp_solver_warm_start_first_qp_from_nlp</span> <span class="o">=</span> <span class="kc">True</span></div>
+
+
+
+<div class="viewcode-block" id="create_zero_init_state_fn">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.create_zero_init_state_fn">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_zero_init_state_fn</span><span class="p">(</span>
+    <span class="n">solver</span><span class="p">:</span> <span class="n">AcadosOcpSolver</span><span class="p">,</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">MpcInput</span><span class="p">],</span> <span class="n">MpcBatchedState</span><span class="p">]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a function that initializes the solver iterate with zeros.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        solver: The solver to initialize.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        The function that initializes the solver iterate with zeros.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="n">iterate</span> <span class="o">=</span> <span class="n">solver</span><span class="o">.</span><span class="n">store_iterate_to_flat_obj</span><span class="p">()</span>
+
+    <span class="c1"># overwrite the iterate with zeros</span>
+    <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">(</span><span class="n">iterate</span><span class="p">):</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span>
+        <span class="nb">setattr</span><span class="p">(</span><span class="n">iterate</span><span class="p">,</span> <span class="n">n</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">zeros_like</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">iterate</span><span class="p">,</span> <span class="n">n</span><span class="p">)))</span>  <span class="c1"># type: ignore</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">init_state_fn</span><span class="p">(</span><span class="n">mpc_input</span><span class="p">:</span> <span class="n">MpcInput</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MpcBatchedState</span><span class="p">:</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">is_batched</span><span class="p">():</span>
+            <span class="n">batch_size</span> <span class="o">=</span> <span class="mi">1</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">batch_size</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">mpc_input</span><span class="o">.</span><span class="n">x0</span><span class="p">)</span>
+        <span class="n">kw</span> <span class="o">=</span> <span class="p">{}</span>
+
+        <span class="k">for</span> <span class="n">f</span> <span class="ow">in</span> <span class="n">fields</span><span class="p">(</span><span class="n">iterate</span><span class="p">):</span>
+            <span class="n">n</span> <span class="o">=</span> <span class="n">f</span><span class="o">.</span><span class="n">name</span>
+            <span class="n">kw</span><span class="p">[</span><span class="n">n</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="nb">getattr</span><span class="p">(</span><span class="n">iterate</span><span class="p">,</span> <span class="n">n</span><span class="p">),</span> <span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+
+        <span class="k">return</span> <span class="n">AcadosOcpFlattenedBatchIterate</span><span class="p">(</span><span class="o">**</span><span class="n">kw</span><span class="p">,</span> <span class="n">N_batch</span><span class="o">=</span><span class="n">batch_size</span><span class="p">)</span>
+
+    <span class="k">return</span> <span class="n">init_state_fn</span></div>
+
+
+
+<div class="viewcode-block" id="Mpc">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.Mpc">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Mpc</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Mpc abstract base class.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">ocp</span><span class="p">:</span> <span class="n">AcadosOcp</span><span class="p">,</span>
+        <span class="n">ocp_sensitivity</span><span class="p">:</span> <span class="n">AcadosOcp</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">discount_factor</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">init_state_fn</span><span class="p">:</span> <span class="n">Callable</span><span class="p">[[</span><span class="n">MpcInput</span><span class="p">],</span> <span class="n">MpcBatchedState</span><span class="p">]</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">n_batch_max</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">256</span><span class="p">,</span>
+        <span class="n">num_threads_in_batch_methods</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span><span class="p">,</span>
+        <span class="n">export_directory</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">export_directory_sensitivity</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">):</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;</span>
+<span class="sd">        Initialize the MPC object.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            ocp: Optimal control problem formulation used for solving the OCP.</span>
+<span class="sd">            ocp_sensitivity: The optimal control problem formulation to use for sensitivities.</span>
+<span class="sd">                If None, the sensitivity problem is derived from the ocp, however only the EXTERNAL cost type is allowed then.</span>
+<span class="sd">                For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .</span>
+<span class="sd">            discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.</span>
+<span class="sd">            init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.</span>
+<span class="sd">            n_batch_max: Maximum batch size.</span>
+<span class="sd">            num_threads_in_batch_methods: Number of threads to use in the batch methods.</span>
+<span class="sd">            export_directory: Directory to export the generated code.</span>
+<span class="sd">            export_directory_sensitivity: Directory to export the generated</span>
+<span class="sd">                code for the sensitivity problem.</span>
+<span class="sd">            throw_error_if_u0_is_outside_ocp_bounds: If True, an error will be thrown when given an u0 in mpc_input that</span>
+<span class="sd">                is outside the box constraints defined in the ocp.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span> <span class="o">=</span> <span class="n">ocp</span>
+
+        <span class="k">if</span> <span class="n">ocp_sensitivity</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># setup OCP for sensitivity solver</span>
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="n">ocp</span><span class="o">.</span><span class="n">cost</span><span class="o">.</span><span class="n">cost_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;EXTERNAL&quot;</span><span class="p">,</span> <span class="s2">&quot;NONLINEAR_LS&quot;</span><span class="p">]</span>
+                <span class="ow">or</span> <span class="n">ocp</span><span class="o">.</span><span class="n">cost</span><span class="o">.</span><span class="n">cost_type_0</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;EXTERNAL&quot;</span><span class="p">,</span> <span class="s2">&quot;NONLINEAR_LS&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">]</span>
+                <span class="ow">or</span> <span class="n">ocp</span><span class="o">.</span><span class="n">cost</span><span class="o">.</span><span class="n">cost_type_e</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;EXTERNAL&quot;</span><span class="p">,</span> <span class="s2">&quot;NONLINEAR_LS&quot;</span><span class="p">]</span>
+            <span class="p">):</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="s2">&quot;Automatic derivation of sensitivity problem is only supported for EXTERNAL or NONLINEAR_LS cost types.&quot;</span>
+                <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ocp_sensitivity</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">ocp</span><span class="p">)</span>
+            <span class="c1"># TODO: check using acados if sens solver is needed, see __uses_exact_hessian in acados. Then remove linear_mpc class.</span>
+
+            <span class="n">set_standard_sensitivity_options</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ocp_sensitivity</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ocp_sensitivity</span> <span class="o">=</span> <span class="n">ocp_sensitivity</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">cost</span><span class="o">.</span><span class="n">cost_type_0</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;EXTERNAL&quot;</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">translate_initial_cost_term_to_external</span><span class="p">(</span>
+                <span class="n">cost_hessian</span><span class="o">=</span><span class="n">ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">hessian_approx</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ocp_sensitivity</span><span class="o">.</span><span class="n">translate_initial_cost_term_to_external</span><span class="p">(</span>
+                <span class="n">cost_hessian</span><span class="o">=</span><span class="s2">&quot;EXACT&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">cost</span><span class="o">.</span><span class="n">cost_type</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;EXTERNAL&quot;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">translate_intermediate_cost_term_to_external</span><span class="p">(</span>
+                <span class="n">cost_hessian</span><span class="o">=</span><span class="n">ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">hessian_approx</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ocp_sensitivity</span><span class="o">.</span><span class="n">translate_intermediate_cost_term_to_external</span><span class="p">(</span>
+                <span class="n">cost_hessian</span><span class="o">=</span><span class="s2">&quot;EXACT&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">cost</span><span class="o">.</span><span class="n">cost_type_e</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span><span class="s2">&quot;EXTERNAL&quot;</span><span class="p">]:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">translate_terminal_cost_term_to_external</span><span class="p">(</span>
+                <span class="n">cost_hessian</span><span class="o">=</span><span class="n">ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">hessian_approx</span>
+            <span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ocp_sensitivity</span><span class="o">.</span><span class="n">translate_terminal_cost_term_to_external</span><span class="p">(</span>
+                <span class="n">cost_hessian</span><span class="o">=</span><span class="s2">&quot;EXACT&quot;</span>
+            <span class="p">)</span>
+
+        <span class="n">turn_on_warmstart</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="p">)</span>
+
+        <span class="c1"># turn_on_warmstart(self.ocp_sensitivity)</span>
+
+        <span class="c1"># path management</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">afm</span> <span class="o">=</span> <span class="n">AcadosFileManager</span><span class="p">(</span><span class="n">export_directory</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">afm_batch</span> <span class="o">=</span> <span class="n">AcadosFileManager</span><span class="p">(</span><span class="n">export_directory</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">afm_sens</span> <span class="o">=</span> <span class="n">AcadosFileManager</span><span class="p">(</span><span class="n">export_directory_sensitivity</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">afm_sens_batch</span> <span class="o">=</span> <span class="n">AcadosFileManager</span><span class="p">(</span><span class="n">export_directory_sensitivity</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_num_threads_in_batch_methods</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">num_threads_in_batch_methods</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">n_batch_max</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">n_batch_max</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">_discount_factor</span> <span class="o">=</span> <span class="n">discount_factor</span>
+        <span class="k">if</span> <span class="n">init_state_fn</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">ocp_solver</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">init_state_fn</span> <span class="o">=</span> <span class="n">create_zero_init_state_fn</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">init_state_fn</span> <span class="o">=</span> <span class="n">init_state_fn</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">param_labels</span> <span class="o">=</span> <span class="n">SX_to_labels</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">p_global</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">throw_error_if_u0_is_outside_ocp_bounds</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span>
+        <span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_call_stats</span><span class="p">:</span> <span class="nb">dict</span> <span class="o">=</span> <span class="nb">dict</span><span class="p">()</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ocp_solver</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AcadosOcpSolver</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ocp_sensitivity_solver</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AcadosOcpSolver</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_sensitivity_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ocp_batch_solver</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">:</span>
+        <span class="n">ocp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span>
+        <span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">name</span> <span class="o">+=</span> <span class="s2">&quot;_batch&quot;</span>  <span class="c1"># type:ignore</span>
+
+        <span class="n">batch_solver</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">afm_batch</span><span class="o">.</span><span class="n">setup_acados_ocp_batch_solver</span><span class="p">(</span>
+            <span class="n">ocp</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_batch_max</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_threads_in_batch_methods</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_discount_factor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">set_discount_factor</span><span class="p">(</span><span class="n">batch_solver</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_discount_factor</span><span class="p">)</span>
+        <span class="n">set_ocp_solver_to_default</span><span class="p">(</span>
+            <span class="n">batch_solver</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_full_mpcparameter</span><span class="p">,</span> <span class="n">unset_u0</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">batch_solver</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">ocp_batch_sensitivity_solver</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">:</span>
+        <span class="n">ocp</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp_sensitivity</span>
+        <span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">name</span> <span class="o">+=</span> <span class="s2">&quot;_batch&quot;</span>  <span class="c1"># type:ignore</span>
+
+        <span class="n">batch_solver</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">afm_sens_batch</span><span class="o">.</span><span class="n">setup_acados_ocp_batch_solver</span><span class="p">(</span>
+            <span class="n">ocp</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">n_batch_max</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_threads_in_batch_methods</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_discount_factor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">set_discount_factor</span><span class="p">(</span><span class="n">batch_solver</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_discount_factor</span><span class="p">)</span>
+        <span class="n">set_ocp_solver_to_default</span><span class="p">(</span>
+            <span class="n">batch_solver</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_sens_mpcparameter</span><span class="p">,</span> <span class="n">unset_u0</span><span class="o">=</span><span class="kc">True</span>
+        <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">batch_solver</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">p_global_dim</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the dimension of p_global.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">default_p_global</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default_p_global</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="mi">0</span>
+        <span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">num_threads_batch_methods</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;The number of threads to use in the batch methods.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_num_threads_in_batch_methods</span>
+
+    <span class="nd">@num_threads_batch_methods</span><span class="o">.</span><span class="n">setter</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">num_threads_batch_methods</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">n_threads</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_num_threads_in_batch_methods</span> <span class="o">=</span> <span class="n">n_threads</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_solver</span><span class="o">.</span><span class="n">num_threads_in_batch_solve</span> <span class="o">=</span> <span class="n">n_threads</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_sensitivity_solver</span><span class="o">.</span><span class="n">num_threads_in_batch_solve</span> <span class="o">=</span> <span class="n">n_threads</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">N</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">N_horizon</span>  <span class="c1"># type: ignore</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_p_global</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the default p_global.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">p_global_values</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_model_p_legal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">p_global</span><span class="p">)</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_p_stagewise</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the default p_stagewise.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">parameter_values</span><span class="p">,</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N</span> <span class="o">+</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">is_model_p_legal</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ocp_sensitivity</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">p</span><span class="p">)</span>
+            <span class="k">else</span> <span class="kc">None</span>
+        <span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_full_mpcparameter</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MpcParameter</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the full default MpcParameter.&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">MpcParameter</span><span class="p">(</span>
+            <span class="n">p_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">default_p_global</span><span class="p">,</span>
+            <span class="n">p_stagewise</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">default_p_stagewise</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="nd">@cached_property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">default_sens_mpcparameter</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">MpcParameter</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Return the default MpcParameter for sensitivity solver.</span>
+<span class="sd">        It does not contain the LS-parameters&quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="n">MpcParameter</span><span class="p">(</span>
+            <span class="n">p_global</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">default_p_global</span><span class="p">,</span>
+            <span class="n">p_stagewise</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">default_p_stagewise</span><span class="p">,</span>
+        <span class="p">)</span>
+
+<div class="viewcode-block" id="Mpc.is_model_p_legal">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.Mpc.is_model_p_legal">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_model_p_legal</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">model_p</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">model_p</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">return</span> <span class="kc">False</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model_p</span><span class="p">,</span> <span class="n">ca</span><span class="o">.</span><span class="n">SX</span><span class="p">):</span>
+            <span class="k">return</span> <span class="mi">0</span> <span class="ow">not</span> <span class="ow">in</span> <span class="n">model_p</span><span class="o">.</span><span class="n">shape</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model_p</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">model_p</span><span class="o">.</span><span class="n">size</span> <span class="o">!=</span> <span class="mi">0</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model_p</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">or</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">model_p</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">):</span>
+            <span class="k">return</span> <span class="nb">len</span><span class="p">(</span><span class="n">model_p</span><span class="p">)</span> <span class="o">!=</span> <span class="mi">0</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown case for model_p, type is </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">model_p</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="Mpc.policy">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.Mpc.policy">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">policy</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">state</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">p_global</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">p_stagewise</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">p_stagewise_sparse_idx</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">solver_state</span><span class="p">:</span> <span class="n">MpcBatchedState</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">MpcBatchedState</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Compute the policy for a given state.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            state: The state for which to compute the policy.</span>
+<span class="sd">            p_global: The global parameters.</span>
+<span class="sd">            p_stagewise: The stagewise parameters.</span>
+<span class="sd">            p_stagewise_sparse_idx: The sparse indices of the stagewise parameters.</span>
+<span class="sd">            solver_state: The iterate of the solver to use as initialization. If None, the</span>
+<span class="sd">                solver is initialized using its init_state_fn.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The action (or control), the state and status of the solver.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">def</span><span class="w"> </span><span class="nf">batchify</span><span class="p">(</span><span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">x</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+                <span class="k">return</span> <span class="n">x</span>
+            <span class="k">if</span> <span class="n">x</span><span class="o">.</span><span class="n">ndim</span> <span class="o">!=</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Policy input should not be batched!&quot;</span><span class="p">)</span>
+
+            <span class="k">return</span> <span class="n">x</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="n">state</span> <span class="o">=</span> <span class="n">batchify</span><span class="p">(</span><span class="n">state</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">all</span><span class="p">(</span><span class="n">p</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">for</span> <span class="n">p</span> <span class="ow">in</span> <span class="p">[</span><span class="n">p_global</span><span class="p">,</span> <span class="n">p_stagewise</span><span class="p">,</span> <span class="n">p_stagewise_sparse_idx</span><span class="p">]):</span>
+            <span class="n">param</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">p_global</span> <span class="o">=</span> <span class="n">batchify</span><span class="p">(</span><span class="n">p_global</span><span class="p">)</span>
+            <span class="n">p_stagewise</span> <span class="o">=</span> <span class="n">batchify</span><span class="p">(</span><span class="n">p_stagewise</span><span class="p">)</span>
+            <span class="n">p_stagewise_sparse_idx</span> <span class="o">=</span> <span class="n">batchify</span><span class="p">(</span><span class="n">p_stagewise_sparse_idx</span><span class="p">)</span>
+
+            <span class="n">param</span> <span class="o">=</span> <span class="n">MpcParameter</span><span class="p">(</span>
+                <span class="n">p_global</span><span class="o">=</span><span class="n">p_global</span><span class="p">,</span>
+                <span class="n">p_stagewise</span><span class="o">=</span><span class="n">p_stagewise</span><span class="p">,</span>
+                <span class="n">p_stagewise_sparse_idx</span><span class="o">=</span><span class="n">p_stagewise_sparse_idx</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="n">mpc_input</span> <span class="o">=</span> <span class="n">MpcInput</span><span class="p">(</span><span class="n">x0</span><span class="o">=</span><span class="n">state</span><span class="p">,</span> <span class="n">parameters</span><span class="o">=</span><span class="n">param</span><span class="p">)</span>
+        <span class="n">mpc_output</span><span class="p">,</span> <span class="n">mpc_state</span> <span class="o">=</span> <span class="bp">self</span><span class="p">(</span><span class="n">mpc_input</span><span class="o">=</span><span class="n">mpc_input</span><span class="p">,</span> <span class="n">mpc_state</span><span class="o">=</span><span class="n">solver_state</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">mpc_output</span><span class="o">.</span><span class="n">u0</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="n">mpc_state</span><span class="p">,</span> <span class="n">mpc_output</span><span class="o">.</span><span class="n">status</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>  <span class="c1"># type:ignore</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">mpc_input</span><span class="p">:</span> <span class="n">MpcInput</span><span class="p">,</span>
+        <span class="n">mpc_state</span><span class="p">:</span> <span class="n">MpcBatchedState</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">dudx</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">dudp</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">dvdx</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">dvdu</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">dvdp</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">use_adj_sens</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">MpcOutput</span><span class="p">,</span> <span class="n">MpcBatchedState</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Solve the OCP for the given initial state and parameters.</span>
+
+<span class="sd">        If an mpc_state is given and the solver does not converge, the solver does a</span>
+<span class="sd">        reattempt using the init_state_fn. If the mpc_state is None, the init_state_fn is</span>
+<span class="sd">        used to initialize the solver.</span>
+
+<span class="sd">        Note:</span>
+<span class="sd">            Information of this call is stored in the public member self.last_call_stats.</span>
+<span class="sd">            The solution state of this call is stored in the public member</span>
+<span class="sd">                self.last_call_state.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            mpc_input: The input of the MPC controller.</span>
+<span class="sd">            mpc_state: The iterate of the solver to use as initialization. If None, the</span>
+<span class="sd">                solver is initialized using its init_state_fn.</span>
+<span class="sd">            dudx: Whether to compute the sensitivity of the action with respect to the</span>
+<span class="sd">                state.</span>
+<span class="sd">            dudp: Whether to compute the sensitivity of the action with respect to the</span>
+<span class="sd">                parameters.</span>
+<span class="sd">            dvdx: Whether to compute the sensitivity of the value function with respect</span>
+<span class="sd">                to the state.</span>
+<span class="sd">            dvdu: Whether to compute the sensitivity of the value function with respect</span>
+<span class="sd">                to the action.</span>
+<span class="sd">            dvdp: Whether to compute the sensitivity of the value function with respect</span>
+<span class="sd">                to the parameters.</span>
+<span class="sd">            use_adj_sens: Whether to use adjoint sensitivity.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A collection of outputs from the MPC controller and the state of the solver.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">batch_size</span> <span class="o">=</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">x0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">is_batched</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;The input to `__call__` of MPC must be batched.&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">u0</span> <span class="ow">is</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">dvdu</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;dvdu is only allowed if u0 is set in the input.&quot;</span><span class="p">)</span>
+
+        <span class="n">use_sensitivity_solver</span> <span class="o">=</span> <span class="n">dudx</span> <span class="ow">or</span> <span class="n">dudp</span> <span class="ow">or</span> <span class="n">dvdp</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">last_call_stats</span> <span class="o">=</span> <span class="n">_solve_shared</span><span class="p">(</span>
+            <span class="n">solver</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_solver</span><span class="p">,</span>
+            <span class="n">sensitivity_solver</span><span class="o">=</span><span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_sensitivity_solver</span> <span class="k">if</span> <span class="n">use_sensitivity_solver</span> <span class="k">else</span> <span class="kc">None</span>
+            <span class="p">),</span>
+            <span class="n">mpc_input</span><span class="o">=</span><span class="n">mpc_input</span><span class="p">,</span>
+            <span class="n">mpc_state</span><span class="o">=</span><span class="n">mpc_state</span><span class="p">,</span>
+            <span class="n">backup_fn</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">init_state_fn</span><span class="p">,</span>
+            <span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">throw_error_if_u0_is_outside_ocp_bounds</span><span class="p">,</span>
+        <span class="p">)</span>
+
+        <span class="n">solvers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">[:</span><span class="n">batch_size</span><span class="p">]</span>
+        <span class="k">if</span> <span class="n">use_sensitivity_solver</span><span class="p">:</span>
+            <span class="n">sens_solvers</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_sensitivity_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">[:</span><span class="n">batch_size</span><span class="p">]</span>
+
+        <span class="n">kw</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;status&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">s</span><span class="o">.</span><span class="n">status</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">solvers</span><span class="p">])</span>
+        <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;u0&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">s</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="mi">0</span><span class="p">,</span> <span class="s2">&quot;u&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">solvers</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">u0</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;Q&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">s</span><span class="o">.</span><span class="n">get_cost</span><span class="p">()</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">solvers</span><span class="p">])</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;V&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([</span><span class="n">s</span><span class="o">.</span><span class="n">get_cost</span><span class="p">()</span> <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">solvers</span><span class="p">])</span>
+
+        <span class="k">if</span> <span class="n">dudx</span><span class="p">:</span>
+            <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;du0_dx0&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">s</span><span class="o">.</span><span class="n">eval_solution_sensitivity</span><span class="p">(</span>
+                        <span class="n">stages</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                        <span class="n">with_respect_to</span><span class="o">=</span><span class="s2">&quot;initial_state&quot;</span><span class="p">,</span>
+                        <span class="n">return_sens_u</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="n">return_sens_x</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                    <span class="p">)[</span><span class="s2">&quot;sens_u&quot;</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sens_solvers</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">dudp</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">use_adj_sens</span><span class="p">:</span>
+                <span class="n">single_seed</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">dims</span><span class="o">.</span><span class="n">nu</span><span class="p">)</span>
+                <span class="n">seed_vec</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">repeat</span><span class="p">(</span><span class="n">single_seed</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">newaxis</span><span class="p">,</span> <span class="p">:,</span> <span class="p">:],</span> <span class="n">batch_size</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+                <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;du0_dp_global&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_sensitivity_solver</span><span class="o">.</span><span class="n">eval_adjoint_solution_sensitivity</span><span class="p">(</span>
+                        <span class="n">seed_x</span><span class="o">=</span><span class="p">[],</span>
+                        <span class="n">seed_u</span><span class="o">=</span><span class="p">[(</span><span class="mi">0</span><span class="p">,</span> <span class="n">seed_vec</span><span class="p">)],</span>
+                        <span class="n">with_respect_to</span><span class="o">=</span><span class="s2">&quot;p_global&quot;</span><span class="p">,</span>
+                        <span class="n">sanity_checks</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;du0_dp_global&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                    <span class="p">[</span>
+                        <span class="n">s</span><span class="o">.</span><span class="n">eval_solution_sensitivity</span><span class="p">(</span>
+                            <span class="n">stages</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                            <span class="n">with_respect_to</span><span class="o">=</span><span class="s2">&quot;p_global&quot;</span><span class="p">,</span>
+                            <span class="n">return_sens_u</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                            <span class="n">return_sens_x</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                        <span class="p">)[</span><span class="s2">&quot;sens_u&quot;</span><span class="p">]</span>
+                        <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sens_solvers</span>
+                    <span class="p">]</span>
+                <span class="p">)</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">mpc_input</span><span class="o">.</span><span class="n">x0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">dims</span><span class="o">.</span><span class="n">nu</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">p_global_dim</span><span class="p">)</span>  <span class="c1"># type:ignore</span>
+
+            <span class="k">assert</span> <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;du0_dp_global&quot;</span><span class="p">]</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="p">(</span>
+                <span class="n">mpc_input</span><span class="o">.</span><span class="n">x0</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">ocp</span><span class="o">.</span><span class="n">dims</span><span class="o">.</span><span class="n">nu</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">p_global_dim</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">dvdp</span><span class="p">:</span>
+            <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;dvalue_dp_global&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">s</span><span class="o">.</span><span class="n">eval_and_get_optimal_value_gradient</span><span class="p">(</span><span class="s2">&quot;p_global&quot;</span><span class="p">)</span>
+                    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sens_solvers</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">dudx</span><span class="p">:</span>
+            <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;du0_dx0&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">s</span><span class="o">.</span><span class="n">eval_solution_sensitivity</span><span class="p">(</span>
+                        <span class="n">stages</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span>
+                        <span class="n">with_respect_to</span><span class="o">=</span><span class="s2">&quot;initial_state&quot;</span><span class="p">,</span>
+                        <span class="n">return_sens_u</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+                        <span class="n">return_sens_x</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+                    <span class="p">)[</span><span class="s2">&quot;sens_u&quot;</span><span class="p">]</span>
+                    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sens_solvers</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">dvdx</span><span class="p">:</span>
+            <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;dvalue_dx0&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">s</span><span class="o">.</span><span class="n">eval_and_get_optimal_value_gradient</span><span class="p">(</span>
+                        <span class="n">with_respect_to</span><span class="o">=</span><span class="s2">&quot;initial_state&quot;</span>
+                    <span class="p">)</span>
+                    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sens_solvers</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+        <span class="k">if</span> <span class="n">dvdu</span><span class="p">:</span>
+            <span class="n">kw</span><span class="p">[</span><span class="s2">&quot;dvalue_du0&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">(</span>
+                <span class="p">[</span>
+                    <span class="n">s</span><span class="o">.</span><span class="n">eval_and_get_optimal_value_gradient</span><span class="p">(</span>
+                        <span class="n">with_respect_to</span><span class="o">=</span><span class="s2">&quot;initial_control&quot;</span>
+                    <span class="p">)</span>
+                    <span class="k">for</span> <span class="n">s</span> <span class="ow">in</span> <span class="n">sens_solvers</span>
+                <span class="p">]</span>
+            <span class="p">)</span>
+
+        <span class="n">flat_iterate</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_solver</span><span class="o">.</span><span class="n">store_iterate_to_flat_obj</span><span class="p">(</span>
+            <span class="n">n_batch</span><span class="o">=</span><span class="n">batch_size</span>
+        <span class="p">)</span>
+
+        <span class="c1"># Set solvers to default</span>
+        <span class="n">unset_u0</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="n">mpc_input</span><span class="o">.</span><span class="n">u0</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="kc">False</span>
+        <span class="n">set_ocp_solver_to_default</span><span class="p">(</span>
+            <span class="n">ocp_solver</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_solver</span><span class="p">,</span>
+            <span class="n">default_mpc_parameters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">default_full_mpcparameter</span><span class="p">,</span>
+            <span class="n">unset_u0</span><span class="o">=</span><span class="n">unset_u0</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="n">use_sensitivity_solver</span><span class="p">:</span>
+            <span class="n">set_ocp_solver_to_default</span><span class="p">(</span>
+                <span class="n">ocp_solver</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">ocp_batch_sensitivity_solver</span><span class="p">,</span>
+                <span class="n">default_mpc_parameters</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">default_sens_mpcparameter</span><span class="p">,</span>
+                <span class="n">unset_u0</span><span class="o">=</span><span class="n">unset_u0</span><span class="p">,</span>
+            <span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">MpcOutput</span><span class="p">(</span><span class="o">**</span><span class="n">kw</span><span class="p">),</span> <span class="n">flat_iterate</span>
+
+<div class="viewcode-block" id="Mpc.last_solve_diagnostics">
+<a class="viewcode-back" href="../../api/mpc.html#leap_c.mpc.Mpc.last_solve_diagnostics">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">last_solve_diagnostics</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">ocp_solver</span><span class="p">:</span> <span class="n">AcadosOcpSolver</span> <span class="o">|</span> <span class="n">AcadosOcpBatchSolver</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span> <span class="o">|</span> <span class="nb">list</span><span class="p">[</span><span class="nb">dict</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Print statistics for the last solve and collect QP-diagnostics for the solvers.</span>
+
+<span class="sd">        Simpler information about the last call is stored in self.last_call_stats.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpSolver</span><span class="p">):</span>
+            <span class="n">diagnostics</span> <span class="o">=</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">qp_diagnostics</span><span class="p">()</span>
+            <span class="n">ocp_solver</span><span class="o">.</span><span class="n">print_statistics</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">diagnostics</span>
+        <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">,</span> <span class="n">AcadosOcpBatchSolver</span><span class="p">):</span>
+            <span class="n">diagnostics</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">single_solver</span> <span class="ow">in</span> <span class="n">ocp_solver</span><span class="o">.</span><span class="n">ocp_solvers</span><span class="p">:</span>
+                <span class="n">diagnostics</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">single_solver</span><span class="o">.</span><span class="n">qp_diagnostics</span><span class="p">())</span>
+                <span class="n">single_solver</span><span class="o">.</span><span class="n">print_statistics</span><span class="p">()</span>
+            <span class="k">return</span> <span class="n">diagnostics</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unknown solver type, expected AcadosOcpSolver or AcadosOcpBatchSolver, but got </span><span class="si">{</span><span class="nb">type</span><span class="p">(</span><span class="n">ocp_solver</span><span class="p">)</span><span class="si">}</span><span class="s2">.&quot;</span>
+            <span class="p">)</span></div>
+</div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Dirk, Jasper, Leonard.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>

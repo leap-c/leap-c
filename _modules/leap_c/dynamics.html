@@ -1,0 +1,335 @@
+
+
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" data-content_root="../../">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>leap_c.dynamics &mdash; leap-c 2025 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../_static/pygments.css?v=b86133f3" />
+      <link rel="stylesheet" type="text/css" href="../../_static/css/theme.css?v=e59714d7" />
+
+  
+      <script src="../../_static/jquery.js?v=5d32c60e"></script>
+      <script src="../../_static/_sphinx_javascript_frameworks_compat.js?v=2cd50e6c"></script>
+      <script src="../../_static/documentation_options.js?v=cb975c41"></script>
+      <script src="../../_static/doctools.js?v=9bcbadda"></script>
+      <script src="../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="../../genindex.html" />
+    <link rel="search" title="Search" href="../../search.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+
+          
+          
+          <a href="../../index.html" class="icon icon-home">
+            leap-c
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="../../search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" aria-label="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../getting_started/index.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../api.html">API Documentation</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="../../index.html">leap-c</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="../../index.html" class="icon icon-home" aria-label="Home"></a></li>
+          <li class="breadcrumb-item"><a href="../index.html">Module code</a></li>
+      <li class="breadcrumb-item active">leap_c.dynamics</li>
+      <li class="wy-breadcrumbs-aside">
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  <h1>Source code for leap_c.dynamics</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">ABC</span><span class="p">,</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">copy</span><span class="w"> </span><span class="kn">import</span> <span class="n">deepcopy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">functools</span><span class="w"> </span><span class="kn">import</span> <span class="n">partial</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">casadi</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ca</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acados_template</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">AcadosOcp</span><span class="p">,</span>
+    <span class="n">AcadosSim</span><span class="p">,</span>
+    <span class="n">AcadosSimOptions</span><span class="p">,</span>
+    <span class="n">AcadosSimSolver</span><span class="p">,</span>
+<span class="p">)</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.mpc</span><span class="w"> </span><span class="kn">import</span> <span class="n">Mpc</span><span class="p">,</span> <span class="n">MpcParameter</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">AcadosFileManager</span>
+
+
+<div class="viewcode-block" id="create_dynamics_from_mpc">
+<a class="viewcode-back" href="../../api/dynamics.html#leap_c.dynamics.create_dynamics_from_mpc">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">create_dynamics_from_mpc</span><span class="p">(</span>
+    <span class="n">mpc</span><span class="p">:</span> <span class="n">Mpc</span><span class="p">,</span> <span class="n">export_dir</span><span class="p">:</span> <span class="kc">None</span> <span class="o">|</span> <span class="n">Path</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">sens_forw</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span> <span class="n">dt</span><span class="o">=</span><span class="kc">None</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;Dynamics&quot;</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create a dynamics object from an MPC object.&quot;&quot;&quot;</span>
+    <span class="n">ocp</span><span class="p">:</span> <span class="n">AcadosOcp</span> <span class="o">=</span> <span class="n">mpc</span><span class="o">.</span><span class="n">ocp</span>
+
+    <span class="c1"># if there is a discrete dynamics function, use it</span>
+    <span class="k">if</span> <span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">disc_dyn_expr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">CasadiDynamics</span><span class="p">(</span><span class="n">mpc</span><span class="p">)</span>
+
+    <span class="c1"># otherwise we create a AcadosSim object</span>
+    <span class="k">assert</span> <span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">f_expl_expr</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span>
+
+    <span class="c1"># create sim opts</span>
+    <span class="n">sim_opts</span> <span class="o">=</span> <span class="n">AcadosSimOptions</span><span class="p">()</span>
+
+    <span class="c1"># assert sim_method_num_stages all equal</span>
+    <span class="c1"># does this makes sense?</span>
+    <span class="n">sim_opts</span><span class="o">.</span><span class="n">num_steps</span> <span class="o">=</span> <span class="n">ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">sim_method_num_steps</span>
+    <span class="n">sim_opts</span><span class="o">.</span><span class="n">newton_iter</span> <span class="o">=</span> <span class="n">ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">sim_method_newton_iter</span>
+    <span class="n">sim_opts</span><span class="o">.</span><span class="n">integrator_type</span> <span class="o">=</span> <span class="n">ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">integrator_type</span>
+
+    <span class="c1"># create sim</span>
+    <span class="n">sim</span> <span class="o">=</span> <span class="n">AcadosSim</span><span class="p">()</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">solver_options</span> <span class="o">=</span> <span class="n">sim_opts</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">sens_forw</span> <span class="o">=</span> <span class="n">sens_forw</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">model</span> <span class="o">=</span> <span class="n">deepcopy</span><span class="p">(</span><span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="p">)</span>
+    <span class="n">sim</span><span class="o">.</span><span class="n">parameter_values</span> <span class="o">=</span> <span class="n">ocp</span><span class="o">.</span><span class="n">parameter_values</span>
+
+    <span class="k">if</span> <span class="n">dt</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">tf</span> <span class="o">/</span> <span class="n">ocp</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">N_horizon</span>  <span class="c1"># type: ignore</span>
+
+    <span class="n">sim</span><span class="o">.</span><span class="n">solver_options</span><span class="o">.</span><span class="n">T</span> <span class="o">=</span> <span class="n">dt</span>
+
+    <span class="k">return</span> <span class="n">SimDynamics</span><span class="p">(</span><span class="n">sim</span><span class="p">,</span> <span class="n">export_dir</span><span class="o">=</span><span class="n">export_dir</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="Dynamics">
+<a class="viewcode-back" href="../../api/dynamics.html#leap_c.dynamics.Dynamics">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">Dynamics</span><span class="p">(</span><span class="n">ABC</span><span class="p">):</span>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">u</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">p</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">with_sens</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Step the dynamics.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x: The current state.</span>
+<span class="sd">            u: The current input.</span>
+<span class="sd">            p: The current parameter.</span>
+<span class="sd">            with_sens: Whether to return the sensitivity.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The next state.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="o">...</span></div>
+
+
+
+<div class="viewcode-block" id="SimDynamics">
+<a class="viewcode-back" href="../../api/dynamics.html#leap_c.dynamics.SimDynamics">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SimDynamics</span><span class="p">(</span><span class="n">Dynamics</span><span class="p">):</span>
+<div class="viewcode-block" id="SimDynamics.__init__">
+<a class="viewcode-back" href="../../api/dynamics.html#leap_c.dynamics.SimDynamics.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">sim</span><span class="p">:</span> <span class="n">AcadosSim</span><span class="p">,</span> <span class="n">export_dir</span><span class="p">:</span> <span class="n">Path</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="n">cleanup</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim</span> <span class="o">=</span> <span class="n">sim</span>
+        <span class="n">afm</span> <span class="o">=</span> <span class="n">AcadosFileManager</span><span class="p">(</span><span class="n">export_dir</span><span class="p">,</span> <span class="n">cleanup</span><span class="o">=</span><span class="n">cleanup</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sim_solver_fn</span> <span class="o">=</span> <span class="n">partial</span><span class="p">(</span><span class="n">afm</span><span class="o">.</span><span class="n">setup_acados_sim_solver</span><span class="p">,</span> <span class="n">sim</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_sim_solver</span> <span class="o">=</span> <span class="kc">None</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">sim_solver</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">AcadosSimSolver</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_solver</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_sim_solver</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_solver_fn</span><span class="p">()</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_sim_solver</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">u</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">p</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">with_sens</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Step the dynamics.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x: The current state.</span>
+<span class="sd">            u: The current input.</span>
+<span class="sd">            p: The current parameter.</span>
+<span class="sd">            with_sens: Whether to return the sensitivity.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The next state and the sensitivity if with_sens is True.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim_solver</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="n">x</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim_solver</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;u&quot;</span><span class="p">,</span> <span class="n">u</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">p</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">sim_solver</span><span class="o">.</span><span class="n">set</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">,</span> <span class="n">p</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">sim_solver</span><span class="o">.</span><span class="n">solve</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">with_sens</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim_solver</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+
+        <span class="n">Sx</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim_solver</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Sx&quot;</span><span class="p">)</span>
+        <span class="n">Su</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim_solver</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;Su&quot;</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">sim_solver</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;x&quot;</span><span class="p">),</span> <span class="n">Sx</span><span class="p">,</span> <span class="n">Su</span>  <span class="c1"># type: ignore</span></div>
+
+
+
+<div class="viewcode-block" id="CasadiDynamics">
+<a class="viewcode-back" href="../../api/dynamics.html#leap_c.dynamics.CasadiDynamics">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">CasadiDynamics</span><span class="p">(</span><span class="n">Dynamics</span><span class="p">):</span>
+<div class="viewcode-block" id="CasadiDynamics.__init__">
+<a class="viewcode-back" href="../../api/dynamics.html#leap_c.dynamics.CasadiDynamics.__init__">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">mpc</span><span class="p">:</span> <span class="n">Mpc</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span> <span class="o">=</span> <span class="n">mpc</span>
+
+        <span class="n">ocp</span> <span class="o">=</span> <span class="n">mpc</span><span class="o">.</span><span class="n">ocp</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">x</span><span class="p">,</span> <span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">u</span><span class="p">]</span>
+        <span class="n">names</span> <span class="o">=</span> <span class="p">[</span><span class="s2">&quot;x&quot;</span><span class="p">,</span> <span class="s2">&quot;u&quot;</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="o">.</span><span class="n">default_p_global</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">p_global</span><span class="p">)</span>
+            <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;p_global&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="o">.</span><span class="n">default_p_stagewise</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">p</span><span class="p">)</span>
+            <span class="n">names</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="s2">&quot;p&quot;</span><span class="p">)</span>
+
+        <span class="n">expr</span> <span class="o">=</span> <span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">disc_dyn_expr</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">dyn_fn</span> <span class="o">=</span> <span class="n">ca</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="s2">&quot;dyn&quot;</span><span class="p">,</span> <span class="n">inputs</span><span class="p">,</span> <span class="p">[</span><span class="n">expr</span><span class="p">],</span> <span class="n">names</span><span class="p">,</span> <span class="p">[</span><span class="s2">&quot;x_next&quot;</span><span class="p">])</span>
+
+        <span class="c1"># generate the jacobian</span>
+        <span class="n">inputs_cat</span> <span class="o">=</span> <span class="n">ca</span><span class="o">.</span><span class="n">vertcat</span><span class="p">(</span><span class="o">*</span><span class="n">inputs</span><span class="p">)</span>
+        <span class="n">jac_expr</span> <span class="o">=</span> <span class="n">ca</span><span class="o">.</span><span class="n">jacobian</span><span class="p">(</span><span class="n">expr</span><span class="p">,</span> <span class="n">inputs_cat</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">jac_fn</span> <span class="o">=</span> <span class="n">ca</span><span class="o">.</span><span class="n">Function</span><span class="p">(</span><span class="s2">&quot;jtimes&quot;</span><span class="p">,</span> <span class="p">[</span><span class="n">inputs_cat</span><span class="p">],</span> <span class="p">[</span><span class="n">jac_expr</span><span class="p">])</span></div>
+
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__call__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">x</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">u</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">p</span><span class="p">:</span> <span class="n">MpcParameter</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">with_sens</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span> <span class="o">|</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Step the dynamics.</span>
+
+<span class="sd">        If the parameter is not provided, the current parameter of the MPC object is used.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x: The current state.</span>
+<span class="sd">            u: The current input.</span>
+<span class="sd">            p: The current parameter.</span>
+<span class="sd">            with_sens: Whether to return the sensitivity.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The next state.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">x_shape</span> <span class="o">=</span> <span class="n">x</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">batched</span> <span class="o">=</span> <span class="kc">True</span> <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">x_shape</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="k">else</span> <span class="kc">False</span>
+
+        <span class="n">inputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">x</span><span class="p">,</span> <span class="n">u</span><span class="p">]</span>
+
+        <span class="n">p_global</span><span class="p">,</span> <span class="n">p_stage</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">mpc</span><span class="o">.</span><span class="n">fetch_param</span><span class="p">(</span><span class="n">p</span><span class="p">,</span> <span class="mi">0</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">p_global</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">batched</span><span class="p">:</span>
+                <span class="n">p_global</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">p_global</span><span class="p">,</span> <span class="p">(</span><span class="n">x_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p_global</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="n">p_stage</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">batched</span><span class="p">:</span>
+                <span class="n">p_stage</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">p_stage</span><span class="p">,</span> <span class="p">(</span><span class="n">x_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="mi">1</span><span class="p">))</span>
+            <span class="n">inputs</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">p_stage</span><span class="p">)</span>
+
+        <span class="c1"># transpose inputs to match casadi batch format</span>
+        <span class="n">inputs</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">T</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">]</span>
+
+        <span class="n">output</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">dyn_fn</span><span class="p">(</span><span class="o">*</span><span class="n">inputs</span><span class="p">)</span><span class="o">.</span><span class="n">full</span><span class="p">()</span><span class="o">.</span><span class="n">T</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">x_shape</span><span class="p">)</span>  <span class="c1"># type: ignore</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">with_sens</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">output</span>
+
+        <span class="c1"># compute the jacobian</span>
+        <span class="n">sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">i</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="n">inputs</span><span class="p">]</span>
+        <span class="n">splits</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">sizes</span><span class="p">)[:</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span>
+
+        <span class="n">inputs_cat</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">(</span><span class="n">inputs</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)</span>
+
+        <span class="n">jac</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">jac_fn</span><span class="p">(</span><span class="n">inputs_cat</span><span class="p">)</span><span class="o">.</span><span class="n">full</span><span class="p">()</span><span class="o">.</span><span class="n">T</span>  <span class="c1"># type: ignore</span>
+        <span class="k">if</span> <span class="nb">len</span><span class="p">(</span><span class="n">x_shape</span><span class="p">)</span> <span class="o">&gt;</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">jac</span> <span class="o">=</span> <span class="n">jac</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">x_shape</span><span class="p">[</span><span class="mi">0</span><span class="p">],</span> <span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">x_shape</span><span class="p">[</span><span class="mi">1</span><span class="p">])</span>
+            <span class="n">Sx</span><span class="p">,</span> <span class="n">Su</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span> <span class="n">splits</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">1</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">Sx</span><span class="p">,</span> <span class="n">Su</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">split</span><span class="p">(</span><span class="n">jac</span><span class="p">,</span> <span class="n">splits</span><span class="p">,</span> <span class="n">axis</span><span class="o">=</span><span class="mi">0</span><span class="p">)[:</span><span class="mi">2</span><span class="p">]</span>
+
+        <span class="k">return</span> <span class="n">output</span><span class="p">,</span> <span class="n">Sx</span><span class="p">,</span> <span class="n">Su</span></div>
+
+</pre></div>
+
+           </div>
+          </div>
+          <footer>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2025, Dirk, Jasper, Leonard.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
