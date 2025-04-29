@@ -1,21 +1,17 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from os import walk
-import numpy as np
 from typing import Any, List
 
-from acados_template import latexify_plot
 import casadi as ca
 import gymnasium as gym
 import matplotlib.pyplot as plt
-from matplotlib.axes import Axes
-
-from matplotlib.patches import FancyArrowPatch
 import numpy as np
 from gymnasium import spaces
+from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.patches import FancyArrowPatch
 
-latexify_plot()
+from leap_c.examples.plot_utils import latex_plot_context
 
 
 class Circle:
@@ -48,7 +44,7 @@ class WindField(ABC):
         ax: Axes,
         xlim: tuple[float, float],
         ylim: tuple[float, float],
-        scale: float = 10.0,
+        scale: float = 80.0,
     ):
         # Get x, y
         X, Y = self.plot_XY(xlim, ylim)
@@ -88,8 +84,8 @@ class WindParcour(WindField):
     def __init__(self, magnitude: float = 10.0):
         self.magnitude = magnitude
         self.boxes = [
-            [np.array([0.5, 0.2]), np.array([1.5, 1.0])],
-            [np.array([2.5, 0.0]), np.array([3.5, 0.8])],
+            [np.array([0.5, 0.15]), np.array([1.5, 1.0])],
+            [np.array([2.5, 0.0]), np.array([3.5, 0.85])],
         ]
 
     def plot_XY(
@@ -126,7 +122,7 @@ class WindParcour(WindField):
         ax: Axes,
         xlim: tuple[float, float],
         ylim: tuple[float, float],
-        scale: float = 10.0,
+        scale: float = 80.0,
     ):
         # plot rectangles for each boxes
         for box in self.boxes:
@@ -140,16 +136,11 @@ class WindParcour(WindField):
             ax.add_patch(rect)
 
         # plot wind field
-        super().plot_wind_field(ax, xlim, ylim, scale=80.0)
+        super().plot_wind_field(ax, xlim, ylim, scale=scale)
 
     def __call__(self, pos: np.ndarray) -> np.ndarray:
-        # Check if the position is inside any of the boxes
         for box in self.boxes:
             if np.all(box[0] <= pos) and np.all(pos <= box[1]):
-                # calculate how close to the midline of the box we are for the x axis
-                # midline = (box[0][0] + box[1][0]) / 2
-                # max_dist = box[1][0] - box[0][0]
-                # magnitude = self.magnitude * (1 - np.abs(pos[0] - midline) / max_dist)
                 return np.array([-self.magnitude, 0.0])
         return np.array([0.0, 0.0])
 
@@ -287,7 +278,7 @@ class PointMassEnv(gym.Env):
 
         # reward
         dist_to_goal_x = np.abs(self.state[0] - self.goal.pos[0])  # type: ignore
-        r_dist = 1 -  dist_to_goal_x / (self.state_high[0] - self.state_low[0])
+        r_dist = 1 - dist_to_goal_x / (self.state_high[0] - self.state_low[0])
         # dist_max = np.linalg.norm(self.goal.pos - self.state_low[:2])
         # r_dist = 1.0 - np.linalg.norm(self.state[:2] - self.goal.pos) / dist_max
         r_goal = 60 * (1.0 - 0.5 * self.time / self.max_time) if reached_goal else 0.0
@@ -331,6 +322,10 @@ class PointMassEnv(gym.Env):
         return state
 
     def render(self) -> np.ndarray | None:
+        with latex_plot_context():
+            return self._render()
+
+    def _render(self) -> np.ndarray | None:
         if self.render_mode is None:
             gym.logger.warn("Cannot render environment without a render_mode set.")
             return None
@@ -367,7 +362,7 @@ class PointMassEnv(gym.Env):
                 label="Start ($\odot$)",
             )
             self.ax.plot(
-                [], [], "ko", marker=r"$\odot$", markersize=10, label="Start", zorder=3
+                [], [], marker=r"$\odot$", markersize=10, label="Start", zorder=3
             )
             self.ax.text(
                 self.goal.pos[0],  # x-coordinate from self.goal.pos
@@ -381,7 +376,7 @@ class PointMassEnv(gym.Env):
                 label="Goal ($\otimes$)",  # Optional: Update label for legend
             )
             self.ax.plot(
-                [], [], "ko", marker=r"$\otimes$", markersize=10, label="Goal", zorder=3
+                [], [], marker=r"$\otimes$", markersize=10, label="Goal", zorder=3
             )
 
             # Wind Fields (Optional) - Use updated definitions
@@ -487,13 +482,15 @@ class PointMassEnv(gym.Env):
 
 
 if __name__ == "__main__":
-    init_state_dist = { 
+    init_state_dist = {
         "low": np.array([0.0, 0.5, 0.0, 0.0]),
         "high": np.array([0.0, 0.5, 0.0, 0.0]),
     }
 
     env = PointMassEnv(
-        render_mode="human", max_time=15.0, init_state_dist=init_state_dist,
+        render_mode="human",
+        max_time=15.0,
+        init_state_dist=init_state_dist,
     )  # Longer time
     obs, info = env.reset(seed=42)  # Changed seed slightly
 
