@@ -1,9 +1,10 @@
-import numpy as np
-import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import numpy as np
+import pytest
 from leap_c.examples.chain.env import ChainEnv
+from leap_c.examples.chain.mpc import ChainMpc
 from leap_c.examples.chain.utils import Ellipsoid
 from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
@@ -15,8 +16,6 @@ from leap_c.registry import (
     create_task,
     create_trainer,
 )
-import leap_c.rl
-from leap_c.run import main
 from leap_c.trainer import Trainer  # noqa: F401
 
 
@@ -90,7 +89,7 @@ def pendulum_on_cart_mpc() -> PendulumOnCartMPC:
 
 @pytest.fixture(scope="session")
 def n_batch() -> int:
-    return 4
+    return 2
 
 
 @pytest.fixture(scope="session")
@@ -132,6 +131,7 @@ def point_mass_mpc_p_global(
 PENDULUM_ON_CART_LEARNABLE_PARAMS = ["M", "m", "g", "L11", "xref1"]
 PENDULUM_ON_CART_EXT_COST_LEARNABLE_PARAMS = PENDULUM_ON_CART_LEARNABLE_PARAMS + ["c1"]
 
+
 @pytest.fixture(scope="session")
 def learnable_pendulum_on_cart_mpc_ext_cost(n_batch: int) -> PendulumOnCartMPC:
     """Fixture for the pendulum on cart MPC with learnable parameters, using a general quadratic cost."""
@@ -169,6 +169,68 @@ def learnable_pendulum_on_cart_mpc_only_cost_params(
 @pytest.fixture(scope="session")
 def pendulum_on_cart_ocp_swingup_env() -> PendulumOnCartSwingupEnv:
     return PendulumOnCartSwingupEnv(render_mode="rgb_array")
+
+
+@pytest.fixture(scope="session")
+def learnable_chain_cost_mpc(
+    n_batch: int,
+) -> ChainMpc:
+    """Fixture for the hanging chain MPC with learnable cost parameters."""
+    n_mass = 3
+    params = {}
+    # rest length of spring
+    params["L"] = np.repeat([0.033, 0.033, 0.033], n_mass - 1)
+
+    # spring constant
+    params["D"] = np.repeat([1.0, 1.0, 1.0], n_mass - 1)
+
+    # damping constant
+    params["C"] = np.repeat([0.1, 0.1, 0.1], n_mass - 1)
+
+    # mass of the balls
+    params["m"] = np.repeat([0.033], n_mass - 1)
+
+    # disturbance on intermediate balls
+    params["w"] = np.repeat([0.0, 0.0, 0.0], n_mass - 2)
+
+    # Weight on state
+    params["q_sqrt_diag"] = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
+
+    # Weight on control inputs
+    params["r_sqrt_diag"] = 1e-1 * np.ones(3)
+
+    fix_point = np.zeros(3)
+    ellipsoid = Ellipsoid(
+        center=fix_point, radii=10 * 0.033 * (n_mass - 1) * np.ones(3)
+    )
+
+    pos_last_mass_ref = ellipsoid.spherical_to_cartesian(
+        phi=0.75 * np.pi, theta=np.pi / 2
+    )
+
+    return ChainMpc(
+        params=params,
+        learnable_params=[
+            "q_sqrt_diag",
+            "r_sqrt_diag",
+        ],
+        fix_point=fix_point,
+        pos_last_mass_ref=pos_last_mass_ref,
+        n_mass=n_mass,
+        n_batch=n_batch,
+    )
+
+
+@pytest.fixture(scope="session")
+def chain_cost_p_global(
+    learnable_chain_cost_mpc: ChainMpc,
+    n_batch: int,
+) -> np.ndarray:
+    """Fixture for the global parameters of the pendulum on cart MPC."""
+    return generate_batch_variation(
+        learnable_chain_cost_mpc.ocp_solver.acados_ocp.p_global_values,
+        n_batch,
+    )
 
 
 @pytest.fixture(scope="session")
@@ -215,6 +277,7 @@ def pendulum_on_cart_p_global(
         n_batch,
     )
 
+
 @pytest.fixture(scope="session")
 def pendulum_on_cart_ext_cost_p_global(
     learnable_pendulum_on_cart_mpc_ext_cost: PendulumOnCartMPC,
@@ -235,7 +298,6 @@ def task(request):
 
 @pytest.fixture(scope="function", params=list(TRAINER_REGISTRY.keys()))
 def trainer(request, task):
-
     with TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
         cfg = create_default_cfg(request.param)

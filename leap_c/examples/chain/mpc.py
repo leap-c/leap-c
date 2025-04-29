@@ -100,9 +100,9 @@ class ChainMpc(Mpc):
 
         def init_state_fn(mpc_input: MpcInput) -> MpcBatchedState:
             if not mpc_input.is_batched():
-                raise ValueError("The input needs to be batched.")
-
-            batch_size = len(mpc_input.x0)
+                batch_size = 1
+            else:
+                batch_size = len(mpc_input.x0)
             kw = {}
 
             for f in fields(iterate):

@@ -3,11 +3,10 @@ from dataclasses import fields
 import numpy as np
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
-    AcadosOcpFlattenedIterate,
 )
 
 # from leap_c.examples.linear_system import LinearSystemMPC
-from leap_c.mpc import Mpc, MpcInput, MpcOutput, MpcParameter
+from leap_c.mpc import Mpc, MpcInput, MpcOutput, MpcParameter, create_zero_init_state_fn
 from leap_c.utils import find_idx_for_labels
 
 
@@ -143,9 +142,9 @@ def test_backup_fn(learnable_point_mass_mpc_different_params: Mpc, n_batch: int)
     for i in range(n_batch):
         x0[i] = x0[i] + i * increment
     inp = MpcInput(x0=x0, u0=u0)
-    default_init = learnable_linear_mpc.init_state_fn  # For restoring fixture
-    learnable_linear_mpc.init_state_fn = None  # Make sure 0 initialization for backup is being used
     sol, template_state = learnable_linear_mpc(inp)
+    default_init = learnable_linear_mpc.init_state_fn  # For restoring fixture
+    learnable_linear_mpc.init_state_fn = None # Make sure no backup is used
     assert np.all(sol.status == 0)
     assert isinstance(template_state, AcadosOcpFlattenedBatchIterate), (
         f"This test assumed state would be of type AcadosOcpFlattenedBatchIterate, but got {type(template_state)}"
@@ -164,10 +163,29 @@ def test_backup_fn(learnable_point_mass_mpc_different_params: Mpc, n_batch: int)
     assert np.all(no_sol.status != 0)
 
     def backup_fn_batched(input: MpcInput):
-        vals = [getattr(template_state, field.name)[i] for field in fields(template_state) if field.type is not int]
-        return AcadosOcpFlattenedIterate(*vals)
-
+        """Simplified backup function for the resolve."""
+        if not input.is_batched():
+            index = -1
+            for ind in range(n_batch):
+                if np.allclose(input.x0, inp.x0[ind]):
+                    index = ind
+                    break
+            assert ind != -1, "There has to be a corresponding x0 in the batch."
+            return AcadosOcpFlattenedBatchIterate(
+                x=template_state.x[[index]],
+                u=template_state.u[[index]],
+                z=template_state.z[[index]],
+                sl=template_state.sl[[index]],
+                su=template_state.su[[index]],
+                pi=template_state.pi[[index]],
+                lam=template_state.lam[[index]],
+                N_batch=1,
+            )
+        else:
+            raise ValueError("Is assumed to not happen here.")
+    
     learnable_linear_mpc.init_state_fn = backup_fn_batched
+
     sol_again, _ = learnable_linear_mpc(
         inp,
         mpc_state=ridiculous_state,
