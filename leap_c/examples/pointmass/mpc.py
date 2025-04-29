@@ -12,7 +12,6 @@ from leap_c.examples.util import (
 from leap_c.mpc import Mpc
 
 
-# class PointMassMPC(LinearMPC):
 class PointMassMPC(Mpc):
     """docstring for PointMassMPC."""
 
@@ -22,7 +21,6 @@ class PointMassMPC(Mpc):
         learnable_params: list[str] | None = None,
         N_horizon: int = 20,
         T_horizon: float = 2.0,
-        discount_factor: float = 0.99,
         n_batch: int = 64,
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
@@ -45,8 +43,6 @@ class PointMassMPC(Mpc):
         )
 
         learnable_params = learnable_params if learnable_params is not None else []
-
-        print("learnable_params: ", learnable_params)
 
         ocp = export_parametric_ocp(
             nominal_param=params,
