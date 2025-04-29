@@ -50,7 +50,7 @@ class SacAlgorithmConfig:
     soft_update_freq: int = 1
     lr_q: float = 1e-4
     lr_pi: float = 3e-4
-    lr_alpha: float = 1e-3
+    lr_alpha: float | None = 1e-3
     init_alpha: float = 0.1
     target_entropy: float | None = None
     entropy_reward_bonus: bool = True
