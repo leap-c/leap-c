@@ -4,20 +4,11 @@ import gymnasium as gym
 import numpy as np
 import torch
 from gymnasium import spaces
-from leap_c.examples.pointmass.env import (
-    InverseVortexWind,
-    PointMassEnv,
-    RandomWind,
-    RandomWindParam,
-    VariationWind,
-    VariationWindParam,
-    VortexParam,
-    VortexWind,
-    WindField,
-)
+from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pointmass.mpc import PointMassMPC
 from leap_c.mpc import MpcInput, MpcParameter
 from leap_c.nn.modules import MpcSolutionModule
+from leap_c.nn.extractor import ScalingExtractor
 from leap_c.registry import register_task
 from leap_c.task import Task
 
@@ -54,123 +45,21 @@ class PointMassTask(Task):
 
     @property
     def param_space(self) -> spaces.Box:
-        # low = np.array([0.5, 0.0])
-        # high = np.array([2.5, 0.5])
-        low = self.param_low
-        high = self.param_high
-        return spaces.Box(low=low, high=high, dtype=np.float32)
+        return spaces.Box(low=self.param_low, high=self.param_high, dtype=np.float32)
 
     def create_env(self, train: bool) -> gym.Env:
-        if train:
-            init_state_dist = {
-                "low": np.array([1.0, 0.0, 0.0, 0.0]),
-                "high": np.array([5.0, 5.0, 0.0, 0.0]),
-            }
-        else:
-            init_state_dist = {
-                "low": np.array([5.0, 3.0, 0.0, 0.0]),
-                "high": np.array([5.0, 5.0, 0.0, 0.0]),
-            }
+        return PointMassEnv(max_time=20.0, train=train, render_mode="rgb_array")
 
-        return PointMassEnv(max_time=10.0, init_state_dist=init_state_dist)
+    def create_extractor(self, env):
+        return ScalingExtractor(env)
 
     def prepare_mpc_input(
         self,
         obs: Any,
         param_nn: Optional[torch.Tensor] = None,
+        action: Optional[torch.Tensor] = None,
     ) -> MpcInput:
         mpc_param = MpcParameter(p_global=param_nn)  # type: ignore
+        obs = obs[..., :4]
 
         return MpcInput(x0=obs, parameters=mpc_param)
-
-
-@register_task("point_mass_homo_center")
-class PointMassTaskHomoCenter(PointMassTask):
-    def create_env(self, train: bool) -> gym.Env:
-        if train:
-            init_state_dist = {
-                "low": np.array([1.0, -5.0, 0.0, 0.0]),
-                "high": np.array([5.0, 5.0, 0.0, 0.0]),
-            }
-        else:
-            init_state_dist = {
-                "low": np.array([5.0, -1.0, 0.0, 0.0]),
-                "high": np.array([5.0, 1.0, 0.0, 0.0]),
-            }
-
-        return PointMassEnv(
-            init_state_dist=init_state_dist,
-            observation_space=spaces.Box(
-                low=np.array([0.0, -5.0, -50.0, -50.0]),
-                high=np.array([8.0, +5.0, 50.0, 50.0]),
-                dtype=np.float64,
-            ),
-            max_time=10.0,
-            Fmax=10.0,
-        )
-
-
-@register_task("point_mass_vortex")
-class PointMassTaskVortex(PointMassTask):
-    def create_env(self, train: bool) -> gym.Env:
-        if train:
-            init_state_dist = {
-                "low": np.array([1.0, -5.0, 0.0, 0.0]),
-                "high": np.array([5.0, 5.0, 0.0, 0.0]),
-            }
-        else:
-            init_state_dist = {
-                "low": np.array([5.0, -1.0, 0.0, 0.0]),
-                "high": np.array([5.0, 1.0, 0.0, 0.0]),
-            }
-
-        return PointMassEnv(
-            init_state_dist=init_state_dist,
-            wind_field=WindField(
-                [
-                    # BaseWind(param=BaseWindParam(magnitude=(-1.0, 1.0))),
-                    RandomWind(param=RandomWindParam()),
-                    VariationWind(param=VariationWindParam()),
-                    VortexWind(param=VortexParam(center=(2.5, 0.0))),
-                    # WindTunnel(
-                    #     param=WindTunnelParam(
-                    #         center=(0, 0), magnitude=(0, 3.0), decay=(0.0, 0.1)
-                    #     )
-                    # ),
-                ]
-            ),
-        )
-
-
-@register_task("point_mass_inverse_vortex")
-class PointMassTaskInverseVortex(PointMassTask):
-    # TODO: Test this task!
-
-    def create_env(self, train: bool) -> gym.Env:
-        if train:
-            init_state_dist = {
-                "low": np.array([1.0, -5.0, 0.0, 0.0]),
-                "high": np.array([5.0, 5.0, 0.0, 0.0]),
-            }
-        else:
-            init_state_dist = {
-                "low": np.array([5.0, -1.0, 0.0, 0.0]),
-                "high": np.array([5.0, 1.0, 0.0, 0.0]),
-            }
-
-        return PointMassEnv(
-            init_state_dist=init_state_dist,
-            wind_field=WindField(
-                [
-                    # BaseWind(param=BaseWindParam(magnitude=(-1.0, 1.0))),
-                    RandomWind(param=RandomWindParam()),
-                    VariationWind(param=VariationWindParam()),
-                    InverseVortexWind(param=VortexParam(center=(2.5, 0.0))),
-                    # WindTunnel(
-                    #     param=WindTunnelParam(
-                    #         center=(0, 0), magnitude=(0, 3.0), decay=(0.0, 0.1)
-                    #     )
-                    # ),
-                ]
-            ),
-        )

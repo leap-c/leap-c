@@ -18,66 +18,9 @@ from leap_c.nn.utils import min_max_scaling
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.rl.utils import soft_target_update
+from leap_c.rl.sac import SacBaseConfig
 from leap_c.task import Task
-from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
-
-
-@dataclass(kw_only=True)
-class SacZopAlgorithmConfig:
-    """Contains the necessary information for a SacTrainer.
-
-    Attributes:
-        critic_mlp: The configuration for the critic networks.
-        actor_mlp: The configuration for the policy network.
-        batch_size: The batch size for training.
-        buffer_size: The size of the replay buffer.
-        gamma: The discount factor.
-        tau: The soft update factor.
-        soft_update_freq: The frequency of soft updates.
-        lr_q: The learning rate for the Q networks.
-        lr_pi: The learning rate for the policy network.
-        lr_alpha: The learning rate for the temperature parameter.
-        init_alpha: The initial value for the temperature parameter.
-        entropy_reward_bonus: Whether to add an entropy bonus to the reward.
-        num_critics: The number of critic networks.
-        report_loss_freq: The frequency of reporting the loss.
-        update_freq: The frequency of updating the networks.
-    """
-
-    critic_mlp: MlpConfig = field(default_factory=MlpConfig)
-    actor_mlp: MlpConfig = field(default_factory=MlpConfig)
-    batch_size: int = 64
-    buffer_size: int = 1000000
-    gamma: float = 0.99
-    tau: float = 0.005
-    soft_update_freq: int = 1
-    lr_q: float = 1e-4
-    lr_pi: float = 3e-4  # this can be lowered to make it more stable
-    lr_alpha: float = 1e-3  # 1e-4
-    init_alpha: float = 0.1
-    entropy_reward_bonus: bool = True
-    num_critics: int = 2
-    report_loss_freq: int = 100
-    update_freq: int = 1
-
-
-@dataclass(kw_only=True)
-class SacZopBaseConfig(BaseConfig):
-    """Contains the necessary information for a Trainer.
-
-    Attributes:
-        sac: The Sac algorithm configuration.
-        train: The training configuration.
-        val: The validation configuration.
-        log: The logging configuration.
-        seed: The seed for the trainer.
-    """
-
-    sac: SacZopAlgorithmConfig = field(default_factory=SacZopAlgorithmConfig)
-    train: TrainConfig = field(default_factory=TrainConfig)
-    val: ValConfig = field(default_factory=ValConfig)
-    log: LogConfig = field(default_factory=LogConfig)
-    seed: int = 0
+from leap_c.trainer import Trainer
 
 
 class SacCritic(nn.Module):
@@ -178,12 +121,12 @@ class MpcSacActor(nn.Module):
         )
 
 
-@register_trainer("sac_zop", SacZopBaseConfig())
+@register_trainer("sac_zop", SacBaseConfig())
 class SacZopTrainer(Trainer):
-    cfg: SacZopBaseConfig
+    cfg: SacBaseConfig
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: SacZopBaseConfig
+        self, task: Task, output_path: str | Path, device: str, cfg: SacBaseConfig
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -208,11 +151,20 @@ class SacZopTrainer(Trainer):
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(cfg.sac.init_alpha).log())  # type: ignore
-        self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
+
         action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
         param_dim = np.prod(task.param_space.shape)  # type: ignore
-        self.target_normalized_entropy = -action_dim
         self.entropy_norm = param_dim / action_dim
+        if cfg.sac.lr_alpha is not None:
+            self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
+            self.target_entropy = (
+                -action_dim
+                if cfg.sac.target_entropy is None
+                else cfg.sac.target_entropy
+            )
+        else:
+            self.alpha_optim = None
+            self.target_entropy = None
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
 
@@ -271,13 +223,13 @@ class SacZopTrainer(Trainer):
                 log_p = pi_o.log_prob / self.entropy_norm
 
                 # update temperature
-                alpha_loss = -torch.mean(
-                    self.log_alpha.exp()
-                    * (log_p + self.target_normalized_entropy).detach()
-                )
-                self.alpha_optim.zero_grad()
-                alpha_loss.backward()
-                self.alpha_optim.step()
+                if self.alpha_optim is not None:
+                    alpha_loss = -torch.mean(
+                        self.log_alpha.exp() * (log_p + self.target_entropy).detach()
+                    )
+                    self.alpha_optim.zero_grad()
+                    alpha_loss.backward()
+                    self.alpha_optim.step()
 
                 # update critic
                 alpha = self.log_alpha.exp().item()
@@ -344,4 +296,7 @@ class SacZopTrainer(Trainer):
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
+        if self.alpha_optim is None:
+            return [self.q_optim, self.pi_optim]
+
         return [self.q_optim, self.pi_optim, self.alpha_optim]

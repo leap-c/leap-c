@@ -1,281 +1,162 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable
+from typing import Any, List
 
 import casadi as ca
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
+from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
+from matplotlib.patches import FancyArrowPatch
+
+from leap_c.examples.plot_utils import latex_plot_context
 
 
-@dataclass(kw_only=True)
-class WindTunnelParam:
-    magnitude: tuple[float, float] = (0, 1.5)
-    decay: tuple[float, float] = (0.0, 0.1)
-    center: tuple[float, float] = (0, 0)
+class Circle:
+    def __init__(self, pos: np.ndarray, radius: float):
+        self.pos = pos
+        self.radius = radius
+
+    def __contains__(self, item):
+        # Check only position (first 2 elements)
+        if len(item) >= 2:
+            return np.linalg.norm(item[:2] - self.pos) <= self.radius
+        return False  # Cannot check if item is not position-like
+
+    def sample(self, rng: np.random.Generator) -> np.ndarray:
+        theta = rng.uniform(0, 2 * np.pi)
+        r = self.radius * np.sqrt(rng.uniform(0, 1))
+        x = self.pos[0] + r * np.cos(theta)
+        y = self.pos[1] + r * np.sin(theta)
+        return np.array([x, y])
 
 
-@dataclass(kw_only=True)
-class VortexParam:
-    center: tuple[float, float] = (2.5, 0.0)
-    magnitude: float = 8.0
-    decay: float = 0.5
-    direction: float = 1.0
+class WindField(ABC):
+    @abstractmethod
+    def __call__(self, pos: np.ndarray) -> np.ndarray: ...
 
+    def plot_XY(
+        self, xlim: tuple[float, float], ylim: tuple[float, float]
+    ) -> tuple[np.ndarray, np.ndarray]:
+        nx = ny = 20
+        x = np.linspace(xlim[0], xlim[1], nx)
+        y = np.linspace(ylim[0], ylim[1], ny)
+        X, Y = np.meshgrid(x, y)
+        return X, Y
 
-@dataclass(kw_only=True)
-class BaseWindParam:
-    magnitude: tuple[float, float] = (-1.0, 1.0)
-
-
-@dataclass(kw_only=True)
-class VariationWindParam:
-    scale: float = 0.3
-    magnitude: tuple[float, float] = (2, 1.5)
-
-
-@dataclass(kw_only=True)
-class RandomWindParam:
-    magnitude: float = 0.1
-    seed: int = 1000
-    dx: int = 10
-    dy: int = 6
-
-
-class VortexWind:
-    p: VortexParam
-
-    def __init__(self, param: VortexParam):
-        self.p = param
-
-    def __call__(self, x, y):
-        dx = x - self.p.center[0]
-        dy = y - self.p.center[1]
-        r = np.sqrt(dx**2 + dy**2)
-        theta = np.arctan2(dy, dx)
-
-        # Tangential velocity decreases with radius
-        v_theta = self.p.magnitude * np.exp(-self.p.decay * r)
-
-        return v_theta * np.array(
-            [-self.p.direction * np.sin(theta), self.p.direction * np.cos(theta)]
-        )
-
-
-class InverseVortexWind:
-    p: VortexParam
-
-    def __init__(self, param: VortexParam):
-        self.p = param
-
-    def __call__(self, x, y):
-        dx = x - self.p.center[0]
-        dy = y - self.p.center[1]
-        r = np.sqrt(dx**2 + dy**2)
-        theta = np.arctan2(dy, dx)
-
-        # Tangential velocity decreases with radius
-        v_theta = self.p.magnitude * np.exp(-self.p.decay * r)
-
-        return v_theta * np.array(
-            [self.p.direction * np.sin(theta), self.p.direction * np.cos(theta)]
-        )
-
-
-class BaseWind:
-    p: BaseWindParam
-
-    def __init__(self, param: BaseWindParam):
-        self.p = param
-
-    def __call__(self, x, y):
-        return np.array(self.p.magnitude)
-
-
-class VariationWind:
-    p: VariationWindParam
-
-    # def __init__(self, scale: float, magnitude: tuple[float, float] = (2, 1.5)):
-    def __init__(self, param: VariationWindParam):
-        self.p = param
-
-    def __call__(self, x, y):
-        u = self.p.magnitude[0] * np.sin(self.p.scale * y)
-        v = self.p.magnitude[1] * np.cos(self.p.scale * x)
-        return np.array([u, v])
-
-
-class RandomWind:
-    p: RandomWindParam
-
-    def __init__(
+    def plot_wind_field(
         self,
-        param: RandomWindParam,
+        ax: Axes,
+        xlim: tuple[float, float],
+        ylim: tuple[float, float],
+        scale: float = 80.0,
     ):
-        self.p = param
+        # Get x, y
+        X, Y = self.plot_XY(xlim, ylim)
 
-    def __call__(self, x, y):
-        np.random.seed(
-            int((x + self.p.dx) * self.p.seed) + int((y + self.p.dy) * self.p.seed)
+        # Initialize velocity arrays
+        U = np.zeros_like(X)
+        V = np.zeros_like(Y)
+
+        # Compute velocities for each grid point
+        for i in range(X.shape[0]):
+            for j in range(X.shape[1]):
+                pos = np.array([X[i, j], Y[i, j]])
+                U[i, j], V[i, j] = self(pos)
+
+        # Compute and print some statistics
+        wind_mag = np.sqrt(U**2 + V**2)
+
+        # Filter out zero wind vectors for better visualization
+        mask = wind_mag > 0
+
+        # Plot the wind Field
+        ax.quiver(
+            X[mask],
+            Y[mask],
+            U[mask],
+            V[mask],
+            wind_mag[mask],
+            scale=scale,
+            scale_units="xy",
+            width=0.0035,
+            pivot="mid",
         )
-        u = np.random.randn() * self.p.magnitude
-        v = np.random.randn() * self.p.magnitude
-        return np.array([u, v])
 
 
-class WindTunnel:
-    p: WindTunnelParam
+class WindParcour(WindField):
+    def __init__(self, magnitude: float = 10.0):
+        self.magnitude = magnitude
+        self.boxes = [
+            [np.array([0.5, 0.15]), np.array([1.5, 1.0])],
+            [np.array([2.5, 0.0]), np.array([3.5, 0.85])],
+        ]
 
-    def __init__(
+    def plot_XY(
+        self, xlim: tuple[float, float], ylim: tuple[float, float]
+    ) -> tuple[np.ndarray, np.ndarray]:
+        parts_X = []
+        parts_Y = []
+
+        for box in self.boxes:
+            # create intersection of the box with the xlim and set_ylim
+            xlim_box = (max(xlim[0], box[0][0]), min(xlim[1], box[1][0]))
+            ylim_box = (max(ylim[0], box[0][1]), min(ylim[1], box[1][1]))
+            delta = 0.1999999
+            num_x = int((xlim_box[1] - xlim_box[0]) // delta) - 1
+            num_y = int((ylim_box[1] - ylim_box[0]) // delta) - 1
+            mid_x = (xlim_box[0] + xlim_box[1]) / 2
+            mid_y = (ylim_box[0] + ylim_box[1]) / 2
+            left_x = mid_x - num_x * delta / 2
+            left_y = mid_y - num_y * delta / 2
+            x = np.linspace(left_x, left_x + num_x * delta, num_x)
+            y = np.linspace(left_y, left_y + num_y * delta, num_y)
+
+            parts_X.append(x)
+            parts_Y.append(y)
+
+        parts_X = np.concatenate(parts_X)
+        parts_Y = np.concatenate(parts_Y)
+
+        X, Y = np.meshgrid(parts_X, parts_Y)
+        return X, Y
+
+    def plot_wind_field(
         self,
-        param: WindTunnelParam,
+        ax: Axes,
+        xlim: tuple[float, float],
+        ylim: tuple[float, float],
+        scale: float = 80.0,
     ):
-        self.p = param
+        # plot rectangles for each boxes
+        for box in self.boxes:
+            rect = plt.Rectangle(
+                box[0],
+                box[1][0] - box[0][0],
+                box[1][1] - box[0][1],
+                color="gray",
+                alpha=0.1,
+            )
+            ax.add_patch(rect)
 
-    def __call__(self, x, y):
-        return np.array(
-            [
-                self.p.magnitude[1]
-                * np.exp(-self.p.decay[1] * (y - self.p.center[1]) ** 2),
-                self.p.magnitude[0]
-                * np.exp(-self.p.decay[0] * (x - self.p.center[0]) ** 2),
-            ]
-        )
+        # plot wind field
+        super().plot_wind_field(ax, xlim, ylim, scale=scale)
 
-
-class WindField:
-    def __init__(self, wind_partial: list[Callable]):
-        self.wind_partial = wind_partial
-
-    def __call__(self, x, y):
-        return np.sum([wind(x, y) for wind in self.wind_partial], axis=0)
+    def __call__(self, pos: np.ndarray) -> np.ndarray:
+        for box in self.boxes:
+            if np.all(box[0] <= pos) and np.all(pos <= box[1]):
+                return np.array([-self.magnitude, 0.0])
+        return np.array([0.0, 0.0])
 
 
 @dataclass
 class PointMassParam:
-    dt: float
-    m: float
-    cx: float
+    dt: float  # time discretization
+    m: float  # mass
+    cx: float  # damping coefficient in x direction
     cy: float
-
-
-@dataclass
-class WindParam:
-    scale: float = 0.3
-    vortex_center: tuple[float, float] = (5.0, 6.0)
-    vortex_strength: float = 8.0
-
-
-def get_wind_velocity(
-    x: float | ca.SX,
-    y: float | ca.SX,
-    scale=0.1,
-    vortex_center=(5, 5),
-    vortex_strength=1.0,
-):
-    """
-    Compute wind velocity components at a given position.
-
-    Args:
-        x (float): X-coordinate of the position
-        y (float): Y-coordinate of the position
-        scale (float): Wind variation scale
-        vortex_center (tuple): Center coordinates of vortex (x, y)
-        vortex_strength (float): Strength of the vortex
-
-    Returns:
-        tuple: (u, v) wind velocity components at the given position
-    """
-    if isinstance(x, ca.SX) or isinstance(y, ca.SX):
-        u = ca.SX(0.0)
-        v = ca.SX(0.0)
-        dx = x - vortex_center[0]
-        dy = y - vortex_center[1]
-        r = ca.sqrt(dx**2 + dy**2)
-        theta = ca.arctan2(dy, dx)
-
-        # Tangential velocity decreases with radius
-        v_theta = vortex_strength * ca.exp(-0.5 * r)
-
-        # # Add vortex components
-        u += -v_theta * ca.sin(theta)
-        v += v_theta * ca.cos(theta)
-
-    if True:
-        # Base south-west wind
-        # u = -1.0
-        # v = +1.0
-
-        u = 0.0
-        v = 0.0
-
-        # # Add variation
-        # u += 2 * np.sin(scale * y)
-        # v = 1.5 * np.cos(scale * x)
-
-        # Add vortex
-        dx = x - vortex_center[0]
-        dy = y - vortex_center[1]
-        r = np.sqrt(dx**2 + dy**2)
-        theta = np.arctan2(dy, dx)
-
-        # Tangential velocity decreases with radius
-        v_theta = vortex_strength * np.exp(-0.5 * r)
-
-        # # Add vortex components
-        u += -v_theta * np.sin(theta)
-        v += v_theta * np.cos(theta)
-
-        # Add random turbulence component
-        # Note: Using a fixed seed for reproducibility
-        # np.random.seed(int((x + 10) * 1000) + int((y + 6) * 1000))
-        # u += np.random.randn() * 0.5
-        # v += np.random.randn() * 0.5
-    else:
-        u, v = 0.0, 0.0
-
-    return u, v
-
-
-def map_wind_field(
-    wind_field: WindField,
-    xlim=[0, 10],
-    ylim=[0, 10],
-    nx=100,
-    ny=100,
-):
-    """
-    Test the wind velocity function using a grid of positions.
-    Returns the complete wind field arrays U, V for comparison.
-
-    Args:
-        nx, ny (int): Grid dimensions
-        scale (float): Wind variation scale
-        vortex_center (tuple): Center coordinates of vortex (x, y)
-        vortex_strength (float): Strength of the vortex
-
-    Returns:
-        tuple: (X, Y, U, V) arrays containing the grid coordinates and wind components
-    """
-    # Create grid
-    x = np.linspace(xlim[0], xlim[1], nx)
-    y = np.linspace(ylim[0], ylim[1], ny)
-    X, Y = np.meshgrid(x, y)
-
-    # Initialize velocity arrays
-    U = np.zeros_like(X)
-    V = np.zeros_like(Y)
-
-    # Compute velocities for each grid point
-    for i in range(ny):
-        for j in range(nx):
-            U[i, j], V[i, j] = wind_field(X[i, j], Y[i, j])
-
-    # Compute and print some statistics
-    wind_mag = np.sqrt(U**2 + V**2)
-
-    return X, Y, U, V, wind_mag
 
 
 def _A_disc(
@@ -290,16 +171,16 @@ def _A_disc(
             ca.horzcat(0, 1, 0, dt),
             ca.horzcat(0, 0, ca.exp(-cx * dt / m), 0),
             ca.horzcat(0, 0, 0, ca.exp(-cy * dt / m)),
-        )
-    else:
-        return np.array(
-            [
-                [1, 0, dt, 0],
-                [0, 1, 0, dt],
-                [0, 0, np.exp(-cx * dt / m), 0],
-                [0, 0, 0, np.exp(-cy * dt / m)],
-            ]
-        )
+        )  # type: ignore
+
+    return np.array(
+        [
+            [1, 0, dt, 0],
+            [0, 1, 0, dt],
+            [0, 0, np.exp(-cx * dt / m), 0],
+            [0, 0, 0, np.exp(-cy * dt / m)],
+        ]
+    )
 
 
 def _B_disc(
@@ -314,51 +195,16 @@ def _B_disc(
             ca.horzcat(0, 0),
             ca.horzcat((m / cx) * (1 - ca.exp(-cx * dt / m)), 0),
             ca.horzcat(0, (m / cy) * (1 - ca.exp(-cy * dt / m))),
-        )
-    else:
-        return np.array(
-            [
-                [0, 0],
-                [0, 0],
-                [(m / cx) * (1 - np.exp(-cx * dt / m)), 0],
-                [0, (m / cy) * (1 - np.exp(-cy * dt / m))],
-            ]
-        )
+        )  # type: ignore
 
-
-def _A_cont(
-    m: float | ca.SX, cx: float | ca.SX, cy: float | ca.SX, dt: float | ca.SX
-) -> np.ndarray | ca.SX:
-    if isinstance(m, float):
-        return np.array(
-            [
-                [0, 0, 1.0, 0],
-                [0, 0, 0, 1.0],
-                [0, 0, -(cx / m), 0],
-                [0, 0, 0, -(cy / m)],
-            ]
-        )
-    else:
-        return ca.vertcat(
-            ca.horzcat(0, 0, 1.0, 0),
-            ca.horzcat(0, 0, 0, 1.0),
-            ca.horzcat(0, 0, -(cx / m), 0),
-            ca.horzcat(0, 0, 0, -(cy / m)),
-        )
-
-
-def _B_cont(
-    m: float | ca.SX, cx: float | ca.SX, cy: float | ca.SX, dt: float | ca.SX
-) -> np.ndarray | ca.SX:
-    if isinstance(m, float):
-        return np.array([[0, 0], [0, 0], [1.0 / m, 0], [0, 1.0 / m]])
-    else:
-        return ca.vertcat(
-            ca.horzcat(0, 0),
-            ca.horzcat(0, 0),
-            ca.horzcat(1.0 / m, 0),
-            ca.horzcat(0, 1.0 / m),
-        )
+    return np.array(
+        [
+            [0, 0],
+            [0, 0],
+            [(m / cx) * (1 - np.exp(-cx * dt / m)), 0],
+            [0, (m / cy) * (1 - np.exp(-cy * dt / m))],
+        ]
+    )
 
 
 class PointMassEnv(gym.Env):
@@ -366,368 +212,321 @@ class PointMassEnv(gym.Env):
 
     def __init__(
         self,
-        dt: float = 2 / 20,
+        train: bool = False,
+        param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=15, cy=15),
+        Fmax: float = 10,
         max_time: float = 10.0,
         render_mode: str | None = None,
-        param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=0.1, cy=0.1),
-        Fmax: float = 10.0,
-        observation_space: spaces.Box = spaces.Box(
-            low=np.array([0.0, -8.0, -50.0, -50.0]),
-            high=np.array([6.0, +8.0, 50.0, 50.0]),
-            dtype=np.float64,
-        ),
-        init_state_dist: dict[str, np.ndarray] = {
-            "low": np.array([5.0, -5.0, 0.0, 0.0]),
-            "high": np.array([5.0, 5.0, 0.0, 0.0]),
-        },
-        wind_field=WindField(
-            [
-                # BaseWind(param=BaseWindParam(magnitude=(-1.0, 1.0))),
-                # RandomWind(param=RandomWindParam()),
-                # VariationWind(param=VariationWindParam()),
-                # VortexWind(param=VortexParam(center=(6, 5.0))),
-                WindTunnel(
-                    param=WindTunnelParam(
-                        center=(0, 0), magnitude=(0, 3.0), decay=(0.0, 0.1)
-                    )
-                ),
-            ]
-        ),
     ):
-        super().__init__()
+        # gymnasium setup
+        max_v = 20
+        max_wind_force = 10.5
+        self.state_low = np.array([0.0, 0.0, -max_v, -max_v], dtype=np.float32)
+        self.state_high = np.array([4, 1.0, max_v, max_v], dtype=np.float32)
+        self.wind_low = np.array([-max_wind_force, -max_wind_force], dtype=np.float32)
+        self.wind_high = np.array([max_wind_force, max_wind_force], dtype=np.float32)
+        self.obs_high = np.concatenate([self.state_high, self.wind_high])
+        self.obs_low = np.concatenate([self.state_low, self.wind_low])
+        self.action_low = np.array([-Fmax, -Fmax], dtype=np.float32)
+        self.action_high = np.array([Fmax, Fmax], dtype=np.float32)
+        self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
+        self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
+        self.render_mode = render_mode
 
-        # self.wind_param = wind_param
-        self.wind_field = wind_field
-
-        self.init_state_dist = init_state_dist
-
-        self.input_noise_dist = {
-            "low": -1.0,
-            "high": 1.0,
-        }
-
-        self.observation_space = observation_space
-
-        self.action_space = spaces.Box(
-            low=np.array([-Fmax, -Fmax]),
-            high=np.array([Fmax, Fmax]),
-            dtype=np.float32,
-        )
-
-        # Will be added after doing a step.
-        self.input_noise = 0.0
-
-        if dt is not None:
-            param.dt = dt
-
-        self.dt = dt
+        # env logic
+        self.train = train
         self.max_time = max_time
-
+        self.dt = param.dt
+        self.Fmax = Fmax
         self.A = _A_disc(param.m, param.cx, param.cy, param.dt)
         self.B = _B_disc(param.m, param.cx, param.cy, param.dt)
+        self.start = Circle(pos=np.array([0.25, 0.8]), radius=0.15)
+        self.goal = Circle(pos=np.array([3.75, 0.2]), radius=0.15)
+        self.wind_field = WindParcour(magnitude=max_wind_force)
 
-        self.terminal_radius = 0.5
+        # env state
+        self.state: np.ndarray | None = None
+        self.action: np.ndarray | None = None
+        self.time: float = 0.0
 
-        self.trajectory = []
-
-        self._set_canvas()
-
-        # For rendering
-        if render_mode is not None:
-            raise NotImplementedError("Rendering is not implemented yet.")
+        # plotting attributes (initialize to None)
+        self.fig: plt.Figure | None = None  # type: ignore
+        self.ax: plt.Axes | None = None  # type: ignore
+        self.trajectory_plot: plt.Line2D | None = None  # type: ignore
+        self.agent_plot: plt.Line2D | None = None  # type: ignore
+        self.action_arrow_patch: FancyArrowPatch | None = None
+        self.trajectory: List[np.ndarray] = []
 
     def step(self, action: np.ndarray) -> tuple[Any, float, bool, bool, dict]:
-        self.action_to_take = action
+        if self.state is None:
+            raise ValueError("Environment must be reset before stepping.")
 
-        u = action
-        # TODO(Jasper): Quickfix
-        if u.ndim > 1:
-            u = u.squeeze()
-
-        self.u = u
-
-        self.u_wind = self.wind_field(self.state[0], self.state[1])
-
-        self.u_dist = 0.0 * self.input_noise * u
-
-        self.state = self.A @ self.state + self.B @ (self.u + self.u_wind + self.u_dist)
-
-        self.input_noise = self._get_input_noise()
-
-        o = self._current_observation()
-        r = self._calculate_reward()
-
-        if self.state not in self.observation_space:
-            r -= 50
-
-        term = self._is_done()
-
-        info = {}
-
+        # transition
+        action = np.clip(action, self.action_low, self.action_high)  # type: ignore
+        force_wind = self.wind_field(self.state[:2])
+        self.state = self.A @ self.state + self.B @ (action + force_wind)  # type: ignore
+        self.action = action  # Store the action taken
         self.time += self.dt
 
-        trunc = self.time > self.max_time
+        # observation
+        self.trajectory.append(self.state.copy())  # type: ignore
 
-        self.trajectory.append(o)
+        # termination and truncation
+        out_of_bounds = (self.state_high < self.state).any() or (
+            self.state_low > self.state
+        ).any()
+        reached_goal = self.state[:2] in self.goal  # type: ignore
+        term = out_of_bounds or reached_goal
+        trunc = self.time >= self.max_time
 
-        return o, r, term, trunc, info
+        # reward
+        dist_to_goal_x = np.abs(self.state[0] - self.goal.pos[0])  # type: ignore
+        r_dist = 1 - dist_to_goal_x / (self.state_high[0] - self.state_low[0])
+        # dist_max = np.linalg.norm(self.goal.pos - self.state_low[:2])
+        # r_dist = 1.0 - np.linalg.norm(self.state[:2] - self.goal.pos) / dist_max
+        r_goal = 60 * (1.0 - 0.5 * self.time / self.max_time) if reached_goal else 0.0
+        r = 0.1 * r_dist + r_goal
+
+        return self._observation(), float(r), bool(term), bool(trunc), {}
 
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
-    ) -> tuple[Any, dict]:  # type: ignore
-        if seed is not None:
-            super().reset(seed=seed)
-            self.observation_space.seed(seed)
-            self.action_space.seed(seed)
-        self.state_trajectory = None
-        self.action_to_take = None
-        self.state = self._init_state()
+    ) -> tuple[Any, dict]:
+        super().reset(seed=seed)
         self.time = 0.0
+        self.state = self._init_state()
+        self.action = np.zeros(self.action_space.shape, dtype=np.float32)  # type: ignore
+        self.trajectory = [self.state.copy()]
 
-        self.trajectory = []
-        plt.close("all")
-        self.canvas = None
-        self.line = None
+        # Close existing figure if resetting during run
+        if self.render_mode == "human" and self.fig is not None:
+            self._close_fig()
 
-        self._set_canvas()
+        return self._observation(), {}
 
-        return self.state, {}
+    def _observation(self) -> np.ndarray:
+        ode_state = self.state.copy().astype(np.float32)  # type: ignore
+        wind_field = self.wind_field(self.state[:2]).astype(np.float32)  # type: ignore
+        return np.concatenate([ode_state, wind_field])
 
-    def _current_observation(self):
-        return self.state
+    def _init_state(self, num_tries: int = 100) -> np.ndarray:
+        if num_tries <= 0:
+            raise ValueError("Could not find a valid initial state.")
 
-    def _init_state(self):
-        return self.np_random.uniform(
-            low=self.init_state_dist["low"], high=self.init_state_dist["high"]
-        )
-
-    def _get_input_noise(self) -> float:
-        """Return the next noise to be added to the state."""
-        return self.np_random.uniform(
-            low=self.input_noise_dist["low"],
-            high=self.input_noise_dist["high"],
-            size=1,
-        )
-
-    def _calculate_reward(self):
-        # Reward is higher the closer the position is to (0,0) and the lower the velocity
-
-        distance = np.linalg.norm(self.state[:2])
-
-        # velocity = np.linalg.norm(self.state[2:])
-        # power = np.dot(self.u, self.state[2:])
-
-        # power = np.linalg.norm(self.u)
-        power = np.dot(self.u, self.state[2:])
-
-        if len(self.trajectory) > 1:
-            path_increment = self.state[:2] - self.trajectory[-1][:2]
+        if not self.train:
+            pos = self.start.sample(self.np_random)
+            state = np.array([*pos, 0.0, 0.0])
         else:
-            path_increment = np.array([0.0, 0.0])
-        work = np.dot(path_increment, self.u)
+            low = (np.array([0.1, 0.1, 0.0, 0.0]),)
+            high = np.array([3.9, 0.9, 0.0, 0.0])
+            state = self.np_random.uniform(low=low, high=high)[0]
 
-        # print(
-        #     f"Position: {self.state[:2]}, Velocity: {self.state[2:]}, Distance: {distance}, Force: {self.u}, Power: {power}, Work: {work}"
-        # )
+        # check if the state is in the wind field
+        if (self.wind_field(state[:2]) != 0).any():
+            return self._init_state(num_tries - 1)
 
-        reward = -self.dt * (distance + 5 * power)
+        return state
 
-        distance = np.linalg.norm(self.state[:2])
-        velocity = np.linalg.norm(self.state[2:])
+    def render(self) -> np.ndarray | None:
+        with latex_plot_context():
+            return self._render()
 
-        close_to_zero = distance < self.terminal_radius and velocity < 0.5
+    def _render(self) -> np.ndarray | None:
+        if self.render_mode is None:
+            gym.logger.warn("Cannot render environment without a render_mode set.")
+            return None
+        if self.state is None or self.action is None:
+            gym.logger.warn("Cannot render environment before reset() is called.")
+            return None
 
-        if close_to_zero:
-            reward += 50
-        # reward = -distance - 10 * work
-        return reward
+        if self.fig is None:
+            if self.render_mode == "human":
+                plt.ion()
+            self.fig, self.ax = plt.subplots(figsize=(10, 4))
 
-    def _is_done(self):
-        # Episode is done if the position is very close to (0,0) at low velocity
+            # Set limits based on observation space position with padding
+            self.ax.set_xlim(self.state_low[0], self.state_high[0])
+            self.ax.set_ylim(self.state_low[1], self.state_high[1])
+            self.ax.set_yticks(np.arange(0, 1.1, 0.5))
 
-        distance = np.linalg.norm(self.state[:2])
-        velocity = np.linalg.norm(self.state[2:])
+            self.ax.set_aspect(
+                "equal", adjustable="box"
+            )  # Ensure aspect ratio is visually correct
+            self.ax.set_xlabel("x")
+            self.ax.set_ylabel("y")
 
-        close_to_zero = distance < self.terminal_radius and velocity < 0.5
+            self.ax.text(
+                self.start.pos[0] + 0.02,
+                self.start.pos[1],
+                r"$\odot$",
+                fontsize=60,
+                color="black",
+                horizontalalignment="center",
+                verticalalignment="center_baseline",
+                zorder=3,
+                label="Start ($\odot$)",
+            )
+            self.ax.plot(
+                [], [], "ko", marker=r"$\odot$", markersize=10, label="Start", zorder=3
+            )
+            self.ax.text(
+                self.goal.pos[0] + 0.02,  # x-coordinate from self.goal.pos
+                self.goal.pos[1],  # y-coordinate from self.goal.pos
+                r"$\otimes$",  # The LaTeX symbol (otimes) in math mode
+                fontsize=60,  # Adjust size for visibility
+                color="black",  # Choose a color (e.g., green, lime)
+                horizontalalignment="center",  # Center the symbol horizontally
+                verticalalignment="center_baseline",  # Center the symbol vertically
+                zorder=3,  # Ensure it's drawn prominently
+                label="Goal ($\otimes$)",  # Optional: Update label for legend
+            )
+            self.ax.plot(
+                [], [], "ko", marker=r"$\otimes$", markersize=10, label="Goal", zorder=3
+            )
 
-        outside_bounds = self.state not in self.observation_space
+            if self.wind_field:
+                self.wind_field.plot_wind_field(
+                    self.ax,
+                    xlim=(self.state_low[0], self.state_high[0]),
+                    ylim=(self.state_low[1], self.state_high[1]),
+                )
 
-        time_exceeded = self.time > self.max_time
+            (self.trajectory_plot,) = self.ax.plot(
+                [],
+                [],
+                "b-",
+                alpha=0.5,
+                label="Trajectory",
+                zorder=1,
+                lw=2.5,
+            )  # Blue line
+            (self.agent_plot,) = self.ax.plot(
+                [], [], "ro", markersize=8, label="Agent", zorder=3
+            )  # Red circle
+            # Action arrow will be created/removed dynamically
 
-        done = close_to_zero or outside_bounds or time_exceeded
+            # add goal to legend below plot with three columns
+            self.ax.legend(
+                loc="upper center",
+                fontsize=10,
+                frameon=True,
+                ncol=4,
+                bbox_to_anchor=(0.5, -0.25),
+            )
 
-        # if done:
-        #     print(
-        #         f"Close to zero: {close_to_zero}, Outside bounds: {outside_bounds}, Time exceeded: {time_exceeded}"
-        #     )
+        # Update trajectory
+        traj_x = [s[0] for s in self.trajectory]
+        traj_y = [s[1] for s in self.trajectory]
+        self.trajectory_plot.set_data(traj_x, traj_y)  # type: ignore
 
-        return done
+        # Update agent position
+        self.agent_plot.set_data([self.state[0]], [self.state[1]])  # type: ignore
 
-    def _set_canvas(self):
-        fig = plt.figure(figsize=(10, 10))
-        plt.xlabel("x")
-        plt.ylabel("y")
+        # Update action arrow (remove old, add new)
+        if self.action_arrow_patch is not None:
+            self.action_arrow_patch.remove()
+            self.action_arrow_patch = None
 
-        self.canvas = FigureCanvas(fig)
+        # Calculate arrow properties (scale for visibility)
+        # Might need adjustment due to different axis scales, but let's try the same first
+        arrow_scale = 0.03  # Keep same scale relative to action magnitude
+        dx = self.action[0] * arrow_scale
+        dy = self.action[1] * arrow_scale
 
-        # Draw trajectory
-        (self.line,) = plt.plot(
-            self.canvas.figure.get_axes()[0].get_xlim(),
-            self.canvas.figure.get_axes()[0].get_xlim(),
-            "k",
-            alpha=0.5,
-        )
+        # Only draw arrow if it has significant length
+        if np.linalg.norm([dx, dy]) > 1e-4:
+            # Create a new arrow patch
+            self.action_arrow_patch = FancyArrowPatch(
+                (self.state[0], self.state[1]),  # start point
+                (self.state[0] + dx, self.state[1] + dy),  # end point
+                color="darkorange",
+                mutation_scale=15,
+                alpha=0.9,
+                zorder=2,  # Above trajectory, below agent
+            )
+            self.ax.add_patch(self.action_arrow_patch)  # type: ignore
 
-        # Draw position
-        (self.point,) = plt.plot([0], [0], "ko")
+        self.fig.tight_layout()  # Adjust layout to fit all elements
+        if self.render_mode == "human":
+            self.fig.canvas.draw_idle()
+            self.fig.canvas.flush_events()
+            plt.pause(0.01)
+            return None
+        elif self.render_mode == "rgb_array":
+            canvas = FigureCanvas(self.fig)
+            canvas.draw()  # Draw the canvas
+            self.fig.subplots_adjust(bottom=0.25)
+            # Get RGB data
+            image_shape = canvas.get_width_height()[::-1] + (4,)
+            buf = np.frombuffer(canvas.buffer_rgba(), dtype=np.uint8)
+            img = buf.reshape(image_shape)[:, :, :3]  # Get RGB, discard alpha
 
-        # Draw velocity field
-        X, Y, U, V, wind_mag = map_wind_field(
-            wind_field=self.wind_field,
-            xlim=(self.observation_space.low[0], self.observation_space.high[0]),
-            ylim=(self.observation_space.low[1], self.observation_space.high[1]),
-            nx=30,
-            ny=30,
-        )
+            # Important for rgb_array mode to avoid artifacts on next render call
+            if self.action_arrow_patch:
+                self.action_arrow_patch.remove()
+                self.action_arrow_patch = None
+            return img
+        else:
+            raise ValueError(f"Unsupported render mode: {self.render_mode}")
 
-        contour = plt.contourf(X, Y, wind_mag, levels=20, cmap="viridis")
-        plt.colorbar(contour, label="Wind Speed")
+    def _close_fig(self):
+        """Helper to close the Matplotlib figure."""
+        if self.fig is not None:
+            if self.render_mode == "human":
+                plt.ioff()  # Turn off interactive mode
+            plt.close(self.fig)
+            self.fig = None
+            self.ax = None
+            self.trajectory_plot = None
+            self.agent_plot = None
+            self.action_arrow_patch = None
 
-        # Plot wind vectors
-        quiver = plt.quiver(
-            X, Y, U, V, color="black", alpha=0.8, scale=10, scale_units="xy"
-        )
+    def close(self):
+        """Close the rendering window."""
+        self._close_fig()
 
-        self.quiver = quiver
 
-        # Draw constraint boundary
-        # rect = plt.Rectangle(
-        #     (self.observation_space.low[0], self.observation_space.low[1]),
-        #     width=(self.observation_space.high[0] - self.observation_space.low[0]),
-        #     height=(self.observation_space.high[1] - self.observation_space.low[1]),
-        #     fill=False,  # Set to True if you want a filled rectangle
-        #     color="k",
-        #     linewidth=2,
-        #     linestyle="--",
-        # )
-        # self.canvas.figure.get_axes()[0].add_patch(rect)
+if __name__ == "__main__":
+    env = PointMassEnv(
+        render_mode="human",
+        max_time=15.0,
+        train=False,
+    )  # Longer time
+    obs, info = env.reset(seed=44)  # Changed seed slightly
 
-        # Set axis limits tight
-        # plt.tight_layout()
+    terminated = False
+    truncated = False
+    total_reward = 0
+    env.render()
 
-        # Draw arrow for action
-        self.input_arrow = plt.arrow(
-            0,
-            0,
-            0,
-            0,
-            head_width=0.1,
-            head_length=0.1,
-            fc="g",
-            ec="g",
-            alpha=1.0,
-        )
+    for i in range(300):  # Increase steps for longer visualization
+        action = env.action_space.sample()
 
-        # Draw arrow for action
-        self.disturbance_arrow = plt.arrow(
-            0,
-            0,
-            0,
-            0,
-            head_width=0.1,
-            head_length=0.1,
-            fc="r",
-            ec="r",
-            alpha=0.75,
-        )
+        goal_dir = env.goal.pos - obs[:2]
+        goal_dir_norm = np.linalg.norm(goal_dir)
+        if goal_dir_norm > 1e-3:
+            proportional_force = (goal_dir / goal_dir_norm) * env.Fmax
+        else:
+            proportional_force = np.zeros(2)
 
-        xwind = 0
-        ywind = 0
-        uv = self.wind_field(xwind, ywind)
+        action = proportional_force
 
-        self.wind_arrow = plt.arrow(
-            xwind,
-            ywind,
-            uv[0] / quiver.scale,
-            uv[1] / quiver.scale,
-            head_width=0.1,
-            head_length=0.1,
-            fc="b",
-            ec="b",
-            alpha=0.75,
-        )
+        obs, reward, terminated, truncated, info = env.step(action)
+        total_reward += reward
 
-        # Draw radius with self.terminal_radius at (0,0)
-        self.circle = plt.Circle(
-            xy=(0, 0),
-            radius=self.terminal_radius,
-            fill=False,
-            color="k",
-            linewidth=2,
-            linestyle="--",
-        )
+        env.render()
 
-        self.canvas.figure.get_axes()[0].add_patch(self.circle)
+        if terminated or truncated:
+            print(f"Episode finished after {i+1} timesteps.")
+            print(f"Termination: {terminated}, Truncation: {truncated}")
+            print(f"Final state (pos): {obs[:2]}")
+            print(f"Goal position: {env.goal.pos}")
+            print(f"Distance to goal: {np.linalg.norm(obs[:2] - env.goal.pos):.3f}")
+            print(f"Total reward: {total_reward:.2f}")
+            if env.render_mode == "human":
+                plt.pause(5.0)  # Increased pause to see final state
+            break  # Stop after one episode for this example
 
-        # Draw radius for initial state distribution
-        self.rectangle_init = plt.Rectangle(
-            (self.init_state_dist["low"][0], self.init_state_dist["low"][1]),
-            width=(self.init_state_dist["high"][0] - self.init_state_dist["low"][0]),
-            height=(self.init_state_dist["high"][1] - self.init_state_dist["low"][1]),
-            fill=False,  # Set to True if you want a filled rectangle
-            color="k",
-            linewidth=2,
-            linestyle="-",
-            alpha=0.5,
-        )
-
-        self.canvas.figure.get_axes()[0].add_patch(self.rectangle_init)
-
-        # Set the axis limits with some padding
-        self.canvas.figure.get_axes()[0].set_xlim(
-            self.observation_space.low[0], self.observation_space.high[0]
-        )
-        self.canvas.figure.get_axes()[0].set_ylim(
-            self.observation_space.low[1], self.observation_space.high[1]
-        )
-
-        # Set axis equal
-        # plt.axis("equal")
-        # plt.show()
-        # exit(0)
-
-    def render(self):
-        self.line.set_xdata([x[0] for x in self.trajectory])
-        self.line.set_ydata([x[1] for x in self.trajectory])
-
-        self.point.set_xdata([self.state[0]])
-        self.point.set_ydata([self.state[1]])
-
-        self.input_arrow.set_data(
-            x=self.state[0],
-            y=self.state[1],
-            dx=self.u[0] / self.quiver.scale,
-            dy=self.u[1] / self.quiver.scale,
-        )
-
-        self.disturbance_arrow.set_data(
-            x=self.state[0],
-            y=self.state[1],
-            dx=self.u_dist[0] / self.quiver.scale,
-            dy=self.u_dist[1] / self.quiver.scale,
-        )
-
-        self.wind_arrow.set_data(
-            x=self.state[0],
-            y=self.state[1],
-            dx=self.u_wind[0] / self.quiver.scale,
-            dy=self.u_wind[1] / self.quiver.scale,
-        )
-
-        self.canvas.draw()
-
-        # Convert the plot to an RGB string
-        s, (width, height) = self.canvas.print_to_buffer()
-
-        # Convert the RGB string to a NumPy array
-        return np.frombuffer(s, np.uint8).reshape((height, width, 4))[:, :, :3]
+    # Close the environment rendering window
+    env.close()
+    print("Environment closed.")
