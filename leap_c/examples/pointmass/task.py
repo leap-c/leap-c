@@ -48,20 +48,7 @@ class PointMassTask(Task):
         return spaces.Box(low=self.param_low, high=self.param_high, dtype=np.float32)
 
     def create_env(self, train: bool) -> gym.Env:
-        if train:
-            init_state_dist = {
-                "low": np.array([0.1, 0.1, 0.0, 0.0]),
-                "high": np.array([3.9, 0.9, 0.0, 0.0]),
-            }
-        else:
-            init_state_dist = {
-                "low": np.array([0.20, 0.85, 0.0, 0.0]),
-                "high": np.array([0.30, 0.95, 0.0, 0.0]),
-            }
-
-        return PointMassEnv(
-            max_time=20.0, init_state_dist=init_state_dist, render_mode="rgb_array"
-        )
+        return PointMassEnv(max_time=20.0, train=train, render_mode="rgb_array")
 
     def create_extractor(self, env):
         return ScalingExtractor(env)

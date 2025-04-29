@@ -25,6 +25,13 @@ class Circle:
             return np.linalg.norm(item[:2] - self.pos) <= self.radius
         return False  # Cannot check if item is not position-like
 
+    def sample(self, rng: np.random.Generator) -> np.ndarray:
+        theta = rng.uniform(0, 2 * np.pi)
+        r = self.radius * np.sqrt(rng.uniform(0, 1))
+        x = self.pos[0] + r * np.cos(theta)
+        y = self.pos[1] + r * np.sin(theta)
+        return np.array([x, y])
+
 
 class WindField(ABC):
     @abstractmethod
@@ -80,7 +87,6 @@ class WindField(ABC):
 
 
 class WindParcour(WindField):
-
     def __init__(self, magnitude: float = 10.0):
         self.magnitude = magnitude
         self.boxes = [
@@ -91,9 +97,6 @@ class WindParcour(WindField):
     def plot_XY(
         self, xlim: tuple[float, float], ylim: tuple[float, float]
     ) -> tuple[np.ndarray, np.ndarray]:
-        # eval only in the boxes
-        # Get x, y
-
         parts_X = []
         parts_Y = []
 
@@ -101,15 +104,18 @@ class WindParcour(WindField):
             # create intersection of the box with the xlim and set_ylim
             xlim_box = (max(xlim[0], box[0][0]), min(xlim[1], box[1][0]))
             ylim_box = (max(ylim[0], box[0][1]), min(ylim[1], box[1][1]))
-            # shift such that we pad the
-            delta = 0.2
-            x = np.arange(xlim_box[0], xlim_box[1] + delta, delta)
-            y = np.arange(ylim_box[0], ylim_box[1] + delta, delta)
-            x_mids = (x[:-1] + x[1:]) / 2
-            y_mids = (y[:-1] + y[1:]) / 2
+            delta = 0.1999999
+            num_x = int((xlim_box[1] - xlim_box[0]) // delta) - 1
+            num_y = int((ylim_box[1] - ylim_box[0]) // delta) - 1
+            mid_x = (xlim_box[0] + xlim_box[1]) / 2
+            mid_y = (ylim_box[0] + ylim_box[1]) / 2
+            left_x = mid_x - num_x * delta / 2
+            left_y = mid_y - num_y * delta / 2
+            x = np.linspace(left_x, left_x + num_x * delta, num_x)
+            y = np.linspace(left_y, left_y + num_y * delta, num_y)
 
-            parts_X.append(x_mids)
-            parts_Y.append(y_mids)
+            parts_X.append(x)
+            parts_Y.append(y)
 
         parts_X = np.concatenate(parts_X)
         parts_Y = np.concatenate(parts_Y)
@@ -206,10 +212,7 @@ class PointMassEnv(gym.Env):
 
     def __init__(
         self,
-        init_state_dist: dict = {
-            "low": np.array([0.1, 0.1, 0.0, 0.0]),
-            "high": np.array([3.9, 0.9, 0.0, 0.0]),
-        },
+        train: bool = False,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=15, cy=15),
         Fmax: float = 10,
         max_time: float = 10.0,
@@ -231,14 +234,14 @@ class PointMassEnv(gym.Env):
         self.render_mode = render_mode
 
         # env logic
-        self.init_state_dist = init_state_dist
+        self.train = train
         self.max_time = max_time
         self.dt = param.dt
         self.Fmax = Fmax
         self.A = _A_disc(param.m, param.cx, param.cy, param.dt)
         self.B = _B_disc(param.m, param.cx, param.cy, param.dt)
-        self.start = Circle(pos=np.array([0.25, 0.8]), radius=0.25)
-        self.goal = Circle(pos=np.array([3.75, 0.2]), radius=0.25)
+        self.start = Circle(pos=np.array([0.25, 0.8]), radius=0.15)
+        self.goal = Circle(pos=np.array([3.75, 0.2]), radius=0.15)
         self.wind_field = WindParcour(magnitude=max_wind_force)
 
         # env state
@@ -310,10 +313,13 @@ class PointMassEnv(gym.Env):
         if num_tries <= 0:
             raise ValueError("Could not find a valid initial state.")
 
-        # ensure that the state is not in the goal or in the wind field
-        low = np.array(self.init_state_dist["low"], dtype=np.float64)
-        high = np.array(self.init_state_dist["high"], dtype=np.float64)
-        state = self.np_random.uniform(low=low, high=high)
+        if not self.train:
+            pos = self.start.sample(self.np_random)
+            state = np.array([*pos, 0.0, 0.0])
+        else:
+            low = (np.array([0.1, 0.1, 0.0, 0.0]),)
+            high = np.array([3.9, 0.9, 0.0, 0.0])
+            state = self.np_random.uniform(low=low, high=high)[0]
 
         # check if the state is in the wind field
         if (self.wind_field(state[:2]) != 0).any():
@@ -335,8 +341,8 @@ class PointMassEnv(gym.Env):
 
         if self.fig is None:
             if self.render_mode == "human":
-                plt.ion()  # Enable interactive mode for human rendering
-            self.fig, self.ax = plt.subplots(figsize=(10, 4))  # Wider than tall
+                plt.ion()
+            self.fig, self.ax = plt.subplots(figsize=(10, 4))
 
             # Set limits based on observation space position with padding
             self.ax.set_xlim(self.state_low[0], self.state_high[0])
@@ -346,40 +352,38 @@ class PointMassEnv(gym.Env):
             self.ax.set_aspect(
                 "equal", adjustable="box"
             )  # Ensure aspect ratio is visually correct
-            self.ax.set_xlabel("x position")
-            self.ax.set_ylabel("y position")
-            self.ax.set_title("Point Mass Environment")  # Updated title
+            self.ax.set_xlabel("x")
+            self.ax.set_ylabel("y")
 
             self.ax.text(
-                self.start.pos[0],
+                self.start.pos[0] + 0.02,
                 self.start.pos[1],
                 r"$\odot$",
-                fontsize=40,
+                fontsize=60,
                 color="black",
                 horizontalalignment="center",
-                verticalalignment="center",
+                verticalalignment="center_baseline",
                 zorder=3,
                 label="Start ($\odot$)",
             )
             self.ax.plot(
-                [], [], marker=r"$\odot$", markersize=10, label="Start", zorder=3
+                [], [], "ko", marker=r"$\odot$", markersize=10, label="Start", zorder=3
             )
             self.ax.text(
-                self.goal.pos[0],  # x-coordinate from self.goal.pos
+                self.goal.pos[0] + 0.02,  # x-coordinate from self.goal.pos
                 self.goal.pos[1],  # y-coordinate from self.goal.pos
                 r"$\otimes$",  # The LaTeX symbol (otimes) in math mode
-                fontsize=40,  # Adjust size for visibility
+                fontsize=60,  # Adjust size for visibility
                 color="black",  # Choose a color (e.g., green, lime)
                 horizontalalignment="center",  # Center the symbol horizontally
-                verticalalignment="center",  # Center the symbol vertically
+                verticalalignment="center_baseline",  # Center the symbol vertically
                 zorder=3,  # Ensure it's drawn prominently
                 label="Goal ($\otimes$)",  # Optional: Update label for legend
             )
             self.ax.plot(
-                [], [], marker=r"$\otimes$", markersize=10, label="Goal", zorder=3
+                [], [], "ko", marker=r"$\otimes$", markersize=10, label="Goal", zorder=3
             )
 
-            # Wind Fields (Optional) - Use updated definitions
             if self.wind_field:
                 self.wind_field.plot_wind_field(
                     self.ax,
@@ -407,7 +411,7 @@ class PointMassEnv(gym.Env):
                 fontsize=10,
                 frameon=True,
                 ncol=4,
-                bbox_to_anchor=(0.5, -0.4),
+                bbox_to_anchor=(0.5, -0.25),
             )
 
         # Update trajectory
@@ -442,7 +446,7 @@ class PointMassEnv(gym.Env):
             )
             self.ax.add_patch(self.action_arrow_patch)  # type: ignore
 
-        # --- Render the figure ---
+        self.fig.tight_layout()  # Adjust layout to fit all elements
         if self.render_mode == "human":
             self.fig.canvas.draw_idle()
             self.fig.canvas.flush_events()
@@ -451,6 +455,7 @@ class PointMassEnv(gym.Env):
         elif self.render_mode == "rgb_array":
             canvas = FigureCanvas(self.fig)
             canvas.draw()  # Draw the canvas
+            self.fig.subplots_adjust(bottom=0.25)
             # Get RGB data
             image_shape = canvas.get_width_height()[::-1] + (4,)
             buf = np.frombuffer(canvas.buffer_rgba(), dtype=np.uint8)
@@ -482,21 +487,17 @@ class PointMassEnv(gym.Env):
 
 
 if __name__ == "__main__":
-    init_state_dist = {
-        "low": np.array([0.0, 0.5, 0.0, 0.0]),
-        "high": np.array([0.0, 0.5, 0.0, 0.0]),
-    }
-
     env = PointMassEnv(
         render_mode="human",
         max_time=15.0,
-        init_state_dist=init_state_dist,
+        train=False,
     )  # Longer time
-    obs, info = env.reset(seed=42)  # Changed seed slightly
+    obs, info = env.reset(seed=44)  # Changed seed slightly
 
     terminated = False
     truncated = False
     total_reward = 0
+    env.render()
 
     for i in range(300):  # Increase steps for longer visualization
         action = env.action_space.sample()

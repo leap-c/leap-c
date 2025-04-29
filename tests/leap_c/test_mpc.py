@@ -151,13 +151,13 @@ def test_backup_fn(learnable_point_mass_mpc_different_params: Mpc, n_batch: int)
         f"This test assumed state would be of type AcadosOcpFlattenedBatchIterate, but got {type(template_state)}"
     )
     ridiculous_state = AcadosOcpFlattenedBatchIterate(
-        x=np.ones_like(template_state.x) * 1e6,
-        u=np.ones_like(template_state.u) * 1e6,
-        z=np.ones_like(template_state.z) * 1e6,
-        sl=np.ones_like(template_state.sl) * 1e6,
-        su=np.ones_like(template_state.su) * 1e6,
-        pi=np.ones_like(template_state.pi) * 1e6,
-        lam=np.ones_like(template_state.lam) * 1e6,
+        x=np.ones_like(template_state.x) * np.nan,
+        u=np.ones_like(template_state.u) * np.nan,
+        z=np.ones_like(template_state.z) * np.nan, 
+        sl=np.ones_like(template_state.sl) * np.nan,
+        su=np.ones_like(template_state.su) * np.nan,
+        pi=np.ones_like(template_state.pi) * np.nan,
+        lam=np.ones_like(template_state.lam) * np.nan,
         N_batch=template_state.N_batch,
     )
     no_sol, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
