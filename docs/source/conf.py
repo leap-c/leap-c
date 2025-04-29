@@ -13,9 +13,9 @@ import sys
 sys.path.insert(0, os.path.abspath(".."))
 
 project = "leap-c"
-copyright = "2024, Dirk, Jasper, Leonard"
+copyright = "2025, Dirk, Jasper, Leonard"
 author = "Dirk, Jasper, Leonard"
-release = "2024"
+release = "2025"
 
 
 extensions = [
