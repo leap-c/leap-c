@@ -1,6 +1,7 @@
 """Provides a trainer for a Soft Actor-Critic algorithm that uses a differentiable MPC
 layer for the policy network."""
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, NamedTuple
 
@@ -22,6 +23,11 @@ from leap_c.trainer import Trainer
 
 
 NUM_THREADS_ACADOS_BATCH = 4
+
+@dataclass(kw_only=True)
+class SacFopBaseConfig(SacBaseConfig):
+    """Specific settings for the Fop trainer."""
+    noise: str = "param"  # or "action"
 
 
 class SacFopActorOutput(NamedTuple):
@@ -162,9 +168,9 @@ class FouActor(nn.Module):
         )
 
 
-@register_trainer("sac_fop", SacBaseConfig())
+@register_trainer("sac_fop", SacFopBaseConfig())
 class SacFopTrainer(Trainer):
-    cfg: SacBaseConfig
+    cfg: SacFopBaseConfig
 
     def __init__(
         self, task: Task, output_path: str | Path, device: str, cfg: SacBaseConfig
@@ -188,7 +194,13 @@ class SacFopTrainer(Trainer):
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = FouActor(task, self.train_env, cfg.sac.actor_mlp)
+        if cfg.noise == "param":
+            self.pi = FopActor(task, self.train_env, cfg.sac.actor_mlp)
+        elif cfg.noise == "action":
+            self.pi = FouActor(task, self.train_env, cfg.sac.actor_mlp)
+        else:
+            raise ValueError(f"Unknown noise type: {cfg.noise}")
+
         # TODO (Jasper): This should be refactored and is a config of the acados solver.
         self.pi.mpc.mpc.num_threads_batch_methods = NUM_THREADS_ACADOS_BATCH
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
