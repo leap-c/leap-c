@@ -352,7 +352,7 @@ class Trainer(ABC, nn.Module):
                 self.state.scores.append(val_score)
 
                 if val_score > self.state.max_score:
-                    self.state.max_score= val_score
+                    self.state.max_score = val_score
                     if self.cfg.val.ckpt_modus == "best":
                         self.save()
 
@@ -416,7 +416,11 @@ class Trainer(ABC, nn.Module):
         return float(stats_rollout["score"])
 
     def _ckpt_path(
-        self, name: str, suffix: str, basedir: str | Path | None = None
+        self,
+        name: str,
+        suffix: str,
+        basedir: str | Path | None = None,
+        singleton: bool = False,
     ) -> Path:
         """Returns the path to a checkpoint file."""
         if basedir is None:
@@ -425,12 +429,30 @@ class Trainer(ABC, nn.Module):
         basedir = Path(basedir)
         (basedir / "ckpts").mkdir(exist_ok=True)
 
+        all_but_singleton = (
+            True if self.cfg.val.ckpt_modus == "all" and singleton else False
+        )
+
         if self.cfg.val.ckpt_modus == "best":
             return basedir / "ckpts" / f"best_{name}.{suffix}"
-        elif self.cfg.val.ckpt_modus == "last":
+        elif self.cfg.val.ckpt_modus == "last" or all_but_singleton:
             return basedir / "ckpts" / f"last_{name}.{suffix}"
 
         return basedir / "ckpts" / f"{self.state.step}_{name}.{suffix}"
+
+    def periodic_ckpt_modules(self) -> list[str]:
+        """Returns the modules that should be checkpointed periodically.
+
+        This is used for example for tracking policy parameters over time.
+        """
+        return []
+
+    def singleton_ckpt_modules(self) -> list[str]:
+        """Returns the modules that should be checkpointed only once.
+
+        Replay Buffers often should not be stored multiple times as there is overlap.
+        """
+        return []
 
     def save(self, path: str | Path | None = None) -> None:
         """Save the trainer state in a checkpoint folder.
@@ -446,18 +468,12 @@ class Trainer(ABC, nn.Module):
         """
 
         # split the state_dict into seperate parts
-        split_state_dicts = defaultdict(dict)
-        for name, param in self.state_dict().items():
-            if "." in name:
-                group_name = name.split(".")[0]
-                sub_name = ".".join(name.split(".")[1:])
-                split_state_dicts[group_name][sub_name] = param
-            else:
-                split_state_dicts[name] = param  # type: ignore
-
-        # save the state dicts
-        for name, state_dict in split_state_dicts.items():
+        for name in self.periodic_ckpt_modules():
+            state_dict = getattr(self, name).state_dict()
             torch.save(state_dict, self._ckpt_path(name, "ckpt", path))
+        for name in self.singleton_ckpt_modules():
+            state_dict = getattr(self, name).state_dict()
+            torch.save(state_dict, self._ckpt_path(name, "ckpt", path, singleton=True))
 
         torch.save(self.state, self._ckpt_path("trainer_state", "ckpt", path))
 
@@ -476,28 +492,15 @@ class Trainer(ABC, nn.Module):
         """
         basedir = Path(path)
 
-        groups = set()
-        for name in self.state_dict().keys():
-            if "." in name:
-                group_name = name.split(".")[0]
-                groups.add(group_name)
-            else:
-                groups.add(name)
+        # load 
+        for name in self.periodic_ckpt_modules():
+            state_dict = torch.load(self._ckpt_path(name, "ckpt", basedir))
+            getattr(self, name).load_state_dict(state_dict)
 
-        # load the state dicts
-        state_dict = {}
-        for name in groups:
-            part = torch.load(
-                self._ckpt_path(name, "ckpt", basedir), weights_only=False
-            )
+        for name in self.singleton_ckpt_modules():
+            state_dict = torch.load(self._ckpt_path(name, "ckpt", basedir), weights_only=False)
+            getattr(self, name).load_state_dict(state_dict)
 
-            if isinstance(part, dict):
-                for key, value in part.items():
-                    state_dict[f"{name}.{key}"] = value
-            else:
-                state_dict[name] = part
-
-        self.load_state_dict(state_dict, strict=True)
         self.state = torch.load(
             self._ckpt_path("trainer_state", "ckpt", basedir), weights_only=False
         )

@@ -291,3 +291,9 @@ class SacTrainer(Trainer):
             return [self.q_optim, self.pi_optim]
 
         return [self.q_optim, self.pi_optim, self.alpha_optim]
+
+    def periodic_ckpt_modules(self) -> list[str]:
+        return ["q", "pi", "q_target"]
+
+    def singleton_ckpt_modules(self) -> list[str]:
+        return ["buffer"]
