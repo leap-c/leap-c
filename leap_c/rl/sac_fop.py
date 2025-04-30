@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 
 from leap_c.mpc import MpcBatchedState
-from leap_c.nn.gaussian import SquashedGaussian
+from leap_c.nn.gaussian import SquashedGaussian, BoundedTransform
 from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.nn.modules import MpcSolutionModule
 from leap_c.registry import register_trainer
@@ -43,7 +43,7 @@ class SacFopActorOutput(NamedTuple):
         )
 
 
-class MpcSacActor(nn.Module):
+class FopActor(nn.Module):
     def __init__(
         self,
         task: Task,
@@ -101,6 +101,67 @@ class MpcSacActor(nn.Module):
         )
 
 
+class FouActor(nn.Module):
+    def __init__(
+        self,
+        task: Task,
+        env: gym.Env,
+        mlp_cfg: MlpConfig,
+        prepare_mpc_state: (
+            Callable[[torch.Tensor, torch.Tensor, MpcBatchedState], MpcBatchedState]
+            | None
+        ) = None,
+    ):
+        super().__init__()
+
+        param_space = task.param_space
+
+        self.extractor = task.create_extractor(env)
+        self.mlp = MLP(
+            input_sizes=self.extractor.output_size,
+            output_sizes=(param_space.shape[0], env.action_space.shape[0]),  # type:ignore
+            mlp_cfg=mlp_cfg,
+        )
+
+        self.mpc: MpcSolutionModule = task.mpc  # type:ignore
+        self.prepare_mpc_input = task.prepare_mpc_input
+        self.prepare_mpc_state = prepare_mpc_state
+
+        self.parameter_transfrom = BoundedTransform(param_space)
+        self.action_transform = BoundedTransform(env.action_space)
+        self.squashed_gaussian = SquashedGaussian(env.action_space)  # type:ignore
+
+    def forward(
+        self, obs, mpc_state: MpcBatchedState, deterministic: bool = False
+    ) -> torch.Tensor:
+        e = self.extractor(obs)
+        mean, log_std = self.mlp(e)
+        param = self.parameter_transfrom(mean)
+
+        mpc_input = self.prepare_mpc_input(obs, param)
+        if self.prepare_mpc_state is not None:
+            mpc_state = self.prepare_mpc_state(obs, param, mpc_state)  # type:ignore
+
+        mpc_output, state_solution, _ = self.mpc(mpc_input, mpc_state)
+
+        action_mpc = mpc_output.u0
+        action_unbounded = self.action_transform.inverse(action_mpc.detach(), padding=0.1)
+        action_squashed, log_prob, gaussian_stats = self.squashed_gaussian(
+            action_unbounded, log_std, deterministic=deterministic
+        )
+        action = action_mpc + (action_squashed - action_mpc.detach())
+        # check if nan
+
+        return SacFopActorOutput(
+            param,
+            log_prob,
+            gaussian_stats,
+            action,
+            mpc_output.status,
+            state_solution,
+        )
+
+
 @register_trainer("sac_fop", SacBaseConfig())
 class SacFopTrainer(Trainer):
     cfg: SacBaseConfig
@@ -127,7 +188,7 @@ class SacFopTrainer(Trainer):
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = MpcSacActor(task, self.train_env, cfg.sac.actor_mlp)
+        self.pi = FouActor(task, self.train_env, cfg.sac.actor_mlp)
         # TODO (Jasper): This should be refactored and is a config of the acados solver.
         self.pi.mpc.mpc.num_threads_batch_methods = NUM_THREADS_ACADOS_BATCH
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
@@ -162,7 +223,9 @@ class SacFopTrainer(Trainer):
 
             with torch.no_grad():
                 # TODO (Jasper): Argument order is not consistent
-                pi_output: SacFopActorOutput = self.pi(obs_batched, policy_state, deterministic=False)
+                pi_output: SacFopActorOutput = self.pi(
+                    obs_batched, policy_state, deterministic=False
+                )
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
