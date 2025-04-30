@@ -121,7 +121,7 @@ class PendulumOnCartBalance(PendulumOnCartSwingup):
 
 
 @register_task("pendulum_swingup_long_horizon")
-class PendulumOnCartSwingupLong(Task):
+class PendulumOnCartSwingupLong(PendulumOnCartSwingup):
     """Swing-up task for the pendulum on a cart system,
     like PendulumOnCartSwingup, but with a much longer horizon.
     """
