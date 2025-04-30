@@ -137,4 +137,4 @@ class PendulumOnCartSwingupLong(PendulumOnCartSwingup):
             params=params,  # type: ignore
         )
         mpc_layer = MpcSolutionModule(mpc)
-        super().__init__(mpc_layer)
+        Task.__init__(mpc_layer)
