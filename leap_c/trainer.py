@@ -25,10 +25,13 @@ class TrainConfig:
     Args:
         steps: The number of steps in the training loop.
         start: The number of training steps before training starts.
+        num_envs: The number of environments to train on.
     """
 
     steps: int = 100000
     start: int = 0
+    vectorized: bool = False
+    num_envs: int = 4
 
 
 @dataclass(kw_only=True)
@@ -199,7 +202,10 @@ class Trainer(ABC, nn.Module):
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
-        self.train_env = self.task.create_train_env(seed=cfg.seed)
+        if cfg.train.vectorized:
+            self.train_env = self.task.create_train_env_vectorized(seed=cfg.seed, num_envs=cfg.train.num_envs)
+        else:
+            self.train_env = self.task.create_train_env(seed=cfg.seed)
         self.eval_env = self.task.create_eval_env(seed=cfg.seed)
 
         # trainer state
@@ -293,11 +299,15 @@ class Trainer(ABC, nn.Module):
                 stats[key] = float(value)
                 continue
 
-            assert value.ndim == 1, "Only 1D arrays are supported."
+            assert value.ndim in [1, 2], "Only 1D and 2D arrays are supported."
 
             stats.pop(key)
             for i, v in enumerate(value):
-                stats[f"{key}_{i}"] = float(v)
+                if value.ndim == 1:
+                    stats[f"{key}_{i}"] = float(v) # type: ignore
+                else:
+                    for j, v_ in enumerate(v):
+                        stats[f"{key}_{i}_{j}"] = float(v_)
 
         self.state.timestamps[group].append(timestamp)
         for key, value in stats.items():
@@ -339,6 +349,12 @@ class Trainer(ABC, nn.Module):
     def run(self) -> float:
         """Call this function in your script to start the training loop."""
         self.to(self.device)
+
+        for optimizer in self.optimizers:
+            for state in optimizer.state.values():
+                for k, v in state.items():
+                    if isinstance(v, torch.Tensor):
+                        state[k] = v.to(self.device)
 
         train_loop_iter = self.train_loop()
 
