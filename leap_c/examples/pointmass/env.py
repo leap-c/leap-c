@@ -87,12 +87,20 @@ class WindField(ABC):
 
 
 class WindParcour(WindField):
-    def __init__(self, magnitude: float = 10.0):
+    def __init__(self, magnitude: float = 10.0, difficulty: str = "easy"):
         self.magnitude = magnitude
-        self.boxes = [
-            [np.array([0.5, 0.15]), np.array([1.5, 1.0])],
-            [np.array([2.5, 0.0]), np.array([3.5, 0.85])],
-        ]
+        if difficulty == "easy":
+            self.boxes = [
+                [np.array([0.5, 0.2]), np.array([1.5, 1.0])],
+                [np.array([2.5, 0.0]), np.array([3.5, 0.8])],
+            ]
+        elif difficulty == "hard":
+            self.boxes = [
+                [np.array([0.5, 0.15]), np.array([1.5, 1.0])],
+                [np.array([2.5, 0.0]), np.array([3.5, 0.85])],
+            ]
+        else:
+            raise ValueError(f"Unknown difficulty level: {difficulty}")
 
     def plot_XY(
         self, xlim: tuple[float, float], ylim: tuple[float, float]
@@ -217,6 +225,7 @@ class PointMassEnv(gym.Env):
         Fmax: float = 10,
         max_time: float = 10.0,
         render_mode: str | None = None,
+        difficulty: str = "easy",
     ):
         # gymnasium setup
         max_v = 20
@@ -242,7 +251,7 @@ class PointMassEnv(gym.Env):
         self.B = _B_disc(param.m, param.cx, param.cy, param.dt)
         self.start = Circle(pos=np.array([0.25, 0.8]), radius=0.15)
         self.goal = Circle(pos=np.array([3.75, 0.2]), radius=0.15)
-        self.wind_field = WindParcour(magnitude=max_wind_force)
+        self.wind_field = WindParcour(magnitude=max_wind_force, difficulty=difficulty)
 
         # env state
         self.state: np.ndarray | None = None
