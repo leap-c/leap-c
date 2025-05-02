@@ -74,6 +74,7 @@ class ValConfig:
         render_deterministic: If True, the episodes will be rendered deterministically (e.g., no exploration).
         render_interval_exploration: The interval at which exploration episodes will be rendered.
         render_interval_validation: The interval at which validation episodes will be rendered.
+        report_score: Whether to report the cummulative score or the final evaluation score.
     """
 
     interval: int = 10000
@@ -85,6 +86,8 @@ class ValConfig:
     num_render_rollouts: int = 1
     render_mode: str | None = "rgb_array"  # rgb_array or human
     render_deterministic: bool = True
+
+    report_score: str = "cum"  # "final"
 
 
 @dataclass(kw_only=True)
@@ -338,6 +341,11 @@ class Trainer(ABC, nn.Module):
 
     def run(self) -> float:
         """Call this function in your script to start the training loop."""
+        if self.cfg.val.report_score not in ["cum", "final"]:
+            raise RuntimeError(
+                f"report_score is {self.cfg.val.report_score} but can be 'cum' or 'final'"
+            )
+
         self.to(self.device)
 
         train_loop_iter = self.train_loop()
@@ -360,7 +368,9 @@ class Trainer(ABC, nn.Module):
                 if self.cfg.val.ckpt_modus in ["last", "all"]:
                     self.save()
 
-        return self.state.max_score  # Return last validation score for testing purposes
+        if self.cfg.val.report_score == "cum":
+            return sum(self.state.scores)
+        return self.state.max_score
 
     def validate(self) -> float:
         """Do a deterministic validation run of the policy and
@@ -492,13 +502,15 @@ class Trainer(ABC, nn.Module):
         """
         basedir = Path(path)
 
-        # load 
+        # load
         for name in self.periodic_ckpt_modules():
             state_dict = torch.load(self._ckpt_path(name, "ckpt", basedir))
             getattr(self, name).load_state_dict(state_dict)
 
         for name in self.singleton_ckpt_modules():
-            state_dict = torch.load(self._ckpt_path(name, "ckpt", basedir), weights_only=False)
+            state_dict = torch.load(
+                self._ckpt_path(name, "ckpt", basedir), weights_only=False
+            )
             getattr(self, name).load_state_dict(state_dict)
 
         self.state = torch.load(
