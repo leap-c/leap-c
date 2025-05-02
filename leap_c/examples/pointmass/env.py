@@ -281,12 +281,14 @@ class PointMassEnv(gym.Env):
         self.trajectory.append(self.state.copy())  # type: ignore
 
         # termination and truncation
-        out_of_bounds = (self.state_high < self.state).any() or (
-            self.state_low > self.state
-        ).any()
+        out_of_bounds = (self.state_high < self.state).any() or (self.state_low > self.state).any()
         reached_goal = self.state[:2] in self.goal  # type: ignore
         term = out_of_bounds or reached_goal
         trunc = self.time >= self.max_time
+        if term or trunc:
+            info = {"task": {"violation": bool(out_of_bounds), "success": reached_goal}}
+        else:
+            info = {}
 
         # reward
         dist_to_goal_x = np.abs(self.state[0] - self.goal.pos[0])  # type: ignore
@@ -296,7 +298,7 @@ class PointMassEnv(gym.Env):
         r_goal = 60 * (1.0 - 0.5 * self.time / self.max_time) if reached_goal else 0.0
         r = 0.1 * r_dist + r_goal
 
-        return self._observation(), float(r), bool(term), bool(trunc), {}
+        return self._observation(), float(r), bool(term), bool(trunc), info
 
     def reset(
         self, *, seed: int | None = None, options: dict | None = None

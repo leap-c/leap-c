@@ -49,9 +49,9 @@ class SacAlgorithmConfig:
     tau: float = 0.005
     soft_update_freq: int = 1
     lr_q: float = 1e-4
-    lr_pi: float = 1e-4
+    lr_pi: float = 3e-4
     lr_alpha: float | None = 1e-3
-    init_alpha: float = 0.1
+    init_alpha: float = 0.01
     target_entropy: float | None = None
     entropy_reward_bonus: bool = True
     num_critics: int = 2
@@ -199,6 +199,9 @@ class SacTrainer(Trainer):
             )
 
             if "episode" in info:
+                stats = info["episode"]
+                if "task" in info:
+                    stats.update(info["task"])
                 self.report_stats("train", info["episode"])
 
             # TODO (Jasper): Add is_truncated to buffer.

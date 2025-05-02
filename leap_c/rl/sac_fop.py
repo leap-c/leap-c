@@ -248,12 +248,11 @@ class SacFopTrainer(Trainer):
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
-            if is_terminated:
-                print(obs_prime)
-                print(pi_output.state_solution.x.reshape(-1, 4))
-                print(pi_output.state_solution.u.reshape(-1, 2))
 
             if "episode" in info:
+                stats = info["episode"]
+                if "task" in info:
+                    stats.update(info["task"])
                 self.report_stats("train", info["episode"])
 
             self.buffer.put(
