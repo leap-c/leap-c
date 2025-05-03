@@ -96,8 +96,8 @@ class WindParcour(WindField):
             ]
         elif difficulty == "hard":
             self.boxes = [
-                [np.array([0.5, 0.15]), np.array([1.5, 1.0])],
-                [np.array([2.5, 0.0]), np.array([3.5, 0.85])],
+                [np.array([0.5, 0.1]), np.array([1.5, 1.0])],
+                [np.array([2.5, 0.0]), np.array([3.5, 0.9])],
             ]
         else:
             raise ValueError(f"Unknown difficulty level: {difficulty}")

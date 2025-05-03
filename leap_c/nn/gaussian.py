@@ -129,6 +129,6 @@ class SquashedGaussian(nn.Module):
 
         y_scaled = y * self.scale[None, :] + self.loc[None, :]
 
-        stats = {"gaussian_unsquashed_std": std.mean().item()}
+        stats = {"gaussian_unsquashed_std": std.prod(dim=-1).mean().item()}
 
         return y_scaled, log_prob, stats
