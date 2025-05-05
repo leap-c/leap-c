@@ -68,7 +68,7 @@ class ReacherTask(Task):
             | 8   | x-value of position_fingertip - position_target |
             | 9   | y-value of position_fingertip - position_target |
         """
-        x0 = np.array(
+        x0 = torch.tensor(
             [
                 torch.arcsin(obs[..., 2]),  # q0
                 torch.arcsin(obs[..., 3]),  # q1

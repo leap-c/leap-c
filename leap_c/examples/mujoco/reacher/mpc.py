@@ -111,29 +111,34 @@ def export_parametric_ocp(
     model = cpin.Model(pinocchio_model)
     data = model.createData()
 
+    ocp.solver_options.tf = tf
+    ocp.solver_options.N_horizon = N_horizon
+    ocp.model.name = name
+
+    # States
     q = ca.SX.sym("q", model.nq, 1)
     dq = ca.SX.sym("dq", model.nq, 1)
     ocp.model.x = ca.vertcat(q, dq)
     ocp.dims.nx = ocp.model.x.shape[0]
 
+    # Controls
     tau = ca.SX.sym("tau", model.nq, 1)
     ocp.model.u = tau
     ocp.dims.nu = ocp.model.u.shape[0]
 
-    ocp.solver_options.tf = tf
-    ocp.solver_options.N_horizon = N_horizon
-
-    ocp.model.name = name
-
+    # Parameters
     ocp = translate_learnable_param_to_p_global(
-        nominal_param=nominal_param, learnable_param=learnable_params, ocp=ocp
+        nominal_param=nominal_param,
+        learnable_param=learnable_params,
+        ocp=ocp,
     )
 
     # Dynamics
     ocp.model.f_expl_expr = ca.vertcat(dq, cpin.aba(model, data, q, dq, tau))
-
-    dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
-    ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp, dt)
+    ocp.model.disc_dyn_expr = get_disc_dyn_expr(
+        ocp=ocp,
+        dt=ocp.solver_options.tf / ocp.solver_options.N_horizon,
+    )
 
     # Cost
     cpin.forwardKinematics(model, data, q, dq)
@@ -153,10 +158,12 @@ def export_parametric_ocp(
     ocp.model.cost_y_expr_e = xy_ee
     ocp.cost.yref_e = xy_ee_ref
 
-    # Initial state for n_link robot. All angles and velocities should be zero.
+    # Constraints
     ocp.constraints.x0 = np.zeros((ocp.dims.nx,))
 
-    # #############################
+    # TODO: Add constraints for the state and control inputs
+
+    # Cast parameters to the correct type required by acados
     if isinstance(ocp.model.p, struct_symSX):
         ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
 
