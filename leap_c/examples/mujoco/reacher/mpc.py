@@ -139,10 +139,10 @@ def export_parametric_ocp(
     )
 
     # Cost
-    cpin.forwardKinematics(model, data, q, dq)
-    cpin.updateFramePlacements(model, data)
 
     # Get the position of the fingertip
+    cpin.forwardKinematics(model, data, q, dq)
+    cpin.updateFramePlacements(model, data)
     xy_ee = data.oMf[model.getFrameId("fingertip")].translation[:2]
 
     xy_ee_ref = find_param_in_p_or_p_global(["xy_ee_ref"], ocp.model)["xy_ee_ref"]
