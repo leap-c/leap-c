@@ -46,6 +46,13 @@ def compute_reference_ellipse(
     return pos_ref[:2]
 
 
+class InvalidReferencePathError(ValueError):
+    """Custom exception for invalid reference path."""
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+
+
 class ReacherEnv(ReacherEnvV5):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 50}
 
@@ -70,25 +77,25 @@ class ReacherEnv(ReacherEnvV5):
             reward_control_weight=reward_control_weight,
             **kwargs,
         )
-
         if reference_path == "circle":
             self.compute_reference_position = compute_reference_ellipse
         elif reference_path == "lemniscate":
             self.compute_reference_position = compute_reference_position_lemniscate
         else:
-            raise ValueError(
-                f"Invalid reference position: {reference_path}. "
-                "Choose either 'circle' or 'lemniscate'."
-            )
+            msg = f"Invalid reference position: {reference_path}. Choose either \
+                'circle' or 'lemniscate'."
+            raise InvalidReferencePathError(msg)
 
         self.delta_path_var = delta_path_var
 
     def step(self, action: np.ndarray) -> tuple[Any, float, bool, bool, dict]:
         observation, reward, terminated, truncated, info = super().step(action)
 
-        # Random goal position
-        self.path_var += self.delta_path_var
+        # Set the reference position
         self.data.qpos[2:] = self.compute_reference_position(self.path_var)
+
+        # Update path variable
+        self.path_var += self.delta_path_var
 
         return observation, reward, terminated, truncated, info
 
