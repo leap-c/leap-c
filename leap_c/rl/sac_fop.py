@@ -28,8 +28,22 @@ NUM_THREADS_ACADOS_BATCH = 4
 @dataclass(kw_only=True)
 class SacFopBaseConfig(SacBaseConfig):
     """Specific settings for the Fop trainer."""
-    noise: str = "param"  # or "action"
+    noise: str = "param"
     entropy_correction: bool = False
+
+
+@dataclass(kw_only=True)
+class SacFoaBaseConfig(SacBaseConfig):
+    """Specific settings for the Foa trainer."""
+    noise: str = "action"
+    entropy_correction: bool = False
+
+
+@dataclass(kw_only=True)
+class SacFopcBaseConfig(SacBaseConfig):
+    """Specific settings for the Foa trainer."""
+    noise: str = "param"
+    entropy_correction: bool = True
 
 
 class SacFopActorOutput(NamedTuple):
@@ -221,7 +235,10 @@ class SacFopTrainer(Trainer):
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
             action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
             param_dim = np.prod(task.param_space.shape)  # type: ignore
-            self.entropy_norm = param_dim / action_dim
+            if cfg.noise == "param":
+                self.entropy_norm = param_dim / action_dim
+            else:
+                self.entropy_norm = 1
             self.target_entropy = (
                 -action_dim
                 if cfg.sac.target_entropy is None
@@ -396,3 +413,13 @@ class SacFopTrainer(Trainer):
 
     def singleton_ckpt_modules(self) -> list[str]:
         return ["buffer"]
+
+
+@register_trainer("sac_foa", SacFoaBaseConfig())
+class SacFoaTrainer(SacFopTrainer):
+    cfg: SacFoaBaseConfig  # type: ignore
+
+
+@register_trainer("sac_fopc", SacFopcBaseConfig())
+class SacFopcTrainer(SacFopTrainer):
+    cfg: SacFopcBaseConfig  # type: ignore
