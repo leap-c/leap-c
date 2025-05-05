@@ -93,9 +93,7 @@ def get_disc_dyn_expr(ocp: AcadosOcp, dt: float) -> ca.SX:
 def create_diag_matrix(
     v_diag: np.ndarray | ca.SX,
 ) -> np.ndarray | ca.SX:
-    if any(isinstance(i, ca.SX) for i in [v_diag]):
-        return ca.diag(v_diag)
-    return np.diag(v_diag)
+    return ca.diag(v_diag) if isinstance(v_diag, ca.SX) else np.diag(v_diag)
 
 
 def export_parametric_ocp(
