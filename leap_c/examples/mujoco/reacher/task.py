@@ -37,7 +37,6 @@ class ReacherTask(Task):
 
     def create_env(self, train: bool) -> gym.Env:
         return ReacherEnv(
-            max_time=20.0,
             train=train,
             render_mode="rgb_array",
             xml_file="reacher.xml",
@@ -68,13 +67,11 @@ class ReacherTask(Task):
             | 8   | x-value of position_fingertip - position_target |
             | 9   | y-value of position_fingertip - position_target |
         """
-        x0 = torch.tensor(
-            [
-                torch.arcsin(obs[..., 2]),  # q0
-                torch.arcsin(obs[..., 3]),  # q1
-                obs[..., 6],  # dq0
-                obs[..., 7],  # dq1
-            ]
-        )
+
+        # Assume obs is torch.Tensor. Apply arcsin to elements 2 and 3
+        # to get the angles of the first and second arms.
+        x0 = obs[..., [2, 3, 6, 7]]
+        x0[..., 0] = torch.arcsin(x0[..., 0])
+        x0[..., 1] = torch.arcsin(x0[..., 1])
 
         return MpcInput(x0=x0, parameters=mpc_param)
