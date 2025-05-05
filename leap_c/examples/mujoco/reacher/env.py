@@ -97,16 +97,21 @@ class ReacherEnv(ReacherEnvV5):
         target_y_min = self.model.jnt_range[3, 0]
         target_y_max = self.model.jnt_range[3, 1]
 
+        # NOTE: In the following, we set angular velocity limits. The simulation
+        # actually does not clip velocity, but uses the damping of the motor
+        # actuators to limit the velocity.
+        # NOTE: First joint has infinite position range
+
         low = np.array(
             [
                 -1.0,  # cosine of the angle of the first arm
-                -1.0,  # cosine of the angle of the second arm
+                np.cos(q_min_0),  # cosine of the angle of the second arm
                 -1.0,  # sine of the angle of the first arm
                 -1.0,  # sine of the angle of the second arm
                 target_x_min,  # x-coordinate of the target
                 target_y_min,  # y-coordinate of the target
-                -4.0,  # angular velocity of the first arm
-                -4.0,  # angular velocity of the second arm
+                -8.0,  # angular velocity of the first arm
+                -8.0,  # angular velocity of the second arm
                 2 * target_x_min,  # x-value of position_fingertip - position_target
                 2 * target_y_min,  # y-value of position_fingertip - position_target
             ],
@@ -116,13 +121,13 @@ class ReacherEnv(ReacherEnvV5):
         high = np.array(
             [
                 1.0,  # cosine of the angle of the first arm
-                1.0,  # cosine of the angle of the second arm
+                np.cos(q_max_1),  # cosine of the angle of the second arm
                 1.0,  # sine of the angle of the first arm
                 1.0,  # sine of the angle of the second arm
                 target_x_max,  # x-coordinate of the target
                 target_y_max,  # y-coordinate of the target
-                4.0,  # angular velocity of the first arm
-                4.0,  # angular velocity of the second arm
+                8.0,  # angular velocity of the first arm
+                8.0,  # angular velocity of the second arm
                 2 * target_x_max,  # x-value of position_fingertip - position_target
                 2 * target_y_max,  # y-value of position_fingertip - position_target
             ],
