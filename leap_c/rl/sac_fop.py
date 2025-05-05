@@ -2,6 +2,7 @@
 layer for the policy network."""
 
 from dataclasses import dataclass
+import math
 from pathlib import Path
 from typing import Any, Callable, Iterator, NamedTuple
 
@@ -28,6 +29,7 @@ NUM_THREADS_ACADOS_BATCH = 4
 class SacFopBaseConfig(SacBaseConfig):
     """Specific settings for the Fop trainer."""
     noise: str = "param"  # or "action"
+    entropy_correction: bool = True
 
 
 class SacFopActorOutput(NamedTuple):
@@ -59,6 +61,7 @@ class FopActor(nn.Module):
             Callable[[torch.Tensor, torch.Tensor, MpcBatchedState], MpcBatchedState]
             | None
         ) = None,
+        correction: bool = True,
     ):
         super().__init__()
 
@@ -69,6 +72,10 @@ class FopActor(nn.Module):
             input_sizes=self.extractor.output_size,
             output_sizes=(param_space.shape[0], param_space.shape[0]),  # type:ignore
             mlp_cfg=mlp_cfg,
+        )
+        self.correction = correction
+        self.dim_ratio = (
+            env.action_space.shape[0] / param_space.shape[0]  # type:ignore
         )
 
         self.mpc: MpcSolutionModule = task.mpc  # type:ignore
@@ -96,6 +103,13 @@ class FopActor(nn.Module):
         #       if its not a converged solution
         mpc_output, state_solution, mpc_stats = self.mpc(mpc_input, mpc_state)
         self.actual_used_mpc_state = mpc_state
+
+        if mpc_output.du0_dp_global is not None:
+            jtj = mpc_output.du0_dp_global @ mpc_output.du0_dp_global.transpose(1,2)
+            correction = torch.det(jtj + 1e-6 * torch.eye(jtj.shape[1], device=jtj.device)).sqrt().log()
+            correction = correction + math.log(self.dim_ratio)
+            print(f"correction: mean {correction.mean()}, min {correction.min()}, max {correction.max()}")
+            log_prob -= correction.unsqueeze(1)
 
         return SacFopActorOutput(
             param,
@@ -173,7 +187,7 @@ class SacFopTrainer(Trainer):
     cfg: SacFopBaseConfig
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: SacBaseConfig
+        self, task: Task, output_path: str | Path, device: str, cfg: SacFopBaseConfig
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -216,7 +230,6 @@ class SacFopTrainer(Trainer):
                 if cfg.sac.target_entropy is None
                 else cfg.sac.target_entropy
             )
-            self.entropy_norm = param_dim / action_dim
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
 
@@ -298,7 +311,7 @@ class SacFopTrainer(Trainer):
                 pi_o = pi_o.select(mask_status)
                 pi_o_prime = pi_o_prime.select(mask_status)
 
-                log_p = pi_o.log_prob / self.entropy_norm
+                log_p = pi_o.log_prob
 
                 # update temperature
                 if self.alpha_optim is not None:
@@ -318,7 +331,7 @@ class SacFopTrainer(Trainer):
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
                     # add entropy
-                    factor = self.cfg.sac.entropy_reward_bonus / self.entropy_norm
+                    factor = self.cfg.sac.entropy_reward_bonus
                     q_target = q_target - alpha * pi_o_prime.log_prob * factor
 
                     target = (

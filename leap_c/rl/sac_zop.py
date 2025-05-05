@@ -156,8 +156,6 @@ class SacZopTrainer(Trainer):
         self.log_alpha = nn.Parameter(torch.tensor(cfg.sac.init_alpha).log())  # type: ignore
 
         action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
-        param_dim = np.prod(task.param_space.shape)  # type: ignore
-        self.entropy_norm = param_dim / action_dim
         if cfg.sac.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
             self.target_entropy = (
@@ -226,7 +224,7 @@ class SacZopTrainer(Trainer):
                 # sample action
                 pi_o = self.pi(o, None, only_param=True)
                 a_pi = pi_o.param
-                log_p = pi_o.log_prob / self.entropy_norm
+                log_p = pi_o.log_prob
 
                 # update temperature
                 if self.alpha_optim is not None:
@@ -247,7 +245,7 @@ class SacZopTrainer(Trainer):
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
                     # add entropy
-                    factor = self.cfg.sac.entropy_reward_bonus / self.entropy_norm
+                    factor = self.cfg.sac.entropy_reward_bonus
                     q_target = q_target - alpha * pi_o_prime.log_prob * factor
 
                     target = (
