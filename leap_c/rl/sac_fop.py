@@ -29,7 +29,7 @@ NUM_THREADS_ACADOS_BATCH = 4
 class SacFopBaseConfig(SacBaseConfig):
     """Specific settings for the Fop trainer."""
     noise: str = "param"  # or "action"
-    entropy_correction: bool = True
+    entropy_correction: bool = False
 
 
 class SacFopActorOutput(NamedTuple):
@@ -74,9 +74,6 @@ class FopActor(nn.Module):
             mlp_cfg=mlp_cfg,
         )
         self.correction = correction
-        self.dim_ratio = (
-            env.action_space.shape[0] / param_space.shape[0]  # type:ignore
-        )
 
         self.mpc: MpcSolutionModule = task.mpc  # type:ignore
         self.prepare_mpc_input = task.prepare_mpc_input
@@ -104,10 +101,9 @@ class FopActor(nn.Module):
         mpc_output, state_solution, mpc_stats = self.mpc(mpc_input, mpc_state)
         self.actual_used_mpc_state = mpc_state
 
-        if mpc_output.du0_dp_global is not None:
+        if mpc_output.du0_dp_global is not None and self.correction:
             jtj = mpc_output.du0_dp_global @ mpc_output.du0_dp_global.transpose(1,2)
             correction = torch.det(jtj + 1e-6 * torch.eye(jtj.shape[1], device=jtj.device)).sqrt().log()
-            correction = correction + math.log(self.dim_ratio)
             print(f"correction: mean {correction.mean()}, min {correction.min()}, max {correction.max()}")
             log_prob -= correction.unsqueeze(1)
 
@@ -209,7 +205,7 @@ class SacFopTrainer(Trainer):
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
         if cfg.noise == "param":
-            self.pi = FopActor(task, self.train_env, cfg.sac.actor_mlp)
+            self.pi = FopActor(task, self.train_env, cfg.sac.actor_mlp, correction=cfg.entropy_correction)
         elif cfg.noise == "action":
             self.pi = FouActor(task, self.train_env, cfg.sac.actor_mlp)
         else:
@@ -225,6 +221,7 @@ class SacFopTrainer(Trainer):
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
             action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
             param_dim = np.prod(task.param_space.shape)  # type: ignore
+            self.entropy_norm = param_dim / action_dim
             self.target_entropy = (
                 -action_dim
                 if cfg.sac.target_entropy is None
@@ -311,7 +308,7 @@ class SacFopTrainer(Trainer):
                 pi_o = pi_o.select(mask_status)
                 pi_o_prime = pi_o_prime.select(mask_status)
 
-                log_p = pi_o.log_prob
+                log_p = pi_o.log_prob / self.entropy_norm
 
                 # update temperature
                 if self.alpha_optim is not None:
@@ -331,7 +328,7 @@ class SacFopTrainer(Trainer):
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
                     # add entropy
-                    factor = self.cfg.sac.entropy_reward_bonus
+                    factor = self.cfg.sac.entropy_reward_bonus / self.entropy_norm
                     q_target = q_target - alpha * pi_o_prime.log_prob * factor
 
                     target = (
