@@ -159,7 +159,29 @@ def export_parametric_ocp(
     # Constraints
     ocp.constraints.x0 = np.zeros((ocp.dims.nx,))
 
-    # TODO: Add constraints for the state and control inputs
+    ocp.constraints.lbx = np.concatenate(
+        [
+            pinocchio_model.lowerPositionLimit,
+            np.array([-8.0] * pinocchio_model.nv),
+        ]
+    )
+    ocp.constraints.ubx = np.concatenate(
+        [
+            pinocchio_model.upperPositionLimit,
+            np.array([+8.0] * pinocchio_model.nv),
+        ]
+    )
+    ocp.constraints.idxbx = np.arange(
+        pinocchio_model.nq + pinocchio_model.nv,
+        dtype=int,
+    )
+
+    ocp.constraints.lbu = np.array([-1.0] * pinocchio_model.nv)
+    ocp.constraints.ubu = np.array([+1.0] * pinocchio_model.nv)
+    ocp.constraints.idxbu = np.arange(
+        pinocchio_model.nv,
+        dtype=int,
+    )
 
     # Cast parameters to the correct type required by acados
     if isinstance(ocp.model.p, struct_symSX):
