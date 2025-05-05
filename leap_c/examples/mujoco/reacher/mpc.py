@@ -162,22 +162,17 @@ def export_parametric_ocp(
     # Constraints
     ocp.constraints.x0 = np.zeros((ocp.dims.nx,))
 
-    ocp.constraints.lbx = np.concatenate(
-        [
-            pinocchio_model.lowerPositionLimit,
-            np.array([-8.0] * pinocchio_model.nv),
-        ]
-    )
-    ocp.constraints.ubx = np.concatenate(
-        [
-            pinocchio_model.upperPositionLimit,
-            np.array([+8.0] * pinocchio_model.nv),
-        ]
-    )
-    ocp.constraints.idxbx = np.arange(
-        pinocchio_model.nq + pinocchio_model.nv,
-        dtype=int,
-    )
+    ocp.constraints.lbx = np.array([pinocchio_model.lowerPositionLimit[-1]])
+    ocp.constraints.ubx = np.array([pinocchio_model.upperPositionLimit[-1]])
+    ocp.constraints.idxbx = np.array([1])
+
+    # Add slack variables for lbx, ubx
+    ocp.constraints.idxsbx = np.array([0])
+    ns = ocp.constraints.idxsbx.size
+    ocp.cost.zl = 10000 * np.ones((ns,))
+    ocp.cost.Zl = 10 * np.ones((ns,))
+    ocp.cost.zu = 10000 * np.ones((ns,))
+    ocp.cost.Zu = 10 * np.ones((ns,))
 
     ocp.constraints.lbu = np.array([-1.0] * pinocchio_model.nv)
     ocp.constraints.ubu = np.array([+1.0] * pinocchio_model.nv)

@@ -105,7 +105,7 @@ class ReacherEnv(ReacherEnvV5):
         low = np.array(
             [
                 -1.0,  # cosine of the angle of the first arm
-                np.cos(q_min_0),  # cosine of the angle of the second arm
+                np.cos(q_min_1),  # cosine of the angle of the second arm
                 -1.0,  # sine of the angle of the first arm
                 -1.0,  # sine of the angle of the second arm
                 target_x_min,  # x-coordinate of the target
@@ -121,7 +121,7 @@ class ReacherEnv(ReacherEnvV5):
         high = np.array(
             [
                 1.0,  # cosine of the angle of the first arm
-                np.cos(q_max_1),  # cosine of the angle of the second arm
+                1.0,  # cosine of the angle of the second arm
                 1.0,  # sine of the angle of the first arm
                 1.0,  # sine of the angle of the second arm
                 target_x_max,  # x-coordinate of the target
