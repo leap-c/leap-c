@@ -2,6 +2,7 @@ from typing import Any
 
 import numpy as np
 from gymnasium.envs.mujoco.reacher_v5 import ReacherEnv as ReacherEnvV5
+from gymnasium import spaces
 from scipy.spatial.transform import Rotation
 
 DEFAULT_CAMERA_CONFIG = {"trackbodyid": 0}
@@ -77,14 +78,58 @@ class ReacherEnv(ReacherEnvV5):
             reward_control_weight=reward_control_weight,
             **kwargs,
         )
-        if reference_path == "circle":
+        if reference_path == "ellipse":
             self.compute_reference_position = compute_reference_ellipse
         elif reference_path == "lemniscate":
             self.compute_reference_position = compute_reference_position_lemniscate
         else:
             msg = f"Invalid reference position: {reference_path}. Choose either \
-                'circle' or 'lemniscate'."
+                'ellipse' or 'lemniscate'."
             raise InvalidReferencePathError(msg)
+
+        # Set reasonable bounds for the observation space
+        q_min_0 = self.model.jnt_range[0, 0]
+        q_max_0 = self.model.jnt_range[0, 1]
+        q_min_1 = self.model.jnt_range[1, 0]
+        q_max_1 = self.model.jnt_range[1, 1]
+        target_x_min = self.model.jnt_range[2, 0]
+        target_x_max = self.model.jnt_range[2, 1]
+        target_y_min = self.model.jnt_range[3, 0]
+        target_y_max = self.model.jnt_range[3, 1]
+
+        low = np.array(
+            [
+                -1.0,  # cosine of the angle of the first arm
+                -1.0,  # cosine of the angle of the second arm
+                -1.0,  # sine of the angle of the first arm
+                -1.0,  # sine of the angle of the second arm
+                target_x_min,  # x-coordinate of the target
+                target_y_min,  # y-coordinate of the target
+                -4.0,  # angular velocity of the first arm
+                -4.0,  # angular velocity of the second arm
+                2 * target_x_min,  # x-value of position_fingertip - position_target
+                2 * target_y_min,  # y-value of position_fingertip - position_target
+            ],
+            dtype=np.float32,
+        )
+
+        high = np.array(
+            [
+                1.0,  # cosine of the angle of the first arm
+                1.0,  # cosine of the angle of the second arm
+                1.0,  # sine of the angle of the first arm
+                1.0,  # sine of the angle of the second arm
+                target_x_max,  # x-coordinate of the target
+                target_y_max,  # y-coordinate of the target
+                4.0,  # angular velocity of the first arm
+                4.0,  # angular velocity of the second arm
+                2 * target_x_max,  # x-value of position_fingertip - position_target
+                2 * target_y_max,  # y-value of position_fingertip - position_target
+            ],
+            dtype=np.float32,
+        )
+
+        self.observation_space = spaces.Box(low=low, high=high, dtype=np.float32)
 
         self.delta_path_var = delta_path_var
 
