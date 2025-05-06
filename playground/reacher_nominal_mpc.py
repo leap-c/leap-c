@@ -19,29 +19,57 @@ import casadi as ca
 def main_env(mjcf_path: Path):
     env = ReacherEnv(train=False, xml_file=mjcf_path.as_posix(), render_mode="human")
 
-    state_representation = "q"
+    model = pin.buildModelFromMJCF(mjcf_path)
+    data = model.createData()
+
+    q_init = np.array([np.deg2rad(60.0), np.deg2rad(20.0)])
+    dq_init = np.array([0.0, 0.0])
+    pin.forwardKinematics(
+        model,
+        data,
+        q_init,
+        dq_init,
+    )
+    pin.updateFramePlacements(model, data)
+    xy_ee_init = data.oMf[model.getFrameId("fingertip")].translation[:2]
+
+    # xy_ee_init = np.array([0.1, 0.0])
+
+    state_representation = "sin_cos" if False else "q"
+
+    params = {
+        "xy_ee_ref": xy_ee_init,
+        "q_sqrt_diag": np.array([np.sqrt(10.0)] * 2),
+        "r_sqrt_diag": np.array([np.sqrt(0.05)] * 2),
+    }
+
     mpc = ReacherMpc(
         learnable_params=[
             "xy_ee_ref",
             "q_sqrt_diag",
             "r_sqrt_diag",
         ],
-        params={
-            "xy_ee_ref": np.array([0.2, 0.0]),
-            "q_sqrt_diag": np.array([np.sqrt(10.0)] * 2),
-            "r_sqrt_diag": np.array([np.sqrt(0.05)] * 2),
-        },
+        params=params,
         mjcf_path=mjcf_path,
         # N_horizon=200,
         # T_horizon=2.0,
         state_representation=state_representation,
     )
-    model = pin.buildModelFromMJCF(mjcf_path)
-    data = model.createData()
 
     ocp_solver = mpc.ocp_solver
 
+    if state_representation == "q":
+        x_init = np.concatenate([q_init, dq_init])
+        for stage in range(ocp_solver.acados_ocp.solver_options.N_horizon + 1):
+            ocp_solver.set(stage, "x", x_init)
+
     observation = torch.Tensor([1.0, 1.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0])
+
+    q = np.array([0.0, 0.0])
+    dq = np.array([0.0, 0.0])
+    observation = torch.Tensor(
+        np.concatenate([np.cos(q), np.sin(q), params["xy_ee_ref"], dq])
+    )
 
     if state_representation == "q":
         prepare_mpc_input = prepare_mpc_input_q
@@ -49,7 +77,7 @@ def main_env(mjcf_path: Path):
         prepare_mpc_input = prepare_mpc_input_cosq_sinq
 
     x0 = prepare_mpc_input(observation).x0.detach().numpy()
-    ocp_solver.solve_for_x0(x0_bar=x0)
+    ocp_solver.solve_for_x0(x0_bar=x0, fail_on_nonzero_status=False)
     print("status", ocp_solver.status)
 
     policy, _, status = mpc.policy(
