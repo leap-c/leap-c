@@ -55,13 +55,13 @@ class InvalidReferencePathError(ValueError):
 
 
 class ReacherEnv(ReacherEnvV5):
-    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 50}
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 100}
 
     def __init__(
         self,
         train: bool = False,
         xml_file: str = "reacher.xml",
-        frame_skip: int = 2,
+        frame_skip: int = 1,
         default_camera_config: dict[str, float | int] = DEFAULT_CAMERA_CONFIG,
         reward_dist_weight: float = 1,
         reward_control_weight: float = 1,
@@ -142,10 +142,12 @@ class ReacherEnv(ReacherEnvV5):
         observation, reward, terminated, truncated, info = super().step(action)
 
         # Set the reference position
-        self.data.qpos[2:] = self.compute_reference_position(self.path_var)
+        # self.data.qpos[2:] = self.compute_reference_position(self.path_var)
+        # self.data.qpos[2:] = np.array([0.21, 0.0])
 
         # Update path variable
-        self.path_var += self.delta_path_var
+        # self.path_var += self.delta_path_var
+        # self.path_var = 0.25
 
         return observation, reward, terminated, truncated, info
 
