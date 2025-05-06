@@ -3,7 +3,7 @@ from pathlib import Path
 import casadi as ca
 import numpy as np
 import pinocchio as pin
-from acados_template import AcadosOcp
+from acados_template import AcadosOcp, AcadosOcpSolver
 from casadi.tools import struct_symSX
 from pinocchio import casadi as cpin
 
@@ -21,8 +21,8 @@ class ReacherMpc(Mpc):
         self,
         params: dict[str, np.ndarray] | None = None,
         learnable_params: list[str] | None = None,
-        N_horizon: int = 100,
-        T_horizon: float = 10.0,
+        N_horizon: int = 500,
+        T_horizon: float = 5.0,
         discount_factor: float = 0.99,
         n_batch: int = 64,
         export_directory: Path | None = None,
@@ -30,6 +30,7 @@ class ReacherMpc(Mpc):
         throw_error_if_u0_is_outside_ocp_bounds: bool = True,
         urdf_path: Path | None = None,
         mjcf_path: Path | None = None,
+        state_representation: str = "sin_cos",
     ):
         model = None
 
@@ -47,7 +48,7 @@ class ReacherMpc(Mpc):
 
         params = (
             {
-                "xy_ee_ref": np.array([0.1, 0.1]),
+                "xy_ee_ref": np.array([0.1, 0.0]),
                 "q_sqrt_diag": np.array([10.0, 10.0]),
                 "r_sqrt_diag": np.array([0.05] * model.nq),
             }
@@ -65,6 +66,7 @@ class ReacherMpc(Mpc):
             learnable_params=learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
+            state_representation=state_representation,
         )
 
         configure_ocp_solver(ocp=ocp, exact_hess_dyn=True)
@@ -101,8 +103,9 @@ def export_parametric_ocp(
     nominal_param: dict[str, np.ndarray],
     name: str = "n_link_robot",
     learnable_params: list[str] | None = None,
-    N_horizon: int = 50,
-    tf: float = 5.0,
+    N_horizon: int = 100,
+    tf: float = 1.0,
+    state_representation: str = "sin_cos",
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
@@ -114,9 +117,19 @@ def export_parametric_ocp(
     ocp.model.name = name
 
     # States
-    q = ca.SX.sym("q", model.nq, 1)
     dq = ca.SX.sym("dq", model.nq, 1)
-    ocp.model.x = ca.vertcat(q, dq)
+
+    if state_representation == "sin_cos":
+        cosq = ca.SX.sym("cos(q)", model.nq, 1)
+        sinq = ca.SX.sym("sin(q)", model.nq, 1)
+        q = ca.atan2(sinq, cosq)
+        ocp.model.x = ca.vertcat(cosq, sinq, dq)
+        q_fun = ca.Function("q_fun", [cosq, sinq], [q])
+        print("q_fun(1, 0): ", q_fun(1, 0))
+    else:
+        q = ca.SX.sym("q", model.nq, 1)
+        ocp.model.x = ca.vertcat(q, dq)
+
     ocp.dims.nx = ocp.model.x.shape[0]
 
     # Controls
@@ -132,7 +145,10 @@ def export_parametric_ocp(
     )
 
     # Dynamics
-    ocp.model.f_expl_expr = ca.vertcat(dq, cpin.aba(model, data, q, dq, tau))
+    # ocp.model.f_expl_expr = ca.vertcat(dq, cpin.aba(model, data, q, dq, 200 * tau))
+    ocp.model.f_expl_expr = ca.vertcat(
+        -sinq * dq, cosq * dq, cpin.aba(model, data, q, dq, 200 * tau)
+    )
     ocp.model.disc_dyn_expr = get_disc_dyn_expr(
         ocp=ocp,
         dt=ocp.solver_options.tf / ocp.solver_options.N_horizon,
@@ -155,24 +171,38 @@ def export_parametric_ocp(
     ocp.cost.yref = ca.vertcat(xy_ee_ref, ca.SX.zeros(ocp.dims.nu))
 
     ocp.cost.cost_type_e = "NONLINEAR_LS"
-    ocp.cost.W_e = ca.diag(q_diag)
+    ocp.cost.W_e = ocp.cost.W[:2, :2]
     ocp.model.cost_y_expr_e = xy_ee
-    ocp.cost.yref_e = xy_ee_ref
+    ocp.cost.yref_e = ocp.cost.yref[:2]
 
     # Constraints
-    ocp.constraints.x0 = np.zeros((ocp.dims.nx,))
+    if state_representation == "sin_cos":
+        ocp.constraints.x0 = np.concatenate(
+            [
+                np.ones(model.nq),
+                np.zeros(model.nq),
+                np.zeros(model.nv),
+            ]
+        )
+    else:
+        ocp.constraints.x0 = np.concatenate(
+            [
+                np.zeros(model.nq),
+                np.zeros(model.nv),
+            ]
+        )
 
-    ocp.constraints.lbx = np.array([pinocchio_model.lowerPositionLimit[-1]])
-    ocp.constraints.ubx = np.array([pinocchio_model.upperPositionLimit[-1]])
-    ocp.constraints.idxbx = np.array([1])
+    # ocp.constraints.lbx = np.array([pinocchio_model.lowerPositionLimit[-1]])
+    # ocp.constraints.ubx = np.array([pinocchio_model.upperPositionLimit[-1]])
+    # ocp.constraints.idxbx = np.array([1])
 
-    # Add slack variables for lbx, ubx
-    ocp.constraints.idxsbx = np.array([0])
-    ns = ocp.constraints.idxsbx.size
-    ocp.cost.zl = 10000 * np.ones((ns,))
-    ocp.cost.Zl = 10 * np.ones((ns,))
-    ocp.cost.zu = 10000 * np.ones((ns,))
-    ocp.cost.Zu = 10 * np.ones((ns,))
+    # # Add slack variables for lbx, ubx
+    # ocp.constraints.idxsbx = np.array([0])
+    # ns = ocp.constraints.idxsbx.size
+    # ocp.cost.zl = 10000 * np.ones((ns,))
+    # ocp.cost.Zl = 10 * np.ones((ns,))
+    # ocp.cost.zu = 10000 * np.ones((ns,))
+    # ocp.cost.Zu = 10 * np.ones((ns,))
 
     ocp.constraints.lbu = np.array([-1.0] * pinocchio_model.nv)
     ocp.constraints.ubu = np.array([+1.0] * pinocchio_model.nv)
@@ -194,11 +224,11 @@ def export_parametric_ocp(
 
 
 def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
-    ocp.solver_options.integrator_type = "DISCRETE"
+    ocp.solver_options.integrator_type = "ERK"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.exact_hess_dyn = exact_hess_dyn
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
-    ocp.solver_options.with_value_sens_wrt_params = True
-    ocp.solver_options.with_solution_sens_wrt_params = True
-    ocp.solver_options.with_batch_functionality = True
+    # ocp.solver_options.with_value_sens_wrt_params = True
+    # ocp.solver_options.with_solution_sens_wrt_params = True
+    # ocp.solver_options.with_batch_functionality = True

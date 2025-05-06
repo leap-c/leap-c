@@ -14,6 +14,87 @@ from leap_c.registry import register_task
 from leap_c.task import Task
 
 
+def prepare_mpc_input_cosq_sinq(
+    obs: Any,
+    param_nn: torch.Tensor | None = None,
+    action: torch.Tensor | None = None,
+) -> MpcInput:
+    mpc_param = MpcParameter(p_global=param_nn)  # type: ignore
+    """
+        | Num | Observation                                     |
+        | --- | ------------------------------------------------|
+        | 0   | cosine of the angle of the first arm            |
+        | 1   | cosine of the angle of the second arm           |
+        | 2   | sine of the angle of the first arm              |
+        | 3   | sine of the angle of the second arm             |
+        | 4   | x-coordinate of the target                      |
+        | 5   | y-coordinate of the target                      |
+        | 6   | angular velocity of the first arm               |
+        | 7   | angular velocity of the second arm              |
+        | 8   | x-value of position_fingertip - position_target |
+        | 9   | y-value of position_fingertip - position_target |
+    """
+
+    obs = (
+        torch.tensor(obs, dtype=torch.float32)
+        if not isinstance(obs, torch.Tensor)
+        else obs
+    )
+    # x0 = torch.stack(
+    #     [
+    #         torch.atan2(obs[..., 2], obs[..., 0]),  # angle 1 from sin/cos
+    #         torch.atan2(obs[..., 3], obs[..., 1]),  # angle 2 from sin/cos
+    #         obs[..., 6],  # angular velocity 1
+    #         obs[..., 7],  # angular velocity 2
+    #     ],
+    #     dim=-1,
+    # )
+    x0 = obs[..., [0, 1, 2, 3, 6, 7]]
+
+    print("prepare_mpc_input returns x0", x0)
+
+    return MpcInput(x0=x0, parameters=mpc_param)
+
+
+def prepare_mpc_input(
+    obs: Any,
+    param_nn: torch.Tensor | None = None,
+    action: torch.Tensor | None = None,
+) -> MpcInput:
+    mpc_param = MpcParameter(p_global=param_nn)  # type: ignore
+    """
+        | Num | Observation                                     |
+        | --- | ------------------------------------------------|
+        | 0   | cosine of the angle of the first arm            |
+        | 1   | cosine of the angle of the second arm           |
+        | 2   | sine of the angle of the first arm              |
+        | 3   | sine of the angle of the second arm             |
+        | 4   | x-coordinate of the target                      |
+        | 5   | y-coordinate of the target                      |
+        | 6   | angular velocity of the first arm               |
+        | 7   | angular velocity of the second arm              |
+        | 8   | x-value of position_fingertip - position_target |
+        | 9   | y-value of position_fingertip - position_target |
+    """
+
+    obs = (
+        torch.tensor(obs, dtype=torch.float32)
+        if not isinstance(obs, torch.Tensor)
+        else obs
+    )
+    x0 = torch.stack(
+        [
+            torch.atan2(obs[..., 2], obs[..., 0]),  # angle 1 from sin/cos
+            torch.atan2(obs[..., 3], obs[..., 1]),  # angle 2 from sin/cos
+            obs[..., 6],  # angular velocity 1
+            obs[..., 7],  # angular velocity 2
+        ],
+        dim=-1,
+    )
+
+    return MpcInput(x0=x0, parameters=mpc_param)
+
+
 @register_task("reacher")
 class ReacherTask(Task):
     def __init__(self):
@@ -52,26 +133,4 @@ class ReacherTask(Task):
         param_nn: torch.Tensor | None = None,
         action: torch.Tensor | None = None,
     ) -> MpcInput:
-        mpc_param = MpcParameter(p_global=param_nn)  # type: ignore
-        """
-            | Num | Observation                                     |
-            | --- | ------------------------------------------------|
-            | 0   | cosine of the angle of the first arm            |
-            | 1   | cosine of the angle of the second arm           |
-            | 2   | sine of the angle of the first arm              |
-            | 3   | sine of the angle of the second arm             |
-            | 4   | x-coordinate of the target                      |
-            | 5   | y-coordinate of the target                      |
-            | 6   | angular velocity of the first arm               |
-            | 7   | angular velocity of the second arm              |
-            | 8   | x-value of position_fingertip - position_target |
-            | 9   | y-value of position_fingertip - position_target |
-        """
-
-        # Assume obs is torch.Tensor. Apply arcsin to elements 2 and 3
-        # to get the angles of the first and second arms.
-        x0 = obs[..., [2, 3, 6, 7]]
-        x0[..., 0] = torch.arcsin(x0[..., 0])
-        x0[..., 1] = torch.arcsin(x0[..., 1])
-
-        return MpcInput(x0=x0, parameters=mpc_param)
+        return prepare_mpc_input(self, obs, param_nn, action)
