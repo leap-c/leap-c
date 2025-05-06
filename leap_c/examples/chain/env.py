@@ -235,13 +235,18 @@ class ChainEnv(gym.Env):
         o = self._current_observation()
         r = self._calculate_reward()
 
-        term = self._is_done()
-
-        info = {}
+        reached_goal_pos = bool(np.linalg.norm(self.x_ref - self.state, axis=0, ord=2) < 1e-1)
+        term = reached_goal_pos
 
         self.time += self.dt
-
         trunc = self.time > self.max_time
+
+        if reached_goal_pos:
+            info = {"success": True, "violations": False}
+        elif trunc:
+            info = {"success": False, "violations": False}
+        else:
+            info = {}
 
         self.trajectory.append(o)
 
@@ -261,6 +266,7 @@ class ChainEnv(gym.Env):
         plt.close("all")
         self.canvas = None
         self.line = None
+
 
         self._set_canvas()
 
@@ -289,9 +295,6 @@ class ChainEnv(gym.Env):
         return -np.linalg.norm(
             pos_last - self.pos_last_ref, axis=0, ord=2
         ) - 0.1 * np.linalg.norm(vel, axis=0, ord=2)
-
-    def _is_done(self):
-        return bool(np.linalg.norm(self.x_ref - self.state, axis=0, ord=2) < 1e-3)
 
     def _set_canvas(self):
         plt.figure()
