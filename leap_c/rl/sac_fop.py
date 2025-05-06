@@ -117,8 +117,8 @@ class FopActor(nn.Module):
 
         if mpc_output.du0_dp_global is not None and self.correction:
             jtj = mpc_output.du0_dp_global @ mpc_output.du0_dp_global.transpose(1,2)
-            correction = torch.det(jtj + 1e-6 * torch.eye(jtj.shape[1], device=jtj.device)).sqrt().log()
-            print(f"correction: mean {correction.mean()}, min {correction.min()}, max {correction.max()}")
+            correction = torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device)).sqrt().log()
+            # print(f"correction: mean {correction.mean()}, min {correction.min()}, max {correction.max()}")
             log_prob -= correction.unsqueeze(1)
 
         return SacFopActorOutput(
