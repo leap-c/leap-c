@@ -5,7 +5,7 @@ from leap_c.examples.mujoco.reacher.env import ReacherEnv
 from leap_c.examples.mujoco.reacher.mpc import ReacherMpc
 from leap_c.examples.mujoco.reacher.task import ReacherTask
 from leap_c.examples.mujoco.reacher.task import (
-    prepare_mpc_input,
+    prepare_mpc_input_q,
     prepare_mpc_input_cosq_sinq,
 )
 from leap_c.mpc import MpcInput
@@ -18,6 +18,8 @@ import casadi as ca
 
 def main_env(mjcf_path: Path):
     env = ReacherEnv(train=False, xml_file=mjcf_path.as_posix(), render_mode="human")
+
+    state_representation = "q"
     mpc = ReacherMpc(
         learnable_params=[
             "xy_ee_ref",
@@ -32,6 +34,7 @@ def main_env(mjcf_path: Path):
         mjcf_path=mjcf_path,
         # N_horizon=200,
         # T_horizon=2.0,
+        state_representation=state_representation,
     )
     model = pin.buildModelFromMJCF(mjcf_path)
     data = model.createData()
@@ -40,12 +43,17 @@ def main_env(mjcf_path: Path):
 
     observation = torch.Tensor([1.0, 1.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0])
 
-    x0 = prepare_mpc_input_cosq_sinq(observation).x0.detach().numpy()
+    if state_representation == "q":
+        prepare_mpc_input = prepare_mpc_input_q
+    elif state_representation == "sin_cos":
+        prepare_mpc_input = prepare_mpc_input_cosq_sinq
+
+    x0 = prepare_mpc_input(observation).x0.detach().numpy()
     ocp_solver.solve_for_x0(x0_bar=x0)
     print("status", ocp_solver.status)
 
     policy, _, status = mpc.policy(
-        state=prepare_mpc_input_cosq_sinq(observation).x0.detach().numpy(),
+        state=prepare_mpc_input(observation).x0.detach().numpy(),
         p_global=mpc.ocp.p_global_values,
     )
     print("status", status)

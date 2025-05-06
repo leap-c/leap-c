@@ -56,7 +56,7 @@ def prepare_mpc_input_cosq_sinq(
     return MpcInput(x0=x0, parameters=mpc_param)
 
 
-def prepare_mpc_input(
+def prepare_mpc_input_q(
     obs: Any,
     param_nn: torch.Tensor | None = None,
     action: torch.Tensor | None = None,
@@ -133,4 +133,4 @@ class ReacherTask(Task):
         param_nn: torch.Tensor | None = None,
         action: torch.Tensor | None = None,
     ) -> MpcInput:
-        return prepare_mpc_input(self, obs, param_nn, action)
+        return prepare_mpc_input_q(self, obs, param_nn, action)
