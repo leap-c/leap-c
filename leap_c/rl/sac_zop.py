@@ -156,7 +156,7 @@ class SacZopTrainer(Trainer):
         self.log_alpha = nn.Parameter(torch.tensor(cfg.sac.init_alpha).log())  # type: ignore
 
         action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
-        param_dim = np.prod(self.train_env.param_space.shape)  # type: ignore
+        param_dim = np.prod(task.param_space.shape)  # type: ignore
         self.entropy_norm = param_dim / action_dim
         if cfg.sac.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
