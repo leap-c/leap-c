@@ -19,103 +19,78 @@ import casadi as ca
 from numpy.linalg import norm, solve
 
 
-def main_env(mjcf_path: Path):
-    env = ReacherEnv(train=False, xml_file=mjcf_path.as_posix(), render_mode="human")
+def main_warmstart(
+    env: ReacherEnv,
+    mpc: ReacherMpc,
+    pinocchio_model: pin.Model,
+    ik_solver: InverseKinematicsSolver,
+    state_representation: str = "q",
+):
+    p_global = mpc.ocp.p_global_values
+    ocp_solver = mpc.ocp_solver
 
-    model = pin.buildModelFromMJCF(mjcf_path)
-    data = model.createData()
+    data = pinocchio_model.createData()
 
-    q_target = np.array([np.deg2rad(60.0), np.deg2rad(20.0)])
+    # Create a target position
+    q_target = np.array([np.deg2rad(10.0), np.deg2rad(90.0)])
     dq_target = np.array([0.0, 0.0])
     pin.forwardKinematics(
-        model,
+        pinocchio_model,
         data,
         q_target,
         dq_target,
     )
-    pin.updateFramePlacements(model, data)
-    xy_ee_target = data.oMf[model.getFrameId("fingertip")].translation[:2]
+    pin.updateFramePlacements(pinocchio_model, data)
 
-    ik_solver = InverseKinematicsSolver(
-        pinocchio_model=model,
-        step_size=0.2,
-        max_iter=1000,
-        tol=1e-4,
-        print_level=0,
-        plot_level=1,
-    )
+    xy_ee_target = data.oMf[pinocchio_model.getFrameId("fingertip")].translation[:2]
+    # xy_ee_target = np.array([0.1, 0.1])
 
-    state_representation = "sin_cos" if False else "q"
-
-    params = {
-        "xy_ee_ref": xy_ee_target,
-        "q_sqrt_diag": np.array([np.sqrt(10.0)] * 2),
-        "r_sqrt_diag": np.array([np.sqrt(0.05)] * 2),
-    }
-
-    q0 = np.deg2rad(np.array([0.0, 0.0]))
-    dq0 = np.deg2rad(np.array([0.0, 0.0]))
-
-    x0 = np.concatenate([q0, dq0])
+    # q0 = np.deg2rad(np.array([0.0, 0.0]))
+    # dq0 = np.deg2rad(np.array([0.0, 0.0]))
+    # x0 = np.concatenate([q0, dq0])
 
     q_ref, dq_ref, _, _, _ = ik_solver(
-        q=np.deg2rad(np.array([45.0, 45.0])),
-        # q=q0,
-        dq=dq0,
+        q=np.array([np.arctan2(xy_ee_target[1], xy_ee_target[0])] * pinocchio_model.nq),
+        dq=np.zeros(pinocchio_model.nv),
         target_position=np.concatenate([xy_ee_target, np.array([0.01])]),
     )
     x_ref = np.concatenate([q_ref, dq_ref])
-
-    print("q_target: ", q_target)
-    print("q_ref: ", q_ref)
-
-    # Wrap q_ref to [-pi, pi]
-    # q_ref_wrapped = np.arctan2(np.sin(q_ref), np.cos(q_ref))
-    # print("q_ref_wrapped: ", q_ref_wrapped)
-
-    mpc = ReacherMpc(
-        learnable_params=[
-            "xy_ee_ref",
-            "q_sqrt_diag",
-            "r_sqrt_diag",
-        ],
-        params=params,
-        mjcf_path=mjcf_path,
-        N_horizon=200,
-        T_horizon=2.0,
-        state_representation=state_representation,
-    )
-
-    ocp_solver = mpc.ocp_solver
 
     if state_representation == "q":
         for stage in range(ocp_solver.acados_ocp.solver_options.N_horizon + 1):
             ocp_solver.set(stage, "x", x_ref)
 
+    q0 = np.deg2rad(np.array([10.0, 10.0]))
     observation = torch.Tensor(
         np.concatenate(
             [
                 np.cos(q0),
                 np.sin(q0),
-                params["xy_ee_ref"],
-                dq0,
+                np.array([0.1, 0.1]),
+                np.zeros(2),
+                np.zeros(2),
             ]
         )
     )
 
-    if state_representation == "q":
-        prepare_mpc_input = prepare_mpc_input_q
-    elif state_representation == "sin_cos":
-        prepare_mpc_input = prepare_mpc_input_cosq_sinq
-
     x0 = prepare_mpc_input(observation).x0.detach().numpy()
-    print("x0: ", x0)
-    print("x_ref: ", x_ref)
+
+    print("q_target: ", q_target)
+    print("q_ref: ", q_ref)
+    print("norm(q_target - q_ref): ", np.linalg.norm(q_target - q_ref))
+    # print("x0: ", x0)
+    # print("x_ref: ", x_ref)
     print("xy_ee_target: ", xy_ee_target)
-    print("xy_ee_ref: ", params["xy_ee_ref"])
+    # print("xy_ee_ref: ", params["xy_ee_ref"])
+
+    # p_global[0:2] = observation[4:6]
+
+    ocp_solver.set_p_global_and_precompute_dependencies(data_=p_global)
 
     ocp_solver.solve_for_x0(x0_bar=x0, fail_on_nonzero_status=False)
     print("status", ocp_solver.status)
+
+    exit(0)
 
     policy, _, status = mpc.policy(
         state=prepare_mpc_input(observation).x0.detach().numpy(),
@@ -123,16 +98,9 @@ def main_env(mjcf_path: Path):
     )
     print("status", status)
 
-    exit(0)
-    # p_global = mpc.ocp.p_global_values
-
-    # observation, info = env.reset()
-    # env.render()
-    # solver_state = None
     p_global = mpc.ocp.p_global_values
     for _ in range(10000):
         p_global[0:2] = observation[4:6]
-        # p_global[0:2] = np.random.uniform(-0.2, 0.2, size=2)
 
         mpc_output = mpc.policy(
             state=prepare_mpc_input(observation).x0.detach().numpy(),
@@ -172,10 +140,12 @@ def main_env(mjcf_path: Path):
 
             xy_ee = []
             for q, dq in zip(q_mpc, dq_mpc, strict=True):
-                data = model.createData()
-                pin.forwardKinematics(model, data, q, dq)
-                pin.updateFramePlacements(model, data)
-                xy_ee.append(data.oMf[model.getFrameId("fingertip")].translation[:2])
+                data = pinocchio_model.createData()
+                pin.forwardKinematics(pinocchio_model, data, q, dq)
+                pin.updateFramePlacements(pinocchio_model, data)
+                xy_ee.append(
+                    data.oMf[pinocchio_model.getFrameId("fingertip")].translation[:2]
+                )
 
             # Roll out environment on mpc plan
             # O = np.vstack([env.step(u)[0] for u in U])
@@ -259,10 +229,122 @@ def main_env(mjcf_path: Path):
     env.close()
 
 
+def main_closed_loop(
+    env: ReacherEnv,
+    mpc: ReacherMpc,
+    pinocchio_model: pin.Model,
+    ik_solver: InverseKinematicsSolver,
+    state_representation: str = "q",
+    use_ik_solver: bool = True,
+):
+    ocp_solver = mpc.ocp_solver
+
+    # env.render()
+
+    p_global = ocp_solver.acados_ocp.p_global_values
+
+    o = []
+    observation, info = env.reset()
+    while True:
+        p_global[0:2] = observation[4:6]
+        ocp_solver.set_p_global_and_precompute_dependencies(data_=p_global)
+
+        if use_ik_solver:
+            target_position = np.concatenate([observation[4:6], np.array([0.01])])
+            target_angle = np.arctan2(target_position[1], target_position[0])
+
+            q_ref, dq_ref, _, _, _ = ik_solver(
+                q=np.array([target_angle] * pinocchio_model.nq),
+                dq=np.zeros(pinocchio_model.nv),
+                target_position=np.concatenate([observation[4:6], np.array([0.01])]),
+            )
+            x_ref = np.concatenate([q_ref, dq_ref])
+            for stage in range(ocp_solver.acados_ocp.solver_options.N_horizon + 1):
+                ocp_solver.set(stage, "x", x_ref)
+
+        x0 = prepare_mpc_input(observation).x0.detach().numpy()
+        action = ocp_solver.solve_for_x0(x0_bar=x0, fail_on_nonzero_status=False)
+        error_norm = np.linalg.norm(observation[-2:])
+        print(
+            f"status: {ocp_solver.status}; norm(p - p_ref): {error_norm}",
+        )
+
+        o.append(observation)
+
+        observation, reward, terminated, truncated, info = env.step(
+            action=action,
+        )
+        env.render()
+
+    # Stack o
+    o = np.vstack(o)
+
+    env.close()
+
+
+RUN_MAIN_WARMSTART = False
+RUN_MAIN_CLOSED_LOOP = True
+
 if __name__ == "__main__":
     mjcf_path = Path(
         "/home/dirk/cybernetics/leap-c/leap_c/examples/mujoco/reacher/reacher"
     ).with_suffix(".xml")
 
-    main_env(mjcf_path=mjcf_path)
-    # pin_warmstart(mjcf_path=mjcf_path)
+    env = ReacherEnv(
+        # train=False, xml_file=mjcf_path.as_posix(), render_mode="rgb_array"
+        train=False,
+        xml_file=mjcf_path.as_posix(),
+        render_mode="human",
+        reference_path="lemniscate",
+    )
+    state_representation = "q"
+
+    if state_representation == "q":
+        prepare_mpc_input = prepare_mpc_input_q
+    elif state_representation == "sin_cos":
+        prepare_mpc_input = prepare_mpc_input_cosq_sinq
+
+    mpc = ReacherMpc(
+        learnable_params=[
+            "xy_ee_ref",
+            "q_sqrt_diag",
+            "r_sqrt_diag",
+        ],
+        params={
+            "xy_ee_ref": np.array([0.21, 0.0]),
+            "q_sqrt_diag": np.array([np.sqrt(100.0)] * 2),
+            "r_sqrt_diag": np.array([np.sqrt(0.05)] * 2),
+        },
+        mjcf_path=mjcf_path,
+        N_horizon=200,
+        T_horizon=2.0,
+        state_representation=state_representation,
+    )
+
+    pinocchio_model = pin.buildModelFromMJCF(mjcf_path)
+
+    ik_solver = InverseKinematicsSolver(
+        pinocchio_model=pinocchio_model,
+        step_size=0.1,
+        max_iter=1000,
+        tol=1e-6,
+        print_level=0,
+        plot_level=0,
+    )
+
+    if RUN_MAIN_WARMSTART:
+        main_warmstart(
+            env=env,
+            mpc=mpc,
+            pinocchio_model=pinocchio_model,
+            ik_solver=ik_solver,
+            state_representation=state_representation,
+        )
+    if RUN_MAIN_CLOSED_LOOP:
+        main_closed_loop(
+            env=env,
+            mpc=mpc,
+            pinocchio_model=pinocchio_model,
+            ik_solver=ik_solver,
+            state_representation=state_representation,
+        )
