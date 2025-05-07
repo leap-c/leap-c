@@ -3,7 +3,7 @@ from pathlib import Path
 import casadi as ca
 import numpy as np
 import pinocchio as pin
-from acados_template import AcadosOcp, AcadosOcpSolver
+from acados_template import AcadosOcp
 from casadi.tools import struct_symSX
 from pinocchio import casadi as cpin
 
@@ -11,7 +11,11 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.mpc import Mpc
+from leap_c.mpc import Mpc, MpcInput
+
+
+def init_function(mpc_input: MpcInput):
+    pass
 
 
 class ReacherMpc(Mpc):
@@ -116,22 +120,6 @@ def export_parametric_ocp(
     ocp.solver_options.N_horizon = N_horizon
     ocp.model.name = name
 
-    # States
-    dq = ca.SX.sym("dq", model.nq, 1)
-
-    if state_representation == "sin_cos":
-        cosq = ca.SX.sym("cos(q)", model.nq, 1)
-        sinq = ca.SX.sym("sin(q)", model.nq, 1)
-        q = ca.atan2(sinq, cosq)
-        ocp.model.x = ca.vertcat(cosq, sinq, dq)
-        q_fun = ca.Function("q_fun", [cosq, sinq], [q])
-        print("q_fun(1, 0): ", q_fun(1, 0))
-    else:
-        q = ca.SX.sym("q", model.nq, 1)
-        ocp.model.x = ca.vertcat(q, dq)
-
-    ocp.dims.nx = ocp.model.x.shape[0]
-
     # Controls
     tau = ca.SX.sym("tau", model.nq, 1)
     ocp.model.u = tau
@@ -144,11 +132,26 @@ def export_parametric_ocp(
         ocp=ocp,
     )
 
-    # Dynamics
-    # ocp.model.f_expl_expr = ca.vertcat(dq, cpin.aba(model, data, q, dq, 200 * tau))
-    ocp.model.f_expl_expr = ca.vertcat(
-        -sinq * dq, cosq * dq, cpin.aba(model, data, q, dq, 200 * tau)
-    )
+    # States
+    dq = ca.SX.sym("dq", model.nq, 1)
+
+    if state_representation == "sin_cos":
+        cosq = ca.SX.sym("cos(q)", model.nq, 1)
+        sinq = ca.SX.sym("sin(q)", model.nq, 1)
+        q = ca.atan2(sinq, cosq)
+        ocp.model.x = ca.vertcat(cosq, sinq, dq)
+        q_fun = ca.Function("q_fun", [cosq, sinq], [q])
+        print("q_fun(1, 0): ", q_fun(1, 0))
+        ocp.model.f_expl_expr = ca.vertcat(
+            -sinq * dq, cosq * dq, cpin.aba(model, data, q, dq, 200 * tau)
+        )
+    else:
+        q = ca.SX.sym("q", model.nq, 1)
+        ocp.model.x = ca.vertcat(q, dq)
+        ocp.model.f_expl_expr = ca.vertcat(dq, cpin.aba(model, data, q, dq, 200 * tau))
+
+    ocp.dims.nx = ocp.model.x.shape[0]
+
     ocp.model.disc_dyn_expr = get_disc_dyn_expr(
         ocp=ocp,
         dt=ocp.solver_options.tf / ocp.solver_options.N_horizon,
