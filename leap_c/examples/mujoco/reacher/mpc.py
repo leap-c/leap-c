@@ -3,7 +3,7 @@ from pathlib import Path
 import casadi as ca
 import numpy as np
 import pinocchio as pin
-from acados_template import AcadosOcp, AcadosOcpSolver
+from acados_template import AcadosOcp
 from casadi.tools import struct_symSX
 from pinocchio import casadi as cpin
 
@@ -11,7 +11,11 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.mpc import Mpc
+from leap_c.mpc import Mpc, MpcInput
+
+
+def init_function(mpc_input: MpcInput):
+    pass
 
 
 class ReacherMpc(Mpc):
