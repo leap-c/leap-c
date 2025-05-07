@@ -142,16 +142,10 @@ class ReacherEnv(ReacherEnvV5):
     def step(self, action: np.ndarray) -> tuple[Any, float, bool, bool, dict]:
         observation, reward, terminated, truncated, info = super().step(action)
 
-        # Set the reference position
-        # self.data.qpos[2:] = self.compute_reference_position(self.path_var)
-        # self.data.qpos[2:] = np.array([0.21, 0.0])
-
         # Update path variable
         self.path_var += self.delta_path_var
         self.goal = self.compute_reference_position(self.path_var)
         self.data.qpos[2:] = self.goal
-
-        # print(self.goal)
 
         return observation, reward, terminated, truncated, info
 
@@ -160,11 +154,6 @@ class ReacherEnv(ReacherEnvV5):
             self.np_random.uniform(low=-0.1, high=0.1, size=self.model.nq)
             + self.init_qpos
         )
-        # while True:
-        #     self.goal = self.np_random.uniform(low=-0.2, high=0.2, size=2)
-        #     if np.linalg.norm(self.goal) < 0.2:
-        #         break
-        # self.goal = np.array([0.1, 0.05])
         self.goal = np.random.uniform(low=0.05, high=0.15, size=2)
         qpos[-2:] = self.goal
 
