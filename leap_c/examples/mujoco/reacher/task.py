@@ -54,6 +54,7 @@ def prepare_mpc_input_q(
     obs: Any,
     param_nn: torch.Tensor | None = None,
     action: torch.Tensor | None = None,
+    offset_target: bool = True,
 ) -> MpcInput:
     """
     | Num | Observation                                     |
@@ -78,7 +79,9 @@ def prepare_mpc_input_q(
 
     # Target position. We want the NN to set offsets from the target position
     p_global = param_nn
-    p_global[..., 0:2] = obs[..., 4:6] + param_nn[..., 0:2]
+
+    if offset_target:
+        p_global[..., 0:2] = obs[..., 4:6] + param_nn[..., 0:2]
 
     mpc_param = MpcParameter(p_global=p_global)
 
@@ -92,8 +95,6 @@ def prepare_mpc_input_q(
         ],
         dim=-1,
     )
-
-    # Extract delta_position from param_nn
 
     return MpcInput(x0=x0, parameters=mpc_param)
 
@@ -115,7 +116,7 @@ class ReacherTask(Task):
         self.param_low = 0.5 * mpc.ocp.p_global_values
         self.param_high = 1.5 * mpc.ocp.p_global_values
 
-        # Special treatment for the first two parameters. Offset from the target position.
+        # Special treatment for the first two parameters (target offset)
         self.param_low[:2] = -0.1
         self.param_high[:2] = +0.1
 
@@ -128,7 +129,7 @@ class ReacherTask(Task):
             train=train,
             render_mode="rgb_array",
             xml_file="reacher.xml",
-            reference_path="ellipse",
+            reference_path="lemniscate",
         )
 
     def create_extractor(self, env):
@@ -140,4 +141,9 @@ class ReacherTask(Task):
         param_nn: torch.Tensor | None = None,
         action: torch.Tensor | None = None,
     ) -> MpcInput:
-        return prepare_mpc_input_q(self, obs, param_nn, action)
+        return prepare_mpc_input_q(
+            obs=obs,
+            param_nn=param_nn,
+            action=action,
+            offset_target=True,
+        )
