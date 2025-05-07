@@ -27,7 +27,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
     the possible range of the cart's center of mass in the observation space,
     but the episode terminates if it leaves the interval (-2.4, 2.4) already.
     NOTE: The pole angle is actually bounded between -2pi and 2pi by always adding/subtracting
-    (in the negative / in the positive case) the highest multiple of 2.4
+    (in the negative / in the positive case) the highest multiple of 2pi
     until the pole angle is within the bounds again.
     NOTE: Contrary to the original CartPoleEnv, the state space here is arranged like
     [x, theta, dx, dtheta] instead of [x, dx, theta, dtheta].
@@ -58,7 +58,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
         self.gravity = 9.81
         self.masscart = 1.0
         self.masspole = 0.1
-        self.length = 0.5
+        self.length = 0.8
         self.Fmax = 80.0
         self.dt = 0.05
         self.max_time = 10.0

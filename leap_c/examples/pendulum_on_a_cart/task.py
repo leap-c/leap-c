@@ -83,7 +83,7 @@ class PendulumOnCartSwingup(Task):
         learnable_params = ["xref2"]
 
         mpc = PendulumOnCartMPC(
-            N_horizon=6,
+            N_horizon=5,
             T_horizon=0.25,
             learnable_params=learnable_params,
             params=params,  # type: ignore
