@@ -8,7 +8,7 @@ from acados_template import AcadosSimSolver
 
 from leap_c.mpc import Mpc, MpcBatchedState, MpcInput, MpcOutput
 
-from .autograd import AutogradCasadiFunction, DynamicsSimFunction, MPCSolutionFunction
+from .autograd import AutogradCasadiFunction, DynamicsSimFunction, MPCSolutionFunction, ModuleCtx
 
 
 class CasadiExprModule(nn.Module):
@@ -89,6 +89,7 @@ class MpcSolutionModule(nn.Module):
             p_glob = mpc_input.parameters.p_global
             p_rest = mpc_input.parameters._replace(p_global=None)
 
+        ctx = ModuleCtx()
         u0, value, status, state = MPCSolutionFunction.apply(  # type:ignore
             self.mpc,
             mpc_input.x0,
@@ -96,7 +97,13 @@ class MpcSolutionModule(nn.Module):
             p_glob,
             p_rest,
             mpc_state,
+            ctx,
         )
+
+        if ctx.dudp_global is not None:
+            dudp_global = torch.tensor(ctx.dudp_global, device=u0.device, dtype=u0.dtype)
+        else:
+            dudp_global = None
 
         if mpc_input.u0 is None:
             V = value
@@ -106,7 +113,7 @@ class MpcSolutionModule(nn.Module):
             V = None
 
         return (
-            MpcOutput(u0=u0, Q=Q, V=V, status=status),
+            MpcOutput(u0=u0, Q=Q, V=V, status=status, du0_dp_global=dudp_global),
             state,
             self.mpc.last_call_stats,
         )

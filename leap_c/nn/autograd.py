@@ -2,6 +2,7 @@
 
 TODO (Jasper): Does JIT compilation speed up the module?
 """
+from dataclasses import dataclass
 
 import casadi as ca
 import numpy as np
@@ -119,6 +120,11 @@ class DynamicsSimFunction(autograd.Function):
         return (None, grad_x, grad_u, None)
 
 
+@dataclass
+class ModuleCtx:
+    dudp_global: torch.Tensor | None = None
+
+
 class MPCSolutionFunction(autograd.Function):
     @staticmethod
     def forward(
@@ -129,6 +135,7 @@ class MPCSolutionFunction(autograd.Function):
         p_global: torch.Tensor | None,
         p_the_rest: MpcParameter | None,
         initializations: MpcBatchedState | None,
+        module_ctx: ModuleCtx | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
         device = x0.device
         dtype = x0.dtype
@@ -178,6 +185,9 @@ class MPCSolutionFunction(autograd.Function):
         ctx.dvaluedu0 = dvaluedu0
         ctx.dvaluedx0 = dvaluedx0
         ctx.u0_was_none = u0 is None
+
+        if module_ctx is not None:
+            module_ctx.dudp_global = dudp_global
 
         value = mpc_output.Q if u0 is not None else mpc_output.V
         if u0 is None:
@@ -271,4 +281,4 @@ class MPCSolutionFunction(autograd.Function):
 
         # print("After: Grad p min", grad_p.min(), "Grad p max", grad_p.max())
 
-        return (None, grad_x, grad_u, grad_p, None, None)
+        return (None, grad_x, grad_u, grad_p, None, None, None)

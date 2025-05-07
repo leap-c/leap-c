@@ -2,6 +2,7 @@
 layer for the policy network."""
 
 from dataclasses import dataclass
+import math
 from pathlib import Path
 from typing import Any, Callable, Iterator, NamedTuple
 
@@ -27,7 +28,22 @@ NUM_THREADS_ACADOS_BATCH = 4
 @dataclass(kw_only=True)
 class SacFopBaseConfig(SacBaseConfig):
     """Specific settings for the Fop trainer."""
-    noise: str = "param"  # or "action"
+    noise: str = "param"
+    entropy_correction: bool = False
+
+
+@dataclass(kw_only=True)
+class SacFoaBaseConfig(SacBaseConfig):
+    """Specific settings for the Foa trainer."""
+    noise: str = "action"
+    entropy_correction: bool = False
+
+
+@dataclass(kw_only=True)
+class SacFopcBaseConfig(SacBaseConfig):
+    """Specific settings for the Foa trainer."""
+    noise: str = "param"
+    entropy_correction: bool = True
 
 
 class SacFopActorOutput(NamedTuple):
@@ -59,6 +75,7 @@ class FopActor(nn.Module):
             Callable[[torch.Tensor, torch.Tensor, MpcBatchedState], MpcBatchedState]
             | None
         ) = None,
+        correction: bool = True,
     ):
         super().__init__()
 
@@ -70,6 +87,7 @@ class FopActor(nn.Module):
             output_sizes=(param_space.shape[0], param_space.shape[0]),  # type:ignore
             mlp_cfg=mlp_cfg,
         )
+        self.correction = correction
 
         self.mpc: MpcSolutionModule = task.mpc  # type:ignore
         self.prepare_mpc_input = task.prepare_mpc_input
@@ -96,6 +114,12 @@ class FopActor(nn.Module):
         #       if its not a converged solution
         mpc_output, state_solution, mpc_stats = self.mpc(mpc_input, mpc_state)
         self.actual_used_mpc_state = mpc_state
+
+        if mpc_output.du0_dp_global is not None and self.correction:
+            jtj = mpc_output.du0_dp_global @ mpc_output.du0_dp_global.transpose(1,2)
+            correction = torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device)).sqrt().log()
+            # print(f"correction: mean {correction.mean()}, min {correction.min()}, max {correction.max()}")
+            log_prob -= correction.unsqueeze(1)
 
         return SacFopActorOutput(
             param,
@@ -173,7 +197,7 @@ class SacFopTrainer(Trainer):
     cfg: SacFopBaseConfig
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: SacBaseConfig
+        self, task: Task, output_path: str | Path, device: str, cfg: SacFopBaseConfig
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -195,7 +219,7 @@ class SacFopTrainer(Trainer):
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
         if cfg.noise == "param":
-            self.pi = FopActor(task, self.train_env, cfg.sac.actor_mlp)
+            self.pi = FopActor(task, self.train_env, cfg.sac.actor_mlp, correction=cfg.entropy_correction)
         elif cfg.noise == "action":
             self.pi = FouActor(task, self.train_env, cfg.sac.actor_mlp)
         else:
@@ -211,12 +235,15 @@ class SacFopTrainer(Trainer):
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
             action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
             param_dim = np.prod(task.param_space.shape)  # type: ignore
+            if cfg.noise == "param":
+                self.entropy_norm = param_dim / action_dim
+            else:
+                self.entropy_norm = 1
             self.target_entropy = (
                 -action_dim
                 if cfg.sac.target_entropy is None
                 else cfg.sac.target_entropy
             )
-            self.entropy_norm = param_dim / action_dim
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
 
@@ -386,3 +413,13 @@ class SacFopTrainer(Trainer):
 
     def singleton_ckpt_modules(self) -> list[str]:
         return ["buffer"]
+
+
+@register_trainer("sac_foa", SacFoaBaseConfig())
+class SacFoaTrainer(SacFopTrainer):
+    cfg: SacFoaBaseConfig  # type: ignore
+
+
+@register_trainer("sac_fopc", SacFopcBaseConfig())
+class SacFopcTrainer(SacFopTrainer):
+    cfg: SacFopcBaseConfig  # type: ignore
