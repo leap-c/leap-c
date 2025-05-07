@@ -189,8 +189,8 @@ class SacZopTrainer(Trainer):
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
-            self.report_stats("train_trajectory", {"action": action, "param": param})
-            self.report_stats("train_policy_rollout", pi_output.stats)
+            # self.report_stats("train_trajectory", {"action": action, "param": param})
+            # self.report_stats("train_policy_rollout", pi_output.stats)
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
