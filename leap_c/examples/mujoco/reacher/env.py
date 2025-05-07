@@ -4,6 +4,7 @@ import numpy as np
 from gymnasium.envs.mujoco.reacher_v5 import ReacherEnv as ReacherEnvV5
 from gymnasium import spaces
 from scipy.spatial.transform import Rotation
+import mujoco
 
 DEFAULT_CAMERA_CONFIG = {"trackbodyid": 0}
 
@@ -12,8 +13,8 @@ def compute_reference_position_lemniscate(
     theta: float,
     origin: list = (0.0, 0.1, 0.0),
     orientation: int = (0.0, 0.0, 0.0),
-    length: float = 0.4,
-    width: float = 0.2,
+    length: float = 0.2,
+    width: float = 0.12,
     direction: int = +1,
 ) -> np.ndarray:
     s = direction * 2 * np.pi * (1 + theta)
@@ -31,10 +32,10 @@ def compute_reference_position_lemniscate(
 
 def compute_reference_ellipse(
     theta: float,
-    origin: list = (0.0, 0.0, 0.0),
+    origin: list = (0.0, 0.15, 0.0),
     orientation: int = (0.0, 0.0, 0.0),
-    length: float = 0.4,
-    width: float = 0.2,
+    length: float = 0.6,
+    width: float = 0.12,
 ) -> np.ndarray:
     pos_ref = np.zeros(3)
     pos_ref[0] = (length / 2) * np.cos(2 * np.pi * (1 + theta))
@@ -65,8 +66,8 @@ class ReacherEnv(ReacherEnvV5):
         default_camera_config: dict[str, float | int] = DEFAULT_CAMERA_CONFIG,
         reward_dist_weight: float = 1,
         reward_control_weight: float = 1,
-        reference_path: str = "lemniscate",
-        delta_path_var: float = 0.025,
+        reference_path: str = "ellipse",
+        delta_path_var: float = 0.01,
         **kwargs,
     ):
         # gymnasium setup
@@ -146,15 +147,39 @@ class ReacherEnv(ReacherEnvV5):
         # self.data.qpos[2:] = np.array([0.21, 0.0])
 
         # Update path variable
-        # self.path_var += self.delta_path_var
-        # self.path_var = 0.25
+        self.path_var += self.delta_path_var
+        self.goal = self.compute_reference_position(self.path_var)
+        self.data.qpos[2:] = self.goal
+
+        # print(self.goal)
 
         return observation, reward, terminated, truncated, info
+
+    def reset_model(self):
+        qpos = (
+            self.np_random.uniform(low=-0.1, high=0.1, size=self.model.nq)
+            + self.init_qpos
+        )
+        # while True:
+        #     self.goal = self.np_random.uniform(low=-0.2, high=0.2, size=2)
+        #     if np.linalg.norm(self.goal) < 0.2:
+        #         break
+        # self.goal = np.array([0.1, 0.05])
+        self.goal = np.random.uniform(low=0.05, high=0.15, size=2)
+        qpos[-2:] = self.goal
+
+        qvel = self.init_qvel + self.np_random.uniform(
+            low=-0.005, high=0.005, size=self.model.nv
+        )
+        qvel[-2:] = 0
+        self.set_state(qpos, qvel)
+        return self._get_obs()
 
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
     ) -> tuple[Any, dict]:
         observation, info = super().reset(seed=seed, options=options)
 
-        self.path_var = 0.0
+        self.path_var = self.np_random.uniform(low=0.0, high=1.0, size=(1,))
+
         return observation, info
