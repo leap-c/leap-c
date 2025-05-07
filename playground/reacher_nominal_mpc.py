@@ -4,6 +4,7 @@ import numpy as np
 from leap_c.examples.mujoco.reacher.env import ReacherEnv
 from leap_c.examples.mujoco.reacher.mpc import ReacherMpc
 from leap_c.examples.mujoco.reacher.task import ReacherTask
+from leap_c.examples.mujoco.reacher.util import InverseKinematicsSolver
 from leap_c.examples.mujoco.reacher.task import (
     prepare_mpc_input_q,
     prepare_mpc_input_cosq_sinq,
@@ -15,6 +16,8 @@ import matplotlib.pyplot as plt
 import torch
 import casadi as ca
 
+from numpy.linalg import norm, solve
+
 
 def main_env(mjcf_path: Path):
     env = ReacherEnv(train=False, xml_file=mjcf_path.as_posix(), render_mode="human")
@@ -22,26 +25,53 @@ def main_env(mjcf_path: Path):
     model = pin.buildModelFromMJCF(mjcf_path)
     data = model.createData()
 
-    q_init = np.array([np.deg2rad(60.0), np.deg2rad(20.0)])
-    dq_init = np.array([0.0, 0.0])
+    q_target = np.array([np.deg2rad(60.0), np.deg2rad(20.0)])
+    dq_target = np.array([0.0, 0.0])
     pin.forwardKinematics(
         model,
         data,
-        q_init,
-        dq_init,
+        q_target,
+        dq_target,
     )
     pin.updateFramePlacements(model, data)
-    xy_ee_init = data.oMf[model.getFrameId("fingertip")].translation[:2]
+    xy_ee_target = data.oMf[model.getFrameId("fingertip")].translation[:2]
 
-    # xy_ee_init = np.array([0.1, 0.0])
+    ik_solver = InverseKinematicsSolver(
+        pinocchio_model=model,
+        step_size=0.2,
+        max_iter=1000,
+        tol=1e-4,
+        print_level=0,
+        plot_level=1,
+    )
 
     state_representation = "sin_cos" if False else "q"
 
     params = {
-        "xy_ee_ref": xy_ee_init,
+        "xy_ee_ref": xy_ee_target,
         "q_sqrt_diag": np.array([np.sqrt(10.0)] * 2),
         "r_sqrt_diag": np.array([np.sqrt(0.05)] * 2),
     }
+
+    q0 = np.deg2rad(np.array([0.0, 0.0]))
+    dq0 = np.deg2rad(np.array([0.0, 0.0]))
+
+    x0 = np.concatenate([q0, dq0])
+
+    q_ref, dq_ref, _, _, _ = ik_solver(
+        q=np.deg2rad(np.array([45.0, 45.0])),
+        # q=q0,
+        dq=dq0,
+        target_position=np.concatenate([xy_ee_target, np.array([0.01])]),
+    )
+    x_ref = np.concatenate([q_ref, dq_ref])
+
+    print("q_target: ", q_target)
+    print("q_ref: ", q_ref)
+
+    # Wrap q_ref to [-pi, pi]
+    # q_ref_wrapped = np.arctan2(np.sin(q_ref), np.cos(q_ref))
+    # print("q_ref_wrapped: ", q_ref_wrapped)
 
     mpc = ReacherMpc(
         learnable_params=[
@@ -51,24 +81,26 @@ def main_env(mjcf_path: Path):
         ],
         params=params,
         mjcf_path=mjcf_path,
-        # N_horizon=200,
-        # T_horizon=2.0,
+        N_horizon=200,
+        T_horizon=2.0,
         state_representation=state_representation,
     )
 
     ocp_solver = mpc.ocp_solver
 
     if state_representation == "q":
-        x_init = np.concatenate([q_init, dq_init])
         for stage in range(ocp_solver.acados_ocp.solver_options.N_horizon + 1):
-            ocp_solver.set(stage, "x", x_init)
+            ocp_solver.set(stage, "x", x_ref)
 
-    observation = torch.Tensor([1.0, 1.0, 0.0, 0.0, 0.1, 0.0, 0.0, 0.0, 0.0, 0.0])
-
-    q = np.array([0.0, 0.0])
-    dq = np.array([0.0, 0.0])
     observation = torch.Tensor(
-        np.concatenate([np.cos(q), np.sin(q), params["xy_ee_ref"], dq])
+        np.concatenate(
+            [
+                np.cos(q0),
+                np.sin(q0),
+                params["xy_ee_ref"],
+                dq0,
+            ]
+        )
     )
 
     if state_representation == "q":
@@ -77,6 +109,11 @@ def main_env(mjcf_path: Path):
         prepare_mpc_input = prepare_mpc_input_cosq_sinq
 
     x0 = prepare_mpc_input(observation).x0.detach().numpy()
+    print("x0: ", x0)
+    print("x_ref: ", x_ref)
+    print("xy_ee_target: ", xy_ee_target)
+    print("xy_ee_ref: ", params["xy_ee_ref"])
+
     ocp_solver.solve_for_x0(x0_bar=x0, fail_on_nonzero_status=False)
     print("status", ocp_solver.status)
 
@@ -228,3 +265,4 @@ if __name__ == "__main__":
     ).with_suffix(".xml")
 
     main_env(mjcf_path=mjcf_path)
+    # pin_warmstart(mjcf_path=mjcf_path)
