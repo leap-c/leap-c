@@ -43,6 +43,7 @@ class InverseKinematicsSolver:
             # Check if we've reached desired precision
             if np.linalg.norm(error) < self.eps:
                 if self.print_level > 0:
+                    print("Initialization complete.")
                     print(f"Convergence achieved at iteration {i}")
                     print("Final joint configuration:", q)
                     print("Final end effector position:", current_position)
@@ -94,11 +95,9 @@ class InverseKinematicsSolver:
         if self.print_level > 1:
             print("Joint angles (q):", q_data)
             print("Joint velocities (dq):", dq_data)
-            print("End effector positions:", q_data[:, :2])
+            print("End effector positions:", current_position)
             print("Target position:", target_position)
-            print("Error:", target_position - q_data[:, :2])
-
-        print("Initialization complete.")
+            print("Error:", target_position - current_position)
 
         return (
             q_data[-1, :],
