@@ -96,9 +96,8 @@ class ReacherMpc(Mpc):
         )
 
         def init_state_fn(mpc_input: MpcInput) -> MpcBatchedState:
-            p_global = mpc_input.parameters.p_global
-
-            xy_ee_ref = p_global[..., 0:2]
+            # TODO: Make this work for batched input
+            xy_ee_ref = mpc_input.parameters.p_global.flatten()[:2]
 
             target_angle = np.arctan2(xy_ee_ref[1], xy_ee_ref[0])
 
