@@ -19,20 +19,19 @@ def prepare_mpc_input_cosq_sinq(
     param_nn: torch.Tensor | None = None,
     action: torch.Tensor | None = None,
 ) -> MpcInput:
-    mpc_param = MpcParameter(p_global=param_nn)  # type: ignore
     """
-        | Num | Observation                                     |
-        | --- | ------------------------------------------------|
-        | 0   | cosine of the angle of the first arm            |
-        | 1   | cosine of the angle of the second arm           |
-        | 2   | sine of the angle of the first arm              |
-        | 3   | sine of the angle of the second arm             |
-        | 4   | x-coordinate of the target                      |
-        | 5   | y-coordinate of the target                      |
-        | 6   | angular velocity of the first arm               |
-        | 7   | angular velocity of the second arm              |
-        | 8   | x-value of position_fingertip - position_target |
-        | 9   | y-value of position_fingertip - position_target |
+    | Num | Observation                                     |
+    | --- | ------------------------------------------------|
+    | 0   | cosine of the angle of the first arm            |
+    | 1   | cosine of the angle of the second arm           |
+    | 2   | sine of the angle of the first arm              |
+    | 3   | sine of the angle of the second arm             |
+    | 4   | x-coordinate of the target                      |
+    | 5   | y-coordinate of the target                      |
+    | 6   | angular velocity of the first arm               |
+    | 7   | angular velocity of the second arm              |
+    | 8   | x-value of position_fingertip - position_target |
+    | 9   | y-value of position_fingertip - position_target |
     """
 
     obs = (
@@ -40,6 +39,11 @@ def prepare_mpc_input_cosq_sinq(
         if not isinstance(obs, torch.Tensor)
         else obs
     )
+
+    # Target position. We want the NN to set offsets from the target position
+    p_global = param_nn
+    p_global[..., 0:2] = obs[..., 4:6] + param_nn[..., 0:2]
+    mpc_param = MpcParameter(p_global=p_global)
 
     x0 = obs[..., [0, 1, 2, 3, 6, 7]]
 
@@ -76,7 +80,7 @@ def prepare_mpc_input_q(
     p_global = param_nn
     p_global[..., 0:2] = obs[..., 4:6] + param_nn[..., 0:2]
 
-    mpc_param = MpcParameter(p_global=p_global)  # type: ignore
+    mpc_param = MpcParameter(p_global=p_global)
 
     # Extract the angles from the observation
     x0 = torch.stack(
