@@ -236,12 +236,12 @@ class ChainEnv(gym.Env):
         r = self._calculate_reward()
 
         reached_goal_pos = bool(np.linalg.norm(self.x_ref - self.state, axis=0, ord=2) < 1e-3)
-        term = reached_goal_pos
+        term = False
 
         self.time += self.dt
         trunc = self.time > self.max_time
 
-        if reached_goal_pos:
+        if reached_goal_pos and trunc:
             info = {"task": {"success": True, "violations": False}}
         elif trunc:
             info = {"task": {"success": False, "violations": False}}
@@ -272,9 +272,6 @@ class ChainEnv(gym.Env):
 
         return self.state, {}
 
-    def set_state(self, state: np.ndarray):
-        self.state = state
-
     def _current_observation(self):
         return self.state
 
@@ -292,9 +289,10 @@ class ChainEnv(gym.Env):
         pos_last = self.state[self.nx_pos - 3 : self.nx_pos]
         vel = self.state[self.nx_pos :]
 
-        return -np.linalg.norm(
-            pos_last - self.pos_last_ref, axis=0, ord=2
-        ) - 0.1 * np.linalg.norm(vel, axis=0, ord=2)
+        r_dist = -np.linalg.norm(pos_last - self.pos_last_ref, axis=0, ord=2) 
+        r_vel = -0.1 * np.linalg.norm(vel, axis=0, ord=2)
+
+        return 10 * (r_dist + r_vel)
 
     def _set_canvas(self):
         plt.figure()
