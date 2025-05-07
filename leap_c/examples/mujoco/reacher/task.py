@@ -40,18 +40,8 @@ def prepare_mpc_input_cosq_sinq(
         if not isinstance(obs, torch.Tensor)
         else obs
     )
-    # x0 = torch.stack(
-    #     [
-    #         torch.atan2(obs[..., 2], obs[..., 0]),  # angle 1 from sin/cos
-    #         torch.atan2(obs[..., 3], obs[..., 1]),  # angle 2 from sin/cos
-    #         obs[..., 6],  # angular velocity 1
-    #         obs[..., 7],  # angular velocity 2
-    #     ],
-    #     dim=-1,
-    # )
-    x0 = obs[..., [0, 1, 2, 3, 6, 7]]
 
-    print("prepare_mpc_input returns x0", x0)
+    x0 = obs[..., [0, 1, 2, 3, 6, 7]]
 
     return MpcInput(x0=x0, parameters=mpc_param)
 
@@ -61,20 +51,19 @@ def prepare_mpc_input_q(
     param_nn: torch.Tensor | None = None,
     action: torch.Tensor | None = None,
 ) -> MpcInput:
-    mpc_param = MpcParameter(p_global=param_nn)  # type: ignore
     """
-        | Num | Observation                                     |
-        | --- | ------------------------------------------------|
-        | 0   | cosine of the angle of the first arm            |
-        | 1   | cosine of the angle of the second arm           |
-        | 2   | sine of the angle of the first arm              |
-        | 3   | sine of the angle of the second arm             |
-        | 4   | x-coordinate of the target                      |
-        | 5   | y-coordinate of the target                      |
-        | 6   | angular velocity of the first arm               |
-        | 7   | angular velocity of the second arm              |
-        | 8   | x-value of position_fingertip - position_target |
-        | 9   | y-value of position_fingertip - position_target |
+    | Num | Observation                                     |
+    | --- | ------------------------------------------------|
+    | 0   | cosine of the angle of the first arm            |
+    | 1   | cosine of the angle of the second arm           |
+    | 2   | sine of the angle of the first arm              |
+    | 3   | sine of the angle of the second arm             |
+    | 4   | x-coordinate of the target                      |
+    | 5   | y-coordinate of the target                      |
+    | 6   | angular velocity of the first arm               |
+    | 7   | angular velocity of the second arm              |
+    | 8   | x-value of position_fingertip - position_target |
+    | 9   | y-value of position_fingertip - position_target |
     """
 
     obs = (
@@ -82,15 +71,25 @@ def prepare_mpc_input_q(
         if not isinstance(obs, torch.Tensor)
         else obs
     )
+
+    # Target position. We want the NN to set offsets from the target position
+    p_global = param_nn
+    p_global[..., 0:2] = obs[..., 4:6] + param_nn[..., 0:2]
+
+    mpc_param = MpcParameter(p_global=p_global)  # type: ignore
+
+    # Extract the angles from the observation
     x0 = torch.stack(
         [
-            torch.atan2(obs[..., 2], obs[..., 0]),  # angle 1 from sin/cos
-            torch.atan2(obs[..., 3], obs[..., 1]),  # angle 2 from sin/cos
-            obs[..., 6],  # angular velocity 1
-            obs[..., 7],  # angular velocity 2
+            torch.atan2(obs[..., 2], obs[..., 0]),
+            torch.atan2(obs[..., 3], obs[..., 1]),
+            obs[..., 6],
+            obs[..., 7],
         ],
         dim=-1,
     )
+
+    # Extract delta_position from param_nn
 
     return MpcInput(x0=x0, parameters=mpc_param)
 
@@ -111,6 +110,10 @@ class ReacherTask(Task):
 
         self.param_low = 0.5 * mpc.ocp.p_global_values
         self.param_high = 1.5 * mpc.ocp.p_global_values
+
+        # Special treatment for the first two parameters. Offset from the target position.
+        self.param_low[:2] = -0.1
+        self.param_high[:2] = +0.1
 
     @property
     def param_space(self) -> spaces.Box:
