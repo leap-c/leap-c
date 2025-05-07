@@ -113,7 +113,7 @@ class InverseKinematicsSolver:
         q_data: np.ndarray,
         dq_data: np.ndarray,
         position_data: np.ndarray,
-    ):
+    ) -> None:
         plt.figure()
         plt.subplot(3, 1, 1)
         plt.plot(q_data)
