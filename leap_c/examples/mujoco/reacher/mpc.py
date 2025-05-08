@@ -24,8 +24,8 @@ class ReacherMpc(Mpc):
         self,
         params: dict[str, np.ndarray] | None = None,
         learnable_params: list[str] | None = None,
-        N_horizon: int = 100,
-        T_horizon: float = 1.0,
+        N_horizon: int = 50,
+        T_horizon: float = 0.5,
         discount_factor: float = 0.99,
         n_batch: int = 64,
         export_directory: Path | None = None,
@@ -174,11 +174,11 @@ def create_diag_matrix(
 def export_parametric_ocp(
     pinocchio_model: pin.Model,
     nominal_param: dict[str, np.ndarray],
-    name: str = "n_link_robot",
+    N_horizon: int,
+    tf: float,
+    state_representation: str,
+    name: str = "reacher",
     learnable_params: list[str] | None = None,
-    N_horizon: int = 100,
-    tf: float = 1.0,
-    state_representation: str = "sin_cos",
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
@@ -297,7 +297,8 @@ def export_parametric_ocp(
 
 def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.integrator_type = "DISCRETE"
-    ocp.solver_options.nlp_solver_type = "SQP_RTI"
+    # ocp.solver_options.nlp_solver_type = "SQP_RTI"
+    ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.exact_hess_dyn = exact_hess_dyn
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1

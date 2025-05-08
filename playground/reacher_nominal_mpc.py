@@ -302,6 +302,9 @@ if __name__ == "__main__":
     elif state_representation == "sin_cos":
         prepare_mpc_input = prepare_mpc_input_cosq_sinq
 
+    dt = 0.1
+    T_horizon = 1.0
+
     mpc = ReacherMpc(
         learnable_params=[
             "xy_ee_ref",
@@ -310,12 +313,12 @@ if __name__ == "__main__":
         ],
         params={
             "xy_ee_ref": np.array([0.21, 0.0]),
-            "q_sqrt_diag": np.array([np.sqrt(10.0)] * 2) * 0.5,
-            "r_sqrt_diag": np.array([np.sqrt(1.0)] * 2) * 0.5,
+            "q_sqrt_diag": np.array([np.sqrt(100.0)] * 2),
+            "r_sqrt_diag": np.array([np.sqrt(0.1)] * 2),
         },
         mjcf_path=mjcf_path,
-        N_horizon=200,
-        T_horizon=2.0,
+        N_horizon=int(T_horizon / dt),
+        T_horizon=T_horizon,
         state_representation=state_representation,
     )
 
