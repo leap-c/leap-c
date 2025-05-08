@@ -1,22 +1,20 @@
+from dataclasses import fields
 from pathlib import Path
 
 import casadi as ca
 import numpy as np
 import pinocchio as pin
-from acados_template import AcadosOcp, AcadosOcpSolver
+from acados_template import AcadosOcp
 from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchIterate
 from casadi.tools import struct_symSX
 from pinocchio import casadi as cpin
 
+from leap_c.examples.mujoco.reacher.util import InverseKinematicsSolver
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.mpc import Mpc, MpcInput, MpcBatchedState
-
-from leap_c.examples.mujoco.reacher.util import InverseKinematicsSolver
-
-from dataclasses import fields
+from leap_c.mpc import Mpc, MpcBatchedState, MpcInput
 
 
 class ReacherMpc(Mpc):
@@ -26,8 +24,8 @@ class ReacherMpc(Mpc):
         self,
         params: dict[str, np.ndarray] | None = None,
         learnable_params: list[str] | None = None,
-        N_horizon: int = 500,
-        T_horizon: float = 5.0,
+        N_horizon: int = 100,
+        T_horizon: float = 1.0,
         discount_factor: float = 0.99,
         n_batch: int = 64,
         export_directory: Path | None = None,
@@ -80,6 +78,7 @@ class ReacherMpc(Mpc):
         super().__init__(
             ocp=ocp,
             n_batch_max=n_batch,
+            discount_factor=discount_factor,
             export_directory=export_directory,
             export_directory_sensitivity=export_directory_sensitivity,
             throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
@@ -96,28 +95,56 @@ class ReacherMpc(Mpc):
         )
 
         def init_state_fn(mpc_input: MpcInput) -> MpcBatchedState:
-            # TODO: Make this work for batched input
-            xy_ee_ref = mpc_input.parameters.p_global.flatten()[:2]
-
-            target_angle = np.arctan2(xy_ee_ref[1], xy_ee_ref[0])
-
-            q_ref, dq_ref, _, _, _ = self.ik_solver(
-                q=np.array([target_angle] * pinocchio_model.nq),
-                dq=np.zeros(pinocchio_model.nv),
-                target_position=np.concatenate([xy_ee_ref, np.array([0.01])]),
-            )
-            x_ref = np.concatenate([q_ref, dq_ref])
-
-            for stage in range(self.ocp_solver.acados_ocp.solver_options.N_horizon + 1):
-                self.ocp_solver.set(stage, "x", x_ref)
-
-            _ = self.ocp_solver.solve_for_x0(mpc_input.x0)
-
             iterate = self.ocp_batch_solver.store_iterate_to_flat_obj()
 
             batch_size = len(mpc_input.x0) if mpc_input.is_batched() else 1
-            kw = {}
 
+            print(f"Running init_state_fn; batch_size = {batch_size}")
+
+            # TODO: Make this work for batched input with batch_size > 1
+            if batch_size == 1:
+                xy_ee_ref = mpc_input.parameters.p_global.flatten()[:2]
+                target_angle = np.arctan2(xy_ee_ref[1], xy_ee_ref[0])
+
+                q_ref, dq_ref, _, _, _ = self.ik_solver(
+                    q=np.array([target_angle] * pinocchio_model.nq),
+                    dq=np.zeros(pinocchio_model.nv),
+                    target_position=np.concatenate([xy_ee_ref, np.array([0.01])]),
+                )
+                x_ref = np.concatenate([q_ref, dq_ref])
+
+                for stage in range(
+                    self.ocp_solver.acados_ocp.solver_options.N_horizon + 1
+                ):
+                    self.ocp_solver.set(stage, "x", x_ref)
+
+                self.ocp_solver.set_p_global_and_precompute_dependencies(
+                    mpc_input.parameters.p_global.flatten()
+                )
+
+                # Set the initial velocity to zero
+                x0 = mpc_input.x0.flatten()
+                x0[:2] = np.zeros(2)
+
+                _ = self.ocp_solver.solve_for_x0(x0, fail_on_nonzero_status=False)
+
+                if self.ocp_solver.status != 0:
+                    print("Failed to solve for x0")
+                    print("status", self.ocp_solver.status)
+                    print("q", x0[:2])
+                    print("q_ref", q_ref)
+                    print("dq", x0[2:])
+                    # print("xy_ee_ref", xy_ee_ref)
+                    # print("target_angle", target_angle)
+                    self.ik_solver.plot_solver_iterations()
+                    print()
+                    # exit(0)
+
+                iterate = self.ocp_solver.store_iterate_to_flat_obj()
+
+            ####
+
+            kw = {}
             for f in fields(iterate):
                 n = f.name
                 kw[n] = np.tile(getattr(iterate, n), (batch_size, 1))
@@ -270,7 +297,7 @@ def export_parametric_ocp(
 
 def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.integrator_type = "DISCRETE"
-    ocp.solver_options.nlp_solver_type = "SQP"
+    ocp.solver_options.nlp_solver_type = "SQP_RTI"
     ocp.solver_options.exact_hess_dyn = exact_hess_dyn
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
