@@ -239,8 +239,6 @@ def main_closed_loop(
 ):
     ocp_solver = mpc.ocp_solver
 
-    # env.render()
-
     p_global = ocp_solver.acados_ocp.p_global_values
 
     o = []
@@ -262,11 +260,11 @@ def main_closed_loop(
             for stage in range(ocp_solver.acados_ocp.solver_options.N_horizon + 1):
                 ocp_solver.set(stage, "x", x_ref)
 
-        x0 = prepare_mpc_input(observation).x0.detach().numpy()
+        x0 = prepare_mpc_input(observation, offset_target=False).x0.detach().numpy()
         action = ocp_solver.solve_for_x0(x0_bar=x0, fail_on_nonzero_status=False)
         error_norm = np.linalg.norm(observation[-2:])
         print(
-            f"status: {ocp_solver.status}; norm(p - p_ref): {error_norm}",
+            f"status: {ocp_solver.status}; norm(p - p_ref): {error_norm}; q: {x0[:2]}; dq: {x0[2:]}; p_ref: {p_global[0:2]}; p: {observation[4:6]}; action: {action}",
         )
 
         o.append(observation)
@@ -312,8 +310,8 @@ if __name__ == "__main__":
         ],
         params={
             "xy_ee_ref": np.array([0.21, 0.0]),
-            "q_sqrt_diag": np.array([np.sqrt(100.0)] * 2),
-            "r_sqrt_diag": np.array([np.sqrt(0.05)] * 2),
+            "q_sqrt_diag": np.array([np.sqrt(10.0)] * 2) * 0.5,
+            "r_sqrt_diag": np.array([np.sqrt(1.0)] * 2) * 0.5,
         },
         mjcf_path=mjcf_path,
         N_horizon=200,
