@@ -107,7 +107,13 @@ class ReacherTask(Task):
                 "xy_ee_ref",
                 "q_sqrt_diag",
                 "r_sqrt_diag",
-            ]
+            ],
+            params={
+                "xy_ee_ref": np.array([0.21, 0.0]),
+                "q_sqrt_diag": np.array([np.sqrt(10.0)] * 2),
+                "r_sqrt_diag": np.array([np.sqrt(1.0)] * 2),
+            },
+            state_representation="q",
         )
         mpc_layer = MpcSolutionModule(mpc)
 
