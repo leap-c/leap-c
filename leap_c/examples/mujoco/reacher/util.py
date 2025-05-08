@@ -30,6 +30,7 @@ class InverseKinematicsSolver:
         q_data = [q]
         dq_data = [dq]
         position_data = []
+        self.target_position = target_position
         for i in range(self.max_iter):
             # Compute current position
             pin.forwardKinematics(self.model, self.data, q)
@@ -99,6 +100,9 @@ class InverseKinematicsSolver:
             print("Target position:", target_position)
             print("Error:", target_position - current_position)
 
+        self.q_data = q_data
+        self.position_data = position_data
+
         return (
             q_data[-1, :],
             dq_data[-1, :],
@@ -109,24 +113,18 @@ class InverseKinematicsSolver:
 
     def plot_solver_iterations(
         self,
-        target_position: np.ndarray,
-        q_data: np.ndarray,
-        dq_data: np.ndarray,
-        position_data: np.ndarray,
     ) -> None:
+        q_data = self.q_data
+        position_data = self.position_data
+        target_position = self.target_position
         plt.figure()
-        plt.subplot(3, 1, 1)
+        plt.subplot(2, 1, 1)
         plt.plot(q_data)
         plt.legend(["Joint 1", "Joint 2"])
         plt.ylabel("Joint Angles (radians)")
         plt.title("Joint Configuration Over Iterations")
         plt.grid()
-        plt.subplot(3, 1, 2)
-        plt.plot(dq_data)
-        plt.legend(["Joint 1", "Joint 2"])
-        plt.ylabel("Joint Velocities (radians / second)")
-        plt.grid()
-        plt.subplot(3, 1, 3)
+        plt.subplot(2, 1, 2)
         plt.plot(
             target_position[0] * np.ones(len(position_data)),
             linestyle="--",
@@ -143,10 +141,11 @@ class InverseKinematicsSolver:
         plt.xlabel("Iteration")
         plt.grid()
 
-        plt.figure()
-        plt.plot(position_data[:, 0], position_data[:, 1], "o-")
-        plt.title("End Effector Position Over Iterations")
-        plt.xlabel("X Position")
-        plt.ylabel("Y Position")
-        plt.grid()
+        # plt.figure()
+        # plt.plot(position_data[:, 0], position_data[:, 1], "o-")
+        # plt.title("End Effector Position Over Iterations")
+        # plt.xlabel("X Position")
+        # plt.ylabel("Y Position")
+        # plt.grid()
+
         plt.show()
