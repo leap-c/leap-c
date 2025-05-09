@@ -137,8 +137,8 @@ class ReacherTask(Task):
         self.param_high = 1.5 * mpc.ocp.p_global_values
 
         # Special treatment for the first two parameters (target offset)
-        self.param_low[:2] = -0.001
-        self.param_high[:2] = +0.001
+        self.param_low[:2] = -0.01
+        self.param_high[:2] = +0.01
 
     @property
     def param_space(self) -> spaces.Box:

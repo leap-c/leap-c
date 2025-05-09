@@ -135,8 +135,8 @@ class ReacherMpc(Mpc):
                     print("q", x0[:2])
                     print("q_ref", q_ref)
                     print("dq", x0[2:])
-                    self.ik_solver.plot_solver_iterations()
-                    print()
+                    # self.ik_solver.plot_solver_iterations()
+                    # print()
 
                 iterate = self.ocp_solver.store_iterate_to_flat_obj()
 
@@ -297,6 +297,8 @@ def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.integrator_type = "DISCRETE"
     # ocp.solver_options.nlp_solver_type = "SQP_RTI"
     ocp.solver_options.nlp_solver_type = "SQP"
+    ocp.solver_options.nlp_solver_max_iter = 1000
+    ocp.solver_options.nlp_solver_tol_stat = 1e-4
     ocp.solver_options.exact_hess_dyn = exact_hess_dyn
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1

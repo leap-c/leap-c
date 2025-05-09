@@ -403,8 +403,8 @@ if __name__ == "__main__":
         # train=False, xml_file=mjcf_path.as_posix(), render_mode="rgb_array"
         train=False,
         xml_file=mjcf_path.as_posix(),
-        # render_mode="human",
-        render_mode="rgb_array",
+        render_mode="human",
+        # render_mode="rgb_array",
         reference_path=reference_path,
     )
     state_representation = "q"
@@ -466,6 +466,4 @@ if __name__ == "__main__":
         main_mpc_closed_loop(
             env=env,
             mpc=mpc,
-            pinocchio_model=pinocchio_model,
-            ik_solver=ik_solver,
         )
