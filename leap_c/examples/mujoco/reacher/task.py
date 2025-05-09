@@ -77,11 +77,18 @@ def prepare_mpc_input_q(
         else obs
     )
 
-    # Target position. We want the NN to set offsets from the target position
-    p_global = param_nn
+    # Copy param_nn into a numpy.ndarray if it is a tensor
+    if param_nn is not None and isinstance(param_nn, torch.Tensor):
+        p_global = param_nn.detach().cpu().numpy()
+    elif isinstance(param_nn, np.ndarray):
+        p_global = np.array(param_nn, dtype=np.float64)
 
-    if offset_target:
-        p_global[..., 0:2] = obs[..., 4:6] + param_nn[..., 0:2]
+    # Target position. We want the NN to set offsets from the target position
+    if offset_target and p_global is not None:
+        # Create the offset values separately without modifying the original
+        adjusted_pos = obs[..., 4:6] + p_global[..., 0:2]
+        # Create a new tensor with the adjusted values
+        p_global = np.concatenate([adjusted_pos, p_global[..., 2:]])
 
     mpc_param = MpcParameter(p_global=p_global)
 
@@ -123,8 +130,8 @@ class ReacherTask(Task):
         self.param_high = 1.5 * mpc.ocp.p_global_values
 
         # Special treatment for the first two parameters (target offset)
-        self.param_low[:2] = -0.1
-        self.param_high[:2] = +0.1
+        self.param_low[:2] = -0.001
+        self.param_high[:2] = +0.001
 
     @property
     def param_space(self) -> spaces.Box:
