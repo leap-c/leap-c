@@ -1,6 +1,9 @@
+from dataclasses import dataclass
+
 import matplotlib.pyplot as plt
 import numpy as np
 import pinocchio as pin
+from scipy.spatial.transform import Rotation
 
 
 class InverseKinematicsSolver:
@@ -24,6 +27,17 @@ class InverseKinematicsSolver:
         # TODO: Pass frame_id as a parameter
         self.FRAME_ID = self.model.getFrameId("fingertip")
 
+        # Determine the maximum reach of the robot
+
+        # Get neutral configuration
+        q = np.zeros(self.model.nq)
+        # Get the position of the end effector in the neutral configuration
+        pin.forwardKinematics(self.model, self.data, q)
+        pin.updateFramePlacements(self.model, self.data)
+        self.max_reach = np.linalg.norm(self.data.oMf[self.FRAME_ID].translation[:2])
+
+        print("Maximum reach of the robot:", self.max_reach)
+
     def __call__(
         self, q: np.ndarray, dq: np.ndarray, target_position: np.ndarray
     ) -> np.ndarray:
@@ -31,6 +45,15 @@ class InverseKinematicsSolver:
         dq_data = [dq]
         position_data = []
         self.target_position = target_position
+
+        norm_target_position = np.linalg.norm(target_position[:2])
+        # Check if the target position is reachable
+        if norm_target_position > self.max_reach:
+            raise ValueError(
+                f"Target position {target_position} with norm {norm_target_position} is not reachable. "
+                f"Maximum reach of the robot is {self.max_reach}."
+            )
+
         for i in range(self.max_iter):
             # Compute current position
             pin.forwardKinematics(self.model, self.data, q)
@@ -149,3 +172,101 @@ class InverseKinematicsSolver:
         # plt.grid()
 
         plt.show()
+
+
+@dataclass
+class PathGeometry:
+    """Dataclass representing the geometry parameters of a reference path."""
+
+    type: str = "ellipse"
+    origin: tuple = (0.0, 0.1, 0.0)
+    orientation: tuple = (0.0, 0.0, 0.0)
+    length: float = 0.2
+    width: float = 0.12
+    direction: int = +1
+
+
+class ReferencePath:
+    """Class for computing points on a lemniscate reference path."""
+
+    def __init__(self, geometry: PathGeometry, max_reach: float = 0.21) -> None:
+        """
+        Initialize the reference lemniscate with geometry parameters.
+
+        Args:
+            geometry: A PathGeometry object containing the path parameters
+        """
+        self.geometry = geometry
+        self.max_reach = max_reach
+        self.validate_geometry()
+
+    def __call__(self, theta: float) -> np.ndarray:
+        """
+        Compute a point on the path for a given theta parameter.
+
+        Args:
+            theta: Parameter value between 0 and 1 representing position on the path
+
+        Returns:
+            2D position (x, y) on the path
+        """
+        return self.compute_point(theta)
+
+    def validate_geometry(self) -> None:
+        """
+        Validate the geometry parameters of the reference path.
+        Raises ValueError if the parameters are not valid.
+        """
+        if self.geometry.type not in ["lemniscate", "ellipse"]:
+            raise ValueError("Invalid path type. Must be 'lemniscate' or 'ellipse'.")
+
+        if self.geometry.length <= 0 or self.geometry.width <= 0:
+            raise ValueError("Length and width must be positive values.")
+
+        if self.geometry.direction not in [-1, 1]:
+            raise ValueError("Direction must be either -1 or +1.")
+
+        path_samples = np.array(
+            [self.compute_point(theta) for theta in np.linspace(0, 1, 100)]
+        )
+        path_samples = path_samples[:, :2]
+
+        if any(np.linalg.norm(path_samples, axis=1) > self.max_reach):
+            raise ValueError(
+                f"Path exceeds maximum reach of {self.max_reach} meters. "
+                "Adjust the geometry parameters."
+            )
+
+    def compute_point(self, theta: float) -> np.ndarray:
+        """
+        Compute a point on the path for a given theta parameter.
+
+        Args:
+            theta: Parameter value between 0 and 1 representing position on the path
+
+        Returns:
+            2D position (x, y) on the path
+        """
+        s = self.geometry.direction * 2 * np.pi * (1 + theta)
+        pos_ref = np.zeros(3)
+
+        # Lemniscate equations
+        if self.geometry.type == "lemniscate":
+            pos_ref[0] = (self.geometry.length / 2) * np.cos(s) / (1 + np.sin(s) ** 2)
+            pos_ref[1] = (
+                (self.geometry.width / 2)
+                * np.sqrt(2)
+                * np.sin(2 * s)
+                / (1 + np.sin(s) ** 2)
+            )
+        elif self.geometry.type == "ellipse":
+            pos_ref[0] = (self.geometry.length / 2) * np.cos(s)
+            pos_ref[1] = (self.geometry.width / 2) * np.sin(s)
+
+        # Apply rotation and translation
+        pos_ref = pos_ref @ Rotation.from_euler(
+            "xyz", self.geometry.orientation
+        ).as_matrix() + np.array(self.geometry.origin)
+
+        # Return only x and y coordinates
+        return pos_ref[:2]
