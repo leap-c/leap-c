@@ -115,24 +115,37 @@ class SacActor(nn.Module):
         super().__init__()
 
         self.extractor = task.create_extractor(env)
-        action_dim = env.action_space.shape[0]  # type: ignore
+        space = env.action_space
 
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
-            output_sizes=(action_dim, action_dim),  # type: ignore
+            output_sizes=(space.shape[0], space.shape[0]),  # type: ignore
             mlp_cfg=mlp_cfg,
         )
 
-        self.squashed_gaussian = SquashedGaussian(env.action_space)
+        loc = (space.high + space.low) / 2.0
+        scale = (space.high - space.low) / 2.0
+
+        loc = torch.tensor(loc, dtype=torch.float32)
+        scale = torch.tensor(scale, dtype=torch.float32)
+
+        self.register_buffer("loc", loc)
+        self.register_buffer("scale", scale)
 
     def forward(self, x: torch.Tensor, deterministic=False):
         e = self.extractor(x)
         mean, log_std = self.mlp(e)
+        log_std = torch.clamp(log_std, -4, 2.0)
+        std = log_std.exp()
 
-        action, log_prob, stats = self.squashed_gaussian(mean, log_std, deterministic)
+        probs = SquashedGaussian(mean, std, self.loc, self.scale)
+        action = probs.mode if deterministic else probs.rsample()
+        log_prob = probs.log_prob(action).sum(dim=-1, keepdim=True)
+        gaussian_stats = {
+            "gaussian_unsquashed_std": std.mean().item()
+        }
 
-        return action, log_prob, stats
-
+        return action, log_prob, gaussian_stats
 
 @register_trainer("sac", SacBaseConfig())
 class SacTrainer(Trainer):

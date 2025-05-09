@@ -128,17 +128,29 @@ class MpcSacActor(nn.Module):
         self.prepare_mpc_state = prepare_mpc_state
         self.actual_used_mpc_state = None
 
-        self.squashed_gaussian = SquashedGaussian(param_space)  # type:ignore
+        loc = (param_space.high + param_space.low) / 2.0
+        scale = (param_space.high - param_space.low) / 2.0
+
+        loc = torch.tensor(loc, dtype=torch.float32)
+        scale = torch.tensor(scale, dtype=torch.float32)
+
+        self.register_buffer("loc", loc)
+        self.register_buffer("scale", scale)
 
     def forward(
         self, obs, mpc_state: MpcBatchedState, deterministic=False
     ) -> SacFopActorOutput:
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
+        log_std = torch.clamp(log_std, -4, 2.0)
+        std = log_std.exp()
 
-        param, log_prob, gaussian_stats = self.squashed_gaussian(
-            mean, log_std, deterministic=deterministic
-        )
+        probs = SquashedGaussian(mean, std, self.loc, self.scale)
+        param = probs.mode if deterministic else probs.rsample()
+        log_prob = probs.log_prob(param).sum(dim=-1, keepdim=True)
+        gaussian_stats = {
+            "gaussian_unsquashed_std": std.mean().item()
+        }
 
         mpc_input = self.prepare_mpc_input(obs, param)
         if self.prepare_mpc_state is not None:
