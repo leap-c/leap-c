@@ -7,6 +7,7 @@ from gymnasium import spaces
 
 from leap_c.examples.mujoco.reacher.env import ReacherEnv
 from leap_c.examples.mujoco.reacher.mpc import ReacherMpc
+from leap_c.examples.mujoco.reacher.util import ReferencePath, PathGeometry
 from leap_c.mpc import MpcInput, MpcParameter
 from leap_c.nn.extractor import ScalingExtractor
 from leap_c.nn.modules import MpcSolutionModule
@@ -79,16 +80,20 @@ def prepare_mpc_input_q(
 
     # Copy param_nn into a numpy.ndarray if it is a tensor
     if param_nn is not None and isinstance(param_nn, torch.Tensor):
-        p_global = param_nn.detach().cpu().numpy()
+        p_global = param_nn.clone()
+        if offset_target and p_global is not None:
+            adjusted_pos = obs[..., 4:6] + p_global[..., 0:2]
+            # Create a new tensor with the adjusted values
+            p_global = torch.cat([adjusted_pos, p_global[..., 2:]], dim=-1)
+
     elif isinstance(param_nn, np.ndarray):
         p_global = np.array(param_nn, dtype=np.float64)
-
-    # Target position. We want the NN to set offsets from the target position
-    if offset_target and p_global is not None:
-        # Create the offset values separately without modifying the original
-        adjusted_pos = obs[..., 4:6] + p_global[..., 0:2]
-        # Create a new tensor with the adjusted values
-        p_global = np.concatenate([adjusted_pos, p_global[..., 2:]])
+        # Target position. We want the NN to set offsets from the target position
+        if offset_target and p_global is not None:
+            # Create the offset values separately without modifying the original
+            adjusted_pos = obs[..., 4:6] + p_global[..., 0:2]
+            # Create a new tensor with the adjusted values
+            p_global = np.concatenate([adjusted_pos, p_global[..., 2:]])
 
     mpc_param = MpcParameter(p_global=p_global)
 
@@ -142,7 +147,17 @@ class ReacherTask(Task):
             train=train,
             render_mode="rgb_array",
             xml_file="reacher.xml",
-            reference_path="lemniscate",
+            reference_path=ReferencePath(
+                geometry=PathGeometry(
+                    type="ellipse",
+                    origin=(0, 0.1, 0.01),
+                    orientation=(0.0, 0.0, 0.0),
+                    length=0.1,
+                    width=0.1,
+                    direction=+1,
+                ),
+                max_reach=0.21,
+            ),
         )
 
     def create_extractor(self, env):
