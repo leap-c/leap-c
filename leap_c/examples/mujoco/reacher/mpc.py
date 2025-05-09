@@ -106,11 +106,12 @@ class ReacherMpc(Mpc):
                 xy_ee_ref = mpc_input.parameters.p_global.flatten()[:2]
                 target_angle = np.arctan2(xy_ee_ref[1], xy_ee_ref[0])
 
-                q_ref, dq_ref, _, _, _ = self.ik_solver(
+                q_ref, dq_ref, _, pos, _ = self.ik_solver(
                     q=np.array([target_angle] * pinocchio_model.nq),
                     dq=np.zeros(pinocchio_model.nv),
                     target_position=np.concatenate([xy_ee_ref, np.array([0.01])]),
                 )
+
                 x_ref = np.concatenate([q_ref, dq_ref])
 
                 for stage in range(
@@ -134,11 +135,8 @@ class ReacherMpc(Mpc):
                     print("q", x0[:2])
                     print("q_ref", q_ref)
                     print("dq", x0[2:])
-                    # print("xy_ee_ref", xy_ee_ref)
-                    # print("target_angle", target_angle)
                     self.ik_solver.plot_solver_iterations()
                     print()
-                    # exit(0)
 
                 iterate = self.ocp_solver.store_iterate_to_flat_obj()
 
