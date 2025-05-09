@@ -325,8 +325,6 @@ def main_ocp_solver_closed_loop(
 def main_mpc_closed_loop(
     env: ReacherEnv,
     mpc: ReacherMpc,
-    pinocchio_model: pin.Model,
-    ik_solver: InverseKinematicsSolver | None = None,
 ) -> None:
     o = []
     observation, info = env.reset()
