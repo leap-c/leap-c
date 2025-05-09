@@ -21,6 +21,8 @@ def prepare_mpc_input_cosq_sinq(
     action: torch.Tensor | None = None,
 ) -> MpcInput:
     """
+    Prepare the MPC input for the Reacher task.
+
     | Num | Observation                                     |
     | --- | ------------------------------------------------|
     | 0   | cosine of the angle of the first arm            |
@@ -34,7 +36,6 @@ def prepare_mpc_input_cosq_sinq(
     | 8   | x-value of position_fingertip - position_target |
     | 9   | y-value of position_fingertip - position_target |
     """
-
     obs = (
         torch.tensor(obs, dtype=torch.float32)
         if not isinstance(obs, torch.Tensor)
@@ -58,6 +59,8 @@ def prepare_mpc_input_q(
     offset_target: bool = True,
 ) -> MpcInput:
     """
+    Prepare the MPC input for the Reacher task.
+
     | Num | Observation                                     |
     | --- | ------------------------------------------------|
     | 0   | cosine of the angle of the first arm            |
@@ -71,7 +74,6 @@ def prepare_mpc_input_q(
     | 8   | x-value of position_fingertip - position_target |
     | 9   | y-value of position_fingertip - position_target |
     """
-
     obs = (
         torch.tensor(obs, dtype=torch.float32)
         if not isinstance(obs, torch.Tensor)
@@ -86,7 +88,7 @@ def prepare_mpc_input_q(
             # Create a new tensor with the adjusted values
             p_global = torch.cat([adjusted_pos, p_global[..., 2:]], dim=-1)
 
-    elif isinstance(param_nn, np.ndarray):
+    elif param_nn is not None and isinstance(param_nn, np.ndarray):
         p_global = np.array(param_nn, dtype=np.float64)
         # Target position. We want the NN to set offsets from the target position
         if offset_target and p_global is not None:

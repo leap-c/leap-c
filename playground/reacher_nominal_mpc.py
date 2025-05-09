@@ -330,15 +330,12 @@ def main_mpc_closed_loop(
 ) -> None:
     o = []
     observation, info = env.reset()
-    param_nn = mpc.ocp_solver.acados_ocp.p_global_values.copy()
-    param_nn[0:2] = np.array([0.0, 0.0])
+    param_nn = np.concatenate(
+        [np.array([0.0, 0.0]), mpc.ocp_solver.acados_ocp.p_global_values[2:]]
+    )
 
-    print("observation[4:6]: ", observation[4:6])
     solver_state = None
     while True:
-        # p_global[0:2] = observation[4:6]
-        # ocp_solver.set_p_global_and_precompute_dependencies(data_=p_global)
-
         mpc_input = prepare_mpc_input(
             obs=observation,
             param_nn=param_nn,
