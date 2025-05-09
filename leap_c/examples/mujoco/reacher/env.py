@@ -5,47 +5,9 @@ from gymnasium.envs.mujoco.reacher_v5 import ReacherEnv as ReacherEnvV5
 from gymnasium import spaces
 from scipy.spatial.transform import Rotation
 import mujoco
+from leap_c.examples.mujoco.reacher.util import ReferencePath, PathGeometry
 
 DEFAULT_CAMERA_CONFIG = {"trackbodyid": 0}
-
-
-def compute_reference_position_lemniscate(
-    theta: float,
-    origin: list = (0.0, 0.1, 0.0),
-    orientation: int = (0.0, 0.0, 0.0),
-    length: float = 0.2,
-    width: float = 0.12,
-    direction: int = +1,
-) -> np.ndarray:
-    s = direction * 2 * np.pi * (1 + theta)
-
-    pos_ref = np.zeros(3)
-    pos_ref[0] = (length / 2) * np.cos(s) / (1 + np.sin(s) ** 2)
-    pos_ref[1] = (width / 2) * np.sqrt(2) * np.sin(2 * s) / (1 + np.sin(s) ** 2)
-
-    pos_ref = pos_ref @ Rotation.from_euler("xyz", orientation).as_matrix() + np.array(
-        origin
-    )
-
-    return pos_ref[:2]
-
-
-def compute_reference_ellipse(
-    theta: float,
-    origin: list = (0.0, 0.15, 0.0),
-    orientation: int = (0.0, 0.0, 0.0),
-    length: float = 0.6,
-    width: float = 0.12,
-) -> np.ndarray:
-    pos_ref = np.zeros(3)
-    pos_ref[0] = (length / 2) * np.cos(2 * np.pi * (1 + theta))
-    pos_ref[1] = (width / 2) * np.sin(2 * np.pi * (1 + theta))
-
-    pos_ref = pos_ref @ Rotation.from_euler("xyz", orientation).as_matrix() + np.array(
-        origin
-    )
-
-    return pos_ref[:2]
 
 
 class InvalidReferencePathError(ValueError):
@@ -60,13 +22,13 @@ class ReacherEnv(ReacherEnvV5):
 
     def __init__(
         self,
+        reference_path: ReferencePath,
         train: bool = False,
         xml_file: str = "reacher.xml",
         frame_skip: int = 1,
         default_camera_config: dict[str, float | int] = DEFAULT_CAMERA_CONFIG,
         reward_dist_weight: float = 1,
         reward_control_weight: float = 1,
-        reference_path: str = "ellipse",
         delta_path_var: float = 0.01,
         **kwargs,
     ):
@@ -79,14 +41,12 @@ class ReacherEnv(ReacherEnvV5):
             reward_control_weight=reward_control_weight,
             **kwargs,
         )
-        if reference_path == "ellipse":
-            self.compute_reference_position = compute_reference_ellipse
-        elif reference_path == "lemniscate":
-            self.compute_reference_position = compute_reference_position_lemniscate
-        else:
-            msg = f"Invalid reference position: {reference_path}. Choose either \
-                'ellipse' or 'lemniscate'."
-            raise InvalidReferencePathError(msg)
+        self.reference_path = reference_path
+
+        # TODO: Add out-of-reach error
+        # msg = f"Invalid reference position: {reference_path}. Choose either \
+        #     'ellipse' or 'lemniscate'."
+        # raise InvalidReferencePathError(msg)
 
         # Set reasonable bounds for the observation space
         q_min_0 = self.model.jnt_range[0, 0]
@@ -144,7 +104,7 @@ class ReacherEnv(ReacherEnvV5):
 
         # Update path variable
         self.path_var += self.delta_path_var
-        self.goal = self.compute_reference_position(self.path_var)
+        self.goal = self.reference_path(self.path_var)
         self.data.qpos[2:] = self.goal
 
         return observation, reward, terminated, truncated, info
