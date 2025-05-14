@@ -137,4 +137,5 @@ class PendulumOnCartSwingupLong(PendulumOnCartSwingup):
             params=params,  # type: ignore
         )
         mpc_layer = MpcSolutionModule(mpc)
+        # TODO: Check during refactoring if we can modify hierarchy to user super() again
         Task.__init__(self, mpc_layer)
