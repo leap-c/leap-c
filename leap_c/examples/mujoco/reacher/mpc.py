@@ -9,7 +9,7 @@ from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchItera
 from casadi.tools import struct_symSX
 from pinocchio import casadi as cpin
 
-from leap_c.examples.mujoco.reacher.util import InverseKinematicsSolver
+from leap_c.examples.mujoco.reacher.util import InverseKinematicsSolver, get_mjcf_path
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
@@ -45,7 +45,7 @@ class ReacherMpc(Mpc):
         elif mjcf_path is not None and urdf_path is None:
             pinocchio_model = pin.buildModelFromMJCF(mjcf_path)
         else:
-            path = Path(__file__).parent / "reacher.xml"
+            path = get_mjcf_path("reacher")
             print(f"No urdf or mjcf provided. Using default model : {path}")
             pinocchio_model = pin.buildModelFromMJCF(path)
 

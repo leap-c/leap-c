@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -270,3 +271,14 @@ class ReferencePath:
 
         # Return only x and y coordinates
         return pos_ref[:2]
+
+
+def get_mjcf_path(file_name: str) -> Path:
+    # Get the absolute path of the current file (the file containing this function)
+    current_file_path = Path(__file__).resolve()
+
+    # Get the directory containing the current file
+    current_dir = current_file_path.parent
+
+    # Return the path to reacher.xml in the same directory
+    return (current_dir / file_name).with_suffix(".xml")
