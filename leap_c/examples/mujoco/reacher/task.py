@@ -18,7 +18,7 @@ from leap_c.task import Task
 def prepare_mpc_input_cosq_sinq(
     obs: Any,
     param_nn: torch.Tensor | None = None,
-    action: torch.Tensor | None = None,
+    action: torch.Tensor | None = None,  # noqa: ARG001
 ) -> MpcInput:
     """
     Prepare the MPC input for the Reacher task.
@@ -55,7 +55,7 @@ def prepare_mpc_input_cosq_sinq(
 def prepare_mpc_input_q(
     obs: Any,
     param_nn: torch.Tensor | None = None,
-    action: torch.Tensor | None = None,
+    action: torch.Tensor | None = None,  # noqa: ARG001
     offset_target: bool = True,
 ) -> MpcInput:
     """
@@ -74,28 +74,15 @@ def prepare_mpc_input_q(
     | 8   | x-value of position_fingertip - position_target |
     | 9   | y-value of position_fingertip - position_target |
     """
-    obs = (
-        torch.tensor(obs, dtype=torch.float32)
-        if not isinstance(obs, torch.Tensor)
-        else obs
-    )
-
-    # Copy param_nn into a numpy.ndarray if it is a tensor
-    if param_nn is not None and isinstance(param_nn, torch.Tensor):
+    # TODO: offset_target is used here to enable setting offsets from the target.
+    # Can be removed when we allow for incremental parameter updates from the NN.
+    if param_nn is not None and offset_target:
         p_global = param_nn.clone()
-        if offset_target and p_global is not None:
-            adjusted_pos = obs[..., 4:6] + p_global[..., 0:2]
-            # Create a new tensor with the adjusted values
-            p_global = torch.cat([adjusted_pos, p_global[..., 2:]], dim=-1)
-
-    elif param_nn is not None and isinstance(param_nn, np.ndarray):
-        p_global = np.array(param_nn, dtype=np.float64)
-        # Target position. We want the NN to set offsets from the target position
-        if offset_target and p_global is not None:
-            # Create the offset values separately without modifying the original
-            adjusted_pos = obs[..., 4:6] + p_global[..., 0:2]
-            # Create a new tensor with the adjusted values
-            p_global = np.concatenate([adjusted_pos, p_global[..., 2:]])
+        adjusted_pos = obs[..., 4:6] + p_global[..., 0:2]
+        # Create a new tensor with the adjusted values
+        p_global = torch.cat([adjusted_pos, p_global[..., 2:]], dim=-1)
+    else:
+        p_global = param_nn
 
     mpc_param = MpcParameter(p_global=p_global)
 
@@ -115,7 +102,7 @@ def prepare_mpc_input_q(
 
 @register_task("reacher")
 class ReacherTask(Task):
-    def __init__(self):
+    def __init__(self) -> None:
         mpc = ReacherMpc(
             learnable_params=[
                 "xy_ee_ref",
@@ -162,7 +149,7 @@ class ReacherTask(Task):
             ),
         )
 
-    def create_extractor(self, env):
+    def create_extractor(self, env: gym.Env) -> ScalingExtractor:
         return ScalingExtractor(env)
 
     def prepare_mpc_input(
