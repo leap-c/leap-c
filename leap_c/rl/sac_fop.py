@@ -268,9 +268,8 @@ class SacFopTrainer(Trainer):
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
-            # print("weight", param.item(), "log_prob", pi_output.log_prob.item())
-            self.report_stats("train_trajectory", {"param": param, "action": action})
-            self.report_stats("train_policy_rollout", pi_output.stats)
+            self.report_stats("train_trajectory", {"param": param, "action": action}, verbose=True)
+            self.report_stats("train_policy_rollout", pi_output.stats, verbose=True)  # type: ignore
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
@@ -372,20 +371,17 @@ class SacFopTrainer(Trainer):
                 # soft updates
                 soft_target_update(self.q, self.q_target, self.cfg.sac.tau)
 
-                if self.state.step % self.cfg.sac.report_loss_freq == 0:
-                    loss_stats = {
-                        "q_loss": q_loss.item(),
-                        "pi_loss": pi_loss.item(),
-                        "alpha": alpha,
-                        "q": q.mean().item(),
-                        "q_target": target.mean().item(),
-                        "masked_samples_perc": 1 - mask_status.float().mean().item(),
-                        "entropy": -log_p.mean().item(),
+                loss_stats = {
+                    "q_loss": q_loss.item(),
+                    "pi_loss": pi_loss.item(),
+                    "alpha": alpha,
+                    "q": q.mean().item(),
+                    "q_target": target.mean().item(),
+                    "masked_samples_perc": 1 - mask_status.float().mean().item(),
+                    "entropy": -log_p.mean().item(),
                     }
-                    self.report_stats("loss", loss_stats, self.state.step + 1)
-                    self.report_stats(
-                        "train_policy_update", pi_o_stats, self.state.step + 1
-                    )
+                self.report_stats("loss", loss_stats)
+                self.report_stats("train_policy_update", pi_o_stats, verbose=True)
 
             yield 1
 

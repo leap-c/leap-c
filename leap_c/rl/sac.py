@@ -192,8 +192,8 @@ class SacTrainer(Trainer):
                 is_terminated = is_truncated = False
 
             action, _, stats = self.act(obs)  # type: ignore
-            self.report_stats("train_trajectory", {"action": action}, self.state.step)
-            self.report_stats("train_policy_rollout", stats, self.state.step)  # type: ignore
+            self.report_stats("train_trajectory", {"action": action}, verbose=True)
+            self.report_stats("train_policy_rollout", stats, verbose=True)  # type: ignore
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
@@ -266,18 +266,16 @@ class SacTrainer(Trainer):
                 # soft updates
                 soft_target_update(self.q, self.q_target, self.cfg.sac.tau)
 
-                report_freq = self.cfg.sac.report_loss_freq * self.cfg.sac.update_freq
-
-                if self.state.step % report_freq == 0:
-                    loss_stats = {
-                        "q_loss": q_loss.item(),
-                        "pi_loss": pi_loss.item(),
-                        "alpha": alpha,
-                        "q": q.mean().item(),
-                        "q_target": target.mean().item(),
-                        "entropy": -log_p.mean().item(),
-                    }
-                    self.report_stats("loss", loss_stats, self.state.step + 1)
+                # report stats
+                loss_stats = {
+                    "q_loss": q_loss.item(),
+                    "pi_loss": pi_loss.item(),
+                    "alpha": alpha,
+                    "q": q.mean().item(),
+                    "q_target": target.mean().item(),
+                    "entropy": -log_p.mean().item(),
+                }
+                self.report_stats("loss", loss_stats)
 
             yield 1
 
