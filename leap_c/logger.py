@@ -123,7 +123,8 @@ class Logger:
     """A simple logger for statistics.
 
     This logger can write statistics to CSV, TensorBoard, and Weights & Biases.
-    # TODO (Jasper): It can also log statistics to the console.
+
+    # TODO: Logging statistics to the console.
 
     Attributes:
         cfg: The configuration for the logger.

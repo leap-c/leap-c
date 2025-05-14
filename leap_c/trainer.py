@@ -254,6 +254,9 @@ class Trainer(ABC, nn.Module):
 
         if self.cfg.val.report_score == "cum":
             return sum(self.state.scores)
+
+        self.logger.close()
+
         return self.state.max_score
 
     def validate(self) -> float:
