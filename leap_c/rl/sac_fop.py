@@ -21,6 +21,7 @@ from leap_c.task import Task
 from leap_c.trainer import Trainer
 
 
+# TODO (Jasper): This should be moved to the acados solver when refactoring the code.
 NUM_THREADS_ACADOS_BATCH = 4
 
 
@@ -162,7 +163,9 @@ class SacFopTrainer(Trainer):
 
             with torch.no_grad():
                 # TODO (Jasper): Argument order is not consistent
-                pi_output: SacFopActorOutput = self.pi(obs_batched, policy_state, deterministic=False)
+                pi_output: SacFopActorOutput = self.pi(
+                    obs_batched, policy_state, deterministic=False
+                )
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 

@@ -161,8 +161,10 @@ def set_ocp_solver_mpc_params_global(
     if isinstance(ocp_solver, AcadosOcpSolver):
         ocp_solver.set_p_global_and_precompute_dependencies(mpc_parameter.p_global)
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        if batch_size is None:
+            raise ValueError("batch_size must be set when using AcadosOcpBatchSolver.")
         for i, single_solver in enumerate(ocp_solver.ocp_solvers):
-            if batch_size is not None and i >= batch_size:
+            if i >= batch_size:
                 break
             single_solver.set_p_global_and_precompute_dependencies(
                 mpc_parameter.p_global[i]
@@ -192,12 +194,14 @@ def set_ocp_solver_mpc_params_stagewise(
         else:
             ocp_solver.set_flat("p", mpc_parameter.p_stagewise.reshape(-1))  # type:ignore
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        if batch_size is None:
+            raise ValueError("batch_size must be set when using AcadosOcpBatchSolver.")
         if mpc_parameter.p_stagewise_sparse_idx is None:  # not sparse
             p = mpc_parameter.p_stagewise.reshape(batch_size, -1)  # type:ignore
             ocp_solver.set_flat("p", p)
         else:
             for i, single_solver in enumerate(ocp_solver.ocp_solvers):
-                if batch_size is not None and i >= batch_size:
+                if i >= batch_size:
                     break
                 set_ocp_solver_mpc_params(single_solver, mpc_parameter.get_sample(i))
     else:
@@ -223,21 +227,27 @@ def set_ocp_solver_iterate(
 ) -> None:
     if ocp_iterate is None:
         return
+    elif not isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
+        raise ValueError(
+            f"Expected AcadosOcpFlattenedBatchIterate, got {type(ocp_iterate)}."
+        )
+
     if isinstance(ocp_solver, AcadosOcpSolver):
-        if isinstance(ocp_iterate, AcadosOcpFlattenedIterate):
-            ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
-        elif ocp_iterate is not None:
-            raise ValueError(
-                f"Expected AcadosOcpFlattenedIterate for an AcadosOcpSolver, got {type(ocp_iterate)}."
-            )
+        if ocp_iterate.N_batch != 1:
+            raise ValueError("Expected a batch size of 1 for a single AcadosOcpSolver.")
+        single_iterate = AcadosOcpFlattenedIterate(
+            x=ocp_iterate.x[0],
+            u=ocp_iterate.u[0],
+            z=ocp_iterate.z[0],
+            pi=ocp_iterate.pi[0],
+            lam=ocp_iterate.lam[0],
+            sl=ocp_iterate.sl[0],
+            su=ocp_iterate.su[0],
+        )
+        ocp_solver.load_iterate_from_flat_obj(single_iterate)
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
-        if isinstance(ocp_iterate, AcadosOcpFlattenedBatchIterate):
-            ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
-        elif ocp_iterate is not None:
-            raise ValueError(
-                f"Expected AcadosOcpFlattenedBatchIterate for an AcadosOcpBatchSolver, got {type(ocp_iterate)}."
-            )
+        ocp_solver.load_iterate_from_flat_obj(ocp_iterate)
     else:
         raise ValueError(
             f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
@@ -276,8 +286,10 @@ def set_ocp_solver_initial_condition(
             ocp_solver.constraints_set(0, "ubu", u0)
 
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
+        if batch_size is None:
+            raise ValueError("batch_size must be set when using AcadosOcpBatchSolver.")
         for i, ocp in enumerate(ocp_solver.ocp_solvers):
-            if batch_size is not None and i >= batch_size:
+            if i >= batch_size:
                 break
 
             set_ocp_solver_initial_condition(
@@ -313,6 +325,8 @@ def initialize_ocp_solver(
     if mpc_input.is_batched():
         batch_size = mpc_input.x0.shape[0]
     else:
+        if isinstance(ocp_solver, AcadosOcpBatchSolver):
+            raise ValueError("Input has to be batched when using a batch solver")
         batch_size = None
 
     set_ocp_solver_iterate(ocp_solver, ocp_iterate)
@@ -560,11 +574,9 @@ def create_zero_init_state_fn(
 
     def init_state_fn(mpc_input: MpcInput) -> MpcBatchedState:
         if not mpc_input.is_batched():
-            # TOOD: The non batched case should be removed depending on how
-            #   we update the solve_shared.
-            return deepcopy(iterate)
-
-        batch_size = len(mpc_input.x0)
+            batch_size = 1
+        else:
+            batch_size = len(mpc_input.x0)
         kw = {}
 
         for f in fields(iterate):
@@ -690,7 +702,7 @@ class Mpc(ABC):
 
     @cached_property
     def ocp_batch_solver(self) -> AcadosOcpBatchSolver:
-        ocp = deepcopy(self.ocp)
+        ocp = self.ocp
         ocp.model.name += "_batch"  # type:ignore
 
         batch_solver = self.afm_batch.setup_acados_ocp_batch_solver(
@@ -707,7 +719,7 @@ class Mpc(ABC):
 
     @cached_property
     def ocp_batch_sensitivity_solver(self) -> AcadosOcpBatchSolver:
-        ocp = deepcopy(self.ocp_sensitivity)
+        ocp = self.ocp_sensitivity
         ocp.model.name += "_batch"  # type:ignore
 
         batch_solver = self.afm_sens_batch.setup_acados_ocp_batch_solver(
