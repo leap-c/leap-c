@@ -4,7 +4,7 @@ import casadi as ca
 import numpy as np
 from acados_template import AcadosOcp
 from casadi.tools import struct_symSX
-from leap_c.examples.pointmass.env import WindParam, _A_disc, _B_disc, get_wind_velocity
+from leap_c.examples.pointmass.env import _A_disc, _B_disc
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
@@ -12,7 +12,6 @@ from leap_c.examples.util import (
 from leap_c.mpc import Mpc
 
 
-# class PointMassMPC(LinearMPC):
 class PointMassMPC(Mpc):
     """docstring for PointMassMPC."""
 
@@ -22,12 +21,10 @@ class PointMassMPC(Mpc):
         learnable_params: list[str] | None = None,
         N_horizon: int = 20,
         T_horizon: float = 2.0,
-        discount_factor: float = 0.99,
         n_batch: int = 64,
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
         throw_error_if_u0_is_outside_ocp_bounds: bool = True,
-        wind_param: WindParam | None = None,
     ):
         params = (
             {
@@ -40,7 +37,6 @@ class PointMassMPC(Mpc):
                 "xref": np.array([0.0, 0.0, 0.0, 0.0]),
                 "uref": np.array([0.0, 0.0]),
                 "xref_e": np.array([0.0, 0.0, 0.0, 0.0]),
-                "u_wind": np.array([0.0, 0.0]),
             }
             if params is None
             else params
@@ -48,14 +44,11 @@ class PointMassMPC(Mpc):
 
         learnable_params = learnable_params if learnable_params is not None else []
 
-        print("learnable_params: ", learnable_params)
-
         ocp = export_parametric_ocp(
             nominal_param=params,
             learnable_params=learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
-            wind_param=wind_param,
         )
         configure_ocp_solver(ocp=ocp, exact_hess_dyn=True)
 
@@ -80,7 +73,6 @@ def _create_diag_matrix(
 
 def _disc_dyn_expr(
     ocp: AcadosOcp,
-    wind_param: WindParam | None = None,
 ) -> ca.SX:
     x = ocp.model.x
     u = ocp.model.u
@@ -93,20 +85,7 @@ def _disc_dyn_expr(
     A = _A_disc(m=m, cx=cx, cy=cy, dt=dt)
     B = _B_disc(m=m, cx=cx, cy=cy, dt=dt)
 
-    if wind_param is None:
-        u_wind = find_param_in_p_or_p_global(["u_wind"], ocp.model)["u_wind"]
-    else:
-        u_wind_x, u_wind_y = get_wind_velocity(
-            x=ocp.model.x[0],
-            y=ocp.model.x[1],
-            scale=wind_param.scale,
-            vortex_center=wind_param.vortex_center,
-            vortex_strength=wind_param.vortex_strength,
-        )
-
-        u_wind = ca.vertcat(u_wind_x, u_wind_y)
-
-    return A @ x + B @ (u + u_wind)
+    return A @ x + B @ u
 
 
 def _cost_expr_ext_cost(ocp: AcadosOcp) -> ca.SX:
@@ -148,7 +127,6 @@ def export_parametric_ocp(
     N_horizon: int = 50,
     tf: float = 2.0,
     x0: np.ndarray = np.array([1.0, 1.0, 0.0, 0.0]),
-    wind_param: WindParam | None = None,
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
@@ -163,13 +141,11 @@ def export_parametric_ocp(
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
-    # ocp.model.p = struct_symSX([entry("u_wind", shape=(2, 1))])
-
     ocp = translate_learnable_param_to_p_global(
         nominal_param=nominal_param, learnable_param=learnable_params, ocp=ocp
     )
 
-    ocp.model.disc_dyn_expr = _disc_dyn_expr(ocp=ocp, wind_param=wind_param)
+    ocp.model.disc_dyn_expr = _disc_dyn_expr(ocp=ocp)
     ocp.model.cost_expr_ext_cost_0 = _cost_expr_ext_cost(ocp=ocp)
     ocp.cost.cost_type_0 = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = _cost_expr_ext_cost(ocp=ocp)
@@ -185,17 +161,17 @@ def export_parametric_ocp(
     ocp.constraints.ubu = np.array([Fmax, Fmax])
     ocp.constraints.idxbu = np.array([0, 1])
 
-    ocp.constraints.lbx = np.array([-5.0, -5.0, -50.0, -50.0])
-    ocp.constraints.ubx = np.array([5.0, 5.0, 50.0, 50.0])
+    ocp.constraints.lbx = np.array([0.05, 0.05, -20.0, -20.0])
+    ocp.constraints.ubx = np.array([3.95, 0.95, 20.0, 20.0])
     ocp.constraints.idxbx = np.array([0, 1, 2, 3])
 
     ocp.constraints.idxsbx = np.array([0, 1, 2, 3])
 
     ns = ocp.constraints.idxsbx.size
-    ocp.cost.zl = 100 * np.ones((ns,))
-    ocp.cost.Zl = 0 * np.ones((ns,))
-    ocp.cost.zu = 100 * np.ones((ns,))
-    ocp.cost.Zu = 0 * np.ones((ns,))
+    ocp.cost.zl = 10000 * np.ones((ns,))
+    ocp.cost.Zl = 10 * np.ones((ns,))
+    ocp.cost.zu = 10000 * np.ones((ns,))
+    ocp.cost.Zu = 10 * np.ones((ns,))
 
     # #############################
     if isinstance(ocp.model.p, struct_symSX):
@@ -219,3 +195,4 @@ def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.with_value_sens_wrt_params = True
     ocp.solver_options.with_solution_sens_wrt_params = True
     ocp.solver_options.with_batch_functionality = True
+

@@ -102,7 +102,6 @@ def learnable_point_mass_mpc_different_params(n_batch: int) -> PointMassMPC:
             "q_diag_e",
             "uref",
             "xref_e",
-            "u_wind",
         ],
         n_batch=n_batch,
     )
