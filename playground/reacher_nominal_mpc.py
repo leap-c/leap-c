@@ -273,6 +273,7 @@ def main_warmstart(
 def main_mpc_closed_loop(
     env: ReacherEnv,
     mpc: ReacherMpc,
+    n_iter: int = 200,
 ) -> None:
     o = []
     observation, info = env.reset()
@@ -285,7 +286,7 @@ def main_mpc_closed_loop(
     )
 
     solver_state = None
-    while True:
+    for _ in range(n_iter):
         mpc_input = prepare_mpc_input(
             obs=observation,
             param_nn=param_nn,
@@ -304,23 +305,27 @@ def main_mpc_closed_loop(
 
         error_norm = np.linalg.norm(observation[-2:])
         print(
-            f"status: {status}; norm(p - p_ref): {error_norm}; q: {mpc_input.x0[:2]}; dq: {mpc_input.x0[2:]}; p_ref: {p_global[0:2]}; p: {observation[4:6]}; action: {action}",
+            f"status: {status}; norm(p - p_ref): {error_norm:>8.4f}; "
+            f"q: [{mpc_input.x0[0]:>9.4f}, {mpc_input.x0[1]:>9.4f}]; "
+            f"dq: [{mpc_input.x0[2]:>9.4f}, {mpc_input.x0[3]:>9.4f}]; "
+            f"p_ref: [{p_global[0]:>9.4f}, {p_global[1]:>9.4f}]; "
+            f"p: [{observation[4]:>9.4f}, {observation[5]:>9.4f}]; "
+            f"action: [{action[0]:>9.4f}, {action[1]:>9.4f}]",
         )
 
         o.append(observation)
 
-        observation, reward, terminated, truncated, info = env.step(
+        observation, _, terminated, truncated, _ = env.step(
             action=action,
         )
+
+        if terminated or truncated:
+            observation, info = env.reset()
+            print("Resetting environment")
 
         observation = torch.from_numpy(observation).to(
             device="cpu", dtype=torch.float32
         )
-
-        env.render()
-
-    # Stack o
-    o = np.vstack(o)
 
     env.close()
 
@@ -362,8 +367,7 @@ if __name__ == "__main__":
         # train=False, xml_file=mjcf_path.as_posix(), render_mode="rgb_array"
         train=False,
         xml_file=mjcf_path.as_posix(),
-        render_mode="human",
-        # render_mode="rgb_array",
+        render_mode="human",  # "rgb_array"
         reference_path=reference_path,
     )
     state_representation = "q"
