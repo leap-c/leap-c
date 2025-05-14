@@ -270,66 +270,18 @@ def main_warmstart(
     env.close()
 
 
-def main_ocp_solver_closed_loop(
-    env: ReacherEnv,
-    mpc: ReacherMpc,
-    pinocchio_model: pin.Model,
-    ik_solver: InverseKinematicsSolver,
-    state_representation: str = "q",
-    use_ik_solver: bool = True,
-):
-    ocp_solver = mpc.ocp_solver
-
-    p_global = ocp_solver.acados_ocp.p_global_values
-
-    o = []
-    observation, info = env.reset()
-    while True:
-        p_global[0:2] = observation[4:6]
-        ocp_solver.set_p_global_and_precompute_dependencies(data_=p_global)
-
-        if use_ik_solver:
-            target_position = np.concatenate([observation[4:6], np.array([0.01])])
-            target_angle = np.arctan2(target_position[1], target_position[0])
-
-            q_ref, dq_ref, _, _, _ = ik_solver(
-                q=np.array([target_angle] * pinocchio_model.nq),
-                dq=np.zeros(pinocchio_model.nv),
-                target_position=np.concatenate([observation[4:6], np.array([0.01])]),
-            )
-            x_ref = np.concatenate([q_ref, dq_ref])
-
-            for stage in range(ocp_solver.acados_ocp.solver_options.N_horizon + 1):
-                ocp_solver.set(stage, "x", x_ref)
-
-        x0 = prepare_mpc_input(observation, offset_target=False).x0.detach().numpy()
-        action = ocp_solver.solve_for_x0(x0_bar=x0, fail_on_nonzero_status=False)
-        error_norm = np.linalg.norm(observation[-2:])
-        print(
-            f"status: {ocp_solver.status}; norm(p - p_ref): {error_norm}; q: {x0[:2]}; dq: {x0[2:]}; p_ref: {p_global[0:2]}; p: {observation[4:6]}; action: {action}",
-        )
-
-        o.append(observation)
-
-        observation, reward, terminated, truncated, info = env.step(
-            action=action,
-        )
-        env.render()
-
-    # Stack o
-    o = np.vstack(o)
-
-    env.close()
-
-
 def main_mpc_closed_loop(
     env: ReacherEnv,
     mpc: ReacherMpc,
 ) -> None:
     o = []
     observation, info = env.reset()
-    param_nn = np.concatenate(
-        [np.array([0.0, 0.0]), mpc.ocp_solver.acados_ocp.p_global_values[2:]]
+
+    observation = torch.from_numpy(observation).to(device="cpu", dtype=torch.float32)
+
+    param_nn = torch.tensor(
+        [[0.0, 0.0, *mpc.ocp_solver.acados_ocp.p_global_values[2:]]],
+        dtype=torch.float32,
     )
 
     solver_state = None
@@ -339,8 +291,10 @@ def main_mpc_closed_loop(
             param_nn=param_nn,
         )
 
-        state = mpc_input.x0.detach().numpy()
-        p_global = mpc_input.parameters.p_global
+        state = mpc_input.x0.detach().numpy().flatten()
+        p_global = (
+            mpc_input.parameters.p_global.detach().numpy().astype(np.float64).flatten()
+        )
 
         action, solver_state, status = mpc.policy(
             state=state,
@@ -358,6 +312,11 @@ def main_mpc_closed_loop(
         observation, reward, terminated, truncated, info = env.step(
             action=action,
         )
+
+        observation = torch.from_numpy(observation).to(
+            device="cpu", dtype=torch.float32
+        )
+
         env.render()
 
     # Stack o
@@ -447,14 +406,6 @@ if __name__ == "__main__":
 
     if RUN_MAIN_WARMSTART:
         main_warmstart(
-            env=env,
-            mpc=mpc,
-            pinocchio_model=pinocchio_model,
-            ik_solver=ik_solver,
-            state_representation=state_representation,
-        )
-    if RUN_MAIN_OCP_SOLVER_CLOSED_LOOP:
-        main_ocp_solver_closed_loop(
             env=env,
             mpc=mpc,
             pinocchio_model=pinocchio_model,
