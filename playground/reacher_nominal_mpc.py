@@ -4,10 +4,7 @@ import torch
 
 from leap_c.examples.mujoco.reacher.env import ReacherEnv
 from leap_c.examples.mujoco.reacher.mpc import ReacherMpc
-from leap_c.examples.mujoco.reacher.task import (
-    prepare_mpc_input_cosq_sinq,
-    prepare_mpc_input_q,
-)
+from leap_c.examples.mujoco.reacher.task import prepare_mpc_input_q as prepare_mpc_input
 from leap_c.examples.mujoco.reacher.util import (
     InverseKinematicsSolver,
     PathGeometry,
@@ -21,7 +18,6 @@ def main_mpc_closed_loop(
     mpc: ReacherMpc,
     n_iter: int = 200,
 ) -> None:
-    o = []
     observation, info = env.reset()
 
     observation = torch.from_numpy(observation).to(device="cpu", dtype=torch.float32)
@@ -57,8 +53,6 @@ def main_mpc_closed_loop(
             f"p: [{observation[4]:>9.4f}, {observation[5]:>9.4f}]; "
             f"action: [{action[0]:>9.4f}, {action[1]:>9.4f}]",
         )
-
-        o.append(observation)
 
         observation, _, terminated, truncated, _ = env.step(
             action=action,
@@ -107,12 +101,6 @@ if __name__ == "__main__":
         render_mode="human",  # "rgb_array"
         reference_path=reference_path,
     )
-    state_representation = "q"
-
-    if state_representation == "q":
-        prepare_mpc_input = prepare_mpc_input_q
-    elif state_representation == "sin_cos":
-        prepare_mpc_input = prepare_mpc_input_cosq_sinq
 
     dt = 0.1
     T_horizon = 1.0
@@ -131,7 +119,7 @@ if __name__ == "__main__":
         mjcf_path=mjcf_path,
         N_horizon=int(T_horizon / dt),
         T_horizon=T_horizon,
-        state_representation=state_representation,
+        state_representation="q",
     )
 
     main_mpc_closed_loop(env=env, mpc=mpc)
