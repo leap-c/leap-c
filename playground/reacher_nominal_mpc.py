@@ -1,3 +1,5 @@
+from collections import deque
+
 import numpy as np
 import pinocchio as pin
 import torch
@@ -13,10 +15,34 @@ from leap_c.examples.mujoco.reacher.util import (
 )
 
 
+# Define a class to track error and compute moving average
+class ErrorTracker:
+    def __init__(self, window_size: int = 50) -> None:
+        self.window_size = window_size
+        self.errors = deque(maxlen=window_size)
+
+    def update(self, error: float) -> None:
+        """Add a new error value to the tracker."""
+        self.errors.append(error)
+
+    def get_moving_average(self) -> float:
+        """Calculate the moving average of stored errors."""
+        if not self.errors:
+            return 0.0
+        return np.mean(self.errors)
+
+    def __len__(self) -> int:
+        """Return the current number of stored errors."""
+        return len(self.errors)
+
+
 def main_mpc_closed_loop(
     env: ReacherEnv,
     mpc: ReacherMpc,
+    error_tracker: ErrorTracker,
     n_iter: int = 200,
+    print_level: int = 0,
+    error_threshold: float = 0.05,
 ) -> None:
     observation, info = env.reset()
 
@@ -44,15 +70,20 @@ def main_mpc_closed_loop(
             solver_state=solver_state,
         )
 
-        error_norm = np.linalg.norm(observation[-2:])
-        print(
-            f"status: {status}; norm(p - p_ref): {error_norm:>8.4f}; "
-            f"q: [{mpc_input.x0[0]:>9.4f}, {mpc_input.x0[1]:>9.4f}]; "
-            f"dq: [{mpc_input.x0[2]:>9.4f}, {mpc_input.x0[3]:>9.4f}]; "
-            f"p_ref: [{p_global[0]:>9.4f}, {p_global[1]:>9.4f}]; "
-            f"p: [{observation[4]:>9.4f}, {observation[5]:>9.4f}]; "
-            f"action: [{action[0]:>9.4f}, {action[1]:>9.4f}]",
-        )
+        # Update the error tracker with the new error value
+        error_tracker.update(error=np.linalg.norm(observation[-2:]))
+
+        if print_level > 0:
+            moving_avg = error_tracker.get_moving_average()
+            print(
+                f"status: {status}; "
+                f"moving avg(...): {moving_avg:>8.4f}; "
+                f"q: [{mpc_input.x0[0]:>9.4f}, {mpc_input.x0[1]:>9.4f}]; "
+                f"dq: [{mpc_input.x0[2]:>9.4f}, {mpc_input.x0[3]:>9.4f}]; "
+                f"p_ref: [{p_global[0]:>9.4f}, {p_global[1]:>9.4f}]; "
+                f"p: [{observation[4]:>9.4f}, {observation[5]:>9.4f}]; "
+                f"action: [{action[0]:>9.4f}, {action[1]:>9.4f}]",
+            )
 
         observation, _, terminated, truncated, _ = env.step(
             action=action,
@@ -65,6 +96,11 @@ def main_mpc_closed_loop(
         observation = torch.from_numpy(observation).to(
             device="cpu", dtype=torch.float32
         )
+
+    assert error_tracker.get_moving_average() < error_threshold, (
+        "The moving average of the error is too high. "
+        "This indicates that the MPC is not able to track the desired trajectory."
+    )
 
     env.close()
 
@@ -122,4 +158,11 @@ if __name__ == "__main__":
         state_representation="q",
     )
 
-    main_mpc_closed_loop(env=env, mpc=mpc)
+    error_tracker = ErrorTracker(window_size=50)
+
+    main_mpc_closed_loop(
+        env=env,
+        mpc=mpc,
+        error_tracker=error_tracker,
+        n_iter=200,
+    )
