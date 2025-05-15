@@ -25,6 +25,7 @@ from leap_c.trainer import Trainer
 
 NUM_THREADS_ACADOS_BATCH = 4
 
+
 class SacCritic(nn.Module):
     def __init__(
         self,

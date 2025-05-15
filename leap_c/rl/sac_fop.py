@@ -28,6 +28,7 @@ NUM_THREADS_ACADOS_BATCH = 4
 @dataclass(kw_only=True)
 class SacFopBaseConfig(SacBaseConfig):
     """Specific settings for the Fop trainer."""
+
     noise: str = "param"
     entropy_correction: bool = False
 
@@ -35,6 +36,7 @@ class SacFopBaseConfig(SacBaseConfig):
 @dataclass(kw_only=True)
 class SacFoaBaseConfig(SacBaseConfig):
     """Specific settings for the Foa trainer."""
+
     noise: str = "action"
     entropy_correction: bool = False
 
@@ -42,6 +44,7 @@ class SacFoaBaseConfig(SacBaseConfig):
 @dataclass(kw_only=True)
 class SacFopcBaseConfig(SacBaseConfig):
     """Specific settings for the Foa trainer."""
+
     noise: str = "param"
     entropy_correction: bool = True
 
@@ -116,8 +119,12 @@ class FopActor(nn.Module):
         self.actual_used_mpc_state = mpc_state
 
         if mpc_output.du0_dp_global is not None and self.correction:
-            jtj = mpc_output.du0_dp_global @ mpc_output.du0_dp_global.transpose(1,2)
-            correction = torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device)).sqrt().log()
+            jtj = mpc_output.du0_dp_global @ mpc_output.du0_dp_global.transpose(1, 2)
+            correction = (
+                torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device))
+                .sqrt()
+                .log()
+            )
             # print(f"correction: mean {correction.mean()}, min {correction.min()}, max {correction.max()}")
             log_prob -= correction.unsqueeze(1)
 
@@ -176,6 +183,9 @@ class FouActor(nn.Module):
 
         action_mpc = mpc_output.u0
         action_unbounded = self.action_transform.inverse(action_mpc.detach(), padding=0.1)
+        action_unbounded = self.action_transform.inverse(
+            action_mpc.detach(), padding=0.1
+        )
         action_squashed, log_prob, gaussian_stats = self.squashed_gaussian(
             action_unbounded, log_std, deterministic=deterministic
         )
@@ -194,10 +204,10 @@ class FouActor(nn.Module):
 
 @register_trainer("sac_fop", SacFopBaseConfig())
 class SacFopTrainer(Trainer):
-    cfg: SacFopBaseConfig
+    cfg: SacBaseConfig
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: SacFopBaseConfig
+        self, task: Task, output_path: str | Path, device: str, cfg: SacBaseConfig
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -220,6 +230,12 @@ class SacFopTrainer(Trainer):
 
         if cfg.noise == "param":
             self.pi = FopActor(task, self.train_env, cfg.sac.actor_mlp, correction=cfg.entropy_correction)
+            self.pi = FopActor(
+                task,
+                self.train_env,
+                cfg.sac.actor_mlp,
+                correction=cfg.entropy_correction,
+            )
         elif cfg.noise == "action":
             self.pi = FouActor(task, self.train_env, cfg.sac.actor_mlp)
         else:
@@ -274,6 +290,10 @@ class SacFopTrainer(Trainer):
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
+            if is_terminated:
+                print(obs_prime)
+                print(pi_output.state_solution.x.reshape(-1, 4))
+                print(pi_output.state_solution.u.reshape(-1, 2))
 
             if "episode" in info:
                 stats = info["episode"]

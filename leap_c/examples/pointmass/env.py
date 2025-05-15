@@ -86,6 +86,7 @@ class WindField(ABC):
         )
 
 
+
 class WindParcour(WindField):
     def __init__(self, magnitude: float = 10.0, difficulty: str = "easy"):
         self.magnitude = magnitude
@@ -281,7 +282,9 @@ class PointMassEnv(gym.Env):
         self.trajectory.append(self.state.copy())  # type: ignore
 
         # termination and truncation
-        out_of_bounds = (self.state_high < self.state).any() or (self.state_low > self.state).any()
+        out_of_bounds = (self.state_high < self.state).any() or (
+            self.state_low > self.state
+        ).any()
         reached_goal = self.state[:2] in self.goal  # type: ignore
         term = out_of_bounds or reached_goal
         trunc = self.time >= self.max_time
@@ -528,7 +531,7 @@ if __name__ == "__main__":
         env.render()
 
         if terminated or truncated:
-            print(f"Episode finished after {i+1} timesteps.")
+            print(f"Episode finished after {i + 1} timesteps.")
             print(f"Termination: {terminated}, Truncation: {truncated}")
             print(f"Final state (pos): {obs[:2]}")
             print(f"Goal position: {env.goal.pos}")

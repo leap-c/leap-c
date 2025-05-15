@@ -3,7 +3,7 @@ from tempfile import TemporaryDirectory
 
 import pytest
 
-from leap_c.examples.pointmass.task import PointMassTask
+from leap_c.examples.pointmass.task import PointMassEasyTask as PointMassTask
 from leap_c.registry import create_default_cfg
 from leap_c.resurrect import resurrect_cfg, resurrect_task, resurrect_trainer
 from leap_c.rl.sac import SacBaseConfig, SacTrainer
@@ -23,7 +23,7 @@ def resurrect_dir():
 
     with TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
-        main("sac", "point_mass", cfg, tmpdir, "cpu")
+        main("sac", "point_mass_easy", cfg, tmpdir, "cpu")
 
         yield tmpdir
 

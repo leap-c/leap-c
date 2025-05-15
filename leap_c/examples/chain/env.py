@@ -235,8 +235,8 @@ class ChainEnv(gym.Env):
         o = self._current_observation()
         r = self._calculate_reward()
 
-        reached_goal_pos = bool(np.linalg.norm(self.x_ref - self.state, axis=0, ord=2) < 1e-3)
-        term = False
+        reached_goal_pos = bool(np.linalg.norm(self.x_ref - self.state, axis=0, ord=2) < 1e-1)
+        term = reached_goal_pos
 
         self.time += self.dt
         trunc = self.time > self.max_time
@@ -245,6 +245,7 @@ class ChainEnv(gym.Env):
             info = {"task": {"success": True, "violations": False}}
         elif trunc:
             info = {"task": {"success": False, "violations": False}}
+
         else:
             info = {}
 
