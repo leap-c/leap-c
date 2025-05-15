@@ -89,6 +89,7 @@ jobs:
         pip install --upgrade pip
         pip install interfaces/acados_template
         micromamba install -y -c conda-forge pinocchio=3.4.0
+        micromamba install -y -c conda-forge casadi=3.7.0
 
     - name: Check casadi version
       run: |
