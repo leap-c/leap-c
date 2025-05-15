@@ -108,10 +108,8 @@ def main_mpc_closed_loop(
 if __name__ == "__main__":
     mjcf_path = get_mjcf_path("reacher")
 
-    pinocchio_model = pin.buildModelFromMJCF(mjcf_path)
-
     ik_solver = InverseKinematicsSolver(
-        pinocchio_model=pinocchio_model,
+        pinocchio_model=pin.buildModelFromMJCF(mjcf_path),
         step_size=0.1,
         max_iter=1000,
         tol=1e-6,
