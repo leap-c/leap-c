@@ -199,6 +199,9 @@ class SacTrainer(Trainer):
             )
 
             if "episode" in info:
+                stats = info["episode"]
+                if "task" in info:
+                    stats.update(info["task"])
                 self.report_stats("train", info["episode"])
 
             # TODO (Jasper): Add is_truncated to buffer.
@@ -291,3 +294,9 @@ class SacTrainer(Trainer):
             return [self.q_optim, self.pi_optim]
 
         return [self.q_optim, self.pi_optim, self.alpha_optim]
+
+    def periodic_ckpt_modules(self) -> list[str]:
+        return ["q", "pi", "q_target"]
+
+    def singleton_ckpt_modules(self) -> list[str]:
+        return ["buffer"]

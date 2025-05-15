@@ -6,6 +6,60 @@ import torch
 import torch.nn as nn
 
 
+class BoundedTransform(nn.Module):
+    """A bounded transform.
+
+    The output is squashed with a tanh function and then scaled and shifted to match the space.
+    """
+    scale: torch.tensor
+    loc: torch.tensor
+
+    def __init__(
+        self,
+        space: spaces.Box,
+    ):
+        """Initializes the Bounded Transform module.
+
+        Args:
+            space: The space that the transform is bounded to. 
+            padding: The amount of padding to subtract to the bounds.
+        """
+        super().__init__()
+        loc = (space.high + space.low) / 2.0
+        scale = (space.high - space.low) / 2.0
+
+        loc = torch.tensor(loc, dtype=torch.float32)
+        scale = torch.tensor(scale, dtype=torch.float32)
+
+        self.register_buffer("loc", loc)
+        self.register_buffer("scale", scale)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """Applies the squashing function to the input tensor.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The squashed tensor, scaled and shifted to match the action space.
+        """
+        x = torch.tanh(x)
+        return x * self.scale[None, :] + self.loc[None, :]
+
+    def inverse(self, x: torch.Tensor, padding: float = 0.) -> tuple[torch.Tensor]:
+        """Applies the inverse squashing function to the input tensor.
+
+        Args:
+            x: The input tensor.
+            padding: The amount of padding to distance the action of the bounds.
+
+        Returns:
+            The inverse squashed tensor, scaled and shifted to match the action space.
+        """
+        x = (x - self.loc[None, :]) / (self.scale[None, :] + 2 * padding)
+        return torch.arctanh(x)
+
+
 class SquashedGaussian(nn.Module):
     """A squashed Gaussian.
 
@@ -75,6 +129,6 @@ class SquashedGaussian(nn.Module):
 
         y_scaled = y * self.scale[None, :] + self.loc[None, :]
 
-        stats = {"gaussian_unsquashed_std": std.mean().item()}
+        stats = {"gaussian_unsquashed_std": std.prod(dim=-1).mean().item()}
 
         return y_scaled, log_prob, stats

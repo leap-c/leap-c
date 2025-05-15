@@ -101,7 +101,7 @@ def create_parser() -> ArgumentParser:
     parser.add_argument("--task", type=str, default="pendulum_swingup")
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--steps", type=int, default="200_000")
+    parser.add_argument("--steps", type=int, default="1_000_000")
 
     return parser
 

@@ -87,12 +87,20 @@ class WindField(ABC):
 
 
 class WindParcour(WindField):
-    def __init__(self, magnitude: float = 10.0):
+    def __init__(self, magnitude: float = 10.0, difficulty: str = "easy"):
         self.magnitude = magnitude
-        self.boxes = [
-            [np.array([0.5, 0.15]), np.array([1.5, 1.0])],
-            [np.array([2.5, 0.0]), np.array([3.5, 0.85])],
-        ]
+        if difficulty == "easy":
+            self.boxes = [
+                [np.array([0.5, 0.2]), np.array([1.5, 1.0])],
+                [np.array([2.5, 0.0]), np.array([3.5, 0.8])],
+            ]
+        elif difficulty == "hard":
+            self.boxes = [
+                [np.array([0.5, 0.1]), np.array([1.5, 1.0])],
+                [np.array([2.5, 0.0]), np.array([3.5, 0.9])],
+            ]
+        else:
+            raise ValueError(f"Unknown difficulty level: {difficulty}")
 
     def plot_XY(
         self, xlim: tuple[float, float], ylim: tuple[float, float]
@@ -217,6 +225,7 @@ class PointMassEnv(gym.Env):
         Fmax: float = 10,
         max_time: float = 10.0,
         render_mode: str | None = None,
+        difficulty: str = "easy",
     ):
         # gymnasium setup
         max_v = 20
@@ -242,7 +251,7 @@ class PointMassEnv(gym.Env):
         self.B = _B_disc(param.m, param.cx, param.cy, param.dt)
         self.start = Circle(pos=np.array([0.25, 0.8]), radius=0.15)
         self.goal = Circle(pos=np.array([3.75, 0.2]), radius=0.15)
-        self.wind_field = WindParcour(magnitude=max_wind_force)
+        self.wind_field = WindParcour(magnitude=max_wind_force, difficulty=difficulty)
 
         # env state
         self.state: np.ndarray | None = None
@@ -278,6 +287,10 @@ class PointMassEnv(gym.Env):
         reached_goal = self.state[:2] in self.goal  # type: ignore
         term = out_of_bounds or reached_goal
         trunc = self.time >= self.max_time
+        if term or trunc:
+            info = {"task": {"violation": bool(out_of_bounds), "success": reached_goal}}
+        else:
+            info = {}
 
         # reward
         dist_to_goal_x = np.abs(self.state[0] - self.goal.pos[0])  # type: ignore
@@ -287,7 +300,7 @@ class PointMassEnv(gym.Env):
         r_goal = 60 * (1.0 - 0.5 * self.time / self.max_time) if reached_goal else 0.0
         r = 0.1 * r_dist + r_goal
 
-        return self._observation(), float(r), bool(term), bool(trunc), {}
+        return self._observation(), float(r), bool(term), bool(trunc), info
 
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
@@ -517,7 +530,7 @@ if __name__ == "__main__":
         env.render()
 
         if terminated or truncated:
-            print(f"Episode finished after {i+1} timesteps.")
+            print(f"Episode finished after {i + 1} timesteps.")
             print(f"Termination: {terminated}, Truncation: {truncated}")
             print(f"Final state (pos): {obs[:2]}")
             print(f"Goal position: {env.goal.pos}")

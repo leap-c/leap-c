@@ -57,6 +57,7 @@ def episode_rollout(
     score = 0
     count = 0
     policy_stats = defaultdict(list)
+    episode_stats = defaultdict(list)
     o, _ = env.reset()
 
     frames = []
@@ -74,7 +75,11 @@ def episode_rollout(
             if isinstance(a, torch.Tensor):
                 a = a.cpu().numpy()
 
-            o_prime, r, terminated, truncated, _ = env.step(a)
+            o_prime, r, terminated, truncated, info = env.step(a)
+
+            if "task" in info:
+                for key, value in info["task"].items():
+                    episode_stats[key].append(value)
 
             if render:
                 frame = env.render()
@@ -103,5 +108,6 @@ def episode_rollout(
         "terminated": terminated,
         "truncated": truncated,
     }
+    rollout_stats.update(episode_stats)
 
     return rollout_stats, policy_stats

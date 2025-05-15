@@ -23,6 +23,9 @@ from leap_c.task import Task
 from leap_c.trainer import Trainer
 
 
+NUM_THREADS_ACADOS_BATCH = 4
+
+
 class SacCritic(nn.Module):
     def __init__(
         self,
@@ -148,6 +151,7 @@ class SacZopTrainer(Trainer):
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
         self.pi = MpcSacActor(task, self.train_env, cfg.sac.actor_mlp)
+        self.pi.mpc.mpc.num_threads_batch_methods = NUM_THREADS_ACADOS_BATCH
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(cfg.sac.init_alpha).log())  # type: ignore
@@ -194,6 +198,9 @@ class SacZopTrainer(Trainer):
             )
 
             if "episode" in info:
+                stats = info["episode"]
+                if "task" in info:
+                    stats.update(info["task"])
                 self.report_stats("train", info["episode"])
 
             self.buffer.put(
@@ -300,3 +307,9 @@ class SacZopTrainer(Trainer):
             return [self.q_optim, self.pi_optim]
 
         return [self.q_optim, self.pi_optim, self.alpha_optim]
+
+    def periodic_ckpt_modules(self) -> list[str]:
+        return ["q", "pi", "q_target"]
+
+    def singleton_ckpt_modules(self) -> list[str]:
+        return ["buffer"]
