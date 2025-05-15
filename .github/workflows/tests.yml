@@ -55,10 +55,15 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
+    - name: Install other python dependencies
+      working-directory: ${{github.workspace}}
+      run: |
+        pip install --upgrade pip
+        pip install pin
+
     - name: Install Python interface
       working-directory: ${{github.workspace}}/leap_c/external/acados
       run: |
-        pip install --upgrade pip
         pip install interfaces/acados_template
 
     - name: Install leap_c
