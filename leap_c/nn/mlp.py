@@ -83,6 +83,7 @@ class MLP(nn.Module):
 
         self.mlp = nn.Sequential(*layers[:-1])
 
+        # TODO: (Mazen) allow for layer-wise std
         if mlp_cfg.weight_init is not None:
             self.mlp.apply(string_to_weight_init(mlp_cfg.weight_init))
 

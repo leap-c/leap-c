@@ -1,6 +1,7 @@
 import collections
 import random
-from typing import Any
+from itertools import islice
+from typing import Any, Iterable
 
 import torch
 import torch.nn as nn
@@ -73,8 +74,24 @@ class ReplayBuffer(nn.Module):
             tensor_dtype=self.tensor_dtype,
         )
 
+    def __getitem__(self, idx: int | slice | Iterable):
+        if isinstance(idx, int):
+            mini_batch = [self.buffer.__getitem__(idx)]
+        elif isinstance(idx, slice):
+            mini_batch = list(islice(self.buffer, idx.start, idx.stop, idx.step))
+        elif isinstance(idx, Iterable):
+            mini_batch = [self.buffer.__getitem__(i) for i in idx]
+        return pytree_tensor_to(
+            collate(mini_batch, collate_fn_map=self.collate_fn_map),
+            device=self.device,
+            tensor_dtype=self.tensor_dtype,
+        )
+
     def __len__(self):
         return len(self.buffer)
+
+    def clear(self):
+        self.buffer.clear()
 
     def get_extra_state(self) -> dict:
         """State of the replay buffer.
