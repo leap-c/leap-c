@@ -16,6 +16,7 @@ class HalfCheetahTask(Task):
 
     def create_env(self, train: bool = True) -> gym.Env:
         env = gym.make("HalfCheetah-v4") if train else gym.make("HalfCheetah-v4", render_mode="rgb_array")
+        env = gym.wrappers.FlattenObservation(env)
         env = gym.wrappers.RecordEpisodeStatistics(env)
         env = gym.wrappers.ClipAction(env)
         env = gym.wrappers.NormalizeObservation(env)

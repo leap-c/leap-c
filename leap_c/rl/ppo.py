@@ -64,16 +64,29 @@ class PpoBaseConfig(BaseConfig):
     seed: int = 0
 
 
+def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
+    torch.nn.init.orthogonal_(layer.weight, std)
+    torch.nn.init.constant_(layer.bias, bias_const)
+    return layer
+
+
 class PpoCritic(nn.Module):
     def __init__(self, task: Task, env: gym.vector.SyncVectorEnv, mlp_cfg: MlpConfig):
         super().__init__()
 
         self.extractor = task.create_extractor(env)
 
-        self.mlp = MLP(
-            input_sizes=self.extractor.output_size,
-            output_sizes=1,
-            mlp_cfg=mlp_cfg,
+        # self.mlp = MLP(
+        #     input_sizes=self.extractor.output_size,
+        #     output_sizes=1,
+        #     mlp_cfg=mlp_cfg,
+        # )
+        self.mlp = nn.Sequential(
+            layer_init(nn.Linear(self.extractor.output_size, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 1), std=1.0),
         )
 
     def forward(self, x: torch.Tensor):
@@ -94,10 +107,17 @@ class PpoActor(nn.Module):
         space = env.single_action_space
         action_dim = space.shape[0]
 
-        self.mlp = MLP(
-            input_sizes=self.extractor.output_size,
-            output_sizes=action_dim, # type: ignore
-            mlp_cfg=mlp_cfg,
+        # self.mlp = MLP(
+        #     input_sizes=self.extractor.output_size,
+        #     output_sizes=action_dim, # type: ignore
+        #     mlp_cfg=mlp_cfg,
+        # )
+        self.mlp = nn.Sequential(
+            layer_init(nn.Linear(self.extractor.output_size, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, 64)),
+            nn.Tanh(),
+            layer_init(nn.Linear(64, action_dim), std=0.01),
         )
         self.log_std = nn.Parameter(torch.zeros(1, action_dim))
 
@@ -118,10 +138,8 @@ class PpoActor(nn.Module):
         # probs = SquashedGaussianButBetter(mean, std, self.loc, self.scale)
         probs = Normal(mean, std)
 
-        if action is None and deterministic:
-            action = probs.mode
-        elif not deterministic:
-            action = probs.sample()
+        if action is None:
+            action = probs.mode if deterministic else probs.sample()
 
         log_prob = probs.log_prob(action).sum(dim=1)
         entropy = probs.entropy().sum(dim=1)
@@ -202,7 +220,7 @@ class PpoTrainer(Trainer):
         self.buffer = ReplayBuffer(cfg.ppo.num_steps, device)
 
     def train_loop(self) -> Iterator[int]:
-        obs, _ = self.train_env.reset()
+        obs, _ = self.train_env.reset(seed=self.cfg.seed)
 
         while True:
             #region Rollout Collection
@@ -295,13 +313,6 @@ class PpoTrainer(Trainer):
                         l_ent = -stats["entropy"].mean()
 
                         loss = l_clip + self.cfg.ppo.l_ent_weight * l_ent + self.cfg.ppo.l_vf_weight * l_vf
-
-                        # torch.set_printoptions(profile="full")
-                        # print(list(self.q.mlp.parameters()))
-                        # print(list(self.pi.mlp.parameters()))
-                        # print(self.pi.log_std)
-                        # torch.set_printoptions(profile="default")
-                        # print()
 
                         # Updating Parameters
                         self.q_optim.zero_grad()
