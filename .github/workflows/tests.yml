@@ -61,8 +61,8 @@ jobs:
       run: |
         # Source the micromamba activation
         eval "$(micromamba shell hook --shell=bash)"
-        # Create a new environment with Python 3.11 and pinocchio
-        micromamba create -n leapc_env python=3.11 pinocchio -c conda-forge -y
+        # Create a new environment with Python 3.11
+        micromamba create -n leapc_env python=3.11
         # Activate the environment and make it available for subsequent steps
         micromamba activate leapc_env
         echo "PYTHONPATH=$(python -c 'import sys; print(":".join(sys.path))')" >> $GITHUB_ENV
@@ -88,6 +88,15 @@ jobs:
         # Install packages
         pip install --upgrade pip
         pip install interfaces/acados_template
+        micromamba install -y -c conda-forge pinocchio=3.4.0
+
+    - name: Check casadi version
+      run: |
+        # Activate the micromamba environment
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
+        # Check casadi version
+        python -c "import casadi; print(casadi.__version__)"
 
     - name: Install leap_c
       working-directory: ${{github.workspace}}/leap_c
