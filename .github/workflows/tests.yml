@@ -34,6 +34,15 @@ jobs:
       run: |
         .github/linux/install_tera.sh
 
+    - name: Install micromamba
+      shell: bash
+      run: |
+        "${SHELL}" <(curl -L micro.mamba.pm/install.sh)
+        # Add micromamba to PATH for subsequent steps
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        # Initialize micromamba for the shell
+        echo 'eval "$(micromamba shell hook --shell=bash)"' >> $GITHUB_ENV
+
     - name: Export Paths
       working-directory: ${{github.workspace}}
       shell: bash
@@ -55,25 +64,32 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-pip-
 
-    - name: Install other python dependencies
-      working-directory: ${{github.workspace}}
-      run: |
-        pip install --upgrade pip
-        pip install pin
-
     - name: Install Python interface
       working-directory: ${{github.workspace}}/leap_c/external/acados
       run: |
+        # Activate the micromamba environment
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
+        # Install packages
+        pip install --upgrade pip
         pip install interfaces/acados_template
 
     - name: Install leap_c
       working-directory: ${{github.workspace}}/leap_c
       run: |
+        # Activate the micromamba environment
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
+        # Install packages
         pip install -e .[test]
         pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
     - name: Run leap_c tests
       working-directory: ${{github.workspace}}/leap_c
       run: |
+        # Activate the micromamba environment
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
+        # Run tests
         pwd
         pytest tests -vv -s
