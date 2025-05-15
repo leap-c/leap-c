@@ -56,6 +56,21 @@ jobs:
       with:
         python-version: "3.11"
 
+    - name: Create and activate micromamba environment
+      shell: bash
+      run: |
+        # Source the micromamba activation
+        eval "$(micromamba shell hook --shell=bash)"
+        # Create a new environment with Python 3.11 and pinocchio
+        micromamba create -n leapc_env python=3.11 pinocchio -c conda-forge -y
+        # Activate the environment and make it available for subsequent steps
+        micromamba activate leapc_env
+        echo "PYTHONPATH=$(python -c 'import sys; print(":".join(sys.path))')" >> $GITHUB_ENV
+        # Make activation persistent across steps
+        echo "MICROMAMBA_ACTIVE_ENV=leapc_env" >> $GITHUB_ENV
+        # Set PATH to include the micromamba environment's bin directory
+        echo "$CONDA_PREFIX/bin" >> $GITHUB_PATH
+
     - name: Cache pip dependencies
       uses: actions/cache@v4
       with:
@@ -68,7 +83,7 @@ jobs:
       working-directory: ${{github.workspace}}/leap_c/external/acados
       run: |
         # Activate the micromamba environment
-        # eval "$(micromamba shell hook --shell=bash)"
+        eval "$(micromamba shell hook --shell=bash)"
         micromamba activate leapc_env
         # Install packages
         pip install --upgrade pip
