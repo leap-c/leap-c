@@ -23,7 +23,7 @@ def resurrect_dir():
 
     with TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
-        main("sac", "point_mass", cfg, tmpdir, "cpu")
+        main("sac", "point_mass_easy", cfg, tmpdir, "cpu")
 
         yield tmpdir
 
