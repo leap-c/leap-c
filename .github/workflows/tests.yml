@@ -106,7 +106,7 @@ jobs:
         # Activate the micromamba environment
         eval "$(micromamba shell hook --shell=bash)"
         micromamba activate leapc_env
-        micromamba install -y -c conda-forge pinocchio=3.4.0
+        micromamba install -y -c conda-forge pinocchio=3.6.0
 
     - name: Check casadi version
       run: |
