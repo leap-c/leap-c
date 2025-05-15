@@ -160,7 +160,10 @@ class PendulumOnCartSwingupEnv(gym.Env):
             info = {"task": {"violation": True, "success": False}}
         if self.t > self.max_time:
             # check if the pole is upright in the last 10 steps
-            success = True if all(np.abs(self.x_trajectory[i][1]) < 0.1 for i in range(-10, 0)) else False
+            if len(self.x_trajectory) >= 10:
+                success = all(np.abs(self.x_trajectory[i][1]) < 0.1 for i in range(-10, 0))
+            else:
+                success = False  # Not enough data to determine success
             info = {"task": {"violation": False, "success": success}}
             trunc = True
         self.reset_needed = trunc or term
