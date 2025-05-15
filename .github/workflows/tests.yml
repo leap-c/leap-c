@@ -88,24 +88,6 @@ jobs:
         # Install packages
         pip install --upgrade pip
         pip install interfaces/acados_template
-        # micromamba install -y -c conda-forge pinocchio=3.4.0
-        # micromamba install -y -c conda-forge casadi=3.7.0
-        # pip install casadi==3.7.0
-
-    - name: Check casadi version
-      run: |
-        # Activate the micromamba environment
-        eval "$(micromamba shell hook --shell=bash)"
-        micromamba activate leapc_env
-        # Check casadi version
-        python -c "import casadi; print(casadi.__version__)"
-
-    - name: Install pinocchio
-      working-directory: ${{github.workspace}}/leap_c/external/acados
-      run: |
-        # Activate the micromamba environment
-        eval "$(micromamba shell hook --shell=bash)"
-        micromamba activate leapc_env
         micromamba install -y -c conda-forge pinocchio=3.6.0
 
     - name: Check casadi version
@@ -115,6 +97,7 @@ jobs:
         micromamba activate leapc_env
         # Check casadi version
         python -c "import casadi; print(casadi.__version__)"
+
 
     - name: Install leap_c
       working-directory: ${{github.workspace}}/leap_c
