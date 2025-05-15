@@ -68,7 +68,7 @@ jobs:
       working-directory: ${{github.workspace}}/leap_c/external/acados
       run: |
         # Activate the micromamba environment
-        eval "$(micromamba shell hook --shell=bash)"
+        # eval "$(micromamba shell hook --shell=bash)"
         micromamba activate leapc_env
         # Install packages
         pip install --upgrade pip
