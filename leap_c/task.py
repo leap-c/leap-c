@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, Sequence
 
 import gymnasium as gym
 import torch
@@ -121,57 +121,63 @@ class Task(ABC):
         """
         return None
 
-    def create_train_env(self, seed: int = 0) -> gym.Env:
+    def create_train_env(self, seed: int = 0,
+                         wrappers: Sequence[Callable[[gym.Env], gym.Env]] | None = None) -> gym.Env:
         """Returns a gymnasium environment for training.
 
         Args:
             seed: The seed for the environment.
+            wrappers: (optional) other wrappers to apply to the environment.
 
         Returns:
             gym.Env: The environment for training.
         """
+        if wrappers is None:
+            wrappers = []
+
         env = self.create_env(train=True)
         env = RecordEpisodeStatistics(env, buffer_length=1)
         env = OrderEnforcing(env)
 
+        for wrapper in wrappers:
+            env = wrapper(env)
+
         env.reset(seed=seed)
         env.observation_space.seed(seed)
         env.action_space.seed(seed)
         return env
 
-    def create_train_env_vectorized(self, seed: int = 0, num_envs: int = 4) -> gym.vector.SyncVectorEnv:
+    def create_train_env_vectorized(self, seed: int = 0, num_envs: int = 4, wrappers: Sequence[Callable[
+        [gym.Env], gym.Env]] | None = None) -> gym.vector.SyncVectorEnv:
         """Returns a gymnasium vectorized environment for training.
 
         Args:
             seed: The seed for the environment.
-            num_envs: Number of environments for
+            num_envs: Number of environments for training.
+            wrappers: (optional) other wrappers to apply to the environment.
 
         Returns:
             gym.vector.SyncVectorEnv: The vectorized environment for training.
         """
+        envs = gym.vector.SyncVectorEnv(
+            [lambda: self.create_train_env(seed=seed, wrappers=wrappers) for _ in range(num_envs)])
+        return envs
 
-        def single_env():
-            e = self.create_env(train=True)
-            #e = RecordEpisodeStatistics(e, buffer_length=1)
-            e = OrderEnforcing(e)
-
-            return e
-
-        env = gym.vector.SyncVectorEnv([single_env for _ in range(num_envs)])
-
-        env.reset(seed=seed)
-        env.observation_space.seed(seed)
-        env.action_space.seed(seed)
-        return env
-
-    def create_eval_env(self, seed: int = 1) -> gym.Env:
+    def create_eval_env(self, seed: int = 1, wrappers: Sequence[Callable[[gym.Env], gym.Env]] | None = None) -> gym.Env:
         """Returns a gymnasium environment for evaluation.
 
         Args:
             seed: The seed for the environment.
+            wrappers: (optional) other wrappers to apply to the environment.
         """
+        if wrappers is None:
+            wrappers = []
+
         env = self.create_env(train=False)
         env = OrderEnforcing(env)
+
+        for wrapper in wrappers:
+            env = wrapper(env)
 
         env.reset(seed=seed)
         env.observation_space.seed(seed)

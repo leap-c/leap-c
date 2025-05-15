@@ -64,29 +64,16 @@ class PpoBaseConfig(BaseConfig):
     seed: int = 0
 
 
-def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
-    torch.nn.init.orthogonal_(layer.weight, std)
-    torch.nn.init.constant_(layer.bias, bias_const)
-    return layer
-
-
 class PpoCritic(nn.Module):
     def __init__(self, task: Task, env: gym.vector.SyncVectorEnv, mlp_cfg: MlpConfig):
         super().__init__()
 
         self.extractor = task.create_extractor(env)
 
-        # self.mlp = MLP(
-        #     input_sizes=self.extractor.output_size,
-        #     output_sizes=1,
-        #     mlp_cfg=mlp_cfg,
-        # )
-        self.mlp = nn.Sequential(
-            layer_init(nn.Linear(self.extractor.output_size, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 1), std=1.0),
+        self.mlp = MLP(
+            input_sizes=self.extractor.output_size,
+            output_sizes=1,
+            mlp_cfg=mlp_cfg,
         )
 
     def forward(self, x: torch.Tensor):
@@ -107,35 +94,17 @@ class PpoActor(nn.Module):
         space = env.single_action_space
         action_dim = space.shape[0]
 
-        # self.mlp = MLP(
-        #     input_sizes=self.extractor.output_size,
-        #     output_sizes=action_dim, # type: ignore
-        #     mlp_cfg=mlp_cfg,
-        # )
-        self.mlp = nn.Sequential(
-            layer_init(nn.Linear(self.extractor.output_size, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, 64)),
-            nn.Tanh(),
-            layer_init(nn.Linear(64, action_dim), std=0.01),
+        self.mlp = MLP(
+            input_sizes=self.extractor.output_size,
+            output_sizes=(action_dim, 1), # type: ignore
+            mlp_cfg=mlp_cfg,
         )
-        self.log_std = nn.Parameter(torch.zeros(1, action_dim))
-
-        # loc = (space.high + space.low) / 2.0
-        # scale = (space.high - space.low) / 2.0
-        #
-        # loc = torch.tensor(loc, dtype=torch.float32)
-        # scale = torch.tensor(scale, dtype=torch.float32)
-        #
-        # self.register_buffer("loc", loc)
-        # self.register_buffer("scale", scale)
 
     def forward(self, x: torch.Tensor, deterministic: bool = False, action=None):
         e = self.extractor(x)
-        mean = self.mlp(e)
-        std = self.log_std.expand_as(mean).exp()
+        mean, log_std = self.mlp(e)
+        std = log_std.expand_as(mean).exp()
 
-        # probs = SquashedGaussianButBetter(mean, std, self.loc, self.scale)
         probs = Normal(mean, std)
 
         if action is None:
@@ -192,7 +161,17 @@ class PpoTrainer(Trainer):
             device: The device on which the trainer is running
             cfg: The configuration for the trainer.
         """
-        super().__init__(task, output_path, device, cfg)
+        wrappers = [
+            lambda env: gym.wrappers.FlattenObservation(env),
+            lambda env: gym.wrappers.RecordEpisodeStatistics(env),
+            lambda env: gym.wrappers.ClipAction(env),
+            lambda env: gym.wrappers.NormalizeObservation(env),
+            lambda env: gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10), None),
+            lambda env: gym.wrappers.NormalizeReward(env, gamma=self.cfg.ppo.gamma),
+            lambda env: gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10)),
+        ]
+
+        super().__init__(task, output_path, device, cfg, wrappers)
 
         assert isinstance(self.train_env, gym.vector.SyncVectorEnv), "Only vectorized tasks are supported"
 

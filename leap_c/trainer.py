@@ -3,7 +3,7 @@ from abc import ABC, abstractmethod
 from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, DefaultDict, Iterator
+from typing import Any, DefaultDict, Iterator, Callable, Sequence
 
 import numpy as np
 import pandas as pd
@@ -11,6 +11,7 @@ import torch
 import wandb
 from torch import nn
 from torch.utils.tensorboard import SummaryWriter
+import gymnasium as gym
 from yaml import safe_dump
 
 from leap_c.rollout import episode_rollout
@@ -162,7 +163,8 @@ class Trainer(ABC, nn.Module):
     """
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: BaseConfig
+            self, task: Task, output_path: str | Path, device: str, cfg: BaseConfig,
+            wrappers: Sequence[Callable[[gym.Env], gym.Env]] | None = None
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -183,10 +185,11 @@ class Trainer(ABC, nn.Module):
 
         # envs
         if cfg.train.vectorized:
-            self.train_env = self.task.create_train_env_vectorized(seed=cfg.seed, num_envs=cfg.train.num_envs)
+            self.train_env = self.task.create_train_env_vectorized(seed=cfg.seed, num_envs=cfg.train.num_envs,
+                                                                   wrappers=wrappers)
         else:
-            self.train_env = self.task.create_train_env(seed=cfg.seed)
-        self.eval_env = self.task.create_eval_env(seed=cfg.seed)
+            self.train_env = self.task.create_train_env(seed=cfg.seed, wrappers=wrappers)
+        self.eval_env = self.task.create_eval_env(seed=cfg.seed, wrappers=wrappers)
 
         # trainer state
         self.state = TrainerState()

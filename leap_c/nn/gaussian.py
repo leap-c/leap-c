@@ -43,14 +43,13 @@ class SquashedGaussian(nn.Module):
         self.register_buffer("scale", scale)
 
     def forward(
-        self, mean: torch.Tensor, log_std: torch.Tensor, deterministic: bool = False, y: torch.Tensor | None = None
+        self, mean: torch.Tensor, log_std: torch.Tensor, deterministic: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """
         Args:
             mean: The mean of the distribution.
             log_std: The logarithm of the standard deviation of the distribution.
             deterministic: If True, the output will just be tanh(mean), no sampling is taking place.
-            y: The y value to evaluate if given.
 
         Returns:
             An output sampled from the TanhNormal, the log probability of this output
@@ -59,11 +58,7 @@ class SquashedGaussian(nn.Module):
         log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
         std = torch.exp(log_std)
 
-        if y is not None: # unsquash y if given
-            y = (y - self.loc[None, :]) / self.scale[None, :]
-            y = torch.clamp(y, -1.0 + 1e-6, 1.0 - 1e-6)
-            y = torch.atanh(y)
-        elif deterministic:
+        if deterministic:
             y = mean
         else:
             # reparameterization trick
@@ -80,12 +75,6 @@ class SquashedGaussian(nn.Module):
 
         y_scaled = y * self.scale[None, :] + self.loc[None, :]
 
-        entropy = log_std + 0.5 * np.log(2 * np.pi * np.e)
-        entropy = entropy.sum(dim=-1)
-        stats = {
-            "gaussian_unsquashed_std": std.mean().item(),
-            # TODO (Mazen): stats shouldn't be included in the computation graph, should move it outside.
-            "entropy": entropy.mean()
-        }
+        stats = {"gaussian_unsquashed_std": std.mean().item()}
 
         return y_scaled, log_prob, stats

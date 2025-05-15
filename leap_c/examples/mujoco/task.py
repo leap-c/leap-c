@@ -2,11 +2,10 @@ from typing import Any, Optional
 
 import gymnasium as gym
 import torch
-import numpy as np
 
 from leap_c.mpc import MpcInput
-from leap_c.task import Task
 from leap_c.registry import register_task
+from leap_c.task import Task
 
 
 @register_task("half_cheetah")
@@ -15,15 +14,7 @@ class HalfCheetahTask(Task):
         super().__init__(None)
 
     def create_env(self, train: bool = True) -> gym.Env:
-        env = gym.make("HalfCheetah-v4") if train else gym.make("HalfCheetah-v4", render_mode="rgb_array")
-        env = gym.wrappers.FlattenObservation(env)
-        env = gym.wrappers.RecordEpisodeStatistics(env)
-        env = gym.wrappers.ClipAction(env)
-        env = gym.wrappers.NormalizeObservation(env)
-        env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10), None)
-        env = gym.wrappers.NormalizeReward(env, gamma=0.99)
-        env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10))
-        return env
+        return gym.make("HalfCheetah-v5") if train else gym.make("HalfCheetah-v5", render_mode="rgb_array")
 
     def prepare_mpc_input(
         self,
