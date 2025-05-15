@@ -34,7 +34,8 @@ class BoundedTransform(nn.Module):
         self.register_buffer("loc", loc)
         self.register_buffer("scale", scale)
 
-    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor]:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+
         """Applies the squashing function to the input tensor.
 
         Args:

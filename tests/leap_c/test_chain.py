@@ -84,7 +84,7 @@ def test_chain_env_mpc_closed_loop():
         n_mass=n_mass, fix_point=fix_point, pos_last_ref=pos_last_mass_ref, param=params
     )
     env.reset()
-    env.set_state(xstart)
+    env.state = xstart
 
     x_ref = env.x_ref
 
