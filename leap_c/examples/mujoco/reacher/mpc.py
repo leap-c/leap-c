@@ -135,8 +135,6 @@ class ReacherMpc(Mpc):
                     print("q", x0[:2])
                     print("q_ref", q_ref)
                     print("dq", x0[2:])
-                    # self.ik_solver.plot_solver_iterations()
-                    # print()
 
                 iterate = self.ocp_solver.store_iterate_to_flat_obj()
 
