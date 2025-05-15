@@ -1,0 +1,30 @@
+# Exclude the .venv directory from linting
+exclude = [".venv"]
+
+[lint]
+# Enable all checks and only disable those which are unwanted.
+select = ["ALL"]
+extend-select = ["I"]
+ignore = [
+  "D1",
+  "COM8",
+  "FA102",
+  "FIX002",
+  "INP001",
+  "PD00",
+  "PTH2",
+  "S101",
+  "SLF001",
+  "T201",
+  "TD0",
+  "N803",  # We want to allow captial argument names
+  "N806",  # We want to allow captial variable names
+  "PLR0913",  # Allow too many variables in function
+  "D212",  # Allow too many blank lines
+  "D409", # Allow 
+  "D406", # Disable: Section name should end with a newline
+  "D413", # Disable: Missing newline at end of file
+  "D205", # Disable: 1 blank line required between summary line and description
+  "E741", # Disable: Do not use variables named 'l', 'O', or 'I' etc.
+  "FBT001", # Disable: Boolean-typed positional argument in function definition
+]
