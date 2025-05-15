@@ -81,8 +81,8 @@ jobs:
       working-directory: ${{github.workspace}}/leap_c/external/acados
       run: |
         # Activate the micromamba environment
-        # eval "$(micromamba shell hook --shell=bash)"
-        # micromamba activate leapc_env
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
         # Install packages
         pip install --upgrade pip
         pip install interfaces/acados_template
@@ -92,8 +92,8 @@ jobs:
       working-directory: ${{github.workspace}}/leap_c
       run: |
         # Activate the micromamba environment
-        # eval "$(micromamba shell hook --shell=bash)"
-        # micromamba activate leapc_env
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
         # Install packages
         pip install -e .[test]
         pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
@@ -102,8 +102,8 @@ jobs:
       working-directory: ${{github.workspace}}/leap_c
       run: |
         # Activate the micromamba environment
-        # eval "$(micromamba shell hook --shell=bash)"
-        # micromamba activate leapc_env
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
         # Run tests
         pwd
         pytest tests -vv -s
