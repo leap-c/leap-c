@@ -6,8 +6,8 @@ import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
+from torch.distributions import Normal
 
-from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
@@ -91,23 +91,44 @@ class PpoActor(nn.Module):
         super().__init__()
 
         self.extractor = task.create_extractor(env)
-        action_dim = env.single_action_space.shape[0]
+        space = env.single_action_space
+        action_dim = space.shape[0]
 
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
-            output_sizes=(action_dim, action_dim), # type: ignore
+            output_sizes=action_dim, # type: ignore
             mlp_cfg=mlp_cfg,
         )
+        self.log_std = nn.Parameter(torch.zeros(1, action_dim))
 
-        self.squashed_gaussian = SquashedGaussian(env.single_action_space)
+        # loc = (space.high + space.low) / 2.0
+        # scale = (space.high - space.low) / 2.0
+        #
+        # loc = torch.tensor(loc, dtype=torch.float32)
+        # scale = torch.tensor(scale, dtype=torch.float32)
+        #
+        # self.register_buffer("loc", loc)
+        # self.register_buffer("scale", scale)
 
     def forward(self, x: torch.Tensor, deterministic: bool = False, action=None):
         e = self.extractor(x)
-        mean, log_std = self.mlp(e)
+        mean = self.mlp(e)
+        std = self.log_std.expand_as(mean).exp()
 
-        action, log_prob, stats = self.squashed_gaussian(mean, log_std, deterministic, action)
+        # probs = SquashedGaussianButBetter(mean, std, self.loc, self.scale)
+        probs = Normal(mean, std)
 
-        return action, log_prob, stats
+        if action is None and deterministic:
+            action = probs.mode
+        elif not deterministic:
+            action = probs.sample()
+
+        log_prob = probs.log_prob(action).sum(dim=1)
+        entropy = probs.entropy().sum(dim=1)
+
+        return action, log_prob, {
+            "entropy": entropy
+        }
 
 
 class ClippedSurrogateLoss(nn.Module):
@@ -206,6 +227,12 @@ class PpoTrainer(Trainer):
                 np.logical_or(is_terminated, is_truncated),
                 value
             ))
+            if "episode" in info:
+                idx = info["episode"]["_r"].argmax()
+                self.report_stats("train", {
+                    "episodic_return": float(info["episode"]["r"][idx]),
+                    "episodic_length": int(info["episode"]["l"][idx]),
+                }, self.state.step)
             #endregion
 
             obs = obs_prime
@@ -265,9 +292,16 @@ class PpoTrainer(Trainer):
                         # Calculating Loss
                         l_clip = self.clipped_loss(new_log_probs, log_probs, mb_advantages).mean()
                         l_vf = self.value_loss(new_values, values, mb_returns)
-                        l_ent = -stats["entropy"]
+                        l_ent = -stats["entropy"].mean()
 
                         loss = l_clip + self.cfg.ppo.l_ent_weight * l_ent + self.cfg.ppo.l_vf_weight * l_vf
+
+                        # torch.set_printoptions(profile="full")
+                        # print(list(self.q.mlp.parameters()))
+                        # print(list(self.pi.mlp.parameters()))
+                        # print(self.pi.log_std)
+                        # torch.set_printoptions(profile="default")
+                        # print()
 
                         # Updating Parameters
                         self.q_optim.zero_grad()
@@ -277,6 +311,7 @@ class PpoTrainer(Trainer):
                         nn.utils.clip_grad_norm_(self.pi.parameters(), self.cfg.ppo.max_grad_norm)
                         self.q_optim.step()
                         self.pi_optim.step()
+
                 self.report_stats("train", {
                     "policy_loss": l_clip.item(),
                     "value_loss": l_vf.item(),
@@ -290,7 +325,6 @@ class PpoTrainer(Trainer):
                     self.pi_lr_scheduler.step()
 
                 self.buffer.clear()
-                obs, _ = self.train_env.reset()
 
             yield self.cfg.train.num_envs
 

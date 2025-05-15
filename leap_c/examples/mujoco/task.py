@@ -15,7 +15,14 @@ class HalfCheetahTask(Task):
         super().__init__(None)
 
     def create_env(self, train: bool = True) -> gym.Env:
-        return gym.make("HalfCheetah-v5") if train else gym.make("HalfCheetah-v5", render_mode="rgb_array")
+        env = gym.make("HalfCheetah-v4") if train else gym.make("HalfCheetah-v4", render_mode="rgb_array")
+        env = gym.wrappers.RecordEpisodeStatistics(env)
+        env = gym.wrappers.ClipAction(env)
+        env = gym.wrappers.NormalizeObservation(env)
+        env = gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10), None)
+        env = gym.wrappers.NormalizeReward(env, gamma=0.99)
+        env = gym.wrappers.TransformReward(env, lambda reward: np.clip(reward, -10, 10))
+        return env
 
     def prepare_mpc_input(
         self,

@@ -152,7 +152,7 @@ class Task(ABC):
 
         def single_env():
             e = self.create_env(train=True)
-            e = RecordEpisodeStatistics(e, buffer_length=1)
+            #e = RecordEpisodeStatistics(e, buffer_length=1)
             e = OrderEnforcing(e)
 
             return e
