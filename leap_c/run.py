@@ -1,10 +1,7 @@
 """Module for experiments and resurrecting trainers."""
 from argparse import ArgumentParser
-from dataclasses import asdict
 import datetime
 from pathlib import Path
-
-import yaml
 
 import leap_c.examples  # noqa: F401
 from leap_c.registry import create_default_cfg, create_task, create_trainer
@@ -99,6 +96,7 @@ def create_parser() -> ArgumentParser:
     """
     parser = ArgumentParser()
     parser.add_argument("--output_path", type=Path, default=None)
+    parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("--trainer", type=str, default="sac_fop")
     parser.add_argument("--task", type=str, default="pendulum_swingup")
     parser.add_argument("--device", type=str, default="cpu")
@@ -115,6 +113,7 @@ if __name__ == "__main__":
     cfg = create_default_cfg(args.trainer)
     cfg.seed = args.seed
     cfg.train.steps = args.steps
+    cfg.log.verbose = args.verbose
 
     if args.output_path is None:
         output_path = default_output_path(args.trainer, args.task, cfg.seed)

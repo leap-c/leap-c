@@ -26,7 +26,7 @@ class LoggerConfig:
         wandb_init_kwargs: The kwargs to pass to wandb.init. If "dir" is not specified, it is set to output path / "wandb".
     """
 
-    verbose: bool = True
+    verbose: bool = False
 
     interval: int = 1000
     window: int = 10000
