@@ -30,14 +30,22 @@ class DummyParent:
 
 def test_print_cfg() -> None:
     expected_output: str = textwrap.dedent("""\
+        # ---- Configuration ----
         cfg = DummyParent()
+        cfg.param = 3
+
+        # ---- Section: cfg.some ----
         cfg.some.x = 3
         cfg.some.y = (12, 13)
+
+        # ---- Section: cfg.some.deep ----
         cfg.some.deep.z = 1.5
+
+        # ---- Section: cfg.other ----
         cfg.other.name = 'abc'
         cfg.other.blob = 3
-        cfg.param = 3
     """).strip()
 
     output: str = cfg_as_python(DummyParent(), root_name="cfg")
+    __import__('pdb').set_trace()
     assert output.strip() == expected_output
