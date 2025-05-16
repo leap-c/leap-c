@@ -8,10 +8,10 @@ import torch
 from torch import nn
 from yaml import safe_dump
 
-from leap_c.logger import Logger, LoggerConfig
-from leap_c.rollout import episode_rollout
+from leap_c.utils.logger import Logger, LoggerConfig
+from leap_c.utils.rollout import episode_rollout
 from leap_c.task import Task
-from leap_c.utils import set_seed
+from leap_c.utils.seed import set_seed
 
 
 @dataclass(kw_only=True)
@@ -307,6 +307,10 @@ class Trainer(ABC, nn.Module):
                 for key in parts_policy[0]
             }
             self.report_stats("val_policy", stats_policy, with_smoothing=False)
+
+        print(f"Validation at {self.state.step}:")
+        for key, value in stats_rollout.items():
+            print(f"  {key}: {value:.3f}")
 
         return float(stats_rollout["score"])
 

@@ -7,12 +7,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.logger import LoggerConfig
+from leap_c.utils.logger import LoggerConfig
 from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.nn.utils import min_max_scaling
 from leap_c.registry import register_trainer
-from leap_c.rl.replay_buffer import ReplayBuffer
+from leap_c.rl.buffer import ReplayBuffer
 from leap_c.rl.utils import soft_target_update
 from leap_c.task import Task
 from leap_c.trainer import BaseConfig, TrainConfig, Trainer, ValConfig
@@ -50,9 +50,9 @@ class SacAlgorithmConfig:
     tau: float = 0.005
     soft_update_freq: int = 1
     lr_q: float = 1e-4
-    lr_pi: float = 3e-4
+    lr_pi: float = 1e-4
     lr_alpha: float | None = 1e-3
-    init_alpha: float = 0.1
+    init_alpha: float = 0.01
     target_entropy: float | None = None
     entropy_reward_bonus: bool = True
     num_critics: int = 2

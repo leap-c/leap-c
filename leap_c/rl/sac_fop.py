@@ -2,7 +2,6 @@
 layer for the policy network."""
 
 from dataclasses import dataclass
-import math
 from pathlib import Path
 from typing import Any, Callable, Iterator, NamedTuple
 
@@ -11,12 +10,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.mpc import MpcBatchedState
+from leap_c.acados.mpc import MpcBatchedState
 from leap_c.nn.gaussian import SquashedGaussian, BoundedTransform
 from leap_c.nn.mlp import MLP, MlpConfig
-from leap_c.nn.modules import MpcSolutionModule
+from leap_c.acados.layer import MpcSolutionModule
 from leap_c.registry import register_trainer
-from leap_c.rl.replay_buffer import ReplayBuffer
+from leap_c.rl.buffer import ReplayBuffer
 from leap_c.rl.sac import SacBaseConfig, SacCritic
 from leap_c.rl.utils import soft_target_update
 from leap_c.task import Task
@@ -125,7 +124,6 @@ class FopActor(nn.Module):
                 .sqrt()
                 .log()
             )
-            # print(f"correction: mean {correction.mean()}, min {correction.min()}, max {correction.max()}")
             log_prob -= correction.unsqueeze(1)
 
         return SacFopActorOutput(
@@ -290,10 +288,6 @@ class SacFopTrainer(Trainer):
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
-            if is_terminated:
-                print(obs_prime)
-                print(pi_output.state_solution.x.reshape(-1, 4))
-                print(pi_output.state_solution.u.reshape(-1, 2))
 
             if "episode" in info:
                 stats = info["episode"]

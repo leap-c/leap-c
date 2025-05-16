@@ -1,59 +1,9 @@
 import atexit
-from dataclasses import fields, is_dataclass
-import os
-import random
 import shutil
 from pathlib import Path
 from tempfile import mkdtemp
-from typing import Any
 
-import casadi as ca
-import numpy as np
-import torch
-from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSim, AcadosSimSolver
-from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
-
-
-def SX_to_labels(SX: ca.SX) -> list[str]:
-    return SX.str().strip("[]").split(", ")
-
-
-def find_idx_for_labels(sub_vars: ca.SX, sub_label: str) -> list[int]:
-    """Return a list of indices where sub_label is part of the variable label."""
-    return [
-        idx
-        for idx, label in enumerate(sub_vars.str().strip("[]").split(", "))
-        if sub_label in label
-    ]
-
-
-def create_dir_if_not_exists(directory):
-    if not os.path.exists(directory):
-        os.mkdir(directory)
-
-
-def collect_status(status: np.ndarray | torch.Tensor | list) -> list:
-    """Count how many occurrences of the respective status number are given."""
-    if isinstance(status, torch.Tensor) or isinstance(status, np.ndarray):
-        return [(status == i).sum().item() for i in range(5)]
-    elif isinstance(status, list):
-        return [status.count(i) for i in range(5)]
-    elif isinstance(status, int):
-        template = [0, 0, 0, 0, 0]
-        template[status] = 1
-        return template
-
-
-def put_each_index_of_tensor_as_entry_into(
-    put_here: dict[str, Any], data: torch.Tensor | np.ndarray, name: str
-):
-    flat_data = data.reshape(-1)
-    for i, entry in enumerate(flat_data):
-        put_here[name + f"_{i}"] = entry.item()
-
-
-def tensor_to_numpy(tensor: torch.Tensor):
-    return tensor.detach().cpu().numpy()
+from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSim, AcadosSimSolver, AcadosOcpBatchSolver
 
 
 class AcadosFileManager:
@@ -170,63 +120,3 @@ class AcadosFileManager:
 
     def __del__(self):
         shutil.rmtree(self.export_directory, ignore_errors=True)
-
-
-def set_standard_sensitivity_options(ocp_sensitivity: AcadosOcp):
-    ocp_sensitivity.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    ocp_sensitivity.solver_options.qp_solver_ric_alg = 1
-    ocp_sensitivity.solver_options.qp_solver_cond_N = (
-        ocp_sensitivity.solver_options.N_horizon
-    )
-    ocp_sensitivity.solver_options.hessian_approx = "EXACT"
-    ocp_sensitivity.solver_options.exact_hess_dyn = True
-    ocp_sensitivity.solver_options.exact_hess_cost = True
-    ocp_sensitivity.solver_options.exact_hess_constr = True
-    ocp_sensitivity.solver_options.with_solution_sens_wrt_params = True
-    ocp_sensitivity.solver_options.with_value_sens_wrt_params = True
-    ocp_sensitivity.solver_options.with_batch_functionality = True
-    ocp_sensitivity.model.name += "_sensitivity"  # type:ignore
-
-
-def set_seed(seed: int):
-    """Set the seed for all random number generators."""
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
-
-def update_dataclass_from_dict(dataclass_instance, update_dict):
-    """Recursively update a dataclass instance with values from a dictionary."""
-    for field in fields(dataclass_instance):
-        # Check if the field is present in the update dictionary
-        if field.name in update_dict:
-            # If the field is a dataclass itself, recursively update it
-            if is_dataclass(getattr(dataclass_instance, field.name)):
-                update_dataclass_from_dict(getattr(dataclass_instance, field.name), update_dict[field.name])
-            else:
-                # Otherwise, directly update the field
-                setattr(dataclass_instance, field.name, update_dict[field.name])
-
-
-def log_git_hash_and_diff(filename: Path):
-    """Log the git hash and diff of the current commit to a file."""
-    try:
-        git_hash = (
-            os.popen("git rev-parse HEAD").read().strip()
-            if os.path.exists(".git")
-            else "No git repository"
-        )
-        git_diff = (
-            os.popen("git diff").read().strip()
-            if os.path.exists(".git")
-            else "No git repository"
-        )
-
-        with open(filename, "w") as f:
-            f.write(f"Git hash: {git_hash}\n")
-            f.write(f"Git diff:\n{git_diff}\n")
-    except Exception as e:
-        print(f"Error logging git hash and diff: {e}")
-

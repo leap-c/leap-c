@@ -10,7 +10,7 @@ from acados_template.acados_ocp_iterate import (
 from torch.utils._pytree import tree_map_only
 from torch.utils.data._utils.collate import default_collate_fn_map
 
-from leap_c.mpc import MpcParameter
+from leap_c.acados.mpc import MpcParameter
 
 
 def safe_collate_possible_nones(

@@ -1,7 +1,6 @@
 """Provides a trainer for a Soft Actor-Critic algorithm that uses a differentiable MPC
 layer for the policy network."""
 
-from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator, NamedTuple
 
@@ -10,13 +9,13 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.mpc import MpcBatchedState
+from leap_c.acados.mpc import MpcBatchedState
 from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.nn.mlp import MLP, MlpConfig
-from leap_c.nn.modules import MpcSolutionModule
+from leap_c.acados.layer import MpcSolutionModule
 from leap_c.nn.utils import min_max_scaling
 from leap_c.registry import register_trainer
-from leap_c.rl.replay_buffer import ReplayBuffer
+from leap_c.rl.buffer import ReplayBuffer
 from leap_c.rl.utils import soft_target_update
 from leap_c.rl.sac import SacBaseConfig
 from leap_c.task import Task

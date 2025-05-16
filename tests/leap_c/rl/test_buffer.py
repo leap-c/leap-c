@@ -8,8 +8,8 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedIterate,
 )
 from leap_c.collate import safe_collate_possible_nones
-from leap_c.mpc import MpcParameter
-from leap_c.rl.replay_buffer import ReplayBuffer
+from leap_c.acados.mpc import MpcParameter
+from leap_c.rl.buffer import ReplayBuffer
 
 
 class ForNesting(NamedTuple):
