@@ -1,4 +1,4 @@
-from leap_c.logger import GroupWindowTracker
+from leap_c.utils.logger import GroupWindowTracker
 import numpy as np
 
 

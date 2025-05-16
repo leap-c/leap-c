@@ -1,6 +1,6 @@
 import textwrap
 from dataclasses import dataclass, field
-from leap_c.print_cfg import print_cfg_as_python
+from leap_c.utils.cfg import cfg_as_python
 
 
 @dataclass
@@ -39,5 +39,5 @@ def test_print_cfg() -> None:
         cfg.param = 3
     """).strip()
 
-    output: str = print_cfg_as_python(DummyParent(), root_name="cfg")
+    output: str = cfg_as_python(DummyParent(), root_name="cfg")
     assert output.strip() == expected_output

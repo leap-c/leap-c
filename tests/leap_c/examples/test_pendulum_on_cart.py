@@ -9,7 +9,6 @@ from acados_template import AcadosOcpSolver
 from gymnasium.utils.save_video import save_video
 from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
-from leap_c.utils import create_dir_if_not_exists
 
 
 def plot_cart_pole_solution(
@@ -172,3 +171,8 @@ def main():
 
 if __name__ == "__main__":
     pytest.main([__file__])
+
+
+def create_dir_if_not_exists(directory):
+    if not os.path.exists(directory):
+        os.mkdir(directory)

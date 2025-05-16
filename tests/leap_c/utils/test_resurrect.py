@@ -5,7 +5,7 @@ import pytest
 
 from leap_c.examples.pointmass.task import PointMassEasyTask as PointMassTask
 from leap_c.registry import create_default_cfg
-from leap_c.resurrect import resurrect_cfg, resurrect_task, resurrect_trainer
+from leap_c.utils.resurrect import resurrect_cfg, resurrect_task, resurrect_trainer
 from leap_c.rl.sac import SacBaseConfig, SacTrainer
 from leap_c.run import main
 

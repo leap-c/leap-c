@@ -8,9 +8,9 @@ from gymnasium import spaces
 from leap_c.examples.mujoco.reacher.env import ReacherEnv
 from leap_c.examples.mujoco.reacher.mpc import ReacherMpc
 from leap_c.examples.mujoco.reacher.util import ReferencePath, PathGeometry
-from leap_c.mpc import MpcInput, MpcParameter
+from leap_c.acados.mpc import MpcInput, MpcParameter
 from leap_c.nn.extractor import ScalingExtractor
-from leap_c.nn.modules import MpcSolutionModule
+from leap_c.acados.layer import MpcSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
 

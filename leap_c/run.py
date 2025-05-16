@@ -10,7 +10,8 @@ import leap_c.examples  # noqa: F401
 from leap_c.registry import create_default_cfg, create_task, create_trainer
 import leap_c.rl
 from leap_c.trainer import BaseConfig
-from leap_c.utils import log_git_hash_and_diff
+from leap_c.utils.cfg import cfg_as_python
+from leap_c.utils.git import log_git_hash_and_diff
 
 
 def print_inputs(
@@ -29,7 +30,8 @@ def print_inputs(
 
     # Report on the configuration
     print("\nConfiguration:")
-    print(yaml.dump(asdict(cfg), default_flow_style=False))
+    print(cfg_as_python(cfg))
+    print("\n")
 
 
 def default_output_path(trainer_name: str, task_name: str, seed: int) -> Path:

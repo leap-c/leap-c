@@ -6,8 +6,8 @@ import torch
 from gymnasium import spaces
 from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pointmass.mpc import PointMassMPC
-from leap_c.mpc import MpcInput, MpcParameter
-from leap_c.nn.modules import MpcSolutionModule
+from leap_c.acados.mpc import MpcInput, MpcParameter
+from leap_c.acados.layer import MpcSolutionModule
 from leap_c.nn.extractor import ScalingExtractor
 from leap_c.registry import register_task
 from leap_c.task import Task

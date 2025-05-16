@@ -1,13 +1,11 @@
-from dataclasses import fields
-
 import numpy as np
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
 )
 
 # from leap_c.examples.linear_system import LinearSystemMPC
-from leap_c.mpc import Mpc, MpcInput, MpcOutput, MpcParameter, create_zero_init_state_fn
-from leap_c.utils import find_idx_for_labels
+from leap_c.acados.mpc import Mpc, MpcInput, MpcOutput, MpcParameter
+from leap_c.acados.utils import find_idx_for_labels
 
 
 def mpc_outputs_assert_allclose(

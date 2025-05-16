@@ -14,7 +14,7 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.mpc import Mpc, MpcBatchedState, MpcInput
+from leap_c.acados.mpc import Mpc, MpcBatchedState, MpcInput
 
 
 class ReacherMpc(Mpc):
