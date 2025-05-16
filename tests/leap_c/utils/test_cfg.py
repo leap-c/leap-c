@@ -47,5 +47,4 @@ def test_print_cfg() -> None:
     """).strip()
 
     output: str = cfg_as_python(DummyParent(), root_name="cfg")
-    __import__('pdb').set_trace()
     assert output.strip() == expected_output
