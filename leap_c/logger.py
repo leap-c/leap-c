@@ -1,18 +1,20 @@
 import bisect
 from collections import defaultdict
+from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any
 
 import numpy as np
 import pandas as pd
-from torch.utils.tensorboard import SummaryWriter
 import wandb
+from torch.utils.tensorboard import SummaryWriter
 
 
 @dataclass(kw_only=True)
 class LoggerConfig:
-    """Contains the necessary information for logging.
+    """
+    Contains the necessary information for logging.
 
     Args:
         verbose: If True, the logger will collect also verbose statistics.
@@ -40,8 +42,9 @@ class GroupWindowTracker:
         self,
         interval: int,
         window_size: int,
-    ):
-        """Initialize the group window tracker.
+    ) -> None:
+        """
+        Initialize the group window tracker.
 
         Args:
             interval: The interval at which statistics will be logged.
@@ -56,7 +59,8 @@ class GroupWindowTracker:
     def update(
         self, timestamp: int, stats: dict[str, float]
     ) -> Generator[tuple[int, dict[str, float]], None, None]:
-        """Add timestamp and statistics to the tracker.
+        """
+        Add timestamp and statistics to the tracker.
 
         This method adds the timestamp and statistics to the tracker. If the
         statistics are larger than the window size, the oldest statistics are
@@ -78,8 +82,7 @@ class GroupWindowTracker:
 
             if len(self._timestamps[key]) > 1:
                 prev_t = self._timestamps[key][-2]
-                if prev_timestamp < prev_t:
-                    prev_timestamp = prev_t
+                prev_timestamp = max(prev_timestamp, prev_t)
 
         if prev_timestamp == -1:
             return None
@@ -90,7 +93,7 @@ class GroupWindowTracker:
         if interval_idx == interval_idx_prev:
             return None
 
-        def clean_until(t: int):
+        def clean_until(t: int) -> None:
             for key in self._statistics.keys():
                 while self._timestamps[key] and self._timestamps[key][0] <= t:
                     del self._timestamps[key][0]
@@ -120,7 +123,8 @@ class GroupWindowTracker:
 
 
 class Logger:
-    """A simple logger for statistics.
+    """
+    A simple logger for statistics.
 
     This logger can write statistics to CSV, TensorBoard, and Weights & Biases.
 
@@ -133,8 +137,9 @@ class Logger:
         writer: The TensorBoard writer.
     """
 
-    def __init__(self, cfg: LoggerConfig, output_path: str | Path):
-        """Initialize the logger.
+    def __init__(self, cfg: LoggerConfig, output_path: str | Path) -> None:
+        """
+        Initialize the logger.
 
         Args:
             cfg: The configuration for the logger.
@@ -167,7 +172,8 @@ class Logger:
         verbose: bool = False,
         with_smoothing: bool = True,
     ):
-        """Report statistics.
+        """
+        Report statistics.
 
         If the statistics are a numpy array, the array is split into multiple
         statistics of the form `key_{i}`.
@@ -203,7 +209,8 @@ class Logger:
         # find correct iterable
         if with_smoothing:
             report_loop = self.group_trackers[group].update(
-                timestamp, stats  # type:ignore
+                timestamp,
+                stats,  # type:ignore
             )
         else:
             report_loop = [(timestamp, stats)]
@@ -230,8 +237,9 @@ class Logger:
                 df = pd.DataFrame(report_stats, index=[report_timestamp])  # type: ignore
                 df.to_csv(csv_path, **kw)
 
-    def close(self):
-        """Close the logger.
+    def close(self) -> None:
+        """
+        Close the logger.
 
         This will close the TensorBoard writer and finish the Weights & Biases run.
         """
