@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from leap_c.logger import LoggerConfig
 from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.nn.utils import min_max_scaling
@@ -14,7 +15,7 @@ from leap_c.registry import register_trainer
 from leap_c.rl.replay_buffer import ReplayBuffer
 from leap_c.rl.utils import soft_target_update
 from leap_c.task import Task
-from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
+from leap_c.trainer import BaseConfig, TrainConfig, Trainer, ValConfig
 
 
 @dataclass(kw_only=True)
@@ -74,7 +75,7 @@ class SacBaseConfig(BaseConfig):
     sac: SacAlgorithmConfig = field(default_factory=SacAlgorithmConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     val: ValConfig = field(default_factory=ValConfig)
-    log: LogConfig = field(default_factory=LogConfig)
+    log: LoggerConfig = field(default_factory=LoggerConfig)
     seed: int = 0
 
 
@@ -191,8 +192,8 @@ class SacTrainer(Trainer):
                 is_terminated = is_truncated = False
 
             action, _, stats = self.act(obs)  # type: ignore
-            self.report_stats("train_trajectory", {"action": action}, self.state.step)
-            self.report_stats("train_policy_rollout", stats, self.state.step)  # type: ignore
+            self.report_stats("train_trajectory", {"action": action}, verbose=True)
+            self.report_stats("train_policy_rollout", stats, verbose=True)  # type: ignore
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
@@ -265,18 +266,16 @@ class SacTrainer(Trainer):
                 # soft updates
                 soft_target_update(self.q, self.q_target, self.cfg.sac.tau)
 
-                report_freq = self.cfg.sac.report_loss_freq * self.cfg.sac.update_freq
-
-                if self.state.step % report_freq == 0:
-                    loss_stats = {
-                        "q_loss": q_loss.item(),
-                        "pi_loss": pi_loss.item(),
-                        "alpha": alpha,
-                        "q": q.mean().item(),
-                        "q_target": target.mean().item(),
-                        "entropy": -log_p.mean().item(),
-                    }
-                    self.report_stats("loss", loss_stats, self.state.step + 1)
+                # report stats
+                loss_stats = {
+                    "q_loss": q_loss.item(),
+                    "pi_loss": pi_loss.item(),
+                    "alpha": alpha,
+                    "q": q.mean().item(),
+                    "q_target": target.mean().item(),
+                    "entropy": -log_p.mean().item(),
+                }
+                self.report_stats("loss", loss_stats)
 
             yield 1
 

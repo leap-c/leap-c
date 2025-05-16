@@ -190,8 +190,8 @@ class SacZopTrainer(Trainer):
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
-            self.report_stats("train_trajectory", {"action": action, "param": param})
-            self.report_stats("train_policy_rollout", pi_output.stats)
+            self.report_stats("train_trajectory", {"action": action, "param": param}, verbose=True)
+            self.report_stats("train_policy_rollout", pi_output.stats, verbose=True)
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
@@ -274,18 +274,16 @@ class SacZopTrainer(Trainer):
                 # soft updates
                 soft_target_update(self.q, self.q_target, self.cfg.sac.tau)
 
-                report_freq = self.cfg.sac.report_loss_freq * self.cfg.sac.update_freq
-
-                if self.state.step % report_freq == 0:
-                    loss_stats = {
-                        "q_loss": q_loss.item(),
-                        "pi_loss": pi_loss.item(),
-                        "alpha": alpha,
-                        "q": q.mean().item(),
-                        "q_target": target.mean().item(),
-                        "entropy": -log_p.mean().item(),
-                    }
-                    self.report_stats("loss", loss_stats, self.state.step + 1)
+                # report stats
+                loss_stats = {
+                    "q_loss": q_loss.item(),
+                    "pi_loss": pi_loss.item(),
+                    "alpha": alpha,
+                    "q": q.mean().item(),
+                    "q_target": target.mean().item(),
+                    "entropy": -log_p.mean().item(),
+                }
+                self.report_stats("loss", loss_stats, verbose=True)
 
             yield 1
 

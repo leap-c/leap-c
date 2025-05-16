@@ -1,21 +1,17 @@
-import bisect
 from abc import ABC, abstractmethod
-from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, DefaultDict, Iterator
+from typing import Any, Iterator
 
 import numpy as np
-import pandas as pd
 import torch
-import wandb
 from torch import nn
-from torch.utils.tensorboard import SummaryWriter
 from yaml import safe_dump
 
+from leap_c.logger import Logger, LoggerConfig
 from leap_c.rollout import episode_rollout
 from leap_c.task import Task
-from leap_c.utils import add_prefix_extend, set_seed
+from leap_c.utils import set_seed
 
 
 @dataclass(kw_only=True)
@@ -29,36 +25,6 @@ class TrainConfig:
 
     steps: int = 100000
     start: int = 0
-
-
-@dataclass(kw_only=True)
-class LogConfig:
-    """Contains the necessary information for logging.
-
-    Args:
-        train_interval: The interval at which training statistics will be logged.
-        train_window: The moving window size for the training statistics.
-            This is calculated by the number of training steps.
-        val_window: The moving window size for the validation statistics (note that
-            this does not consider the training step but the number of validation episodes).
-        log_actions: If True, the actions from interacting with environments will be logged.
-        csv_logger: If True, the statistics will be logged to a CSV file.
-        tensorboard_logger: If True, the statistics will be logged to TensorBoard.
-        wandb_logger: If True, the statistics will be logged to Weights & Biases.
-        wandb_init_kwargs: The kwargs to pass to wandb.init. If "dir" is not specified, it is set to output path / "wandb".
-    """
-
-    train_interval: int = 1000
-    train_window: int = 1000
-
-    val_window: int = 1
-
-    log_actions: bool = False
-
-    csv_logger: bool = True
-    tensorboard_logger: bool = True
-    wandb_logger: bool = False
-    wandb_init_kwargs: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(kw_only=True)
@@ -103,7 +69,7 @@ class BaseConfig:
 
     train: TrainConfig
     val: ValConfig
-    log: LogConfig
+    log: LoggerConfig
     seed: int
 
 
@@ -127,39 +93,17 @@ def set_to_test_cfg(cfg: BaseConfig) -> BaseConfig:
     return cfg
 
 
-def defaultdict_list() -> DefaultDict[str, list]:
-    """Returns a defaultdict with a list as default value.
-
-    We make this explicit to avoid issues with pickling."""
-    return defaultdict(list)
-
-
-def nested_defaultdict_list() -> DefaultDict[str, DefaultDict[str, list]]:
-    """Returns a nested defaultdict with a list as default value.
-
-    We make this explicit to avoid issues with pickling."""
-    return defaultdict(defaultdict_list)
-
-
 @dataclass(kw_only=True)
 class TrainerState:
     """The state of a trainer.
 
-    Contains all the necessary information to save and load a trainer state
-    and to calculate the training statistics. Thus everything that is not
-    stored by the torch state dict.
-
     Attributes:
         step: The current step of the training loop.
         timestamps: A dictionary containing the timestamps of the statistics.
-        logs: A dictionary of dictionaries containing the statistics.
-        scores: A list containing the scores of the validation episodes.
         max_score: The maximum score of the validation episodes.
     """
 
     step: int = 0
-    timestamps: dict = field(default_factory=defaultdict_list)
-    logs: dict = field(default_factory=nested_defaultdict_list)
     scores: list[float] = field(default_factory=list)
     max_score: float = -float("inf")
 
@@ -208,17 +152,8 @@ class Trainer(ABC, nn.Module):
         # trainer state
         self.state = TrainerState()
 
-        # init wandb
-        if cfg.log.wandb_logger:
-            if not cfg.log.wandb_init_kwargs.get("dir", False):  # type:ignore
-                wandbdir = self.output_path / "wandb"
-                wandbdir.mkdir(exist_ok=True)
-                cfg.log.wandb_init_kwargs["dir"] = str(wandbdir)
-            wandb.init(**cfg.log.wandb_init_kwargs)
-
-        # tensorboard
-        if cfg.log.tensorboard_logger:
-            self.writer = SummaryWriter(self.output_path)
+        # logger
+        self.logger = Logger(cfg.log, self.output_path)
 
         # log dataclass config as yaml
         with open(self.output_path / "config.yaml", "w") as f:
@@ -270,8 +205,8 @@ class Trainer(ABC, nn.Module):
         self,
         group: str,
         stats: dict[str, float | np.ndarray],
-        timestamp: int | None = None,
-        window_size: int | None = None,
+        verbose: bool = False,
+        with_smoothing: bool = True,
     ):
         """Report the statistics of the training loop.
 
@@ -281,63 +216,12 @@ class Trainer(ABC, nn.Module):
         Args:
             group: The group of the statistics.
             stats: The statistics to be reported.
-            timestamp: The timestamp of the logging entry. If None, the step
-                saved in the trainer state is used.
-            window_size: The window size for smoothing the statistics.
+            verbose: If True, the statistics will only be logged in verbosity mode.
+            with_smoothing: If True, the statistics are smoothed with a moving window.
+                This also results in the statistics being only reported at specific
+                intervals.
         """
-        if timestamp is None:
-            timestamp = self.state.step
-
-        for key, value in list(stats.items()):
-            if not isinstance(value, np.ndarray):
-                continue
-
-            if value.size == 1:
-                stats[key] = float(value)
-                continue
-
-            assert value.ndim == 1, "Only 1D arrays are supported."
-
-            stats.pop(key)
-            for i, v in enumerate(value):
-                stats[f"{key}_{i}"] = float(v)
-
-        self.state.timestamps[group].append(timestamp)
-        for key, value in stats.items():
-            self.state.logs[group][key].append(value)
-
-        if window_size is not None:
-            window_idx = bisect.bisect_left(
-                self.state.timestamps[group],
-                timestamp - window_size,  # type: ignore
-            )
-            stats = {
-                key: float(np.mean(values[-window_idx:]))
-                for key, values in self.state.logs[group].items()
-            }
-
-        if group == "train" or group == "val":
-            print(f"Step: {timestamp}, {group}: {stats}")
-
-        if self.cfg.log.wandb_logger:
-            newstats = {}
-            add_prefix_extend(prefix=group + "/", extended=newstats, extending=stats)
-            wandb.log(newstats, step=timestamp)
-
-        if self.cfg.log.tensorboard_logger:
-            for key, value in stats.items():
-                self.writer.add_scalar(f"{group}/{key}", value, timestamp)
-
-        if self.cfg.log.csv_logger:
-            csv_path = self.output_path / f"{group}_log.csv"
-
-            if csv_path.exists():
-                kw = {"mode": "a", "header": False}
-            else:
-                kw = {"mode": "w", "header": True}
-
-            df = pd.DataFrame(stats, index=[timestamp])  # type: ignore
-            df.to_csv(csv_path, **kw)
+        self.logger(group, stats, self.state.step, verbose, with_smoothing)
 
     def run(self) -> float:
         """Call this function in your script to start the training loop."""
@@ -370,6 +254,9 @@ class Trainer(ABC, nn.Module):
 
         if self.cfg.val.report_score == "cum":
             return sum(self.state.scores)
+
+        self.logger.close()
+
         return self.state.max_score
 
     def validate(self) -> float:
@@ -412,16 +299,14 @@ class Trainer(ABC, nn.Module):
             key: float(np.mean([p[key] for p in parts_rollout]))
             for key in parts_rollout[0]
         }
-        self.report_stats(
-            "val", stats_rollout, self.state.step, self.cfg.log.val_window
-        )
+        self.report_stats("val", stats_rollout, with_smoothing=False)
 
         if parts_policy[0]:
             stats_policy = {
                 key: float(np.mean(np.concatenate([p[key] for p in parts_policy])))
                 for key in parts_policy[0]
             }
-            self.report_stats("val_policy", stats_policy, self.state.step)
+            self.report_stats("val_policy", stats_policy, with_smoothing=False)
 
         return float(stats_rollout["score"])
 

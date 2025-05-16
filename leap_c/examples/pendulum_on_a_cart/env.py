@@ -164,6 +164,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
                 success = all(np.abs(self.x_trajectory[i][1]) < 0.1 for i in range(-10, 0))
             else:
                 success = False  # Not enough data to determine success
+
             info = {"task": {"violation": False, "success": success}}
             trunc = True
         self.reset_needed = trunc or term
