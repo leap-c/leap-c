@@ -307,13 +307,10 @@ class Trainer(ABC, nn.Module):
                 for key in parts_policy[0]
             }
             self.report_stats("val_policy", stats_policy, with_smoothing=False)
-<<<<<<< HEAD
 
-        print(f"Val. at {self.state.step}:")
+        print(f"Validation at {self.state.step}:")
         for key, value in stats_rollout.items():
             print(f"  {key}: {value:.3f}")
-=======
->>>>>>> main
 
         return float(stats_rollout["score"])
 
