@@ -20,7 +20,7 @@ def _add_none(data):
 
 def create_autograd_function(obj) -> type[torch.autograd.Function]:
     """
-    Create a PyTorch autograd function from an object implementing
+    Creates a PyTorch autograd function from an object implementing
     NumPy-based forward and backward methods.
 
     An example:
@@ -42,8 +42,7 @@ def create_autograd_function(obj) -> type[torch.autograd.Function]:
              `backward(custom_ctx, *grad_outputs)` using NumPy.
 
     Returns:
-        A callable function that behaves like a PyTorch autograd
-        function.
+        A PyTorch autograd function, wrapping the object.
 
     Usage:
         ctx = SimpleNamespace()
