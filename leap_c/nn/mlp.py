@@ -1,6 +1,6 @@
 from collections.abc import Sequence
-from dataclasses import dataclass
-from typing import Callable
+from dataclasses import dataclass, field
+from typing import Callable, Any
 
 import torch
 import torch.nn as nn
@@ -19,24 +19,42 @@ def string_to_activation(activation: str) -> nn.Module:
         raise ValueError(f"Activation function {activation} not recognized.")
 
 
-def orthogonal_init(module: nn.Module) -> None:
+def orthogonal_init(module: nn.Module, gain: float = 1.0, bias: float = 0.0) -> None:
     if isinstance(module, nn.Linear):
-        nn.init.orthogonal_(module.weight.data)
-        module.bias.data.fill_(0.0)
+        nn.init.orthogonal_(module.weight.data, gain)
+        torch.nn.init.constant_(module.bias, bias)
 
 
-def string_to_weight_init(weight_init: str) -> Callable[[nn.Module], None]:
+def string_to_weight_init(weight_init: str = "orthogonal", **kwargs) -> Callable[[nn.Module], None]:
     if weight_init == "orthogonal":
-        return orthogonal_init
+        init_fn = orthogonal_init
     else:
         raise ValueError(f"Weight initialization {weight_init} not recognized.")
+    return lambda m: init_fn(m, **kwargs)
+
+
+@dataclass(kw_only=True)
+class WeightInitConfig:
+    name: str = "orthogonal"
+    kwargs: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(kw_only=True)
 class MlpConfig:
     hidden_dims: Sequence[int] = (256, 256, 256)
     activation: str = "relu"
-    weight_init: str | None = "orthogonal"  # If None, no init will be used
+    weight_init: WeightInitConfig | Sequence[WeightInitConfig] | None = field(
+        default_factory=WeightInitConfig
+    )  # if None, no init will be used
+
+    def __post_init__(self):
+        if isinstance(self.weight_init, Sequence):
+            expected_length = len(self.hidden_dims) + 1
+            if len(self.weight_init) != expected_length:
+                raise ValueError(
+                    f"Invalid weight initialization sequence length. Expected {expected_length} "
+                    f"(number of hidden dimensions + 1), but got {len(self.weight_init)}"
+                )
 
 
 class MLP(nn.Module):
@@ -83,9 +101,16 @@ class MLP(nn.Module):
 
         self.mlp = nn.Sequential(*layers[:-1])
 
-        # TODO: (Mazen) allow for layer-wise std
         if mlp_cfg.weight_init is not None:
-            self.mlp.apply(string_to_weight_init(mlp_cfg.weight_init))
+            if isinstance(mlp_cfg.weight_init, WeightInitConfig):
+                name, kwargs = mlp_cfg.weight_init.name, mlp_cfg.weight_init.kwargs
+                self.mlp.apply(string_to_weight_init(name, **kwargs))
+            elif isinstance(mlp_cfg.weight_init, Sequence):
+                for init in mlp_cfg.weight_init:
+                    name, kwargs = init.name, init.kwargs
+                    self.mlp.apply(string_to_weight_init(name, **kwargs))
+            else:
+                raise ValueError(f"Invalid weight initialization configuration: {mlp_cfg.weight_init}")
 
     def forward(self, *x: torch.Tensor) -> torch.Tensor | tuple[torch.Tensor, ...]:
         if isinstance(x, tuple):

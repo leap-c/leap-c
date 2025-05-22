@@ -25,6 +25,17 @@ class PpoAlgorithmConfig:
         num_steps: The number of steps per rollout.
         lr_q: The learning rate for the critic network.
         lr_pi: The learning rate for the actor network.
+        anneal_lr: Whether to anneal the learning rate during training.
+        gamma: The discount factor for future rewards.
+        gae_lambda: The lambda parameter for Generalized Advantage Estimation.
+        clipping_epsilon: The clipping parameter for the PPO loss.
+        l_vf_weight: The weight of the value function loss.
+        l_ent_weight: The weight of the entropy loss.
+        num_mini_batches: The number of mini-batches to use for updates.
+        update_epochs: The number of epochs to update the policy and value networks.
+        normalize_advantages: Whether to normalize advantages.
+        clip_value_loss: Whether to clip the value loss.
+        max_grad_norm: The maximum gradient norm for gradient clipping.
     """
 
     critic_mlp: MlpConfig = field(default_factory=MlpConfig)
@@ -36,7 +47,7 @@ class PpoAlgorithmConfig:
     gamma: float = 0.99
     gae_lambda: float = 0.95
     clipping_epsilon: float = 0.2
-    l_vf_weight: float = 0.5
+    l_vf_weight: float = 0.25
     l_ent_weight: float = 0.01
     num_mini_batches: int = 4
     update_epochs: int = 4
@@ -84,9 +95,6 @@ class PpoCritic(nn.Module):
 
 
 class PpoActor(nn.Module):
-    scale: torch.Tensor
-    loc: torch.Tensor
-
     def __init__(self, task, env, mlp_cfg: MlpConfig):
         super().__init__()
 
@@ -113,9 +121,7 @@ class PpoActor(nn.Module):
         log_prob = probs.log_prob(action).sum(dim=1)
         entropy = probs.entropy().sum(dim=1)
 
-        return action, log_prob, {
-            "entropy": entropy
-        }
+        return action, log_prob, entropy
 
 
 class ClippedSurrogateLoss(nn.Module):
@@ -125,9 +131,11 @@ class ClippedSurrogateLoss(nn.Module):
 
     def forward(self, new_log_prob: torch.Tensor, old_log_prob: torch.Tensor, advantage: torch.Tensor) -> torch.Tensor:
         ratio = torch.exp(new_log_prob - old_log_prob)
+        
         unclipped_loss = -advantage * ratio
         clipped_loss = -advantage * torch.clamp(ratio, 1 - self.epsilon, 1 + self.epsilon)
-        return torch.max(unclipped_loss, clipped_loss)
+        
+        return torch.max(unclipped_loss, clipped_loss).mean()
 
 
 class ValueSquaredErrorLoss(nn.Module):
@@ -137,13 +145,17 @@ class ValueSquaredErrorLoss(nn.Module):
         self.epsilon = epsilon
 
     def forward(self, new_values: torch.Tensor, old_values: torch.Tensor, returns: torch.Tensor) -> torch.Tensor:
+        unclipped_loss = (new_values - returns) ** 2
+        
         if self.clipped:
-            unclipped_loss = (new_values - returns) ** 2
-            clipped_values = old_values + torch.clamp(new_values - old_values, -self.epsilon, self.epsilon)
+            value_diff = new_values - old_values
+            clipped_values = old_values + torch.clamp(value_diff, -self.epsilon, self.epsilon)
             clipped_loss = (clipped_values - returns) ** 2
-            return 0.5 * torch.max(unclipped_loss, clipped_loss).mean()
+            loss = torch.max(unclipped_loss, clipped_loss)
         else:
-            return 0.5 * ((new_values - returns) ** 2).mean()
+            loss = unclipped_loss
+            
+        return loss.mean()
 
 
 @register_trainer("ppo", PpoBaseConfig())
@@ -163,7 +175,6 @@ class PpoTrainer(Trainer):
         """
         wrappers = [
             lambda env: gym.wrappers.FlattenObservation(env),
-            lambda env: gym.wrappers.RecordEpisodeStatistics(env),
             lambda env: gym.wrappers.ClipAction(env),
             lambda env: gym.wrappers.NormalizeObservation(env),
             lambda env: gym.wrappers.TransformObservation(env, lambda obs: np.clip(obs, -10, 10), None),
@@ -204,16 +215,19 @@ class PpoTrainer(Trainer):
         while True:
             #region Rollout Collection
             obs_collate = self.task.collate(obs, self.device)
+
             with torch.no_grad():
                 action, log_prob, _ = self.pi(obs_collate)
-                value = self.q(obs_collate).cpu().numpy()
-                action = action.cpu().numpy()
-                log_prob = log_prob.cpu().numpy()
+                value = self.q(obs_collate)
+
+            value = value.cpu().numpy()
+            action = action.cpu().numpy()
+            log_prob = log_prob.cpu().numpy()
+
             self.report_stats("train_trajectory", {"action": action}, self.state.step)
 
-            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
-                action
-            )
+            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
+
             self.buffer.put((
                 obs,
                 action,
@@ -224,6 +238,7 @@ class PpoTrainer(Trainer):
                 np.logical_or(is_terminated, is_truncated),
                 value
             ))
+
             if "episode" in info:
                 idx = info["episode"]["_r"].argmax()
                 self.report_stats("train", {
@@ -284,28 +299,27 @@ class PpoTrainer(Trainer):
                             mb_advantages = (mb_advantages - mb_advantages.mean()) / (mb_advantages.std() + 1e-8)
 
                         new_values = self.q(observations)
-                        _, new_log_probs, stats = self.pi(observations, action=actions)
+                        _, new_log_probs, entropy = self.pi(observations, action=actions)
 
                         # Calculating Loss
-                        l_clip = self.clipped_loss(new_log_probs, log_probs, mb_advantages).mean()
+                        l_clip = self.clipped_loss(new_log_probs, log_probs, mb_advantages)
                         l_vf = self.value_loss(new_values, values, mb_returns)
-                        l_ent = -stats["entropy"].mean()
+                        l_ent = -entropy.mean()
 
                         loss = l_clip + self.cfg.ppo.l_ent_weight * l_ent + self.cfg.ppo.l_vf_weight * l_vf
 
                         # Updating Parameters
-                        self.q_optim.zero_grad()
-                        self.pi_optim.zero_grad()
+                        for optim in self.optimizers:
+                            optim.zero_grad()
                         loss.backward()
-                        nn.utils.clip_grad_norm_(self.q.parameters(), self.cfg.ppo.max_grad_norm)
-                        nn.utils.clip_grad_norm_(self.pi.parameters(), self.cfg.ppo.max_grad_norm)
-                        self.q_optim.step()
-                        self.pi_optim.step()
+                        for optim in self.optimizers:
+                            nn.utils.clip_grad_norm_(optim.param_groups[0]["params"], self.cfg.ppo.max_grad_norm)
+                            optim.step()
 
                 self.report_stats("train", {
                     "policy_loss": l_clip.item(),
                     "value_loss": l_vf.item(),
-                    "entropy": -l_ent.item(),
+                    "entropy": entropy.mean().item(),
                     "learning_rate": self.q_optim.param_groups[0]["lr"]
                 }, self.state.step)
                 # endregion
@@ -323,11 +337,10 @@ class PpoTrainer(Trainer):
     ) -> tuple[np.ndarray, None, dict[str, float]]:
         obs = self.task.collate([obs], self.device)
         with torch.no_grad():
-            action, log_prob, stats = self.pi(obs, deterministic=deterministic)
-        for key, value in stats.items():
-            if isinstance(value, torch.Tensor):
-                stats[key] = value.cpu().numpy()
-        return action.cpu().numpy()[0], None, stats
+            action, log_prob, entropy = self.pi(obs, deterministic=deterministic)
+        return action.cpu().numpy()[0], None, {
+            "entropy": entropy.cpu().numpy()[0]
+        }
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
