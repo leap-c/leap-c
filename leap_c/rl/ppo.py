@@ -104,14 +104,16 @@ class PpoActor(nn.Module):
 
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
-            output_sizes=(action_dim, 1), # type: ignore
+            output_sizes=action_dim, # type: ignore
             mlp_cfg=mlp_cfg,
         )
 
+        self.log_std = nn.Parameter(torch.zeros(1, action_dim))
+
     def forward(self, x: torch.Tensor, deterministic: bool = False, action=None):
         e = self.extractor(x)
-        mean, log_std = self.mlp(e)
-        std = log_std.expand_as(mean).exp()
+        mean = self.mlp(e)
+        std = self.log_std.expand_as(mean).exp()
 
         probs = Normal(mean, std)
 

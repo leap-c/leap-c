@@ -23,7 +23,7 @@ if __name__ == "__main__":
         weight_init=[
             WeightInitConfig(name="orthogonal", kwargs={"gain": math.sqrt(2)}),
             WeightInitConfig(name="orthogonal", kwargs={"gain": math.sqrt(2)}),
-            WeightInitConfig(name="orthogonal", kwargs={"gain": 1.0}),
+            WeightInitConfig(name="orthogonal", kwargs={"gain": 0.01}),
         ],
     )
     cfg.ppo.critic_mlp = MlpConfig(
@@ -32,13 +32,13 @@ if __name__ == "__main__":
         weight_init=[
             WeightInitConfig(name="orthogonal", kwargs={"gain": math.sqrt(2)}),
             WeightInitConfig(name="orthogonal", kwargs={"gain": math.sqrt(2)}),
-            WeightInitConfig(name="orthogonal", kwargs={"gain": 0.01}),
+            WeightInitConfig(name="orthogonal", kwargs={"gain": 1.0}),
         ],
     )
     cfg.train.steps = 1_000_000
     cfg.train.num_envs = 1
     cfg.train.vectorized = True
-    cfg.val.interval = 5_000
+    cfg.val.interval = 10_000
     cfg.ppo.lr_q = 3e-4
     cfg.ppo.lr_pi = 3e-4
     cfg.ppo.update_epochs = 10
