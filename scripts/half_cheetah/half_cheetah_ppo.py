@@ -2,6 +2,7 @@ import math
 from argparse import ArgumentParser
 from datetime import datetime
 from pathlib import Path
+from dataclasses import asdict
 
 from leap_c.nn.mlp import MlpConfig, WeightInitConfig
 from leap_c.run import main
@@ -9,7 +10,7 @@ from leap_c.rl.ppo import PpoBaseConfig
 
 if __name__ == "__main__":
     parser = ArgumentParser()
-    parser.add_argument("--device", type=str, default="cuda")
+    parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--wandb-team", type=str, default=None)
     parser.add_argument("--wandb-project", type=str, default=None)
@@ -58,14 +59,10 @@ if __name__ == "__main__":
         cfg.log.wandb_init_kwargs = {
             "entity": args.wandb_team,
             "project": args.wandb_project,
-            "name": f"half_cheetah/ppo_{args.seed}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            "config": {
-                **cfg.ppo.__dict__,
-                **cfg.train.__dict__,
-                "seed": args.seed
-            }
+            "name": f"half_cheetah/ppo_{cfg.seed}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
+            "config": asdict(cfg)
         }
 
-    output_path = Path(f"output/half_cheetah/ppo_{args.seed}_{datetime.now().strftime('%Y%m%d%H%M%S')}")
+    output_path = Path(f"output/half_cheetah/ppo_{cfg.seed}_{datetime.now().strftime('%Y%m%d%H%M%S')}")
 
     main("ppo", "half_cheetah", cfg, output_path, args.device)
