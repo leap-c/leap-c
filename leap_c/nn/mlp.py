@@ -95,20 +95,18 @@ class MLP(nn.Module):
 
         layers = []
         prev_d = self._comb_input_dim
-        for d in [*mlp_cfg.hidden_dims, self._comb_output_dim]:
-            layers.extend([nn.Linear(prev_d, d), self.activation])
+        for i, d in enumerate([*mlp_cfg.hidden_dims, self._comb_output_dim]):
+            fc = nn.Linear(prev_d, d)
+            if mlp_cfg.weight_init is not None and isinstance(mlp_cfg.weight_init, Sequence):
+                fc.apply(string_to_weight_init(mlp_cfg.weight_init[i].name, **mlp_cfg.weight_init[i].kwargs))
+            layers.extend([fc, self.activation])
             prev_d = d
 
         self.mlp = nn.Sequential(*layers[:-1])
 
-        if mlp_cfg.weight_init is not None:
+        if mlp_cfg.weight_init is not None and not isinstance(mlp_cfg.weight_init, Sequence):
             if isinstance(mlp_cfg.weight_init, WeightInitConfig):
-                name, kwargs = mlp_cfg.weight_init.name, mlp_cfg.weight_init.kwargs
-                self.mlp.apply(string_to_weight_init(name, **kwargs))
-            elif isinstance(mlp_cfg.weight_init, Sequence):
-                for init in mlp_cfg.weight_init:
-                    name, kwargs = init.name, init.kwargs
-                    self.mlp.apply(string_to_weight_init(name, **kwargs))
+                self.mlp.apply(string_to_weight_init(mlp_cfg.weight_init.name, **mlp_cfg.weight_init.kwargs))
             else:
                 raise ValueError(f"Invalid weight initialization configuration: {mlp_cfg.weight_init}")
 
