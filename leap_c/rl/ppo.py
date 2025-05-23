@@ -12,8 +12,8 @@ from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.registry import register_trainer
 from leap_c.rl.buffer import ReplayBuffer
 from leap_c.task import Task
-from leap_c.utils.logger import LoggerConfig
 from leap_c.trainer import BaseConfig, TrainConfig, Trainer, ValConfig
+from leap_c.utils.logger import LoggerConfig
 
 
 @dataclass(kw_only=True)
@@ -227,7 +227,7 @@ class PpoTrainer(Trainer):
             action = action.cpu().numpy()
             log_prob = log_prob.cpu().numpy()
 
-            self.report_stats("train_trajectory", {"action": action}, self.state.step)
+            self.report_stats("train_trajectory", {"action": action}, verbose=True, with_smoothing=False)
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
 
@@ -243,11 +243,11 @@ class PpoTrainer(Trainer):
             ))
 
             if "episode" in info:
-                idx = info["episode"]["_r"].argmax()
+                idx = info["_episode"].argmax()
                 self.report_stats("train", {
                     "episodic_return": float(info["episode"]["r"][idx]),
                     "episodic_length": int(info["episode"]["l"][idx]),
-                }, self.state.step)
+                }, with_smoothing=False)
             #endregion
 
             obs = obs_prime
@@ -324,7 +324,7 @@ class PpoTrainer(Trainer):
                     "value_loss": l_vf.item(),
                     "entropy": entropy.mean().item(),
                     "learning_rate": self.q_optim.param_groups[0]["lr"]
-                }, self.state.step)
+                }, with_smoothing=False)
                 # endregion
 
                 if self.cfg.ppo.anneal_lr:

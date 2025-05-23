@@ -174,6 +174,7 @@ class Task(ABC):
             wrappers = []
 
         env = self.create_env(train=False)
+        env = RecordEpisodeStatistics(env, buffer_length=1)
         env = OrderEnforcing(env)
 
         for wrapper in wrappers:

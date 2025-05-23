@@ -1,12 +1,12 @@
 import math
 from argparse import ArgumentParser
+from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
-from dataclasses import asdict
 
 from leap_c.nn.mlp import MlpConfig, WeightInitConfig
-from leap_c.run import main
 from leap_c.rl.ppo import PpoBaseConfig
+from leap_c.run import main
 
 if __name__ == "__main__":
     parser = ArgumentParser()
@@ -60,7 +60,7 @@ if __name__ == "__main__":
             "entity": args.wandb_team,
             "project": args.wandb_project,
             "name": f"half_cheetah/ppo_{cfg.seed}_{datetime.now().strftime('%Y%m%d%H%M%S')}",
-            "config": asdict(cfg)
+            "config": asdict(cfg),
         }
 
     output_path = Path(f"output/half_cheetah/ppo_{cfg.seed}_{datetime.now().strftime('%Y%m%d%H%M%S')}")
