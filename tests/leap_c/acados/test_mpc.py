@@ -1,17 +1,16 @@
-from dataclasses import fields
-
 import numpy as np
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
-    AcadosOcpFlattenedIterate,
 )
 
 # from leap_c.examples.linear_system import LinearSystemMPC
-from leap_c.mpc import Mpc, MpcInput, MpcOutput, MpcParameter
-from leap_c.utils import find_idx_for_labels
+from leap_c.acados.mpc import Mpc, MpcInput, MpcOutput, MpcParameter
+from leap_c.acados.utils import find_idx_for_labels
 
 
-def mpc_outputs_assert_allclose(mpc_output: MpcOutput, mpc_output2: MpcOutput, test_u_star: bool):
+def mpc_outputs_assert_allclose(
+    mpc_output: MpcOutput, mpc_output2: MpcOutput, test_u_star: bool
+):
     allclose = True
     for fld in mpc_output._fields:
         val1 = getattr(mpc_output, fld)
@@ -28,7 +27,9 @@ def mpc_outputs_assert_allclose(mpc_output: MpcOutput, mpc_output2: MpcOutput, t
         elif isinstance(val1, type(None)):
             assert val1 == val2
         else:
-            raise NotImplementedError("Only np.ndarray fields known. Did new fields get added to MPCOutput?")
+            raise NotImplementedError(
+                "Only np.ndarray fields known. Did new fields get added to MPCOutput?"
+            )
     return allclose
 
 
@@ -57,7 +58,9 @@ def test_statelessness(
     x0 = np.tile(x0, (lin_mpc.n_batch_max, 1))
     u0 = np.tile(u0, (lin_mpc.n_batch_max, 1))
     mpc_input_standard = MpcInput(x0=x0, u0=u0)
-    solution_standard, _ = lin_mpc(mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True)
+    solution_standard, _ = lin_mpc(
+        mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
+    )
     p_global = lin_mpc.default_p_global
     assert p_global is not None
     p_global = p_global + np.ones(p_global.shape[0]) * 0.01
@@ -73,33 +76,47 @@ def test_statelessness(
     x0_different = x0 - 0.01
     u0_different = u0 - 0.01
     mpc_input_different = MpcInput(x0=x0_different, u0=u0_different, parameters=params)
-    solution_different, _ = lin_mpc(mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True)
+    solution_different, _ = lin_mpc(
+        mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True
+    )
     # Use this as proxy to verify the different solution is different enough
     assert not np.allclose(
         solution_standard.Q,  # type:ignore
         solution_different.Q,  # type:ignore
     )
-    solution_supposedly_standard, _ = lin_mpc(mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True)
-    mpc_outputs_assert_allclose(solution_standard, solution_supposedly_standard, test_u_star=True)
+    solution_supposedly_standard, _ = lin_mpc(
+        mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
+    )
+    mpc_outputs_assert_allclose(
+        solution_standard, solution_supposedly_standard, test_u_star=True
+    )
 
 
-def test_statelessness_pendulum_on_cart(n_batch: int, learnable_pendulum_on_cart_mpc: Mpc):
+def test_statelessness_pendulum_on_cart(
+    n_batch: int, learnable_pendulum_on_cart_mpc: Mpc
+):
     # Create MPC with some stateless and some global parameters
     x0 = np.array([0, -np.pi, 0, 0])
     x0 = np.tile(x0, (n_batch, 1))
     mpc_input_standard = MpcInput(x0=x0)
-    solution_standard, _ = learnable_pendulum_on_cart_mpc(mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True)
+    solution_standard, _ = learnable_pendulum_on_cart_mpc(
+        mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
+    )
 
     assert learnable_pendulum_on_cart_mpc.default_p_global is not None
     p_global_def = learnable_pendulum_on_cart_mpc.default_p_global
     p_global_def = np.tile(p_global_def, (n_batch, 1))
 
-    idx = find_idx_for_labels(learnable_pendulum_on_cart_mpc.ocp_solver.acados_ocp.model.p_global, "xref1")
+    idx = find_idx_for_labels(
+        learnable_pendulum_on_cart_mpc.ocp_solver.acados_ocp.model.p_global, "xref1"
+    )
 
     p_global_def[:, idx] = 1  # Set reference position to 1
     params = MpcParameter(p_global=p_global_def)
     mpc_input_different = MpcInput(x0=x0, parameters=params)
-    solution_different, _ = learnable_pendulum_on_cart_mpc(mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True)
+    solution_different, _ = learnable_pendulum_on_cart_mpc(
+        mpc_input=mpc_input_different, dudp=True, dvdp=True, dudx=True
+    )
     # Use this as proxy to verify the different solution is different enough
     assert not np.allclose(
         solution_standard.V,  # type:ignore
@@ -108,7 +125,9 @@ def test_statelessness_pendulum_on_cart(n_batch: int, learnable_pendulum_on_cart
     solution_supposedly_standard, _ = learnable_pendulum_on_cart_mpc(
         mpc_input=mpc_input_standard, dudp=True, dvdp=True, dudx=True
     )
-    mpc_outputs_assert_allclose(solution_standard, solution_supposedly_standard, test_u_star=True)
+    mpc_outputs_assert_allclose(
+        solution_standard, solution_supposedly_standard, test_u_star=True
+    )
 
 
 def test_using_mpc_state(
@@ -143,34 +162,53 @@ def test_backup_fn(learnable_point_mass_mpc_different_params: Mpc, n_batch: int)
     for i in range(n_batch):
         x0[i] = x0[i] + i * increment
     inp = MpcInput(x0=x0, u0=u0)
-    default_init = learnable_linear_mpc.init_state_fn  # For restoring fixture
-    learnable_linear_mpc.init_state_fn = None  # Make sure 0 initialization for backup is being used
     sol, template_state = learnable_linear_mpc(inp)
+    default_init = learnable_linear_mpc.init_state_fn  # For restoring fixture
+    learnable_linear_mpc.init_state_fn = None  # Make sure no backup is used
     assert np.all(sol.status == 0)
     assert isinstance(template_state, AcadosOcpFlattenedBatchIterate), (
         f"This test assumed state would be of type AcadosOcpFlattenedBatchIterate, but got {type(template_state)}"
     )
-    ridiculous_state = AcadosOcpFlattenedBatchIterate(
-        x=np.ones_like(template_state.x) * 1e6,
-        u=np.ones_like(template_state.u) * 1e6,
-        z=np.ones_like(template_state.z) * 1e6,
-        sl=np.ones_like(template_state.sl) * 1e6,
-        su=np.ones_like(template_state.su) * 1e6,
-        pi=np.ones_like(template_state.pi) * 1e6,
-        lam=np.ones_like(template_state.lam) * 1e6,
+    nan_state = AcadosOcpFlattenedBatchIterate(
+        x=np.ones_like(template_state.x) * np.nan,
+        u=np.ones_like(template_state.u) * np.nan,
+        z=np.ones_like(template_state.z) * np.nan,
+        sl=np.ones_like(template_state.sl) * np.nan,
+        su=np.ones_like(template_state.su) * np.nan,
+        pi=np.ones_like(template_state.pi) * np.nan,
+        lam=np.ones_like(template_state.lam) * np.nan,
         N_batch=template_state.N_batch,
     )
-    no_sol, _ = learnable_linear_mpc(inp, mpc_state=ridiculous_state)
+    no_sol, _ = learnable_linear_mpc(inp, mpc_state=nan_state)
     assert np.all(no_sol.status != 0)
 
     def backup_fn_batched(input: MpcInput):
-        vals = [getattr(template_state, field.name)[i] for field in fields(template_state) if field.type is not int]
-        return AcadosOcpFlattenedIterate(*vals)
+        """Simplified backup function for the resolve."""
+        if not input.is_batched():
+            index = -1
+            for ind in range(n_batch):
+                if np.allclose(input.x0, inp.x0[ind]):
+                    index = ind
+                    break
+            assert ind != -1, "There has to be a corresponding x0 in the batch."
+            return AcadosOcpFlattenedBatchIterate(
+                x=template_state.x[[index]],
+                u=template_state.u[[index]],
+                z=template_state.z[[index]],
+                sl=template_state.sl[[index]],
+                su=template_state.su[[index]],
+                pi=template_state.pi[[index]],
+                lam=template_state.lam[[index]],
+                N_batch=1,
+            )
+        else:
+            raise ValueError("Is assumed to not happen here.")
 
     learnable_linear_mpc.init_state_fn = backup_fn_batched
+
     sol_again, _ = learnable_linear_mpc(
         inp,
-        mpc_state=ridiculous_state,
+        mpc_state=nan_state,
     )
     learnable_linear_mpc.init_state_fn = default_init  # Restore fixture
     mpc_outputs_assert_allclose(sol, sol_again, test_u_star=True)
@@ -196,4 +234,8 @@ def test_closed_loop(
     x = np.array(x)
     u = np.array(u)
 
-    assert np.median(x[-10:, 0]) <= 1e-1 and np.median(x[-10:, 1]) <= 1e-1 and np.median(u[-10:]) <= 1e-1
+    assert (
+        np.median(x[-10:, 0]) <= 1e-1
+        and np.median(x[-10:, 1]) <= 1e-1
+        and np.median(u[-10:]) <= 1e-1
+    )

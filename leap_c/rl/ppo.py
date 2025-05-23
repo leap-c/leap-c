@@ -10,9 +10,10 @@ from torch.distributions import Normal
 
 from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.registry import register_trainer
-from leap_c.rl.replay_buffer import ReplayBuffer
+from leap_c.rl.buffer import ReplayBuffer
 from leap_c.task import Task
-from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
+from leap_c.utils.logger import LoggerConfig
+from leap_c.trainer import BaseConfig, TrainConfig, Trainer, ValConfig
 
 
 @dataclass(kw_only=True)
@@ -71,7 +72,7 @@ class PpoBaseConfig(BaseConfig):
     ppo: PpoAlgorithmConfig = field(default_factory=PpoAlgorithmConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     val: ValConfig = field(default_factory=ValConfig)
-    log: LogConfig = field(default_factory=LogConfig)
+    log: LoggerConfig = field(default_factory=LoggerConfig)
     seed: int = 0
 
 

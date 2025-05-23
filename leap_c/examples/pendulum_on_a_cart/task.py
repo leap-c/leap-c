@@ -9,11 +9,11 @@ from leap_c.examples.pendulum_on_a_cart.env import (
     PendulumOnCartSwingupEnv,
 )
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
-from leap_c.nn.modules import MpcSolutionModule
+from leap_c.acados.layer import MpcSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
 
-from ...mpc import MpcInput, MpcParameter
+from leap_c.acados.mpc import MpcInput, MpcParameter
 
 PARAMS_SWINGUP = OrderedDict(
     [
@@ -83,7 +83,7 @@ class PendulumOnCartSwingup(Task):
         learnable_params = ["xref2"]
 
         mpc = PendulumOnCartMPC(
-            N_horizon=6,
+            N_horizon=5,
             T_horizon=0.25,
             learnable_params=learnable_params,
             params=params,  # type: ignore
@@ -121,7 +121,7 @@ class PendulumOnCartBalance(PendulumOnCartSwingup):
 
 
 @register_task("pendulum_swingup_long_horizon")
-class PendulumOnCartSwingupLong(Task):
+class PendulumOnCartSwingupLong(PendulumOnCartSwingup):
     """Swing-up task for the pendulum on a cart system,
     like PendulumOnCartSwingup, but with a much longer horizon.
     """
@@ -137,4 +137,5 @@ class PendulumOnCartSwingupLong(Task):
             params=params,  # type: ignore
         )
         mpc_layer = MpcSolutionModule(mpc)
-        super().__init__(mpc_layer)
+        # TODO: Check during refactoring if we can modify hierarchy to user super() again
+        Task.__init__(self, mpc_layer)

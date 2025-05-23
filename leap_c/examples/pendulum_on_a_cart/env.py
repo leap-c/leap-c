@@ -27,7 +27,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
     the possible range of the cart's center of mass in the observation space,
     but the episode terminates if it leaves the interval (-2.4, 2.4) already.
     NOTE: The pole angle is actually bounded between -2pi and 2pi by always adding/subtracting
-    (in the negative / in the positive case) the highest multiple of 2.4
+    (in the negative / in the positive case) the highest multiple of 2pi
     until the pole angle is within the bounds again.
     NOTE: Contrary to the original CartPoleEnv, the state space here is arranged like
     [x, theta, dx, dtheta] instead of [x, dx, theta, dtheta].
@@ -58,7 +58,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
         self.gravity = 9.81
         self.masscart = 1.0
         self.masspole = 0.1
-        self.length = 0.5
+        self.length = 0.8
         self.Fmax = 80.0
         self.dt = 0.05
         self.max_time = 10.0
@@ -130,6 +130,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
         self.render_mode = render_mode
         self.pos_trajectory = None
         self.pole_end_trajectory = None
+        self.x_trajectory = None
         self.screen_width = 600
         self.screen_height = 400
         self.window = None
@@ -140,6 +141,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
         if self.reset_needed:
             raise Exception("Call reset before using the step method.")
         self.x = self.integrator(self.x, action, self.dt)
+        self.x_trajectory.append(self.x)  # type: ignore
         self.t += self.dt
         theta = self.x[1]
         if theta > 2 * np.pi:
@@ -152,13 +154,22 @@ class PendulumOnCartSwingupEnv(gym.Env):
 
         term = False
         trunc = False
+        info = {}
         if self.x[0] > self.x_threshold or self.x[0] < -self.x_threshold:
             term = True  # Just terminating should be enough punishment when reward is positive
+            info = {"task": {"violation": True, "success": False}}
         if self.t > self.max_time:
+            # check if the pole is upright in the last 10 steps
+            if len(self.x_trajectory) >= 10:
+                success = all(np.abs(self.x_trajectory[i][1]) < 0.1 for i in range(-10, 0))
+            else:
+                success = False  # Not enough data to determine success
+
+            info = {"task": {"violation": False, "success": success}}
             trunc = True
         self.reset_needed = trunc or term
 
-        return self.x, r, term, trunc, {}
+        return self.x, r, term, trunc, info
 
     def reset(
         self, *, seed: int | None = None, options: dict | None = None
@@ -171,6 +182,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
         self.x = self.init_state(options)
         self.reset_needed = False
 
+        self.x_trajectory = []
         self.pos_trajectory = None
         self.pole_end_trajectory = None
         return self.x, {}

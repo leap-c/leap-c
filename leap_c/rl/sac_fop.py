@@ -1,7 +1,7 @@
 """Provides a trainer for a Soft Actor-Critic algorithm that uses a differentiable MPC
 layer for the policy network."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Iterator, NamedTuple
 
@@ -10,76 +10,42 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.mpc import MpcBatchedState
-from leap_c.nn.gaussian import SquashedGaussian
+from leap_c.acados.mpc import MpcBatchedState
+from leap_c.nn.gaussian import SquashedGaussian, BoundedTransform
 from leap_c.nn.mlp import MLP, MlpConfig
-from leap_c.nn.modules import MpcSolutionModule
+from leap_c.acados.layer import MpcSolutionModule
 from leap_c.registry import register_trainer
-from leap_c.rl.replay_buffer import ReplayBuffer
-from leap_c.rl.sac import SacCritic
+from leap_c.rl.buffer import ReplayBuffer
+from leap_c.rl.sac import SacBaseConfig, SacCritic
 from leap_c.rl.utils import soft_target_update
 from leap_c.task import Task
-from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
+from leap_c.trainer import Trainer
+
+
+NUM_THREADS_ACADOS_BATCH = 4
+
+@dataclass(kw_only=True)
+class SacFopBaseConfig(SacBaseConfig):
+    """Specific settings for the Fop trainer."""
+
+    noise: str = "param"
+    entropy_correction: bool = False
 
 
 @dataclass(kw_only=True)
-class SacFopAlgorithmConfig:
-    """Contains the necessary information for a SacTrainer.
+class SacFoaBaseConfig(SacBaseConfig):
+    """Specific settings for the Foa trainer."""
 
-    Attributes:
-        critic_mlp: The configuration for the critic networks.
-        actor_mlp: The configuration for the policy network.
-        batch_size: The batch size for training.
-        num_threads_mpc: The number of threads to use for the parallelization of the mpc.
-        buffer_size: The size of the replay buffer.
-        gamma: The discount factor.
-        tau: The soft update factor.
-        soft_update_freq: The frequency of soft updates.
-        lr_q: The learning rate for the Q networks.
-        lr_pi: The learning rate for the policy network.
-        lr_alpha: The learning rate for the temperature parameter.
-        init_alpha: The initial value for the temperature parameter.
-        entropy_reward_bonus: Whether to add an entropy bonus to the reward.
-        num_critics: The number of critic networks.
-        report_loss_freq: The frequency of reporting the loss.
-        update_freq: The frequency of updating the networks.
-    """
-
-    critic_mlp: MlpConfig = field(default_factory=MlpConfig)
-    actor_mlp: MlpConfig = field(default_factory=MlpConfig)
-    batch_size: int = 64
-    num_threads_mpc: int = 4
-    buffer_size: int = 1000000
-    gamma: float = 0.99
-    tau: float = 0.005
-    soft_update_freq: int = 1
-    lr_q: float = 1e-4
-    lr_pi: float = 3e-4
-    lr_alpha: float = 1e-3
-    init_alpha: float = 0.1
-    entropy_reward_bonus: bool = True
-    num_critics: int = 2
-    report_loss_freq: int = 100
-    update_freq: int = 1
+    noise: str = "action"
+    entropy_correction: bool = False
 
 
 @dataclass(kw_only=True)
-class SacFopBaseConfig(BaseConfig):
-    """Contains the necessary information for a Trainer.
+class SacFopcBaseConfig(SacBaseConfig):
+    """Specific settings for the Foa trainer."""
 
-    Attributes:
-        sac: The Sac algorithm configuration.
-        train: The training configuration.
-        val: The validation configuration.
-        log: The logging configuration.
-        seed: The seed for the trainer.
-    """
-
-    sac: SacFopAlgorithmConfig = field(default_factory=SacFopAlgorithmConfig)
-    train: TrainConfig = field(default_factory=TrainConfig)
-    val: ValConfig = field(default_factory=ValConfig)
-    log: LogConfig = field(default_factory=LogConfig)
-    seed: int = 0
+    noise: str = "param"
+    entropy_correction: bool = True
 
 
 class SacFopActorOutput(NamedTuple):
@@ -101,7 +67,7 @@ class SacFopActorOutput(NamedTuple):
         )
 
 
-class MpcSacActor(nn.Module):
+class FopActor(nn.Module):
     def __init__(
         self,
         task: Task,
@@ -111,6 +77,7 @@ class MpcSacActor(nn.Module):
             Callable[[torch.Tensor, torch.Tensor, MpcBatchedState], MpcBatchedState]
             | None
         ) = None,
+        correction: bool = True,
     ):
         super().__init__()
 
@@ -122,6 +89,7 @@ class MpcSacActor(nn.Module):
             output_sizes=(param_space.shape[0], param_space.shape[0]),  # type:ignore
             mlp_cfg=mlp_cfg,
         )
+        self.correction = correction
 
         self.mpc: MpcSolutionModule = task.mpc  # type:ignore
         self.prepare_mpc_input = task.prepare_mpc_input
@@ -149,6 +117,15 @@ class MpcSacActor(nn.Module):
         mpc_output, state_solution, mpc_stats = self.mpc(mpc_input, mpc_state)
         self.actual_used_mpc_state = mpc_state
 
+        if mpc_output.du0_dp_global is not None and self.correction:
+            jtj = mpc_output.du0_dp_global @ mpc_output.du0_dp_global.transpose(1, 2)
+            correction = (
+                torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device))
+                .sqrt()
+                .log()
+            )
+            log_prob -= correction.unsqueeze(1)
+
         return SacFopActorOutput(
             param,
             log_prob,
@@ -159,12 +136,76 @@ class MpcSacActor(nn.Module):
         )
 
 
+class FouActor(nn.Module):
+    def __init__(
+        self,
+        task: Task,
+        env: gym.Env,
+        mlp_cfg: MlpConfig,
+        prepare_mpc_state: (
+            Callable[[torch.Tensor, torch.Tensor, MpcBatchedState], MpcBatchedState]
+            | None
+        ) = None,
+    ):
+        super().__init__()
+
+        param_space = task.param_space
+
+        self.extractor = task.create_extractor(env)
+        self.mlp = MLP(
+            input_sizes=self.extractor.output_size,
+            output_sizes=(param_space.shape[0], env.action_space.shape[0]),  # type:ignore
+            mlp_cfg=mlp_cfg,
+        )
+
+        self.mpc: MpcSolutionModule = task.mpc  # type:ignore
+        self.prepare_mpc_input = task.prepare_mpc_input
+        self.prepare_mpc_state = prepare_mpc_state
+
+        self.parameter_transfrom = BoundedTransform(param_space)
+        self.action_transform = BoundedTransform(env.action_space)
+        self.squashed_gaussian = SquashedGaussian(env.action_space)  # type:ignore
+
+    def forward(
+        self, obs, mpc_state: MpcBatchedState, deterministic: bool = False
+    ) -> torch.Tensor:
+        e = self.extractor(obs)
+        mean, log_std = self.mlp(e)
+        param = self.parameter_transfrom(mean)
+
+        mpc_input = self.prepare_mpc_input(obs, param)
+        if self.prepare_mpc_state is not None:
+            mpc_state = self.prepare_mpc_state(obs, param, mpc_state)  # type:ignore
+
+        mpc_output, state_solution, _ = self.mpc(mpc_input, mpc_state)
+
+        action_mpc = mpc_output.u0
+        action_unbounded = self.action_transform.inverse(action_mpc.detach(), padding=0.1)
+        action_unbounded = self.action_transform.inverse(
+            action_mpc.detach(), padding=0.1
+        )
+        action_squashed, log_prob, gaussian_stats = self.squashed_gaussian(
+            action_unbounded, log_std, deterministic=deterministic
+        )
+        action = action_mpc + (action_squashed - action_mpc.detach())
+        # check if nan
+
+        return SacFopActorOutput(
+            param,
+            log_prob,
+            gaussian_stats,
+            action,
+            mpc_output.status,
+            state_solution,
+        )
+
+
 @register_trainer("sac_fop", SacFopBaseConfig())
 class SacFopTrainer(Trainer):
-    cfg: SacFopBaseConfig
+    cfg: SacBaseConfig
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: SacFopBaseConfig
+        self, task: Task, output_path: str | Path, device: str, cfg: SacBaseConfig
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -185,22 +226,40 @@ class SacFopTrainer(Trainer):
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
-        self.pi = MpcSacActor(task, self.train_env, cfg.sac.actor_mlp)
-        self.pi.mpc.mpc.num_threads_batch_methods = (
-            cfg.sac.num_threads_mpc
-        )
+        if cfg.noise == "param":
+            self.pi = FopActor(task, self.train_env, cfg.sac.actor_mlp, correction=cfg.entropy_correction)
+            self.pi = FopActor(
+                task,
+                self.train_env,
+                cfg.sac.actor_mlp,
+                correction=cfg.entropy_correction,
+            )
+        elif cfg.noise == "action":
+            self.pi = FouActor(task, self.train_env, cfg.sac.actor_mlp)
+        else:
+            raise ValueError(f"Unknown noise type: {cfg.noise}")
+
+        # TODO (Jasper): This should be refactored and is a config of the acados solver.
+        self.pi.mpc.mpc.num_threads_batch_methods = NUM_THREADS_ACADOS_BATCH
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(self.cfg.sac.init_alpha).log())  # type: ignore
-        self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
-        action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
-        param_dim = np.prod(task.param_space.shape)  # type: ignore
-        self.target_normalized_entropy = -action_dim
-        self.entropy_norm = param_dim / action_dim
+        self.log_alpha = nn.Parameter(torch.tensor(cfg.sac.init_alpha).log())  # type: ignore
+
+        if self.cfg.sac.lr_alpha is not None:
+            self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
+            action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
+            param_dim = np.prod(task.param_space.shape)  # type: ignore
+            if cfg.noise == "param":
+                self.entropy_norm = param_dim / action_dim
+            else:
+                self.entropy_norm = 1
+            self.target_entropy = (
+                -action_dim
+                if cfg.sac.target_entropy is None
+                else cfg.sac.target_entropy
+            )
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
-
-        self.to(device)
 
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
@@ -217,19 +276,23 @@ class SacFopTrainer(Trainer):
 
             with torch.no_grad():
                 # TODO (Jasper): Argument order is not consistent
-                pi_output = self.pi(obs_batched, policy_state, deterministic=False)
+                pi_output: SacFopActorOutput = self.pi(
+                    obs_batched, policy_state, deterministic=False
+                )
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
-            # print("weight", param.item(), "log_prob", pi_output.log_prob.item())
-            self.report_stats("train_trajectory", {"param": param, "action": action})
-            self.report_stats("train_policy_rollout", pi_output.stats)
+            self.report_stats("train_trajectory", {"param": param, "action": action}, verbose=True)
+            self.report_stats("train_policy_rollout", pi_output.stats, verbose=True)  # type: ignore
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
 
             if "episode" in info:
+                stats = info["episode"]
+                if "task" in info:
+                    stats.update(info["task"])
                 self.report_stats("train", info["episode"])
 
             self.buffer.put(
@@ -278,13 +341,13 @@ class SacFopTrainer(Trainer):
                 log_p = pi_o.log_prob / self.entropy_norm
 
                 # update temperature
-                alpha_loss = -torch.mean(
-                    self.log_alpha.exp()
-                    * (log_p + self.target_normalized_entropy).detach()
-                )
-                self.alpha_optim.zero_grad()
-                alpha_loss.backward()
-                self.alpha_optim.step()
+                if self.alpha_optim is not None:
+                    alpha_loss = -torch.mean(
+                        self.log_alpha.exp() * (log_p + self.target_entropy).detach()
+                    )
+                    self.alpha_optim.zero_grad()
+                    alpha_loss.backward()
+                    self.alpha_optim.step()
 
                 # update critic
                 alpha = self.log_alpha.exp().item()
@@ -322,20 +385,17 @@ class SacFopTrainer(Trainer):
                 # soft updates
                 soft_target_update(self.q, self.q_target, self.cfg.sac.tau)
 
-                if self.state.step % self.cfg.sac.report_loss_freq == 0:
-                    loss_stats = {
-                        "q_loss": q_loss.item(),
-                        "pi_loss": pi_loss.item(),
-                        "alpha": alpha,
-                        "q": q.mean().item(),
-                        "q_target": target.mean().item(),
-                        "masked_samples_perc": 1 - mask_status.float().mean().item(),
-                        "entropy": -log_p.mean().item(),
+                loss_stats = {
+                    "q_loss": q_loss.item(),
+                    "pi_loss": pi_loss.item(),
+                    "alpha": alpha,
+                    "q": q.mean().item(),
+                    "q_target": target.mean().item(),
+                    "masked_samples_perc": 1 - mask_status.float().mean().item(),
+                    "entropy": -log_p.mean().item(),
                     }
-                    self.report_stats("loss", loss_stats, self.state.step + 1)
-                    self.report_stats(
-                        "train_policy_update", pi_o_stats, self.state.step + 1
-                    )
+                self.report_stats("loss", loss_stats)
+                self.report_stats("train_policy_update", pi_o_stats, verbose=True)
 
             yield 1
 
@@ -353,4 +413,23 @@ class SacFopTrainer(Trainer):
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
+        if self.cfg.sac.lr_alpha is None:
+            return [self.q_optim, self.pi_optim]
+
         return [self.q_optim, self.pi_optim, self.alpha_optim]
+
+    def periodic_ckpt_modules(self) -> list[str]:
+        return ["q", "pi", "q_target"]
+
+    def singleton_ckpt_modules(self) -> list[str]:
+        return ["buffer"]
+
+
+@register_trainer("sac_foa", SacFoaBaseConfig())
+class SacFoaTrainer(SacFopTrainer):
+    cfg: SacFoaBaseConfig  # type: ignore
+
+
+@register_trainer("sac_fopc", SacFopcBaseConfig())
+class SacFopcTrainer(SacFopTrainer):
+    cfg: SacFopcBaseConfig  # type: ignore

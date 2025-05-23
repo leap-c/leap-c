@@ -7,8 +7,8 @@ from gymnasium import spaces
 from leap_c.examples.chain.env import ChainEnv
 from leap_c.examples.chain.mpc import ChainMpc
 from leap_c.examples.chain.utils import Ellipsoid
-from leap_c.mpc import MpcInput, MpcParameter
-from leap_c.nn.modules import MpcSolutionModule
+from leap_c.acados.mpc import MpcInput, MpcParameter
+from leap_c.acados.layer import MpcSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
 

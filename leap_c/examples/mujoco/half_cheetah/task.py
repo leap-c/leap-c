@@ -3,7 +3,7 @@ from typing import Any, Optional
 import gymnasium as gym
 import torch
 
-from leap_c.mpc import MpcInput
+from leap_c.acados.mpc import MpcInput
 from leap_c.registry import register_task
 from leap_c.task import Task
 

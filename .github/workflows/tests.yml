@@ -34,6 +34,15 @@ jobs:
       run: |
         .github/linux/install_tera.sh
 
+    - name: Install micromamba
+      shell: bash
+      run: |
+        "${SHELL}" <(curl -L micro.mamba.pm/install.sh)
+        # Add micromamba to PATH for subsequent steps
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        # Initialize micromamba for the shell
+        echo 'eval "$(micromamba shell hook --shell=bash)"' >> $GITHUB_ENV
+
     - name: Export Paths
       working-directory: ${{github.workspace}}
       shell: bash
@@ -47,6 +56,19 @@ jobs:
       with:
         python-version: "3.11"
 
+    - name: Create and activate micromamba environment
+      shell: bash
+      run: |
+        # Source the micromamba activation
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba create -n leapc_env python=3.11
+        micromamba activate leapc_env
+        echo "PYTHONPATH=$(python -c 'import sys; print(":".join(sys.path))')" >> $GITHUB_ENV
+        # Make activation persistent across steps
+        echo "MICROMAMBA_ACTIVE_ENV=leapc_env" >> $GITHUB_ENV
+        # Set PATH to include the micromamba environment's bin directory
+        echo "$CONDA_PREFIX/bin" >> $GITHUB_PATH
+
     - name: Cache pip dependencies
       uses: actions/cache@v4
       with:
@@ -58,17 +80,30 @@ jobs:
     - name: Install Python interface
       working-directory: ${{github.workspace}}/leap_c/external/acados
       run: |
+        # Activate the micromamba environment
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
+        # Install packages
         pip install --upgrade pip
         pip install interfaces/acados_template
+        micromamba install -y -c conda-forge pinocchio=3.6.0
 
     - name: Install leap_c
       working-directory: ${{github.workspace}}/leap_c
       run: |
+        # Activate the micromamba environment
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
+        # Install packages
         pip install -e .[test]
         pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
     - name: Run leap_c tests
       working-directory: ${{github.workspace}}/leap_c
       run: |
+        # Activate the micromamba environment
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
+        # Run tests
         pwd
         pytest tests -vv -s

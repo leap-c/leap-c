@@ -7,13 +7,11 @@ from gymnasium import spaces
 
 from leap_c.examples.quadrotor.env import QuadrotorStop
 from leap_c.examples.quadrotor.mpc import QuadrotorMpc
-from leap_c.nn.modules import MpcSolutionModule
+from leap_c.acados.layer import MpcSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
-from .utils import read_from_yaml
-from functools import cached_property
 
-from ...mpc import MpcInput, MpcParameter
+from leap_c.acados.mpc import MpcInput, MpcParameter
 
 
 @register_task("quadrotor_terminal")

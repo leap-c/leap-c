@@ -19,9 +19,9 @@ def _cont_f_expl(
     p: dict[str, np.ndarray],
     fix_point: np.ndarray | None = None,
 ) -> np.ndarray:
-    assert all(
-        key in p for key in ["D", "L", "C", "m", "w"]
-    ), "Not all necessary parameters are in p."
+    assert all(key in p for key in ["D", "L", "C", "m", "w"]), (
+        "Not all necessary parameters are in p."
+    )
 
     if fix_point is None:
         fix_point = np.zeros(3, 1)
@@ -209,14 +209,7 @@ class ChainEnv(gym.Env):
         self.phi_range = phi_range
         self.theta_range = theta_range
 
-        # self.ellipsoid_center = self.fix_point
-        # self.ellispoid_variability_matrix = np.diag()
-
         self._set_canvas()
-
-        # For rendering
-        # if render_mode is not None:
-        # raise NotImplementedError("Rendering is not implemented yet.")
 
     def step(self, action: np.ndarray) -> tuple[Any, float, bool, bool, dict]:
         u = action
@@ -235,13 +228,17 @@ class ChainEnv(gym.Env):
         o = self._current_observation()
         r = self._calculate_reward()
 
-        term = self._is_done()
-
-        info = {}
+        reached_goal_pos = bool(
+            np.linalg.norm(self.x_ref - self.state, axis=0, ord=2) < 1e-1
+        )
+        term = reached_goal_pos
 
         self.time += self.dt
-
         trunc = self.time > self.max_time
+
+        info = {}
+        if trunc:
+            info["task"] = {"success": reached_goal_pos, "violations": False}
 
         self.trajectory.append(o)
 
@@ -266,9 +263,6 @@ class ChainEnv(gym.Env):
 
         return self.state, {}
 
-    def set_state(self, state: np.ndarray):
-        self.state = state
-
     def _current_observation(self):
         return self.state
 
@@ -286,12 +280,10 @@ class ChainEnv(gym.Env):
         pos_last = self.state[self.nx_pos - 3 : self.nx_pos]
         vel = self.state[self.nx_pos :]
 
-        return -np.linalg.norm(
-            pos_last - self.pos_last_ref, axis=0, ord=2
-        ) - 0.1 * np.linalg.norm(vel, axis=0, ord=2)
+        r_dist = -np.linalg.norm(pos_last - self.pos_last_ref, axis=0, ord=2)
+        r_vel = -0.1 * np.linalg.norm(vel, axis=0, ord=2)
 
-    def _is_done(self):
-        return bool(np.linalg.norm(self.x_ref - self.state, axis=0, ord=2) < 1e-3)
+        return 10 * (r_dist + r_vel)
 
     def _set_canvas(self):
         plt.figure()

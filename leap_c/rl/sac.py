@@ -7,14 +7,15 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from leap_c.utils.logger import LoggerConfig
 from leap_c.nn.gaussian import SquashedGaussian
 from leap_c.nn.mlp import MLP, MlpConfig
 from leap_c.nn.utils import min_max_scaling
 from leap_c.registry import register_trainer
-from leap_c.rl.replay_buffer import ReplayBuffer
+from leap_c.rl.buffer import ReplayBuffer
 from leap_c.rl.utils import soft_target_update
 from leap_c.task import Task
-from leap_c.trainer import BaseConfig, LogConfig, TrainConfig, Trainer, ValConfig
+from leap_c.trainer import BaseConfig, TrainConfig, Trainer, ValConfig
 
 
 @dataclass(kw_only=True)
@@ -33,6 +34,8 @@ class SacAlgorithmConfig:
         lr_pi: The learning rate for the policy network.
         lr_alpha: The learning rate for the temperature parameter.
         init_alpha: The initial temperature parameter.
+        target_entropy: The minimum target entropy for the policy. If None, it
+            is set automatically depending on dimensions of the action space.
         entropy_reward_bonus: Whether to add an entropy bonus to the reward.
         num_critics: The number of critic networks.
         report_loss_freq: The frequency of reporting the loss.
@@ -47,9 +50,10 @@ class SacAlgorithmConfig:
     tau: float = 0.005
     soft_update_freq: int = 1
     lr_q: float = 1e-4
-    lr_pi: float = 3e-4
-    lr_alpha: float = 1e-4
-    init_alpha: float = 0.1
+    lr_pi: float = 1e-4
+    lr_alpha: float | None = 1e-3
+    init_alpha: float = 0.01
+    target_entropy: float | None = None
     entropy_reward_bonus: bool = True
     num_critics: int = 2
     report_loss_freq: int = 100
@@ -71,7 +75,7 @@ class SacBaseConfig(BaseConfig):
     sac: SacAlgorithmConfig = field(default_factory=SacAlgorithmConfig)
     train: TrainConfig = field(default_factory=TrainConfig)
     val: ValConfig = field(default_factory=ValConfig)
-    log: LogConfig = field(default_factory=LogConfig)
+    log: LoggerConfig = field(default_factory=LoggerConfig)
     seed: int = 0
 
 
@@ -164,7 +168,18 @@ class SacTrainer(Trainer):
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(self.cfg.sac.init_alpha).log())  # type: ignore
-        self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
+
+        if self.cfg.sac.lr_alpha is not None:
+            self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
+            action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
+            self.target_entropy = (
+                -action_dim
+                if cfg.sac.target_entropy is None
+                else cfg.sac.target_entropy
+            )
+        else:
+            self.alpha_optim = None
+            self.target_entropy = None
 
         self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
 
@@ -177,14 +192,17 @@ class SacTrainer(Trainer):
                 is_terminated = is_truncated = False
 
             action, _, stats = self.act(obs)  # type: ignore
-            self.report_stats("train_trajectory", {"action": action}, self.state.step)
-            self.report_stats("train_policy_rollout", stats, self.state.step)  # type: ignore
+            self.report_stats("train_trajectory", {"action": action}, verbose=True)
+            self.report_stats("train_policy_rollout", stats, verbose=True)  # type: ignore
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
                 action
             )
 
             if "episode" in info:
+                stats = info["episode"]
+                if "task" in info:
+                    stats.update(info["task"])
                 self.report_stats("train", info["episode"])
 
             # TODO (Jasper): Add is_truncated to buffer.
@@ -204,13 +222,13 @@ class SacTrainer(Trainer):
                 a_pi, log_p, _ = self.pi(o)
 
                 # update temperature
-                target_entropy = -np.prod(self.train_env.action_space.shape)  # type: ignore
-                alpha_loss = -torch.mean(
-                    self.log_alpha.exp() * (log_p + target_entropy).detach()
-                )
-                self.alpha_optim.zero_grad()
-                alpha_loss.backward()
-                self.alpha_optim.step()
+                if self.alpha_optim is not None:
+                    alpha_loss = -torch.mean(
+                        self.log_alpha.exp() * (log_p + self.target_entropy).detach()
+                    )
+                    self.alpha_optim.zero_grad()
+                    alpha_loss.backward()
+                    self.alpha_optim.step()
 
                 # update critic
                 alpha = self.log_alpha.exp().item()
@@ -248,18 +266,16 @@ class SacTrainer(Trainer):
                 # soft updates
                 soft_target_update(self.q, self.q_target, self.cfg.sac.tau)
 
-                report_freq = self.cfg.sac.report_loss_freq * self.cfg.sac.update_freq
-
-                if self.state.step % report_freq == 0:
-                    loss_stats = {
-                        "q_loss": q_loss.item(),
-                        "pi_loss": pi_loss.item(),
-                        "alpha": alpha,
-                        "q": q.mean().item(),
-                        "q_target": target.mean().item(),
-                        "entropy": -log_p.mean().item(),
-                    }
-                    self.report_stats("loss", loss_stats, self.state.step + 1)
+                # report stats
+                loss_stats = {
+                    "q_loss": q_loss.item(),
+                    "pi_loss": pi_loss.item(),
+                    "alpha": alpha,
+                    "q": q.mean().item(),
+                    "q_target": target.mean().item(),
+                    "entropy": -log_p.mean().item(),
+                }
+                self.report_stats("loss", loss_stats)
 
             yield 1
 
@@ -273,5 +289,13 @@ class SacTrainer(Trainer):
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
+        if self.alpha_optim is None:
+            return [self.q_optim, self.pi_optim]
+
         return [self.q_optim, self.pi_optim, self.alpha_optim]
 
+    def periodic_ckpt_modules(self) -> list[str]:
+        return ["q", "pi", "q_target"]
+
+    def singleton_ckpt_modules(self) -> list[str]:
+        return ["buffer"]

@@ -6,7 +6,7 @@ import yaml
 from leap_c.registry import create_default_cfg, create_task, create_trainer
 from leap_c.task import Task
 from leap_c.trainer import Trainer, BaseConfig
-from leap_c.utils import update_dataclass_from_dict
+from leap_c.utils.cfg import update_dataclass_from_dict
 
 
 def trainer_and_task_names(path: Path) -> tuple[str, str]:
