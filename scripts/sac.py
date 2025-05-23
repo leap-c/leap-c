@@ -5,6 +5,7 @@ from pathlib import Path
 
 from leap_c.run import main
 from leap_c.rl.sac import SacBaseConfig
+from leap_c.nn.mlp import WeightInitConfig
 
 
 parser = ArgumentParser()
@@ -36,10 +37,10 @@ cfg.log.wandb_init_kwargs = {}
 cfg.seed = 0
 cfg.sac.critic_mlp.hidden_dims = (256, 256, 256)
 cfg.sac.critic_mlp.activation = 'relu'
-cfg.sac.critic_mlp.weight_init = 'orthogonal'
+cfg.sac.critic_mlp.weight_init = WeightInitConfig(name='orthogonal')
 cfg.sac.actor_mlp.hidden_dims = (256, 256, 256)
 cfg.sac.actor_mlp.activation = 'relu'
-cfg.sac.actor_mlp.weight_init = 'orthogonal'
+cfg.sac.actor_mlp.weight_init = WeightInitConfig(name='orthogonal')
 cfg.sac.batch_size = 64
 cfg.sac.buffer_size = 1000000
 cfg.sac.gamma = 0.99

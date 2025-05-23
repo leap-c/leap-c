@@ -154,7 +154,7 @@ class Logger:
 
         # init wandb
         if cfg.wandb_logger:
-            if not cfg.log.wandb_init_kwargs.get("dir", False):  # type:ignore
+            if not cfg.wandb_init_kwargs.get("dir", False):  # type:ignore
                 wandbdir = self.output_path / "wandb"
                 wandbdir.mkdir(exist_ok=True)
                 cfg.wandb_init_kwargs["dir"] = str(wandbdir)
@@ -200,11 +200,16 @@ class Logger:
                 stats[key] = float(value)
                 continue
 
-            assert value.ndim == 1, "Only 1D arrays are supported."
+            # Vectorized environments results in 2D arrays.
+            assert value.ndim in [1, 2], "Only 1D and 2D arrays are supported."
 
             stats.pop(key)
             for i, v in enumerate(value):
-                stats[f"{key}_{i}"] = float(v)
+                if value.ndim == 1:
+                    stats[f"{key}_{i}"] = float(v) # type: ignore
+                else:
+                    for j, v_ in enumerate(v):
+                        stats[f"{key}_{i}_{j}"] = float(v_)
 
         # find correct iterable
         if with_smoothing:

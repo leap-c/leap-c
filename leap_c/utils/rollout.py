@@ -54,8 +54,6 @@ def episode_rollout(
 
     render = render_human or video_path is not None
 
-    score = 0
-    count = 0
     policy_stats = defaultdict(list)
     episode_stats = defaultdict(list)
     o, _ = env.reset()
@@ -75,7 +73,7 @@ def episode_rollout(
             if isinstance(a, torch.Tensor):
                 a = a.cpu().numpy()
 
-            o_prime, r, terminated, truncated, info = env.step(a)
+            o_prime, _, terminated, truncated, info = env.step(a)
 
             if "task" in info:
                 for key, value in info["task"].items():
@@ -87,9 +85,7 @@ def episode_rollout(
                 if video_path is not None:
                     frames.append(frame)
 
-            score += r  # type: ignore
             o = o_prime
-            count += 1
 
     if render_human:
         env.close()
@@ -103,8 +99,8 @@ def episode_rollout(
         save_video(frames, video_path, render_fps)
 
     rollout_stats = {
-        "score": score,
-        "length": count,
+        "score": info["episode"]["r"],
+        "length": info["episode"]["l"],
         "terminated": terminated,
         "truncated": truncated,
     }
