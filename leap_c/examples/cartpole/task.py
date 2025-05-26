@@ -8,11 +8,7 @@ from leap_c.examples.cartpole.env import (
     PendulumOnCartBalanceEnv,
     PendulumOnCartSwingupEnv,
 )
-<<<<<<< HEAD:leap_c/examples/cartpole/task.py
 from leap_c.examples.cartpole.mpc import PendulumOnCartMPC
-=======
-from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
->>>>>>> main:leap_c/examples/pendulum_on_a_cart/task.py
 from leap_c.ocp.acados.layer import MpcSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
