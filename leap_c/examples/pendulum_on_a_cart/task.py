@@ -9,11 +9,11 @@ from leap_c.examples.pendulum_on_a_cart.env import (
     PendulumOnCartSwingupEnv,
 )
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
-from leap_c.acados.layer import MpcSolutionModule
+from leap_c.ocp.acados.layer import MpcSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
 
-from leap_c.acados.mpc import MpcInput, MpcParameter
+from leap_c.ocp.acados.mpc import MpcInput, MpcParameter
 
 PARAMS_SWINGUP = OrderedDict(
     [

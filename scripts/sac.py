@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from pathlib import Path
 
 from leap_c.run import main
-from leap_c.rl.sac import SacBaseConfig
+from leap_c.torch.rl import SacBaseConfig
 
 
 parser = ArgumentParser()

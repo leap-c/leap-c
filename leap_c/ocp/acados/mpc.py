@@ -18,8 +18,8 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedIterate,
 )
 
-from leap_c.acados.file_manager import AcadosFileManager
-from leap_c.acados.utils import set_standard_sensitivity_options, SX_to_labels
+from leap_c.ocp.acados.file_manager import AcadosFileManager
+from leap_c.ocp.acados.utils import set_standard_sensitivity_options, SX_to_labels
 
 
 class AcadosStatus(IntEnum):
@@ -606,7 +606,7 @@ class Mpc(ABC):
         Args:
             ocp: Optimal control problem formulation used for solving the OCP.
             ocp_sensitivity: The optimal control problem formulation to use for sensitivities.
-                If None, the sensitivity problem is derived from the ocp, however only the EXTERNAL cost type is allowed then.
+                If None, the sensitivity problem is derived from the fun, however only the EXTERNAL cost type is allowed then.
                 For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
             init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.
@@ -616,7 +616,7 @@ class Mpc(ABC):
             export_directory_sensitivity: Directory to export the generated
                 code for the sensitivity problem.
             throw_error_if_u0_is_outside_ocp_bounds: If True, an error will be thrown when given an u0 in mpc_input that
-                is outside the box constraints defined in the ocp.
+                is outside the box constraints defined in the fun.
         """
         self.ocp = ocp
 

@@ -14,7 +14,7 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.acados.mpc import Mpc, MpcBatchedState, MpcInput
+from leap_c.ocp.acados.mpc import Mpc, MpcBatchedState, MpcInput
 
 
 class ReacherMpc(Mpc):
@@ -260,17 +260,17 @@ def export_parametric_ocp(
             ]
         )
 
-    # ocp.constraints.lbx = np.array([pinocchio_model.lowerPositionLimit[-1]])
-    # ocp.constraints.ubx = np.array([pinocchio_model.upperPositionLimit[-1]])
-    # ocp.constraints.idxbx = np.array([1])
+    # fun.constraints.lbx = np.array([pinocchio_model.lowerPositionLimit[-1]])
+    # fun.constraints.ubx = np.array([pinocchio_model.upperPositionLimit[-1]])
+    # fun.constraints.idxbx = np.array([1])
 
     # # Add slack variables for lbx, ubx
-    # ocp.constraints.idxsbx = np.array([0])
-    # ns = ocp.constraints.idxsbx.size
-    # ocp.cost.zl = 10000 * np.ones((ns,))
-    # ocp.cost.Zl = 10 * np.ones((ns,))
-    # ocp.cost.zu = 10000 * np.ones((ns,))
-    # ocp.cost.Zu = 10 * np.ones((ns,))
+    # fun.constraints.idxsbx = np.array([0])
+    # ns = fun.constraints.idxsbx.size
+    # fun.cost.zl = 10000 * np.ones((ns,))
+    # fun.cost.Zl = 10 * np.ones((ns,))
+    # fun.cost.zu = 10000 * np.ones((ns,))
+    # fun.cost.Zu = 10 * np.ones((ns,))
 
     ocp.constraints.lbu = np.array([-1.0] * pinocchio_model.nv)
     ocp.constraints.ubu = np.array([+1.0] * pinocchio_model.nv)
@@ -293,7 +293,7 @@ def export_parametric_ocp(
 
 def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.integrator_type = "DISCRETE"
-    # ocp.solver_options.nlp_solver_type = "SQP_RTI"
+    # fun.solver_options.nlp_solver_type = "SQP_RTI"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.nlp_solver_max_iter = 1000
     ocp.solver_options.nlp_solver_tol_stat = 1e-4

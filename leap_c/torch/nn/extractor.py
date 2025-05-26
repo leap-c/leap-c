@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 import gymnasium as gym
 import torch.nn as nn
 
-from leap_c.nn.utils import min_max_scaling
+from leap_c.torch.nn.scale import min_max_scaling
 
 
 class Extractor(nn.Module, ABC):

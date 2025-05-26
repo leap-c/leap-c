@@ -7,7 +7,7 @@ import torch
 from torch import autograd as autograd, nn as nn
 
 from acados_template import AcadosSimSolver
-from leap_c.acados.mpc import Mpc, MpcParameter, MpcBatchedState, MpcInput, MpcOutput
+from leap_c.ocp.acados.mpc import Mpc, MpcParameter, MpcBatchedState, MpcInput, MpcOutput
 
 
 class AutogradCasadiFunction(autograd.Function):

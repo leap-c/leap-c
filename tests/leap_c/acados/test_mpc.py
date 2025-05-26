@@ -3,9 +3,8 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
 )
 
-# from leap_c.examples.linear_system import LinearSystemMPC
-from leap_c.acados.mpc import Mpc, MpcInput, MpcOutput, MpcParameter
-from leap_c.acados.utils import find_idx_for_labels
+from leap_c.ocp.acados.mpc import Mpc, MpcInput, MpcOutput, MpcParameter
+from leap_c.ocp.acados.utils import find_idx_for_labels
 
 
 def mpc_outputs_assert_allclose(

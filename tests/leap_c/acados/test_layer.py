@@ -1,11 +1,10 @@
 import numpy as np
-import pytest
 import torch
 from leap_c.examples.chain.mpc import ChainMpc
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
 from leap_c.examples.pointmass.mpc import PointMassMPC
-from leap_c.acados.mpc import MpcInput, MpcParameter
-from leap_c.acados.layer import MpcSolutionModule
+from leap_c.ocp.acados.mpc import MpcInput, MpcParameter
+from leap_c.ocp.acados.layer import MpcSolutionModule
 
 
 def test_MPCSolutionModule_on_PointMassMPC(
@@ -329,7 +328,7 @@ def test_MPCSolutionModule_on_PendulumOnCart_ext_cost(
     u0: np.ndarray = np.array([79.0]),
     # NOTE: u0 is different for easier convergence in the Q cases.
     # It needs to be slightly below 80 because else finite differences would exceed 80
-    # which we do not allow in the ocp formulation and we raise an error then
+    # which we do not allow in the fun formulation and we raise an error then
 ):
     batch_size = pendulum_on_cart_ext_cost_p_global.shape[0]
     assert batch_size <= 10, "Using batch_sizes too large will make the test very slow."

@@ -17,7 +17,7 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.acados.mpc import Mpc, MpcBatchedState, MpcInput
+from leap_c.ocp.acados.mpc import Mpc, MpcBatchedState, MpcInput
 
 
 class ChainMpc(Mpc):
@@ -124,7 +124,7 @@ def export_parametric_ocp(
     fix_point: np.ndarray = np.array([0.0, 0.0, 0.0]),
     pos_last_mass_ref: np.ndarray = np.array([1.0, 0.0, 0.0]),
 ) -> tuple[AcadosOcp, DMStruct]:
-    # create ocp object to formulate the OCP
+    # create fun object to formulate the OCP
     ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.Tsim = tf

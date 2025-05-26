@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 from torch.utils.data._utils.collate import collate
 
-from leap_c.collate import create_collate_fn_map, pytree_tensor_to
+from leap_c.torch.utils.collate import create_collate_fn_map, pytree_tensor_to
 
 
 class ReplayBuffer(nn.Module):

@@ -9,7 +9,7 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.acados.mpc import Mpc
+from leap_c.ocp.acados.mpc import Mpc
 
 # DO NOT TOUCH THE DEFAULT CONFIG!
 PARAMS = OrderedDict(
@@ -117,7 +117,7 @@ class PendulumOnCartMPC(Mpc):
     ):
         """
         Args:
-            params: A dict with the parameters of the ocp, together with their default values.
+            params: A dict with the parameters of the fun, together with their default values.
                 For a description of the parameters, see the docstring of the class.
             learnable_params: A list of the parameters that should be learnable
                 (necessary for calculating their gradients).
