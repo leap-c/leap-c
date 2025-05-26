@@ -5,8 +5,8 @@ import numpy as np
 from acados_template import AcadosOcp, AcadosOcpSolver
 from casadi.tools import struct_symSX
 
-from leap_c.examples.hvac.util import transcribe_discrete_state_space
-from leap_c.mpc import Mpc
+from leap_c.examples.hvac.util import transcribe_discrete_state_space, get_f_expl_expr
+from leap_c.acados.mpc import Mpc
 
 import matplotlib.pyplot as plt
 
@@ -87,7 +87,7 @@ def export_parametric_ocp(
     x0: np.ndarray | None = None,
 ) -> AcadosOcp:
     if x0 is None:
-        x0 = np.array([20.0, 20.0, 20.0])
+        x0 = np.array([17.0] * 3)
 
     ocp = AcadosOcp()
 
@@ -96,13 +96,25 @@ def export_parametric_ocp(
 
     ocp.model.name = name
 
-    ocp.dims.nu = 1
-    ocp.dims.nx = 3
-    ocp.dims.np = 3
+    ocp.model.x = ca.vertcat(
+        ca.SX.sym("Ti"),  # Indoor air temperature
+        ca.SX.sym("Th"),  # Radiator temperature
+        ca.SX.sym("Te"),  # Envelope temperature
+    )
 
-    ocp.model.x = ca.SX.sym("x", ocp.dims.nx)  # [Ti, Th, Te]
-    ocp.model.u = ca.SX.sym("u", ocp.dims.nu)  # [qh]
-    ocp.model.p = ca.SX.sym("p", ocp.dims.np)  # [Ta, Phi_s, price]
+    ocp.model.xdot = ca.vertcat(
+        ca.SX.sym("dTi_dt"),  # Indoor air temperature derivative
+        ca.SX.sym("dTh_dt"),  # Radiator temperature derivative
+        ca.SX.sym("dTe_dt"),  # Envelope temperature derivative
+    )
+
+    ocp.model.u = ca.SX.sym("qh")  # Heat input to radiator
+
+    ocp.model.p = ca.vertcat(
+        ca.SX.sym("Ta"),  # Ambient temperature
+        ca.SX.sym("Phi_s"),  # Solar radiation
+        ca.SX.sym("price"),  # Electricity price
+    )
 
     Ad, Bd, Ed = transcribe_discrete_state_space(
         Ad=np.zeros((3, 3)),
@@ -114,39 +126,59 @@ def export_parametric_ocp(
 
     ocp.model.disc_dyn_expr = Ad @ ocp.model.x + Bd @ ocp.model.u + Ed @ ocp.model.p[:2]
 
+    ocp.model.f_expl_expr = get_f_expl_expr(
+        x=ocp.model.x,
+        u=ocp.model.u,
+        d=ocp.model.p,
+        params=params,
+    )
+
     ocp.parameter_values = np.array([10.0, 0.0, 0.01])  # [Ta, Phi_s, price]
 
     # ocp = translate_learnable_param_to_p_global(
     #     nominal_param=params, learnable_param=learnable_params, ocp=ocp
     # )
 
-    # Cost function
-    ocp.cost.cost_type = "EXTERNAL"
-    # ocp.model.cost_expr_ext_cost = (ocp.model.x[0] - 21.0) ** 2 + ocp.model.p[
-    #     2
-    # ] * ocp.model.u
-    ocp.model.cost_expr_ext_cost = ocp.model.p[2] * ocp.model.u
-    # ocp.cost.cost_type_e = "EXTERNAL"
-    # ocp.model.cost_expr_ext_cost_e = (ocp.model.x[0] - 21.0) ** 2
+    if False:
+        # Cost function
+        ocp.cost.cost_type = "EXTERNAL"
+        # ocp.model.cost_expr_ext_cost = (ocp.model.x[0] - 21.0) ** 2 + ocp.model.p[
+        #     2
+        # ] * ocp.model.u
+        ocp.model.cost_expr_ext_cost = ocp.model.p[2] * ocp.model.u
+        # ocp.cost.cost_type_e = "EXTERNAL"
+        # ocp.model.cost_expr_ext_cost_e = (ocp.model.x[0] - 21.0) ** 2
+    else:
+        ocp.cost.cost_type = "NONLINEAR_LS"
+        ocp.model.cost_y_expr = ca.vertcat(
+            ocp.model.x[0],  # Indoor temperature
+            ocp.model.u,  # Heat input to radiator
+        )
+        ocp.cost.yref = np.array([21.0, 0.0])
+        ocp.cost.W = np.array([[1.0, 0.0], [0.0, 1.0]])
+        ocp.cost.W_e = np.array([[1.0]])
+        ocp.cost.cost_type_e = "EXTERNAL"
+        ocp.model.cost_expr_ext_cost_e = ocp.model.x[0]
+        ocp.cost.yref_e = np.array([21.0])
 
     ocp.constraints.x0 = x0
 
     # Box constraints on u
     ocp.constraints.lbu = np.array([0.0])
-    ocp.constraints.ubu = np.array([2000.0])  # [W]
+    ocp.constraints.ubu = np.array([5000.0])  # [W]
     ocp.constraints.idxbu = np.array([0])
 
     ocp.constraints.lbx = np.array([17.0])  # [°C] min indoor temperature
     ocp.constraints.ubx = np.array([25.0])  # [°C] max indoor temperature
     ocp.constraints.idxbx = np.array([0])
 
-    ocp.constraints.idxsbx = np.array([0])
-
-    ns = ocp.constraints.idxsbx.size
-    ocp.cost.zl = 100 * np.ones((ns,))
-    ocp.cost.Zl = 0 * np.ones((ns,))
-    ocp.cost.zu = 100 * np.ones((ns,))
-    ocp.cost.Zu = 0 * np.ones((ns,))
+    if True:
+        ocp.constraints.idxsbx = np.array([0])
+        ns = ocp.constraints.idxsbx.size
+        ocp.cost.zl = 1e5 * np.ones((ns,))
+        ocp.cost.Zl = 1e5 * np.ones((ns,))
+        ocp.cost.zu = 1e5 * np.ones((ns,))
+        ocp.cost.Zu = 1e5 * np.ones((ns,))
 
     # #############################
     if isinstance(ocp.model.p, struct_symSX):
@@ -161,14 +193,15 @@ def export_parametric_ocp(
 
 
 def set_ocp_solver_options(ocp: AcadosOcp, exact_hess_dyn: bool):
-    ocp.solver_options.integrator_type = "DISCRETE"
+    # ocp.solver_options.integrator_type = "DISCRETE"
+    ocp.solver_options.integrator_type = "ERK"
     ocp.solver_options.nlp_solver_type = "SQP"
-    ocp.solver_options.hessian_approx = "EXACT"
-    ocp.solver_options.exact_hess_dyn = exact_hess_dyn
+    # ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
+    # ocp.solver_options.exact_hess_dyn = exact_hess_dyn
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    ocp.solver_options.qp_solver_ric_alg = 1
-    ocp.solver_options.with_value_sens_wrt_params = False
-    ocp.solver_options.with_solution_sens_wrt_params = False
+    # ocp.solver_options.qp_solver_ric_alg = 1
+    # ocp.solver_options.with_value_sens_wrt_params = False
+    # ocp.solver_options.with_solution_sens_wrt_params = False
 
 
 if __name__ == "__main__":
@@ -183,9 +216,19 @@ if __name__ == "__main__":
         np.array([10.0, 0.0, 0.01]), (ocp_solver.acados_ocp.solver_options.N_horizon, 1)
     )
 
-    parameter_values[:, -1] = np.random.uniform(
-        0.01, 0.2, size=(ocp_solver.acados_ocp.solver_options.N_horizon)
-    )
+    # random_prices = True
+    price_type = "random_prices"
+
+    if price_type == "random_prices":
+        parameter_values[:, -1] = np.random.uniform(
+            0.01, 0.2, size=(ocp_solver.acados_ocp.solver_options.N_horizon)
+        )
+    elif price_type == "sinusoidal_prices":
+        parameter_values[:, -1] = 0.01 + 0.1 * np.sin(
+            np.linspace(0, 2 * np.pi, ocp_solver.acados_ocp.solver_options.N_horizon)
+        )
+    elif price_type == "constant_prices":
+        parameter_values[:, -1] = 0.01
 
     for stage in range(ocp.solver_options.N_horizon):
         ocp_solver.set(stage, "p", parameter_values[stage, :])
@@ -194,28 +237,44 @@ if __name__ == "__main__":
 
     # TODO: Set initial state
 
+    x0 = np.array([18.0, 18.0, 18.0])
+    for stage in range(ocp.solver_options.N_horizon):
+        ocp_solver.set(stage, "x", x0)
+
     # Solve the OCP
 
-    status = ocp_solver.solve()
+    _ = ocp_solver.solve_for_x0(x0_bar=x0)
+    status = ocp_solver.get_status()
 
     x = np.array([ocp_solver.get(stage, "x") for stage in range(ocp.dims.N)])
     u = np.array([ocp_solver.get(stage, "u") for stage in range(ocp.dims.N)])
 
+    lb_indoor = ocp_solver.acados_ocp.constraints.lbx[0] * np.ones(ocp.dims.N)
+
     plt.figure()
-    plt.subplot(3, 1, 1)
+    plt.subplot(2, 1, 1)
     plt.stairs(x[:, 0], label="Indoor temperature")
+    plt.stairs(lb_indoor, label="Indoor temperature lower bound", linestyle="--")
     plt.stairs(x[:, 1], label="Radiator temperature")
     plt.stairs(x[:, 2], label="Envelope temperature")
     plt.grid()
     plt.legend()
-    plt.subplot(3, 1, 2)
-    plt.stairs(u[:, 0], label="Heat input to radiator")
-    plt.grid()
-    plt.legend()
-    plt.subplot(3, 1, 3)
-    plt.stairs(parameter_values[:, -1], label="Electricity price")
-    plt.grid()
-    plt.legend()
+    plt.subplot(2, 1, 2)
+    ax1 = plt.gca()
+    ax2 = ax1.twinx()
+
+    ax1.stairs(u[:, 0], label="Heat input to radiator", color="tab:blue")
+    ax2.stairs(parameter_values[:, -1], label="Electricity price", color="tab:orange")
+
+    ax1.set_ylabel("Heat input to radiator (W)", color="tab:blue")
+    ax2.set_ylabel("Electricity price (EUR/kWh)", color="tab:orange")
+
+    ax1.tick_params(axis="y", labelcolor="tab:blue")
+    ax2.tick_params(axis="y", labelcolor="tab:orange")
+
+    ax1.grid()
+    ax1.legend(loc="upper left")
+    ax2.legend(loc="upper right")
     plt.xlabel("Time step")
     plt.tight_layout()
     plt.show()

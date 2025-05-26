@@ -3,70 +3,75 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
-from typing import Callable
+    from collections.abc import Callable, Iterable
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 
+from scipy.constants import convert_temperature
+
+from dataclasses import dataclass
+
+from leap_c.examples.hvac.util import (
+    BestestParameters,
+    BestestHydronicParameters,
+    BestestHydronicHeatpumpParameters,
+)
+
 # Constants
-DAYLIGHT_START_HOUR = 6  # Start of daylight hours
-DAYLIGHT_END_HOUR = 18  # End of daylight hours
-MEAN_AMBIENT_TEMPERATURE = 15  # Mean ambient temperature in °C
-MAGNITUDE_AMBIENT_TEMPERATURE = 5  # Amplitude of ambient temperature variation in °C
-MAGNITUDE_SOLAR_RADIATION = 200  # Peak solar radiation in W/m²
+DAYLIGHT_START_HOUR = 6
+DAYLIGHT_END_HOUR = 18
+MEAN_AMBIENT_TEMPERATURE = convert_temperature(0, "celsius", "kelvin")
+MAGNITUDE_AMBIENT_TEMPERATURE = 5
+MAGNITUDE_SOLAR_RADIATION = 200
 
 
 class ThreeStateRcEnv(gym.Env):
     """Simulator for a three-state RC thermal model of a building."""
 
     def __init__(
-        self, params: dict[str, float] | None = None, step_size: float = 60.0
+        self,
+        params: None | BestestParameters = None,
+        step_size: float = 60.0,
+        ambient_temperature_function: Callable | None = None,
+        solar_radiation_function: Callable | None = None,
     ) -> None:
-        """Initialize the simulator with thermal parameters.
+        """
+        Initialize the simulator with thermal parameters.
 
         Args:
             params: Dictionary of thermal parameters
             step_size: Time step for the simulation in seconds
 
         """
-        # Default parameters if none provided
-        if params is None:
-            params = {
-                # Effective window area [m²]
-                "gAw": 40.344131392192,
-                # Thermal capacitances [J/K]
-                "Ch": 10447262.2318648,  # Radiator
-                "Ci": 14827137.0377258,  # Indoor air
-                "Ce": 50508258.9032192,  # Building envelope
-                # Noise parameters
-                "e11": -30.0936560706053,  # Measurement noise
-                "sigmai": -23.3175423490014,
-                "sigmah": -19.5274067368137,
-                "sigmae": -5.07591222090641,
-                # Thermal resistances [K/W]
-                "Rea": 0.00163027389197229,  # Envelope to outdoor
-                "Rhi": 0.000437603769897038,  # Radiator to indoor air
-                "Rie": 0.000855786902577802,  # Indoor air to envelope
-                # Heater parameters
-                "eta": 0.98,  # Efficiency for electric heater
-            }
-
         # Store parameters
-        self.params = params
+        self.params = (
+            params if params is not None else BestestHydronicParameters().to_dict()
+        )
 
         # Initial state variables [°C]
-        self.Ti = 19.98391155668  # Indoor temperature
-        self.Th = 15.9962126581082  # Radiator temperature
-        self.Te = 19.3135718989064  # Envelope temperature
+        self.Ti = convert_temperature(20.0, "celsius", "kelvin")
+        self.Th = convert_temperature(20.0, "celsius", "kelvin")
+        self.Te = convert_temperature(20.0, "celsius", "kelvin")
 
         self.state_0 = np.array([self.Ti, self.Th, self.Te])
 
         self.integrator = lambda x, u, d, p: rk4_step(dynamics, x, u, d, p, step_size)
 
+        if ambient_temperature_function is None:
+            self.ambient_temperature_function = get_ambient_temperature
+        else:
+            self.ambient_temperature_function = ambient_temperature_function
+
+        if solar_radiation_function is None:
+            self.solar_radiation_function = get_solar_radiation
+        else:
+            self.solar_radiation_function = solar_radiation_function
+
     def step(self, action: float, time: float) -> np.ndarray:
-        """Perform a simulation step.
+        """
+        Perform a simulation step.
 
         Args:
             action: Control input (heat input to radiator)
@@ -78,7 +83,10 @@ class ThreeStateRcEnv(gym.Env):
         self.state = self.integrator(
             self.state,
             action,
-            (get_ambient_temperature(time), get_solar_radiation(time)),
+            (
+                self.ambient_temperature_function(time),
+                self.solar_radiation_function(time),
+            ),
             self.params,
         )
 
@@ -99,7 +107,8 @@ def rk4_step(
     p: dict[str, float],
     h: float,
 ) -> np.ndarray:
-    """Perform a single RK4 step.
+    """
+    Perform a single RK4 step.
 
     Args:
         f: Function to integrate
@@ -120,7 +129,8 @@ def rk4_step(
 
 
 def dynamics(x: Iterable, u: float, d: Iterable, p: dict[str, float]) -> np.ndarray:
-    """Calculate the state derivatives for the thermal model.
+    """
+    Calculate the state derivatives for the thermal model.
 
     Args:
         x: Current state vector [Ti, Th, Te]
@@ -158,8 +168,9 @@ def dynamics(x: Iterable, u: float, d: Iterable, p: dict[str, float]) -> np.ndar
     return np.array([dTi_dt, dTh_dt, dTe_dt])
 
 
-def get_ambient_temperature(t) -> float:
-    """Get the ambient temperature at time t.
+def get_ambient_temperature(t: float) -> float:
+    """
+    Get the ambient temperature at time t.
 
     Args:
         t: Time in seconds since the start of the simulation
@@ -172,8 +183,9 @@ def get_ambient_temperature(t) -> float:
     )
 
 
-def get_solar_radiation(t) -> float:
-    """Get the solar radiation at time t.
+def get_solar_radiation(t: float) -> float:
+    """
+    Get the solar radiation at time t.
 
     Args:
         t: Time in seconds since the start of the simulation
@@ -189,94 +201,177 @@ def get_solar_radiation(t) -> float:
     return 0.0  # Night
 
 
-def get_heating_power(t) -> float:
+def get_alternating_heating_power(t) -> float:
     # Example: Heater is on for 1 hour, then off for 1 hour
     if (t // 3600) % 2 == 0:
-        return 2000.0  # 2 kW
+        return 200.0  # 2 kW
     return 0.0
 
 
+def get_constant_heating_power(t: float) -> float:
+    # Example: Constant heating power
+    return 2000.0
+
+
 # Example usage
-if __name__ == "__main__":
-    # Create the model
+def plot_hvac_results(
+    get_ambient_temperature: Callable,
+    get_solar_radiation: Callable,
+    get_heating_power: Callable,
+    time: np.ndarray,
+    x: np.ndarray,
+    u: np.ndarray,
+) -> None:
+    """
+    Plot the results of an HVAC simulation, including temperatures, heating power,
+    and solar radiation over time.
 
-    # Simulation parameters
-    time_span = (0, 72 * 3600)  # 24 hours in seconds
-    time_step = 5.0  # in seconds
-    time = np.arange(time_span[0], time_span[1], time_step)
+    Parameters:
+    -----------
+    get_ambient_temperature : callable
+        A function that takes a time value (in seconds) and returns the ambient
+        (outdoor) temperature at that time.
+    get_solar_radiation : callable
+        A function that takes a time value (in seconds) and returns the solar
+        radiation (in W/m²) at that time.
+    get_heating_power : callable
+        A function that takes a time value (in seconds) and returns the heating
+        power (in W) at that time.
+    time : numpy.ndarray
+        A 1D array of time values (in seconds) corresponding to the simulation time steps.
+    x : numpy.ndarray
+        A 2D array where each row corresponds to the state variables at a given time step:
+        - x[:, 0]: Indoor temperature (°C)
+        - x[:, 1]: Radiator temperature (°C)
+        - x[:, 2]: Envelope temperature (°C)
 
-    env = ThreeStateRcEnv(step_size=time_step)
+    Returns:
+    --------
+    None
+        This function does not return any value. It generates and displays plots
+        of the simulation results.
 
-    env.reset()
-
-    x = [env.state]
-
-    # Run simulation
-    for t in time:
-        # Get current inputs
-        action = get_heating_power(t)
-
-        # Update state using the integrator
-        state = env.step(action, t)
-
-        x.append(state)
-
-    # Pop the last state
-    x.pop()
-
-    x = np.array(x)
-
-    # Convert x to a named tuple for better readability
+    Notes:
+    ------
+    - The time values are converted from seconds to hours for plotting.
+    - The function creates two subplots:
+        1. Temperatures (indoor, radiator, envelope, and outdoor) over time.
+        2. Heating power and solar radiation over time.
+    - The plots include legends, grid lines, and appropriate labels for clarity.
+    """
     results = {
-        "Ti": x[:, 0],  # Indoor temperature
-        "Th": x[:, 1],  # Radiator temperature
-        "Te": x[:, 2],  # Envelope temperature
+        "Ti": convert_temperature(x[:, 0], "kelvin", "celsius"),  # Indoor temperature
+        "Th": convert_temperature(x[:, 1], "kelvin", "celsius"),  # Radiator temperature
+        "Te": convert_temperature(x[:, 2], "kelvin", "celsius"),  # Envelope temperature
+        "Ta": convert_temperature(
+            np.array([get_ambient_temperature(t) for t in time]), "kelvin", "celsius"
+        ),  # Outdoor temperature
         "time": time,  # Time array
         "qh": [get_heating_power(t) for t in time],  # Heating power
-        "Ta": [get_ambient_temperature(t) for t in time],  # Outdoor temperature
         "Phi_s": [get_solar_radiation(t) for t in time],  # Solar radiation
     }
 
     # Plot results
     plt.figure(figsize=(12, 8))
-
     # Convert time from seconds to hours for plotting
     time_hours = time / 3600
 
-    # Plot temperatures
-    plt.subplot(2, 1, 1)
+    # Plot temperatures (first subplot - unchanged)
+    plt.subplot(3, 1, 1)
     plt.plot(time_hours, results["Ti"], "b-", label="Indoor Temperature")
-    plt.plot(time_hours, results["Th"], "r-", label="Radiator Temperature")
     plt.plot(time_hours, results["Te"], "g-", label="Envelope Temperature")
-    plt.plot(
-        time_hours,
-        [get_ambient_temperature(t) for t in results["time"]],
-        "k--",
-        label="Outdoor Temperature",
-    )
-    plt.xlabel("Time (hours)")
+    plt.plot(time_hours, results["Ta"], "k--", label="Outdoor Temperature")
     plt.ylabel("Temperature (°C)")
     plt.legend()
     plt.grid()
 
-    # Plot heating power and solar radiation
-    plt.subplot(2, 1, 2)
-    plt.plot(
-        time_hours,
-        [get_heating_power(t) for t in results["time"]],
-        "r-",
-        label="Heating Power (W)",
-    )
-    plt.plot(
-        time_hours,
-        [get_solar_radiation(t) for t in results["time"]],
-        "y-",
-        label="Solar Radiation (W/m²)",
-    )
-    plt.xlabel("Time (hours)")
-    plt.ylabel("Power (W) / Radiation (W/m²)")
+    plt.subplot(3, 1, 2)
+    plt.plot(time_hours, results["Th"], "r-", label="Radiator Temperature")
     plt.legend()
+    plt.ylabel("Temperature (°C)")
     plt.grid()
 
+    # Plot heating power and solar radiation (second subplot - with twin axes)
+    ax1 = plt.subplot(3, 1, 3)
+    # Primary y-axis (left) for heating power
+    (line1,) = ax1.plot(
+        time_hours,
+        u,
+        "r-",
+        label="Heating Power",
+    )
+    ax1.set_xlabel("Time (hours)")
+    ax1.set_ylabel("Heating Power (W)", color="r")
+    ax1.tick_params(axis="y", labelcolor="r")
+    ax1.grid()
+
+    # Secondary y-axis (right) for solar radiation
+    ax2 = ax1.twinx()
+    solar_data = [get_solar_radiation(t) for t in results["time"]]
+    (line2,) = ax2.plot(
+        time_hours,
+        solar_data,
+        "y-",
+        label="Solar Radiation",
+    )
+    ax2.set_ylabel("Solar Radiation (W/m²)", color="y")
+    ax2.tick_params(axis="y", labelcolor="y")
+
+    # Create a combined legend for the second subplot
+    ax1.legend([line1, line2], ["Heating Power", "Solar Radiation"], loc="upper left")
+
+    plt.xlabel("Time (hours)")
     plt.tight_layout()
     plt.show()
+
+
+if __name__ == "__main__":
+    # Create the model
+
+    # Simulation parameters
+
+    days = 3
+    time_span = (0, days * 24 * 3600)
+    time_step = 5.0  # in seconds
+    time = np.arange(time_span[0], time_span[1], time_step)
+
+    ambient_temperate_function = get_ambient_temperature
+    solar_radiation_function = get_solar_radiation
+    heating_power_function = get_constant_heating_power
+
+    env = ThreeStateRcEnv(
+        step_size=time_step,
+        ambient_temperature_function=ambient_temperate_function,
+        solar_radiation_function=solar_radiation_function,
+    )
+
+    env.reset()
+
+    x = [env.state]
+    u = []
+
+    # Run simulation
+    for t in time:
+        # Get current inputs
+        action = heating_power_function(t)
+
+        # Update state using the integrator
+        state = env.step(action, t)
+
+        x.append(state)
+        u.append(action)
+
+    # Pop the last state
+    x.pop()
+
+    x = np.array(x)
+    u = np.array(u)
+
+    plot_hvac_results(
+        ambient_temperate_function,
+        solar_radiation_function,
+        heating_power_function,
+        time,
+        x,
+        u,
+    )
