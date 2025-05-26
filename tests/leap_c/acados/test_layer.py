@@ -1,11 +1,10 @@
 import numpy as np
-import pytest
 import torch
 from leap_c.examples.chain.mpc import ChainMpc
 from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
 from leap_c.examples.pointmass.mpc import PointMassMPC
-from leap_c.acados.mpc import MpcInput, MpcParameter
-from leap_c.acados.layer import MpcSolutionModule
+from leap_c.ocp.acados.mpc import MpcInput, MpcParameter
+from leap_c.ocp.acados.layer import MpcSolutionModule
 
 
 def test_MPCSolutionModule_on_PointMassMPC(

@@ -5,18 +5,6 @@ import torch.autograd as autograd
 from gymnasium import spaces
 
 
-def string_to_activation(activation: str) -> nn.Module:
-    if activation == "relu":
-        return nn.ReLU()
-    elif activation == "tanh":
-        return nn.Tanh()
-    elif activation == "sigmoid":
-        return nn.Sigmoid()
-    elif activation == "leaky_relu":
-        return nn.LeakyReLU()
-    else:
-        raise ValueError(f"Activation function {activation} not recognized.")
-
 
 class MinMaxStraightThroughFunction(autograd.Function):
     @staticmethod

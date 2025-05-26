@@ -3,9 +3,7 @@ from typing import Any
 import numpy as np
 from gymnasium.envs.mujoco.reacher_v5 import ReacherEnv as ReacherEnvV5
 from gymnasium import spaces
-from scipy.spatial.transform import Rotation
-import mujoco
-from leap_c.examples.mujoco.reacher.util import ReferencePath, PathGeometry
+from leap_c.examples.mujoco.reacher.util import ReferencePath
 
 DEFAULT_CAMERA_CONFIG = {"trackbodyid": 0}
 

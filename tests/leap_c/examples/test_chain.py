@@ -1,17 +1,13 @@
-import matplotlib.pyplot as plt
 import numpy as np
 
 import leap_c.examples  # noqa: F401
-import leap_c.rl  # noqa: F401
+import leap_c.torch.rl  # noqa: F401
 from leap_c.examples.chain.env import ChainEnv
 from leap_c.examples.chain.mpc import ChainMpc, get_f_expl_expr
 from leap_c.examples.chain.utils import (
-    animate_chain_position_3D,
-    animate_chain_position,
     Ellipsoid,
     RestingChainSolver,
 )
-from leap_c.registry import create_default_cfg, create_task, create_trainer
 
 
 def test_chain_policy_evaluation_works():

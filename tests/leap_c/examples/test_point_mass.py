@@ -1,7 +1,6 @@
 import numpy as np
 
-import leap_c.examples
-import leap_c.rl  # noqa: F401
+import leap_c.torch.rl  # noqa: F401
 from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pointmass.mpc import PointMassMPC
 

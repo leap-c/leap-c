@@ -14,7 +14,7 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.acados.mpc import Mpc, MpcBatchedState, MpcInput
+from leap_c.ocp.acados.mpc import Mpc, MpcBatchedState, MpcInput
 
 
 class ReacherMpc(Mpc):
@@ -266,7 +266,7 @@ def export_parametric_ocp(
 
     # # Add slack variables for lbx, ubx
     # ocp.constraints.idxsbx = np.array([0])
-    # ns = ocp.constraints.idxsbx.size
+    # ns = fun.constraints.idxsbx.size
     # ocp.cost.zl = 10000 * np.ones((ns,))
     # ocp.cost.Zl = 10 * np.ones((ns,))
     # ocp.cost.zu = 10000 * np.ones((ns,))

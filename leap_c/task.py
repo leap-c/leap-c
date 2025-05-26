@@ -6,10 +6,10 @@ import torch
 from gymnasium.wrappers import OrderEnforcing, RecordEpisodeStatistics
 from torch.utils.data._utils.collate import collate
 
-from leap_c.collate import create_collate_fn_map, pytree_tensor_to
-from leap_c.acados.mpc import MpcInput
-from leap_c.nn.extractor import Extractor, IdentityExtractor
-from leap_c.acados.layer import MpcSolutionModule
+from leap_c.torch.utils.collate import create_collate_fn_map, pytree_tensor_to
+from leap_c.ocp.acados.mpc import MpcInput
+from leap_c.torch.nn.extractor import Extractor, IdentityExtractor
+from leap_c.ocp.acados.layer import MpcSolutionModule
 
 EnvFactory = Callable[[], gym.Env]
 

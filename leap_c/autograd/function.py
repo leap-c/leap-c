@@ -1,0 +1,1 @@
+# TODO (Jasper): Provide abstract class for functions that can integrated to jax or torch.

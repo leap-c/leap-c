@@ -1,7 +1,7 @@
 import torch
 from types import SimpleNamespace
 
-from leap_c.utils.torch_autograd import create_autograd_function
+from leap_c.autograd.torch import create_autograd_function
 
 
 class DummyFunction:

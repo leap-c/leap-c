@@ -18,8 +18,8 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedIterate,
 )
 
-from leap_c.acados.file_manager import AcadosFileManager
-from leap_c.acados.utils import set_standard_sensitivity_options, SX_to_labels
+from leap_c.ocp.acados.file_manager import AcadosFileManager
+from leap_c.ocp.acados.utils import set_standard_sensitivity_options, SX_to_labels
 
 
 class AcadosStatus(IntEnum):

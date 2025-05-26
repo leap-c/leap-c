@@ -7,8 +7,8 @@ import scipy
 from acados_template import AcadosOcp
 from leap_c.examples.quadrotor.casadi_models import get_rhs_quadrotor
 from leap_c.examples.quadrotor.utils import read_from_yaml
-from leap_c.acados.mpc import Mpc
-from leap_c.acados.utils import set_standard_sensitivity_options
+from leap_c.ocp.acados.mpc import Mpc
+from leap_c.ocp.acados.utils import set_standard_sensitivity_options
 
 PARAMS = OrderedDict(
     [
@@ -29,7 +29,7 @@ class QuadrotorMpc(Mpc):
     ):
         """
         Args:
-            params: A dict with the parameters of the ocp, together with their default values.
+            params: A dict with the parameters of the fun, together with their default values.
                 For a description of the parameters, see the docstring of the class.
             learnable_params: A list of the parameters that should be learnable
                 (necessary for calculating their gradients).
@@ -67,7 +67,7 @@ class QuadrotorMpc(Mpc):
         #     init_iterate = parse_ocp_iterate(init_iterate, N=N_horizon)
         #
         # def initialize_default(mpc_input: MpcInput):
-        #     init_iterate.x_traj = [mpc_input.x0] * (ocp.solver_options.N_horizon + 1)
+        #     init_iterate.x_traj = [mpc_input.x0] * (fun.solver_options.N_horizon + 1)
         #     return init_iterate
 
         # init_state_fn = initialize_default

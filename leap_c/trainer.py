@@ -11,7 +11,7 @@ from yaml import safe_dump
 from leap_c.utils.logger import Logger, LoggerConfig
 from leap_c.utils.rollout import episode_rollout
 from leap_c.task import Task
-from leap_c.utils.seed import set_seed
+from leap_c.torch.utils.seed import set_seed
 
 
 @dataclass(kw_only=True)

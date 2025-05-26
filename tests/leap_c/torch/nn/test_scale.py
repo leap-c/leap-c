@@ -4,7 +4,7 @@ import pytest
 import torch
 
 
-from leap_c.nn.utils import min_max_scaling
+from leap_c.torch.nn.scale import min_max_scaling
 
 
 def test_min_max_scaling():
