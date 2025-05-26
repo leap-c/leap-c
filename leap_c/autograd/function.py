@@ -2,10 +2,10 @@ from abc import ABC, abstractmethod
 from typing import Optional, Generic
 import numpy as np
 
-from leap_c.types import LayerContext
+from leap_c.types import CalcCtx
 
 
-class Function(ABC, Generic[LayerContext]):
+class DiffFunction(ABC, Generic[CalcCtx]):
     """Abstract base class for differentiable functions.
 
     Subclasses must implement `forward` and `backward` methods.
@@ -47,7 +47,7 @@ class Function(ABC, Generic[LayerContext]):
     """
 
     @abstractmethod
-    def forward(self, *inputs: np.ndarray, ctx: Optional[LayerContext] = None):
+    def forward(self, *inputs: np.ndarray, ctx: Optional[CalcCtx] = None):
         """Computes the output of the function given inputs.
 
         Returns:
@@ -57,7 +57,7 @@ class Function(ABC, Generic[LayerContext]):
         ...
 
     @abstractmethod
-    def backward(self, ctx: LayerContext, *output_grads: np.ndarray):
+    def backward(self, ctx: CalcCtx, *output_grads: np.ndarray):
         """Computes the gradient of the function with respect to its inputs.
 
         Args:

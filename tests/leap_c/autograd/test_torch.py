@@ -1,11 +1,11 @@
 import torch
 from types import SimpleNamespace
 
-from leap_c.autograd.function import Function
+from leap_c.autograd.function import DiffFunction
 from leap_c.autograd.torch import create_autograd_function
 
 
-class DummyFunction(Function[SimpleNamespace]):
+class DummyFunction(DiffFunction[SimpleNamespace]):
     def forward(self, x_np, ctx=None):
         if ctx is None:
             ctx = SimpleNamespace()
@@ -33,7 +33,7 @@ def test_create_autograd_function():
     assert torch.allclose(x.grad, expected_grad)  # type: ignore
 
 
-class DummyTupleFunction(Function[SimpleNamespace]):
+class DummyTupleFunction(DiffFunction[SimpleNamespace]):
     def forward(self, x_np, y_np, ctx=None):
         if ctx is None:
             ctx = SimpleNamespace()
