@@ -2,15 +2,14 @@
 controllers in PyTorch."""
 
 from abc import abstractmethod
-from typing import Callable, Optional, TypeVar, Generic
+from typing import Callable, Optional, Generic
 
 import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 
-
-Context = TypeVar("Context")  # Context for autograd
+from leap_c.types import Context
 
 
 class ParameterizedControllerFunction(nn.Module, Generic[Context]):
