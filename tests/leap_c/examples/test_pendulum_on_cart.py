@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 from acados_template import AcadosOcpSolver
 from gymnasium.utils.save_video import save_video
-from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
-from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
+from leap_c.examples.cartpole.env import PendulumOnCartSwingupEnv
+from leap_c.examples.cartpole.mpc import PendulumOnCartMPC
 
 
 def plot_cart_pole_solution(

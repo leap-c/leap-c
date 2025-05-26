@@ -6,8 +6,8 @@ import pytest
 from leap_c.examples.chain.env import ChainEnv
 from leap_c.examples.chain.mpc import ChainMpc
 from leap_c.examples.chain.utils import Ellipsoid
-from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
-from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
+from leap_c.examples.cartpole.env import PendulumOnCartSwingupEnv
+from leap_c.examples.cartpole.mpc import PendulumOnCartMPC
 from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pointmass.mpc import PointMassMPC
 from leap_c.registry import (

@@ -4,11 +4,11 @@ from typing import Any, Optional
 import gymnasium as gym
 import numpy as np
 import torch
-from leap_c.examples.pendulum_on_a_cart.env import (
+from leap_c.examples.cartpole.env import (
     PendulumOnCartBalanceEnv,
     PendulumOnCartSwingupEnv,
 )
-from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
+from leap_c.examples.cartpole.mpc import PendulumOnCartMPC
 from leap_c.ocp.acados.layer import MpcSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
