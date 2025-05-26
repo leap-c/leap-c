@@ -328,7 +328,7 @@ def test_MPCSolutionModule_on_PendulumOnCart_ext_cost(
     u0: np.ndarray = np.array([79.0]),
     # NOTE: u0 is different for easier convergence in the Q cases.
     # It needs to be slightly below 80 because else finite differences would exceed 80
-    # which we do not allow in the fun formulation and we raise an error then
+    # which we do not allow in the ocp formulation and we raise an error then
 ):
     batch_size = pendulum_on_cart_ext_cost_p_global.shape[0]
     assert batch_size <= 10, "Using batch_sizes too large will make the test very slow."
