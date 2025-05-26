@@ -34,17 +34,17 @@ class AcadosFileManager:
     def setup_acados_ocp_solver(
         self, ocp: AcadosOcp, generate_code: bool = True, build: bool = True
     ) -> AcadosOcpSolver:
-        """Setup an acados fun solver with path management.
+        """Setup an acados ocp solver with path management.
 
         We set the json file and the code export directory.
 
         Args:
-            ocp: The acados fun object.
+            ocp: The acados ocp object.
             generate_code: If True generate the code.
             build: If True build the code.
 
         Returns:
-            AcadosOcpSolver: The acados fun solver.
+            AcadosOcpSolver: The acados ocp solver.
         """
         ocp.code_export_directory = str(self.export_directory / "c_generated_code")
         json_file = str(self.export_directory / "acados_ocp.json")
@@ -90,17 +90,17 @@ class AcadosFileManager:
     def setup_acados_ocp_batch_solver(
         self, ocp: AcadosOcp, N_batch_max: int, num_threads_in_batch_methods: int
     ) -> AcadosOcpBatchSolver:
-        """Setup an acados fun batch solver with path management.
+        """Setup an acados ocp batch solver with path management.
 
         We set the json file and the code export directory.
 
         Args:
-            ocp: The acados fun object.
+            ocp: The acados ocp object.
             N_batch_max: The batch size.
             num_threads_in_batch_methods: The number of threads to use for the batched methods.
 
         Returns:
-            AcadosOcpBatchSolver: The acados fun batch solver.
+            AcadosOcpBatchSolver: The acados ocp batch solver.
         """
         ocp.code_export_directory = str(self.export_directory / "c_generated_code")
         json_file = str(self.export_directory / "acados_ocp.json")

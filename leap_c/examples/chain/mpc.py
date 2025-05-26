@@ -124,7 +124,7 @@ def export_parametric_ocp(
     fix_point: np.ndarray = np.array([0.0, 0.0, 0.0]),
     pos_last_mass_ref: np.ndarray = np.array([1.0, 0.0, 0.0]),
 ) -> tuple[AcadosOcp, DMStruct]:
-    # create fun object to formulate the OCP
+    # create ocp object to formulate the OCP
     ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.Tsim = tf

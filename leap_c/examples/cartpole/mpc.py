@@ -117,7 +117,7 @@ class PendulumOnCartMPC(Mpc):
     ):
         """
         Args:
-            params: A dict with the parameters of the fun, together with their default values.
+            params: A dict with the parameters of the ocp, together with their default values.
                 For a description of the parameters, see the docstring of the class.
             learnable_params: A list of the parameters that should be learnable
                 (necessary for calculating their gradients).
