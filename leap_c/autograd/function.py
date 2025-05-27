@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+
 import numpy as np
 
 
@@ -32,7 +33,7 @@ class DiffFunction(ABC):
                 return ctx, out1, out2
 
             def backward(
-                self, ctx: dict, *grad_outputs: np.ndarray
+                self, ctx: dict, *grad_outputs: np.ndarray  # type: ignore
             ):
                 # Retrieve saved values
                 x = ctx["saved"]
@@ -72,4 +73,3 @@ class DiffFunction(ABC):
             A tuple of gradients with respect to each input.
         """
         ...
-

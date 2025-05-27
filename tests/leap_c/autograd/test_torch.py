@@ -5,15 +5,15 @@ from leap_c.autograd.function import DiffFunction
 from leap_c.autograd.torch import create_autograd_function
 
 
-class DummyFunction(DiffFunction[SimpleNamespace]):
-    def forward(self, x_np, ctx=None):
+class DummyFunction(DiffFunction):
+    def forward(self, x_np, ctx=None):  # type: ignore
         if ctx is None:
             ctx = SimpleNamespace()
         ctx.saved = x_np.copy()
         y_np = x_np**2 + 1
         return ctx, y_np
 
-    def backward(self, ctx, grad_y_np):
+    def backward(self, ctx, grad_y_np):  # type: ignore
         x_np = ctx.saved
         grad_x_np = 2 * x_np * grad_y_np
         return grad_x_np
@@ -23,7 +23,7 @@ def test_create_autograd_function():
     x = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)
 
     autograd_fn = create_autograd_function(DummyFunction())
-    _, y = autograd_fn.apply(x)
+    _, y = autograd_fn.apply(x)  # type: ignore
 
     expected_y = x.detach() ** 2 + 1
     assert torch.allclose(y, expected_y)  # type: ignore
@@ -33,8 +33,8 @@ def test_create_autograd_function():
     assert torch.allclose(x.grad, expected_grad)  # type: ignore
 
 
-class DummyTupleFunction(DiffFunction[SimpleNamespace]):
-    def forward(self, x_np, y_np, ctx=None):
+class DummyTupleFunction(DiffFunction):
+    def forward(self, x_np, y_np, ctx=None):  # type: ignore
         if ctx is None:
             ctx = SimpleNamespace()
         ctx.saved = (x_np.copy(), y_np.copy())
@@ -42,7 +42,7 @@ class DummyTupleFunction(DiffFunction[SimpleNamespace]):
         out2 = x_np * y_np
         return ctx, out1, out2
 
-    def backward(self, ctx, grad_out1_np, grad_out2_np):
+    def backward(self, ctx, grad_out1_np, grad_out2_np):  # type: ignore
         x_np, y_np = ctx.saved
         grad_x = grad_out1_np + grad_out2_np * y_np
         grad_y = grad_out1_np + grad_out2_np * x_np
