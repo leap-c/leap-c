@@ -1,7 +1,8 @@
 """This module creates PyTorch autograd functions"""
 
-from leap_c.autograd.function import DiffFunction
 import torch
+
+from leap_c.autograd.function import DiffFunction
 
 
 def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]:
