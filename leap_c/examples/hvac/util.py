@@ -1,10 +1,12 @@
-from dataclasses import dataclass, asdict
-from typing import Dict, Tuple
+from collections.abc import Callable, Iterable
+from dataclasses import asdict, dataclass
 
 import casadi as ca
 import numpy as np
 import scipy
 import scipy.linalg
+
+from scipy.constants import convert_temperature
 
 
 @dataclass
@@ -79,72 +81,91 @@ class BestestHydronicHeatpumpParameters(BestestParameters):
     eta: float = 0.98
 
 
-def nominal_ode(x: ca.SX, u: ca.SX, d: ca.SX, p: dict[str, float]) -> np.ndarray:
-    """
-    Calculate the state derivatives for the thermal model.
-
-    Args:
-        x: Current state vector [Ti, Th, Te]
-        u: Heat input to radiator [W]
-        d: Disturbance inputs [Ta, Phi_s]
-        p: Parameters
-
-    Returns:
-        State derivatives [dTi/dt, dTh/dt, dTe/dt]
-
-    """
-    Ti, Th, Te = x
-    qh = u
-    Ta, Phi_s = d
-
-    # State derivatives according to equations (1a)-(1c)
-    dTi_dt = (
-        (1 / (p["Ci"] * p["Rhi"])) * (Th - Ti)
-        + (1 / (p["Ci"] * p["Rie"])) * (Te - Ti)
-        + (1 / p["Ci"]) * p["gAw"] * Phi_s
-    )
-    dTh_dt = (1 / (p["Ch"] * p["Rhi"])) * (Ti - Th) + (qh / p["Ch"])
-    dTe_dt = (1 / (p["Ce"] * p["Rie"])) * (Ti - Te) + (1 / (p["Ce"] * p["Rea"])) * (
-        Ta - Te
-    )
-
-    return np.array([dTi_dt, dTh_dt, dTe_dt])
-
-
 def get_f_expl_expr(
-    x: ca.SX,
-    u: ca.SX,
-    d: ca.SX,
+    x: ca.SX | np.ndarray,
+    u: ca.SX | np.ndarray,
+    e: ca.SX | np.ndarray,
     params: dict[str, float],
-) -> ca.SX:
+) -> ca.SX | np.ndarray:
     """
-    Get the state derivatives as a CasADi expression.
+    Get the state derivatives.
 
     Args:
         x: Current state vector [Ti, Th, Te]
         u: Heat input to radiator [W]
-        d: Disturbance inputs [Ta, Phi_s]
+        e: Exogeneous inputs [Ta, Phi_s]
         params: Parameters
     Returns:
-        State derivatives as a CasADi expression [dTi/dt, dTh/dt, dTe/dt]
+        State derivatives [dTi/dt, dTh/dt, dTe/dt]
     """
-    # Unpack state variables
-    Ti, Th, Te = x[0], x[1], x[2]
-    qh = u
-    Ta, Phi_s = d[0], d[1]
+    assert x.shape in ((3,), (3, 1)), "State vector x must have shape (3,) or (3, 1)."
+    assert e.shape in ((2,), (2, 1)), "Ex. in. vector e must have shape (2,) or (2, 1)."
 
-    # State derivatives according to equations (1a)-(1c)
-    dTi_dt = (
-        (1 / (params["Ci"] * params["Rhi"])) * (Th - Ti)
-        + (1 / (params["Ci"] * params["Rie"])) * (Te - Ti)
-        + (1 / params["Ci"]) * params["gAw"] * Phi_s
+    Ac = np.zeros((3, 3)) if isinstance(x, np.ndarray) else ca.SX.zeros(3, 3)
+    Bc = np.zeros((3, 1)) if isinstance(u, np.ndarray) else ca.SX.zeros(3, 1)
+    Ec = np.zeros((3, 2)) if isinstance(e, np.ndarray) else ca.SX.zeros(3, 2)
+
+    Ac, Bc, Ec = transcribe_continuous_state_space(Ac=Ac, Bc=Bc, Ec=Ec, params=params)
+
+    if isinstance(x, np.ndarray):
+        return Ac @ x + Bc @ u + Ec @ e
+
+    return ca.mtimes(Ac, x) + ca.mtimes(Bc, u) + ca.mtimes(Ec, e)
+
+
+def get_disc_dyn_expr(
+    x: ca.SX | np.ndarray,
+    u: ca.SX | np.ndarray,
+    e: ca.SX | np.ndarray,
+    dt: float,
+    params: dict[str, float],
+) -> ca.SX | np.ndarray:
+    assert x.shape in ((3,), (3, 1)), "State vector x must have shape (3,) or (3, 1)."
+    assert u.shape in ((1,), (1, 1)), "Control input u must have shape (1,) or (1, 1)."
+    assert e.shape in ((2,), (2, 1)), "Ex. in. vector e must have shape (2,) or (2, 1)."
+    assert dt > 0, "Sampling time dt must be positive."
+
+    Ad = np.zeros((3, 3)) if isinstance(x, np.ndarray) else ca.SX.zeros(3, 3)
+    Bd = np.zeros((3, 1)) if isinstance(u, np.ndarray) else ca.SX.zeros(3, 1)
+    Ed = np.zeros((3, 2)) if isinstance(e, np.ndarray) else ca.SX.zeros(3, 2)
+
+    Ad, Bd, Ed = transcribe_discrete_state_space(
+        Ad=Ad, Bd=Bd, Ed=Ed, dt=dt, params=params
     )
-    dTh_dt = (1 / (params["Ch"] * params["Rhi"])) * (Ti - Th) + (qh / params["Ch"])
-    dTe_dt = (1 / (params["Ce"] * params["Rie"])) * (Ti - Te) + (
-        1 / (params["Ce"] * params["Rea"])
-    ) * (Ta - Te)
 
-    return ca.vertcat(dTi_dt, dTh_dt, dTe_dt)
+    if isinstance(x, np.ndarray):
+        return Ad @ x + Bd @ u + Ed @ e
+
+    return ca.mtimes(Ad, x) + ca.mtimes(Bd, u) + ca.mtimes(Ed, e)
+
+
+def rk4_step(
+    f: Callable,
+    x: Iterable,
+    u: float,
+    d: Iterable,
+    p: dict[str, float],
+    h: float,
+) -> np.ndarray:
+    """
+    Perform a single RK4 step.
+
+    Args:
+        f: Function to integrate
+        x: Current state
+        u: Control input
+        d: Disturbance input
+        p: Parameters
+        h: Step size
+    Returns:
+        Next state
+
+    """
+    k1 = f(x, u, d, p)
+    k2 = f(x + 0.5 * h * k1, u, d, p)
+    k3 = f(x + 0.5 * h * k2, u, d, p)
+    k4 = f(x + h * k3, u, d, p)
+    return x + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 
 def transcribe_continuous_state_space(
@@ -264,3 +285,48 @@ def transcribe_discrete_state_space(
         )  # Discrete-time disturbance matrix
 
     return Ad, Bd, Ed
+
+
+if __name__ == "__main__":
+    params = BestestHydronicParameters().to_dict()
+    dt = 6 * 300.0  # 5 min sampling time
+
+    # Define a discrete integrator function
+    Ad, Bd, Ed = transcribe_discrete_state_space(
+        Ad=np.zeros((3, 3)),
+        Bd=np.zeros((3, 1)),
+        Ed=np.zeros((3, 2)),
+        dt=dt,
+        params=params,
+    )
+
+    def discrete_step(x: np.ndarray, u: np.ndarray, e: np.ndarray) -> np.ndarray:
+        return Ad @ x + Bd @ u + Ed @ e
+
+    def continuous_step(x: np.ndarray, u: np.ndarray, e: np.ndarray) -> np.ndarray:
+        return rk4_step(f=get_f_expl_expr, x=x, u=u, d=e, p=params, h=dt)
+
+    # Initial state
+    x = convert_temperature(np.array([20.0, 50.0, 15.0]), "celsius", "kelvin")
+
+    # Heat input to radiator in W
+    u = np.array([1000.0])
+
+    # Exogeneous inputs: outdoor temperature and solar radiation
+    e = np.array([convert_temperature(10.0, "celsius", "kelvin"), 200.0])  # [Ta, Phi_s]
+
+    print("Initial state:", x)
+
+    # Perform a discrete step
+    x_next_discrete = discrete_step(x, u, e)
+    print("Next state (discrete step):", x_next_discrete)
+    # Perform a continuous step using RK4
+    x_next_continuous = continuous_step(x, u, e)
+    print("Next state (continuous step):", x_next_continuous)
+    # Compare the results
+    print(
+        "Difference between discrete and continuous steps:",
+        x_next_discrete - x_next_continuous,
+    )
+
+    # Use
