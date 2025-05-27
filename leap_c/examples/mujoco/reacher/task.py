@@ -131,7 +131,7 @@ class ReacherTask(Task):
     def param_space(self) -> spaces.Box:
         return spaces.Box(low=self.param_low, high=self.param_high, dtype=np.float32)
 
-    def create_env(self, train: bool) -> gym.Env:
+    def _create_env(self, train: bool) -> gym.Env:
         return ReacherEnv(
             train=train,
             render_mode="rgb_array",

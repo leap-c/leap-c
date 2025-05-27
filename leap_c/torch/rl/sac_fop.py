@@ -10,6 +10,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from leap_c.controller import ParameterizedController
 from leap_c.ocp.acados.mpc import MpcBatchedState
 from leap_c.torch.nn.gaussian import SquashedGaussian, BoundedTransform
 from leap_c.torch.nn.mlp import MLP, MlpConfig
@@ -18,7 +19,7 @@ from leap_c.registry import register_trainer
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.sac import SacBaseConfig, SacCritic
 from leap_c.torch.rl.utils import soft_target_update
-from leap_c.task import Task
+from leap_c.task import HierarchicalControllerMixin, ReinforcementLearningMixin, Task
 from leap_c.trainer import Trainer
 
 
@@ -91,15 +92,12 @@ class FopActor(nn.Module):
         )
         self.correction = correction
 
-        self.mpc: MpcSolutionModule = task.mpc  # type:ignore
-        self.prepare_mpc_input = task.prepare_mpc_input
-        self.prepare_mpc_state = prepare_mpc_state
-        self.actual_used_mpc_state = None
-
+        self.param_controller: ParameterizedController = task.create_parameterized_controller()
+        self.jacobian_action_param = self.param_controller.jacobian_action_param
         self.squashed_gaussian = SquashedGaussian(param_space)  # type:ignore
 
     def forward(
-        self, obs, mpc_state: MpcBatchedState, deterministic=False
+        self, obs, ctx: Any = None, deterministic=False
     ) -> SacFopActorOutput:
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
@@ -108,17 +106,11 @@ class FopActor(nn.Module):
             mean, log_std, deterministic=deterministic
         )
 
-        mpc_input = self.prepare_mpc_input(obs, param)
-        if self.prepare_mpc_state is not None:
-            mpc_state = self.prepare_mpc_state(obs, param, mpc_state)  # type:ignore
+        ctx, action = self.param_controller(obs, param, ctx)
 
-        # TODO: We have to catch and probably replace the state_solution somewhere,
-        #       if its not a converged solution
-        mpc_output, state_solution, mpc_stats = self.mpc(mpc_input, mpc_state)
-        self.actual_used_mpc_state = mpc_state
-
-        if mpc_output.du0_dp_global is not None and self.correction:
-            jtj = mpc_output.du0_dp_global @ mpc_output.du0_dp_global.transpose(1, 2)
+        jacobian_action_param = self.jacobian_action_param(ctx)
+        if jacobian_action_param is not None and self.correction:
+            jtj = jacobian_action_param @ jacobian_action_param.transpose(1, 2)
             correction = (
                 torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device))
                 .sqrt()
@@ -129,10 +121,10 @@ class FopActor(nn.Module):
         return SacFopActorOutput(
             param,
             log_prob,
-            {**gaussian_stats, **mpc_stats},
-            mpc_output.u0,
-            mpc_output.status,
-            state_solution,
+            {**gaussian_stats, **ctx["stats"]},
+            action,
+            ctx["output"].status,
+            ctx["state"],
         )
 
 
@@ -217,6 +209,11 @@ class SacFopTrainer(Trainer):
         """
         super().__init__(task, output_path, device, cfg)
 
+        if not isinstance(task, ReinforcementLearningMixin):
+            raise ValueError("Task must be a reinforcement learning task")
+        if not isinstance(task, HierarchicalControllerMixin):
+            raise ValueError("Task must be a hierarchical controller task")
+
         self.q = SacCritic(
             task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
         )
@@ -227,7 +224,6 @@ class SacFopTrainer(Trainer):
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
         if cfg.noise == "param":
-            self.pi = FopActor(task, self.train_env, cfg.sac.actor_mlp, correction=cfg.entropy_correction)
             self.pi = FopActor(
                 task,
                 self.train_env,
@@ -272,7 +268,7 @@ class SacFopTrainer(Trainer):
                 policy_state = None
                 is_terminated = is_truncated = False
 
-            obs_batched = self.task.collate([obs], device=self.device)
+            obs_batched = torch.tensor([obs], device=self.device)
 
             with torch.no_grad():
                 # TODO (Jasper): Argument order is not consistent
@@ -402,7 +398,7 @@ class SacFopTrainer(Trainer):
     def act(
         self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
-        obs = self.task.collate([obs], device=self.device)
+        obs = torch.tensor([obs], device=self.device)
 
         with torch.no_grad():
             pi_output = self.pi(obs, state, deterministic=deterministic)

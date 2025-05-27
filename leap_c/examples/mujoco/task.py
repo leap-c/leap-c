@@ -8,6 +8,6 @@ class HalfCheetahTask(Task):
     def __init__(self):
         super().__init__(None)
 
-    def create_env(self, train: bool = True) -> gym.Env:
+    def _create_env(self, train: bool = True) -> gym.Env:
         return gym.make("HalfCheetah-v5")
 
