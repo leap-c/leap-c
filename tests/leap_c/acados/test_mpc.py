@@ -4,7 +4,7 @@ from acados_template.acados_ocp_iterate import (
 )
 
 from leap_c.ocp.acados.mpc import Mpc, MpcInput, MpcOutput, MpcParameter
-from leap_c.ocp.acados.utils import find_idx_for_labels
+from leap_c.ocp.acados.utils.utils import find_idx_for_labels
 
 
 def mpc_outputs_assert_allclose(
