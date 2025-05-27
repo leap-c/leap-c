@@ -1,23 +1,22 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Generic
 import numpy as np
 
-from leap_c.types import CalcCtx
 
-
-class DiffFunction(ABC, Generic[CalcCtx]):
+class DiffFunction(ABC):
     """Abstract base class for differentiable functions.
 
     Subclasses must implement `forward` and `backward` methods.
 
-    - The `forward` method computes outputs from inputs and returns a tuple
-      containing a context object followed by one or more output arrays.
+    - The `forward` method computes outputs from inputs and returns a
+      tuple containing a context object followed by one or more output
+      arrays.
 
-    - The `backward` method receives the context and the gradients of the
-      outputs, and returns a tuple of gradients with respect to the inputs.
+    - The `backward` method receives the context and the gradients of
+      the outputs, and returns a tuple of gradients with respect to the
+      inputs.
 
     Example:
-        class MyFunction(Function[dict]):
+        class MyFunction:
             def forward(
                 self, *inputs: np.ndarray, ctx: Optional[dict] = None
             ):
@@ -47,8 +46,13 @@ class DiffFunction(ABC, Generic[CalcCtx]):
     """
 
     @abstractmethod
-    def forward(self, *inputs: np.ndarray, ctx: Optional[CalcCtx] = None):
+    def forward(self, *inputs: np.ndarray, ctx=None):
         """Computes the output of the function given inputs.
+
+        Args:
+            inputs: Input arrays to the function.
+            ctx: Optional context object that can be used to store intermediate
+                values for the backward pass.
 
         Returns:
             A tuple where the first element is a context object, followed by
@@ -57,7 +61,7 @@ class DiffFunction(ABC, Generic[CalcCtx]):
         ...
 
     @abstractmethod
-    def backward(self, ctx: CalcCtx, *output_grads: np.ndarray):
+    def backward(self, ctx, *output_grads: np.ndarray):
         """Computes the gradient of the function with respect to its inputs.
 
         Args:

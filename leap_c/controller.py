@@ -2,27 +2,23 @@
 controllers in PyTorch."""
 
 from abc import abstractmethod
-from typing import Callable, Optional, Generic
+from typing import Callable, Optional, Any
 
 import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.types import CalcCtx
 
-
-class ParameterizedControllerFunction(nn.Module, Generic[CalcCtx]):
+class ParameterizedControllerFunction(nn.Module):
     """Abstract base class for differentiable parameterized controllers."""
 
     # should be provided in cases the context should be stacked in a specific
     # way when for example sampling in a replay buffer.
-    collate_state_fn: Optional[Callable[[CalcCtx], CalcCtx]] = None
+    collate_state_fn: Optional[Callable] = None
 
     @abstractmethod
-    def forward(
-        self, obs, param, ctx: Optional[CalcCtx] = None
-    ) -> tuple[CalcCtx, torch.Tensor]:
+    def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         """Computes action from observation, parameters and internal context.
 
         Args:
@@ -37,7 +33,7 @@ class ParameterizedControllerFunction(nn.Module, Generic[CalcCtx]):
         """
         ...
 
-    def jacobian_action_param(self, ctx: CalcCtx) -> np.ndarray:
+    def jacobian_action_param(self, ctx) -> np.ndarray:
         """Computes da/dp, the Jacobian of the action with respect to the
         parameters.
 
