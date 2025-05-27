@@ -10,6 +10,14 @@ from leap_c.acados.mpc import Mpc
 
 import matplotlib.pyplot as plt
 
+from leap_c.examples.hvac.util import (
+    BestestParameters,
+    BestestHydronicParameters,
+    BestestHydronicHeatpumpParameters,
+)
+
+from scipy.constants import convert_temperature
+
 
 class HvacMpc(Mpc):
     """docstring for PointMassMPC."""
@@ -27,42 +35,22 @@ class HvacMpc(Mpc):
         throw_error_if_u0_is_outside_ocp_bounds: bool = True,
     ):
         # Default parameters if none provided
-        if params is None:
-            params = {
-                # Effective window area [m²]
-                "gAw": 40.344131392192,
-                # Thermal capacitances [J/K]
-                "Ch": 10447262.2318648,  # Radiator
-                "Ci": 14827137.0377258,  # Indoor air
-                "Ce": 50508258.9032192,  # Building envelope
-                # Noise parameters
-                "e11": -30.0936560706053,  # Measurement noise
-                "sigmai": -23.3175423490014,
-                "sigmah": -19.5274067368137,
-                "sigmae": -5.07591222090641,
-                # Thermal resistances [K/W]
-                "Rea": 0.00163027389197229,  # Envelope to outdoor
-                "Rhi": 0.000437603769897038,  # Radiator to indoor air
-                "Rie": 0.000855786902577802,  # Indoor air to envelope
-                # Heater parameters
-                "eta": 0.98,  # Efficiency for electric heater
-            }
-
-        # Store parameters
-        self.params = params
+        self.params = (
+            params if params is not None else BestestHydronicParameters().to_dict()
+        )
 
         learnable_params = learnable_params if learnable_params is not None else []
 
         print("learnable_params: ", learnable_params)
 
         ocp = export_parametric_ocp(
-            params=params,
+            params=self.params,
             learnable_params=learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
         )
 
-        set_ocp_solver_options(ocp=ocp, exact_hess_dyn=True)
+        set_ocp_solver_options(ocp=ocp)
 
         self.ocp = ocp
 
@@ -120,65 +108,34 @@ def export_parametric_ocp(
         Ad=np.zeros((3, 3)),
         Bd=np.zeros((3, 1)),
         Ed=np.zeros((3, 2)),
-        dt=300.0,  # 5 min sampling time
+        dt=tf / N_horizon,
         params=params,
     )
 
     ocp.model.disc_dyn_expr = Ad @ ocp.model.x + Bd @ ocp.model.u + Ed @ ocp.model.p[:2]
 
-    ocp.model.f_expl_expr = get_f_expl_expr(
-        x=ocp.model.x,
-        u=ocp.model.u,
-        d=ocp.model.p,
-        params=params,
-    )
+    ocp.parameter_values = np.array([convert_temperature(10.0, "c", "k"), 0.0, 0.01])
 
-    ocp.parameter_values = np.array([10.0, 0.0, 0.01])  # [Ta, Phi_s, price]
-
-    # ocp = translate_learnable_param_to_p_global(
-    #     nominal_param=params, learnable_param=learnable_params, ocp=ocp
-    # )
-
-    if False:
-        # Cost function
-        ocp.cost.cost_type = "EXTERNAL"
-        # ocp.model.cost_expr_ext_cost = (ocp.model.x[0] - 21.0) ** 2 + ocp.model.p[
-        #     2
-        # ] * ocp.model.u
-        ocp.model.cost_expr_ext_cost = ocp.model.p[2] * ocp.model.u
-        # ocp.cost.cost_type_e = "EXTERNAL"
-        # ocp.model.cost_expr_ext_cost_e = (ocp.model.x[0] - 21.0) ** 2
-    else:
-        ocp.cost.cost_type = "NONLINEAR_LS"
-        ocp.model.cost_y_expr = ca.vertcat(
-            ocp.model.x[0],  # Indoor temperature
-            ocp.model.u,  # Heat input to radiator
-        )
-        ocp.cost.yref = np.array([21.0, 0.0])
-        ocp.cost.W = np.array([[1.0, 0.0], [0.0, 1.0]])
-        ocp.cost.W_e = np.array([[1.0]])
-        ocp.cost.cost_type_e = "EXTERNAL"
-        ocp.model.cost_expr_ext_cost_e = ocp.model.x[0]
-        ocp.cost.yref_e = np.array([21.0])
+    # Cost function
+    ocp.cost.cost_type = "EXTERNAL"
+    ocp.model.cost_expr_ext_cost = ocp.model.p[2] * ocp.model.u
 
     ocp.constraints.x0 = x0
 
     # Box constraints on u
     ocp.constraints.lbu = np.array([0.0])
-    ocp.constraints.ubu = np.array([5000.0])  # [W]
+    ocp.constraints.ubu = np.array([2000.0])  # [W]
     ocp.constraints.idxbu = np.array([0])
 
-    ocp.constraints.lbx = np.array([17.0])  # [°C] min indoor temperature
-    ocp.constraints.ubx = np.array([25.0])  # [°C] max indoor temperature
+    ocp.constraints.lbx = convert_temperature(np.array([17.0]), "celsius", "kelvin")
+    ocp.constraints.ubx = convert_temperature(np.array([25.0]), "celsius", "kelvin")
     ocp.constraints.idxbx = np.array([0])
 
-    if True:
-        ocp.constraints.idxsbx = np.array([0])
-        ns = ocp.constraints.idxsbx.size
-        ocp.cost.zl = 1e5 * np.ones((ns,))
-        ocp.cost.Zl = 1e5 * np.ones((ns,))
-        ocp.cost.zu = 1e5 * np.ones((ns,))
-        ocp.cost.Zu = 1e5 * np.ones((ns,))
+    ocp.constraints.idxsbx = np.array([0])
+    ocp.cost.zl = 1e5 * np.ones((ocp.constraints.idxsbx.size,))
+    ocp.cost.Zl = 1e5 * np.ones((ocp.constraints.idxsbx.size,))
+    ocp.cost.zu = 1e5 * np.ones((ocp.constraints.idxsbx.size,))
+    ocp.cost.Zu = 1e5 * np.ones((ocp.constraints.idxsbx.size,))
 
     # #############################
     if isinstance(ocp.model.p, struct_symSX):
@@ -192,35 +149,45 @@ def export_parametric_ocp(
     return ocp
 
 
-def set_ocp_solver_options(ocp: AcadosOcp, exact_hess_dyn: bool):
-    # ocp.solver_options.integrator_type = "DISCRETE"
-    ocp.solver_options.integrator_type = "ERK"
+def set_ocp_solver_options(ocp: AcadosOcp) -> None:
+    ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
-    # ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
-    # ocp.solver_options.exact_hess_dyn = exact_hess_dyn
+    ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    # ocp.solver_options.qp_solver_ric_alg = 1
-    # ocp.solver_options.with_value_sens_wrt_params = False
-    # ocp.solver_options.with_solution_sens_wrt_params = False
+
+    ocp.solver_options.hpipm_mode = "ROBUST"
 
 
 if __name__ == "__main__":
-    mpc = HvacMpc()
+    dt = 900.0  # sampling time in seconds
+    N_horizon = 28
+    T_horizon = N_horizon * dt  # Total time horizon in seconds
+
+    # T_horizon = 4 * 3600.0  # Total time horizon in seconds
+    # N_horizon = int(T_horizon / dt)  # Number of time steps in the horizon
+
+    mpc = HvacMpc(N_horizon=N_horizon, T_horizon=T_horizon)
 
     ocp = mpc.ocp
-
     ocp_solver = AcadosOcpSolver(acados_ocp=ocp)
+
+    # Exogenous parameters
+    Ta = convert_temperature(10.0, "celsius", "kelvin")  # Ambient temperature in K
+    Phi_s = 0.0  # Solar radiation in W/m^2
+    price = 0.01  # Electricity price in EUR/kWh
 
     # Set electricity prices
     parameter_values = np.tile(
-        np.array([10.0, 0.0, 0.01]), (ocp_solver.acados_ocp.solver_options.N_horizon, 1)
+        np.array([Ta, Phi_s, price]),
+        (ocp_solver.acados_ocp.solver_options.N_horizon, 1),
     )
 
-    # random_prices = True
-    price_type = "random_prices"
+    ########## Set electricity prices ##########
+    price_type = "constant_prices"  # Options: "random_prices", "sinusoidal_prices", "constant_prices"
+    rng = np.random.default_rng(seed=42)
 
     if price_type == "random_prices":
-        parameter_values[:, -1] = np.random.uniform(
+        parameter_values[:, -1] = rng.uniform(
             0.01, 0.2, size=(ocp_solver.acados_ocp.solver_options.N_horizon)
         )
     elif price_type == "sinusoidal_prices":
@@ -233,38 +200,58 @@ if __name__ == "__main__":
     for stage in range(ocp.solver_options.N_horizon):
         ocp_solver.set(stage, "p", parameter_values[stage, :])
 
+    ########## Set ambient temperature and solar radiation ##########
     # TODO: Set weather forecast (p[: 0] ambient temperature, p[:, 1] solar radiation)
 
-    # TODO: Set initial state
-
-    x0 = np.array([18.0, 18.0, 18.0])
+    ###### Set initial state ##########
+    x0 = convert_temperature(np.array([17.1, 17.1, 17.1]), "celsius", "kelvin")
     for stage in range(ocp.solver_options.N_horizon):
         ocp_solver.set(stage, "x", x0)
 
     # Solve the OCP
-
     _ = ocp_solver.solve_for_x0(x0_bar=x0)
     status = ocp_solver.get_status()
 
-    x = np.array([ocp_solver.get(stage, "x") for stage in range(ocp.dims.N)])
+    x = np.array([ocp_solver.get(stage, "x") for stage in range(ocp.dims.N + 1)])
     u = np.array([ocp_solver.get(stage, "u") for stage in range(ocp.dims.N)])
 
-    lb_indoor = ocp_solver.acados_ocp.constraints.lbx[0] * np.ones(ocp.dims.N)
+    lb_indoor = ocp_solver.acados_ocp.constraints.lbx[0] * np.ones_like(x[:, 0])
+
+    time_steps = np.arange(len(x)) * dt / 3600.0  # Convert to hours
 
     plt.figure()
-    plt.subplot(2, 1, 1)
-    plt.stairs(x[:, 0], label="Indoor temperature")
-    plt.stairs(lb_indoor, label="Indoor temperature lower bound", linestyle="--")
-    plt.stairs(x[:, 1], label="Radiator temperature")
-    plt.stairs(x[:, 2], label="Envelope temperature")
+    ax1 = plt.subplot(3, 1, 1)
+    plt.step(time_steps, x[:, 0], label="Indoor temperature", color="red")
+    plt.plot(
+        time_steps, lb_indoor, label="Indoor temperature lower bound", linestyle="--"
+    )
+    plt.step(time_steps, x[:, 2], label="Envelope temperature")
+    # plt.step(time_steps, Ta * np.ones_like(x[:, 2]), label="Ambient temperature")
+    plt.ylabel("Temperature (K)")
     plt.grid()
     plt.legend()
-    plt.subplot(2, 1, 2)
+
+    plt.subplot(3, 1, 2, sharex=ax1)
+    plt.step(time_steps, x[:, 1], label="Radiator temperature")
+    plt.grid()
+    plt.legend()
+    plt.ylabel("Temperature (K)")
+    plt.tight_layout()
+
+    plt.subplot(3, 1, 3, sharex=ax1)
     ax1 = plt.gca()
     ax2 = ax1.twinx()
 
-    ax1.stairs(u[:, 0], label="Heat input to radiator", color="tab:blue")
-    ax2.stairs(parameter_values[:, -1], label="Electricity price", color="tab:orange")
+    ax1.step(
+        time_steps[: len(u)], u[:, 0], label="Heat input to radiator", color="tab:blue"
+    )
+    ax2.step(
+        time_steps[: len(parameter_values)],
+        parameter_values[:, -1],
+        label="Electricity price",
+        linestyle="--",
+        color="tab:orange",
+    )
 
     ax1.set_ylabel("Heat input to radiator (W)", color="tab:blue")
     ax2.set_ylabel("Electricity price (EUR/kWh)", color="tab:orange")
