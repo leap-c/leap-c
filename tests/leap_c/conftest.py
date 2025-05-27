@@ -6,8 +6,8 @@ import pytest
 from leap_c.examples.chain.env import ChainEnv
 from leap_c.examples.chain.mpc import ChainMpc
 from leap_c.examples.chain.utils import Ellipsoid
-from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
-from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
+from leap_c.examples.cartpole.env import CartPoleEnv
+from leap_c.examples.cartpole.mpc import CartPoleMPC
 from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pointmass.mpc import PointMassMPC
 from leap_c.registry import (
@@ -82,9 +82,9 @@ def point_mass_mpc():
 
 
 @pytest.fixture(scope="session")
-def pendulum_on_cart_mpc() -> PendulumOnCartMPC:
+def pendulum_on_cart_mpc() -> CartPoleMPC:
     """Fixture for the pendulum on cart MPC."""
-    return PendulumOnCartMPC()
+    return CartPoleMPC()
 
 
 @pytest.fixture(scope="session")
@@ -132,9 +132,9 @@ PENDULUM_ON_CART_EXT_COST_LEARNABLE_PARAMS = PENDULUM_ON_CART_LEARNABLE_PARAMS +
 
 
 @pytest.fixture(scope="session")
-def learnable_pendulum_on_cart_mpc_ext_cost(n_batch: int) -> PendulumOnCartMPC:
+def learnable_pendulum_on_cart_mpc_ext_cost(n_batch: int) -> CartPoleMPC:
     """Fixture for the pendulum on cart MPC with learnable parameters, using a general quadratic cost."""
-    return PendulumOnCartMPC(
+    return CartPoleMPC(
         learnable_params=PENDULUM_ON_CART_EXT_COST_LEARNABLE_PARAMS,
         n_batch=n_batch,
         cost_type="EXTERNAL",
@@ -144,9 +144,9 @@ def learnable_pendulum_on_cart_mpc_ext_cost(n_batch: int) -> PendulumOnCartMPC:
 @pytest.fixture(scope="session")
 def learnable_pendulum_on_cart_mpc(
     n_batch: int,
-) -> PendulumOnCartMPC:
+) -> CartPoleMPC:
     """Fixture for the pendulum on cart MPC with learnable parameters."""
-    return PendulumOnCartMPC(
+    return CartPoleMPC(
         learnable_params=PENDULUM_ON_CART_LEARNABLE_PARAMS,
         n_batch=n_batch,
         cost_type="NONLINEAR_LS",
@@ -156,9 +156,9 @@ def learnable_pendulum_on_cart_mpc(
 @pytest.fixture(scope="session")
 def learnable_pendulum_on_cart_mpc_only_cost_params(
     n_batch: int,
-) -> PendulumOnCartMPC:
+) -> CartPoleMPC:
     """Fixture for the pendulum on cart MPC with learnable parameters where only cost params are learnable."""
-    return PendulumOnCartMPC(
+    return CartPoleMPC(
         learnable_params=["L11", "xref1"],
         n_batch=n_batch,
         cost_type="NONLINEAR_LS",
@@ -166,8 +166,8 @@ def learnable_pendulum_on_cart_mpc_only_cost_params(
 
 
 @pytest.fixture(scope="session")
-def pendulum_on_cart_ocp_swingup_env() -> PendulumOnCartSwingupEnv:
-    return PendulumOnCartSwingupEnv(render_mode="rgb_array")
+def pendulum_on_cart_ocp_swingup_env() -> CartPoleEnv:
+    return CartPoleEnv(render_mode="rgb_array")
 
 
 @pytest.fixture(scope="session")
@@ -258,7 +258,7 @@ def chain_mass_cost_env() -> ChainEnv:
 
 @pytest.fixture(scope="session")
 def all_env(
-    pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv,
+    pendulum_on_cart_ocp_swingup_env: CartPoleEnv,
     chain_mass_cost_env: ChainEnv,
     point_mass_env: PointMassEnv,
 ):
@@ -267,7 +267,7 @@ def all_env(
 
 @pytest.fixture(scope="session")
 def pendulum_on_cart_p_global(
-    learnable_pendulum_on_cart_mpc: PendulumOnCartMPC,
+    learnable_pendulum_on_cart_mpc: CartPoleMPC,
     n_batch: int,
 ) -> np.ndarray:
     """Fixture for the global parameters of the pendulum on cart MPC."""
@@ -279,7 +279,7 @@ def pendulum_on_cart_p_global(
 
 @pytest.fixture(scope="session")
 def pendulum_on_cart_ext_cost_p_global(
-    learnable_pendulum_on_cart_mpc_ext_cost: PendulumOnCartMPC,
+    learnable_pendulum_on_cart_mpc_ext_cost: CartPoleMPC,
     n_batch: int,
 ) -> np.ndarray:
     """Fixture for the global parameters of the pendulum on cart MPC."""

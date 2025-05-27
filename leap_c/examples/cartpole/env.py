@@ -5,7 +5,7 @@ from gymnasium import spaces
 from gymnasium.envs.classic_control import utils as gym_utils
 from typing import Optional
 
-class PendulumOnCartSwingupEnv(gym.Env):
+class CartPoleEnv(gym.Env):
     """
     An environment of a pendulum on a cart meant for swinging
     the pole into an upright position and holding it there.
@@ -347,7 +347,7 @@ class PendulumOnCartSwingupEnv(gym.Env):
             pygame.quit()
 
 
-class PendulumOnCartBalanceEnv(PendulumOnCartSwingupEnv):
+class CartPoleBalanceEnv(CartPoleEnv):
     def init_state(self, options: Optional[dict] = None) -> np.ndarray:
         low, high = gym_utils.maybe_parse_reset_bounds(
             options, -0.05, 0.05  # default low

@@ -69,7 +69,7 @@ PARAMS = OrderedDict(
 )
 
 
-class PendulumOnCartMPC(Mpc):
+class CartPoleMPC(Mpc):
     """
     Describes an inverted pendulum on a cart.
     The (possibly learnable) parameters of the system are given by

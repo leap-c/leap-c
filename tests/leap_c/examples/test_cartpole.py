@@ -7,8 +7,8 @@ import numpy as np
 import pytest
 from acados_template import AcadosOcpSolver
 from gymnasium.utils.save_video import save_video
-from leap_c.examples.pendulum_on_a_cart.env import PendulumOnCartSwingupEnv
-from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
+from leap_c.examples.cartpole.env import CartPoleEnv
+from leap_c.examples.cartpole.mpc import CartPoleMPC
 
 
 def plot_cart_pole_solution(
@@ -35,7 +35,7 @@ def plot_cart_pole_solution(
 
 
 def test_solution(
-    mpc: PendulumOnCartMPC = PendulumOnCartMPC(
+    mpc: CartPoleMPC = CartPoleMPC(
         learnable_params=[
             "M",
             "m",
@@ -65,7 +65,7 @@ def test_solution(
     fig, axs = plot_cart_pole_solution(ocp_solver)
 
 
-def test_env_terminates(pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv):
+def test_env_terminates(pendulum_on_cart_ocp_swingup_env: CartPoleEnv):
     """Test if the environment terminates correctly when applying minimum and maximum control inputs.
 
     This test ensures that the environment terminates properly when applying either minimum or maximum control
@@ -89,7 +89,7 @@ def test_env_terminates(pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupE
         )
 
 
-def test_env_truncates(pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv):
+def test_env_truncates(pendulum_on_cart_ocp_swingup_env: CartPoleEnv):
     """Test if the environment truncates correctly when applying minimum and maximum control inputs.
 
     This test ensures that the environment truncates properly when doing nothing (i.e. it cannot come from termination).
@@ -109,7 +109,7 @@ def test_env_truncates(pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEn
     assert trunc
 
 
-def test_env_types(pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv):
+def test_env_types(pendulum_on_cart_ocp_swingup_env: CartPoleEnv):
     """Test whether the type of the state is and stays np.float32
     for an action from the action space (note that the action space has type np.float32).
     """
@@ -124,10 +124,10 @@ def test_env_types(pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv):
 
 
 def test_closed_loop_rendering(
-    learnable_pendulum_on_cart_mpc: PendulumOnCartMPC,
-    learnable_pendulum_on_cart_mpc_ext_cost: PendulumOnCartMPC,
-    learnable_pendulum_on_cart_mpc_only_cost_params: PendulumOnCartMPC,
-    pendulum_on_cart_ocp_swingup_env: PendulumOnCartSwingupEnv,
+    learnable_pendulum_on_cart_mpc: CartPoleMPC,
+    learnable_pendulum_on_cart_mpc_ext_cost: CartPoleMPC,
+    learnable_pendulum_on_cart_mpc_only_cost_params: CartPoleMPC,
+    pendulum_on_cart_ocp_swingup_env: CartPoleEnv,
 ):
     for pendulum_mpc in [
         learnable_pendulum_on_cart_mpc,

@@ -4,11 +4,11 @@ from typing import Any, Optional
 import gymnasium as gym
 import numpy as np
 import torch
-from leap_c.examples.pendulum_on_a_cart.env import (
-    PendulumOnCartBalanceEnv,
-    PendulumOnCartSwingupEnv,
+from leap_c.examples.cartpole.env import (
+    CartPoleBalanceEnv,
+    CartPoleEnv,
 )
-from leap_c.examples.pendulum_on_a_cart.mpc import PendulumOnCartMPC
+from leap_c.examples.cartpole.mpc import CartPoleMPC
 from leap_c.ocp.acados.layer import MpcSolutionModule
 from leap_c.registry import register_task
 from leap_c.task import Task
@@ -72,8 +72,8 @@ PARAMS_SWINGUP = OrderedDict(
 )
 
 
-@register_task("pendulum_swingup")
-class PendulumOnCartSwingup(Task):
+@register_task("cartpole")
+class CartPoleSwingup(Task):
     """Swing-up task for the pendulum on a cart system.
     The task is to swing up the pendulum from a downward position to the upright position
     (and balance it there)."""
@@ -82,7 +82,7 @@ class PendulumOnCartSwingup(Task):
         params = PARAMS_SWINGUP
         learnable_params = ["xref2"]
 
-        mpc = PendulumOnCartMPC(
+        mpc = CartPoleMPC(
             N_horizon=5,
             T_horizon=0.25,
             learnable_params=learnable_params,
@@ -92,7 +92,7 @@ class PendulumOnCartSwingup(Task):
         super().__init__(mpc_layer)
 
     def create_env(self, train: bool) -> gym.Env:
-        return PendulumOnCartSwingupEnv()
+        return CartPoleEnv()
 
     @property
     def param_space(self) -> gym.spaces.Box | None:
@@ -112,30 +112,9 @@ class PendulumOnCartSwingup(Task):
         return MpcInput(x0=obs, parameters=mpc_param)
 
 
-@register_task("pendulum_balance")
-class PendulumOnCartBalance(PendulumOnCartSwingup):
+@register_task("cartpole_balance")
+class CartPoleBalance(CartPoleSwingup):
     """The same as PendulumOnCartSwingup, but the starting position of the pendulum is upright, making the task a balancing task."""
 
     def create_env(self, train: bool) -> gym.Env:
-        return PendulumOnCartBalanceEnv()
-
-
-@register_task("pendulum_swingup_long_horizon")
-class PendulumOnCartSwingupLong(PendulumOnCartSwingup):
-    """Swing-up task for the pendulum on a cart system,
-    like PendulumOnCartSwingup, but with a much longer horizon.
-    """
-
-    def __init__(self):
-        params = PARAMS_SWINGUP
-        learnable_params = ["xref2"]
-
-        mpc = PendulumOnCartMPC(
-            N_horizon=20,
-            T_horizon=1,
-            learnable_params=learnable_params,
-            params=params,  # type: ignore
-        )
-        mpc_layer = MpcSolutionModule(mpc)
-        # TODO: Check during refactoring if we can modify hierarchy to user super() again
-        Task.__init__(self, mpc_layer)
+        return CartPoleBalanceEnv()
