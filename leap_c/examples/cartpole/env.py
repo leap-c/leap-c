@@ -347,7 +347,7 @@ class CartPoleEnv(gym.Env):
             pygame.quit()
 
 
-class CartBalanceEnv(CartPoleEnv):
+class CartPoleBalanceEnv(CartPoleEnv):
     def init_state(self, options: Optional[dict] = None) -> np.ndarray:
         low, high = gym_utils.maybe_parse_reset_bounds(
             options, -0.05, 0.05  # default low

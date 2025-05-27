@@ -5,7 +5,7 @@ import gymnasium as gym
 import numpy as np
 import torch
 from leap_c.examples.cartpole.env import (
-    CartBalanceEnv,
+    CartPoleBalanceEnv,
     CartPoleEnv,
 )
 from leap_c.examples.cartpole.mpc import CartPoleMPC
@@ -117,25 +117,4 @@ class CartPoleBalance(CartPoleSwingup):
     """The same as PendulumOnCartSwingup, but the starting position of the pendulum is upright, making the task a balancing task."""
 
     def create_env(self, train: bool) -> gym.Env:
-        return CartBalanceEnv()
-
-
-@register_task("cartpole_swingup_long_horizon")
-class CartPoleSwingupLong(CartPoleSwingup):
-    """Swing-up task for the pendulum on a cart system,
-    like PendulumOnCartSwingup, but with a much longer horizon.
-    """
-
-    def __init__(self):
-        params = PARAMS_SWINGUP
-        learnable_params = ["xref2"]
-
-        mpc = CartPoleMPC(
-            N_horizon=20,
-            T_horizon=1,
-            learnable_params=learnable_params,
-            params=params,  # type: ignore
-        )
-        mpc_layer = MpcSolutionModule(mpc)
-        # TODO: Check during refactoring if we can modify hierarchy to user super() again
-        Task.__init__(self, mpc_layer)
+        return CartPoleBalanceEnv()
