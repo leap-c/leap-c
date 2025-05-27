@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 
 
-class ParameterizedControllerFunction(nn.Module):
+class ParameterizedController(nn.Module):
     """Abstract base class for differentiable parameterized controllers."""
 
     # should be provided in cases the context should be stacked in a specific
