@@ -5,18 +5,18 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
+
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
-
 from scipy.constants import convert_temperature
 
-from dataclasses import dataclass
-
 from leap_c.examples.hvac.util import (
-    BestestParameters,
     BestestHydronicParameters,
-    BestestHydronicHeatpumpParameters,
+    BestestParameters,
+    get_f_expl_expr,
+    rk4_step,
+    transcribe_discrete_state_space,
 )
 
 # Constants
@@ -25,6 +25,33 @@ DAYLIGHT_END_HOUR = 18
 MEAN_AMBIENT_TEMPERATURE = convert_temperature(0, "celsius", "kelvin")
 MAGNITUDE_AMBIENT_TEMPERATURE = 5
 MAGNITUDE_SOLAR_RADIATION = 200
+
+
+def get_disc_dyn_func(
+    dt: float,
+    params: dict[str, float],
+) -> Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray]:
+    """
+    Get a function for discrete-time dynamics.
+
+    Args:
+        dt: Sampling time
+        params: Parameters
+    Returns:
+        Function that computes the discrete-time dynamics
+    """
+    Ad, Bd, Ed = transcribe_discrete_state_space(
+        Ad=np.zeros((3, 3)),
+        Bd=np.zeros((3, 1)),
+        Ed=np.zeros((3, 2)),
+        dt=dt,
+        params=params,
+    )
+
+    def disc_dyn_func(x: np.ndarray, u: np.ndarray, e: np.ndarray) -> np.ndarray:
+        return np.inner(Ad, x) + np.inner(Bd, u) + np.inner(Ed, e)
+
+    return disc_dyn_func
 
 
 class ThreeStateRcEnv(gym.Env):
@@ -59,6 +86,11 @@ class ThreeStateRcEnv(gym.Env):
 
         self.integrator = lambda x, u, d, p: rk4_step(dynamics, x, u, d, p, step_size)
 
+        self.disc_dyn_func = get_disc_dyn_func(
+            dt=step_size,
+            params=self.params,
+        )
+
         if ambient_temperature_function is None:
             self.ambient_temperature_function = get_ambient_temperature
         else:
@@ -69,7 +101,7 @@ class ThreeStateRcEnv(gym.Env):
         else:
             self.solar_radiation_function = solar_radiation_function
 
-    def step(self, action: float, time: float) -> np.ndarray:
+    def step(self, action: np.ndarray, time: float) -> np.ndarray:
         """
         Perform a simulation step.
 
@@ -80,15 +112,25 @@ class ThreeStateRcEnv(gym.Env):
             next_state: Next state after applying the control input
 
         """
-        self.state = self.integrator(
-            self.state,
-            action,
-            (
+        exog = np.array(
+            [
                 self.ambient_temperature_function(time),
                 self.solar_radiation_function(time),
-            ),
-            self.params,
+            ]
         )
+        if False:
+            self.state = self.integrator(
+                x=self.state,
+                u=action,
+                d=exog,
+                p=self.params,
+            )
+        else:
+            self.state = self.disc_dyn_func(
+                x=self.state,
+                u=action,
+                e=exog,
+            )
 
         return self.state
 
@@ -97,35 +139,6 @@ class ThreeStateRcEnv(gym.Env):
         if state_0 is None:
             state_0 = self.state_0
         self.state = state_0
-
-
-def rk4_step(
-    f: Callable,
-    x: Iterable,
-    u: float,
-    d: Iterable,
-    p: dict[str, float],
-    h: float,
-) -> np.ndarray:
-    """
-    Perform a single RK4 step.
-
-    Args:
-        f: Function to integrate
-        x: Current state
-        u: Control input
-        d: Disturbance input
-        p: Parameters
-        h: Step size
-    Returns:
-        Next state
-
-    """
-    k1 = f(x, u, d, p)
-    k2 = f(x + 0.5 * h * k1, u, d, p)
-    k3 = f(x + 0.5 * h * k2, u, d, p)
-    k4 = f(x + h * k3, u, d, p)
-    return x + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 
 def dynamics(x: Iterable, u: float, d: Iterable, p: dict[str, float]) -> np.ndarray:
@@ -142,30 +155,12 @@ def dynamics(x: Iterable, u: float, d: Iterable, p: dict[str, float]) -> np.ndar
         State derivatives [dTi/dt, dTh/dt, dTe/dt]
 
     """
-    Ti, Th, Te = x
-    qh = u
-    Ta, Phi_s = d
-
-    # TODO: Use envrionment random number generator
-    # State derivatives according to equations (1a)-(1c)
-    dTi_dt = (
-        (1 / (p["Ci"] * p["Rhi"])) * (Th - Ti)
-        + (1 / (p["Ci"] * p["Rie"])) * (Te - Ti)
-        + (1 / p["Ci"]) * p["gAw"] * Phi_s
-        + np.exp(p["sigmai"]) * np.random.randn()
+    return (
+        get_f_expl_expr(x=x, u=u, e=d, params=p)
+        + np.diag([np.exp(p["sigmai"]), np.exp(p["sigmah"]), np.exp(p["sigmae"])])
+        @ np.random.randn(3)
+        * 0
     )
-    dTh_dt = (
-        (1 / (p["Ch"] * p["Rhi"])) * (Ti - Th)
-        + (qh / p["Ch"])
-        + np.exp(p["sigmah"]) * np.random.randn()
-    )
-    dTe_dt = (
-        (1 / (p["Ce"] * p["Rie"])) * (Ti - Te)
-        + (1 / (p["Ce"] * p["Rea"])) * (Ta - Te)
-        + np.exp(p["sigmae"]) * np.random.randn()
-    )
-
-    return np.array([dTi_dt, dTh_dt, dTe_dt])
 
 
 def get_ambient_temperature(t: float) -> float:
@@ -202,15 +197,14 @@ def get_solar_radiation(t: float) -> float:
 
 
 def get_alternating_heating_power(t) -> float:
-    # Example: Heater is on for 1 hour, then off for 1 hour
-    if (t // 3600) % 2 == 0:
-        return 200.0  # 2 kW
-    return 0.0
+    if (t // 3600) % 10 == 0:
+        return np.array([2000.0])  # 2 kW
+    return np.array([0.0])
 
 
 def get_constant_heating_power(t: float) -> float:
     # Example: Constant heating power
-    return 2000.0
+    return np.array([2000.0])
 
 
 # Example usage
@@ -221,7 +215,7 @@ def plot_hvac_results(
     time: np.ndarray,
     x: np.ndarray,
     u: np.ndarray,
-) -> None:
+) -> plt.Figure:
     """
     Plot the results of an HVAC simulation, including temperatures, heating power,
     and solar radiation over time.
@@ -244,6 +238,8 @@ def plot_hvac_results(
         - x[:, 0]: Indoor temperature (°C)
         - x[:, 1]: Radiator temperature (°C)
         - x[:, 2]: Envelope temperature (°C)
+    u : numpy.ndarray
+        A 1D array of heating power values (in W) at each time step.
 
     Returns:
     --------
@@ -270,6 +266,8 @@ def plot_hvac_results(
         "qh": [get_heating_power(t) for t in time],  # Heating power
         "Phi_s": [get_solar_radiation(t) for t in time],  # Solar radiation
     }
+
+    dt = time[1] - time[0]  # Time step in seconds:w
 
     # Plot results
     plt.figure(figsize=(12, 8))
@@ -322,7 +320,14 @@ def plot_hvac_results(
 
     plt.xlabel("Time (hours)")
     plt.tight_layout()
-    plt.show()
+
+    # Add super title with dt
+    plt.suptitle(f"HVAC Simulation Results (dt = {dt:.2f} seconds)", fontsize=16)
+
+    # Save the figure
+    plt.savefig(f"hvac_simulation_results_{int(dt)}.png")
+
+    return plt.gcf()
 
 
 if __name__ == "__main__":
@@ -330,48 +335,53 @@ if __name__ == "__main__":
 
     # Simulation parameters
 
-    days = 3
-    time_span = (0, days * 24 * 3600)
-    time_step = 5.0  # in seconds
-    time = np.arange(time_span[0], time_span[1], time_step)
+    # ambient_temperate_function = get_ambient_temperature
+    # solar_radiation_function = get_solar_radiation
+    ambient_temperate_function = lambda t: convert_temperature(10, "c", "k")
+    solar_radiation_function = lambda t: 0.0  # No solar radiation for simplicity
 
-    ambient_temperate_function = get_ambient_temperature
-    solar_radiation_function = get_solar_radiation
-    heating_power_function = get_constant_heating_power
+    heating_power_function = get_alternating_heating_power
 
-    env = ThreeStateRcEnv(
-        step_size=time_step,
-        ambient_temperature_function=ambient_temperate_function,
-        solar_radiation_function=solar_radiation_function,
-    )
+    for time_step in [60.0, 1800.0]:
+        days = 7
+        time_span = (0, days * 24 * 3600)
+        time = np.arange(time_span[0], time_span[1], time_step)
 
-    env.reset()
+        env = ThreeStateRcEnv(
+            step_size=time_step,
+            ambient_temperature_function=ambient_temperate_function,
+            solar_radiation_function=solar_radiation_function,
+        )
 
-    x = [env.state]
-    u = []
+        env.reset()
 
-    # Run simulation
-    for t in time:
-        # Get current inputs
-        action = heating_power_function(t)
+        x = [env.state]
+        u = []
 
-        # Update state using the integrator
-        state = env.step(action, t)
+        # Run simulation
+        for t in time:
+            # Get current inputs
+            action = heating_power_function(t)
 
-        x.append(state)
-        u.append(action)
+            # Update state using the integrator
+            state = env.step(action, t)
 
-    # Pop the last state
-    x.pop()
+            x.append(state)
+            u.append(action)
 
-    x = np.array(x)
-    u = np.array(u)
+        # Pop the last state
+        x.pop()
 
-    plot_hvac_results(
-        ambient_temperate_function,
-        solar_radiation_function,
-        heating_power_function,
-        time,
-        x,
-        u,
-    )
+        x = np.array(x)
+        u = np.array(u)
+
+        fig = plot_hvac_results(
+            ambient_temperate_function,
+            solar_radiation_function,
+            heating_power_function,
+            time,
+            x,
+            u,
+        )
+
+    plt.show()
