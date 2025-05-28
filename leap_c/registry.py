@@ -52,5 +52,5 @@ def create_trainer(
 ) -> Trainer:
     if name not in TRAINER_REGISTRY:
         raise ValueError(f"Unknown trainer: {name}")
-    # TODO: implement proper config merging, probably using pydantic
+    # TODO: implement proper config merging, probably using hydra
     return TRAINER_REGISTRY[name](task, output_path, device, cfg)  # type: ignore
