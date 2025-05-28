@@ -292,14 +292,14 @@ class SacFopTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te, ctx = self.buffer.sample(
+                o, a, r, o_prime, te, ps_ctx = self.buffer.sample(
                     self.cfg.sac.batch_size
                 )
 
                 # sample action
-                pi_o = self.pi(o, deterministic=False, ctx=ctx)
+                pi_o = self.pi(o, deterministic=False, ctx=ps_ctx)
                 with torch.no_grad():
-                    pi_o_prime = self.pi(o_prime, deterministic=False, ctx=ctx)
+                    pi_o_prime = self.pi(o_prime, deterministic=False, ctx=ps_ctx)
 
                 pi_o_stats = pi_o.stats
 
