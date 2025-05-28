@@ -64,7 +64,6 @@ class Task(ABC):
 class ReinforcementLearningMixin(ABC):
     """A reinforcement learning mixin provides a gymnasium environment for training and evaluation."""
 
-    @abstractmethod
     def create_train_env(self, seed: int = 0) -> gym.Env:
         """Creates a gymnasium environment for training.
 

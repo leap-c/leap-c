@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from dataclasses import dataclass
 from typing import Callable, Optional
 
 import gymnasium as gym
@@ -6,9 +7,9 @@ import numpy as np
 import torch
 
 from leap_c.controller import ParameterizedController
-from leap_c.examples.cartpole.mpc import CartPoleMPC
+from leap_c.examples.cartpole.mpc import CartPoleMpc
 from leap_c.ocp.acados.layer import MpcSolutionModule
-from leap_c.ocp.acados.mpc import MpcInput, MpcParameter
+from leap_c.ocp.acados.mpc import MpcBatchedState, MpcInput, MpcOutput, MpcParameter
 
 PARAMS_SWINGUP = OrderedDict(
     [
@@ -67,6 +68,14 @@ PARAMS_SWINGUP = OrderedDict(
 )
 
 
+@dataclass(kw_only=True)
+class CartPoleCtx:
+    output: MpcOutput | None = None
+    state: MpcBatchedState | None = None
+    log: dict[str, float] | None = None
+    status: np.ndarray | None = None
+
+
 class CartPoleController(ParameterizedController):
     def __init__(self, collate_state_fn: Optional[Callable] = None):
         super().__init__()
@@ -75,7 +84,7 @@ class CartPoleController(ParameterizedController):
         params = PARAMS_SWINGUP
         learnable_params = ["xref2"]
 
-        mpc = CartPoleMPC(
+        mpc = CartPoleMpc(
             N_horizon=5,
             T_horizon=0.25,
             learnable_params=learnable_params,
@@ -90,24 +99,23 @@ class CartPoleController(ParameterizedController):
         # TODO: where to use this default parameter? and how should it be initialized?
         raise NotImplementedError
 
-    def jacobian_action_param(self, ctx) -> np.ndarray:
-        return ctx["output"].du0_dp_global
+    def jacobian_action_param(self, ctx: CartPoleCtx) -> np.ndarray:
+        return ctx.output.du0_dp_global
 
-    def forward(self, obs, param, ctx=None):
+    def forward(self, obs, param, ctx: CartPoleCtx | None = None) -> tuple[CartPoleCtx, np.ndarray]:
         if ctx is None:
-            ctx = {}
+            ctx = CartPoleCtx()
 
         mpc_param = MpcParameter(p_global=param)
         mpc_input = MpcInput(x0=obs, parameters=mpc_param)
 
-        mpc_state = ctx.get("state")
-        if mpc_state is not None and self.collate_state_fn is not None:
-            mpc_state = self.collate_state_fn(mpc_state)
+        if ctx.state is not None and self.collate_state_fn is not None:
+            mpc_state = self.collate_state_fn(ctx.state)
 
         mpc_output, mpc_state, mpc_stats = self.mpc_layer(mpc_input, mpc_state)
 
-        ctx["state"] = mpc_state
-        ctx["stats"] = mpc_stats
-        ctx["output"] = mpc_output
+        ctx.log = mpc_stats
+        ctx.state = mpc_state
+        ctx.output = mpc_output
 
         return ctx, mpc_output.u0
