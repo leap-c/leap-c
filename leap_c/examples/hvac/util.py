@@ -1,6 +1,7 @@
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
 from typing import Any
+from pathlib import Path
 
 import casadi as ca
 import matplotlib.pyplot as plt
@@ -8,6 +9,8 @@ import numpy as np
 import scipy
 import scipy.linalg
 from scipy.constants import convert_temperature
+import pandas as pd
+from datetime import datetime, timedelta
 
 
 @dataclass
@@ -57,6 +60,288 @@ class EnergyPriceProfile:
         assert np.all(self.price >= 0), "Energy price must be non-negative"
 
 
+def load_price_data(csv_path: str | Path) -> pd.DataFrame:
+    """Load electricity price data from CSV file.
+
+    Args:
+        csv_path: Path to the price CSV file
+    Returns:
+        DataFrame with processed price data
+    """
+    # Load CSV with comma separator and first column as index
+    price_data = pd.read_csv(csv_path, index_col=0, parse_dates=True)
+
+    # Ensure all price values are non-negative (handle any data quality issues)
+    price_columns = price_data.columns
+    for col in price_columns:
+        price_data[col] = np.maximum(0, price_data[col])
+
+    print(
+        f"Loaded price data: {len(price_data)} records from {price_data.index[0]} to {price_data.index[-1]}"
+    )
+    print(f"Price regions: {', '.join(price_data.columns)}")
+    print(
+        f"Price range across all regions: {price_data.min().min():.5f} to {price_data.max().max():.5f}"
+    )
+
+    return price_data
+
+
+def create_price_profile_from_spot_sprices(
+    price_df: pd.DataFrame,
+    start_time: str,
+    horizon_hours: float = 24.0,
+    dt_minutes: float = 15.0,
+    region: str = "NO_1",
+) -> EnergyPriceProfile:
+    """
+    Create a price profile from electricity price data using zero-order hold.
+    Args:
+        price_df: Price DataFrame from load_price_data()
+        start_time: Start time as string (e.g., '2020-01-01 00:00:00')
+        horizon_hours: Prediction horizon in hours
+        dt_minutes: Time step in minutes
+        region: Price region to extract (e.g., 'NO_1', 'NO_2', 'DK_1', etc.)
+    Returns:
+        numpy array with price values at 15-minute resolution
+    """
+    start_dt = pd.to_datetime(start_time)
+
+    # Create time vector for the horizon
+    n_steps = int(horizon_hours * 60 / dt_minutes)
+    time_vector = [start_dt + timedelta(minutes=i * dt_minutes) for i in range(n_steps)]
+
+    # Check if region exists in the data
+    if region not in price_df.columns:
+        available_regions = ", ".join(price_df.columns)
+        raise ValueError(
+            f"Region '{region}' not found. Available regions: {available_regions}"
+        )
+
+    # Extract price values using zero-order hold
+    prices = []
+
+    for t in time_vector:
+        try:
+            # Find the most recent price data point (zero-order hold)
+            # Since prices are hourly, we want the price from the current or previous hour
+            available_times = price_df.index[price_df.index <= t]
+
+            if len(available_times) > 0:
+                # Use the most recent available price (zero-order hold)
+                latest_time = available_times[-1]
+                price_value = price_df.loc[latest_time, region]
+                prices.append(price_value)
+            else:
+                # If no previous data available, use the first available price
+                if len(price_df) > 0:
+                    first_time = price_df.index[0]
+                    price_value = price_df.loc[first_time, region]
+                    prices.append(price_value)
+                    print(
+                        f"Warning: Using first available price for time {t} (before data start)"
+                    )
+                else:
+                    raise ValueError("No price data available")
+
+        except Exception as e:
+            print(f"Warning: Could not get price data at {t}, using nearest value")
+            # Use nearest available data as fallback
+            if len(price_df) > 0:
+                nearest_idx = price_df.index[np.argmin(np.abs(price_df.index - t))]
+                price_value = price_df.loc[nearest_idx, region]
+                prices.append(price_value)
+            else:
+                prices.append(0.0)  # Default fallback
+
+    price_array = np.array(prices)
+
+    print(f"Created price profile for region '{region}': {len(price_array)} samples")
+    print(f"Time range: {time_vector[0]} to {time_vector[-1]}")
+    print(f"Price range: {price_array.min():.5f} to {price_array.max():.5f}")
+
+    return EnergyPriceProfile(price=price_array)
+
+
+def load_weather_data(csv_path: str | Path) -> pd.DataFrame:
+    """
+    Load weather data from CSV file.
+
+    Args:
+        csv_path: Path to the weather CSV file
+
+    Returns:
+        DataFrame with processed weather data
+    """
+    # Load CSV with semicolon separator
+    weather_data = pd.read_csv(csv_path, sep=";")
+
+    # Parse timestamp
+    weather_data["TimeStamp"] = pd.to_datetime(weather_data["TimeStamp"])
+
+    # Convert temperature from Celsius to Kelvin
+    weather_data["Tout_K"] = convert_temperature(weather_data["Tout"], "c", "k")
+
+    # Ensure solar radiation is non-negative (handle numerical precision issues)
+    weather_data["SolGlob"] = np.maximum(0, weather_data["SolGlob"])
+
+    # Set timestamp as index for easier time-based operations
+    weather_data.set_index("TimeStamp", inplace=True)
+
+    print(
+        f"Loaded weather data: {len(weather_data)} records from {weather_data.index[0]} to {weather_data.index[-1]}"
+    )
+    print(
+        f"Temperature range: {weather_data['Tout'].min():.1f}°C to {weather_data['Tout'].max():.1f}°C"
+    )
+    print(
+        f"Solar radiation range: {weather_data['SolGlob'].min():.1f} to {weather_data['SolGlob'].max():.1f} W/m²"
+    )
+
+    return weather_data
+
+
+def create_disturbance_from_weather(
+    weather_df: pd.DataFrame,
+    start_time: str,
+    horizon_hours: float = 24.0,
+    dt_minutes: float = 15.0,
+) -> DisturbanceProfile:
+    """
+    Create a disturbance profile from weather data.
+
+    Args:
+        weather_df: Weather DataFrame from load_weather_data()
+        start_time: Start time as string (e.g., '2021-01-01 00:00:00')
+        horizon_hours: Prediction horizon in hours
+        dt_minutes: Time step in minutes
+
+    Returns:
+        DisturbanceProfile object
+    """
+    start_dt = pd.to_datetime(start_time)
+
+    # Create time vector for the horizon
+    n_steps = int(horizon_hours * 60 / dt_minutes)
+    time_vector = [start_dt + timedelta(minutes=i * dt_minutes) for i in range(n_steps)]
+
+    # Interpolate weather data to the desired time grid
+    T_outdoor = []
+    solar_radiation = []
+
+    for t in time_vector:
+        # Find closest weather data point or interpolate
+        if t in weather_df.index:
+            T_outdoor.append(weather_df.loc[t, "Tout_K"])
+            solar_radiation.append(weather_df.loc[t, "SolGlob"])
+        else:
+            # Linear interpolation between nearest points
+            try:
+                # Get surrounding data points
+                before_mask = weather_df.index <= t
+                after_mask = weather_df.index >= t
+
+                if before_mask.any() and after_mask.any():
+                    t_before = weather_df.index[before_mask][-1]
+                    t_after = weather_df.index[after_mask][0]
+
+                    if t_before == t_after:
+                        # Exact match
+                        T_outdoor.append(weather_df.loc[t_before, "Tout_K"])
+                        solar_radiation.append(weather_df.loc[t_before, "SolGlob"])
+                    else:
+                        # Interpolate
+                        dt_total = (t_after - t_before).total_seconds()
+                        dt_current = (t - t_before).total_seconds()
+                        weight = dt_current / dt_total
+
+                        T_interp = (
+                            weather_df.loc[t_before, "Tout_K"] * (1 - weight)
+                            + weather_df.loc[t_after, "Tout_K"] * weight
+                        )
+                        sol_interp = (
+                            weather_df.loc[t_before, "SolGlob"] * (1 - weight)
+                            + weather_df.loc[t_after, "SolGlob"] * weight
+                        )
+
+                        T_outdoor.append(T_interp)
+                        solar_radiation.append(
+                            max(0, sol_interp)
+                        )  # Ensure non-negative
+                else:
+                    # Extrapolate from nearest point
+                    if before_mask.any():
+                        nearest_idx = weather_df.index[before_mask][-1]
+                    else:
+                        nearest_idx = weather_df.index[after_mask][0]
+
+                    T_outdoor.append(weather_df.loc[nearest_idx, "Tout_K"])
+                    solar_radiation.append(weather_df.loc[nearest_idx, "SolGlob"])
+
+            except Exception as e:
+                print(
+                    f"Warning: Could not interpolate weather data at {t}, using nearest value"
+                )
+                # Use nearest available data
+                nearest_idx = weather_df.index[np.argmin(np.abs(weather_df.index - t))]
+                T_outdoor.append(weather_df.loc[nearest_idx, "Tout_K"])
+                solar_radiation.append(weather_df.loc[nearest_idx, "SolGlob"])
+
+    return DisturbanceProfile(
+        T_outdoor=np.array(T_outdoor), solar_radiation=np.array(solar_radiation)
+    )
+
+
+def create_realistic_comfort_bounds(
+    N: int,
+    start_time: str,
+    dt_minutes: float = 15.0,
+    day_temp_range: tuple[float, float] = (20.0, 22.0),
+    night_temp_range: tuple[float, float] = (18.0, 21.0),
+    day_start_hour: int = 7,
+    day_end_hour: int = 22,
+) -> ComfortBounds:
+    """
+    Create realistic time-varying comfort bounds based on occupancy patterns.
+
+    Args:
+        n_steps: Number of time steps (N+1 for states)
+        start_time: Start time as string
+        dt_minutes: Time step in minutes
+        day_temp_range: (lower, upper) temperature bounds during day in Celsius
+        night_temp_range: (lower, upper) temperature bounds during night in Celsius
+        day_start_hour: Hour when day period starts (7 = 7 AM)
+        day_end_hour: Hour when day period ends (22 = 10 PM)
+
+    Returns:
+        ComfortBounds object
+    """
+    start_dt = pd.to_datetime(start_time)
+
+    T_lower = []
+    T_upper = []
+
+    for i in range(N + 1):
+        current_time = start_dt + timedelta(minutes=i * dt_minutes)
+        hour = current_time.hour
+
+        # Determine if it's day or night
+        if day_start_hour <= hour <= day_end_hour:
+            # Day time - stricter comfort bounds
+            T_lower.append(convert_temperature(day_temp_range[0], "celsius", "kelvin"))
+            T_upper.append(convert_temperature(day_temp_range[1], "celsius", "kelvin"))
+        else:
+            # Night time - more relaxed bounds
+            T_lower.append(
+                convert_temperature(night_temp_range[0], "celsius", "kelvin")
+            )
+            T_upper.append(
+                convert_temperature(night_temp_range[1], "celsius", "kelvin")
+            )
+
+    return ComfortBounds(T_lower=np.array(T_lower), T_upper=np.array(T_upper))
+
+
 def create_constant_disturbance(
     N: int, T_outdoor: float, solar_radiation: float
 ) -> DisturbanceProfile:
@@ -73,6 +358,43 @@ def create_constant_comfort_bounds(
     return ComfortBounds(
         T_lower=np.full(N + 1, T_lower), T_upper=np.full(N + 1, T_upper)
     )
+
+
+def create_time_of_use_energy_costs(
+    N: int,
+    start_time: str,
+    dt_minutes: float = 15.0,
+    base_cost: float = 0.05,
+    peak_cost: float = 0.20,
+    peak_hours: tuple[int, int] = (17, 21),  # 5 PM to 9 PM
+) -> EnergyPriceProfile:
+    """
+    Create time-of-use energy cost profile with peak pricing.
+
+    Args:
+        N: Number of time steps
+        start_time: Start time as string
+        dt_minutes: Time step in minutes
+        base_cost: Base energy cost (off-peak)
+        peak_cost: Peak energy cost
+        peak_hours: (start_hour, end_hour) for peak pricing
+
+    Returns:
+        EnergyCostProfile object
+    """
+    start_dt = pd.to_datetime(start_time)
+
+    costs = []
+    for i in range(N):
+        current_time = start_dt + timedelta(minutes=i * dt_minutes)
+        hour = current_time.hour
+
+        if peak_hours[0] <= hour <= peak_hours[1]:
+            costs.append(peak_cost)
+        else:
+            costs.append(base_cost)
+
+    return EnergyPriceProfile(price=np.array(costs))
 
 
 def create_constant_energy_price(N: int, cost: float) -> EnergyPriceProfile:
@@ -191,8 +513,13 @@ def plot_ocp_results(
         "kelvin",
         "celsius",
     )
-    ax2.plot(
-        time_hours_disturbance, To_celsius, "b-", linewidth=2, label="Outdoor temp."
+    ax2.step(
+        time_hours_disturbance,
+        To_celsius,
+        "b-",
+        where="post",
+        linewidth=2,
+        label="Outdoor temp.",
     )
     ax2.set_ylabel("Outdoor Temperature [°C]", color="b", fontsize=12)
     ax2.tick_params(axis="y", labelcolor="b")
@@ -200,10 +527,11 @@ def plot_ocp_results(
     # Solar radiation (right y-axis)
     ax2_twin = ax2.twinx()
     solar_rad = disturbance_profile.solar_radiation[: len(time_hours_disturbance)]
-    ax2_twin.plot(
+    ax2_twin.step(
         time_hours_disturbance,
         solar_rad,
-        "orange",
+        color="orange",
+        where="post",
         linewidth=2,
         label="Solar radiation",
     )

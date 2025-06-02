@@ -16,6 +16,12 @@ from leap_c.examples.hvac.util import (
     create_constant_disturbance,
     plot_ocp_results,
     transcribe_discrete_state_space,
+    load_weather_data,
+    load_price_data,
+    create_disturbance_from_weather,
+    create_time_of_use_energy_costs,
+    create_realistic_comfort_bounds,
+    create_price_profile_from_spot_sprices,
 )
 
 
@@ -102,7 +108,8 @@ def export_parametric_ocp(
         Ad=np.zeros((3, 3)),
         Bd=np.zeros((3, 1)),
         Ed=np.zeros((3, 2)),
-        dt=tf / N_horizon,
+        # dt=tf / N_horizon,
+        dt=900.0,  # 15 minutes in seconds
         params=params,
     )
 
@@ -114,19 +121,19 @@ def export_parametric_ocp(
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = (
         ocp.model.p[2] * ocp.model.u
-        + 0.05 * (ocp.model.x[0] - convert_temperature(21.0, "c", "k")) ** 2
+        # + 0.001 * (ocp.model.x[0] - convert_temperature(21.0, "c", "k")) ** 2
     )
 
-    ocp.cost.cost_type_e = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost_e = (
-        0.001 * (ocp.model.x[0] - convert_temperature(21.0, "c", "k")) ** 2
-    )
+    # ocp.cost.cost_type_e = "EXTERNAL"
+    # ocp.model.cost_expr_ext_cost_e = (
+    #     0.001 * (ocp.model.x[0] - convert_temperature(21.0, "c", "k")) ** 2
+    # )
 
     ocp.constraints.x0 = x0
 
     # Box constraints on u
     ocp.constraints.lbu = np.array([0.0])
-    ocp.constraints.ubu = np.array([2000.0])  # [W]
+    ocp.constraints.ubu = np.array([5000.0])  # [W]
     ocp.constraints.idxbu = np.array([0])
 
     ocp.constraints.lbx = convert_temperature(np.array([17.0]), "celsius", "kelvin")
@@ -217,29 +224,62 @@ def get_solution(ocp_solver: AcadosOcpSolver) -> dict[str, np.ndarray]:
 
 
 if __name__ == "__main__":
-    dt = 900.0  # sampling time in seconds
-    hours = 36  # prediction horizon in hours
-    N_horizon = int(hours * 3600.0 / dt)  # Number of time steps in the horizon
-    T_horizon = N_horizon * dt  # Total time horizon in seconds
+    dt = 1.0  # time step in quarterly hours
+    horizon_hours = 24  # prediction horizon in hours
+    N_horizon = (
+        horizon_hours * 4
+    )  # Number of time steps in the horizon (quarterly hours)
 
-    mpc = HvacMpc(N_horizon=N_horizon, T_horizon=T_horizon)
+    # Exogenous parameters
+    weather_data_path = Path(__file__).parent / "weather.csv"
+    if weather_data_path.exists():
+        weather_data = load_weather_data(weather_data_path)
+
+        start_time = weather_data.index[0]
+
+        disturbance = create_disturbance_from_weather(
+            weather_df=weather_data,
+            start_time=start_time,
+            horizon_hours=horizon_hours,
+        )
+    else:
+        start_time = (0.0,)
+        disturbance = create_constant_disturbance(
+            N=N_horizon,
+            T_outdoor=convert_temperature(10.0, "celsius", "kelvin"),
+            solar_radiation=20.0,
+        )
+
+    price_profile_type = "historical"  # or "random"
+    if price_profile_type == "historical":
+        price_data = load_price_data(Path(__file__).parent / "spot_prices.csv")
+        energy_price_profile = create_price_profile_from_spot_sprices(
+            price_df=price_data,
+            start_time=start_time,
+            horizon_hours=horizon_hours,
+        )
+    elif price_profile_type == "time_of_use":
+        energy_price_profile = create_time_of_use_energy_costs(
+            N=N_horizon,
+            start_time=start_time,
+        )
+    elif price_profile_type == "random":
+        energy_price_profile = create_random_price_profile(
+            N=N_horizon,
+            rng=np.random.default_rng(seed=22),
+            price_min=0.1,
+            price_max=0.2,
+        )
+    else:
+        raise ValueError(
+            f"Unknown price profile type: {price_profile_type}. "
+            "Use 'random' or 'historical'."
+        )
+
+    mpc = HvacMpc(N_horizon=N_horizon, T_horizon=N_horizon)
 
     ocp = mpc.ocp
     ocp_solver = AcadosOcpSolver(acados_ocp=ocp)
-
-    # Exogenous parameters
-    disturbance = create_constant_disturbance(
-        N=ocp_solver.acados_ocp.solver_options.N_horizon,
-        T_outdoor=convert_temperature(10.0, "celsius", "kelvin"),
-        solar_radiation=20.0,
-    )
-
-    energy_price_profile = create_random_price_profile(
-        N=ocp_solver.acados_ocp.solver_options.N_horizon,
-        rng=np.random.default_rng(seed=22),
-        price_min=0.1,
-        price_max=0.2,
-    )
 
     parameter_values = np.hstack(
         (
@@ -253,11 +293,23 @@ if __name__ == "__main__":
         ocp_solver.set(stage, "p", parameter_values[stage, :])
 
     # Comfort bounds
-    comfort_bounds = create_constant_comfort_bounds(
-        N=ocp_solver.acados_ocp.solver_options.N_horizon,
-        T_lower=convert_temperature(17.0, "celsius", "kelvin"),
-        T_upper=convert_temperature(23.0, "celsius", "kelvin"),
-    )
+    comfort_bounds_type = "realistic"  # or "constant"
+    if comfort_bounds_type == "realistic":
+        comfort_bounds = create_realistic_comfort_bounds(
+            N=N_horizon,
+            start_time=start_time,
+        )
+    elif comfort_bounds_type == "constant":
+        const_comfort_bounds = create_constant_comfort_bounds(
+            N=N_horizon,
+            T_lower=convert_temperature(17.0, "celsius", "kelvin"),
+            T_upper=convert_temperature(23.0, "celsius", "kelvin"),
+        )
+    else:
+        raise ValueError(
+            f"Unknown comfort bounds type: {comfort_bounds_type}. "
+            "Use 'constant' or 'realistic'."
+        )
 
     for stage in range(1, ocp.solver_options.N_horizon):
         ocp_solver.constraints_set(stage, "lbx", comfort_bounds.T_lower[stage])
