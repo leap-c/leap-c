@@ -5,8 +5,54 @@ import casadi as ca
 import numpy as np
 import scipy
 import scipy.linalg
-
 from scipy.constants import convert_temperature
+
+
+@dataclass
+class ComfortBounds:
+    """Temperature comfort bounds over the prediction horizon."""
+
+    T_lower: np.ndarray  # Lower temperature bounds [K] for each time step
+    T_upper: np.ndarray  # Upper temperature bounds [K] for each time step
+
+    def __post_init__(self) -> None:
+        assert len(self.T_lower) == len(self.T_upper), (
+            "Lower and upper bounds must have same length"
+        )
+        assert np.all(self.T_lower <= self.T_upper), (
+            "Lower bounds must be <= upper bounds"
+        )
+
+
+@dataclass
+class DisturbanceProfile:
+    """Disturbance profile over the prediction horizon."""
+
+    T_outdoor: np.ndarray  # Outdoor temperature [K] for each time step
+    solar_radiation: np.ndarray  # Solar radiation [W/m²] for each time step
+
+    def __post_init__(self) -> None:
+        assert len(self.T_outdoor) == len(self.solar_radiation), (
+            "Outdoor temp and solar radiation must have same length"
+        )
+
+    @property
+    def horizon_length(self) -> int:
+        return len(self.T_outdoor)
+
+    def get_disturbance_vector(self, k: int) -> np.ndarray:
+        """Get disturbance vector at time step k."""
+        return np.array([self.T_outdoor[k], self.solar_radiation[k]])
+
+
+@dataclass
+class EnergyCostProfile:
+    """Energy cost profile over the prediction horizon."""
+
+    costs: np.ndarray  # Energy costs for each time step
+
+    def __post_init__(self) -> None:
+        assert np.all(self.costs >= 0), "Energy costs must be non-negative"
 
 
 @dataclass
