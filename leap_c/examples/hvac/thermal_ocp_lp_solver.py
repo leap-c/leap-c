@@ -1,5 +1,5 @@
+import time
 import warnings
-from dataclasses import dataclass
 from typing import Any
 
 import matplotlib.pyplot as plt
@@ -10,58 +10,14 @@ from scipy.optimize import linprog
 from leap_c.examples.hvac.util import (
     BestestHydronicParameters,
     BestestParameters,
+    ComfortBounds,
+    DisturbanceProfile,
+    EnergyCostProfile,
     transcribe_discrete_state_space,
 )
 
 NX = 3  # Number of state variables (Ti, Th, Te)
 NS = 2  # Number of slack variables (delta_l, delta_u)
-
-
-@dataclass
-class ComfortBounds:
-    """Temperature comfort bounds over the prediction horizon."""
-
-    T_lower: np.ndarray  # Lower temperature bounds [K] for each time step
-    T_upper: np.ndarray  # Upper temperature bounds [K] for each time step
-
-    def __post_init__(self) -> None:
-        assert len(self.T_lower) == len(self.T_upper), (
-            "Lower and upper bounds must have same length"
-        )
-        assert np.all(self.T_lower <= self.T_upper), (
-            "Lower bounds must be <= upper bounds"
-        )
-
-
-@dataclass
-class DisturbanceProfile:
-    """Disturbance profile over the prediction horizon."""
-
-    T_outdoor: np.ndarray  # Outdoor temperature [K] for each time step
-    solar_radiation: np.ndarray  # Solar radiation [W/m²] for each time step
-
-    def __post_init__(self) -> None:
-        assert len(self.T_outdoor) == len(self.solar_radiation), (
-            "Outdoor temp and solar radiation must have same length"
-        )
-
-    @property
-    def horizon_length(self) -> int:
-        return len(self.T_outdoor)
-
-    def get_disturbance_vector(self, k: int) -> np.ndarray:
-        """Get disturbance vector at time step k."""
-        return np.array([self.T_outdoor[k], self.solar_radiation[k]])
-
-
-@dataclass
-class EnergyCostProfile:
-    """Energy cost profile over the prediction horizon."""
-
-    costs: np.ndarray  # Energy costs for each time step
-
-    def __post_init__(self) -> None:
-        assert np.all(self.costs >= 0), "Energy costs must be non-negative"
 
 
 class ThermalControlLpSolver:
@@ -284,14 +240,21 @@ class ThermalControlLpSolver:
         )
 
         # Set up linear program
+        start_time = time.time()
+        print("Setting up linear program...")
         c, A_ub, b_ub, A_eq, b_eq, bounds = self.setup_linear_program(
             x0, disturbance_profile, comfort_bounds, energy_costs
+        )
+        print(
+            f"Linear program setup completed in {time.time() - start_time:.5f} seconds"
         )
 
         # Solve using scipy.optimize.linprog
         with warnings.catch_warnings():
             warnings.filterwarnings("ignore", category=RuntimeWarning)
 
+            print("Solving linear program...")
+            start_time = time.time()
             result = linprog(
                 c=c,
                 A_ub=A_ub,
@@ -302,6 +265,7 @@ class ThermalControlLpSolver:
                 method=method,
                 options={"disp": False},
             )
+            print(f"Linear program solved in {time.time() - start_time:.5f} seconds")
 
         if not result.success:
             print(f"Optimization failed: {result.message}")
@@ -677,8 +641,6 @@ if __name__ == "__main__":
         10.0, "celsius", "kelvin"
     )  # Simulate a warm period
     disturbance.solar_radiation[80:90] = 300.0  # Another high solar radiation period
-
-    import time
 
     # Solve OCP
     print("Solving OCP...")
