@@ -1,22 +1,22 @@
+import time
 from pathlib import Path
 
 import casadi as ca
+import matplotlib.pyplot as plt
 import numpy as np
 from acados_template import AcadosOcp, AcadosOcpSolver
 from casadi.tools import struct_symSX
-
-from leap_c.examples.hvac.util import transcribe_discrete_state_space, get_f_expl_expr
-from leap_c.acados.mpc import Mpc
-
-import matplotlib.pyplot as plt
-
-from leap_c.examples.hvac.util import (
-    BestestParameters,
-    BestestHydronicParameters,
-    BestestHydronicHeatpumpParameters,
-)
-
 from scipy.constants import convert_temperature
+
+from leap_c.acados.mpc import Mpc
+from leap_c.examples.hvac.util import (
+    BestestHydronicParameters,
+    EnergyPriceProfile,
+    create_constant_comfort_bounds,
+    create_constant_disturbance,
+    plot_ocp_results,
+    transcribe_discrete_state_space,
+)
 
 
 class HvacMpc(Mpc):
@@ -172,13 +172,59 @@ def set_ocp_solver_options(ocp: AcadosOcp) -> None:
     ocp.solver_options.qp_solver_cond_N = 5
 
 
+def create_random_price_profile(
+    N: int,
+    rng: np.random.Generator,
+    price_min: float = 0.1,
+    price_max: float = 0.2,
+) -> EnergyPriceProfile:
+    """Create a random price profile for the given number of horizons."""
+    return EnergyPriceProfile(price=rng.uniform(price_min, price_max, size=(N,)))
+
+
+def get_solution(ocp_solver: AcadosOcpSolver) -> dict[str, np.ndarray]:
+    """Extract the solution from the OCP solver."""
+    ocp = ocp_solver.acados_ocp
+    return {
+        "success": ocp_solver.get_status() == 0,
+        "states": np.array(
+            [ocp_solver.get(stage, "x") for stage in range(ocp.dims.N + 1)]
+        ),
+        "controls": np.array(
+            [ocp_solver.get(stage, "u") for stage in range(ocp.dims.N)]
+        ),
+        "slack_lower": np.array(
+            [ocp_solver.get(stage, "sl") for stage in range(1, ocp.dims.N)]
+        ),
+        "slack_upper": np.array(
+            [ocp_solver.get(stage, "su") for stage in range(1, ocp.dims.N)]
+        ),
+        "indoor_temperatures": np.array(
+            [ocp_solver.get(stage, "x")[0] for stage in range(ocp.dims.N + 1)]
+        ),
+        "radiator_temperatures": np.array(
+            [ocp_solver.get(stage, "x")[1] for stage in range(ocp.dims.N + 1)]
+        ),
+        "envelope_temperatures": np.array(
+            [ocp_solver.get(stage, "x")[2] for stage in range(ocp.dims.N + 1)]
+        ),
+        "ambient_temperature": np.array(
+            [ocp_solver.get(stage, "p")[0] for stage in range(ocp.dims.N + 1)]
+        ),
+        "solar_radiation": np.array(
+            [ocp_solver.get(stage, "p")[1] for stage in range(ocp.dims.N + 1)]
+        ),
+        "electricity_price": np.array(
+            [ocp_solver.get(stage, "p")[2] for stage in range(ocp.dims.N + 1)]
+        ),
+        "cost": ocp_solver.get_cost(),
+    }
+
+
 if __name__ == "__main__":
     dt = 900.0  # sampling time in seconds
     N_horizon = 96
     T_horizon = N_horizon * dt  # Total time horizon in seconds
-
-    # T_horizon = 4 * 3600.0  # Total time horizon in seconds
-    # N_horizon = int(T_horizon / dt)  # Number of time steps in the horizon
 
     mpc = HvacMpc(N_horizon=N_horizon, T_horizon=T_horizon)
 
@@ -186,103 +232,57 @@ if __name__ == "__main__":
     ocp_solver = AcadosOcpSolver(acados_ocp=ocp)
 
     # Exogenous parameters
-    Ta = convert_temperature(10.0, "celsius", "kelvin")  # Ambient temperature in K
-    Phi_s = 0.0  # Solar radiation in W/m^2
-    price = 0.1  # Electricity price in EUR/kWh
-
-    # Set electricity prices
-    parameter_values = np.tile(
-        np.array([Ta, Phi_s, price]),
-        (ocp_solver.acados_ocp.solver_options.N_horizon, 1),
+    disturbance = create_constant_disturbance(
+        N=ocp_solver.acados_ocp.solver_options.N_horizon,
+        T_outdoor=convert_temperature(10.0, "celsius", "kelvin"),
+        solar_radiation=10.0,
     )
 
-    ########## Set electricity prices ##########
-    price_type = (
-        "random"  # Options: "random_prices", "sinusoidal_prices", "constant_prices"
+    energy_price_profile = create_random_price_profile(
+        N=ocp_solver.acados_ocp.solver_options.N_horizon,
+        rng=np.random.default_rng(seed=42),
+        price_min=0.1,
+        price_max=0.2,
     )
-    rng = np.random.default_rng(seed=42)
 
-    if price_type == "random":
-        parameter_values[:, -1] = rng.uniform(
-            0.1, 0.2, size=(ocp_solver.acados_ocp.solver_options.N_horizon)
+    parameter_values = np.hstack(
+        (
+            disturbance.T_outdoor.reshape(-1, 1),
+            disturbance.solar_radiation.reshape(-1, 1),
+            energy_price_profile.price.reshape(-1, 1),
         )
-    elif price_type == "sinusoidal":
-        parameter_values[:, -1] = 0.01 + 0.1 * np.sin(
-            np.linspace(0, 2 * np.pi, ocp_solver.acados_ocp.solver_options.N_horizon)
-        )
-    elif price_type == "constant":
-        parameter_values[:, -1] = price
+    )
 
     for stage in range(ocp.solver_options.N_horizon):
         ocp_solver.set(stage, "p", parameter_values[stage, :])
 
-    ########## Set ambient temperature and solar radiation ##########
-    # TODO: Set weather forecast (p[: 0] ambient temperature, p[:, 1] solar radiation)
+    # Comfort bounds
+    comfort_bounds = create_constant_comfort_bounds(
+        N=ocp_solver.acados_ocp.solver_options.N_horizon,
+        T_lower=convert_temperature(17.0, "celsius", "kelvin"),
+        T_upper=convert_temperature(23.0, "celsius", "kelvin"),
+    )
 
-    ###### Set initial state ##########
-    x0 = convert_temperature(np.array([17.1, 17.1, 17.1]), "celsius", "kelvin")
-    for stage in range(ocp.solver_options.N_horizon):
-        ocp_solver.set(stage, "x", x0)
+    for stage in range(1, ocp.solver_options.N_horizon):
+        ocp_solver.constraints_set(stage, "lbx", comfort_bounds.T_lower[stage])
+        ocp_solver.constraints_set(stage, "ubx", comfort_bounds.T_upper[stage])
 
     # Solve the OCP
-    import time
-
     start_time = time.time()
     print("Solving OCP...")
-    _ = ocp_solver.solve_for_x0(x0_bar=x0)
+    _ = ocp_solver.solve_for_x0(
+        x0_bar=convert_temperature(np.array([17.1, 17.1, 17.1]), "c", "k")
+    )
     print(f"OCP solved in {time.time() - start_time:.5f} seconds")
-    status = ocp_solver.get_status()
 
-    x = np.array([ocp_solver.get(stage, "x") for stage in range(ocp.dims.N + 1)])
-    u = np.array([ocp_solver.get(stage, "u") for stage in range(ocp.dims.N)])
+    solution = get_solution(ocp_solver=ocp_solver)
 
-    lb_indoor = ocp_solver.acados_ocp.constraints.lbx[0] * np.ones_like(x[:, 0])
-
-    time_steps = np.arange(len(x)) * dt / 3600.0  # Convert to hours
-
-    plt.figure()
-    ax1 = plt.subplot(3, 1, 1)
-    plt.step(time_steps, x[:, 0], label="Indoor temperature", color="red")
-    plt.plot(
-        time_steps, lb_indoor, label="Indoor temperature lower bound", linestyle="--"
-    )
-    plt.step(time_steps, x[:, 2], label="Envelope temperature")
-    # plt.step(time_steps, Ta * np.ones_like(x[:, 2]), label="Ambient temperature")
-    plt.ylabel("Temperature (K)")
-    plt.grid()
-    plt.legend()
-
-    plt.subplot(3, 1, 2, sharex=ax1)
-    plt.step(time_steps, x[:, 1], label="Radiator temperature")
-    plt.grid()
-    plt.legend()
-    plt.ylabel("Temperature (K)")
-    plt.tight_layout()
-
-    plt.subplot(3, 1, 3, sharex=ax1)
-    ax1 = plt.gca()
-    ax2 = ax1.twinx()
-
-    ax1.step(
-        time_steps[: len(u)], u[:, 0], label="Heat input to radiator", color="tab:blue"
-    )
-    ax2.step(
-        time_steps[: len(parameter_values)],
-        parameter_values[:, -1],
-        label="Electricity price",
-        linestyle="--",
-        color="tab:orange",
+    fig = plot_ocp_results(
+        solution,
+        disturbance,
+        energy_price_profile,
+        comfort_bounds,
+        dt=15 * 60,
     )
 
-    ax1.set_ylabel("Heat input to radiator (W)", color="tab:blue")
-    ax2.set_ylabel("Electricity price (EUR/kWh)", color="tab:orange")
-
-    ax1.tick_params(axis="y", labelcolor="tab:blue")
-    ax2.tick_params(axis="y", labelcolor="tab:orange")
-
-    ax1.grid()
-    ax1.legend(loc="upper left")
-    ax2.legend(loc="upper right")
-    plt.xlabel("Time step")
-    plt.tight_layout()
     plt.show()

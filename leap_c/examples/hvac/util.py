@@ -1,7 +1,9 @@
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
+from typing import Any
 
 import casadi as ca
+import matplotlib.pyplot as plt
 import numpy as np
 import scipy
 import scipy.linalg
@@ -46,13 +48,302 @@ class DisturbanceProfile:
 
 
 @dataclass
-class EnergyCostProfile:
-    """Energy cost profile over the prediction horizon."""
+class EnergyPriceProfile:
+    """Energy price profile over the prediction horizon."""
 
-    costs: np.ndarray  # Energy costs for each time step
+    price: np.ndarray  # Energy price for each time step
 
     def __post_init__(self) -> None:
-        assert np.all(self.costs >= 0), "Energy costs must be non-negative"
+        assert np.all(self.price >= 0), "Energy price must be non-negative"
+
+
+def create_constant_disturbance(
+    N: int, T_outdoor: float, solar_radiation: float
+) -> DisturbanceProfile:
+    """Create a constant disturbance profile."""
+    return DisturbanceProfile(
+        T_outdoor=np.full(N, T_outdoor), solar_radiation=np.full(N, solar_radiation)
+    )
+
+
+def create_constant_comfort_bounds(
+    N: int, T_lower: float, T_upper: float
+) -> ComfortBounds:
+    """Create constant comfort bounds."""
+    return ComfortBounds(
+        T_lower=np.full(N + 1, T_lower), T_upper=np.full(N + 1, T_upper)
+    )
+
+
+def create_constant_energy_price(N: int, cost: float) -> EnergyPriceProfile:
+    """Create constant energy costs."""
+    return EnergyPriceProfile(price=np.full(N, cost))
+
+
+def plot_ocp_results(
+    solution: dict[str, Any],
+    disturbance_profile: DisturbanceProfile,
+    energy_prices: EnergyPriceProfile,
+    comfort_bounds: ComfortBounds,
+    dt: float = 15 * 60,
+    figsize: tuple[float, float] = (12, 10),
+    save_path: str | None = None,
+) -> plt.Figure:
+    """
+    Plot the OCP solution results in a figure with three vertically stacked subplots.
+
+    Args:
+        solution: Solution dictionary from ThermalControlOCP.solve()
+        disturbance_profile: Disturbance profile used in optimization
+        comfort_bounds: Comfort bounds used in optimization
+        dt: Time step in seconds
+        figsize: Figure size (width, height)
+        save_path: Optional path to save the figure
+
+    Returns:
+        matplotlib Figure object
+    """
+    if not solution["success"]:
+        print("Cannot plot: optimization was not successful")
+        return None
+
+    # Create time vectors
+    N = len(solution["controls"])
+    time_hours_states = np.arange(N + 1) * dt / 3600  # For states (N+1 points)
+    time_hours_controls = np.arange(N) * dt / 3600  # For controls (N points)
+    time_hours_disturbance = (
+        np.arange(min(len(disturbance_profile.T_outdoor), N)) * dt / 3600
+    )
+
+    # Create figure with subplots
+    fig, axes = plt.subplots(4, 1, figsize=figsize, sharex=True)
+    fig.suptitle(
+        "Thermal Building Control - OCP Solution", fontsize=16, fontweight="bold"
+    )
+
+    # Subplot 1: Thermal States
+    ax0 = axes[0]
+
+    # Convert temperatures to Celsius for plotting
+    Ti_celsius = convert_temperature(
+        solution["indoor_temperatures"], "kelvin", "celsius"
+    )
+    Th_celsius = convert_temperature(
+        solution["radiator_temperatures"], "kelvin", "celsius"
+    )
+    Te_celsius = convert_temperature(
+        solution["envelope_temperatures"], "kelvin", "celsius"
+    )
+
+    # Plot comfort bounds
+    T_lower_celsius = convert_temperature(
+        comfort_bounds.T_lower[: N + 1], "kelvin", "celsius"
+    )
+    T_upper_celsius = convert_temperature(
+        comfort_bounds.T_upper[: N + 1], "kelvin", "celsius"
+    )
+
+    ax0.fill_between(
+        time_hours_states,
+        T_lower_celsius,
+        T_upper_celsius,
+        alpha=0.2,
+        color="lightgreen",
+        label="Comfort zone",
+    )
+
+    # Plot state trajectories
+    ax0.plot(
+        time_hours_states, Ti_celsius, "b-", linewidth=2, label="Indoor temp. (Ti)"
+    )
+    ax0.plot(
+        time_hours_states,
+        Te_celsius,
+        "orange",
+        linewidth=2,
+        label="Envelope temp. (Te)",
+    )
+
+    # Plot comfort bounds as dashed lines
+    ax0.plot(time_hours_states, T_lower_celsius, "g--", alpha=0.7, label="Lower bound")
+    ax0.plot(time_hours_states, T_upper_celsius, "g--", alpha=0.7, label="Upper bound")
+
+    ax0.set_ylabel("Temperature [°C]", fontsize=12)
+    ax0.legend(loc="best")
+    ax0.grid(True, alpha=0.3)
+    ax0.set_title("Indoor/Envelope Temperature", fontsize=14, fontweight="bold")
+
+    # Subplot 1: Heater Temperature
+    ax1 = axes[1]
+    ax1.plot(
+        time_hours_states, Th_celsius, "r-", linewidth=2, label="Radiator temp. (Th)"
+    )
+    ax1.set_ylabel("Temperature [°C]", fontsize=12)
+    ax1.legend(loc="best")
+    ax1.grid(True, alpha=0.3)
+    ax1.set_title("Heater Temperature", fontsize=14, fontweight="bold")
+
+    # Subplot 2: Disturbance Signals (twin axes)
+    ax2 = axes[2]
+
+    # Outdoor temperature (left y-axis)
+    To_celsius = convert_temperature(
+        disturbance_profile.T_outdoor[: len(time_hours_disturbance)],
+        "kelvin",
+        "celsius",
+    )
+    line1 = ax2.plot(
+        time_hours_disturbance, To_celsius, "b-", linewidth=2, label="Outdoor temp."
+    )
+    ax2.set_ylabel("Outdoor Temperature [°C]", color="b", fontsize=12)
+    ax2.tick_params(axis="y", labelcolor="b")
+
+    # Solar radiation (right y-axis)
+    ax2_twin = ax2.twinx()
+    solar_rad = disturbance_profile.solar_radiation[: len(time_hours_disturbance)]
+    line2 = ax2_twin.plot(
+        time_hours_disturbance,
+        solar_rad,
+        "orange",
+        linewidth=2,
+        label="Solar radiation",
+    )
+    ax2_twin.set_ylabel("Solar Radiation [W/m²]", color="orange", fontsize=12)
+    ax2_twin.tick_params(axis="y", labelcolor="orange")
+
+    # Combined legend
+    lines = line1 + line2
+    labels = [l.get_label() for l in lines]
+    ax2.legend(lines, labels, loc="best")
+
+    ax2.grid(True, alpha=0.3)
+    ax2.set_title("Disturbance Signals", fontsize=14, fontweight="bold")
+
+    # Subplot 3: Control Input
+    ax3 = axes[3]
+
+    # Plot control as step function
+    ax3.step(
+        time_hours_controls,
+        solution["controls"],
+        "r-",
+        where="post",
+        linewidth=2,
+        label="Heat input",
+    )
+
+    # Add control bounds as horizontal lines
+    ax3.axhline(y=0, color="k", linestyle="--", alpha=0.5, label="Min power")
+
+    ax3.set_xlabel("Time [hours]", fontsize=12)
+    ax3.set_ylabel("Heat Input [W]", fontsize=12)
+    ax3.legend(loc="best")
+    ax3.grid(True, alpha=0.3)
+    ax3.set_title("Control Input", fontsize=14, fontweight="bold")
+
+    # Set y-axis lower limit to 0 for better visualization
+    ax3.set_ylim(bottom=0)
+
+    ax3_twin = ax3.twinx()
+    # Add energy cost as a secondary y-axis
+    ax3_twin.step(
+        time_hours_controls,
+        energy_prices.price,
+        color="orange",
+        where="post",
+        linewidth=2,
+        label="Energy cost (scaled)",
+    )
+    ax3_twin.set_ylabel("Energy Cost [scaled]", color="orange", fontsize=12)
+    ax3_twin.tick_params(axis="y", labelcolor="orange")
+    # ax3_twin.legend(loc="lower right")
+    ax3_twin.grid(False)  # Disable grid for twin axis
+    ax3_twin.set_ylim(bottom=0)  # Set lower limit to 0 for energy cost
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Add summary statistics as text
+    total_energy_kWh = solution["controls"].sum() * dt / 3600 / 1000  # Convert to kWh
+    max_comfort_violation = max(
+        solution["slack_lower"].max(), solution["slack_upper"].max()
+    )
+
+    stats_text = (
+        f"Total Energy: {total_energy_kWh:.1f} kWh | "
+        f"Total Cost: {solution['cost']:.2f} | "
+        f"Max Comfort Violation: {max_comfort_violation:.2f} K"
+    )
+
+    fig.text(
+        0.78,
+        0.02,
+        stats_text,
+        ha="center",
+        fontsize=10,
+        bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.8),
+    )
+
+    # Save figure if path provided
+    if save_path:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Figure saved to: {save_path}")
+
+    return fig
+
+
+def plot_comfort_violations(
+    solution: dict[str, Any],
+    dt: float = 15 * 60,
+    figsize: tuple[float, float] = (10, 6),
+) -> plt.Figure:
+    """
+    Plot comfort violations (slack variables) over time.
+
+    Args:
+        solution: Solution dictionary from ThermalControlOCP.solve()
+        dt: Time step in seconds
+        figsize: Figure size (width, height)
+
+    Returns:
+        matplotlib Figure object
+    """
+    if not solution["success"]:
+        print("Cannot plot: optimization was not successful")
+        return None
+
+    N = len(solution["controls"])
+    time_hours = np.arange(N + 1) * dt / 3600
+
+    fig, ax = plt.subplots(figsize=figsize)
+
+    # Plot slack variables
+    ax.plot(
+        time_hours,
+        solution["slack_lower"],
+        "b-",
+        linewidth=2,
+        label="Lower bound violation (δ_l)",
+    )
+    ax.plot(
+        time_hours,
+        solution["slack_upper"],
+        "r-",
+        linewidth=2,
+        label="Upper bound violation (δ_u)",
+    )
+
+    ax.set_xlabel("Time [hours]", fontsize=12)
+    ax.set_ylabel("Temperature Violation [K]", fontsize=12)
+    ax.set_title("Comfort Constraint Violations", fontsize=14, fontweight="bold")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+
+    # Set y-axis lower limit to 0
+    ax.set_ylim(bottom=0)
+
+    plt.tight_layout()
+    return fig
 
 
 @dataclass
