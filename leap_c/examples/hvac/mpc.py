@@ -118,7 +118,15 @@ def export_parametric_ocp(
 
     # Cost function
     ocp.cost.cost_type = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost = ocp.model.p[2] * ocp.model.u
+    ocp.model.cost_expr_ext_cost = (
+        ocp.model.p[2] * ocp.model.u
+        + 0.05 * (ocp.model.x[0] - convert_temperature(21.0, "c", "k")) ** 2
+    )
+
+    ocp.cost.cost_type_e = "EXTERNAL"
+    ocp.model.cost_expr_ext_cost_e = (
+        0.001 * (ocp.model.x[0] - convert_temperature(21.0, "c", "k")) ** 2
+    )
 
     ocp.constraints.x0 = x0
 
@@ -132,10 +140,10 @@ def export_parametric_ocp(
     ocp.constraints.idxbx = np.array([0])
 
     ocp.constraints.idxsbx = np.array([0])
-    ocp.cost.zl = 1e5 * np.ones((ocp.constraints.idxsbx.size,))
-    ocp.cost.Zl = 1e5 * np.ones((ocp.constraints.idxsbx.size,))
-    ocp.cost.zu = 1e5 * np.ones((ocp.constraints.idxsbx.size,))
-    ocp.cost.Zu = 1e5 * np.ones((ocp.constraints.idxsbx.size,))
+    ocp.cost.zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
+    ocp.cost.Zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
+    ocp.cost.zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
+    ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
 
     # #############################
     if isinstance(ocp.model.p, struct_symSX):
@@ -157,10 +165,16 @@ def set_ocp_solver_options(ocp: AcadosOcp) -> None:
 
     ocp.solver_options.hpipm_mode = "ROBUST"
 
+    ocp.solver_options.regularize_method = "GERSHGORIN_LEVENBERG_MARQUARDT"
+    ocp.solver_options.reg_epsilon = 1e-6
+
+    ocp.solver_options.qp_solver_iter_max = 100
+    ocp.solver_options.qp_solver_cond_N = 5
+
 
 if __name__ == "__main__":
     dt = 900.0  # sampling time in seconds
-    N_horizon = 28
+    N_horizon = 96
     T_horizon = N_horizon * dt  # Total time horizon in seconds
 
     # T_horizon = 4 * 3600.0  # Total time horizon in seconds
@@ -174,7 +188,7 @@ if __name__ == "__main__":
     # Exogenous parameters
     Ta = convert_temperature(10.0, "celsius", "kelvin")  # Ambient temperature in K
     Phi_s = 0.0  # Solar radiation in W/m^2
-    price = 0.01  # Electricity price in EUR/kWh
+    price = 0.1  # Electricity price in EUR/kWh
 
     # Set electricity prices
     parameter_values = np.tile(
@@ -183,19 +197,21 @@ if __name__ == "__main__":
     )
 
     ########## Set electricity prices ##########
-    price_type = "constant_prices"  # Options: "random_prices", "sinusoidal_prices", "constant_prices"
+    price_type = (
+        "random"  # Options: "random_prices", "sinusoidal_prices", "constant_prices"
+    )
     rng = np.random.default_rng(seed=42)
 
-    if price_type == "random_prices":
+    if price_type == "random":
         parameter_values[:, -1] = rng.uniform(
-            0.01, 0.2, size=(ocp_solver.acados_ocp.solver_options.N_horizon)
+            0.1, 0.2, size=(ocp_solver.acados_ocp.solver_options.N_horizon)
         )
-    elif price_type == "sinusoidal_prices":
+    elif price_type == "sinusoidal":
         parameter_values[:, -1] = 0.01 + 0.1 * np.sin(
             np.linspace(0, 2 * np.pi, ocp_solver.acados_ocp.solver_options.N_horizon)
         )
-    elif price_type == "constant_prices":
-        parameter_values[:, -1] = 0.01
+    elif price_type == "constant":
+        parameter_values[:, -1] = price
 
     for stage in range(ocp.solver_options.N_horizon):
         ocp_solver.set(stage, "p", parameter_values[stage, :])
@@ -209,7 +225,12 @@ if __name__ == "__main__":
         ocp_solver.set(stage, "x", x0)
 
     # Solve the OCP
+    import time
+
+    start_time = time.time()
+    print("Solving OCP...")
     _ = ocp_solver.solve_for_x0(x0_bar=x0)
+    print(f"OCP solved in {time.time() - start_time:.5f} seconds")
     status = ocp_solver.get_status()
 
     x = np.array([ocp_solver.get(stage, "x") for stage in range(ocp.dims.N + 1)])

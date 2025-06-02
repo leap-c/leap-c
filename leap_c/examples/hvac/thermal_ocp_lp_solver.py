@@ -687,7 +687,7 @@ if __name__ == "__main__":
     solution = ocp.solve(x0, disturbance, comfort, energy_costs)
 
     end_time = time.time()
-    print(f"Optimization completed in {end_time - start_time:.2f} seconds")
+    print(f"Optimization completed in {end_time - start_time:.5f} seconds")
 
     if solution["success"]:
         print("Optimization successful!")
