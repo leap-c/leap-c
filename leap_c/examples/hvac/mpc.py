@@ -90,12 +90,6 @@ def export_parametric_ocp(
         ca.SX.sym("Te"),  # Envelope temperature
     )
 
-    ocp.model.xdot = ca.vertcat(
-        ca.SX.sym("dTi_dt"),  # Indoor air temperature derivative
-        ca.SX.sym("dTh_dt"),  # Radiator temperature derivative
-        ca.SX.sym("dTe_dt"),  # Envelope temperature derivative
-    )
-
     ocp.model.u = ca.SX.sym("qh")  # Heat input to radiator
 
     ocp.model.p = ca.vertcat(
@@ -217,13 +211,15 @@ def get_solution(ocp_solver: AcadosOcpSolver) -> dict[str, np.ndarray]:
         "electricity_price": np.array(
             [ocp_solver.get(stage, "p")[2] for stage in range(ocp.dims.N + 1)]
         ),
+        # NOTE: This is the total cost, not energy-consumption cost
         "cost": ocp_solver.get_cost(),
     }
 
 
 if __name__ == "__main__":
     dt = 900.0  # sampling time in seconds
-    N_horizon = 96
+    hours = 36  # prediction horizon in hours
+    N_horizon = int(hours * 3600.0 / dt)  # Number of time steps in the horizon
     T_horizon = N_horizon * dt  # Total time horizon in seconds
 
     mpc = HvacMpc(N_horizon=N_horizon, T_horizon=T_horizon)
@@ -235,12 +231,12 @@ if __name__ == "__main__":
     disturbance = create_constant_disturbance(
         N=ocp_solver.acados_ocp.solver_options.N_horizon,
         T_outdoor=convert_temperature(10.0, "celsius", "kelvin"),
-        solar_radiation=10.0,
+        solar_radiation=20.0,
     )
 
     energy_price_profile = create_random_price_profile(
         N=ocp_solver.acados_ocp.solver_options.N_horizon,
-        rng=np.random.default_rng(seed=42),
+        rng=np.random.default_rng(seed=22),
         price_min=0.1,
         price_max=0.2,
     )

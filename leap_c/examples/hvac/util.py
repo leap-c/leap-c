@@ -153,10 +153,10 @@ def plot_ocp_results(
     )
 
     # Plot state trajectories
-    ax0.plot(
+    ax0.step(
         time_hours_states, Ti_celsius, "b-", linewidth=2, label="Indoor temp. (Ti)"
     )
-    ax0.plot(
+    ax0.step(
         time_hours_states,
         Te_celsius,
         "orange",
@@ -165,22 +165,21 @@ def plot_ocp_results(
     )
 
     # Plot comfort bounds as dashed lines
-    ax0.plot(time_hours_states, T_lower_celsius, "g--", alpha=0.7, label="Lower bound")
-    ax0.plot(time_hours_states, T_upper_celsius, "g--", alpha=0.7, label="Upper bound")
+    ax0.step(time_hours_states, T_lower_celsius, "g--", alpha=0.7, label="Lower bound")
+    ax0.step(time_hours_states, T_upper_celsius, "g--", alpha=0.7, label="Upper bound")
 
     ax0.set_ylabel("Temperature [°C]", fontsize=12)
     ax0.legend(loc="best")
-    ax0.grid(True, alpha=0.3)
+    ax0.grid(visible=True, alpha=0.3)
     ax0.set_title("Indoor/Envelope Temperature", fontsize=14, fontweight="bold")
 
     # Subplot 1: Heater Temperature
     ax1 = axes[1]
-    ax1.plot(
-        time_hours_states, Th_celsius, "r-", linewidth=2, label="Radiator temp. (Th)"
+    ax1.step(
+        time_hours_states, Th_celsius, "b-", linewidth=2, label="Radiator temp. (Th)"
     )
     ax1.set_ylabel("Temperature [°C]", fontsize=12)
-    ax1.legend(loc="best")
-    ax1.grid(True, alpha=0.3)
+    ax1.grid(visible=True, alpha=0.3)
     ax1.set_title("Heater Temperature", fontsize=14, fontweight="bold")
 
     # Subplot 2: Disturbance Signals (twin axes)
@@ -192,7 +191,7 @@ def plot_ocp_results(
         "kelvin",
         "celsius",
     )
-    line1 = ax2.plot(
+    ax2.plot(
         time_hours_disturbance, To_celsius, "b-", linewidth=2, label="Outdoor temp."
     )
     ax2.set_ylabel("Outdoor Temperature [°C]", color="b", fontsize=12)
@@ -201,7 +200,7 @@ def plot_ocp_results(
     # Solar radiation (right y-axis)
     ax2_twin = ax2.twinx()
     solar_rad = disturbance_profile.solar_radiation[: len(time_hours_disturbance)]
-    line2 = ax2_twin.plot(
+    ax2_twin.plot(
         time_hours_disturbance,
         solar_rad,
         "orange",
@@ -211,13 +210,8 @@ def plot_ocp_results(
     ax2_twin.set_ylabel("Solar Radiation [W/m²]", color="orange", fontsize=12)
     ax2_twin.tick_params(axis="y", labelcolor="orange")
 
-    # Combined legend
-    lines = line1 + line2
-    labels = [l.get_label() for l in lines]
-    ax2.legend(lines, labels, loc="best")
-
-    ax2.grid(True, alpha=0.3)
-    ax2.set_title("Disturbance Signals", fontsize=14, fontweight="bold")
+    ax2.grid(visible=True, alpha=0.3)
+    ax2.set_title("Exogeneous Signals", fontsize=14, fontweight="bold")
 
     # Subplot 3: Control Input
     ax3 = axes[3]
@@ -226,18 +220,14 @@ def plot_ocp_results(
     ax3.step(
         time_hours_controls,
         solution["controls"],
-        "r-",
+        "b-",
         where="post",
         linewidth=2,
         label="Heat input",
     )
 
-    # Add control bounds as horizontal lines
-    ax3.axhline(y=0, color="k", linestyle="--", alpha=0.5, label="Min power")
-
     ax3.set_xlabel("Time [hours]", fontsize=12)
-    ax3.set_ylabel("Heat Input [W]", fontsize=12)
-    ax3.legend(loc="best")
+    ax3.set_ylabel("Heat Input [W]", color="b", fontsize=12)
     ax3.grid(True, alpha=0.3)
     ax3.set_title("Control Input", fontsize=14, fontweight="bold")
 
@@ -254,10 +244,9 @@ def plot_ocp_results(
         linewidth=2,
         label="Energy cost (scaled)",
     )
-    ax3_twin.set_ylabel("Energy Cost [scaled]", color="orange", fontsize=12)
+    ax3_twin.set_ylabel("Energy Price [EUR/kWh]", color="orange", fontsize=12)
     ax3_twin.tick_params(axis="y", labelcolor="orange")
-    # ax3_twin.legend(loc="lower right")
-    ax3_twin.grid(False)  # Disable grid for twin axis
+    ax3_twin.grid(visible=False)  # Disable grid for twin axis
     ax3_twin.set_ylim(bottom=0)  # Set lower limit to 0 for energy cost
 
     # Adjust layout
@@ -281,7 +270,7 @@ def plot_ocp_results(
         stats_text,
         ha="center",
         fontsize=10,
-        bbox=dict(boxstyle="round,pad=0.3", facecolor="lightgray", alpha=0.8),
+        bbox={"boxstyle": "round,pad=0.3", "facecolor": "lightgray", "alpha": 0.8},
     )
 
     # Save figure if path provided
