@@ -14,14 +14,14 @@ from leap_c.examples.hvac.util import (
     EnergyPriceProfile,
     create_constant_comfort_bounds,
     create_constant_disturbance,
+    create_disturbance_from_weather,
+    create_price_profile_from_spot_sprices,
+    create_realistic_comfort_bounds,
+    create_time_of_use_energy_costs,
+    load_price_data,
+    load_weather_data,
     plot_ocp_results,
     transcribe_discrete_state_space,
-    load_weather_data,
-    load_price_data,
-    create_disturbance_from_weather,
-    create_time_of_use_energy_costs,
-    create_realistic_comfort_bounds,
-    create_price_profile_from_spot_sprices,
 )
 
 
@@ -108,7 +108,6 @@ def export_parametric_ocp(
         Ad=np.zeros((3, 3)),
         Bd=np.zeros((3, 1)),
         Ed=np.zeros((3, 2)),
-        # dt=tf / N_horizon,
         dt=900.0,  # 15 minutes in seconds
         params=params,
     )
@@ -119,15 +118,7 @@ def export_parametric_ocp(
 
     # Cost function
     ocp.cost.cost_type = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost = (
-        ocp.model.p[2] * ocp.model.u
-        # + 0.001 * (ocp.model.x[0] - convert_temperature(21.0, "c", "k")) ** 2
-    )
-
-    # ocp.cost.cost_type_e = "EXTERNAL"
-    # ocp.model.cost_expr_ext_cost_e = (
-    #     0.001 * (ocp.model.x[0] - convert_temperature(21.0, "c", "k")) ** 2
-    # )
+    ocp.model.cost_expr_ext_cost = ocp.model.p[2] * ocp.model.u
 
     ocp.constraints.x0 = x0
 
@@ -163,14 +154,7 @@ def set_ocp_solver_options(ocp: AcadosOcp) -> None:
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-
-    ocp.solver_options.hpipm_mode = "ROBUST"
-
-    ocp.solver_options.regularize_method = "GERSHGORIN_LEVENBERG_MARQUARDT"
-    ocp.solver_options.reg_epsilon = 1e-6
-
-    ocp.solver_options.qp_solver_iter_max = 100
-    ocp.solver_options.qp_solver_cond_N = 5
+    ocp.solver_options.qp_solver_cond_N = 4
 
 
 def create_random_price_profile(
@@ -226,9 +210,7 @@ def get_solution(ocp_solver: AcadosOcpSolver) -> dict[str, np.ndarray]:
 if __name__ == "__main__":
     dt = 1.0  # time step in quarterly hours
     horizon_hours = 24  # prediction horizon in hours
-    N_horizon = (
-        horizon_hours * 4
-    )  # Number of time steps in the horizon (quarterly hours)
+    N_horizon = horizon_hours * 4
 
     # Exogenous parameters
     weather_data_path = Path(__file__).parent / "weather.csv"
