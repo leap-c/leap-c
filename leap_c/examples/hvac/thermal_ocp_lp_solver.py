@@ -1,7 +1,8 @@
 import warnings
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
+import matplotlib.pyplot as plt
 import numpy as np
 from scipy.constants import convert_temperature
 from scipy.optimize import linprog
@@ -11,8 +12,6 @@ from leap_c.examples.hvac.util import (
     BestestParameters,
     transcribe_discrete_state_space,
 )
-
-import matplotlib.pyplot as plt
 
 NX = 3  # Number of state variables (Ti, Th, Te)
 NS = 2  # Number of slack variables (delta_l, delta_u)
@@ -163,9 +162,6 @@ class ThermalControlLpSolver:
         print("Slack upper start index:", slack_u_start_idx)
 
         # Constraint matrices
-        constraints = []
-        bounds_list = []
-
         # Variable bounds
         bounds = [(None, None)] * n_vars
 
@@ -381,7 +377,7 @@ def plot_ocp_results(
     comfort_bounds: ComfortBounds,
     dt: float = 15 * 60,
     figsize: tuple[float, float] = (12, 10),
-    save_path: Optional[str] = None,
+    save_path: str | None = None,
 ) -> plt.Figure:
     """
     Plot the OCP solution results in a figure with three vertically stacked subplots.
@@ -673,18 +669,25 @@ if __name__ == "__main__":
 
     energy_costs = create_constant_energy_costs(N=96, cost=0.1)  # €/kWh scaled
 
-    # Make scenario more interesting
-    energy_costs.costs[40:50] = 0.5  # Simulate a price spike
-    energy_costs.costs[70:80] = 0.5  # Another price spike
+    rng = np.random.default_rng(seed=42)
+
+    energy_costs.costs = rng.uniform(0.1, 0.2, size=energy_costs.costs.shape[0])
 
     disturbance.T_outdoor[30:40] = convert_temperature(
         10.0, "celsius", "kelvin"
     )  # Simulate a warm period
     disturbance.solar_radiation[80:90] = 300.0  # Another high solar radiation period
 
+    import time
+
     # Solve OCP
     print("Solving OCP...")
+    start_time = time.time()
+    # Solve the OCP
     solution = ocp.solve(x0, disturbance, comfort, energy_costs)
+
+    end_time = time.time()
+    print(f"Optimization completed in {end_time - start_time:.2f} seconds")
 
     if solution["success"]:
         print("Optimization successful!")
