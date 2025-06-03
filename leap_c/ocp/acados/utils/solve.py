@@ -1,84 +1,70 @@
-# 2. Rewrite the solve function.
-#    Use the backup_fn to solve the OCP.
-from acados_template import AcadosOcp
+import time
+
 from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 import numpy as np
 
+from leap_c.ocp.acados.initializer import AcadosInitializer
+from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver
+from leap_c.ocp.acados.data import AcadosSolverInput
 
-def prepare_ocp_batch_solver(
+
+def solve_with_retry(
     batch_solver: AcadosOcpBatchSolver,
+    initializer: AcadosInitializer,
     ocp_iterate: AcadosOcpFlattenedBatchIterate | None,
-    x0: np.ndarray,
-    u0: np.ndarray | None = None,
-    p_global: np.ndarray | None = None,
-    p_stagewise: np.ndarray | None = None,
-    p_stagewise_sparse_idx: np.ndarray | None = None,
-):
-    batch_size = x0.shape[0]
-    ocp: AcadosOcp = batch_solver.ocp_solvers[0].acados_ocp  # type:ignore
-    used_solvers = batch_solver.ocp_solvers[:batch_size]
-    N: int = ocp.solver_options.N_horizon  # type:ignore
+    solver_input: AcadosSolverInput,
+) -> tuple[np.ndarray, dict[str, float]]:
+    """Solve a batch of ocps, and retries in case of divergence.
 
-    # iterate
-    if ocp_iterate is not None:
-        batch_solver.load_iterate_from_flat_obj(ocp_iterate)
+    This function prepares the batch solver by loading the iterate, setting
+    the initial conditions, and configuring the global and stage-wise
+    parameters. If `p_global` or `p_stagewise` is not provided, it will
+    check if the model has default parameters and load them accordingly.
 
-    # set p_global
-    if p_global is None and _is_param_legal(ocp.model.p_global):
-        # if p_global is None and default exists, load default p_global
-        for solver in used_solvers:
-            solver.set_p_global_and_precompute_dependencies(ocp.p_global_values)
-    elif p_global is not None:
-        # if p_global is provided, set it
-        for param, solver in zip(p_global, used_solvers):
-            solver.set_p_global_and_precompute_dependencies(param)
+    Args:
+        batch_solver: The batch solver to use.
+        initializer: The initializer used for retries.
+        ocp_iterate: The iterate to load into the batch solver.
+        solver_input: The input data for the solver, which includes initial
+            conditions and parameters.
 
-    # set p_stagewise
-    if (
-        p_stagewise is None
-        and _is_param_legal(ocp.model.p)
-        and p_stagewise_sparse_idx is None
-    ):
-        # if p_stagewise is None and default exist, load default p
-        param_default = ocp.model.p.tile(batch_size, N + 1)  # type:ignore
-        param = param_default.reshape(batch_size, -1)
-        batch_solver.set_flat("p", param)
-    elif p_stagewise is not None and p_stagewise_sparse_idx is None:
-        # if p_stagewise is provided, set it
-        param = p_stagewise.reshape(batch_size, -1)
-        batch_solver.set_flat("p", param)
-    elif p_stagewise is not None and p_stagewise_sparse_idx is not None:
-        # if p_stagewise is provided and sparse indices are provided, set it
-        for idx, stage in zip(range(batch_size), range(N + 1)):
-            param = p_stagewise[idx, stage, :]
-            solver = batch_solver.ocp_solvers[idx]
-            solver.set_params_sparse(stage, param, p_stagewise_sparse_idx)
+    Returns:
+        The solving stats.
+    """
+    batch_size = solver_input.batch_size
 
-    # initial conditions
-    for idx, solver in enumerate(used_solvers):
-        solver.set(0, "x", x0[idx])
-        solver.constraints_set(0, "lbx", x0[idx])
-        solver.constraints_set(0, "ubx", x0[idx])
-
-        if u0 is not None:
-            solver.set(0, "u", u0[idx])
-            solver.constraints_set(0, "lbu", u0[idx])
-            solver.constraints_set(0, "ubu", u0[idx])
-
-
-def solve_with_backup():
-    raise NotImplementedError
-
-
-def _is_param_legal(model_p) -> bool:
-    if model_p is None:
-        return False
-    elif isinstance(model_p, ca.SX):
-        return 0 not in model_p.shape
-    elif isinstance(model_p, np.ndarray):
-        return model_p.size != 0
-    elif isinstance(model_p, list) or isinstance(model_p, tuple):
-        return len(model_p) != 0
+    if ocp_iterate is None:
+        ocp_iterate = initializer.batch_iterate(solver_input)
+        with_retry = False
     else:
-        raise ValueError(f"Unknown case for model_p, type is {type(model_p)}")
+        with_retry = True
+
+    prepare_batch_solver(batch_solver, ocp_iterate, solver_input)
+
+    start = time.perf_counter()
+    batch_solver.solve(n_batch=batch_size)
+    time_solve = time.perf_counter() - start
+
+    active_solvers = batch_solver.ocp_solvers[:batch_size]
+    batch_status = np.array([solver.status for solver in active_solvers])
+
+    if with_retry and any(status != 0 for status in batch_status):
+
+        for idx, solver in enumerate(active_solvers):
+            single_iterate = initializer.single_iterate(solver_input.get_sample(idx))
+            solver.load_iterate_from_flat_obj(single_iterate)
+
+        start_retry = time.perf_counter()
+        batch_solver.solve(n_batch=batch_size)
+        time_solve += time.perf_counter() - start_retry
+
+    batch_status_retry = np.array([solver.status for solver in active_solvers])
+
+    stats = {
+        "solving_time": time_solve,
+        "success_rate": batch_status_retry.mean(),
+        "retry_rate": (batch_status != 0).mean(),
+    }
+
+    return batch_status_retry, stats
