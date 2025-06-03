@@ -49,6 +49,9 @@ def create_batch_solver(
      )
 
 
+def derive_sensitivity_ocp(ocp: AcadosOcp) -> AcadosOcp:
+    raise NotImplementedError()
+
 
 
 def _turn_on_warmstart(acados_ocp: AcadosOcp):

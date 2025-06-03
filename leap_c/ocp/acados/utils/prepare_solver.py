@@ -7,11 +7,25 @@ import numpy as np
 from leap_c.ocp.acados.data import AcadosSolverInput
 
 
+# TODO: The caching could be improved as soon as we save the whole capsule
+#    in the context of the implicit function. Currently, this caching
+#    is slightly less optimal, as we might need to prepare a solver multiple
+#    times.
+_PREPARE_CACHE = {}
+_PREPARE_BACKWARD_CACHE = {}
+
+
 def prepare_batch_solver(
     batch_solver: AcadosOcpBatchSolver,
     ocp_iterate: AcadosOcpFlattenedBatchIterate,
     solver_input: AcadosSolverInput,
 ):
+    # caching to improve performance
+    if batch_solver in _PREPARE_CACHE:
+        cached_ocp_iterate, cached_solver_input = _PREPARE_CACHE[batch_solver]
+        if cached_ocp_iterate == ocp_iterate and cached_solver_input == solver_input:
+            return
+    _PREPARE_CACHE[batch_solver] = (ocp_iterate, solver_input)
 
     batch_size = solver_input.batch_size
     ocp: AcadosOcp = batch_solver.ocp_solvers[0].acados_ocp  # type:ignore
@@ -68,6 +82,21 @@ def prepare_batch_solver(
             solver.set(0, "u", u0[idx])
             solver.constraints_set(0, "lbu", u0[idx])
             solver.constraints_set(0, "ubu", u0[idx])
+
+
+def prepare_batch_solver_for_backward(
+    batch_solver: AcadosOcpBatchSolver,
+    ocp_iterate: AcadosOcpFlattenedBatchIterate,
+    solver_input: AcadosSolverInput,
+):
+    if batch_solver in _PREPARE_BACKWARD_CACHE:
+        cached_ocp_iterate, cached_solver_input = _PREPARE_BACKWARD_CACHE[batch_solver]
+        if cached_ocp_iterate == ocp_iterate and cached_solver_input == solver_input:
+            return
+    _PREPARE_BACKWARD_CACHE[batch_solver] = (ocp_iterate, solver_input)
+
+    prepare_batch_solver(batch_solver, ocp_iterate, solver_input)
+    batch_solver.setup_qp_matrices_and_factorize(solver_input.batch_size)
 
 
 def _is_param_legal(model_p) -> bool:

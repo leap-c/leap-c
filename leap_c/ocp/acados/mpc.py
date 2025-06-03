@@ -931,8 +931,8 @@ class Mpc(ABC):
                     s.eval_solution_sensitivity(
                         stages=0,
                         with_respect_to="initial_state",
-                        return_sens_u=True,
-                        return_sens_x=False,
+                        return_sens_u=true,
+                        return_sens_x=false,
                     )["sens_u"]
                     for s in sens_solvers
                 ]
@@ -948,7 +948,7 @@ class Mpc(ABC):
                         seed_x=[],
                         seed_u=[(0, seed_vec)],
                         with_respect_to="p_global",
-                        sanity_checks=True,
+                        sanity_checks=true,
                     )
                 )
 
@@ -958,8 +958,8 @@ class Mpc(ABC):
                         s.eval_solution_sensitivity(
                             stages=0,
                             with_respect_to="p_global",
-                            return_sens_u=True,
-                            return_sens_x=False,
+                            return_sens_u=true,
+                            return_sens_x=false,
                         )["sens_u"]
                         for s in sens_solvers
                     ]
@@ -985,8 +985,8 @@ class Mpc(ABC):
                     s.eval_solution_sensitivity(
                         stages=0,
                         with_respect_to="initial_state",
-                        return_sens_u=True,
-                        return_sens_x=False,
+                        return_sens_u=true,
+                        return_sens_x=false,
                     )["sens_u"]
                     for s in sens_solvers
                 ]
