@@ -19,6 +19,28 @@ from leap_c.examples.hvac.util import (
     transcribe_discrete_state_space,
 )
 
+
+from leap_c.examples.hvac.util import (
+    BestestHydronicParameters,
+    EnergyPriceProfile,
+    create_constant_comfort_bounds,
+    create_constant_disturbance,
+    create_disturbance_from_weather,
+    create_price_profile_from_spot_sprices,
+    create_realistic_comfort_bounds,
+    create_time_of_use_energy_costs,
+    load_price_data,
+    load_weather_data,
+    plot_ocp_results,
+    transcribe_discrete_state_space,
+)
+
+from pathlib import Path
+
+import pandas as pd
+
+from gymnasium import spaces
+
 # Constants
 DAYLIGHT_START_HOUR = 6
 DAYLIGHT_END_HOUR = 18
@@ -39,13 +61,16 @@ class StochasticThreeStateRcEnv(gym.Env):
         self,
         params: None | BestestParameters = None,
         step_size: float = 900.0,  # Default 15 minutes
+        start_time: pd.Timestamp | None = None,
+        horizon_hours: int = 36,
+        price_zone: str = "NO_1",
         ambient_temperature_function: Callable | None = None,
         solar_radiation_function: Callable | None = None,
         enable_noise: bool = True,
         random_seed: int | None = None,
     ) -> None:
         """
-        Initialize the stochastic simulator.
+        Initialize the stochastic environment.
 
         Args:
             params: Dictionary of thermal parameters
@@ -55,6 +80,44 @@ class StochasticThreeStateRcEnv(gym.Env):
             enable_noise: Whether to include stochastic noise
             random_seed: Random seed for reproducibility
         """
+        N_forecast = 4 * horizon_hours  # Number of forecasted ambient temperatures
+
+        self.N_forecast = N_forecast
+
+        self.obs_low = np.array(
+            [
+                0.0,  # quarter hour within a day
+                0.0,  # day within a year
+                0.0,  # Indoor temperature
+                0.0,  # Radiator temperature
+                0.0,  # Envelope temperature
+            ]
+            + [0.0] * N_forecast  # Ambient temperatures
+            + [0.0] * N_forecast  # Solar radiation
+            + [0.0] * N_forecast,  # Prices  TODO: Allow negative prices
+            dtype=np.float32,
+        )
+
+        self.obs_high = np.array(
+            [
+                24 * 4 - 1,  # quarter hour within a day
+                365,  # day within a year
+                convert_temperature(30.0, "celsius", "kelvin"),  # Indoor temperature
+                convert_temperature(500.0, "celsius", "kelvin"),  # Radiator temperature
+                convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
+            ]
+            + [convert_temperature(40.0, "celsius", "kelvin")]
+            * N_forecast  # Ambient temperatures
+            + [MAGNITUDE_SOLAR_RADIATION] * N_forecast  # Solar radiation
+            + [np.inf] * N_forecast,  # Prices
+            dtype=np.float32,
+        )
+        self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
+
+        self.action_low = np.array([0.0], dtype=np.float32)
+        self.action_high = np.array([5000.0], dtype=np.float32)
+        self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
+
         # Store parameters
         self.params = (
             params if params is not None else BestestHydronicParameters().to_dict()
@@ -86,6 +149,91 @@ class StochasticThreeStateRcEnv(gym.Env):
             self.solar_radiation_function = self._get_default_solar_radiation
         else:
             self.solar_radiation_function = solar_radiation_function
+
+        price_data = load_price_data(Path(__file__).parent / "spot_prices.csv")
+        price_data = resample_prices_to_quarters(price_data)
+
+        weather_data = load_weather_data(Path(__file__).parent / "weather.csv")
+        weather_data = weather_data.resample("15T").interpolate(method="linear")
+
+        data = merge_price_weather_data(
+            price_data=price_data, weather_data=weather_data, merge_type="inner"
+        )
+
+        self.data = data
+
+        # Rename NO1 to price
+        self.data.rename(
+            columns={price_zone: "price", "Tout_K": "Ta", "SolGlob": "solar"},
+            inplace=True,
+        )
+
+        # Drop all columns except the ones we need
+        self.data = self.data[["price", "Ta", "solar"]].copy()
+        self.data["price"] = self.data["price"].astype(np.float32)
+        self.data["Ta"] = self.data["Ta"].astype(np.float32)
+        self.data["solar"] = self.data["solar"].astype(np.float32)
+
+        self.start_time = start_time
+
+    def _get_observation(self) -> np.ndarray:
+        """
+        Get the current observation including time, state, ambient temperatures,
+        solar radiation, and prices.
+
+        Returns:
+            np.ndarray: Observation vector containing temporal, state, and forecast information
+
+        | Num | Observation                                     |
+        | --- | ------------------------------------------------|
+        | 0   | quarter hour of day (0-95, 15-min intervals)    |
+        | 1   | day of year (1-365/366)                         |
+        | 2   | indoor air temperature Ti [K]                   |
+        | 3   | radiator temperature Th [K]                     |
+        | 4   | envelope temperature Te [K]                     |
+        | 5   | ambient temperature forecast t+0 [K]            |
+        | 6   | ambient temperature forecast t+1 [K]            |
+        | ... | ambient temperature forecast t+N-1 [K]          |
+        | 5+N | solar radiation forecast t+0 [W/m²]             |
+        | 6+N | solar radiation forecast t+1 [W/m²]             |
+        | ... | solar radiation forecast t+N-1 [W/m²]           |
+        | 5+2N| electricity price forecast t+0 [EUR/kWh]        |
+        | 6+2N| electricity price forecast t+1 [EUR/kWh]        |
+        | ... | electricity price forecast t+N-1 [EUR/kWh]      |
+
+        Total observation size: 5 + 3*N_forecast
+
+        Notes:
+            - Quarter hour: 0=00:00, 1=00:15, 2=00:30, 3=00:45, ..., 95=23:45
+            - All forecasts are at 15-minute intervals starting from current time
+            - N_forecast is the prediction horizon length (typically 96 for 24h)
+        """
+        datetime = self.data.index[self.idx]
+        quarter_hour = (datetime.hour * 4 + datetime.minute // 15) % (24 * 4)
+        day_of_year = datetime.timetuple().tm_yday
+
+        price_forecast = (
+            self.data["price"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
+        )
+
+        # TODO: Implement forecasts for weather that is not a perfect copy of the data
+        ambient_temperature_forecast = (
+            self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
+        )
+        solar_radiation_forecast = (
+            self.data["solar"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
+        )
+
+        return np.concatenate(
+            [
+                np.array([quarter_hour, day_of_year], dtype=np.float32),
+                # np.array([self.Ti, self.Th, self.Te], dtype=np.float32),
+                self.state.astype(np.float32),
+                ambient_temperature_forecast.astype(np.float32),
+                solar_radiation_forecast.astype(np.float32),
+                price_forecast.astype(np.float32),
+            ]
+        )
 
     def _compute_discrete_matrices(
         self,
@@ -176,8 +324,8 @@ class StochasticThreeStateRcEnv(gym.Env):
         # Get exogenous inputs
         exog = np.array(
             [
-                self.ambient_temperature_function(time),
-                self.solar_radiation_function(time),
+                self.data["Ta"].iloc[self.idx],  # Ambient temperature
+                self.data["solar"].iloc[self.idx],  # Solar radiation
             ]
         )
 
@@ -193,13 +341,22 @@ class StochasticThreeStateRcEnv(gym.Env):
             x_next += noise
 
         self.state = x_next
-        return self.state
+        self.idx += 1
+
+        self.Ti, self.Th, self.Te = self.state[0], self.state[1], self.state[2]
+
+        return self._get_observation()
 
     def reset(self, state_0: np.ndarray | None = None) -> None:
         """Reset the model state to initial values."""
         if state_0 is None:
             state_0 = self.state_0
         self.state = state_0.copy()
+
+        if self.start_time is not None:
+            self.idx = self.data.index.get_loc(self.start_time, method="nearest")
+        else:
+            self.idx = 0
 
     def get_noise_statistics(self) -> dict:
         """
@@ -241,6 +398,112 @@ class StochasticThreeStateRcEnv(gym.Env):
         if DAYLIGHT_START_HOUR <= hour <= DAYLIGHT_END_HOUR:
             return MAGNITUDE_SOLAR_RADIATION * np.sin(np.pi * (hour - 6) / 12)
         return 0.0
+
+
+def resample_prices_to_quarters(price_data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Resample hourly price data to 15-minute intervals.
+    Each hour's price is kept constant for the following four 15-minute periods.
+
+    Parameters:
+    -----------
+    price_data : pd.DataFrame
+        DataFrame with hourly price data indexed by timestamp
+
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with 15-minute price data
+    """
+    # Ensure the index is datetime
+    if not isinstance(price_data.index, pd.DatetimeIndex):
+        price_data.index = pd.to_datetime(price_data.index)
+
+    print(f"Original data shape: {price_data.shape}")
+    print(f"Original frequency: {pd.infer_freq(price_data.index)}")
+    print(f"Time range: {price_data.index.min()} to {price_data.index.max()}")
+
+    # Resample to 15-minute intervals using forward fill
+    # This keeps each hour's price constant for the following four quarters
+    price_quarterly = price_data.resample("15T").ffill()
+
+    print(f"\nResampled data shape: {price_quarterly.shape}")
+    print("New frequency: 15 minutes")
+    print(f"Time range: {price_quarterly.index.min()} to {price_quarterly.index.max()}")
+    print(f"Expansion factor: {price_quarterly.shape[0] / price_data.shape[0]:.1f}x")
+
+    return price_quarterly
+
+
+def merge_price_weather_data(price_data, weather_data, merge_type="inner"):
+    """
+    Merge price and weather dataframes on their timestamp indices.
+
+    Parameters:
+    -----------
+    price_data : pd.DataFrame
+        DataFrame with price data indexed by timestamp
+    weather_data : pd.DataFrame
+        DataFrame with weather data indexed by timestamp
+    merge_type : str
+        Type of merge: 'inner', 'outer', 'left', 'right'
+
+    Returns:
+    --------
+    pd.DataFrame
+        Merged dataframe
+    """
+
+    print(
+        f"Price data time range: {price_data.index.min()} to {price_data.index.max()}"
+    )
+    print(
+        f"Weather data time range: {weather_data.index.min()} to {weather_data.index.max()}"
+    )
+    print(f"Price data shape: {price_data.shape}")
+    print(f"Weather data shape: {weather_data.shape}")
+
+    # Ensure both indices are datetime and timezone-aware
+    if not isinstance(price_data.index, pd.DatetimeIndex):
+        price_data.index = pd.to_datetime(price_data.index)
+    if not isinstance(weather_data.index, pd.DatetimeIndex):
+        weather_data.index = pd.to_datetime(weather_data.index)
+
+    # Perform the merge based on the timestamp index
+    if merge_type == "inner":
+        # Only keep timestamps that exist in both dataframes
+        merged_df = price_data.join(weather_data, how="inner")
+        print(f"\nInner join: {merged_df.shape[0]} overlapping timestamps")
+
+    elif merge_type == "outer":
+        # Keep all timestamps from both dataframes
+        merged_df = price_data.join(weather_data, how="outer")
+        print(f"\nOuter join: {merged_df.shape[0]} total timestamps")
+
+    elif merge_type == "left":
+        # Keep all price data timestamps, add weather where available
+        merged_df = price_data.join(weather_data, how="left")
+        print(f"\nLeft join: {merged_df.shape[0]} timestamps (all price data)")
+
+    elif merge_type == "right":
+        # Keep all weather data timestamps, add price where available
+        merged_df = price_data.join(weather_data, how="right")
+        print(f"\nRight join: {merged_df.shape[0]} timestamps (all weather data)")
+
+    else:
+        raise ValueError("merge_type must be one of: 'inner', 'outer', 'left', 'right'")
+
+    # Print information about missing values
+    print(f"\nMissing values per column:")
+    missing_counts = merged_df.isnull().sum()
+    for col, count in missing_counts.items():
+        if count > 0:
+            print(f"  {col}: {count} missing ({count / len(merged_df) * 100:.1f}%)")
+
+    # Sort by index to ensure chronological order
+    merged_df = merged_df.sort_index()
+
+    return merged_df
 
 
 def get_alternating_heating_power(t) -> float:

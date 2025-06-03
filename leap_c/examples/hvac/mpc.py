@@ -222,7 +222,7 @@ if __name__ == "__main__":
     if weather_data_path.exists():
         weather_data = load_weather_data(weather_data_path)
 
-        start_time = weather_data.index[43]
+        start_time = weather_data.index[0]
 
         disturbance = create_disturbance_from_weather(
             weather_df=weather_data,
