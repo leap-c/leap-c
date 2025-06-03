@@ -3,19 +3,19 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Iterable
+    from collections.abc import Callable
 
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
+import scipy
 from scipy.constants import convert_temperature
 
 from leap_c.examples.hvac.util import (
     BestestHydronicParameters,
     BestestParameters,
-    get_f_expl_expr,
-    rk4_step,
+    transcribe_continuous_state_space,
     transcribe_discrete_state_space,
 )
 
@@ -27,173 +27,220 @@ MAGNITUDE_AMBIENT_TEMPERATURE = 5
 MAGNITUDE_SOLAR_RADIATION = 200
 
 
-def get_disc_dyn_func(
-    dt: float,
-    params: dict[str, float],
-) -> Callable[[np.ndarray, np.ndarray, np.ndarray], np.ndarray]:
+class StochasticThreeStateRcEnv(gym.Env):
     """
-    Get a function for discrete-time dynamics.
+    Simulator for a three-state RC thermal model with exact discretization of Gaussian noise.
 
-    Args:
-        dt: Sampling time
-        params: Parameters
-    Returns:
-        Function that computes the discrete-time dynamics
+    This environment uses the matrix exponential approach to exactly discretize both the
+    deterministic dynamics and the stochastic noise terms.
     """
-    Ad, Bd, Ed = transcribe_discrete_state_space(
-        Ad=np.zeros((3, 3)),
-        Bd=np.zeros((3, 1)),
-        Ed=np.zeros((3, 2)),
-        dt=dt,
-        params=params,
-    )
-
-    def disc_dyn_func(x: np.ndarray, u: np.ndarray, e: np.ndarray) -> np.ndarray:
-        return np.inner(Ad, x) + np.inner(Bd, u) + np.inner(Ed, e)
-
-    return disc_dyn_func
-
-
-class ThreeStateRcEnv(gym.Env):
-    """Simulator for a three-state RC thermal model of a building."""
 
     def __init__(
         self,
         params: None | BestestParameters = None,
-        step_size: float = 60.0,
+        step_size: float = 900.0,  # Default 15 minutes
         ambient_temperature_function: Callable | None = None,
         solar_radiation_function: Callable | None = None,
+        enable_noise: bool = True,
+        random_seed: int | None = None,
     ) -> None:
         """
-        Initialize the simulator with thermal parameters.
+        Initialize the stochastic simulator.
 
         Args:
             params: Dictionary of thermal parameters
             step_size: Time step for the simulation in seconds
-
+            ambient_temperature_function: Function for ambient temperature
+            solar_radiation_function: Function for solar radiation
+            enable_noise: Whether to include stochastic noise
+            random_seed: Random seed for reproducibility
         """
         # Store parameters
         self.params = (
             params if params is not None else BestestHydronicParameters().to_dict()
         )
 
-        # Initial state variables [°C]
+        self.step_size = step_size
+        self.enable_noise = enable_noise
+
+        # Set random seed for reproducibility
+        if random_seed is not None:
+            np.random.seed(random_seed)
+
+        # Initial state variables [K]
         self.Ti = convert_temperature(20.0, "celsius", "kelvin")
         self.Th = convert_temperature(20.0, "celsius", "kelvin")
         self.Te = convert_temperature(20.0, "celsius", "kelvin")
-
         self.state_0 = np.array([self.Ti, self.Th, self.Te])
 
-        self.integrator = lambda x, u, d, p: rk4_step(dynamics, x, u, d, p, step_size)
+        # Precompute discrete-time matrices including noise covariance
+        self.Ad, self.Bd, self.Ed, self.Qd = self._compute_discrete_matrices()
 
-        self.disc_dyn_func = get_disc_dyn_func(
-            dt=step_size,
-            params=self.params,
-        )
-
+        # Set default functions if not provided
         if ambient_temperature_function is None:
-            self.ambient_temperature_function = get_ambient_temperature
+            self.ambient_temperature_function = self._get_default_ambient_temperature
         else:
             self.ambient_temperature_function = ambient_temperature_function
 
         if solar_radiation_function is None:
-            self.solar_radiation_function = get_solar_radiation
+            self.solar_radiation_function = self._get_default_solar_radiation
         else:
             self.solar_radiation_function = solar_radiation_function
 
+    def _compute_discrete_matrices(
+        self,
+    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Compute discrete-time matrices using exact discretization via matrix exponential.
+        This includes both deterministic dynamics and noise covariance.
+        """
+        # Get continuous-time matrices
+        Ac, Bc, Ec = transcribe_continuous_state_space(
+            Ac=np.zeros((3, 3)),
+            Bc=np.zeros((3, 1)),
+            Ec=np.zeros((3, 2)),
+            params=self.params,
+        )
+
+        # Compute discrete-time state-space matrices
+        Ad, Bd, Ed = transcribe_discrete_state_space(
+            Ad=np.zeros((3, 3)),
+            Bd=np.zeros((3, 1)),
+            Ed=np.zeros((3, 2)),
+            dt=self.step_size,
+            params=self.params,
+        )
+
+        # Create noise intensity matrix Σ from parameters
+        # The stochastic terms are σᵢω̇ᵢ, σₕω̇ₕ, σₑω̇ₑ
+        sigma_i = np.exp(self.params["sigmai"])
+        sigma_h = np.exp(self.params["sigmah"])
+        sigma_e = np.exp(self.params["sigmae"])
+
+        Qd = self._compute_noise_covariance(
+            Ac=Ac,
+            Sigma=np.diag([sigma_i, sigma_h, sigma_e]),
+            dt=self.step_size,
+        )
+
+        return Ad, Bd, Ed, Qd
+
+    def _compute_noise_covariance(
+        self, Ac: np.ndarray, Sigma: np.ndarray, dt: float
+    ) -> np.ndarray:
+        """
+        TODO: Check if this is correct. See, e.g., Farrell, J. Sec 4.7.2
+        Compute the exact discrete-time noise covariance matrix using matrix exponential.
+        Q_d = ∫₀^Δt e^(Aτ) Σ Σᵀ e^(Aᵀτ) dτ.
+
+        Args:
+            Ac: Continuous-time system matrix
+            Sigma: Noise intensity matrix (diagonal)
+            dt: Sampling time
+
+        Returns:
+            Qd: Discrete-time noise covariance matrix
+        """
+        n = Ac.shape[0]  # State dimension (3)
+
+        # Create the augmented matrix for computing the noise covariance integral
+        # [ A    Σ Σᵀ ]
+        # [ 0      -Aᵀ ]
+        SigmaSigmaT = Sigma @ Sigma.T
+
+        # Augmented matrix (6x6)
+        M = np.block([[Ac, SigmaSigmaT], [np.zeros((n, n)), -Ac.T]])
+
+        # Matrix exponential of augmented system
+        exp_M = scipy.linalg.expm(M * dt)
+
+        # Extract the noise covariance from the upper-right block
+        # Qd = e^(A*dt) * (upper-right block of exp_M)
+        Ad = exp_M[:n, :n]
+        Phi = exp_M[:n, n:]
+
+        # The discrete-time covariance is Qd = Ad @ Phi
+        return Ad @ Phi
+
     def step(self, action: np.ndarray, time: float) -> np.ndarray:
         """
-        Perform a simulation step.
+        Perform a simulation step with exact discrete-time dynamics including noise.
 
         Args:
             action: Control input (heat input to radiator)
             time: Current time in seconds since the start of the simulation
-        Returns:
-            next_state: Next state after applying the control input
 
+        Returns:
+            next_state: Next state after applying control input and noise
         """
+        # Get exogenous inputs
         exog = np.array(
             [
                 self.ambient_temperature_function(time),
                 self.solar_radiation_function(time),
             ]
         )
-        if False:
-            self.state = self.integrator(
-                x=self.state,
-                u=action,
-                d=exog,
-                p=self.params,
-            )
-        else:
-            self.state = self.disc_dyn_func(
-                x=self.state,
-                u=action,
-                e=exog,
-            )
 
+        # Deterministic state update
+        x_next = self.Ad @ self.state + self.Bd @ action + self.Ed @ exog
+
+        # Add Gaussian noise if enabled
+        if self.enable_noise:
+            # Sample from multivariate normal distribution with exact covariance
+            noise = np.random.default_rng().multivariate_normal(
+                mean=np.zeros(3), cov=self.Qd
+            )
+            x_next += noise
+
+        self.state = x_next
         return self.state
 
     def reset(self, state_0: np.ndarray | None = None) -> None:
         """Reset the model state to initial values."""
         if state_0 is None:
             state_0 = self.state_0
-        self.state = state_0
+        self.state = state_0.copy()
 
+    def get_noise_statistics(self) -> dict:
+        """
+        Get statistics about the noise model.
 
-def dynamics(x: Iterable, u: float, d: Iterable, p: dict[str, float]) -> np.ndarray:
-    """
-    Calculate the state derivatives for the thermal model.
+        Returns:
+            Dictionary with noise statistics
+        """
+        sigma_i = np.exp(self.params["sigmai"])
+        sigma_h = np.exp(self.params["sigmah"])
+        sigma_e = np.exp(self.params["sigmae"])
 
-    Args:
-        x: Current state vector [Ti, Th, Te]
-        u: Heat input to radiator [W]
-        d: Disturbance inputs [Ta, Phi_s]
-        p: Parameters
+        return {
+            "continuous_noise_intensities": {
+                "sigma_i": sigma_i,
+                "sigma_h": sigma_h,
+                "sigma_e": sigma_e,
+            },
+            "discrete_noise_covariance": self.Qd,
+            "discrete_noise_std": np.sqrt(np.diag(self.Qd)),
+            "step_size": self.step_size,
+        }
 
-    Returns:
-        State derivatives [dTi/dt, dTh/dt, dTe/dt]
+    def _get_default_ambient_temperature(self, t: float) -> float:
+        """Get default ambient temperature function value."""
+        MEAN_AMBIENT_TEMPERATURE = convert_temperature(0, "celsius", "kelvin")
+        MAGNITUDE_AMBIENT_TEMPERATURE = 5
+        return MEAN_AMBIENT_TEMPERATURE + MAGNITUDE_AMBIENT_TEMPERATURE * np.sin(
+            2 * np.pi * t / (24 * 3600)
+        )
 
-    """
-    return (
-        get_f_expl_expr(x=x, u=u, e=d, params=p)
-        + np.diag([np.exp(p["sigmai"]), np.exp(p["sigmah"]), np.exp(p["sigmae"])])
-        @ np.random.randn(3)
-        * 0
-    )
+    def _get_default_solar_radiation(self, t: float) -> float:
+        """Get default solar radiation function value."""
+        DAYLIGHT_START_HOUR = 6
+        DAYLIGHT_END_HOUR = 18
+        MAGNITUDE_SOLAR_RADIATION = 200
 
-
-def get_ambient_temperature(t: float) -> float:
-    """
-    Get the ambient temperature at time t.
-
-    Args:
-        t: Time in seconds since the start of the simulation
-    Returns:
-        Ambient temperature in °C
-
-    """
-    return MEAN_AMBIENT_TEMPERATURE + MAGNITUDE_AMBIENT_TEMPERATURE * np.sin(
-        2 * np.pi * t / (24 * 3600)
-    )
-
-
-def get_solar_radiation(t: float) -> float:
-    """
-    Get the solar radiation at time t.
-
-    Args:
-        t: Time in seconds since the start of the simulation
-    Returns:
-        Solar radiation in W/m²
-
-    """
-    hour = (t % (24 * 3600)) / 3600
-    if DAYLIGHT_START_HOUR <= hour <= DAYLIGHT_END_HOUR:  # Daylight hours
-        return MAGNITUDE_SOLAR_RADIATION * np.sin(
-            np.pi * (hour - 6) / 12
-        )  # Peak at noon
-    return 0.0  # Night
+        hour = (t % (24 * 3600)) / 3600
+        if DAYLIGHT_START_HOUR <= hour <= DAYLIGHT_END_HOUR:
+            return MAGNITUDE_SOLAR_RADIATION * np.sin(np.pi * (hour - 6) / 12)
+        return 0.0
 
 
 def get_alternating_heating_power(t) -> float:
@@ -342,15 +389,16 @@ if __name__ == "__main__":
 
     heating_power_function = get_alternating_heating_power
 
-    for time_step in [60.0, 1800.0]:
+    for time_step in [900.0]:
         days = 7
         time_span = (0, days * 24 * 3600)
         time = np.arange(time_span[0], time_span[1], time_step)
 
-        env = ThreeStateRcEnv(
+        env = StochasticThreeStateRcEnv(
             step_size=time_step,
             ambient_temperature_function=ambient_temperate_function,
             solar_radiation_function=solar_radiation_function,
+            enable_noise=True,
         )
 
         env.reset()
