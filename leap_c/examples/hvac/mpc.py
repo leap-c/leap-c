@@ -209,15 +209,20 @@ def get_solution(ocp_solver: AcadosOcpSolver) -> dict[str, np.ndarray]:
 
 if __name__ == "__main__":
     dt = 1.0  # time step in quarterly hours
-    horizon_hours = 24  # prediction horizon in hours
+    horizon_hours = 144  # prediction horizon in hours
     N_horizon = horizon_hours * 4
+
+    mpc = HvacMpc(N_horizon=N_horizon, T_horizon=N_horizon)
+
+    ocp = mpc.ocp
+    ocp_solver = AcadosOcpSolver(acados_ocp=ocp)
 
     # Exogenous parameters
     weather_data_path = Path(__file__).parent / "weather.csv"
     if weather_data_path.exists():
         weather_data = load_weather_data(weather_data_path)
 
-        start_time = weather_data.index[0]
+        start_time = weather_data.index[3]
 
         disturbance = create_disturbance_from_weather(
             weather_df=weather_data,
@@ -253,15 +258,11 @@ if __name__ == "__main__":
             price_max=0.2,
         )
     else:
-        raise ValueError(
+        error_message = (
             f"Unknown price profile type: {price_profile_type}. "
             "Use 'random' or 'historical'."
         )
-
-    mpc = HvacMpc(N_horizon=N_horizon, T_horizon=N_horizon)
-
-    ocp = mpc.ocp
-    ocp_solver = AcadosOcpSolver(acados_ocp=ocp)
+        raise ValueError(error_message)
 
     parameter_values = np.hstack(
         (
@@ -275,7 +276,7 @@ if __name__ == "__main__":
         ocp_solver.set(stage, "p", parameter_values[stage, :])
 
     # Comfort bounds
-    comfort_bounds_type = "realistic"  # or "constant"
+    comfort_bounds_type = "realistic"
     if comfort_bounds_type == "realistic":
         comfort_bounds = create_realistic_comfort_bounds(
             N=N_horizon,
@@ -288,10 +289,11 @@ if __name__ == "__main__":
             T_upper=convert_temperature(23.0, "celsius", "kelvin"),
         )
     else:
-        raise ValueError(
+        error_message = (
             f"Unknown comfort bounds type: {comfort_bounds_type}. "
             "Use 'constant' or 'realistic'."
         )
+        raise ValueError(error_message)
 
     for stage in range(1, ocp.solver_options.N_horizon):
         ocp_solver.constraints_set(stage, "lbx", comfort_bounds.T_lower[stage])
@@ -301,7 +303,7 @@ if __name__ == "__main__":
     start_time = time.time()
     print("Solving OCP...")
     _ = ocp_solver.solve_for_x0(
-        x0_bar=convert_temperature(np.array([17.1, 17.1, 17.1]), "c", "k")
+        x0_bar=convert_temperature(np.array([19.1, 19.1, 19.1]), "c", "k")
     )
     print(f"OCP solved in {time.time() - start_time:.5f} seconds")
 
