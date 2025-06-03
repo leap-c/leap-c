@@ -209,7 +209,7 @@ def get_solution(ocp_solver: AcadosOcpSolver) -> dict[str, np.ndarray]:
 
 if __name__ == "__main__":
     dt = 1.0  # time step in quarterly hours
-    horizon_hours = 144  # prediction horizon in hours
+    horizon_hours = 36  # prediction horizon in hours
     N_horizon = horizon_hours * 4
 
     mpc = HvacMpc(N_horizon=N_horizon, T_horizon=N_horizon)
@@ -222,7 +222,7 @@ if __name__ == "__main__":
     if weather_data_path.exists():
         weather_data = load_weather_data(weather_data_path)
 
-        start_time = weather_data.index[3]
+        start_time = weather_data.index[43]
 
         disturbance = create_disturbance_from_weather(
             weather_df=weather_data,
@@ -303,7 +303,7 @@ if __name__ == "__main__":
     start_time = time.time()
     print("Solving OCP...")
     _ = ocp_solver.solve_for_x0(
-        x0_bar=convert_temperature(np.array([19.1, 19.1, 19.1]), "c", "k")
+        x0_bar=convert_temperature(np.array([20.1, 20.1, 20.1]), "c", "k")
     )
     print(f"OCP solved in {time.time() - start_time:.5f} seconds")
 
@@ -314,7 +314,7 @@ if __name__ == "__main__":
         disturbance,
         energy_price_profile,
         comfort_bounds,
-        dt=15 * 60,
+        dt=900,
     )
 
     plt.show()
