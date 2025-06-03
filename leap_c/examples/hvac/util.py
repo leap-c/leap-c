@@ -405,8 +405,8 @@ def create_constant_energy_price(N: int, cost: float) -> EnergyPriceProfile:
 def plot_ocp_results(
     solution: dict[str, Any],
     disturbance_profile: DisturbanceProfile,
-    energy_prices: EnergyPriceProfile,
-    comfort_bounds: ComfortBounds,
+    energy_prices: EnergyPriceProfile | None = None,
+    comfort_bounds: ComfortBounds | None = None,
     dt: float = 15 * 60,
     figsize: tuple[float, float] = (12, 10),
     save_path: str | None = None,
@@ -457,22 +457,31 @@ def plot_ocp_results(
         solution["envelope_temperatures"], "kelvin", "celsius"
     )
 
-    # Plot comfort bounds
-    T_lower_celsius = convert_temperature(
-        comfort_bounds.T_lower[: N + 1], "kelvin", "celsius"
-    )
-    T_upper_celsius = convert_temperature(
-        comfort_bounds.T_upper[: N + 1], "kelvin", "celsius"
-    )
+    if comfort_bounds is not None:
+        # Plot comfort bounds
+        T_lower_celsius = convert_temperature(
+            comfort_bounds.T_lower[: N + 1], "kelvin", "celsius"
+        )
+        T_upper_celsius = convert_temperature(
+            comfort_bounds.T_upper[: N + 1], "kelvin", "celsius"
+        )
 
-    ax0.fill_between(
-        time_hours_states,
-        T_lower_celsius,
-        T_upper_celsius,
-        alpha=0.2,
-        color="lightgreen",
-        label="Comfort zone",
-    )
+        ax0.fill_between(
+            time_hours_states,
+            T_lower_celsius,
+            T_upper_celsius,
+            alpha=0.2,
+            color="lightgreen",
+            label="Comfort zone",
+        )
+
+        # Plot comfort bounds as dashed lines
+        ax0.step(
+            time_hours_states, T_lower_celsius, "g--", alpha=0.7, label="Lower bound"
+        )
+        ax0.step(
+            time_hours_states, T_upper_celsius, "g--", alpha=0.7, label="Upper bound"
+        )
 
     # Plot state trajectories
     ax0.step(
@@ -485,10 +494,6 @@ def plot_ocp_results(
         linewidth=2,
         label="Envelope temp. (Te)",
     )
-
-    # Plot comfort bounds as dashed lines
-    ax0.step(time_hours_states, T_lower_celsius, "g--", alpha=0.7, label="Lower bound")
-    ax0.step(time_hours_states, T_upper_celsius, "g--", alpha=0.7, label="Upper bound")
 
     ax0.set_ylabel("Temperature [°C]", fontsize=12)
     ax0.legend(loc="best")
@@ -556,26 +561,27 @@ def plot_ocp_results(
 
     ax3.set_xlabel("Time [hours]", fontsize=12)
     ax3.set_ylabel("Heat Input [W]", color="b", fontsize=12)
-    ax3.grid(True, alpha=0.3)
+    ax3.grid(visible=True, alpha=0.3)
     ax3.set_title("Control Input", fontsize=14, fontweight="bold")
 
     # Set y-axis lower limit to 0 for better visualization
     ax3.set_ylim(bottom=0)
 
-    ax3_twin = ax3.twinx()
-    # Add energy cost as a secondary y-axis
-    ax3_twin.step(
-        time_hours_controls,
-        energy_prices.price,
-        color="orange",
-        where="post",
-        linewidth=2,
-        label="Energy cost (scaled)",
-    )
-    ax3_twin.set_ylabel("Energy Price [EUR/kWh]", color="orange", fontsize=12)
-    ax3_twin.tick_params(axis="y", labelcolor="orange")
-    ax3_twin.grid(visible=False)  # Disable grid for twin axis
-    ax3_twin.set_ylim(bottom=0)  # Set lower limit to 0 for energy cost
+    if energy_prices is not None:
+        ax3_twin = ax3.twinx()
+        # Add energy cost as a secondary y-axis
+        ax3_twin.step(
+            time_hours_controls,
+            energy_prices.price,
+            color="orange",
+            where="post",
+            linewidth=2,
+            label="Energy cost (scaled)",
+        )
+        ax3_twin.set_ylabel("Energy Price [EUR/kWh]", color="orange", fontsize=12)
+        ax3_twin.tick_params(axis="y", labelcolor="orange")
+        ax3_twin.grid(visible=False)  # Disable grid for twin axis
+        ax3_twin.set_ylim(bottom=0)  # Set lower limit to 0 for energy cost
 
     # Adjust layout
     plt.tight_layout()
@@ -735,93 +741,6 @@ class BestestHydronicHeatpumpParameters(BestestParameters):
     eta: float = 0.98
 
 
-def get_f_expl_expr(
-    x: ca.SX | np.ndarray,
-    u: ca.SX | np.ndarray,
-    e: ca.SX | np.ndarray,
-    params: dict[str, float],
-) -> ca.SX | np.ndarray:
-    """
-    Get the state derivatives.
-
-    Args:
-        x: Current state vector [Ti, Th, Te]
-        u: Heat input to radiator [W]
-        e: Exogeneous inputs [Ta, Phi_s]
-        params: Parameters
-    Returns:
-        State derivatives [dTi/dt, dTh/dt, dTe/dt]
-    """
-    assert x.shape in ((3,), (3, 1)), "State vector x must have shape (3,) or (3, 1)."
-    assert e.shape in ((2,), (2, 1)), "Ex. in. vector e must have shape (2,) or (2, 1)."
-
-    Ac = np.zeros((3, 3)) if isinstance(x, np.ndarray) else ca.SX.zeros(3, 3)
-    Bc = np.zeros((3, 1)) if isinstance(u, np.ndarray) else ca.SX.zeros(3, 1)
-    Ec = np.zeros((3, 2)) if isinstance(e, np.ndarray) else ca.SX.zeros(3, 2)
-
-    Ac, Bc, Ec = transcribe_continuous_state_space(Ac=Ac, Bc=Bc, Ec=Ec, params=params)
-
-    if isinstance(x, np.ndarray):
-        return Ac @ x + Bc @ u + Ec @ e
-
-    return ca.mtimes(Ac, x) + ca.mtimes(Bc, u) + ca.mtimes(Ec, e)
-
-
-def get_disc_dyn_expr(
-    x: ca.SX | np.ndarray,
-    u: ca.SX | np.ndarray,
-    e: ca.SX | np.ndarray,
-    dt: float,
-    params: dict[str, float],
-) -> ca.SX | np.ndarray:
-    assert x.shape in ((3,), (3, 1)), "State vector x must have shape (3,) or (3, 1)."
-    assert u.shape in ((1,), (1, 1)), "Control input u must have shape (1,) or (1, 1)."
-    assert e.shape in ((2,), (2, 1)), "Ex. in. vector e must have shape (2,) or (2, 1)."
-    assert dt > 0, "Sampling time dt must be positive."
-
-    Ad = np.zeros((3, 3)) if isinstance(x, np.ndarray) else ca.SX.zeros(3, 3)
-    Bd = np.zeros((3, 1)) if isinstance(u, np.ndarray) else ca.SX.zeros(3, 1)
-    Ed = np.zeros((3, 2)) if isinstance(e, np.ndarray) else ca.SX.zeros(3, 2)
-
-    Ad, Bd, Ed = transcribe_discrete_state_space(
-        Ad=Ad, Bd=Bd, Ed=Ed, dt=dt, params=params
-    )
-
-    if isinstance(x, np.ndarray):
-        return Ad @ x + Bd @ u + Ed @ e
-
-    return ca.mtimes(Ad, x) + ca.mtimes(Bd, u) + ca.mtimes(Ed, e)
-
-
-def rk4_step(
-    f: Callable,
-    x: Iterable,
-    u: float,
-    d: Iterable,
-    p: dict[str, float],
-    h: float,
-) -> np.ndarray:
-    """
-    Perform a single RK4 step.
-
-    Args:
-        f: Function to integrate
-        x: Current state
-        u: Control input
-        d: Disturbance input
-        p: Parameters
-        h: Step size
-    Returns:
-        Next state
-
-    """
-    k1 = f(x, u, d, p)
-    k2 = f(x + 0.5 * h * k1, u, d, p)
-    k3 = f(x + 0.5 * h * k2, u, d, p)
-    k4 = f(x + h * k3, u, d, p)
-    return x + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
-
-
 def transcribe_continuous_state_space(
     Ac: ca.SX | np.ndarray,
     Bc: ca.SX | np.ndarray,
@@ -939,48 +858,3 @@ def transcribe_discrete_state_space(
         )  # Discrete-time disturbance matrix
 
     return Ad, Bd, Ed
-
-
-if __name__ == "__main__":
-    params = BestestHydronicParameters().to_dict()
-    dt = 6 * 300.0  # 5 min sampling time
-
-    # Define a discrete integrator function
-    Ad, Bd, Ed = transcribe_discrete_state_space(
-        Ad=np.zeros((3, 3)),
-        Bd=np.zeros((3, 1)),
-        Ed=np.zeros((3, 2)),
-        dt=dt,
-        params=params,
-    )
-
-    def discrete_step(x: np.ndarray, u: np.ndarray, e: np.ndarray) -> np.ndarray:
-        return Ad @ x + Bd @ u + Ed @ e
-
-    def continuous_step(x: np.ndarray, u: np.ndarray, e: np.ndarray) -> np.ndarray:
-        return rk4_step(f=get_f_expl_expr, x=x, u=u, d=e, p=params, h=dt)
-
-    # Initial state
-    x = convert_temperature(np.array([20.0, 50.0, 15.0]), "celsius", "kelvin")
-
-    # Heat input to radiator in W
-    u = np.array([1000.0])
-
-    # Exogeneous inputs: outdoor temperature and solar radiation
-    e = np.array([convert_temperature(10.0, "celsius", "kelvin"), 200.0])  # [Ta, Phi_s]
-
-    print("Initial state:", x)
-
-    # Perform a discrete step
-    x_next_discrete = discrete_step(x, u, e)
-    print("Next state (discrete step):", x_next_discrete)
-    # Perform a continuous step using RK4
-    x_next_continuous = continuous_step(x, u, e)
-    print("Next state (continuous step):", x_next_continuous)
-    # Compare the results
-    print(
-        "Difference between discrete and continuous steps:",
-        x_next_discrete - x_next_continuous,
-    )
-
-    # Use
