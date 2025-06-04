@@ -1,15 +1,21 @@
 """Utilities for creating an AcadosOcpBatchSolver from an AcadosOcp object."""
+
 import atexit
 import shutil
 from pathlib import Path
 from tempfile import mkdtemp
 
-from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSim, AcadosSimSolver, AcadosOcpBatchSolver
+from acados_template import (
+    AcadosOcp,
+    AcadosOcpSolver,
+    AcadosSim,
+    AcadosSimSolver,
+    AcadosOcpBatchSolver,
+)
 
 from pathlib import Path
 
 from acados_template import AcadosOcp, AcadosOcpBatchSolver, AcadosOcpSolver
-
 
 
 def create_batch_solver(
@@ -33,25 +39,19 @@ def create_batch_solver(
 
     _turn_on_warmstart(ocp)
 
-     ocp.model.name += "_batch"  # type:ignore
+    ocp.model.name += "_batch"  # type:ignore
 
     # TODO: Update the acados file manager
-     batch_solver = afm_batch.setup_acados_ocp_batch_solver(
-         ocp, self.n_batch_max, self._num_threads_in_batch_methods
-     )
+    batch_solver = afm_batch.setup_acados_ocp_batch_solver(
+        ocp, self.n_batch_max, self._num_threads_in_batch_methods
+    )
 
-     if discount_factor is not None:
-         _set_discount_factor(batch_solver, discount_factor)
+    if discount_factor is not None:
+        _set_discount_factor(batch_solver, discount_factor)
 
-
-     set_ocp_solver_to_default(
-         batch_solver, self.default_full_mpcparameter, unset_u0=True
-     )
-
-
-def derive_sensitivity_ocp(ocp: AcadosOcp) -> AcadosOcp:
-    raise NotImplementedError()
-
+    set_ocp_solver_to_default(
+        batch_solver, self.default_full_mpcparameter, unset_u0=True
+    )
 
 
 def _turn_on_warmstart(acados_ocp: AcadosOcp):
@@ -198,3 +198,19 @@ class AcadosFileManager:
 
     def __del__(self):
         shutil.rmtree(self.export_directory, ignore_errors=True)
+
+
+def derive_sensitivity_ocp(ocp_sensitivity: AcadosOcp):
+    ocp_sensitivity.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    ocp_sensitivity.solver_options.qp_solver_ric_alg = 1
+    ocp_sensitivity.solver_options.qp_solver_cond_N = (
+        ocp_sensitivity.solver_options.N_horizon
+    )
+    ocp_sensitivity.solver_options.hessian_approx = "EXACT"
+    ocp_sensitivity.solver_options.exact_hess_dyn = True
+    ocp_sensitivity.solver_options.exact_hess_cost = True
+    ocp_sensitivity.solver_options.exact_hess_constr = True
+    ocp_sensitivity.solver_options.with_solution_sens_wrt_params = True
+    ocp_sensitivity.solver_options.with_value_sens_wrt_params = True
+    ocp_sensitivity.solver_options.with_batch_functionality = True
+    ocp_sensitivity.model.name += "_sensitivity"  # type:ignore
