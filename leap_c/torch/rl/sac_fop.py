@@ -81,7 +81,7 @@ class FopActor(nn.Module):
 
         self.param_controller: ParameterizedController = task.create_parameterized_controller()
 
-        param_space = self.param_controller.param_space
+        param_space = self.param_controller.param_space()
 
         self.extractor = task.create_extractor(env)
         self.mlp = MLP(
@@ -136,7 +136,7 @@ class FouActor(nn.Module):
         super().__init__()
 
         self.param_controller: ParameterizedController = task.create_parameterized_controller()
-        param_space = self.param_controller.param_space
+        param_space = self.param_controller.param_space()
 
         self.extractor = task.create_extractor(env)
         self.mlp = MLP(
@@ -145,7 +145,7 @@ class FouActor(nn.Module):
             mlp_cfg=mlp_cfg,
         )
 
-        self.parameter_transform = BoundedTransform(self.param_controller.param_space)
+        self.parameter_transform = BoundedTransform(param_space)
         self.action_transform = BoundedTransform(env.action_space)
         self.squashed_gaussian = SquashedGaussian(env.action_space)  # type:ignore
 
@@ -225,8 +225,9 @@ class SacFopTrainer(Trainer):
         if self.cfg.sac.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
             action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
-            param_dim = np.prod(task.param_space.shape)  # type: ignore
             if cfg.noise == "param":
+                param_space = task.create_parameterized_controller().param_space()
+                param_dim = np.prod(param_space.shape)
                 self.entropy_norm = param_dim / action_dim
             else:
                 self.entropy_norm = 1
@@ -377,12 +378,12 @@ class SacFopTrainer(Trainer):
             yield 1
 
     def act(
-        self, obs, deterministic: bool = False, ctx: SacFopCtx | None = None
+        self, obs, deterministic: bool = False, state: SacFopCtx | None = None
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
         obs = torch.tensor([obs], device=self.device)
 
         with torch.no_grad():
-            pi_output = self.pi(obs, deterministic=deterministic, ctx=ctx)
+            pi_output = self.pi(obs, deterministic=deterministic, ctx=state)
 
         action = pi_output.action.cpu().numpy()[0]
 

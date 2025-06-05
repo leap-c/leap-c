@@ -24,10 +24,8 @@ class CartPoleSwingup(Task, ReinforcementLearningMixin, HierarchicalControllerMi
     def _create_env(self, train: bool) -> gym.Env:
         return CartPoleEnv(render_mode="rgb_array" if train else None)
 
-    def create_parameterized_controller(
-        self, collate_state_fn: Optional[Callable] = None
-    ) -> ParameterizedController:
-        return CartPoleController(collate_state_fn)
+    def create_parameterized_controller(self) -> ParameterizedController:
+        return CartPoleController()
 
 
 @register_task("cartpole_balance")

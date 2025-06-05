@@ -86,15 +86,10 @@ class HierarchicalControllerMixin(ABC):
     """
 
     @abstractmethod
-    def create_parameterized_controller(
-        self, collate_state_fn: Optional[Callable] = None
-    ) -> ParameterizedController:
-        """Creates a parameterized controller for the hierarchical controller.
-
-        Args:
-            collate_state_fn (Optional[Callable]): A function to collate the state.
+    def create_parameterized_controller(self) -> ParameterizedController:
+        """Creates a parameterized controller for the task.
 
         Returns:
-            ParameterizedController: The parameterized controller.
+            ParameterizedController: The parameterized controller for the task.
         """
         pass

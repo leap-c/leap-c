@@ -53,4 +53,9 @@ def create_trainer(
     if name not in TRAINER_REGISTRY:
         raise ValueError(f"Unknown trainer: {name}")
     # TODO: implement proper config merging, probably using hydra
+    _cfg = DEFAULT_CFG_REGISTRY[name]
+    cfg_dict = {**_cfg.__dict__}
+    if cfg is not None:
+        cfg_dict.update(cfg.__dict__)
+    cfg = type(_cfg)(**cfg_dict)
     return TRAINER_REGISTRY[name](task, output_path, device, cfg)  # type: ignore

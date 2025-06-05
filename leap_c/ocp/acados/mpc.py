@@ -148,6 +148,13 @@ class MpcOutput(NamedTuple):
     du0_dx0: np.ndarray | None = None  # (B, u_dim, x_dim) or (u_dim, x_dim)
 
 
+class MpcCtx(NamedTuple):
+    output: MpcOutput | None = None
+    state: MpcBatchedState | None = None
+    log: dict[str, float] | None = None
+    status: np.ndarray | None = None
+
+
 def set_ocp_solver_mpc_params_global(
     ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver,
     mpc_parameter: MpcParameter,

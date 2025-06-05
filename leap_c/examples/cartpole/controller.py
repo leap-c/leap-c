@@ -1,15 +1,17 @@
 from collections import OrderedDict
-from dataclasses import dataclass
-from typing import Callable, Optional
 
 import gymnasium as gym
 import numpy as np
 import torch
 
 from leap_c.controller import ParameterizedController
-from leap_c.examples.cartpole.mpc import CartPoleMpc
+from leap_c.examples.cartpole.mpc import CartPoleMPC
 from leap_c.ocp.acados.layer import MpcSolutionModule
-from leap_c.ocp.acados.mpc import MpcBatchedState, MpcInput, MpcOutput, MpcParameter
+from leap_c.ocp.acados.mpc import (
+    MpcCtx,
+    MpcInput,
+    MpcParameter,
+)
 
 PARAMS_SWINGUP = OrderedDict(
     [
@@ -68,23 +70,15 @@ PARAMS_SWINGUP = OrderedDict(
 )
 
 
-@dataclass(kw_only=True)
-class CartPoleCtx:
-    output: MpcOutput | None = None
-    state: MpcBatchedState | None = None
-    log: dict[str, float] | None = None
-    status: np.ndarray | None = None
-
-
 class CartPoleController(ParameterizedController):
-    def __init__(self, collate_state_fn: Optional[Callable] = None):
+    def __init__(self):
         super().__init__()
-        self.collate_state_fn = collate_state_fn
+        self.collate_state_fn = None
 
         params = PARAMS_SWINGUP
         learnable_params = ["xref2"]
 
-        mpc = CartPoleMpc(
+        mpc = CartPoleMPC(
             N_horizon=5,
             T_horizon=0.25,
             learnable_params=learnable_params,
@@ -99,23 +93,23 @@ class CartPoleController(ParameterizedController):
         # TODO: where to use this default parameter? and how should it be initialized?
         raise NotImplementedError
 
-    def jacobian_action_param(self, ctx: CartPoleCtx) -> np.ndarray:
+    def jacobian_action_param(self, ctx: MpcCtx) -> np.ndarray:
         return ctx.output.du0_dp_global
 
-    def forward(self, obs, param, ctx: CartPoleCtx | None = None) -> tuple[CartPoleCtx, np.ndarray]:
+    def forward(self, obs, param, ctx: MpcCtx | None = None) -> tuple[MpcCtx, np.ndarray]:
         if ctx is None:
-            ctx = CartPoleCtx()
+            ctx = MpcCtx()
 
         mpc_param = MpcParameter(p_global=param)
         mpc_input = MpcInput(x0=obs, parameters=mpc_param)
 
-        if ctx.state is not None and self.collate_state_fn is not None:
-            mpc_state = self.collate_state_fn(ctx.state)
+        mpc_output, mpc_state, mpc_stats = self.mpc_layer(mpc_input, ctx.state)
 
-        mpc_output, mpc_state, mpc_stats = self.mpc_layer(mpc_input, mpc_state)
-
-        ctx.log = mpc_stats
-        ctx.state = mpc_state
-        ctx.output = mpc_output
+        ctx = MpcCtx(
+            output=mpc_output,
+            state=mpc_state,
+            log=mpc_stats,
+            status=mpc_output.status if hasattr(mpc_output, "status") else None,
+        )
 
         return ctx, mpc_output.u0
