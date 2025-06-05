@@ -47,7 +47,7 @@ class PointMassEasyTask(Task):
     def param_space(self) -> spaces.Box:
         return spaces.Box(low=self.param_low, high=self.param_high, dtype=np.float32)
 
-    def create_env(self, train: bool) -> gym.Env:
+    def _create_env(self, train: bool) -> gym.Env:
         return PointMassEnv(
             max_time=20.0, train=train, render_mode="rgb_array", difficulty="easy"
         )
@@ -69,7 +69,7 @@ class PointMassEasyTask(Task):
 
 @register_task("point_mass_hard")
 class PointMassHardTask(PointMassEasyTask):
-    def create_env(self, train: bool) -> gym.Env:
+    def _create_env(self, train: bool) -> gym.Env:
         return PointMassEnv(
             max_time=20.0, train=train, render_mode="rgb_array", difficulty="hard"
         )

@@ -282,7 +282,7 @@ class SacTrainer(Trainer):
     def act(
         self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, None, dict[str, float]]:
-        obs = self.task.collate([obs], self.device)
+        obs = torch.tensor([obs], device=self.device)
         with torch.no_grad():
             action, _, stats = self.pi(obs, deterministic=deterministic)
         return action.cpu().numpy()[0], None, stats
