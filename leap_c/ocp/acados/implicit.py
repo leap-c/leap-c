@@ -1,16 +1,22 @@
 """Provides a differentiable implicit function based on Acados."""
 
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
-from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
+from acados_template import AcadosOcp
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 import numpy as np
 
+from leap_c.autograd.function import DiffFunction
 from leap_c.ocp.acados.data import AcadosSolverInput
 from leap_c.ocp.acados.initializer import AcadosInitializer
 from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
 from leap_c.ocp.acados.utils.solve import solve_with_retry
+
+
+N_BATCH_MAX = 256
+NUM_THREADS_BATCH_SOLVER = 4
 
 
 @dataclass
@@ -41,34 +47,24 @@ SensitivityField = Literal[
 ]
 
 
-class AcadosImplicitFunction:
+class AcadosImplicitFunction(DiffFunction):
     """Function for differentiable implicit function based on Acados."""
 
     def __init__(
         self,
-        batch_solver: AcadosOcpBatchSolver,
-        sensitivity_batch_solver: AcadosOcpBatchSolver,
-        initializer: AcadosInitializer,
+        ocp: AcadosOcp,
+        initializer: AcadosInitializer | None = None,
+        ocp_sensitivity: AcadosOcp | None = None,
+        discount_factor: float | None = None,
+        export_directory: Path | None = None,
     ):
-        """
-        Initialize the MPC object.
-
-        Args:
-            batch_solver: The batch solver to build the implicit function from.
-            sensitivity_batch_solver: The batch solver to use for sensitivity
-                calculations. Can be the same as `batch_solver`.
-            initializer: The initializer used when no ctx is provided or we retry
-                to solve a sample.
-        """
-        self.batch_solver = batch_solver
-        self.sensitivity_batch_solver = batch_solver
-        self.initializer = initializer
+        pass
 
     @property
     def N(self) -> int:
         return self.ocp.solver_options.N_horizon  # type: ignore
 
-    def forward(
+    def forward(  # type: ignore
         self,
         x0: np.ndarray,
         u0: np.ndarray | None = None,
@@ -126,7 +122,7 @@ class AcadosImplicitFunction:
 
         return ctx, sol_u0, sol_iterate.x, sol_iterate.u, sol_value
 
-    def backward(
+    def backward(  # type: ignore
         self,
         ctx: AcadosImplicitCtx,
         u0_grad: np.ndarray | None,

@@ -1,27 +1,27 @@
 """Utilities for creating an AcadosOcpBatchSolver from an AcadosOcp object."""
 
 import atexit
-import shutil
+from copy import deepcopy
 from pathlib import Path
+import shutil
 from tempfile import mkdtemp
 
 from acados_template import (
     AcadosOcp,
+    AcadosOcpBatchSolver,
     AcadosOcpSolver,
     AcadosSim,
     AcadosSimSolver,
-    AcadosOcpBatchSolver,
 )
-
-from pathlib import Path
-
 from acados_template import AcadosOcp, AcadosOcpBatchSolver, AcadosOcpSolver
+
+from leap_c.ocp.acados.utils.delete_directory_hook import DeleteDirectoryHook
 
 
 def create_batch_solver(
     ocp: AcadosOcp,
-    export_directory: Path | None = None,
-    discount_factor: float = 0.99,
+    export_directory: str | Path | None = None,
+    discount_factor: float | None = None,
     n_batch_max: int = 256,
     num_threads: int = 4,
 ) -> AcadosOcpBatchSolver:
@@ -29,29 +29,96 @@ def create_batch_solver(
 
     Args:
         ocp: Acados optimal control problem formulation.
+        export_directory: Directory to export the generated code. If None, a
+            temporary directory is created and the directory is cleaned afterwards.
         discount_factor: Discount factor. If None, acados default cost
             scaling is used, i.e. dt for intermediate stages, 1 for
             terminal stage.
         n_batch_max: Maximum batch size.
         num_threads: Number of threads used in the batch solver.
-        export_directory: Directory to export the generated code.
     """
+    # translate cost terms to external to allow
+    # implicit differentiation for a p_global parameter.
+    if ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
+        ocp.translate_initial_cost_term_to_external(
+            cost_hessian=ocp.solver_options.hessian_approx
+        )
+    if ocp.cost.cost_type not in ["EXTERNAL"]:
+        ocp.translate_intermediate_cost_term_to_external(
+            cost_hessian=ocp.solver_options.hessian_approx
+        )
+    if ocp.cost.cost_type_e not in ["EXTERNAL"]:
+        ocp.translate_terminal_cost_term_to_external(
+            cost_hessian=ocp.solver_options.hessian_approx
+        )
 
     _turn_on_warmstart(ocp)
 
-    ocp.model.name += "_batch"  # type:ignore
+    if export_directory is None:
+        export_directory = Path(mkdtemp())
+        add_delete_hook = True
+    else:
+        export_directory = Path(export_directory)
+        add_delete_hook = False
 
-    # TODO: Update the acados file manager
-    batch_solver = afm_batch.setup_acados_ocp_batch_solver(
-        ocp, self.n_batch_max, self._num_threads_in_batch_methods
-    )
+    ocp.code_export_directory = str(export_directory / "c_generated_code")
+    json_file = str(export_directory / "acados_ocp.json")
+
+    try:
+        batch_solver = AcadosOcpBatchSolver(
+            ocp,
+            json_file=json_file,
+            N_batch_max=n_batch_max,
+            num_threads_in_batch_solve=num_threads,
+            build=False,
+        )
+    except RuntimeError:  # TODO: Is this correct?
+        batch_solver = AcadosOcpBatchSolver(
+            ocp,
+            json_file=json_file,
+            N_batch_max=n_batch_max,
+            num_threads_in_batch_solve=num_threads,
+            build=True,
+        )
 
     if discount_factor is not None:
         _set_discount_factor(batch_solver, discount_factor)
 
-    set_ocp_solver_to_default(
-        batch_solver, self.default_full_mpcparameter, unset_u0=True
-    )
+    if add_delete_hook:
+        DeleteDirectoryHook(batch_solver, export_directory)
+
+    return batch_solver
+
+
+def create_sensitivity_batch_solver(
+    batch_solver: AcadosOcpBatchSolver,
+    sensitivity_ocp: AcadosOcp | None = None,
+    export_directory: str | Path | None = None,
+    discount_factor: float | None = None,
+    n_batch_max: int = 256,
+    num_threads: int = 4,
+) -> AcadosOcpBatchSolver:
+    # check if the same solver can be used.
+    if sensitivity_ocp is None:
+        sensitivity_ocp: AcadosOcp = deepcopy(
+            batch_solver.ocp_solvers[0].acados_ocp  # type:ignore
+        )
+        sensitivity_ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+        sensitivity_ocp.solver_options.qp_solver_ric_alg = 1
+        sensitivity_ocp.solver_options.qp_solver_cond_N = (
+            sensitivity_ocp.solver_options.N_horizon
+        )
+        sensitivity_ocp.solver_options.hessian_approx = "EXACT"
+        sensitivity_ocp.solver_options.exact_hess_dyn = True
+        sensitivity_ocp.solver_options.exact_hess_cost = True
+        sensitivity_ocp.solver_options.exact_hess_constr = True
+        sensitivity_ocp.solver_options.with_solution_sens_wrt_params = True
+        sensitivity_ocp.solver_options.with_value_sens_wrt_params = True
+        sensitivity_ocp.solver_options.with_batch_functionality = True
+        sensitivity_ocp.model.name += "_sensitivity"  # type:ignore
+
+
+    # translate cost terms to external to allow
 
 
 def _turn_on_warmstart(acados_ocp: AcadosOcp):
@@ -77,13 +144,13 @@ def _set_discount_factor(
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
         for ocp_solver in ocp_solver.ocp_solvers:
             _set_discount_factor(ocp_solver, discount_factor)
-
     else:
         raise ValueError(
             f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
         )
 
 
+# OUTDATED: To be removed after the refactor
 class AcadosFileManager:
     """A simple class to manage the export directory for acados solvers.
 

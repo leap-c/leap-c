@@ -13,17 +13,15 @@ from leap_c.ocp.acados.implicit import (
     SensitivityField,
 )
 from leap_c.ocp.acados.initializer import AcadosInitializer
+from leap_c.ocp.acados.utils.create_solver import create_batch_solver
 
-
-N_BATCH_MAX = 256
-NUM_THREADS_BATCH_SOLVER = 4
 
 
 class AcadosImplicitLayer(nn.Module):
     def __init__(
         self,
         ocp: AcadosOcp,
-        initializer: AcadosInitializer,
+        initializer: AcadosInitializer | None = None,
         ocp_sensitivity: AcadosOcp | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
@@ -34,11 +32,13 @@ class AcadosImplicitLayer(nn.Module):
         self.ocp = ocp
 
         self.implicit_fun = AcadosImplicitFunction(
-            batch_solver=batch_solver,
-            sensitivity_batch_solver=sensitivity_batch_solver,
+            ocp,
             initializer=initializer,
+            ocp_sensitivity=ocp_sensitivity,
+            discount_factor=discount_factor,
+            export_directory=export_directory,
         )
-        self.autograd_function = create_autograd_function()
+        self.autograd_function = create_autograd_function(implicit_fun)
 
     def forward(
         self,
