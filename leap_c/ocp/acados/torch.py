@@ -13,7 +13,6 @@ from leap_c.ocp.acados.implicit import (
     SensitivityField,
 )
 from leap_c.ocp.acados.initializer import AcadosInitializer
-from leap_c.ocp.acados.utils.create_solver import create_batch_solver
 
 
 
@@ -26,19 +25,29 @@ class AcadosImplicitLayer(nn.Module):
         discount_factor: float | None = None,
         export_directory: Path | None = None,
     ):
-        # TODO: This is the central interface for people to create stuff.
+        """ Initializes the Acados implicit layer.
+
+        Args:
+            ocp: Optimal control problem formulation used for solving the OCP.
+            initializer: Initializer for the OCP solver. If None, a zero initializer is used.
+            ocp_sensitivity: The optimal control problem formulation to use for sensitivities.
+                If None, the sensitivity problem is derived from the ocp object, however only the EXTERNAL cost type is allowed then.
+                For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
+            discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
+            export_directory: Directory to export the generated code.
+        """
         super().__init__()
 
         self.ocp = ocp
 
         self.implicit_fun = AcadosImplicitFunction(
-            ocp,
+            ocp=ocp,
             initializer=initializer,
-            ocp_sensitivity=ocp_sensitivity,
+            sensitivity_ocp=ocp_sensitivity,
             discount_factor=discount_factor,
             export_directory=export_directory,
         )
-        self.autograd_function = create_autograd_function(implicit_fun)
+        self.autograd_function = create_autograd_function(self.implicit_fun)
 
     def forward(
         self,

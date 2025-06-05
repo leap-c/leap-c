@@ -22,7 +22,8 @@ class AcadosInitializer(ABC):
 
     This class defines the interface for different initialization strategies
     for `AcadosOcpSolver` instances. Subclasses must implement the
-    `single_sample` method.
+    `single_iterate` method but can also overwrite the `batch_iterate` method
+    for higher efficiency.
     """
 
     @abstractmethod
@@ -60,9 +61,9 @@ class AcadosInitializer(ABC):
         if not mpc_input.is_batched():
             raise ValueError("Batch sample requires a batched input.")
 
-        batch_size = mpc_input.x0.shape[0]
         iterates = [
-            self.single_iterate(mpc_input.get_sample(i)) for i in range(batch_size)
+            self.single_iterate(mpc_input.get_sample(i))
+            for i in range(mpc_input.batch_size)
         ]
 
         return _collate_acados_flattened_iterate_fn(iterates)

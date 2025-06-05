@@ -1,3 +1,4 @@
+# OUTDATED: This file is deprecated and will be removed in a couple of PRs.
 from dataclasses import dataclass
 from typing import Any
 
