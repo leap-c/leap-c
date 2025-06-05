@@ -10,7 +10,8 @@ import numpy as np
 
 from leap_c.autograd.function import DiffFunction
 from leap_c.ocp.acados.data import AcadosSolverInput
-from leap_c.ocp.acados.initializer import AcadosInitializer
+from leap_c.ocp.acados.initializer import AcadosInitializer, ZeroInitializer
+from leap_c.ocp.acados.utils.create_solver import create_forward_backward_batch_solvers
 from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
 from leap_c.ocp.acados.utils.solve import solve_with_retry
 
@@ -54,11 +55,25 @@ class AcadosImplicitFunction(DiffFunction):
         self,
         ocp: AcadosOcp,
         initializer: AcadosInitializer | None = None,
-        ocp_sensitivity: AcadosOcp | None = None,
+        sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
     ):
-        pass
+        self.forward_batch_solver, self.backward_batch_solver = (
+            create_forward_backward_batch_solvers(
+                ocp=ocp,
+                sensitivity_ocp=sensitivity_ocp,
+                discount_factor=discount_factor,
+                export_directory=export_directory,
+                n_batch_max=N_BATCH_MAX,
+                num_threads=NUM_THREADS_BATCH_SOLVER,
+            )
+        )
+
+        if initializer is None:
+            self.initializer = ZeroInitializer(self.forward_batch_solver.ocp_solvers[0])
+        else:
+            self.initializer = initializer
 
     @property
     def N(self) -> int:
@@ -206,7 +221,7 @@ class AcadosImplicitFunction(DiffFunction):
                 sanity_checks=True,
             )
         elif field_name == "dx_dp_global":
-            
+            raise NotImplementedError
         elif field_name == "du_dp_global":
             raise NotImplementedError
         elif field_name == "dvalue_dp_global":

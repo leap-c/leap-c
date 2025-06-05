@@ -79,7 +79,7 @@ class ZeroInitializer(AcadosInitializer):
 
         self.zero_iterate = iterate
 
-    def single_sample(
+    def single_iterate(
         self,
         mpc_input: AcadosSolverInput,
     ) -> AcadosOcpFlattenedIterate:

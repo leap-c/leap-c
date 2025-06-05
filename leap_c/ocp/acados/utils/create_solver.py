@@ -37,6 +37,8 @@ def create_batch_solver(
         n_batch_max: Maximum batch size.
         num_threads: Number of threads used in the batch solver.
     """
+    ocp.solver_options.with_batch_functionality = True
+
     # translate cost terms to external to allow
     # implicit differentiation for a p_global parameter.
     if ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
@@ -90,16 +92,33 @@ def create_batch_solver(
     return batch_solver
 
 
-def create_sensitivity_batch_solver(
-    batch_solver: AcadosOcpBatchSolver,
-    sensitivity_ocp: AcadosOcp | None = None,
+def create_forward_backward_batch_solvers(
+    ocp: AcadosOcp,
+    sensitivity_ocp: AcadosOcp | None = None,  # type:ignore
     export_directory: str | Path | None = None,
     discount_factor: float | None = None,
     n_batch_max: int = 256,
     num_threads: int = 4,
-) -> AcadosOcpBatchSolver:
-    # check if the same solver can be used.
-    if sensitivity_ocp is None:
+):
+    # check if we can use the forward solver for the backward pass.
+    need_backward_solver = _check_need_sensitivity_solver(ocp)
+
+    if need_backward_solver:
+        ocp.solver_options.with_solution_sens_wrt_params = True
+        ocp.solver_options.with_value_sens_wrt_params = True
+
+    forward_batch_solver = create_batch_solver(
+        ocp,
+        export_directory=export_directory,
+        discount_factor=discount_factor,
+        n_batch_max=n_batch_max,
+        num_threads=num_threads,
+    )
+
+    if not need_backward_solver:
+        return forward_batch_solver, forward_batch_solver
+
+    if sensitivity_ocp is None and need_backward_solver:
         sensitivity_ocp: AcadosOcp = deepcopy(
             batch_solver.ocp_solvers[0].acados_ocp  # type:ignore
         )
@@ -114,11 +133,23 @@ def create_sensitivity_batch_solver(
         sensitivity_ocp.solver_options.exact_hess_constr = True
         sensitivity_ocp.solver_options.with_solution_sens_wrt_params = True
         sensitivity_ocp.solver_options.with_value_sens_wrt_params = True
-        sensitivity_ocp.solver_options.with_batch_functionality = True
+        sensitivity_ocp.model.name += "_sensitivity"  # type:ignore
+    else:
         sensitivity_ocp.model.name += "_sensitivity"  # type:ignore
 
+    backward_batch_solver = create_batch_solver(
+        sensitivity_ocp,  # type:ignore
+        export_directory=export_directory,
+        discount_factor=discount_factor,
+        n_batch_max=n_batch_max,
+        num_threads=num_threads,
+    )
 
-    # translate cost terms to external to allow
+    return forward_batch_solver, backward_batch_solver
+
+
+def _check_need_sensitivity_solver(ocp: AcadosOcp) -> bool:
+    return True
 
 
 def _turn_on_warmstart(acados_ocp: AcadosOcp):
