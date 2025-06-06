@@ -64,6 +64,8 @@ class StochasticThreeStateRcEnv(gym.Env):
         start_time: pd.Timestamp | None = None,
         horizon_hours: int = 36,
         price_zone: str = "NO_1",
+        price_data_path: Path | None = None,
+        weather_data_path: Path | None = None,
         ambient_temperature_function: Callable | None = None,
         solar_radiation_function: Callable | None = None,
         enable_noise: bool = True,
@@ -150,11 +152,22 @@ class StochasticThreeStateRcEnv(gym.Env):
         else:
             self.solar_radiation_function = solar_radiation_function
 
-        price_data = load_price_data(Path(__file__).parent / "spot_prices.csv")
-        price_data = resample_prices_to_quarters(price_data)
+        if price_data_path is None:
+            price_data_path = Path(__file__).parent / "spot_prices.csv"
+        if weather_data_path is None:
+            weather_data_path = Path(__file__).parent / "weather.csv"
 
-        weather_data = load_weather_data(Path(__file__).parent / "weather.csv")
-        weather_data = weather_data.resample("15T").interpolate(method="linear")
+        # price_data = resample_prices_to_quarters(
+        #     load_price_data(csv_path=price_data_path)
+        # )
+
+        price_data = load_price_data(csv_path=price_data_path).resample("15T").ffill()
+
+        weather_data = (
+            load_weather_data(csv_path=weather_data_path)
+            .resample("15T")
+            .interpolate(method="linear")
+        )
 
         data = merge_price_weather_data(
             price_data=price_data, weather_data=weather_data, merge_type="inner"
@@ -227,7 +240,6 @@ class StochasticThreeStateRcEnv(gym.Env):
         return np.concatenate(
             [
                 np.array([quarter_hour, day_of_year], dtype=np.float32),
-                # np.array([self.Ti, self.Th, self.Te], dtype=np.float32),
                 self.state.astype(np.float32),
                 ambient_temperature_forecast.astype(np.float32),
                 solar_radiation_forecast.astype(np.float32),
@@ -310,7 +322,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         # The discrete-time covariance is Qd = Ad @ Phi
         return Ad @ Phi
 
-    def step(self, action: np.ndarray, time: float) -> np.ndarray:
+    def step(self, action: np.ndarray) -> np.ndarray:
         """
         Perform a simulation step with exact discrete-time dynamics including noise.
 
@@ -435,7 +447,11 @@ def resample_prices_to_quarters(price_data: pd.DataFrame) -> pd.DataFrame:
     return price_quarterly
 
 
-def merge_price_weather_data(price_data, weather_data, merge_type="inner"):
+def merge_price_weather_data(
+    price_data: pd.DataFrame,
+    weather_data: pd.DataFrame,
+    merge_type: str = "inner",
+) -> pd.DataFrame:
     """
     Merge price and weather dataframes on their timestamp indices.
 
@@ -453,7 +469,6 @@ def merge_price_weather_data(price_data, weather_data, merge_type="inner"):
     pd.DataFrame
         Merged dataframe
     """
-
     print(
         f"Price data time range: {price_data.index.min()} to {price_data.index.max()}"
     )
@@ -491,19 +506,24 @@ def merge_price_weather_data(price_data, weather_data, merge_type="inner"):
         print(f"\nRight join: {merged_df.shape[0]} timestamps (all weather data)")
 
     else:
-        raise ValueError("merge_type must be one of: 'inner', 'outer', 'left', 'right'")
+
+        class MergeTypeError(ValueError):
+            def __init__(self) -> None:
+                super().__init__(
+                    "merge_type must be one of: 'inner', 'outer', 'left', 'right'"
+                )
+
+        raise MergeTypeError
 
     # Print information about missing values
-    print(f"\nMissing values per column:")
+    print("\nMissing values per column:")
     missing_counts = merged_df.isnull().sum()
     for col, count in missing_counts.items():
         if count > 0:
             print(f"  {col}: {count} missing ({count / len(merged_df) * 100:.1f}%)")
 
     # Sort by index to ensure chronological order
-    merged_df = merged_df.sort_index()
-
-    return merged_df
+    return merged_df.sort_index()
 
 
 def get_alternating_heating_power(t) -> float:
