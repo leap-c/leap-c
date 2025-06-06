@@ -188,3 +188,6 @@ c_generated_code
 # Logs and videos
 *.csv
 *.mp4
+
+# Trash
+**/trash
