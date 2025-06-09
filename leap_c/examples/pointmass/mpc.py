@@ -13,7 +13,7 @@ from leap_c.examples.util import (
 from leap_c.ocp.acados.mpc import Mpc
 
 
-class PointMassMPC(Mpc):
+class PointMassMpc(Mpc):
     """docstring for PointMassMPC."""
 
     def __init__(
@@ -181,6 +181,8 @@ def export_parametric_ocp(
         ocp.model.p_global = (
             ocp.model.p_global.cat if ocp.model.p_global is not None else None
         )
+
+    configure_ocp_solver(ocp=ocp, exact_hess_dyn=True)
 
     return ocp
 
