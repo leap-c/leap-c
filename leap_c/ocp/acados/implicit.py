@@ -50,6 +50,8 @@ SensitivityField = Literal[
 class AcadosImplicitFunction(DiffFunction):
     """Function for differentiable implicit function based on Acados."""
 
+    ocp: AcadosOcp
+
     def __init__(
         self,
         ocp: AcadosOcp,

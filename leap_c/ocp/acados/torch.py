@@ -15,7 +15,6 @@ from leap_c.ocp.acados.implicit import (
 from leap_c.ocp.acados.initializer import AcadosInitializer
 
 
-
 class AcadosImplicitLayer(nn.Module):
     def __init__(
         self,
@@ -25,7 +24,8 @@ class AcadosImplicitLayer(nn.Module):
         discount_factor: float | None = None,
         export_directory: Path | None = None,
     ):
-        """ Initializes the Acados implicit layer.
+        """
+        Initialize the Acados implicit layer.
 
         Args:
             ocp: Optimal control problem formulation used for solving the OCP.
@@ -58,7 +58,8 @@ class AcadosImplicitLayer(nn.Module):
         p_stagewise_sparse_idx: torch.Tensor | None = None,
         ctx: AcadosImplicitCtx | None = None,
     ):
-        """Performs the forward pass of the implicit function.
+        """
+        Perform the forward pass of the implicit function.
 
         Args:
             x0: Initial state.
@@ -76,7 +77,8 @@ class AcadosImplicitLayer(nn.Module):
         )
 
     def sensitivity(self, ctx, field_name: SensitivityField):
-        """Computes the sensitivity of the implicit function with respect to a field.
+        """
+        Compute the sensitivity of the implicit function with respect to a field.
 
         Args:
             ctx: Context from the forward pass.
