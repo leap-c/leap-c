@@ -4,9 +4,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
+import numpy as np
 from acados_template import AcadosOcp
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
-import numpy as np
 
 from leap_c.autograd.function import DiffFunction
 from leap_c.ocp.acados.data import AcadosSolverInput
@@ -14,7 +14,6 @@ from leap_c.ocp.acados.initializer import AcadosInitializer, ZeroInitializer
 from leap_c.ocp.acados.utils.create_solver import create_forward_backward_batch_solvers
 from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
 from leap_c.ocp.acados.utils.solve import solve_with_retry
-
 
 N_BATCH_MAX = 256
 NUM_THREADS_BATCH_SOLVER = 4
@@ -58,7 +57,7 @@ class AcadosImplicitFunction(DiffFunction):
         sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
-    ):
+    ) -> None:
         self.forward_batch_solver, self.backward_batch_solver = (
             create_forward_backward_batch_solvers(
                 ocp=ocp,
@@ -88,7 +87,8 @@ class AcadosImplicitFunction(DiffFunction):
         p_stagewise_sparse_idx: np.ndarray | None = None,
         ctx: AcadosImplicitCtx | None = None,
     ):
-        """Performs the forward pass of the implicit function.
+        """
+        Perform the forward pass of the implicit function.
 
         Args:
             x0: Initial states with shape `(B, x_dim)`.
@@ -145,7 +145,8 @@ class AcadosImplicitFunction(DiffFunction):
         u_grad: np.ndarray | None,
         value_grad: np.ndarray | None,
     ):
-        """Computes gradients of inputs given gradients of outputs.
+        """
+        Compute gradients of inputs given gradients of outputs.
 
         Args:
             ctx: The `AcadosCtx` object from the forward pass.
@@ -171,11 +172,8 @@ class AcadosImplicitFunction(DiffFunction):
         if ctx.needs_input_grad[0]:
             raise NotImplementedError
 
-        if ctx.needs_input_grad[1]:
-            # Use adjoint sensitivity for here :D
-            grad_u0 = _back(value_grad, "dvalue_du0")
-        else:
-            grad_u0 = None
+        # Use adjoint sensitivity for here :D
+        grad_u0 = _back(value_grad, "dvalue_du0") if ctx.needs_input_grad[1] else None
 
         if ctx.needs_input_grad[2]:
             grad_p_global = _safe_sum(
@@ -190,7 +188,8 @@ class AcadosImplicitFunction(DiffFunction):
         return (None, None, grad_u0, grad_p_global, None, None, None)
 
     def sensitivity(self, ctx, field_name: SensitivityField) -> np.ndarray:
-        """Calculates a specific sensitivity field for a context.
+        """
+        Calculate a specific sensitivity field for a context.
 
         The `sensitivity` method retrieves a specific sensitivity field from the
         context object, or recalculates it if not already present.
@@ -220,13 +219,12 @@ class AcadosImplicitFunction(DiffFunction):
                 with_respect_to="p_global",
                 sanity_checks=True,
             )
-        elif field_name == "dx_dp_global":
-            raise NotImplementedError
-        elif field_name == "du_dp_global":
-            raise NotImplementedError
-        elif field_name == "dvalue_dp_global":
-            raise NotImplementedError
-        elif field_name == "dvalue_du0":
+        elif (
+            field_name == "dx_dp_global"
+            or field_name == "du_dp_global"
+            or field_name == "dvalue_dp_global"
+            or field_name == "dvalue_du0"
+        ):
             raise NotImplementedError
 
         setattr(ctx, field_name, sens)
