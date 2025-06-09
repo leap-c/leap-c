@@ -25,7 +25,8 @@ def create_batch_solver(
     n_batch_max: int = 256,
     num_threads: int = 4,
 ) -> AcadosOcpBatchSolver:
-    """Creates an AcadosOcpBatchSolver from an AcadosOcp object.
+    """
+    Create an AcadosOcpBatchSolver from an AcadosOcp object.
 
     Args:
         ocp: Acados optimal control problem formulation.
@@ -120,7 +121,7 @@ def create_forward_backward_batch_solvers(
 
     if sensitivity_ocp is None and need_backward_solver:
         sensitivity_ocp: AcadosOcp = deepcopy(
-            batch_solver.ocp_solvers[0].acados_ocp  # type:ignore
+            forward_batch_solver.ocp_solvers[0].acados_ocp  # type:ignore
         )
         sensitivity_ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
         sensitivity_ocp.solver_options.qp_solver_ric_alg = 1
