@@ -9,7 +9,9 @@ from leap_c.examples.chain.utils import Ellipsoid
 from leap_c.examples.cartpole.env import CartPoleEnv
 from leap_c.examples.cartpole.mpc import CartPoleMPC
 from leap_c.examples.pointmass.env import PointMassEnv
-from leap_c.examples.pointmass.mpc import PointMassMPC
+from leap_c.examples.pointmass.mpc import PointMassMpc
+from leap_c.examples.pointmass.mpc import export_parametric_ocp
+from acados_template import AcadosOcp
 from leap_c.registry import (
     TRAINER_REGISTRY,
     create_default_cfg,
@@ -78,7 +80,7 @@ def generate_batch_constant(val: np.ndarray, shape) -> np.ndarray:
 @pytest.fixture(scope="session")
 def point_mass_mpc():
     """Fixture for the point mass MPC."""
-    return PointMassMPC()
+    return PointMassMpc()
 
 
 @pytest.fixture(scope="session")
@@ -93,8 +95,8 @@ def n_batch() -> int:
 
 
 @pytest.fixture(scope="session")
-def learnable_point_mass_mpc_different_params(n_batch: int) -> PointMassMPC:
-    return PointMassMPC(
+def learnable_point_mass_mpc_different_params(n_batch: int) -> PointMassMpc:
+    return PointMassMpc(
         learnable_params=[
             "m",
             "cx",
@@ -108,8 +110,8 @@ def learnable_point_mass_mpc_different_params(n_batch: int) -> PointMassMPC:
 
 
 @pytest.fixture(scope="session")
-def learnable_point_mass_mpc_m(n_batch: int) -> PointMassMPC:
-    return PointMassMPC(learnable_params=["m"], n_batch=n_batch)
+def learnable_point_mass_mpc_m(n_batch: int) -> PointMassMpc:
+    return PointMassMpc(learnable_params=["m"], n_batch=n_batch)
 
 
 @pytest.fixture(scope="session")
@@ -119,7 +121,7 @@ def point_mass_env() -> PointMassEnv:
 
 @pytest.fixture(scope="session")
 def point_mass_mpc_p_global(
-    learnable_point_mass_mpc_m: PointMassMPC, n_batch: int
+    learnable_point_mass_mpc_m: PointMassMpc, n_batch: int
 ) -> np.ndarray:
     """Fixture for the global parameters of the point mass MPC."""
     return generate_batch_variation(
@@ -287,6 +289,41 @@ def pendulum_on_cart_ext_cost_p_global(
         learnable_pendulum_on_cart_mpc_ext_cost.ocp_solver.acados_ocp.p_global_values,
         n_batch,
     )
+
+
+@pytest.fixture(scope="session")
+def acados_ocp() -> AcadosOcp:
+    """Fixture for the task."""
+    return export_parametric_ocp(
+        nominal_param={
+            "m": 1.0,
+            "cx": 0.1,
+            "cy": 0.1,
+            "q_diag": np.array([1.0, 1.0, 1.0, 1.0]),
+            "r_diag": np.array([0.1, 0.1]),
+            "q_diag_e": np.array([1.0, 1.0, 1.0, 1.0]),
+            "xref": np.array([0.0, 0.0, 0.0, 0.0]),
+            "uref": np.array([0.0, 0.0]),
+            "xref_e": np.array([0.0, 0.0, 0.0, 0.0]),
+        },
+        learnable_params=[
+            "m",
+            "cx",
+            "cy",
+            "q_diag",
+            "r_diag",
+            "q_diag_e",
+            "xref",
+            "uref",
+            "xref_e",
+        ],
+    )
+
+
+@pytest.fixture(scope="session")
+def rng() -> np.random.Generator:
+    """Fixture for a random number generator."""
+    return np.random.default_rng(seed=42)
 
 
 @pytest.fixture(scope="session", params=["point_mass"])
