@@ -208,7 +208,33 @@ def x0() -> np.ndarray | None:
     return None
 
 
-def set_solver_options(ocp: AcadosOcp) -> AcadosOcp:
+def define_nonlinear_ls_cost():
+    pass
+
+
+def define_linear_ls_cost():
+    pass
+
+
+def define_external_cost():
+    pass
+
+
+def set_gn_solver_options(ocp: AcadosOcp) -> AcadosOcp:
+    """Set the solver options for the OCP."""
+    ocp.solver_options.integrator_type = "DISCRETE"
+    ocp.solver_options.nlp_solver_type = "SQP"
+    ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
+    ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    ocp.solver_options.qp_solver_ric_alg = 1
+    ocp.solver_options.with_value_sens_wrt_params = True
+    ocp.solver_options.with_solution_sens_wrt_params = True
+    ocp.solver_options.with_batch_functionality = True
+
+    return ocp
+
+
+def set_solver_exact_options(ocp: AcadosOcp) -> AcadosOcp:
     """Configure the OCP solver options."""
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
@@ -289,4 +315,4 @@ def acados_test_ocp(
             ocp.model.p_global.cat if ocp.model.p_global is not None else None
         )
 
-    return set_solver_options(ocp=ocp)
+    return ocp
