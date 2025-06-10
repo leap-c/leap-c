@@ -76,7 +76,7 @@ def create_batch_solver(
             build=False,
             generate=False,
         )
-    except RuntimeError:  # TODO: Is this correct?
+    except FileNotFoundError:
         batch_solver = AcadosOcpBatchSolver(
             ocp,
             json_file=json_file,

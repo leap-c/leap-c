@@ -59,7 +59,6 @@ def test_acados_implicit_function_initialization(acados_ocp) -> None:
         initializer=None,
         sensitivity_ocp=None,
         discount_factor=None,
-        export_directory="c_generated_code",
     )
 
     assert implicit_function.forward_batch_solver is not None

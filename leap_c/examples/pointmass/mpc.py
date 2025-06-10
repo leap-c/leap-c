@@ -121,7 +121,7 @@ def _cost_expr_ext_cost_e(ocp: AcadosOcp) -> ca.SX:
 
 
 def export_parametric_ocp(
-    nominal_param: dict[str, np.ndarray],
+    nominal_param: dict[str, np.ndarray | float],
     name: str = "pointmass",
     learnable_params: list[str] | None = None,
     N_horizon: int = 50,

@@ -291,33 +291,6 @@ def pendulum_on_cart_ext_cost_p_global(
     )
 
 
-@pytest.fixture(scope="session")
-def acados_ocp() -> AcadosOcp:
-    """Fixture for the task."""
-    return export_parametric_ocp(
-        nominal_param={
-            "m": 1.0,
-            "cx": 0.1,
-            "cy": 0.1,
-            "q_diag": np.array([1.0, 1.0, 1.0, 1.0]),
-            "r_diag": np.array([0.1, 0.1]),
-            "q_diag_e": np.array([1.0, 1.0, 1.0, 1.0]),
-            "xref": np.array([0.0, 0.0, 0.0, 0.0]),
-            "uref": np.array([0.0, 0.0]),
-            "xref_e": np.array([0.0, 0.0, 0.0, 0.0]),
-        },
-        learnable_params=[
-            "m",
-            "cx",
-            "cy",
-            "q_diag",
-            "r_diag",
-            "q_diag_e",
-            "xref",
-            "uref",
-            "xref_e",
-        ],
-    )
 
 
 @pytest.fixture(scope="session")
@@ -340,3 +313,4 @@ def trainer(request, task):
         trainer = create_trainer(request.param, task, tmpdir, "cpu", cfg)
 
         yield trainer
+
