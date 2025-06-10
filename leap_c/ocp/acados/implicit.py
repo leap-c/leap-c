@@ -1,4 +1,4 @@
-"""Provides a differentiable implicit function based on Acados."""
+"""Provides a differentiable implicit function based on acados."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -75,10 +75,6 @@ class AcadosImplicitFunction(DiffFunction):
         else:
             self.initializer = initializer
 
-    @property
-    def N(self) -> int:
-        return self.ocp.solver_options.N_horizon  # type: ignore
-
     def forward(  # type: ignore
         self,
         x0: np.ndarray,
@@ -106,7 +102,7 @@ class AcadosImplicitFunction(DiffFunction):
                 parameters. Shape is `(B, N+1, n_p_stagewise_sparse_idx)`.
                 For multi-phase MPC, this is a list of arrays (one per phase).
                 Defaults to `None`.
-            ctx: An `AcadosCtx` object for storing context. Defaults to `None`.
+            ctx: An `AcadosImplicitCtx` object for storing context. Defaults to `None`.
         """
         batch_size = x0.shape[0]
 
@@ -120,15 +116,17 @@ class AcadosImplicitFunction(DiffFunction):
         ocp_iterate = None if ctx is None else ctx.iterate
 
         status, log = solve_with_retry(
-            self.batch_solver,
+            self.forward_batch_solver,
             initializer=self.initializer,
             ocp_iterate=ocp_iterate,
             solver_input=solver_input,
         )
 
         # fetch output
-        active_solvers = self.batch_solver.ocp_solvers[:batch_size]
-        sol_iterate = self.batch_solver.store_iterate_to_flat_obj(n_batch=batch_size)
+        active_solvers = self.forward_batch_solver.ocp_solvers[:batch_size]
+        sol_iterate = self.forward_batch_solver.store_iterate_to_flat_obj(
+            n_batch=batch_size
+        )
         ctx = AcadosImplicitCtx(
             iterate=sol_iterate, log=log, status=status, solver_input=solver_input
         )
@@ -163,7 +161,7 @@ class AcadosImplicitFunction(DiffFunction):
             return self.sensitivity(ctx, field_name) @ output_grad
 
         def _safe_sum(*args):
-            filtered_args = [arg for arg in args if arg is not None]
+            filtered_args = [a for a in args if a is not None]
             if not filtered_args:
                 return None
             return np.sum(filtered_args, axis=0)
@@ -204,7 +202,7 @@ class AcadosImplicitFunction(DiffFunction):
             return getattr(ctx, field_name)
 
         prepare_batch_solver_for_backward(
-            self.batch_solver, ctx.iterate, ctx.solver_input
+            self.backward_batch_solver, ctx.iterate, ctx.solver_input
         )
 
         sens = None
@@ -214,7 +212,7 @@ class AcadosImplicitFunction(DiffFunction):
         if field_name == "du0_dp_global":
             single_seed = np.eye(ocp.dims.nu)
             seed_vec = np.repeat(single_seed[np.newaxis, :, :], batch_size, axis=0)
-            sens = self.sensitivity_batch_solver.eval_adjoint_solution_sensitivity(
+            sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
                 seed_x=[],
                 seed_u=[(0, seed_vec)],
                 with_respect_to="p_global",

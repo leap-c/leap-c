@@ -73,6 +73,7 @@ def create_batch_solver(
             N_batch_max=n_batch_max,
             num_threads_in_batch_solve=num_threads,
             build=False,
+            generate=False,
         )
     except RuntimeError:  # TODO: Is this correct?
         batch_solver = AcadosOcpBatchSolver(
@@ -118,7 +119,7 @@ def create_forward_backward_batch_solvers(
     if not need_backward_solver:
         return forward_batch_solver, forward_batch_solver
 
-    if sensitivity_ocp is None and need_backward_solver:
+    if sensitivity_ocp is None:
         sensitivity_ocp: AcadosOcp = deepcopy(
             batch_solver.ocp_solvers[0].acados_ocp  # type:ignore
         )
@@ -133,9 +134,8 @@ def create_forward_backward_batch_solvers(
         sensitivity_ocp.solver_options.exact_hess_constr = True
         sensitivity_ocp.solver_options.with_solution_sens_wrt_params = True
         sensitivity_ocp.solver_options.with_value_sens_wrt_params = True
-        sensitivity_ocp.model.name += "_sensitivity"  # type:ignore
-    else:
-        sensitivity_ocp.model.name += "_sensitivity"  # type:ignore
+
+    sensitivity_ocp.model.name += "_sensitivity"  # type:ignore
 
     backward_batch_solver = create_batch_solver(
         sensitivity_ocp,  # type:ignore
@@ -149,6 +149,8 @@ def create_forward_backward_batch_solvers(
 
 
 def _check_need_sensitivity_solver(ocp: AcadosOcp) -> bool:
+    # TODO: This should be replaced as soon as Acados supports
+    #       a check based on the ocp.
     return True
 
 
