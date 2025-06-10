@@ -20,7 +20,7 @@ class AcadosImplicitLayer(nn.Module):
         self,
         ocp: AcadosOcp,
         initializer: AcadosInitializer | None = None,
-        ocp_sensitivity: AcadosOcp | None = None,
+        sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
     ):
@@ -30,7 +30,7 @@ class AcadosImplicitLayer(nn.Module):
         Args:
             ocp: Optimal control problem formulation used for solving the OCP.
             initializer: Initializer for the OCP solver. If None, a zero initializer is used.
-            ocp_sensitivity: The optimal control problem formulation to use for sensitivities.
+            sensitivity_ocp: The optimal control problem formulation to use for sensitivities.
                 If None, the sensitivity problem is derived from the ocp object, however only the EXTERNAL cost type is allowed then.
                 For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
@@ -43,7 +43,7 @@ class AcadosImplicitLayer(nn.Module):
         self.implicit_fun = AcadosImplicitFunction(
             ocp=ocp,
             initializer=initializer,
-            sensitivity_ocp=ocp_sensitivity,
+            sensitivity_ocp=sensitivity_ocp,
             discount_factor=discount_factor,
             export_directory=export_directory,
         )
