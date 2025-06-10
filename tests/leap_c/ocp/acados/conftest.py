@@ -5,11 +5,17 @@
 # 3. sensitivities wrt p_global
 # 4. ext_cost_p_global
 # 5.
+
+from collections.abc import Callable
+
 import casadi as ca
 import numpy as np
 import pytest
-from acados_template import AcadosModel, AcadosOcp
+from acados_template import AcadosModel, AcadosOcp, AcadosOcpOptions
 from casadi.tools import entry, struct_symSX
+from scipy.linalg import block_diag
+
+from leap_c.ocp.acados.torch import AcadosImplicitLayer
 
 # we need one version exact
 
@@ -170,10 +176,95 @@ def get_cost_expr_ext_cost_e(ocp: AcadosOcp) -> ca.SX:
     return 0.5 * ca.mtimes([ca.transpose(x - xref_e), Q_sqrt_e.T, Q_sqrt_e, x - xref_e])
 
 
+def get_cost_W(ocp: AcadosOcp) -> ca.SX:
+    """Get the cost weight matrix W for the OCP."""
+    q_diag = find_param_in_p_or_p_global(["q_diag"], ocp.model)["q_diag"]
+    r_diag = find_param_in_p_or_p_global(["r_diag"], ocp.model)["r_diag"]
+
+    return ca.diag(ca.vertcat(q_diag, r_diag))
+
+
+def define_nonlinear_ls_cost(ocp: AcadosOcp):
+    ocp.cost.cost_type_0 = "NONLINEAR_LS"
+    ocp.cost.cost_type = "NONLINEAR_LS"
+    ocp.cost.cost_type_e = "NONLINEAR_LS"
+
+    ocp.cost.W = get_cost_W(ocp=ocp)
+    ocp.cost.W_e = ocp.cost.W[: ocp.dims.nx, : ocp.dims.nx]
+
+    ocp.cost.yref = ca.SX.sym("yref", ocp.dims.nx + ocp.dims.nu)
+    ocp.cost.yref_e = ca.SX.sym("yref_e", ocp.dims.nx)
+
+    ocp.model.cost_y_expr = ca.vertcat(ocp.model.x, ocp.model.u)
+    ocp.model.cost_y_expr_e = ocp.model.x
+
+
+def define_linear_ls_cost(ocp: AcadosOcp):
+    ocp.cost.cost_type_0 = "LINEAR_LS"
+    ocp.cost.cost_type = "LINEAR_LS"
+    ocp.cost.cost_type_e = "LINEAR_LS"
+
+    # ocp.cost.W = get_cost_W(ocp=ocp)
+    ocp.cost.W_0 = np.eye(ocp.dims.nx + ocp.dims.nu)
+    ocp.cost.W = np.eye(ocp.dims.nx + ocp.dims.nu)
+    ocp.cost.W_e = ocp.cost.W[: ocp.dims.nx, : ocp.dims.nx]
+
+    ocp.cost.Vx_0 = block_diag(np.eye(ocp.dims.nx), 0 * np.eye(ocp.dims.nu))
+    ocp.cost.Vu_0 = block_diag(0 * np.eye(ocp.dims.nx), np.eye(ocp.dims.nu))
+    ocp.cost.Vx = block_diag(np.eye(ocp.dims.nx), 0 * np.eye(ocp.dims.nu))
+    ocp.cost.Vu = block_diag(0 * np.eye(ocp.dims.nx), np.eye(ocp.dims.nu))
+    ocp.cost.Vx_e = np.eye(ocp.dims.nx)
+
+    ocp.cost.yref_0 = np.zeros(ocp.dims.nx + ocp.dims.nu)
+    ocp.cost.yref = np.zeros(ocp.dims.nx + ocp.dims.nu)
+    ocp.cost.yref_e = ocp.cost.yref[: ocp.dims.nx]
+
+
+def define_external_cost(ocp: AcadosOcp):
+    ocp.cost.cost_type_0 = "EXTERNAL"
+    ocp.cost.cost_type = "EXTERNAL"
+    ocp.cost.cost_type_e = "EXTERNAL"
+    ocp.model.cost_expr_ext_cost_0 = get_cost_expr_ext_cost(ocp=ocp)
+    ocp.model.cost_expr_ext_cost = get_cost_expr_ext_cost(ocp=ocp)
+    ocp.model.cost_expr_ext_cost_e = get_cost_expr_ext_cost_e(ocp=ocp)
+
+
+@pytest.fixture(scope="session", params=["external", "linear_ls", "nonlinear_ls"])
+def ocp_cost_fun(request) -> Callable:
+    """Fixture to define the cost type for the AcadosOcp."""
+    if request.param == "external":
+        return define_external_cost
+    if request.param == "linear_ls":
+        return define_linear_ls_cost
+    if request.param == "nonlinear_ls":
+        return define_nonlinear_ls_cost
+
+    raise ValueError("Unknown cost function requested.")
+
+
+@pytest.fixture(scope="session", params=["exact", "gn"])
+def ocp_options(request) -> AcadosOcpOptions:
+    """Configure the OCP options."""
+    ocp_options = AcadosOcpOptions()
+    ocp_options.integrator_type = "DISCRETE"
+    ocp_options.nlp_solver_type = "SQP"
+    ocp_options.hessian_approx = "EXACT" if request.param == "exact" else "GAUSS_NEWTON"
+    ocp_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    ocp_options.qp_solver_ric_alg = 1
+    ocp_options.with_value_sens_wrt_params = True
+    ocp_options.with_solution_sens_wrt_params = True
+    ocp_options.with_batch_functionality = True
+
+    ocp_options.tf = 2.0
+    ocp_options.N_horizon = 10
+
+    return ocp_options
+
+
 @pytest.fixture(scope="session")
-def nominal_p_global() -> dict[str, np.ndarray]:
-    """Nominal parameters for the AcadosOcp."""
-    return {
+def acados_test_ocp(ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions) -> AcadosOcp:
+    """Define a simple AcadosOcp for testing purposes."""
+    nominal_p_global = {
         "m": 1.0,
         "cx": 0.1,
         "cy": 0.1,
@@ -185,89 +276,18 @@ def nominal_p_global() -> dict[str, np.ndarray]:
         "xref_e": np.array([0.0, 0.0, 0.0, 0.0]),
     }
 
+    learnable_p_global = nominal_p_global.keys()
 
-@pytest.fixture(scope="session")
-def learnable_p_global() -> list[str]:
-    """Learnable parameters for the AcadosOcp."""
-    return [
-        "m",
-        "cx",
-        "cy",
-        "q_diag",
-        "r_diag",
-        "q_diag_e",
-        "xref",
-        "uref",
-        "xref_e",
-    ]
-
-
-@pytest.fixture(scope="session")
-def x0() -> np.ndarray | None:
-    """Define initial state for the AcadosOcp."""
-    return None
-
-
-def define_nonlinear_ls_cost():
-    pass
-
-
-def define_linear_ls_cost():
-    pass
-
-
-def define_external_cost():
-    pass
-
-
-def set_gn_solver_options(ocp: AcadosOcp) -> AcadosOcp:
-    """Set the solver options for the OCP."""
-    ocp.solver_options.integrator_type = "DISCRETE"
-    ocp.solver_options.nlp_solver_type = "SQP"
-    ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
-    ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    ocp.solver_options.qp_solver_ric_alg = 1
-    ocp.solver_options.with_value_sens_wrt_params = True
-    ocp.solver_options.with_solution_sens_wrt_params = True
-    ocp.solver_options.with_batch_functionality = True
-
-    return ocp
-
-
-def set_solver_exact_options(ocp: AcadosOcp) -> AcadosOcp:
-    """Configure the OCP solver options."""
-    ocp.solver_options.integrator_type = "DISCRETE"
-    ocp.solver_options.nlp_solver_type = "SQP"
-    ocp.solver_options.hessian_approx = "EXACT"
-    ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    ocp.solver_options.qp_solver_ric_alg = 1
-    ocp.solver_options.with_value_sens_wrt_params = True
-    ocp.solver_options.with_solution_sens_wrt_params = True
-    ocp.solver_options.with_batch_functionality = True
-
-    return ocp
-
-
-@pytest.fixture(scope="session")
-def acados_test_ocp(
-    x0: np.ndarray | None,
-    nominal_p_global: dict[str, np.ndarray],
-    learnable_p_global: list[str],
-) -> AcadosOcp:
-    """Define a simple AcadosOcp for testing purposes."""
-    tf = 2.0
-    N_horizon = 10
     name = "test_ocp"
 
     ocp = AcadosOcp()
 
-    ocp.solver_options.tf = tf
-    ocp.solver_options.N_horizon = N_horizon
+    ocp.solver_options = ocp_options
 
     ocp.model.name = name
 
     ocp.dims.nu = 2
-    ocp.dims.nx = 3
+    ocp.dims.nx = 4
 
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
@@ -279,14 +299,11 @@ def acados_test_ocp(
     )
 
     ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp=ocp)
-    ocp.model.cost_expr_ext_cost_0 = get_cost_expr_ext_cost(ocp=ocp)
-    ocp.cost.cost_type_0 = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost = get_cost_expr_ext_cost(ocp=ocp)
-    ocp.cost.cost_type = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost_e = get_cost_expr_ext_cost_e(ocp=ocp)
-    ocp.cost.cost_type_e = "EXTERNAL"
 
-    ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0]) if x0 is None else x0
+    # Define cost
+    ocp_cost_fun(ocp)
+
+    ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
 
     Fmax = 10.0
     # Box constraints on u
@@ -316,3 +333,13 @@ def acados_test_ocp(
         )
 
     return ocp
+
+
+@pytest.fixture(scope="session")
+def implicit_layer(acados_test_ocp) -> AcadosImplicitLayer:
+    return AcadosImplicitLayer(
+        ocp=acados_test_ocp,
+        initializer=None,
+        sensitivity_ocp=None,
+        discount_factor=None,
+    )
