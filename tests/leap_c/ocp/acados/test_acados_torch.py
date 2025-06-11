@@ -132,7 +132,7 @@ def test_closed_loop(acados_test_implicit_function):
     pass
 
 
-def test_sensitivites_are_correct(
+def test_sensitivities_are_correct(
     implicit_layer: AcadosImplicitLayer,
 ):
     n_batch = 4
@@ -141,111 +141,57 @@ def test_sensitivites_are_correct(
     scale = 0.1 * loc
     p_global = torch.normal(mean=loc, std=scale)
 
-    x0 = torch.normal(mean=loc, std=scale)
+    x0 = implicit_layer.implicit_fun.ocp.constraints.x0
+    u0 = np.zeros(ocp.dims.nu)
 
     batch_size = p_global.shape[0]
     assert batch_size <= 10, "Using batch_sizes too large will make the test very slow."
 
-    varying_params_to_test = [0]
-    chosen_samples = []
-    for i in range(batch_size):
-        vary_idx = varying_params_to_test[i % len(varying_params_to_test)]
-        chosen_samples.append(p_global[i, :, vary_idx].squeeze())
-    test_param = np.stack(chosen_samples, axis=0)
-
-    if len(varying_params_to_test) == 1:
-        test_param = test_param.reshape(-1, 1)
-    assert test_param.shape == (batch_size, 1)  # Sanity check
-
-    p_rests = None
-
-    # mpc_module = MpcSolutionModule(learnable_point_mass_mpc_m)
     x0_torch = torch.tensor(x0, dtype=torch.float64)
     x0_torch = torch.tile(x0_torch, (batch_size, 1))
-    p = torch.tensor(test_param, dtype=torch.float64)
-    # u0 = torch.tensor(u0, dtype=torch.float64)
-    # u0 = torch.tile(u0, (batch_size, 1))
+    p = torch.tensor(p_global, dtype=torch.float64)
+    u0 = torch.tensor(u0, dtype=torch.float64)
+    u0 = torch.tile(u0, (batch_size, 1))
 
     u0.requires_grad = True
     x0_torch.requires_grad = True
     p.requires_grad = True
 
     def only_du0dx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MpcInput(
-            x0=x0,
-            u0=None,
-            parameters=MpcParameter(p_global=p, p_stagewise=p_rests),
-        )
-        mpc_output, _, _ = mpc_module.forward(
-            mpc_input=mpc_input,
-            mpc_state=None,
-        )
-        return mpc_output.u0, mpc_output.status
+        ctx, u0, _, _, _ = implicit_layer.forward(x0=x0)
+        return u0, torch.tensor(ctx.status)
 
     torch.autograd.gradcheck(
         only_du0dx0, x0_torch, atol=1e-2, eps=1e-4, raise_exception=True
     )
 
     def only_dVdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MpcInput(
-            x0=x0,
-            u0=None,
-            parameters=MpcParameter(p_global=p, p_stagewise=p_rests),
-        )
-        mpc_output, _, _ = mpc_module.forward(
-            mpc_input=mpc_input,
-            mpc_state=None,
-        )
-        return mpc_output.V, mpc_output.status
+        ctx, _, _, _, value = implicit_layer.forward(x0=x0)
+        return value, torch.tensor(ctx.status)
 
     torch.autograd.gradcheck(
         only_dVdx0, x0_torch, atol=1e-2, eps=1e-4, raise_exception=True
     )
 
-    def only_dQdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:  #
-        mpc_input = MpcInput(
-            x0=x0,
-            u0=u0,
-            parameters=MpcParameter(p_global=p, p_stagewise=p_rests),
-        )
-        mpc_output, _, _ = mpc_module.forward(
-            mpc_input=mpc_input,
-            mpc_state=None,
-        )
-        assert torch.all(torch.isnan(mpc_output.u0)), (
-            "u_star should be nan, since u0 is given."
-        )
-        return mpc_output.Q, mpc_output.status
+    def only_dQdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        ctx, _, _, _, value = implicit_layer.forward(x0=x0, u0=u0)
+        return value, torch.tensor(ctx.status)
 
     torch.autograd.gradcheck(
         only_dQdx0, x0_torch, atol=1e-2, eps=1e-4, raise_exception=True
     )
 
     def only_du0dp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MpcInput(
-            x0=x0_torch,
-            parameters=MpcParameter(p_global=p_global, p_stagewise=p_rests),
-        )
-        mpc_output, _, _ = mpc_module.forward(
-            mpc_input=mpc_input,
-            mpc_state=None,
-        )
-        return mpc_output.u0, mpc_output.status
+        ctx, u0, _, _, _ = implicit_layer.forward(x0=x0, p_global=p_global)
+        return u0, torch.tensor(ctx.status)
 
     torch.autograd.gradcheck(
         only_du0dp_global, p, atol=1e-2, eps=1e-4, raise_exception=True
     )
 
     def only_dVdp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MpcInput(
-            x0=x0_torch,
-            parameters=MpcParameter(p_global=p_global, p_stagewise=p_rests),
-        )
-        mpc_output, _, _ = mpc_module.forward(
-            mpc_input=mpc_input,
-            mpc_state=None,
-        )
-        return mpc_output.V, mpc_output.status
+        ctx, _, _, _, value = implicit_layer.forward(x0=x0, p_global=p_global)
+        return value, torch.tensor(ctx.status)
 
     # NOTE: A higher tolerance than in the other checks is used here.
     torch.autograd.gradcheck(
@@ -253,37 +199,15 @@ def test_sensitivites_are_correct(
     )
 
     def only_dQdp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MpcInput(
-            x0=x0_torch,
-            u0=u0,
-            parameters=MpcParameter(p_global=p_global, p_stagewise=p_rests),
-        )
-        mpc_output, _, _ = mpc_module.forward(
-            mpc_input=mpc_input,
-            mpc_state=None,
-        )
-        assert torch.all(torch.isnan(mpc_output.u0)), (
-            "u_star should be nan, since u0 is given."
-        )
-        return mpc_output.Q, mpc_output.status
+        ctx, _, _, _, value = implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
+        return value, torch.tensor(ctx.status)
 
     torch.autograd.gradcheck(
         only_dQdp_global, p, atol=1e-2, eps=1e-6, raise_exception=True
     )
 
     def only_dQdu0(u0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        mpc_input = MpcInput(
-            x0=x0_torch,
-            u0=u0,
-            parameters=MpcParameter(p_global=p, p_stagewise=p_rests),
-        )
-        mpc_output, _, _ = mpc_module.forward(
-            mpc_input=mpc_input,
-            mpc_state=None,
-        )
-        assert torch.all(torch.isnan(mpc_output.u0)), (
-            "u_star should be nan, since u0 is given."
-        )
-        return mpc_output.Q, mpc_output.status
+        ctx, _, _, _, value = implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
+        return value, torch.tensor(ctx.status)
 
     torch.autograd.gradcheck(only_dQdu0, u0, atol=1e-2, eps=1e-4, raise_exception=True)
