@@ -74,6 +74,10 @@ def _to_np(data):
 
 
 def _to_tensor(data, device, dtype=torch.float32):
+    if data is None:
+        return None
     if isinstance(data, (tuple, list)):
         return tuple(_to_tensor(item, device, dtype) for item in data)
+    if isinstance(data, torch.Tensor):
+        return data.to(device=device, dtype=dtype)
     return torch.tensor(data, device=device, dtype=dtype)
