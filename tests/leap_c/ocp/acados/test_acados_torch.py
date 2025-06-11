@@ -14,6 +14,9 @@ from leap_c.ocp.acados.initializer import ZeroInitializer
 
 import conftest
 
+from typing import Tuple, Callable
+from dataclasses import dataclass
+
 
 def test_initialization(implicit_layer):
     assert True
@@ -132,82 +135,220 @@ def test_closed_loop(acados_test_implicit_function):
     pass
 
 
+@dataclass
+class GradCheckConfig:
+    """Configuration for gradient checking parameters."""
+
+    atol: float = 1e-2
+    eps: float = 1e-4
+    raise_exception: bool = True
+
+
+@dataclass
+class TestData:
+    """Container for test data tensors."""
+
+    x0: torch.Tensor
+    u0: torch.Tensor
+    p_global: torch.Tensor
+
+
+def _setup_test_data(
+    implicit_layer: AcadosImplicitLayer,
+    n_batch: int,
+    dtype: torch.dtype,
+    noise_scale: float,
+) -> TestData:
+    """Setup test data tensors with proper gradients enabled."""
+    ocp = implicit_layer.implicit_fun.ocp
+
+    # Generate noisy global parameters
+    loc = torch.tensor(ocp.p_global_values, dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
+    scale = noise_scale * loc
+    p_global = torch.normal(mean=loc, std=scale).requires_grad_(True)
+
+    # Setup initial state
+    loc = torch.tensor(ocp.constraints.x0, dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
+    scale = noise_scale * loc
+    x0_batch = torch.normal(mean=loc, std=scale).requires_grad_(True)
+
+    # Setup initial control
+    u0 = torch.zeros(ocp.dims.nu, dtype=dtype)
+    u0_batch = u0.unsqueeze(0).repeat(n_batch, 1).requires_grad_(True)
+
+    return TestData(x0=x0_batch, u0=u0_batch, p_global=p_global)
+
+
+def _create_test_function(
+    forward_func: Callable, output_selector: Callable[[tuple], torch.Tensor]
+) -> Callable:
+    """Create a test function that returns (output, status) tuple."""
+
+    def test_func(*args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
+        result = forward_func(*args, **kwargs)
+        ctx = result[0]
+        output = output_selector(result)
+        return output, torch.tensor(ctx.status, dtype=torch.float64)
+
+    return test_func
+
+
+# note: result 0:ctx, 1:u0, 2:x, 3:u, 4:value
+def _create_du0dx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
+    """Create test function for du0/dx0 gradient."""
+
+    def forward_func(x0):
+        return implicit_layer.forward(x0=x0)
+
+    return _create_test_function(forward_func, lambda result: result[1])  # u0
+
+
+def _create_dVdx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
+    """Create test function for dV/dx0 gradient."""
+
+    def forward_func(x0):
+        return implicit_layer.forward(x0=x0)
+
+    return _create_test_function(forward_func, lambda result: result[4])  # value
+
+
+def _create_dQdx0_test(
+    implicit_layer: AcadosImplicitLayer, u0: torch.Tensor
+) -> Callable:
+    """Create test function for dQ/dx0 gradient."""
+
+    def forward_func(x0):
+        return implicit_layer.forward(x0=x0, u0=u0)
+
+    return _create_test_function(forward_func, lambda result: result[4])  # value
+
+
+def _create_du0dp_global_test(
+    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
+) -> Callable:
+    """Create test function for du0/dp_global gradient."""
+
+    def forward_func(p_global):
+        return implicit_layer.forward(x0=x0, p_global=p_global)
+
+    return _create_test_function(forward_func, lambda result: result[1])  # u0
+
+
+def _create_dVdp_global_test(
+    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
+) -> Callable:
+    """Create test function for dV/dp_global gradient."""
+
+    def forward_func(p_global):
+        return implicit_layer.forward(x0=x0, p_global=p_global)
+
+    return _create_test_function(forward_func, lambda result: result[4])  # value
+
+
+def _create_dQdp_global_test(
+    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, u0: torch.Tensor
+) -> Callable:
+    """Create test function for dQ/dp_global gradient."""
+
+    def forward_func(p_global):
+        return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
+
+    return _create_test_function(forward_func, lambda result: result[4])  # value
+
+
+def _create_dQdu0_test(
+    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, p_global: torch.Tensor
+) -> Callable:
+    """Create test function for dQ/du0 gradient."""
+
+    def forward_func(u0):
+        return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
+
+    return _create_test_function(forward_func, lambda result: result[4])  # value
+
+
 def test_sensitivities_are_correct(
     implicit_layer: AcadosImplicitLayer,
-):
-    n_batch = 4
-    ocp = implicit_layer.implicit_fun.ocp
-    loc = torch.tensor(ocp.p_global_values).unsqueeze(0).repeat(n_batch, 1)
-    scale = 0.1 * loc
-    p_global = torch.normal(mean=loc, std=scale)
+    n_batch: int = 4,
+    max_batch_size: int = 10,
+    dtype: torch.dtype = torch.float64,
+    noise_scale: float = 0.1,
+) -> None:
+    """
+    Test gradient correctness for AcadosImplicitLayer using finite differences.
 
-    x0 = implicit_layer.implicit_fun.ocp.constraints.x0
-    u0 = np.zeros(ocp.dims.nu)
+    Args:
+        implicit_layer: The implicit layer to test
+        n_batch: Number of batch samples to generate
+        max_batch_size: Maximum allowed batch size for performance
+        dtype: PyTorch data type for tensors
+        noise_scale: Scale factor for noise added to parameters
+    """
+    # Validate batch size
+    if n_batch > max_batch_size:
+        raise ValueError(
+            f"Batch size {n_batch} exceeds maximum {max_batch_size}. "
+            "Large batch sizes make the test very slow."
+        )
 
-    batch_size = p_global.shape[0]
-    assert batch_size <= 10, "Using batch_sizes too large will make the test very slow."
+    # Setup test data
+    test_data = _setup_test_data(implicit_layer, n_batch, dtype, noise_scale)
 
-    x0_torch = torch.tensor(x0, dtype=torch.float64)
-    x0_torch = torch.tile(x0_torch, (batch_size, 1))
-    p = torch.tensor(p_global, dtype=torch.float64)
-    u0 = torch.tensor(u0, dtype=torch.float64)
-    u0 = torch.tile(u0, (batch_size, 1))
+    # Define gradient check configurations
+    configs = {
+        "standard": GradCheckConfig(atol=1e-2, eps=1e-4),
+        "high_tolerance": GradCheckConfig(atol=5e-2, eps=1e-4),
+        "fine_eps": GradCheckConfig(atol=1e-2, eps=1e-6),
+    }
 
-    u0.requires_grad = True
-    x0_torch.requires_grad = True
-    p.requires_grad = True
+    # Define test cases
+    test_cases = [
+        ("du0/dx0", _create_du0dx0_test(implicit_layer), test_data.x0, "standard"),
+        ("dV/dx0", _create_dVdx0_test(implicit_layer), test_data.x0, "standard"),
+        (
+            "dQ/dx0",
+            _create_dQdx0_test(implicit_layer, test_data.u0),
+            test_data.x0,
+            "standard",
+        ),
+        (
+            "du0/dp_global",
+            _create_du0dp_global_test(implicit_layer, test_data.x0),
+            test_data.p_global,
+            "standard",
+        ),
+        (
+            "dV/dp_global",
+            _create_dVdp_global_test(implicit_layer, test_data.x0),
+            test_data.p_global,
+            "high_tolerance",
+        ),
+        (
+            "dQ/dp_global",
+            _create_dQdp_global_test(implicit_layer, test_data.x0, test_data.u0),
+            test_data.p_global,
+            "fine_eps",
+        ),
+        (
+            "dQ/du0",
+            _create_dQdu0_test(implicit_layer, test_data.x0, test_data.p_global),
+            test_data.u0,
+            "standard",
+        ),
+    ]
 
-    def only_du0dx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        ctx, u0, _, _, _ = implicit_layer.forward(x0=x0)
-        return u0, torch.tensor(ctx.status)
-
-    torch.autograd.gradcheck(
-        only_du0dx0, x0_torch, atol=1e-2, eps=1e-4, raise_exception=True
-    )
-
-    def only_dVdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        ctx, _, _, _, value = implicit_layer.forward(x0=x0)
-        return value, torch.tensor(ctx.status)
-
-    torch.autograd.gradcheck(
-        only_dVdx0, x0_torch, atol=1e-2, eps=1e-4, raise_exception=True
-    )
-
-    def only_dQdx0(x0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        ctx, _, _, _, value = implicit_layer.forward(x0=x0, u0=u0)
-        return value, torch.tensor(ctx.status)
-
-    torch.autograd.gradcheck(
-        only_dQdx0, x0_torch, atol=1e-2, eps=1e-4, raise_exception=True
-    )
-
-    def only_du0dp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        ctx, u0, _, _, _ = implicit_layer.forward(x0=x0, p_global=p_global)
-        return u0, torch.tensor(ctx.status)
-
-    torch.autograd.gradcheck(
-        only_du0dp_global, p, atol=1e-2, eps=1e-4, raise_exception=True
-    )
-
-    def only_dVdp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        ctx, _, _, _, value = implicit_layer.forward(x0=x0, p_global=p_global)
-        return value, torch.tensor(ctx.status)
-
-    # NOTE: A higher tolerance than in the other checks is used here.
-    torch.autograd.gradcheck(
-        only_dVdp_global, p, atol=5 * 1e-2, eps=1e-4, raise_exception=True
-    )
-
-    def only_dQdp_global(p_global: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        ctx, _, _, _, value = implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
-        return value, torch.tensor(ctx.status)
-
-    torch.autograd.gradcheck(
-        only_dQdp_global, p, atol=1e-2, eps=1e-6, raise_exception=True
-    )
-
-    def only_dQdu0(u0: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
-        ctx, _, _, _, value = implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
-        return value, torch.tensor(ctx.status)
-
-    torch.autograd.gradcheck(only_dQdu0, u0, atol=1e-2, eps=1e-4, raise_exception=True)
+    # Run gradient checks
+    for test_name, test_func, test_input, config_name in test_cases:
+        config = configs[config_name]
+        try:
+            torch.autograd.gradcheck(
+                test_func,
+                test_input,
+                atol=config.atol,
+                eps=config.eps,
+                raise_exception=config.raise_exception,
+            )
+            print(f"✓ {test_name} gradient check passed")
+        except Exception as e:
+            print(f"✗ {test_name} gradient check failed: {e}")
+            raise
