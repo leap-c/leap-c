@@ -158,7 +158,7 @@ class AcadosImplicitFunction(DiffFunction):
             p_stagewise_grad: Gradient with respect to `p_stagewise`.
         """
         if ctx.needs_input_grad is None:
-            return (None, None, None, None, None)
+            return None, None, None, None, None
 
         def _adjoint(x_seed, u_seed, with_respect_to: str):
             # backpropagation via the adjoint operator
@@ -210,7 +210,7 @@ class AcadosImplicitFunction(DiffFunction):
         else:
             grad_p_global = None
 
-        return (None, grad_x0, grad_u0, grad_p_global, None)
+        return grad_x0, grad_u0, grad_p_global, None
 
     def sensitivity(self, ctx, field_name: SensitivityField) -> np.ndarray:
         """

@@ -10,7 +10,9 @@ def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]
     NumPy-based forward and backward methods.
 
     The `fun` object must implement the `forward` and `backward` methods
-    as described in the `Function` class.
+    as described in the `Function` class. During the backward pass, the
+    custom context objects gets the information about which inputs need
+    gradients via `torch_ctx.needs_input_grad`.
 
     Args:
         fun: An object implementing `forward(custom_ctx, *args)` and
@@ -23,7 +25,7 @@ def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]
 
     Usage:
         fn = create_autograd_function(obj)
-        y = fn(*inputs)
+        ctx, y = fn(*inputs)
     """
 
     class AutogradFunction(torch.autograd.Function):
@@ -42,16 +44,20 @@ def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]
             return custom_ctx, *_to_tensor(outputs, device)
 
         @staticmethod
-        def backward(torch_ctx, _, *grad_outputs):  # type: ignore
+        def backward(torch_ctx, grad_ctx, *grad_outputs):  # type: ignore
             device = grad_outputs[0].device
             custom_ctx = torch_ctx.custom_ctx
+            custom_ctx.needs_input_grad = torch_ctx.needs_input_grad
             np_grad_outputs = _to_np(grad_outputs)
 
             grad_inputs = fun.backward(custom_ctx, *np_grad_outputs)  # type: ignore
 
             torch_grad_inputs = _to_tensor(grad_inputs, device)
 
-            return torch_grad_inputs
+            if isinstance(torch_grad_inputs, torch.Tensor):
+                return None, torch_grad_inputs
+
+            return None, *torch_grad_inputs
 
     return AutogradFunction
 
