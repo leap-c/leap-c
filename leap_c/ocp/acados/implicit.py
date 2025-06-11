@@ -210,7 +210,7 @@ class AcadosImplicitFunction(DiffFunction):
         else:
             grad_p_global = None
 
-        return grad_x0, grad_u0, grad_p_global, None
+        return grad_x0, grad_u0, grad_p_global, None, None
 
     def sensitivity(self, ctx, field_name: SensitivityField) -> np.ndarray:
         """
