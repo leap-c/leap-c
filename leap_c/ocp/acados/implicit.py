@@ -159,7 +159,27 @@ class AcadosImplicitFunction(DiffFunction):
         if ctx.needs_input_grad is None:
             return (None, None, None, None, None, None, None)
 
-        def _back(output_grad, field_name: SensitivityField):
+        def _adjoint(x_seed, u_seed, with_respect_to: str):
+            # backpropagation via the adjoint operator
+            if x_seed is None and u_seed is None:
+                return None
+
+            x_seed_with_stage = [
+                (stage_idx, x_seed) for stage_idx in range(self.ocp.dims.N + 1)  # type: ignore
+            ] if x_seed is not None else []
+
+            u_seed_with_stage = [
+                (stage_idx, u_seed) for stage_idx in range(self.ocp.dims.N)  # type: ignore
+            ] if u_seed is not None else []
+
+            return self.backward_batch_solver.eval_adjoint_solution_sensitivity(
+                seed_x=x_seed_with_stage,
+                seed_u=u_seed_with_stage,
+                with_respect_to=with_respect_to,
+                sanity_checks=True,
+            )
+
+        def _jacobian(output_grad, field_name: SensitivityField):
             if output_grad is None:
                 return None
             return self.sensitivity(ctx, field_name) @ output_grad
@@ -171,22 +191,25 @@ class AcadosImplicitFunction(DiffFunction):
             return np.sum(filtered_args, axis=0)
 
         if ctx.needs_input_grad[0]:
-            raise NotImplementedError
+            grad_u0 = _jacobian(value_grad, "dvalue_du0") if ctx.needs_input_grad[0] else None
+        else:
+            grad_u0 = None
 
-        # Use adjoint sensitivity for here :D
-        grad_u0 = _back(value_grad, "dvalue_du0") if ctx.needs_input_grad[1] else None
+        if ctx.needs_input_grad[1]:
+            grad_x0 = _jacobian(value_grad, "dvalue_dx0") if ctx.needs_input_grad[1] else None
+        else:
+            grad_x0 = None
 
         if ctx.needs_input_grad[2]:
             grad_p_global = _safe_sum(
-                _back(value_grad, "dvalue_dp_global"),
-                _back(u0_grad, "du0_dp_global"),
-                _back(x_grad, "dx_dp_global"),
-                _back(u_grad, "du_dp_global"),
+                _jacobian(value_grad, "dvalue_dp_global"),
+                _jacobian(u0_grad, "du0_dp_global"),
+                _adjoint(x_grad, u_grad, with_respect_to="p_global"),
             )
         else:
             grad_p_global = None
 
-        return (None, None, grad_u0, grad_p_global, None, None, None)
+        return (None, grad_x0, grad_u0, grad_p_global, None, None, None)
 
     def sensitivity(self, ctx, field_name: SensitivityField) -> np.ndarray:
         """
