@@ -50,6 +50,50 @@ def batch_iterates_equal(
     return True
 
 
+def solver_inputs_equal(
+    input1: AcadosSolverInput,
+    input2: AcadosSolverInput,
+    rtol: float = 1e-5,
+    atol: float = 1e-8,
+) -> bool:
+    """
+    Compare two AcadosSolverInput instances for equality.
+
+    Args:
+        input1: First solver input
+        input2: Second solver input
+        rtol: Relative tolerance for array comparisons
+        atol: Absolute tolerance for array comparisons
+
+    Returns:
+        True if all fields are equal within tolerance
+    """
+    # Compare x0 (required field)
+    if not np.allclose(input1.x0, input2.x0, rtol=rtol, atol=atol):
+        return False
+
+    # Compare optional array fields
+    optional_fields = ["u0", "p_global", "p_stagewise", "p_stagewise_sparse_idx"]
+
+    for field_name in optional_fields:
+        arr1 = getattr(input1, field_name)
+        arr2 = getattr(input2, field_name)
+
+        # Both None
+        if arr1 is None and arr2 is None:
+            continue
+
+        # One is None, the other is not
+        if arr1 is None or arr2 is None:
+            return False
+
+        # Both are arrays - compare with tolerance
+        if not np.allclose(arr1, arr2, rtol=rtol, atol=atol):
+            return False
+
+    return True
+
+
 def prepare_batch_solver(
     batch_solver: AcadosOcpBatchSolver,
     ocp_iterate: AcadosOcpFlattenedBatchIterate,
@@ -58,10 +102,9 @@ def prepare_batch_solver(
     # caching to improve performance
     if batch_solver in _PREPARE_CACHE:
         cached_ocp_iterate, cached_solver_input = _PREPARE_CACHE[batch_solver]
-        if (
-            batch_iterates_equal(cached_ocp_iterate, ocp_iterate)
-            and cached_solver_input == solver_input
-        ):
+        if batch_iterates_equal(
+            cached_ocp_iterate, ocp_iterate
+        ) and solver_inputs_equal(cached_solver_input, solver_input):
             return
     _PREPARE_CACHE[batch_solver] = (ocp_iterate, solver_input)
 
