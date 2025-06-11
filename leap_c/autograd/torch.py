@@ -1,6 +1,7 @@
 """This module creates PyTorch autograd functions"""
 
 import torch
+import numpy as np
 
 from leap_c.autograd.function import DiffFunction
 
@@ -25,12 +26,14 @@ def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]
 
     class AutogradFunction(torch.autograd.Function):
         @staticmethod
-        def forward(torch_ctx, *args, custom_ctx=None):
-            device = args[0].device
-            np_args = _to_np(args)
+        def forward(torch_ctx, *args):
+            custom_ctx, *non_ctx_args = args
+            device = non_ctx_args[0].device
+            np_args = _to_np(non_ctx_args)
 
-            custom_ctx, *outputs = fun.forward(*np_args, ctx=custom_ctx)  # type: ignore
+            custom_ctx, *outputs = fun.forward(*np_args, custom_ctx)  # type: ignore
             torch_ctx.custom_ctx = custom_ctx
+
 
             if len(outputs) == 1:
                 return custom_ctx, _to_tensor(outputs[0], device)
@@ -41,9 +44,9 @@ def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]
         def backward(torch_ctx, _, *grad_outputs):  # type: ignore
             device = grad_outputs[0].device
             custom_ctx = torch_ctx.custom_ctx
-            np_grad_outputs = _to_np(grad_outputs)
+            np_grad_outputs = [_to_np(g) for g in grad_outputs]
 
-            grad_inputs = fun.backward(custom_ctx, *np_grad_outputs)
+            grad_inputs = fun.backward(custom_ctx, *np_grad_outputs)  # type: ignore
 
             torch_grad_inputs = _to_tensor(grad_inputs, device)
 
@@ -53,7 +56,14 @@ def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]
 
 
 def _to_np(data):
-    return tuple(e.detach().cpu().numpy() for e in data)
+    if data is None:
+        return None
+    if isinstance(data, (tuple, list)):
+        return tuple(_to_np(item) for item in data)
+    try:
+        return data.detach().cpu().numpy()
+    except AttributeError:
+        return data
 
 
 def _to_tensor(data, device, dtype=torch.float32):

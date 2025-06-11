@@ -73,7 +73,7 @@ class AcadosImplicitLayer(nn.Module):
             A tuple containing the context and the output of the implicit function.
         """
         return self.autograd_function.apply(
-            x0, u0, p_global, p_stagewise, p_stagewise_sparse_idx, ctx
+            ctx, x0, u0, p_global, p_stagewise, p_stagewise_sparse_idx
         )
 
     def sensitivity(self, ctx, field_name: SensitivityField):
