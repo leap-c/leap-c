@@ -80,17 +80,18 @@ class AcadosImplicitFunction(DiffFunction):
 
     def forward(  # type: ignore
         self,
+        ctx: AcadosImplicitCtx | None,
         x0: np.ndarray,
         u0: np.ndarray | None = None,
         p_global: np.ndarray | None = None,
         p_stagewise: np.ndarray | None = None,
         p_stagewise_sparse_idx: np.ndarray | None = None,
-        ctx: AcadosImplicitCtx | None = None,
     ):
         """
         Perform the forward pass of the implicit function.
 
         Args:
+            ctx: An `AcadosImplicitCtx` object for storing context. Defaults to `None`.
             x0: Initial states with shape `(B, x_dim)`.
             u0: Initial actions with shape `(B, u_dim)`. Defaults to `None`.
             p_global: Global parameters shared across all stages,
@@ -106,7 +107,6 @@ class AcadosImplicitFunction(DiffFunction):
                 parameters. Shape is `(B, N+1, n_p_stagewise_sparse_idx)`.
                 For multi-phase MPC, this is a list of arrays (one per phase).
                 Defaults to `None`.
-            ctx: An `AcadosImplicitCtx` object for storing context. Defaults to `None`.
         """
         batch_size = x0.shape[0]
 
@@ -158,7 +158,7 @@ class AcadosImplicitFunction(DiffFunction):
             p_stagewise_grad: Gradient with respect to `p_stagewise`.
         """
         if ctx.needs_input_grad is None:
-            return (None, None, None, None, None, None, None)
+            return (None, None, None, None, None)
 
         def _adjoint(x_seed, u_seed, with_respect_to: str):
             # backpropagation via the adjoint operator
@@ -210,7 +210,7 @@ class AcadosImplicitFunction(DiffFunction):
         else:
             grad_p_global = None
 
-        return (None, grad_x0, grad_u0, grad_p_global, None, None, None)
+        return (None, grad_x0, grad_u0, grad_p_global, None)
 
     def sensitivity(self, ctx, field_name: SensitivityField) -> np.ndarray:
         """

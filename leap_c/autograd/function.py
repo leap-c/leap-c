@@ -47,7 +47,7 @@ class DiffFunction(ABC):
     """
 
     @abstractmethod
-    def forward(self, *inputs: np.ndarray | None, ctx=None):
+    def forward(self, ctx=None, *inputs: np.ndarray | None):
         """Computes the output of the function given inputs.
 
         Args:

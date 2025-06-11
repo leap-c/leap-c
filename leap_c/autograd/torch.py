@@ -1,7 +1,6 @@
 """This module creates PyTorch autograd functions"""
 
 import torch
-import numpy as np
 
 from leap_c.autograd.function import DiffFunction
 
@@ -15,6 +14,9 @@ def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]
 
     Args:
         fun: An object implementing `forward(custom_ctx, *args)` and
+            `backward(custom_ctx, *grad_outputs)` methods, where
+            `custom_ctx` is a context object that can be used to store
+            intermediate values for the backward pass.
 
     Returns:
         A PyTorch autograd function, wrapping the object.
@@ -31,9 +33,8 @@ def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]
             device = non_ctx_args[0].device
             np_args = _to_np(non_ctx_args)
 
-            custom_ctx, *outputs = fun.forward(*np_args, custom_ctx)  # type: ignore
+            custom_ctx, *outputs = fun.forward(custom_ctx, *np_args)  # type: ignore
             torch_ctx.custom_ctx = custom_ctx
-
 
             if len(outputs) == 1:
                 return custom_ctx, _to_tensor(outputs[0], device)
@@ -44,7 +45,7 @@ def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]
         def backward(torch_ctx, _, *grad_outputs):  # type: ignore
             device = grad_outputs[0].device
             custom_ctx = torch_ctx.custom_ctx
-            np_grad_outputs = [_to_np(g) for g in grad_outputs]
+            np_grad_outputs = _to_np(grad_outputs)
 
             grad_inputs = fun.backward(custom_ctx, *np_grad_outputs)  # type: ignore
 
