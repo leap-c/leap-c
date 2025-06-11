@@ -6,6 +6,10 @@ from leap_c.ocp.acados.implicit import (
     AcadosImplicitCtx,
     AcadosImplicitFunction,
 )
+import torch
+
+from leap_c.ocp.acados.torch import AcadosImplicitLayer
+
 from leap_c.ocp.acados.initializer import ZeroInitializer
 
 import conftest
@@ -19,12 +23,26 @@ def test_file_management(implicit_layer, export_dir):
     pass
 
 
-def test_ctx_loading(implicit_layer, export_dir):
+def test_ctx_loading(implicit_layer: AcadosImplicitLayer, export_dir):
     pass
 
 
-def test_forward_backward_sensitivity(test_ocp, export_dir):
+def test_forward_backward_sensitivity(
+    implicit_layer: AcadosImplicitLayer,
+    export_dir: str,
+    rng: np.random.Generator,
+):
     """Test the forward method of AcadosImplicitFunction."""
+
+    print(export_dir)
+
+    acados_ocp = implicit_layer.implicit_fun.ocp
+    n_batch = implicit_layer.implicit_fun.forward_batch_solver.N_batch_max
+
+    p_global = torch.tensor(acados_ocp.p_global_values).unsqueeze(0).repeat(n_batch, 1)
+
+    print("p_global shape:", p_global.shape)
+
     # x0 = np.vstack(
     #     [
     #         rng.normal(
@@ -34,7 +52,20 @@ def test_forward_backward_sensitivity(test_ocp, export_dir):
     #     ]
     # )
 
+    # Create the mean and std tensors
+    loc = torch.tensor(acados_ocp.constraints.x0).unsqueeze(0).repeat(n_batch, 1)
+    scale = torch.full((n_batch, acados_ocp.dims.nx), 0.1)
+
+    x0 = torch.normal(mean=loc, std=scale)
+
+    print("x0 shape:", x0.shape)
+
+    out = implicit_layer.forward(x0=x0)
+
+    print(out)
+
     # implicit_function = AcadosImplicitFunction(ocp=acados_ocp)
+
     # ctx, sol_u0, sol_x, sol_u, sol_value = implicit_function.forward(x0=x0)
 
     # assert isinstance(ctx, AcadosImplicitCtx)
