@@ -331,3 +331,15 @@ def implicit_layer(acados_test_ocp: AcadosOcp) -> AcadosImplicitLayer:
         sensitivity_ocp=None,
         discount_factor=None,
     )
+
+
+@pytest.fixture(scope="session")
+def export_dir(tmp_path_factory: pytest.TempPathFactory) -> str:
+    """Fixture to create a temporary directory for exporting files."""
+    return str(tmp_path_factory.mktemp("export_dir"))
+
+
+@pytest.fixture(scope="session")
+def rng() -> np.random.Generator:
+    """Fixture to provide a random number generator."""
+    return np.random.default_rng(42)
