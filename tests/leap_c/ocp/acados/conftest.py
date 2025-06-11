@@ -1,11 +1,3 @@
-# Test the following stuff:
-
-# 1. batch solver is shared, forward solver and backward solver are the same (EXACT)
-# 2. batch solver is not shared, forward solver and backward solver are different (GN, E)
-# 3. sensitivities wrt p_global
-# 4. ext_cost_p_global
-# 5.
-
 from collections.abc import Callable
 
 import casadi as ca
@@ -13,11 +5,8 @@ import numpy as np
 import pytest
 from acados_template import AcadosModel, AcadosOcp, AcadosOcpOptions
 from casadi.tools import entry, struct_symSX
-from scipy.linalg import block_diag
 
 from leap_c.ocp.acados.torch import AcadosImplicitLayer
-
-# we need one version exact
 
 
 def _process_params(
@@ -43,7 +32,7 @@ def find_param_in_p_or_p_global(
     if model.p_global is None:
         return {key: model.p[key] for key in param_name}  # type:ignore
     return {
-        key: (model.p[key] if key in model.p.keys() else model.p_global[key])  # type:ignore
+        key: (model.p[key] if key in model.p else model.p_global[key])  # type:ignore
         for key in param_name
     }
 
@@ -52,7 +41,7 @@ def translate_learnable_param_to_p_global(
     nominal_param: dict[str, np.ndarray],
     learnable_param: list[str],
     ocp: AcadosOcp,
-    verbose: bool = False,
+    verbosity: int = 0,
 ) -> AcadosOcp:
     if learnable_param:
         entries, values = _process_params(learnable_param, nominal_param)
@@ -65,7 +54,7 @@ def translate_learnable_param_to_p_global(
         ocp.model.p = struct_symSX(entries)
         ocp.parameter_values = np.concatenate(values).flatten()
 
-    if verbose:
+    if verbosity:
         print("learnable_params", learnable_param)
         print("non_learnable_params", non_learnable_params)
     return ocp
@@ -184,43 +173,40 @@ def get_cost_W(ocp: AcadosOcp) -> ca.SX:
     return ca.diag(ca.vertcat(q_diag, r_diag))
 
 
-def define_nonlinear_ls_cost(ocp: AcadosOcp):
+def get_cost_yref(ocp: AcadosOcp) -> ca.SX:
+    """Get the cost reference vector yref for the OCP."""
+    xref = find_param_in_p_or_p_global(["xref"], ocp.model)["xref"]
+    uref = find_param_in_p_or_p_global(["uref"], ocp.model)["uref"]
+
+    return ca.vertcat(xref, uref)
+
+
+def get_cost_yref_e(ocp: AcadosOcp) -> ca.SX:
+    """Get the cost reference vector yref_e for the OCP."""
+    return find_param_in_p_or_p_global(["xref_e"], ocp.model)["xref_e"]
+
+
+def define_nonlinear_ls_cost(ocp: AcadosOcp) -> None:
+    """Define the cost for the AcadosOcp as a nonlinear least squares cost."""
     ocp.cost.cost_type_0 = "NONLINEAR_LS"
     ocp.cost.cost_type = "NONLINEAR_LS"
     ocp.cost.cost_type_e = "NONLINEAR_LS"
 
+    ocp.cost.W_0 = get_cost_W(ocp=ocp)
     ocp.cost.W = get_cost_W(ocp=ocp)
     ocp.cost.W_e = ocp.cost.W[: ocp.dims.nx, : ocp.dims.nx]
 
-    ocp.cost.yref = ca.SX.sym("yref", ocp.dims.nx + ocp.dims.nu)
-    ocp.cost.yref_e = ca.SX.sym("yref_e", ocp.dims.nx)
+    ocp.cost.yref_0 = get_cost_yref(ocp=ocp)
+    ocp.cost.yref = get_cost_yref(ocp=ocp)
+    ocp.cost.yref_e = get_cost_yref_e(ocp=ocp)
 
+    ocp.model.cost_y_expr_0 = ca.vertcat(ocp.model.x, ocp.model.u)
     ocp.model.cost_y_expr = ca.vertcat(ocp.model.x, ocp.model.u)
     ocp.model.cost_y_expr_e = ocp.model.x
 
 
-def define_linear_ls_cost(ocp: AcadosOcp):
-    ocp.cost.cost_type_0 = "LINEAR_LS"
-    ocp.cost.cost_type = "LINEAR_LS"
-    ocp.cost.cost_type_e = "LINEAR_LS"
-
-    # ocp.cost.W = get_cost_W(ocp=ocp)
-    ocp.cost.W_0 = np.eye(ocp.dims.nx + ocp.dims.nu)
-    ocp.cost.W = np.eye(ocp.dims.nx + ocp.dims.nu)
-    ocp.cost.W_e = ocp.cost.W[: ocp.dims.nx, : ocp.dims.nx]
-
-    ocp.cost.Vx_0 = block_diag(np.eye(ocp.dims.nx), 0 * np.eye(ocp.dims.nu))
-    ocp.cost.Vu_0 = block_diag(0 * np.eye(ocp.dims.nx), np.eye(ocp.dims.nu))
-    ocp.cost.Vx = block_diag(np.eye(ocp.dims.nx), 0 * np.eye(ocp.dims.nu))
-    ocp.cost.Vu = block_diag(0 * np.eye(ocp.dims.nx), np.eye(ocp.dims.nu))
-    ocp.cost.Vx_e = np.eye(ocp.dims.nx)
-
-    ocp.cost.yref_0 = np.zeros(ocp.dims.nx + ocp.dims.nu)
-    ocp.cost.yref = np.zeros(ocp.dims.nx + ocp.dims.nu)
-    ocp.cost.yref_e = ocp.cost.yref[: ocp.dims.nx]
-
-
-def define_external_cost(ocp: AcadosOcp):
+def define_external_cost(ocp: AcadosOcp) -> None:
+    """Define the cost for the AcadosOcp as an external cost."""
     ocp.cost.cost_type_0 = "EXTERNAL"
     ocp.cost.cost_type = "EXTERNAL"
     ocp.cost.cost_type_e = "EXTERNAL"
@@ -229,21 +215,23 @@ def define_external_cost(ocp: AcadosOcp):
     ocp.model.cost_expr_ext_cost_e = get_cost_expr_ext_cost_e(ocp=ocp)
 
 
-@pytest.fixture(scope="session", params=["external", "linear_ls", "nonlinear_ls"])
-def ocp_cost_fun(request) -> Callable:
+@pytest.fixture(scope="session", params=["external", "nonlinear_ls"])
+def ocp_cost_fun(request: pytest.FixtureRequest) -> Callable:
     """Fixture to define the cost type for the AcadosOcp."""
     if request.param == "external":
         return define_external_cost
-    if request.param == "linear_ls":
-        return define_linear_ls_cost
     if request.param == "nonlinear_ls":
         return define_nonlinear_ls_cost
 
-    raise ValueError("Unknown cost function requested.")
+    class UnknownCostFunctionError(ValueError):
+        def __init__(self) -> None:
+            super().__init__("Unknown cost function requested.")
+
+    raise UnknownCostFunctionError
 
 
 @pytest.fixture(scope="session", params=["exact", "gn"])
-def ocp_options(request) -> AcadosOcpOptions:
+def ocp_options(request: pytest.FixtureRequest) -> AcadosOcpOptions:
     """Configure the OCP options."""
     ocp_options = AcadosOcpOptions()
     ocp_options.integrator_type = "DISCRETE"
@@ -336,7 +324,7 @@ def acados_test_ocp(ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions) -> Ac
 
 
 @pytest.fixture(scope="session")
-def implicit_layer(acados_test_ocp) -> AcadosImplicitLayer:
+def implicit_layer(acados_test_ocp: AcadosOcp) -> AcadosImplicitLayer:
     return AcadosImplicitLayer(
         ocp=acados_test_ocp,
         initializer=None,
