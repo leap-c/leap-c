@@ -40,17 +40,17 @@ class AcadosImplicitCtx:
 
 SensitivityField = Literal[
     "du0_dp_global",
+    "du0_dx0",
     "dx_dp_global",
     "du_dp_global",
     "dvalue_dp_global",
     "dvalue_du0",
+    "dvalue_dx0",
 ]
 
 
 class AcadosImplicitFunction(DiffFunction):
     """Function for differentiable implicit function based on Acados."""
-
-    ocp: AcadosOcp
 
     def __init__(
         self,
@@ -60,6 +60,7 @@ class AcadosImplicitFunction(DiffFunction):
         discount_factor: float | None = None,
         export_directory: Path | None = None,
     ) -> None:
+        self.ocp = ocp
         self.forward_batch_solver, self.backward_batch_solver = (
             create_forward_backward_batch_solvers(
                 ocp=ocp,
@@ -208,24 +209,67 @@ class AcadosImplicitFunction(DiffFunction):
 
         sens = None
         batch_size = ctx.solver_input.batch_size
-        ocp = self.batch_solver.ocp_solvers[0].ocp  # type: ignore
+        active_solvers = self.backward_batch_solver.ocp_solvers[:batch_size]
 
         if field_name == "du0_dp_global":
-            single_seed = np.eye(ocp.dims.nu)
-            seed_vec = np.repeat(single_seed[np.newaxis, :, :], batch_size, axis=0)
+            single_seed = np.eye(self.ocp.dims.nu)  # type: ignore
+            seed_vec = np.repeat(single_seed[None, :, :], batch_size, axis=0)
             sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
                 seed_x=[],
                 seed_u=[(0, seed_vec)],
                 with_respect_to="p_global",
                 sanity_checks=True,
             )
+        elif field_name == "dx_dp_global":
+            single_seed = np.eye(self.ocp.dims.nx)  # type: ignore
+            seed_vec = np.repeat(single_seed[None, :, :], batch_size, axis=0)
+            seed_x = [(stage_idx, seed_vec) for stage_idx in range(self.ocp.dims.N + 1)]  # type: ignore
+            sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
+                seed_x=seed_x,
+                seed_u=[],
+                with_respect_to="p_global",
+                sanity_checks=True,
+            )
+        elif field_name == "du_dp_global":
+            single_seed = np.eye(self.ocp.dims.nu)  # type: ignore
+            seed_vec = np.repeat(single_seed[None, :, :], batch_size, axis=0)
+            seed_u = [(stage_idx, seed_vec) for stage_idx in range(self.ocp.dims.N)]  # type: ignore
+            sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
+                seed_x=[],
+                seed_u=seed_u,
+                with_respect_to="p_global",
+                sanity_checks=True,
+            )
+        elif field_name == "du0_dx0":
+            sens = np.array(
+                [
+                    s.eval_solution_sensitivity(
+                        stages=0,
+                        with_respect_to="initial_state",
+                        return_sens_u=True,
+                        return_sens_x=False,
+                    )["sens_u"]
+                    for s in active_solvers
+                ]
+            )
         elif (
-            field_name == "dx_dp_global"
-            or field_name == "du_dp_global"
-            or field_name == "dvalue_dp_global"
+            field_name == "dvalue_dp_global"
+            or field_name == "dvalue_dx0"
             or field_name == "dvalue_du0"
         ):
-            raise NotImplementedError
+            with_respect_to = {
+                "dvalue_dp_global": "p_global",
+                "dvalue_dx0": "initial_state",
+                "dvalue_du0": "initial_control",
+            }[field_name]
+            sens = np.array(
+                [
+                    s.eval_and_get_optimal_value_gradient(with_respect_to)
+                    for s in active_solvers
+                ]
+            )
+        else:
+            raise ValueError
 
         setattr(ctx, field_name, sens)
 
