@@ -102,9 +102,7 @@ def prepare_batch_solver(
     # caching to improve performance
     if batch_solver in _PREPARE_CACHE:
         cached_ocp_iterate, cached_solver_input = _PREPARE_CACHE[batch_solver]
-        if batch_iterates_equal(
-            cached_ocp_iterate, ocp_iterate
-        ) and solver_inputs_equal(cached_solver_input, solver_input):
+        if cached_ocp_iterate is ocp_iterate and cached_solver_input is solver_input:
             return
     _PREPARE_CACHE[batch_solver] = (ocp_iterate, solver_input)
 
@@ -172,7 +170,7 @@ def prepare_batch_solver_for_backward(
 ):
     if batch_solver in _PREPARE_BACKWARD_CACHE:
         cached_ocp_iterate, cached_solver_input = _PREPARE_BACKWARD_CACHE[batch_solver]
-        if cached_ocp_iterate == ocp_iterate and cached_solver_input == solver_input:
+        if cached_ocp_iterate is ocp_iterate and cached_solver_input is solver_input:
             return
     _PREPARE_BACKWARD_CACHE[batch_solver] = (ocp_iterate, solver_input)
 

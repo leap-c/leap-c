@@ -284,11 +284,9 @@ def test_sensitivity(
 
     ctx, u0, x, u, value = implicit_layer.forward(x0=test_data.x0)
 
-    field_list = ["dvalue_dp_global", "dvalue_dx0", "dvalue_du0"]
-
     results = {
         field: implicit_layer.sensitivity(ctx=ctx, field_name=field)
-        for field in field_list
+        for field in ["dvalue_dp_global", "dvalue_dx0"]
     }
 
     assert results["dvalue_dp_global"].shape == (
@@ -308,6 +306,9 @@ def test_sensitivity(
         f" "
         f"Got: {results['dvalue_dx0'].shape}"
     )
+
+    ctx, u0, x, u, value = implicit_layer.forward(x0=test_data.x0, u0=test_data.u0)
+    results["dvalue_du0"] = implicit_layer.sensitivity(ctx=ctx, field_name="dvalue_du0")
 
     assert results["dvalue_du0"].shape == (
         n_batch,
