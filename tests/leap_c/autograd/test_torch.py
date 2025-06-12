@@ -6,7 +6,7 @@ from leap_c.autograd.torch import create_autograd_function
 
 
 class DummyFunction(DiffFunction):
-    def forward(self, x_np, ctx=None):  # type: ignore
+    def forward(self, ctx, x_np):  # type: ignore
         if ctx is None:
             ctx = SimpleNamespace()
         ctx.saved = x_np.copy()
@@ -23,7 +23,7 @@ def test_create_autograd_function():
     x = torch.tensor([1.0, 2.0, 3.0], requires_grad=True)
 
     autograd_fn = create_autograd_function(DummyFunction())
-    _, y = autograd_fn.apply(x)  # type: ignore
+    _, y = autograd_fn.apply(None, x)  # type: ignore
 
     expected_y = x.detach() ** 2 + 1
     assert torch.allclose(y, expected_y)  # type: ignore
@@ -34,7 +34,7 @@ def test_create_autograd_function():
 
 
 class DummyTupleFunction(DiffFunction):
-    def forward(self, x_np, y_np, ctx=None):  # type: ignore
+    def forward(self, ctx, x_np, y_np):  # type: ignore
         if ctx is None:
             ctx = SimpleNamespace()
         ctx.saved = (x_np.copy(), y_np.copy())
@@ -54,7 +54,7 @@ def test_create_autograd_function_with_tuples():
     y = torch.tensor([0.5, 1.5, 2.5], requires_grad=True)
 
     autograd_fn = create_autograd_function(DummyTupleFunction())
-    _, out1, out2 = autograd_fn.apply(x, y)  # type: ignore
+    _, out1, out2 = autograd_fn.apply(None, x, y)  # type: ignore
 
     expected_out1 = x + y
     expected_out2 = x * y

@@ -2,13 +2,13 @@ import numpy as np
 import torch
 from leap_c.examples.chain.mpc import ChainMpc
 from leap_c.examples.cartpole.mpc import CartPoleMPC
-from leap_c.examples.pointmass.mpc import PointMassMPC
+from leap_c.examples.pointmass.mpc import PointMassMpc
 from leap_c.ocp.acados.mpc import MpcInput, MpcParameter
 from leap_c.ocp.acados.layer import MpcSolutionModule
 
 
 def test_MPCSolutionModule_on_PointMassMPC(
-    learnable_point_mass_mpc_m: PointMassMPC,
+    learnable_point_mass_mpc_m: PointMassMpc,
     point_mass_mpc_p_global: np.ndarray,
     x0: np.ndarray = np.array([0.5, 0.5, 0.0, 0.0]),
     u0: np.ndarray = np.array([0.5, 0.5]),

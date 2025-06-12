@@ -2,14 +2,14 @@ import numpy as np
 
 import leap_c.torch.rl  # noqa: F401
 from leap_c.examples.pointmass.env import PointMassEnv
-from leap_c.examples.pointmass.mpc import PointMassMPC
+from leap_c.examples.pointmass.mpc import PointMassMpc
 
 MAX_FINAL_DIST = 1.0
 MAX_FINAL_VEL = 0.1
 
 
 def run_closed_loop(
-    mpc: PointMassMPC,
+    mpc: PointMassMpc,
     env: PointMassEnv,
     n_iter: int = int(2e2),
 ) -> tuple[np.ndarray, np.ndarray]:
@@ -38,7 +38,7 @@ def run_closed_loop(
 
 
 def test_run_closed_loop(
-    learnable_point_mass_mpc_m: PointMassMPC,
+    learnable_point_mass_mpc_m: PointMassMpc,
     point_mass_env: PointMassEnv,
     n_iter: int = int(2e2),
 ) -> None:
