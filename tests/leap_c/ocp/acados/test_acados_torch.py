@@ -17,6 +17,8 @@ import conftest
 from typing import Tuple, Callable
 from dataclasses import dataclass
 
+from acados_template import AcadosOcp
+
 
 def test_initialization(implicit_layer):
     assert True
@@ -105,25 +107,19 @@ def _setup_test_data(
     # Generate noisy global parameters
     loc = torch.tensor(ocp.p_global_values, dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
     scale = noise_scale * loc
-    p_global = torch.normal(mean=loc, std=scale, generator=generator).requires_grad_(
-        mode=True
-    )
+    p_global = torch.normal(mean=loc, std=scale, generator=generator).requires_grad_()
 
     # Setup initial state
     loc = torch.tensor(ocp.constraints.x0, dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
     scale = noise_scale * loc
-    x0_batch = torch.normal(mean=loc, std=scale, generator=generator).requires_grad_(
-        mode=True
-    )
+    x0_batch = torch.normal(mean=loc, std=scale, generator=generator).requires_grad_()
 
     # Setup initial control
     loc = (
         torch.tensor(np.zeros(ocp.dims.nu), dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
     )
     scale = noise_scale
-    u0_batch = torch.normal(mean=loc, std=scale, generator=generator).requires_grad_(
-        mode=True
-    )
+    u0_batch = torch.normal(mean=loc, std=scale, generator=generator).requires_grad_()
 
     assert x0_batch.shape == (n_batch, ocp.dims.nx), (
         f"x0 shape mismatch. Expected: {(n_batch, ocp.dims.nx)}, Got: {x0_batch.shape}"
@@ -146,6 +142,119 @@ def test_forward(
     implicit_layer: AcadosImplicitLayer,
     n_batch: int = 4,
     dtype: torch.dtype = torch.float64,
+    noise_scale: float = 0.05,
+) -> None:
+    """
+    Test the forward method of AcadosImplicitFunction with different input combinations.
+
+    Args:
+        implicit_layer: The implicit layer to test
+        n_batch: Number of batch samples
+        dtype: PyTorch data type for tensors
+        noise_scale: Scale factor for noise added to parameters
+        test_all_variants: If True, test all forward call variants
+    """
+    acados_ocp = implicit_layer.implicit_fun.ocp
+    n_batch = implicit_layer.implicit_fun.forward_batch_solver.N_batch_max
+
+    # Setup test data
+    test_data = _setup_test_data(implicit_layer, n_batch, dtype, noise_scale)
+
+    # Define test cases
+    test_cases = [
+        {
+            "name": "x0_only",
+            "kwargs": {"x0": test_data.x0},
+            "expected_output": "V",
+        },
+        {
+            "name": "x0_and_u0",
+            "kwargs": {"x0": test_data.x0, "u0": test_data.u0},
+            "expected_output": "Q",
+        },
+        {
+            "name": "x0_and_p_global",
+            "kwargs": {"x0": test_data.x0, "p_global": test_data.p_global},
+            "expected_output": "V",
+        },
+        {
+            "name": "all_parameters",
+            "kwargs": {
+                "x0": test_data.x0,
+                "u0": test_data.u0,
+                "p_global": test_data.p_global,
+            },
+            "expected_output": "Q",
+        },
+    ]
+
+    for test_case in test_cases:
+        print(f"Testing forward call: {test_case['name']}")
+        _run_single_forward_test(
+            implicit_layer,
+            test_case["kwargs"],
+            test_case["expected_output"],
+            n_batch,
+            acados_ocp,
+        )
+
+
+def _run_single_forward_test(
+    implicit_layer: AcadosImplicitLayer,
+    forward_kwargs: dict[str, torch.Tensor],
+    expected_output_type: str,
+    n_batch: int,
+    acados_ocp: AcadosOcp,
+) -> None:
+    """Run a single forward test with given parameters."""
+    # Call forward method
+    ctx, u0, x, u, value = implicit_layer.forward(**forward_kwargs)
+
+    # Validate solver status
+    assert np.all(ctx.status == 0), f"Forward method failed with status {ctx.status}"
+
+    # Validate output types
+    assert isinstance(ctx, AcadosImplicitCtx), (
+        "ctx should be an instance of AcadosImplicitCtx"
+    )
+    assert isinstance(u0, torch.Tensor), "u0 should be a torch.Tensor"
+    assert isinstance(x, torch.Tensor), "x should be a torch.Tensor"
+    assert isinstance(u, torch.Tensor), "u should be a torch.Tensor"
+    assert isinstance(value, torch.Tensor), "value should be a torch.Tensor"
+
+    expected_u0_shape = (n_batch, acados_ocp.dims.nu)
+    assert u0.shape == expected_u0_shape, (
+        f"u0 shape mismatch. Expected: {expected_u0_shape}, Got: {u0.shape}"
+    )
+
+    expected_x_shape = (
+        n_batch,
+        acados_ocp.dims.nx * (acados_ocp.solver_options.N_horizon + 1),
+    )
+    assert x.shape == expected_x_shape, (
+        f"x shape mismatch. Expected: {expected_x_shape}, Got: {x.shape}"
+    )
+
+    expected_u_shape = (
+        n_batch,
+        acados_ocp.dims.nu * acados_ocp.solver_options.N_horizon,
+    )
+    assert u.shape == expected_u_shape, (
+        f"u shape mismatch. Expected: {expected_u_shape}, Got: {u.shape}"
+    )
+
+    # Validate value shape (same for both V and Q)
+    expected_value_shape = (n_batch,)
+    assert value.shape == expected_value_shape, (
+        f"{expected_output_type} shape mismatch. Expected: {expected_value_shape}, Got: {value.shape}"
+    )
+
+
+######################
+def test_forward_old(
+    implicit_layer: AcadosImplicitLayer,
+    n_batch: int = 4,
+    dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
 ) -> None:
     """Test the forward method of AcadosImplicitFunction."""
@@ -160,8 +269,19 @@ def test_forward(
         f"x0 shape mismatch. Expected: {(n_batch, acados_ocp.dims.nx)}, Got: {x0.shape}"
     )
 
-    ctx, u0, x, u, V = implicit_layer.forward(x0=test_data.x0)
-    ctx, u0, x, u, Q = implicit_layer.forward(x0=test_data.x0, u0=test_data.u0)
+    ctx, u0, x, u, V = implicit_layer.forward(
+        x0=test_data.x0,
+    )
+
+    # ctx, u0, x, u, Q = implicit_layer.forward(
+    #     x0=test_data.x0,
+    #     u0=test_data.u0,
+    # )
+
+    # ctx, u0, x, u, V = implicit_layer.forward(
+    #     x0=test_data.x0,
+    #     p_global=test_data.p_global,
+    # )
 
     # Confirm forward method solution
     assert np.all(ctx.status) == 0, f"Forward method failed with status {ctx.status}"
@@ -174,7 +294,7 @@ def test_forward(
     assert isinstance(x, torch.Tensor), "x should be a torch.Tensor"
     assert isinstance(u, torch.Tensor), "u should be a torch.Tensor"
     assert isinstance(V, torch.Tensor), "V should be a torch.Tensor"
-    assert isinstance(Q, torch.Tensor), "Q should be a torch.Tensor"
+    # assert isinstance(Q, torch.Tensor), "Q should be a torch.Tensor"
 
     # Check shapes
     assert u0.shape == (n_batch, acados_ocp.dims.nu), (
@@ -189,7 +309,7 @@ def test_forward(
         acados_ocp.dims.nu * acados_ocp.solver_options.N_horizon,
     ), "u shape mismatch"
     assert V.shape == (n_batch,), "value shape mismatch"
-    assert Q.shape == (n_batch,), "value shape mismatch"
+    # assert Q.shape == (n_batch,), "value shape mismatch"
 
 
 def _create_test_function(
