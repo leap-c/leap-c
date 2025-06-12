@@ -98,22 +98,32 @@ def _setup_test_data(
     """Set up test data tensors with proper gradients enabled."""
     ocp = implicit_layer.implicit_fun.ocp
 
+    # Create a seeded generator
+    generator = torch.Generator()
+    generator.manual_seed(42)
+
     # Generate noisy global parameters
     loc = torch.tensor(ocp.p_global_values, dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
     scale = noise_scale * loc
-    p_global = torch.normal(mean=loc, std=scale).requires_grad_(True)
+    p_global = torch.normal(mean=loc, std=scale, generator=generator).requires_grad_(
+        mode=True
+    )
 
     # Setup initial state
     loc = torch.tensor(ocp.constraints.x0, dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
     scale = noise_scale * loc
-    x0_batch = torch.normal(mean=loc, std=scale).requires_grad_(True)
+    x0_batch = torch.normal(mean=loc, std=scale, generator=generator).requires_grad_(
+        mode=True
+    )
 
     # Setup initial control
     loc = (
         torch.tensor(np.zeros(ocp.dims.nu), dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
     )
     scale = noise_scale
-    u0_batch = torch.normal(mean=loc, std=scale).requires_grad_(True)
+    u0_batch = torch.normal(mean=loc, std=scale, generator=generator).requires_grad_(
+        mode=True
+    )
 
     assert x0_batch.shape == (n_batch, ocp.dims.nx), (
         f"x0 shape mismatch. Expected: {(n_batch, ocp.dims.nx)}, Got: {x0_batch.shape}"
@@ -134,10 +144,7 @@ def _setup_test_data(
 
 def test_forward(
     implicit_layer: AcadosImplicitLayer,
-    export_dir: str,
-    rng: np.random.Generator,
     n_batch: int = 4,
-    max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
 ):
