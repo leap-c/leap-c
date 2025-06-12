@@ -291,11 +291,7 @@ class AcadosImplicitFunction(DiffFunction):
                     for s in active_solvers
                 ]
             )
-        elif (
-            field_name == "dvalue_dp_global"
-            or field_name == "dvalue_dx0"
-            or field_name == "dvalue_du0"
-        ):
+        elif field_name in ["dvalue_dp_global", "dvalue_dx0", "dvalue_du0"]:
             with_respect_to = {
                 "dvalue_dp_global": "p_global",
                 "dvalue_dx0": "initial_state",

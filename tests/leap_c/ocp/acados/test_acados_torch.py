@@ -302,7 +302,7 @@ def test_sensitivity(
 
     assert results["dvalue_dx0"].shape == (
         n_batch,
-        implicit_layer.ocp.dims.nx * (implicit_layer.ocp.solver_options.N_horizon + 1),
+        implicit_layer.ocp.dims.nx,
     ), (
         f"dvalue_dx0 shape mismatch. Expected: {(n_batch, implicit_layer.ocp.dims.nx)},"
         f" "
