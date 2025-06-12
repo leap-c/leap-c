@@ -156,6 +156,59 @@ def test_forward(
         test_all_variants: If True, test all forward call variants
         verbosity: Level of verbosity for test output
     """
+
+    def _run_single_forward_test(
+        implicit_layer: AcadosImplicitLayer,
+        forward_kwargs: dict[str, torch.Tensor],
+        expected_output_type: str,
+        n_batch: int,
+        acados_ocp: AcadosOcp,
+    ) -> None:
+        """Run a single forward test with given parameters."""
+        # Call forward method
+        ctx, u0, x, u, value = implicit_layer.forward(**forward_kwargs)
+
+        # Validate solver status
+        assert np.all(ctx.status == 0), (
+            f"Forward method failed with status {ctx.status}"
+        )
+
+        # Validate output types
+        assert isinstance(ctx, AcadosImplicitCtx), (
+            "ctx should be an instance of AcadosImplicitCtx"
+        )
+        assert isinstance(u0, torch.Tensor), "u0 should be a torch.Tensor"
+        assert isinstance(x, torch.Tensor), "x should be a torch.Tensor"
+        assert isinstance(u, torch.Tensor), "u should be a torch.Tensor"
+        assert isinstance(value, torch.Tensor), "value should be a torch.Tensor"
+
+        expected_u0_shape = (n_batch, acados_ocp.dims.nu)
+        assert u0.shape == expected_u0_shape, (
+            f"u0 shape mismatch. Expected: {expected_u0_shape}, Got: {u0.shape}"
+        )
+
+        expected_x_shape = (
+            n_batch,
+            acados_ocp.dims.nx * (acados_ocp.solver_options.N_horizon + 1),
+        )
+        assert x.shape == expected_x_shape, (
+            f"x shape mismatch. Expected: {expected_x_shape}, Got: {x.shape}"
+        )
+
+        expected_u_shape = (
+            n_batch,
+            acados_ocp.dims.nu * acados_ocp.solver_options.N_horizon,
+        )
+        assert u.shape == expected_u_shape, (
+            f"u shape mismatch. Expected: {expected_u_shape}, Got: {u.shape}"
+        )
+
+        # Validate value shape (same for both V and Q)
+        expected_value_shape = (n_batch,)
+        assert value.shape == expected_value_shape, (
+            f"{expected_output_type} shape mismatch. Expected: {expected_value_shape}, Got: {value.shape}"
+        )
+
     acados_ocp = implicit_layer.implicit_fun.ocp
     n_batch = implicit_layer.implicit_fun.forward_batch_solver.N_batch_max
 
@@ -202,156 +255,7 @@ def test_forward(
         )
 
 
-def _run_single_forward_test(
-    implicit_layer: AcadosImplicitLayer,
-    forward_kwargs: dict[str, torch.Tensor],
-    expected_output_type: str,
-    n_batch: int,
-    acados_ocp: AcadosOcp,
-) -> None:
-    """Run a single forward test with given parameters."""
-    # Call forward method
-    ctx, u0, x, u, value = implicit_layer.forward(**forward_kwargs)
-
-    # Validate solver status
-    assert np.all(ctx.status == 0), f"Forward method failed with status {ctx.status}"
-
-    # Validate output types
-    assert isinstance(ctx, AcadosImplicitCtx), (
-        "ctx should be an instance of AcadosImplicitCtx"
-    )
-    assert isinstance(u0, torch.Tensor), "u0 should be a torch.Tensor"
-    assert isinstance(x, torch.Tensor), "x should be a torch.Tensor"
-    assert isinstance(u, torch.Tensor), "u should be a torch.Tensor"
-    assert isinstance(value, torch.Tensor), "value should be a torch.Tensor"
-
-    expected_u0_shape = (n_batch, acados_ocp.dims.nu)
-    assert u0.shape == expected_u0_shape, (
-        f"u0 shape mismatch. Expected: {expected_u0_shape}, Got: {u0.shape}"
-    )
-
-    expected_x_shape = (
-        n_batch,
-        acados_ocp.dims.nx * (acados_ocp.solver_options.N_horizon + 1),
-    )
-    assert x.shape == expected_x_shape, (
-        f"x shape mismatch. Expected: {expected_x_shape}, Got: {x.shape}"
-    )
-
-    expected_u_shape = (
-        n_batch,
-        acados_ocp.dims.nu * acados_ocp.solver_options.N_horizon,
-    )
-    assert u.shape == expected_u_shape, (
-        f"u shape mismatch. Expected: {expected_u_shape}, Got: {u.shape}"
-    )
-
-    # Validate value shape (same for both V and Q)
-    expected_value_shape = (n_batch,)
-    assert value.shape == expected_value_shape, (
-        f"{expected_output_type} shape mismatch. Expected: {expected_value_shape}, Got: {value.shape}"
-    )
-
-
-def _create_backward_test_function(
-    forward_func: Callable, output_selector: Callable[[tuple], torch.Tensor]
-) -> Callable:
-    """Create a test function that returns (output, status) tuple."""
-
-    def test_func(*args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
-        result = forward_func(*args, **kwargs)
-        ctx = result[0]
-        output = output_selector(result)
-        return output, torch.tensor(ctx.status, dtype=torch.float64)
-
-    return test_func
-
-
-# note: result 0:ctx, 1:u0, 2:x, 3:u, 4:value
-def _create_du0dx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
-    """Create test function for du0/dx0 gradient."""
-
-    def forward_func(x0):
-        return implicit_layer.forward(x0=x0)
-
-    return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
-
-
-def _create_dVdx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
-    """Create test function for dV/dx0 gradient."""
-
-    def forward_func(x0):
-        return implicit_layer.forward(x0=x0)
-
-    return _create_backward_test_function(
-        forward_func, lambda result: result[4]
-    )  # value
-
-
-def _create_dQdx0_test(
-    implicit_layer: AcadosImplicitLayer, u0: torch.Tensor
-) -> Callable:
-    """Create test function for dQ/dx0 gradient."""
-
-    def forward_func(x0):
-        return implicit_layer.forward(x0=x0, u0=u0)
-
-    return _create_backward_test_function(
-        forward_func, lambda result: result[4]
-    )  # value
-
-
-def _create_du0dp_global_test(
-    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
-) -> Callable:
-    """Create test function for du0/dp_global gradient."""
-
-    def forward_func(p_global):
-        return implicit_layer.forward(x0=x0, p_global=p_global)
-
-    return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
-
-
-def _create_dVdp_global_test(
-    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
-) -> Callable:
-    """Create test function for dV/dp_global gradient."""
-
-    def forward_func(p_global):
-        return implicit_layer.forward(x0=x0, p_global=p_global)
-
-    return _create_backward_test_function(
-        forward_func, lambda result: result[4]
-    )  # value
-
-
-def _create_dQdp_global_test(
-    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, u0: torch.Tensor
-) -> Callable:
-    """Create test function for dQ/dp_global gradient."""
-
-    def forward_func(p_global):
-        return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
-
-    return _create_backward_test_function(
-        forward_func, lambda result: result[4]
-    )  # value
-
-
-def _create_dQdu0_test(
-    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, p_global: torch.Tensor
-) -> Callable:
-    """Create test function for dQ/du0 gradient."""
-
-    def forward_func(u0):
-        return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
-
-    return _create_backward_test_function(
-        forward_func, lambda result: result[4]
-    )  # value
-
-
-def test_sensitivities_are_correct(
+def test_backward(
     implicit_layer: AcadosImplicitLayer,
     n_batch: int = 4,
     max_batch_size: int = 10,
@@ -368,12 +272,106 @@ def test_sensitivities_are_correct(
         dtype: PyTorch data type for tensors
         noise_scale: Scale factor for noise added to parameters
     """
-    # Validate batch size
-    if n_batch > max_batch_size:
-        raise ValueError(
-            f"Batch size {n_batch} exceeds maximum {max_batch_size}. "
-            "Large batch sizes make the test very slow."
-        )
+
+    def _create_backward_test_function(
+        forward_func: Callable, output_selector: Callable[[tuple], torch.Tensor]
+    ) -> Callable:
+        """Create a test function that returns (output, status) tuple."""
+
+        def test_func(*args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
+            result = forward_func(*args, **kwargs)
+            ctx = result[0]
+            output = output_selector(result)
+            return output, torch.tensor(ctx.status, dtype=torch.float64)
+
+        return test_func
+
+    # note: result 0:ctx, 1:u0, 2:x, 3:u, 4:value
+    def _create_du0dx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
+        """Create test function for du0/dx0 gradient."""
+
+        def forward_func(x0):
+            return implicit_layer.forward(x0=x0)
+
+        return _create_backward_test_function(
+            forward_func, lambda result: result[1]
+        )  # u0
+
+    def _create_dVdx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
+        """Create test function for dV/dx0 gradient."""
+
+        def forward_func(x0):
+            return implicit_layer.forward(x0=x0)
+
+        return _create_backward_test_function(
+            forward_func, lambda result: result[4]
+        )  # value
+
+    def _create_dQdx0_test(
+        implicit_layer: AcadosImplicitLayer, u0: torch.Tensor
+    ) -> Callable:
+        """Create test function for dQ/dx0 gradient."""
+
+        def forward_func(x0):
+            return implicit_layer.forward(x0=x0, u0=u0)
+
+        return _create_backward_test_function(
+            forward_func, lambda result: result[4]
+        )  # value
+
+    def _create_du0dp_global_test(
+        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
+    ) -> Callable:
+        """Create test function for du0/dp_global gradient."""
+
+        def forward_func(p_global):
+            return implicit_layer.forward(x0=x0, p_global=p_global)
+
+        return _create_backward_test_function(
+            forward_func, lambda result: result[1]
+        )  # u0
+
+    def _create_dVdp_global_test(
+        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
+    ) -> Callable:
+        """Create test function for dV/dp_global gradient."""
+
+        def forward_func(p_global):
+            return implicit_layer.forward(x0=x0, p_global=p_global)
+
+        return _create_backward_test_function(
+            forward_func, lambda result: result[4]
+        )  # value
+
+    def _create_dQdp_global_test(
+        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, u0: torch.Tensor
+    ) -> Callable:
+        """Create test function for dQ/dp_global gradient."""
+
+        def forward_func(p_global):
+            return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
+
+        return _create_backward_test_function(
+            forward_func, lambda result: result[4]
+        )  # value
+
+    def _create_dQdu0_test(
+        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, p_global: torch.Tensor
+    ) -> Callable:
+        """Create test function for dQ/du0 gradient."""
+
+        def forward_func(u0):
+            return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
+
+        return _create_backward_test_function(
+            forward_func, lambda result: result[4]
+        )  # value
+        # Validate batch size
+        if n_batch > max_batch_size:
+            raise ValueError(
+                f"Batch size {n_batch} exceeds maximum {max_batch_size}. "
+                "Large batch sizes make the test very slow."
+            )
 
     # Setup test data
     test_data = _setup_test_data(implicit_layer, n_batch, dtype, noise_scale)
