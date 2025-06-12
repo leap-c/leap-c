@@ -143,6 +143,7 @@ def test_forward(
     n_batch: int = 4,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.05,
+    verbosity: int = 0,
 ) -> None:
     """
     Test the forward method of AcadosImplicitFunction with different input combinations.
@@ -153,6 +154,7 @@ def test_forward(
         dtype: PyTorch data type for tensors
         noise_scale: Scale factor for noise added to parameters
         test_all_variants: If True, test all forward call variants
+        verbosity: Level of verbosity for test output
     """
     acados_ocp = implicit_layer.implicit_fun.ocp
     n_batch = implicit_layer.implicit_fun.forward_batch_solver.N_batch_max
@@ -189,7 +191,8 @@ def test_forward(
     ]
 
     for test_case in test_cases:
-        print(f"Testing forward call: {test_case['name']}")
+        if verbosity > 0:
+            print(f"Testing forward call: {test_case['name']}")
         _run_single_forward_test(
             implicit_layer,
             test_case["kwargs"],
@@ -250,69 +253,7 @@ def _run_single_forward_test(
     )
 
 
-######################
-def test_forward_old(
-    implicit_layer: AcadosImplicitLayer,
-    n_batch: int = 4,
-    dtype: torch.dtype = torch.float64,
-    noise_scale: float = 0.1,
-) -> None:
-    """Test the forward method of AcadosImplicitFunction."""
-    acados_ocp = implicit_layer.implicit_fun.ocp
-    n_batch = implicit_layer.implicit_fun.forward_batch_solver.N_batch_max
-
-    # Setup test data
-    test_data = _setup_test_data(implicit_layer, n_batch, dtype, noise_scale)
-    x0 = test_data.x0
-
-    assert x0.shape == (n_batch, acados_ocp.dims.nx), (
-        f"x0 shape mismatch. Expected: {(n_batch, acados_ocp.dims.nx)}, Got: {x0.shape}"
-    )
-
-    ctx, u0, x, u, V = implicit_layer.forward(
-        x0=test_data.x0,
-    )
-
-    # ctx, u0, x, u, Q = implicit_layer.forward(
-    #     x0=test_data.x0,
-    #     u0=test_data.u0,
-    # )
-
-    # ctx, u0, x, u, V = implicit_layer.forward(
-    #     x0=test_data.x0,
-    #     p_global=test_data.p_global,
-    # )
-
-    # Confirm forward method solution
-    assert np.all(ctx.status) == 0, f"Forward method failed with status {ctx.status}"
-
-    # Check types
-    assert isinstance(ctx, AcadosImplicitCtx), (
-        "ctx should be an instance of AcadosImplicitCtx"
-    )
-    assert isinstance(u0, torch.Tensor), "u0 should be a torch.Tensor"
-    assert isinstance(x, torch.Tensor), "x should be a torch.Tensor"
-    assert isinstance(u, torch.Tensor), "u should be a torch.Tensor"
-    assert isinstance(V, torch.Tensor), "V should be a torch.Tensor"
-    # assert isinstance(Q, torch.Tensor), "Q should be a torch.Tensor"
-
-    # Check shapes
-    assert u0.shape == (n_batch, acados_ocp.dims.nu), (
-        f"u0 shape mismatch. Expected: {(n_batch, acados_ocp.dims.nu)}, Got: {u0.shape}"
-    )
-    assert x.shape == (
-        n_batch,
-        acados_ocp.dims.nx * (acados_ocp.solver_options.N_horizon + 1),
-    ), "x shape mismatch"
-    assert u.shape == (
-        n_batch,
-        acados_ocp.dims.nu * acados_ocp.solver_options.N_horizon,
-    ), "u shape mismatch"
-    assert V.shape == (n_batch,), "value shape mismatch"
-    # assert Q.shape == (n_batch,), "value shape mismatch"
-
-
-def _create_test_function(
+def _create_backward_test_function(
     forward_func: Callable, output_selector: Callable[[tuple], torch.Tensor]
 ) -> Callable:
     """Create a test function that returns (output, status) tuple."""
@@ -333,7 +274,7 @@ def _create_du0dx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
     def forward_func(x0):
         return implicit_layer.forward(x0=x0)
 
-    return _create_test_function(forward_func, lambda result: result[1])  # u0
+    return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
 
 
 def _create_dVdx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
@@ -342,7 +283,9 @@ def _create_dVdx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
     def forward_func(x0):
         return implicit_layer.forward(x0=x0)
 
-    return _create_test_function(forward_func, lambda result: result[4])  # value
+    return _create_backward_test_function(
+        forward_func, lambda result: result[4]
+    )  # value
 
 
 def _create_dQdx0_test(
@@ -353,7 +296,9 @@ def _create_dQdx0_test(
     def forward_func(x0):
         return implicit_layer.forward(x0=x0, u0=u0)
 
-    return _create_test_function(forward_func, lambda result: result[4])  # value
+    return _create_backward_test_function(
+        forward_func, lambda result: result[4]
+    )  # value
 
 
 def _create_du0dp_global_test(
@@ -364,7 +309,7 @@ def _create_du0dp_global_test(
     def forward_func(p_global):
         return implicit_layer.forward(x0=x0, p_global=p_global)
 
-    return _create_test_function(forward_func, lambda result: result[1])  # u0
+    return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
 
 
 def _create_dVdp_global_test(
@@ -375,7 +320,9 @@ def _create_dVdp_global_test(
     def forward_func(p_global):
         return implicit_layer.forward(x0=x0, p_global=p_global)
 
-    return _create_test_function(forward_func, lambda result: result[4])  # value
+    return _create_backward_test_function(
+        forward_func, lambda result: result[4]
+    )  # value
 
 
 def _create_dQdp_global_test(
@@ -386,7 +333,9 @@ def _create_dQdp_global_test(
     def forward_func(p_global):
         return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
 
-    return _create_test_function(forward_func, lambda result: result[4])  # value
+    return _create_backward_test_function(
+        forward_func, lambda result: result[4]
+    )  # value
 
 
 def _create_dQdu0_test(
@@ -397,7 +346,9 @@ def _create_dQdu0_test(
     def forward_func(u0):
         return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
 
-    return _create_test_function(forward_func, lambda result: result[4])  # value
+    return _create_backward_test_function(
+        forward_func, lambda result: result[4]
+    )  # value
 
 
 def test_sensitivities_are_correct(
