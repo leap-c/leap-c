@@ -30,70 +30,6 @@ def test_ctx_loading(implicit_layer: AcadosImplicitLayer, export_dir):
     pass
 
 
-def test_forward_backward_sensitivity(
-    implicit_layer: AcadosImplicitLayer,
-    export_dir: str,
-    rng: np.random.Generator,
-):
-    """Test the forward method of AcadosImplicitFunction."""
-
-    print(export_dir)
-
-    acados_ocp = implicit_layer.implicit_fun.ocp
-    n_batch = implicit_layer.implicit_fun.forward_batch_solver.N_batch_max
-
-    p_global = torch.tensor(acados_ocp.p_global_values).unsqueeze(0).repeat(n_batch, 1)
-
-    print("p_global shape:", p_global.shape)
-
-    # x0 = np.vstack(
-    #     [
-    #         rng.normal(
-    #             loc=acados_ocp.constraints.x0, scale=0.1, size=acados_ocp.dims.nx
-    #         )
-    #         for _ in range(n_batch)
-    #     ]
-    # )
-
-    # Create the mean and std tensors
-    loc = torch.tensor(acados_ocp.constraints.x0).unsqueeze(0).repeat(n_batch, 1)
-    scale = torch.full((n_batch, acados_ocp.dims.nx), 0.1)
-
-    x0 = torch.normal(mean=loc, std=scale)
-
-    print("x0 shape:", x0.shape)
-
-    out = implicit_layer.forward(x0=x0)
-
-    print(out)
-
-    # implicit_function = AcadosImplicitFunction(ocp=acados_ocp)
-
-    # ctx, sol_u0, sol_x, sol_u, sol_value = implicit_function.forward(x0=x0)
-
-    # assert isinstance(ctx, AcadosImplicitCtx)
-    # assert sol_u0 is not None
-    # assert sol_x is not None
-    # assert sol_u is not None
-    # assert sol_value is not None
-
-    # gradients = implicit_function.backward(
-    #     ctx=ctx, u0_grad=None, x_grad=None, u_grad=None, value_grad=None
-    # )
-
-    # grad_u0 = gradients[2]
-    # grad_p_global = gradients[3]
-
-    # assert grad_u0 is not None
-    # assert grad_p_global is not None
-
-    # du0_dp_global = implicit_function.sensitivity(ctx, "du0_dp_global")
-
-    # assert du0_dp_global is not None
-
-    assert True
-
-
 def test_translations(test_ocp, export_dir):
     # Test the translations of the cost between [external, linear_ls, nonlinear_ls] to external
     pass
@@ -159,7 +95,7 @@ def _setup_test_data(
     dtype: torch.dtype,
     noise_scale: float,
 ) -> TestData:
-    """Setup test data tensors with proper gradients enabled."""
+    """Set up test data tensors with proper gradients enabled."""
     ocp = implicit_layer.implicit_fun.ocp
 
     # Generate noisy global parameters
@@ -173,10 +109,84 @@ def _setup_test_data(
     x0_batch = torch.normal(mean=loc, std=scale).requires_grad_(True)
 
     # Setup initial control
-    u0 = torch.zeros(ocp.dims.nu, dtype=dtype)
-    u0_batch = u0.unsqueeze(0).repeat(n_batch, 1).requires_grad_(True)
+    loc = (
+        torch.tensor(np.zeros(ocp.dims.nu), dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
+    )
+    scale = noise_scale
+    u0_batch = torch.normal(mean=loc, std=scale).requires_grad_(True)
+
+    assert x0_batch.shape == (n_batch, ocp.dims.nx), (
+        f"x0 shape mismatch. Expected: {(n_batch, ocp.dims.nx)}, Got: {x0_batch.shape}"
+    )
+    assert u0_batch.shape == (n_batch, ocp.dims.nu), (
+        f"u0 shape mismatch. Expected: {(n_batch, ocp.dims.nu)}, Got: {u0_batch.shape}"
+    )
+    assert p_global.shape == (n_batch, ocp.dims.np_global), (
+        f"p_global shape mismatch. Expected: {(n_batch, ocp.dims.np_global)}, \
+        Got: {p_global.shape}"
+    )
+    assert x0_batch.requires_grad, "x0_batch should require gradients"
+    assert u0_batch.requires_grad, "u0_batch should require gradients"
+    assert p_global.requires_grad, "p_global should require gradients"
 
     return TestData(x0=x0_batch, u0=u0_batch, p_global=p_global)
+
+
+def test_forward(
+    implicit_layer: AcadosImplicitLayer,
+    export_dir: str,
+    rng: np.random.Generator,
+    n_batch: int = 4,
+    max_batch_size: int = 10,
+    dtype: torch.dtype = torch.float64,
+    noise_scale: float = 0.1,
+):
+    """Test the forward method of AcadosImplicitFunction."""
+
+    acados_ocp = implicit_layer.implicit_fun.ocp
+    n_batch = implicit_layer.implicit_fun.forward_batch_solver.N_batch_max
+
+    p_global = torch.tensor(acados_ocp.p_global_values).unsqueeze(0).repeat(n_batch, 1)
+
+    print("p_global shape:", p_global.shape)
+
+    # Setup test data
+    test_data = _setup_test_data(implicit_layer, n_batch, dtype, noise_scale)
+    x0 = test_data.x0
+
+    assert x0.shape == (n_batch, acados_ocp.dims.nx), (
+        f"x0 shape mismatch. Expected: {(n_batch, acados_ocp.dims.nx)}, Got: {x0.shape}"
+    )
+
+    ctx, u0, x, u, value = implicit_layer.forward(x0=test_data.x0)
+
+    # Confirm forward method solution
+    assert np.all(ctx.status) == 0, f"Forward method failed with status {ctx.status}"
+
+    # Check types
+    assert isinstance(ctx, AcadosImplicitCtx), (
+        "ctx should be an instance of AcadosImplicitCtx"
+    )
+    assert isinstance(u0, torch.Tensor), "x0 should be a torch.Tensor"
+    assert isinstance(x, torch.Tensor), "x should be a torch.Tensor"
+    assert isinstance(u, torch.Tensor), "u should be a torch.Tensor"
+    assert isinstance(value, torch.Tensor), "value should be a torch.Tensor"
+
+    # Check shapes
+    assert u0.shape == (n_batch, acados_ocp.dims.nu), (
+        f"u0 shape mismatch. Expected: {(n_batch, acados_ocp.dims.nu)}, Got: {u0.shape}"
+    )
+    assert x.shape == (
+        n_batch,
+        acados_ocp.dims.nx * (acados_ocp.solver_options.N_horizon + 1),
+    ), "x shape mismatch"
+    assert u.shape == (
+        n_batch,
+        acados_ocp.dims.nu * acados_ocp.solver_options.N_horizon,
+    ), "u shape mismatch"
+    assert value.shape == (n_batch,), "value shape mismatch"
+
+    assert True
 
 
 def _create_test_function(
@@ -303,8 +313,8 @@ def test_sensitivities_are_correct(
 
     # Define test cases
     test_cases = [
-        ("du0/dx0", _create_du0dx0_test(implicit_layer), test_data.x0, "standard"),
         ("dV/dx0", _create_dVdx0_test(implicit_layer), test_data.x0, "standard"),
+        ("du0/dx0", _create_du0dx0_test(implicit_layer), test_data.x0, "standard"),
         (
             "dQ/dx0",
             _create_dQdx0_test(implicit_layer, test_data.u0),
