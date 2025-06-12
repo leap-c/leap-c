@@ -135,7 +135,7 @@ class AcadosImplicitFunction(DiffFunction):
             iterate=sol_iterate, log=log, status=status, solver_input=solver_input
         )
         sol_value = np.array([s.get_cost() for s in active_solvers])
-        sol_u0 = sol_iterate.u[0, :]
+        sol_u0 = sol_iterate.u[:, : self.ocp.dims.nu]
 
         return ctx, sol_u0, sol_iterate.x, sol_iterate.u, sol_value
 
@@ -165,13 +165,23 @@ class AcadosImplicitFunction(DiffFunction):
             if x_seed is None and u_seed is None:
                 return None
 
-            x_seed_with_stage = [
-                (stage_idx, x_seed) for stage_idx in range(self.ocp.dims.N + 1)  # type: ignore
-            ] if x_seed is not None else []
+            x_seed_with_stage = (
+                [
+                    (stage_idx, x_seed)
+                    for stage_idx in range(self.ocp.dims.N + 1)  # type: ignore
+                ]
+                if x_seed is not None
+                else []
+            )
 
-            u_seed_with_stage = [
-                (stage_idx, u_seed) for stage_idx in range(self.ocp.dims.N)  # type: ignore
-            ] if u_seed is not None else []
+            u_seed_with_stage = (
+                [
+                    (stage_idx, u_seed)
+                    for stage_idx in range(self.ocp.dims.N)  # type: ignore
+                ]
+                if u_seed is not None
+                else []
+            )
 
             return self.backward_batch_solver.eval_adjoint_solution_sensitivity(
                 seed_x=x_seed_with_stage,
@@ -192,12 +202,16 @@ class AcadosImplicitFunction(DiffFunction):
             return np.sum(filtered_args, axis=0)
 
         if ctx.needs_input_grad[0]:
-            grad_u0 = _jacobian(value_grad, "dvalue_du0") if ctx.needs_input_grad[0] else None
+            grad_u0 = (
+                _jacobian(value_grad, "dvalue_du0") if ctx.needs_input_grad[0] else None
+            )
         else:
             grad_u0 = None
 
         if ctx.needs_input_grad[1]:
-            grad_x0 = _jacobian(value_grad, "dvalue_dx0") if ctx.needs_input_grad[1] else None
+            grad_x0 = (
+                _jacobian(value_grad, "dvalue_dx0") if ctx.needs_input_grad[1] else None
+            )
         else:
             grad_x0 = None
 
