@@ -255,6 +255,70 @@ def test_forward(
         )
 
 
+def test_sensitivity(
+    implicit_layer: AcadosImplicitLayer,
+    n_batch: int = 4,
+    max_batch_size: int = 10,
+    dtype: torch.dtype = torch.float64,
+    noise_scale: float = 0.1,
+) -> None:
+    """
+    Test sensitivity of AcadosImplicitLayer to changes in parameters.
+
+    Args:
+        implicit_layer: The implicit layer to test
+        n_batch: Number of batch samples to generate
+        max_batch_size: Maximum allowed batch size for performance
+        dtype: PyTorch data type for tensors
+        noise_scale: Scale factor for noise added to parameters
+    """
+    # Validate batch size
+    if n_batch > max_batch_size:
+        raise ValueError(
+            f"Batch size {n_batch} exceeds maximum {max_batch_size}. "
+            "Large batch sizes make the test very slow."
+        )
+
+    # Setup test data
+    test_data = _setup_test_data(implicit_layer, n_batch, dtype, noise_scale)
+
+    ctx, u0, x, u, value = implicit_layer.forward(x0=test_data.x0)
+
+    field_list = ["dvalue_dp_global", "dvalue_dx0", "dvalue_du0"]
+
+    results = {
+        field: implicit_layer.sensitivity(ctx=ctx, field_name=field)
+        for field in field_list
+    }
+
+    assert results["dvalue_dp_global"].shape == (
+        n_batch,
+        implicit_layer.ocp.dims.np_global,
+    ), (
+        f"dvalue_dp_global shape mismatch. Expected: \
+            {(n_batch, implicit_layer.ocp.dims.np_global)}, "
+        f"Got: {results['dvalue_dp_global'].shape}"
+    )
+
+    assert results["dvalue_dx0"].shape == (
+        n_batch,
+        implicit_layer.ocp.dims.nx * (implicit_layer.ocp.solver_options.N_horizon + 1),
+    ), (
+        f"dvalue_dx0 shape mismatch. Expected: {(n_batch, implicit_layer.ocp.dims.nx)},"
+        f" "
+        f"Got: {results['dvalue_dx0'].shape}"
+    )
+
+    assert results["dvalue_du0"].shape == (
+        n_batch,
+        implicit_layer.ocp.dims.nu,
+    ), (
+        f"dvalue_du0 shape mismatch. Expected: {(n_batch, implicit_layer.ocp.dims.nu)},"
+        f" "
+        f"Got: {results['dvalue_du0'].shape}"
+    )
+
+
 def test_backward(
     implicit_layer: AcadosImplicitLayer,
     n_batch: int = 4,
