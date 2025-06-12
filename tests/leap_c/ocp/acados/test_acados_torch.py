@@ -147,15 +147,10 @@ def test_forward(
     n_batch: int = 4,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
-):
+) -> None:
     """Test the forward method of AcadosImplicitFunction."""
-
     acados_ocp = implicit_layer.implicit_fun.ocp
     n_batch = implicit_layer.implicit_fun.forward_batch_solver.N_batch_max
-
-    p_global = torch.tensor(acados_ocp.p_global_values).unsqueeze(0).repeat(n_batch, 1)
-
-    print("p_global shape:", p_global.shape)
 
     # Setup test data
     test_data = _setup_test_data(implicit_layer, n_batch, dtype, noise_scale)
@@ -165,7 +160,8 @@ def test_forward(
         f"x0 shape mismatch. Expected: {(n_batch, acados_ocp.dims.nx)}, Got: {x0.shape}"
     )
 
-    ctx, u0, x, u, value = implicit_layer.forward(x0=test_data.x0)
+    ctx, u0, x, u, V = implicit_layer.forward(x0=test_data.x0)
+    ctx, u0, x, u, Q = implicit_layer.forward(x0=test_data.x0, u0=test_data.u0)
 
     # Confirm forward method solution
     assert np.all(ctx.status) == 0, f"Forward method failed with status {ctx.status}"
@@ -174,10 +170,11 @@ def test_forward(
     assert isinstance(ctx, AcadosImplicitCtx), (
         "ctx should be an instance of AcadosImplicitCtx"
     )
-    assert isinstance(u0, torch.Tensor), "x0 should be a torch.Tensor"
+    assert isinstance(u0, torch.Tensor), "u0 should be a torch.Tensor"
     assert isinstance(x, torch.Tensor), "x should be a torch.Tensor"
     assert isinstance(u, torch.Tensor), "u should be a torch.Tensor"
-    assert isinstance(value, torch.Tensor), "value should be a torch.Tensor"
+    assert isinstance(V, torch.Tensor), "V should be a torch.Tensor"
+    assert isinstance(Q, torch.Tensor), "Q should be a torch.Tensor"
 
     # Check shapes
     assert u0.shape == (n_batch, acados_ocp.dims.nu), (
@@ -191,9 +188,8 @@ def test_forward(
         n_batch,
         acados_ocp.dims.nu * acados_ocp.solver_options.N_horizon,
     ), "u shape mismatch"
-    assert value.shape == (n_batch,), "value shape mismatch"
-
-    assert True
+    assert V.shape == (n_batch,), "value shape mismatch"
+    assert Q.shape == (n_batch,), "value shape mismatch"
 
 
 def _create_test_function(
