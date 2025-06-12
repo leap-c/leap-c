@@ -33,10 +33,11 @@ class AcadosImplicitCtx:
     # sensitivity fields
     du0_dp_global: np.ndarray | None = None
     du0_dx0: np.ndarray | None = None
-    dvalue_du: np.ndarray | None = None
+    dvalue_du0: np.ndarray | None = None
     dvalue_dx0: np.ndarray | None = None
     dx_dp_global: np.ndarray | None = None
     du_dp_global: np.ndarray | None = None
+    dvalue_dp_global: np.ndarray | None = None
 
 
 SensitivityField = Literal[
