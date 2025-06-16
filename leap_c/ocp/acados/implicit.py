@@ -199,8 +199,13 @@ class AcadosImplicitFunction(DiffFunction):
             if output_grad is None or np.all(output_grad == 0):
                 return None
 
+            if output_grad.ndim == 1:
+                return np.einsum(
+                    "bj,b->bj", self.sensitivity(ctx, field_name), output_grad
+                )
+
             return np.einsum(
-                "bi...,bi->b...", self.sensitivity(ctx, field_name), output_grad
+                "bij,bi->bj", self.sensitivity(ctx, field_name), output_grad
             )
 
         def _safe_sum(*args):
@@ -210,17 +215,17 @@ class AcadosImplicitFunction(DiffFunction):
             return np.sum(filtered_args, axis=0)
 
         if ctx.needs_input_grad[1]:
-            grad_u0 = _safe_sum(
-                _jacobian(value_grad, "dvalue_du0"),
+            grad_x0 = _safe_sum(
+                _jacobian(value_grad, "dvalue_dx0"),
                 _jacobian(u0_grad, "du0_dx0"),
             )
         else:
-            grad_u0 = None
+            grad_x0 = None
 
         if ctx.needs_input_grad[2]:
-            grad_x0 = _jacobian(value_grad, "dvalue_dx0")
+            grad_u0 = _jacobian(value_grad, "dvalue_du0")
         else:
-            grad_x0 = None
+            grad_u0 = None
 
         if ctx.needs_input_grad[3]:
             grad_p_global = _safe_sum(

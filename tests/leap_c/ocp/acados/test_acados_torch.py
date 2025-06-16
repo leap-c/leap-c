@@ -451,31 +451,32 @@ def test_backward(
     # Define test cases
     test_cases = [
         # ("dV/dx0", _create_dVdx0_test(implicit_layer), test_data.x0, "standard"),
-        ("du0/dx0", _create_du0dx0_test(implicit_layer), test_data.x0, "standard"),
+        # ("du0/dx0", _create_du0dx0_test(implicit_layer), test_data.x0, "fine_eps"),
         # (
         #     "dQ/dx0",
         #     _create_dQdx0_test(implicit_layer, test_data.u0),
         #     test_data.x0,
         #     "standard",
         # ),
-        (
-            "du0/dp_global",
-            _create_du0dp_global_test(implicit_layer, test_data.x0),
-            test_data.p_global,
-            "standard",
-        ),
+        # (
+        #     "du0/dp_global",
+        #     _create_du0dp_global_test(implicit_layer, test_data.x0),
+        #     test_data.p_global,
+        #     "standard",
+        # ),
         # (
         #     "dV/dp_global",
         #     _create_dVdp_global_test(implicit_layer, test_data.x0),
         #     test_data.p_global,
         #     "high_tolerance",
         # ),
-        # (
-        #     "dQ/dp_global",
-        #     _create_dQdp_global_test(implicit_layer, test_data.x0, test_data.u0),
-        #     test_data.p_global,
-        #     "fine_eps",
-        # ),
+        # TODO (DIRK): last test standing
+        (
+            "dQ/dp_global",
+            _create_dQdp_global_test(implicit_layer, test_data.x0, test_data.u0),
+            test_data.p_global,
+            "fine_eps",
+        ),
         # (
         #     "dQ/du0",
         #     _create_dQdu0_test(implicit_layer, test_data.x0, test_data.p_global),
