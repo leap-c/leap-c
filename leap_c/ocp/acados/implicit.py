@@ -166,6 +166,10 @@ class AcadosImplicitFunction(DiffFunction):
             if x_seed is None and u_seed is None:
                 return None
 
+            # Check if x_seed and u_seed are all zeros
+            if np.all(x_seed == 0) and np.all(u_seed == 0):
+                return None
+
             x_seed_with_stage = (
                 [
                     (stage_idx, x_seed)
@@ -192,9 +196,12 @@ class AcadosImplicitFunction(DiffFunction):
             )
 
         def _jacobian(output_grad, field_name: SensitivityField):
-            if output_grad is None:
+            if output_grad is None or np.all(output_grad == 0):
                 return None
-            return self.sensitivity(ctx, field_name) @ output_grad
+
+            return np.einsum(
+                "bi...,bi->b...", self.sensitivity(ctx, field_name), output_grad
+            )
 
         def _safe_sum(*args):
             filtered_args = [a for a in args if a is not None]
@@ -202,21 +209,21 @@ class AcadosImplicitFunction(DiffFunction):
                 return None
             return np.sum(filtered_args, axis=0)
 
-        if ctx.needs_input_grad[0]:
+        if ctx.needs_input_grad[1]:
             grad_u0 = (
                 _jacobian(value_grad, "dvalue_du0") if ctx.needs_input_grad[0] else None
             )
         else:
             grad_u0 = None
 
-        if ctx.needs_input_grad[1]:
+        if ctx.needs_input_grad[2]:
             grad_x0 = (
                 _jacobian(value_grad, "dvalue_dx0") if ctx.needs_input_grad[1] else None
             )
         else:
             grad_x0 = None
 
-        if ctx.needs_input_grad[2]:
+        if ctx.needs_input_grad[3]:
             grad_p_global = _safe_sum(
                 _jacobian(value_grad, "dvalue_dp_global"),
                 _jacobian(u0_grad, "du0_dp_global"),
