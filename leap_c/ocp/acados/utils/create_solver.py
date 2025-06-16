@@ -130,9 +130,12 @@ def create_forward_backward_batch_solvers(
             sensitivity_ocp.solver_options.N_horizon
         )
         sensitivity_ocp.solver_options.hessian_approx = "EXACT"
-        sensitivity_ocp.solver_options.exact_hess_dyn = True
-        sensitivity_ocp.solver_options.exact_hess_cost = True
+        sensitivity_ocp.solver_options.regularize_method = "NO_REGULARIZE"
+        # sensitivity_ocp.solver_options.levenberg_marquardt = 0.0
         sensitivity_ocp.solver_options.exact_hess_constr = True
+        sensitivity_ocp.solver_options.exact_hess_cost = True
+        sensitivity_ocp.solver_options.exact_hess_dyn = True
+        sensitivity_ocp.solver_options.fixed_hess = 0
         sensitivity_ocp.solver_options.with_solution_sens_wrt_params = True
         sensitivity_ocp.solver_options.with_value_sens_wrt_params = True
 
@@ -145,6 +148,17 @@ def create_forward_backward_batch_solvers(
         n_batch_max=n_batch_max,
         num_threads=num_threads,
     )
+
+    # test_solver = AcadosOcpSolver(sensitivity_ocp)
+    # print(f"test_solver.__uses_exact_hessian: {test_solver.__uses_exact_hessian}")
+
+    # print(
+    #     f"test_solver._AcadosOcpSolver__uses_exact_hessian: {test_solver._AcadosOcpSolver__uses_exact_hessian}"
+    # )
+
+    # print(
+    #     f"solver.__uses_exact_hessian: {backward_batch_solver.ocp_solvers[0].__uses_exact_hessian}"
+    # )
 
     return forward_batch_solver, backward_batch_solver
 
