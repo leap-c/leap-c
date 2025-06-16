@@ -210,16 +210,15 @@ class AcadosImplicitFunction(DiffFunction):
             return np.sum(filtered_args, axis=0)
 
         if ctx.needs_input_grad[1]:
-            grad_u0 = (
-                _jacobian(value_grad, "dvalue_du0") if ctx.needs_input_grad[0] else None
+            grad_u0 = _safe_sum(
+                _jacobian(value_grad, "dvalue_du0"),
+                _jacobian(u0_grad, "du0_dx0"),
             )
         else:
             grad_u0 = None
 
         if ctx.needs_input_grad[2]:
-            grad_x0 = (
-                _jacobian(value_grad, "dvalue_dx0") if ctx.needs_input_grad[1] else None
-            )
+            grad_x0 = _jacobian(value_grad, "dvalue_dx0")
         else:
             grad_x0 = None
 

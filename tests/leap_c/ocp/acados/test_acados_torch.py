@@ -451,7 +451,7 @@ def test_backward(
     # Define test cases
     test_cases = [
         # ("dV/dx0", _create_dVdx0_test(implicit_layer), test_data.x0, "standard"),
-        # ("du0/dx0", _create_du0dx0_test(implicit_layer), test_data.x0, "standard"),
+        ("du0/dx0", _create_du0dx0_test(implicit_layer), test_data.x0, "standard"),
         # (
         #     "dQ/dx0",
         #     _create_dQdx0_test(implicit_layer, test_data.u0),
