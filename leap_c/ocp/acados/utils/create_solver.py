@@ -131,7 +131,6 @@ def create_forward_backward_batch_solvers(
         )
         sensitivity_ocp.solver_options.hessian_approx = "EXACT"
         sensitivity_ocp.solver_options.regularize_method = "NO_REGULARIZE"
-        # sensitivity_ocp.solver_options.levenberg_marquardt = 0.0
         sensitivity_ocp.solver_options.exact_hess_constr = True
         sensitivity_ocp.solver_options.exact_hess_cost = True
         sensitivity_ocp.solver_options.exact_hess_dyn = True
@@ -139,7 +138,13 @@ def create_forward_backward_batch_solvers(
         sensitivity_ocp.solver_options.with_solution_sens_wrt_params = True
         sensitivity_ocp.solver_options.with_value_sens_wrt_params = True
 
+        sensitivity_ocp.model.cost_expr_ext_cost_custom_hess_0 = None
+        sensitivity_ocp.model.cost_expr_ext_cost_custom_hess = None
+        sensitivity_ocp.model.cost_expr_ext_cost_custom_hess_e = None
+
     sensitivity_ocp.model.name += "_sensitivity"  # type:ignore
+
+    sensitivity_ocp.ensure_solution_sensitivities_available()
 
     backward_batch_solver = create_batch_solver(
         sensitivity_ocp,  # type:ignore
@@ -149,24 +154,16 @@ def create_forward_backward_batch_solvers(
         num_threads=num_threads,
     )
 
-    # test_solver = AcadosOcpSolver(sensitivity_ocp)
-    # print(f"test_solver.__uses_exact_hessian: {test_solver.__uses_exact_hessian}")
-
-    # print(
-    #     f"test_solver._AcadosOcpSolver__uses_exact_hessian: {test_solver._AcadosOcpSolver__uses_exact_hessian}"
-    # )
-
-    # print(
-    #     f"solver.__uses_exact_hessian: {backward_batch_solver.ocp_solvers[0].__uses_exact_hessian}"
-    # )
-
     return forward_batch_solver, backward_batch_solver
 
 
 def _check_need_sensitivity_solver(ocp: AcadosOcp) -> bool:
-    # TODO: This should be replaced as soon as Acados supports
-    #       a check based on the ocp.
-    return True
+    try:
+        ocp.ensure_solution_sensitivities_available()
+    except (ValueError, NotImplementedError):
+        return True
+
+    return False
 
 
 def _turn_on_warmstart(acados_ocp: AcadosOcp):
