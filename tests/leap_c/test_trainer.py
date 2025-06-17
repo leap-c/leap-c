@@ -5,13 +5,13 @@ from leap_c.trainer import Trainer
 
 
 def test_trainer_checkpointing(trainer: Trainer):
-    """Test the checkpointing functionality of the Trainer class.
+    """
+    Test the checkpointing functionality of the Trainer class.
 
     This test verifies that the Trainer class can correctly save and load
     checkpoints, including the state of the model, optimizer, and other
     training parameters.
     """
-
     with TemporaryDirectory() as tmpdir:
         tmpdir = Path(tmpdir)
 

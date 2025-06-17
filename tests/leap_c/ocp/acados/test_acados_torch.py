@@ -70,7 +70,7 @@ class GradCheckConfig:
 
 
 @dataclass
-class TestData:
+class AcadosTestInputs:
     """Container for test data tensors."""
 
     x0: torch.Tensor
@@ -78,12 +78,12 @@ class TestData:
     p_global: torch.Tensor
 
 
-def _setup_test_data(
+def _setup_test_inputs(
     implicit_layer: AcadosImplicitLayer,
     n_batch: int,
     dtype: torch.dtype,
     noise_scale: float,
-) -> TestData:
+) -> AcadosTestInputs:
     """Set up test data tensors with proper gradients enabled."""
     ocp = implicit_layer.implicit_fun.ocp
 
@@ -122,7 +122,7 @@ def _setup_test_data(
     assert u0_batch.requires_grad, "u0_batch should require gradients"
     assert p_global.requires_grad, "p_global should require gradients"
 
-    return TestData(x0=x0_batch, u0=u0_batch, p_global=p_global)
+    return AcadosTestInputs(x0=x0_batch, u0=u0_batch, p_global=p_global)
 
 
 def test_forward(
@@ -200,31 +200,31 @@ def test_forward(
     n_batch = implicit_layer.implicit_fun.forward_batch_solver.N_batch_max
 
     # Setup test data
-    test_data = _setup_test_data(implicit_layer, n_batch, dtype, noise_scale)
+    test_inputs = _setup_test_inputs(implicit_layer, n_batch, dtype, noise_scale)
 
     # Define test cases
     test_cases = [
         {
             "name": "x0_only",
-            "kwargs": {"x0": test_data.x0},
+            "kwargs": {"x0": test_inputs.x0},
             "expected_output": "V",
         },
         {
             "name": "x0_and_u0",
-            "kwargs": {"x0": test_data.x0, "u0": test_data.u0},
+            "kwargs": {"x0": test_inputs.x0, "u0": test_inputs.u0},
             "expected_output": "Q",
         },
         {
             "name": "x0_and_p_global",
-            "kwargs": {"x0": test_data.x0, "p_global": test_data.p_global},
+            "kwargs": {"x0": test_inputs.x0, "p_global": test_inputs.p_global},
             "expected_output": "V",
         },
         {
             "name": "all_parameters",
             "kwargs": {
-                "x0": test_data.x0,
-                "u0": test_data.u0,
-                "p_global": test_data.p_global,
+                "x0": test_inputs.x0,
+                "u0": test_inputs.u0,
+                "p_global": test_inputs.p_global,
             },
             "expected_output": "Q",
         },
@@ -269,9 +269,9 @@ def test_sensitivity(
         raise ValueError(error_message)
 
     # Setup test data
-    test_data = _setup_test_data(implicit_layer, n_batch, dtype, noise_scale)
+    test_inputs = _setup_test_inputs(implicit_layer, n_batch, dtype, noise_scale)
 
-    ctx, u0, x, u, value = implicit_layer.forward(x0=test_data.x0)
+    ctx, u0, x, u, value = implicit_layer.forward(x0=test_inputs.x0)
 
     results = {
         field: implicit_layer.sensitivity(ctx=ctx, field_name=field)
@@ -296,7 +296,7 @@ def test_sensitivity(
         f"Got: {results['dvalue_dx0'].shape}"
     )
 
-    ctx, u0, x, u, value = implicit_layer.forward(x0=test_data.x0, u0=test_data.u0)
+    ctx, u0, x, u, value = implicit_layer.forward(x0=test_inputs.x0, u0=test_inputs.u0)
     results["dvalue_du0"] = implicit_layer.sensitivity(ctx=ctx, field_name="dvalue_du0")
 
     assert results["dvalue_du0"].shape == (
@@ -433,7 +433,7 @@ def test_backward(
             forward_func, lambda result: result[4]
         )  # value
 
-    test_data = _setup_test_data(implicit_layer, n_batch, dtype, noise_scale)
+    test_inputs = _setup_test_inputs(implicit_layer, n_batch, dtype, noise_scale)
 
     # TODO: Sensitivities with respect to different parameters have different scales
     # that lead to different tolerances and step sizes for the parameters. At the moment,
@@ -443,43 +443,43 @@ def test_backward(
         (
             "dV/dx0",
             _create_dVdx0_test(implicit_layer),
-            test_data.x0,
+            test_inputs.x0,
             GradCheckConfig(atol=1e-1, eps=1e-2),
         ),
         (
             "du0/dx0",
             _create_du0dx0_test(implicit_layer),
-            test_data.x0,
+            test_inputs.x0,
             GradCheckConfig(atol=1e0, eps=1e-4),
         ),
         (
             "dQ/dx0",
-            _create_dQdx0_test(implicit_layer, test_data.u0),
-            test_data.x0,
+            _create_dQdx0_test(implicit_layer, test_inputs.u0),
+            test_inputs.x0,
             GradCheckConfig(atol=1e-2, eps=1e-2),
         ),
         (
             "du0/dp_global",
-            _create_du0dp_global_test(implicit_layer, test_data.x0),
-            test_data.p_global,
+            _create_du0dp_global_test(implicit_layer, test_inputs.x0),
+            test_inputs.p_global,
             GradCheckConfig(atol=1e-2, eps=1e-4),
         ),
         (
             "dV/dp_global",
-            _create_dVdp_global_test(implicit_layer, test_data.x0),
-            test_data.p_global,
+            _create_dVdp_global_test(implicit_layer, test_inputs.x0),
+            test_inputs.p_global,
             GradCheckConfig(atol=1e-2, eps=1e-2),
         ),
         (
             "dQ/dp_global",
-            _create_dQdp_global_test(implicit_layer, test_data.x0, test_data.u0),
-            test_data.p_global,
+            _create_dQdp_global_test(implicit_layer, test_inputs.x0, test_inputs.u0),
+            test_inputs.p_global,
             GradCheckConfig(atol=1e-2, eps=1e-2),
         ),
         (
             "dQ/du0",
-            _create_dQdu0_test(implicit_layer, test_data.x0, test_data.p_global),
-            test_data.u0,
+            _create_dQdu0_test(implicit_layer, test_inputs.x0, test_inputs.p_global),
+            test_inputs.u0,
             GradCheckConfig(atol=1e-2, eps=1e-2),
         ),
     ]
