@@ -346,6 +346,11 @@ def test_backward(
         def test_func(*args, **kwargs) -> Tuple[torch.Tensor, torch.Tensor]:
             result = forward_func(*args, **kwargs)
             ctx = result[0]
+
+            # Validate solver status
+            assert np.all(ctx.status == 0), (
+                f"Forward method failed with status {ctx.status}"
+            )
             output = output_selector(result)
             return output, torch.tensor(ctx.status, dtype=torch.float64)
 
@@ -451,7 +456,7 @@ def test_backward(
     # Define test cases
     test_cases = [
         # ("dV/dx0", _create_dVdx0_test(implicit_layer), test_data.x0, "standard"),
-        # ("du0/dx0", _create_du0dx0_test(implicit_layer), test_data.x0, "fine_eps"),
+        # ("du0/dx0", _create_du0dx0_test(implicit_layer), test_data.x0, "standard"),
         # (
         #     "dQ/dx0",
         #     _create_dQdx0_test(implicit_layer, test_data.u0),
@@ -470,7 +475,7 @@ def test_backward(
         #     test_data.p_global,
         #     "high_tolerance",
         # ),
-        # TODO (DIRK): last test standing
+        # TODO: Last test standing
         (
             "dQ/dp_global",
             _create_dQdp_global_test(implicit_layer, test_data.x0, test_data.u0),
