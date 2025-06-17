@@ -102,12 +102,8 @@ class AcadosImplicitFunction(DiffFunction):
                 `(B, N+1, p_stagewise_dim)`.
                 If `p_stagewise_sparse_idx` is provided, shape is
                 `(B, N+1, len(p_stagewise_sparse_idx))`.
-                For multi-phase MPC with `p_stagewise_sparse_idx`, this is
-                a list of arrays (one per phase). Defaults to `None`.
             p_stagewise_sparse_idx: Indices for sparsely setting stagewise
                 parameters. Shape is `(B, N+1, n_p_stagewise_sparse_idx)`.
-                For multi-phase MPC, this is a list of arrays (one per phase).
-                Defaults to `None`.
         """
         batch_size = x0.shape[0]
 
@@ -136,7 +132,7 @@ class AcadosImplicitFunction(DiffFunction):
             iterate=sol_iterate, log=log, status=status, solver_input=solver_input
         )
         sol_value = np.array([s.get_cost() for s in active_solvers])
-        sol_u0 = sol_iterate.u[:, : self.ocp.dims.nu]
+        sol_u0 = sol_iterate.u[:, :self.ocp.dims.nu]
 
         return ctx, sol_u0, sol_iterate.x, sol_iterate.u, sol_value
 

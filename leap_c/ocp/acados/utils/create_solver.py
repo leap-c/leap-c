@@ -55,6 +55,7 @@ def create_batch_solver(
             cost_hessian=ocp.solver_options.hessian_approx
         )
 
+    # TODO (Leonard): Check whether we still need this.
     _turn_on_warmstart(ocp)
 
     if export_directory is None:

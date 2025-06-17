@@ -1,3 +1,5 @@
+from itertools import product
+
 from acados_template import AcadosOcp
 from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
@@ -7,91 +9,12 @@ import numpy as np
 from leap_c.ocp.acados.data import AcadosSolverInput
 
 
-# TODO: The caching could be improved as soon as we save the whole capsule
-#    in the context of the implicit function. Currently, this caching
+# TODO (Jasper): The caching could be improved as soon as we save the whole
+#    capsule in the context of the implicit function. Currently, this caching
 #    is slightly less optimal, as we might need to prepare a solver multiple
 #    times.
 _PREPARE_CACHE = {}
 _PREPARE_BACKWARD_CACHE = {}
-
-
-def batch_iterates_equal(
-    obj1: AcadosOcpFlattenedBatchIterate,
-    obj2: AcadosOcpFlattenedBatchIterate,
-    rtol: float = 1e-5,
-    atol: float = 1e-8,
-) -> bool:
-    """
-    Compare two AcadosOcpFlattenedBatchIterate instances field by field.
-
-    Args:
-        obj1: First batch iterate
-        obj2: Second batch iterate
-        rtol: Relative tolerance for array comparisons
-        atol: Absolute tolerance for array comparisons
-
-    Returns:
-        True if all fields are equal within tolerance
-    """
-    # Compare N_batch (integer field)
-    if obj1.N_batch != obj2.N_batch:
-        return False
-
-    # Compare all array fields
-    array_fields = ["x", "u", "z", "sl", "su", "pi", "lam"]
-
-    for field_name in array_fields:
-        arr1 = getattr(obj1, field_name)
-        arr2 = getattr(obj2, field_name)
-
-        if not np.allclose(arr1, arr2, rtol=rtol, atol=atol):
-            return False
-
-    return True
-
-
-def solver_inputs_equal(
-    input1: AcadosSolverInput,
-    input2: AcadosSolverInput,
-    rtol: float = 1e-5,
-    atol: float = 1e-8,
-) -> bool:
-    """
-    Compare two AcadosSolverInput instances for equality.
-
-    Args:
-        input1: First solver input
-        input2: Second solver input
-        rtol: Relative tolerance for array comparisons
-        atol: Absolute tolerance for array comparisons
-
-    Returns:
-        True if all fields are equal within tolerance
-    """
-    # Compare x0 (required field)
-    if not np.allclose(input1.x0, input2.x0, rtol=rtol, atol=atol):
-        return False
-
-    # Compare optional array fields
-    optional_fields = ["u0", "p_global", "p_stagewise", "p_stagewise_sparse_idx"]
-
-    for field_name in optional_fields:
-        arr1 = getattr(input1, field_name)
-        arr2 = getattr(input2, field_name)
-
-        # Both None
-        if arr1 is None and arr2 is None:
-            continue
-
-        # One is None, the other is not
-        if arr1 is None or arr2 is None:
-            return False
-
-        # Both are arrays - compare with tolerance
-        if not np.allclose(arr1, arr2, rtol=rtol, atol=atol):
-            return False
-
-    return True
 
 
 def prepare_batch_solver(
@@ -146,7 +69,7 @@ def prepare_batch_solver(
         batch_solver.set_flat("p", param)
     elif p_stagewise is not None and p_stagewise_sparse_idx is not None:
         # if p_stagewise is provided and sparse indices are provided, set it
-        for idx, stage in zip(range(batch_size), range(N + 1)):
+        for idx, stage in product(range(batch_size), range(N + 1)):
             param = p_stagewise[idx, stage, :]
             solver = batch_solver.ocp_solvers[idx]
             solver.set_params_sparse(stage, param, p_stagewise_sparse_idx)
@@ -161,6 +84,9 @@ def prepare_batch_solver(
             solver.set(0, "u", u0[idx])
             solver.constraints_set(0, "lbu", u0[idx])
             solver.constraints_set(0, "ubu", u0[idx])
+        else:
+            solver.constraints_set(0, "lbu", ocp.constraints.lbu)
+            solver.constraints_set(0, "ubu", ocp.constraints.ubu)
 
 
 def prepare_batch_solver_for_backward(
@@ -179,7 +105,7 @@ def prepare_batch_solver_for_backward(
 
 
 def _is_param_legal(model_p) -> bool:
-    # TODO: Potentially remove this function.
+    # TODO (Leonard): Do we need this function?
     if model_p is None:
         return False
     elif isinstance(model_p, ca.SX):

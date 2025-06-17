@@ -52,6 +52,8 @@ def solve_with_retry(
     if with_retry and any(status != 0 for status in batch_status):
 
         for idx, solver in enumerate(active_solvers):
+            if batch_status[idx] == 0:
+                continue
             single_iterate = initializer.single_iterate(solver_input.get_sample(idx))
             solver.load_iterate_from_flat_obj(single_iterate)
 
@@ -63,7 +65,7 @@ def solve_with_retry(
 
     stats = {
         "solving_time": time_solve,
-        "success_rate": batch_status_retry.mean(),
+        "success_rate": (batch_status_retry == 0).mean(),
         "retry_rate": (batch_status != 0).mean(),
     }
 
