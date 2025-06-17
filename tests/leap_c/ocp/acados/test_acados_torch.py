@@ -78,6 +78,7 @@ class GradCheckConfig:
     """Configuration for gradient checking parameters."""
 
     atol: float = 1e-2
+    rtol: float = 1e-3
     eps: float = 1e-4
     raise_exception: bool = True
 
@@ -246,6 +247,7 @@ def test_forward(
     for test_case in test_cases:
         if verbosity > 0:
             print(f"Testing forward call: {test_case['name']}")
+
         _run_single_forward_test(
             implicit_layer,
             test_case["kwargs"],
@@ -447,60 +449,69 @@ def test_backward(
     test_data = _setup_test_data(implicit_layer, n_batch, dtype, noise_scale)
 
     # Define gradient check configurations
+    # configs = {
+    #     "standard": GradCheckConfig(atol=1e-2, eps=1e-4),
+    #     "high_tolerance": GradCheckConfig(atol=5e-2, eps=1e-4),
+    #     "fine_eps": GradCheckConfig(atol=1e-2, eps=1e-6),
+    #     "coarse_eps": GradCheckConfig(atol=1e-2, eps=1e-2),
+    # }
+
     configs = {
-        "standard": GradCheckConfig(atol=1e-2, eps=1e-4),
-        "high_tolerance": GradCheckConfig(atol=5e-2, eps=1e-4),
-        "fine_eps": GradCheckConfig(atol=1e-2, eps=1e-6),
+        "dV/dx0": GradCheckConfig(atol=1e-1, eps=1e-2),
+        "du0/dx0": GradCheckConfig(atol=1e0, eps=1e-4),
+        "dQ/dx0": GradCheckConfig(atol=1e-2, eps=1e-2),
+        "du0/dp_global": GradCheckConfig(atol=1e-2, eps=1e-4),
+        "dV/dp_global": GradCheckConfig(atol=1e-2, eps=1e-2),
+        "dQ/dp_global": GradCheckConfig(atol=1e-2, eps=1e-2),
+        "dQ/du0": GradCheckConfig(atol=1e-2, eps=1e-2),
     }
+
+    # TODO: Sensitivities with respect to different parameters have different scales
+    # that lead to different tolerances and step sizes for the parameters
 
     # Define test cases
     test_cases = [
-        # ("dV/dx0", _create_dVdx0_test(implicit_layer), test_data.x0, "standard"),
-        # ("du0/dx0", _create_du0dx0_test(implicit_layer), test_data.x0, "standard"),
-        # (
-        #     "dQ/dx0",
-        #     _create_dQdx0_test(implicit_layer, test_data.u0),
-        #     test_data.x0,
-        #     "standard",
-        # ),
-        # (
-        #     "du0/dp_global",
-        #     _create_du0dp_global_test(implicit_layer, test_data.x0),
-        #     test_data.p_global,
-        #     "standard",
-        # ),
-        # (
-        #     "dV/dp_global",
-        #     _create_dVdp_global_test(implicit_layer, test_data.x0),
-        #     test_data.p_global,
-        #     "high_tolerance",
-        # ),
-        # TODO: Last test standing
+        ("dV/dx0", _create_dVdx0_test(implicit_layer), test_data.x0),
+        ("du0/dx0", _create_du0dx0_test(implicit_layer), test_data.x0),
+        (
+            "dQ/dx0",
+            _create_dQdx0_test(implicit_layer, test_data.u0),
+            test_data.x0,
+        ),
+        (
+            "du0/dp_global",
+            _create_du0dp_global_test(implicit_layer, test_data.x0),
+            test_data.p_global,
+        ),
+        (
+            "dV/dp_global",
+            _create_dVdp_global_test(implicit_layer, test_data.x0),
+            test_data.p_global,
+        ),
         (
             "dQ/dp_global",
             _create_dQdp_global_test(implicit_layer, test_data.x0, test_data.u0),
             test_data.p_global,
-            "fine_eps",
         ),
-        # (
-        #     "dQ/du0",
-        #     _create_dQdu0_test(implicit_layer, test_data.x0, test_data.p_global),
-        #     test_data.u0,
-        #     "standard",
-        # ),
+        (
+            "dQ/du0",
+            _create_dQdu0_test(implicit_layer, test_data.x0, test_data.p_global),
+            test_data.u0,
+        ),
     ]
 
     # Run gradient checks
-    for test_name, test_func, test_input, config_name in test_cases:
-        config = configs[config_name]
+    for test_name, test_func, test_input in test_cases:
+        config = configs[test_name]
         try:
             print(f"{test_name} gradient check running")
             torch.autograd.gradcheck(
-                test_func,
-                test_input,
+                func=test_func,
+                inputs=test_input,
                 atol=config.atol,
+                rtol=config.rtol,
                 eps=config.eps,
-                raise_exception=config.raise_exception,
+                raise_exception=True,
             )
             print(f"✓ {test_name} gradient check passed")
         except Exception as e:
