@@ -79,7 +79,7 @@ class AcadosImplicitFunction(DiffFunction):
         else:
             self.initializer = initializer
 
-    def forward(  # type: ignore
+    def forward(
         self,
         ctx: AcadosImplicitCtx | None,
         x0: np.ndarray,
@@ -87,7 +87,7 @@ class AcadosImplicitFunction(DiffFunction):
         p_global: np.ndarray | None = None,
         p_stagewise: np.ndarray | None = None,
         p_stagewise_sparse_idx: np.ndarray | None = None,
-    ):
+    ) -> tuple[AcadosImplicitCtx, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Perform the forward pass of the implicit function.
 
@@ -132,7 +132,7 @@ class AcadosImplicitFunction(DiffFunction):
             iterate=sol_iterate, log=log, status=status, solver_input=solver_input
         )
         sol_value = np.array([s.get_cost() for s in active_solvers])
-        sol_u0 = sol_iterate.u[:, :self.ocp.dims.nu]
+        sol_u0 = sol_iterate.u[:, : self.ocp.dims.nu]
 
         return ctx, sol_u0, sol_iterate.x, sol_iterate.u, sol_value
 
