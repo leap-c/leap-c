@@ -87,8 +87,6 @@ jobs:
         pip install --upgrade pip
         pip install interfaces/acados_template
         # micromamba install -y -c conda-forge pinocchio=3.6.0
-        # Try acados example
-        python examples/acados_python/getting_started/minimal_example_ocp.py
 
     - name: Install leap_c
       working-directory: ${{github.workspace}}/leap_c
