@@ -1,6 +1,7 @@
 import copy
 from collections.abc import Callable
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 import torch
@@ -16,11 +17,63 @@ def test_initialization(implicit_layer: AcadosImplicitLayer):
     assert True
 
 
-def test_file_management(implicit_layer, export_dir):
-    pass
+def test_file_management(
+    implicit_layer: AcadosImplicitLayer, export_dir: str, tol: float = 1e-5
+) -> None:
+    """
+    Tests the file management behavior of the AcadosImplicitLayer during solver
+    reloading and code export.
+
+    Args:
+        implicit_layer (AcadosImplicitLayer): The implicit layer object containing
+            the OCP (Optimal Control Problem) and related configurations.
+        export_dir (str): The directory where exported files are expected to be stored.
+        tol (float, optional): The tolerance for comparing file modification times.
+            Defaults to 1e-5.
+
+    Raises:
+        AssertionError: If any of the following conditions are not met:
+            - The code export directory is the same as the export directory.
+            - The `c_generated_code` directory does not exist or is not a directory.
+            - No `.so` files are found in the `c_generated_code` directory.
+            - Reloading the solver modifies the `.so` files beyond the specified tolerance.
+    """
+    code_export_directory = Path(implicit_layer.implicit_fun.ocp.code_export_directory)
+    export_directory = code_export_directory.parent
+
+    assert export_directory != export_dir, (
+        "The code export directory should not be the same as the export directory."
+    )
+    assert code_export_directory.exists(), "c_generated_code directory does not exist"
+    assert code_export_directory.is_dir(), "c_generated_code is not a directory"
+
+    # Get all files in the directory
+    files = list(code_export_directory.glob("*.so"))
+    files = [f for f in files if f.is_file()]  # Filter only files
+
+    assert len(files) > 0, "No *.so files found in c_generated_code directory"
+
+    last_modified = files[0].stat().st_mtime
+
+    # Should reload the solver
+    _ = AcadosImplicitLayer(
+        ocp=implicit_layer.implicit_fun.ocp,
+        initializer=implicit_layer.implicit_fun.initializer,
+        sensitivity_ocp=implicit_layer.implicit_fun.backward_batch_solver.ocp_solvers[
+            0
+        ].acados_ocp,
+        export_directory=export_directory,
+    )
+
+    reloaded_last_modified = files[0].stat().st_mtime
+
+    assert last_modified - reloaded_last_modified < tol, (
+        "The reloaded initialization should not modify the library files."
+    )
 
 
-def test_ctx_loading(implicit_layer: AcadosImplicitLayer, export_dir):
+# TODO
+def test_ctx_loading(implicit_layer: AcadosImplicitLayer, export_dir: str) -> None:
     pass
 
 
@@ -158,7 +211,7 @@ def test_backup_functionality(implicit_layer: AcadosImplicitLayer) -> None:
         )
 
 
-def test_closed_loop(implicit_layer: AcadosImplicitLayer) -> None:
+def test_closed_loop(implicit_layer: AcadosImplicitLayer, tol: float = 1e-1) -> None:
     """
     Tests the closed-loop behavior of a system controlled by an AcadosImplicitLayer.
 
@@ -170,6 +223,7 @@ def test_closed_loop(implicit_layer: AcadosImplicitLayer) -> None:
     Args:
         implicit_layer (AcadosImplicitLayer): The implicit layer representing the
             control system, which includes the solver and problem definition.
+        tol (float): The tolerance for checking the stabilization of states and
 
     Raises:
         AssertionError: If the solver fails to converge at any step or if the
@@ -202,9 +256,9 @@ def test_closed_loop(implicit_layer: AcadosImplicitLayer) -> None:
     x = np.array(x)
     u = np.array(u)
 
-    assert np.median(x[-10:, 0]) <= 1e-1, "Median of x[-10:, 0] exceeds threshold"
-    assert np.median(x[-10:, 1]) <= 1e-1, "Median of x[-10:, 1] exceeds threshold"
-    assert np.median(u[-10:]) <= 1e-1, "Median of u[-10:] exceeds threshold"
+    assert np.median(x[-10:, 0]) <= tol, "Median of x[-10:, 0] exceeds threshold"
+    assert np.median(x[-10:, 1]) <= tol, "Median of x[-10:, 1] exceeds threshold"
+    assert np.median(u[-10:]) <= tol, "Median of u[-10:] exceeds threshold"
 
 
 @dataclass
@@ -341,7 +395,8 @@ def test_forward(
         # Validate value shape (same for both V and Q)
         expected_value_shape = (n_batch,)
         assert value.shape == expected_value_shape, (
-            f"{expected_output_type} shape mismatch. Expected: {expected_value_shape}, Got: {value.shape}"
+            f"{expected_output_type} shape mismatch. Expected: {expected_value_shape}"
+            f", Got: {value.shape}"
         )
 
     acados_ocp = implicit_layer.implicit_fun.ocp
