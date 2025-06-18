@@ -26,7 +26,7 @@ jobs:
         path: ${{github.workspace}}/leap_c/external/acados
         repository: acados/acados
         github-token: ${{ secrets.GITHUB_TOKEN }}
-        run-id: 14473653117
+        run-id: 15675748100
 
     - name: Install Tera
       working-directory: ${{github.workspace}}/leap_c/external/acados
@@ -86,7 +86,7 @@ jobs:
         # Install packages
         pip install --upgrade pip
         pip install interfaces/acados_template
-        micromamba install -y -c conda-forge pinocchio=3.6.0
+        # micromamba install -y -c conda-forge pinocchio=3.6.0
 
     - name: Install leap_c
       working-directory: ${{github.workspace}}/leap_c
