@@ -267,7 +267,7 @@ def acados_test_ocp(ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions) -> Ac
     learnable_p_global = nominal_p_global.keys()
 
     # Remove from learnable parameters to test non-learnable parameters
-    learnable_p_global = [p for p in learnable_p_global if p not in ["cx", "cy"]]
+    learnable_p_global = [p for p in learnable_p_global if p not in ["m", "cx", "cy"]]
 
     name = "test_ocp"
 
