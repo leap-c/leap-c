@@ -290,8 +290,6 @@ def acados_test_ocp(ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions) -> Ac
         verbosity=1,
     )
 
-    m = find_param_in_p_or_p_global(["m"], ocp.model)["m"]
-
     ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp=ocp)
 
     # Define cost
