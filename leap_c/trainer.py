@@ -1,96 +1,57 @@
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Iterator, Literal
 
 import numpy as np
 import torch
+import gymnasium as gym
 from torch import nn
 from yaml import safe_dump
 
 from leap_c.utils.logger import Logger, LoggerConfig
 from leap_c.utils.rollout import episode_rollout
-from leap_c.task import Task
+from leap_c.utils.gym import wrap_eval_env
 from leap_c.torch.utils.seed import set_seed
 
 
 @dataclass(kw_only=True)
-class TrainConfig:
+class TrainerConfig:
     """Contains the necessary information for the training loop.
 
     Args:
-        steps: The number of steps in the training loop.
-        start: The number of training steps before training starts.
-    """
-
-    steps: int = 100000
-    start: int = 0
-
-
-@dataclass(kw_only=True)
-class ValConfig:
-    """Contains the necessary information for validation.
-
-    Args:
-        interval: The interval at which validation episodes will be run.
-        num_rollouts: The number of rollouts during validation.
-        deterministic: If True, the policy will act deterministically during validation.
+        seed: The seed for the training.
+        train_steps: The number of steps in the training loop.
+        train_start: The number of training steps before training starts.
+        val_interval: The interval at which validation episodes will be run.
+        val_num_rollouts: The number of rollouts during validation.
+        val_deterministic: If True, the policy will act deterministically during validation.
+        val_render_mode: The mode in which the episodes will be rendered.
+        val_render_deterministic: If True, the episodes will be rendered deterministically (e.g., no exploration).
+        val_report_score: Whether to report the cummulative score or the final evaluation score.
         ckpt_modus: How to save the model, which can be "best", "last", "all" or "none".
-        render_mode: The mode in which the episodes will be rendered.
-        render_deterministic: If True, the episodes will be rendered deterministically (e.g., no exploration).
-        render_interval_exploration: The interval at which exploration episodes will be rendered.
-        render_interval_validation: The interval at which validation episodes will be rendered.
-        report_score: Whether to report the cummulative score or the final evaluation score.
     """
-
-    interval: int = 10000
-    num_rollouts: int = 10
-    deterministic: bool = True
-
-    ckpt_modus: str = "best"
-
-    num_render_rollouts: int = 1
-    render_mode: str | None = "rgb_array"  # rgb_array or human
-    render_deterministic: bool = True
-
-    report_score: str = "cum"  # "final"
-
-
-@dataclass(kw_only=True)
-class BaseConfig:
-    """Contains the necessary information for a Trainer.
-
-    Attributes:
-        train: The training configuration.
-        val: The validation configuration.
-        log: The logging configuration.
-        seed: The seed for the trainer.
-    """
-
-    train: TrainConfig
-    val: ValConfig
-    log: LoggerConfig
+    # reproducibility
     seed: int
 
+    # configuration for the training loop
+    train_steps: int = 100000
+    train_start: int = 0
 
-def set_to_test_cfg(cfg: BaseConfig) -> BaseConfig:
-    """Set the configuration to test mode.
+    # validation configuration
+    val_interval: int = 10000
+    val_num_rollouts: int = 10
+    val_deterministic: bool = True
+    val_num_render_rollouts: int = 1
+    val_render_mode: str | None = "rgb_array"  # rgb_array or human
+    val_render_deterministic: bool = True
+    val_report_score: Literal["cum", "final"] = "cum"  # "cum" for cumulative score, "final" for final score
 
-    Args:
-        cfg: The configuration to be modified.
+    # checkpointing configuration
+    ckpt_modus: Literal["best", "last", "all", "none"] = "best"
 
-    Returns:
-        The modified configuration.
-    """
-    cfg.train.steps = 10
-    cfg.val.num_rollouts = 1
-    cfg.val.interval = 10
-    cfg.val.num_render_rollouts = 0
-    cfg.val.ckpt_modus = "none"
-    cfg.log.csv_logger = False
-    cfg.log.tensorboard_logger = False
-    cfg.log.wandb_logger = False
-    return cfg
+    # logging configuration
+    log: LoggerConfig = field(default_factory=lambda: LoggerConfig())
 
 
 @dataclass(kw_only=True)
@@ -115,10 +76,8 @@ class Trainer(ABC, nn.Module):
     for interacting with the environment.
 
     Attributes:
-        task: The task to be solved by the trainer.
         cfg: The configuration for the trainer.
         output_path: The path to the output directory.
-        train_env: The training environment.
         eval_env: The evaluation environment.
         state: The state of the trainer.
         device: The device on which the trainer is running.
@@ -126,19 +85,18 @@ class Trainer(ABC, nn.Module):
     """
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: BaseConfig
+        self, cfg: TrainerConfig, eval_env: gym.Env, output_path: str | Path, device: str
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
         Args:
-            task: The task to be solved by the trainer.
+            cfg: The configuration for the trainer.
+            eval_env: The evaluation environment.
             output_path: The path to the output directory.
             device: The device on which the trainer is running
-            cfg: The configuration for the trainer.
         """
         super().__init__()
 
-        self.task = task
         self.cfg = cfg
         self.device = device
 
@@ -146,8 +104,7 @@ class Trainer(ABC, nn.Module):
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
-        self.train_env = self.task.create_train_env(seed=cfg.seed)
-        self.eval_env = self.task.create_eval_env(seed=cfg.seed)
+        self.eval_env = wrap_eval_env(eval_env, seed=cfg.seed + 1)
 
         # trainer state
         self.state = TrainerState()
@@ -225,34 +182,34 @@ class Trainer(ABC, nn.Module):
 
     def run(self) -> float:
         """Call this function in your script to start the training loop."""
-        if self.cfg.val.report_score not in ["cum", "final"]:
+        if self.cfg.val_report_score not in ["cum", "final"]:
             raise RuntimeError(
-                f"report_score is {self.cfg.val.report_score} but can be 'cum' or 'final'"
+                f"report_score is {self.cfg.val_report_score} but can be 'cum' or 'final'"
             )
 
         self.to(self.device)
 
         train_loop_iter = self.train_loop()
 
-        while self.state.step < self.cfg.train.steps:
+        while self.state.step < self.cfg.train_steps:
             # train
             self.state.step += next(train_loop_iter)
 
             # validate
-            if self.state.step // self.cfg.val.interval > len(self.state.scores):
+            if self.state.step // self.cfg.val_interval > len(self.state.scores):
                 val_score = self.validate()
                 self.state.scores.append(val_score)
 
                 if val_score > self.state.max_score:
                     self.state.max_score = val_score
-                    if self.cfg.val.ckpt_modus == "best":
+                    if self.cfg.ckpt_modus == "best":
                         self.save()
 
                 # save model
-                if self.cfg.val.ckpt_modus in ["last", "all"]:
+                if self.cfg.ckpt_modus in ["last", "all"]:
                     self.save()
 
-        if self.cfg.val.report_score == "cum":
+        if self.cfg.val_report_score == "cum":
             return sum(self.state.scores)
 
         self.logger.close()
@@ -270,7 +227,7 @@ class Trainer(ABC, nn.Module):
                 nonlocal policy_state
 
                 action, policy_state, policy_stats = self.act(
-                    obs, deterministic=self.cfg.val.deterministic, state=policy_state
+                    obs, deterministic=self.cfg.val_deterministic, state=policy_state
                 )
                 return action, policy_stats
 
@@ -281,8 +238,8 @@ class Trainer(ABC, nn.Module):
         parts_rollout = []
         parts_policy = []
 
-        for idx in range(self.cfg.val.num_rollouts):
-            if idx < self.cfg.val.num_render_rollouts:
+        for idx in range(self.cfg.val_num_rollouts):
+            if idx < self.cfg.val_num_render_rollouts:
                 video_folder = self.output_path / "video"
                 video_folder.mkdir(exist_ok=True)
                 video_path = video_folder / f"{self.state.step}_{idx}.mp4"
@@ -299,14 +256,14 @@ class Trainer(ABC, nn.Module):
             key: float(np.mean([p[key] for p in parts_rollout]))
             for key in parts_rollout[0]
         }
-        self.report_stats("val", stats_rollout, with_smoothing=False)
+        self.report_stats("val", stats_rollout, with_smoothing=False)  # type:ignore
 
         if parts_policy[0]:
             stats_policy = {
                 key: float(np.mean(np.concatenate([p[key] for p in parts_policy])))
                 for key in parts_policy[0]
             }
-            self.report_stats("val_policy", stats_policy, with_smoothing=False)
+            self.report_stats("val_policy", stats_policy, with_smoothing=False)  # type:ignore
 
         print(f"Validation at {self.state.step}:")
         for key, value in stats_rollout.items():
@@ -329,12 +286,12 @@ class Trainer(ABC, nn.Module):
         (basedir / "ckpts").mkdir(exist_ok=True)
 
         all_but_singleton = (
-            True if self.cfg.val.ckpt_modus == "all" and singleton else False
+            True if self.cfg.ckpt_modus == "all" and singleton else False
         )
 
-        if self.cfg.val.ckpt_modus == "best":
+        if self.cfg.ckpt_modus == "best":
             return basedir / "ckpts" / f"best_{name}.{suffix}"
-        elif self.cfg.val.ckpt_modus == "last" or all_but_singleton:
+        elif self.cfg.ckpt_modus == "last" or all_but_singleton:
             return basedir / "ckpts" / f"last_{name}.{suffix}"
 
         return basedir / "ckpts" / f"{self.state.step}_{name}.{suffix}"
