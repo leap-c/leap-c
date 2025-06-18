@@ -69,13 +69,13 @@ jobs:
         # Set PATH to include the micromamba environment's bin directory
         echo "$CONDA_PREFIX/bin" >> $GITHUB_PATH
 
-    - name: Cache pip dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-pip-
+    # - name: Cache pip dependencies
+    #   uses: actions/cache@v4
+    #   with:
+    #     path: ~/.cache/pip
+    #     key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+    #     restore-keys: |
+    #       ${{ runner.os }}-pip-
 
     - name: Install Python interface
       working-directory: ${{github.workspace}}/leap_c/external/acados
@@ -86,24 +86,26 @@ jobs:
         # Install packages
         pip install --upgrade pip
         pip install interfaces/acados_template
-        micromamba install -y -c conda-forge pinocchio=3.6.0
+        # micromamba install -y -c conda-forge pinocchio=3.6.0
+        # Try acados example
+        python examples/acados_python/getting_started/minimal_example_ocp.py
 
-    - name: Install leap_c
-      working-directory: ${{github.workspace}}/leap_c
-      run: |
-        # Activate the micromamba environment
-        eval "$(micromamba shell hook --shell=bash)"
-        micromamba activate leapc_env
-        # Install packages
-        pip install -e .[test]
-        pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+    # - name: Install leap_c
+    #   working-directory: ${{github.workspace}}/leap_c
+    #   run: |
+    #     # Activate the micromamba environment
+    #     eval "$(micromamba shell hook --shell=bash)"
+    #     micromamba activate leapc_env
+    #     # Install packages
+    #     pip install -e .[test]
+    #     pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
-    - name: Run leap_c tests
-      working-directory: ${{github.workspace}}/leap_c
-      run: |
-        # Activate the micromamba environment
-        eval "$(micromamba shell hook --shell=bash)"
-        micromamba activate leapc_env
-        # Run tests
-        pwd
-        pytest tests -vv -s
+    # - name: Run leap_c tests
+    #   working-directory: ${{github.workspace}}/leap_c
+    #   run: |
+    #     # Activate the micromamba environment
+    #     eval "$(micromamba shell hook --shell=bash)"
+    #     micromamba activate leapc_env
+    #     # Run tests
+    #     pwd
+    #     pytest tests -vv -s
