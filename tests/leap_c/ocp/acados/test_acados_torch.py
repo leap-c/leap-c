@@ -1,3 +1,4 @@
+import copy
 from collections.abc import Callable
 from dataclasses import dataclass
 
@@ -103,9 +104,58 @@ def test_statelessness(implicit_layer: AcadosImplicitLayer) -> None:
         )
 
 
-def test_backup_functionality(implicit_layer: AcadosImplicitLayer):
-    # See current MPC implementation. Needs rewrite.
-    pass
+def test_backup_functionality(implicit_layer: AcadosImplicitLayer) -> None:
+    """
+    Test the backup functionality of the AcadosImplicitLayer.
+
+    This test verifies that the backup mechanism in the implicit layer can
+    restore a corrupted iterate to a valid state and produce consistent
+    solutions. It simulates a scenario where the iterate is corrupted by
+    setting its fields to NaN and ensures that the backup functionality
+    restores the iterate correctly.
+
+    Args:
+        implicit_layer (AcadosImplicitLayer): The implicit layer to be tested.
+
+    Raises:
+        AssertionError: If the solver does not converge or if the solutions
+                        before and after restoration are not consistent.
+    """
+    reps = (implicit_layer.implicit_fun.forward_batch_solver.N_batch_max, 1)
+    x0 = np.tile(A=np.array([0.5, 0.5, 0.5, 0.5]), reps=reps)
+    u0 = np.tile(A=np.array([0.5, 0.5]), reps=reps)
+
+    solutions = []
+    solutions.append(implicit_layer.forward(x0=x0, u0=u0))
+
+    assert np.all(solutions[-1][0].status == 0), (
+        "Solver did not converge for all samples."
+    )
+
+    # Set the iterate to NaN for all fields
+    # This simulates a scenario where the iterate is corrupted
+    ctx = copy.deepcopy(solutions[-1][0])
+    for field_name in ["x", "u", "z", "sl", "su", "pi", "lam"]:
+        original_field = getattr(ctx.iterate, field_name)
+        setattr(
+            ctx.iterate,
+            field_name,
+            np.full_like(original_field, np.nan),
+        )
+
+    # Test that the backup function can restore the iterate
+    solutions.append(implicit_layer.forward(x0=x0, u0=u0, ctx=ctx))
+
+    assert np.all(solutions[-1][0].status == 0), (
+        "Solver did not converge for all samples."
+    )
+
+    for i, field_name in enumerate(["u0", "x", "u", "Q value"], start=1):
+        np.testing.assert_allclose(
+            solutions[0][i],
+            solutions[1][i],
+            err_msg=f"The solutions should have the same {field_name}.",
+        )
 
 
 def test_closed_loop(implicit_layer: AcadosImplicitLayer) -> None:
