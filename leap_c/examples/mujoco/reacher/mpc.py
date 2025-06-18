@@ -3,18 +3,30 @@ from pathlib import Path
 
 import casadi as ca
 import numpy as np
-import pinocchio as pin
 from acados_template import AcadosOcp
 from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchIterate
 from casadi.tools import struct_symSX
-from pinocchio import casadi as cpin
 
-from leap_c.examples.mujoco.reacher.util import InverseKinematicsSolver, get_mjcf_path
+from leap_c.examples.mujoco.reacher.util import (
+    InverseKinematicsSolver,
+    get_mjcf_path,
+    require_pinocchio,
+)
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
 from leap_c.ocp.acados.mpc import Mpc, MpcBatchedState, MpcInput
+
+# Optional pinocchio import
+try:
+    import pinocchio as pin
+    from pinocchio import casadi as cpin
+
+    HAS_PINOCCHIO = True
+except ImportError:
+    pin = None
+    HAS_PINOCCHIO = False
 
 
 class ReacherMpc(Mpc):
@@ -35,6 +47,7 @@ class ReacherMpc(Mpc):
         mjcf_path: Path | None = None,
         state_representation: str = "q",
     ):
+        require_pinocchio()
         pinocchio_model = None
 
         if urdf_path is not None and mjcf_path is not None:
@@ -168,7 +181,7 @@ def create_diag_matrix(
 
 
 def export_parametric_ocp(
-    pinocchio_model: pin.Model,
+    pinocchio_model,
     nominal_param: dict[str, np.ndarray],
     N_horizon: int,
     tf: float,
@@ -176,6 +189,8 @@ def export_parametric_ocp(
     name: str = "reacher",
     learnable_params: list[str] | None = None,
 ) -> AcadosOcp:
+    require_pinocchio()
+
     ocp = AcadosOcp()
 
     model = cpin.Model(pinocchio_model)
