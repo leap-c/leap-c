@@ -47,7 +47,7 @@ class DiffFunction(ABC):
     """
 
     @abstractmethod
-    def forward(self, *inputs: np.ndarray, ctx=None):
+    def forward(self, ctx=None, *inputs: np.ndarray | None):
         """Computes the output of the function given inputs.
 
         Args:
@@ -62,7 +62,7 @@ class DiffFunction(ABC):
         ...
 
     @abstractmethod
-    def backward(self, ctx, *output_grads: np.ndarray):
+    def backward(self, ctx, *output_grads: np.ndarray | None):
         """Computes the gradient of the function with respect to its inputs.
 
         Args:

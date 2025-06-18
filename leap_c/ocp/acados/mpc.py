@@ -1,3 +1,4 @@
+# OUTDATED: This file is deprecated and will be removed in a couple of PRs.
 import time
 from abc import ABC
 from collections import defaultdict
@@ -18,8 +19,9 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedIterate,
 )
 
-from leap_c.ocp.acados.file_manager import AcadosFileManager
-from leap_c.ocp.acados.utils import set_standard_sensitivity_options, SX_to_labels
+from leap_c.ocp.acados.utils.create_solver import AcadosFileManager
+from leap_c.ocp.acados.utils.utils import SX_to_labels
+from leap_c.ocp.acados.utils.create_solver import derive_sensitivity_ocp
 
 
 class AcadosStatus(IntEnum):
@@ -620,6 +622,7 @@ class Mpc(ABC):
         """
         self.ocp = ocp
 
+        # PART I: For deriving standard sensitivities
         if ocp_sensitivity is None:
             # setup OCP for sensitivity solver
             if (
@@ -633,10 +636,11 @@ class Mpc(ABC):
             self.ocp_sensitivity = deepcopy(ocp)
             # TODO: check using acados if sens solver is needed, see __uses_exact_hessian in acados. Then remove linear_mpc class.
 
-            set_standard_sensitivity_options(self.ocp_sensitivity)
+            derive_sensitivity_ocp(self.ocp_sensitivity)
         else:
             self.ocp_sensitivity = ocp_sensitivity
 
+        # PART II: For solving the standard OCP structure.
         if self.ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
             self.ocp.translate_initial_cost_term_to_external(
                 cost_hessian=ocp.solver_options.hessian_approx

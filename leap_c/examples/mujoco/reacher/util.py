@@ -3,20 +3,47 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pinocchio as pin
 from scipy.spatial.transform import Rotation
+
+# Optional pinocchio import
+try:
+    import pinocchio as pin
+
+    HAS_PINOCCHIO = True
+except ImportError:
+    pin = None
+    HAS_PINOCCHIO = False
+
+
+class PinocchioNotAvailableError(ImportError):
+    """Raised when pinocchio is required but not installed."""
+
+    def __init__(
+        self,
+        message: str = "Pinocchio is required for this functionality. Install with: pip install pin",
+    ):
+        super().__init__(message)
+
+
+def require_pinocchio() -> None:
+    """Check if pinocchio is available, raise error if not."""
+    if not HAS_PINOCCHIO:
+        raise PinocchioNotAvailableError
 
 
 class InverseKinematicsSolver:
     def __init__(
         self,
-        pinocchio_model: pin.Model,
+        pinocchio_model,  # noqa: ANN001
         step_size: float = 0.2,
         max_iter: int = 1000,
         tol: float = 1e-4,
         plot_level: int = 0,
         print_level: int = 0,
     ) -> None:
+        # Check pinocchio availability at initialization
+        require_pinocchio()
+
         self.model = pinocchio_model
         self.data = self.model.createData()
         self.step_size = step_size

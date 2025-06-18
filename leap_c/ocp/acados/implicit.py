@@ -1,0 +1,318 @@
+"""Provides a differentiable implicit function based on acados."""
+
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Literal
+
+import numpy as np
+from acados_template import AcadosOcp
+from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
+
+from leap_c.autograd.function import DiffFunction
+from leap_c.ocp.acados.data import AcadosSolverInput
+from leap_c.ocp.acados.initializer import AcadosInitializer, ZeroInitializer
+from leap_c.ocp.acados.utils.create_solver import create_forward_backward_batch_solvers
+from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
+from leap_c.ocp.acados.utils.solve import solve_with_retry
+
+
+N_BATCH_MAX = 256
+NUM_THREADS_BATCH_SOLVER = 4
+
+
+@dataclass
+class AcadosImplicitCtx:
+    iterate: AcadosOcpFlattenedBatchIterate
+    status: np.ndarray
+    log: dict[str, float]
+    solver_input: AcadosSolverInput
+
+    # backward pass
+    needs_input_grad: list[bool] | None = None
+
+    # sensitivity fields
+    du0_dp_global: np.ndarray | None = None
+    du0_dx0: np.ndarray | None = None
+    dvalue_du0: np.ndarray | None = None
+    dvalue_dx0: np.ndarray | None = None
+    dx_dp_global: np.ndarray | None = None
+    du_dp_global: np.ndarray | None = None
+    dvalue_dp_global: np.ndarray | None = None
+
+
+SensitivityField = Literal[
+    "du0_dp_global",
+    "du0_dx0",
+    "dx_dp_global",
+    "du_dp_global",
+    "dvalue_dp_global",
+    "dvalue_du0",
+    "dvalue_dx0",
+]
+
+
+class AcadosImplicitFunction(DiffFunction):
+    """Function for differentiable implicit function based on Acados."""
+
+    def __init__(
+        self,
+        ocp: AcadosOcp,
+        initializer: AcadosInitializer | None = None,
+        sensitivity_ocp: AcadosOcp | None = None,
+        discount_factor: float | None = None,
+        export_directory: Path | None = None,
+    ) -> None:
+        self.ocp = ocp
+        self.forward_batch_solver, self.backward_batch_solver = (
+            create_forward_backward_batch_solvers(
+                ocp=ocp,
+                sensitivity_ocp=sensitivity_ocp,
+                discount_factor=discount_factor,
+                export_directory=export_directory,
+                n_batch_max=N_BATCH_MAX,
+                num_threads=NUM_THREADS_BATCH_SOLVER,
+            )
+        )
+
+        if initializer is None:
+            self.initializer = ZeroInitializer(self.forward_batch_solver.ocp_solvers[0])
+        else:
+            self.initializer = initializer
+
+    def forward(
+        self,
+        ctx: AcadosImplicitCtx | None,
+        x0: np.ndarray,
+        u0: np.ndarray | None = None,
+        p_global: np.ndarray | None = None,
+        p_stagewise: np.ndarray | None = None,
+        p_stagewise_sparse_idx: np.ndarray | None = None,
+    ) -> tuple[AcadosImplicitCtx, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Perform the forward pass of the implicit function.
+
+        Args:
+            ctx: An `AcadosImplicitCtx` object for storing context. Defaults to `None`.
+            x0: Initial states with shape `(B, x_dim)`.
+            u0: Initial actions with shape `(B, u_dim)`. Defaults to `None`.
+            p_global: Global parameters shared across all stages,
+                shape `(B, p_global_dim)`. Defaults to `None`.
+            p_stagewise: Stagewise parameters.
+                If `p_stagewise_sparse_idx` is `None`, shape is
+                `(B, N+1, p_stagewise_dim)`.
+                If `p_stagewise_sparse_idx` is provided, shape is
+                `(B, N+1, len(p_stagewise_sparse_idx))`.
+            p_stagewise_sparse_idx: Indices for sparsely setting stagewise
+                parameters. Shape is `(B, N+1, n_p_stagewise_sparse_idx)`.
+        """
+        batch_size = x0.shape[0]
+
+        solver_input = AcadosSolverInput(
+            x0=x0,
+            u0=u0,
+            p_global=p_global,
+            p_stagewise=p_stagewise,
+            p_stagewise_sparse_idx=p_stagewise_sparse_idx,
+        )
+        ocp_iterate = None if ctx is None else ctx.iterate
+
+        status, log = solve_with_retry(
+            self.forward_batch_solver,
+            initializer=self.initializer,
+            ocp_iterate=ocp_iterate,
+            solver_input=solver_input,
+        )
+
+        # fetch output
+        active_solvers = self.forward_batch_solver.ocp_solvers[:batch_size]
+        sol_iterate = self.forward_batch_solver.store_iterate_to_flat_obj(
+            n_batch=batch_size
+        )
+        ctx = AcadosImplicitCtx(
+            iterate=sol_iterate, log=log, status=status, solver_input=solver_input
+        )
+        sol_value = np.array([s.get_cost() for s in active_solvers])
+        sol_u0 = sol_iterate.u[:, : self.ocp.dims.nu]
+
+        return ctx, sol_u0, sol_iterate.x, sol_iterate.u, sol_value
+
+    def backward(  # type: ignore
+        self,
+        ctx: AcadosImplicitCtx,
+        u0_grad: np.ndarray | None,
+        x_grad: np.ndarray | None,
+        u_grad: np.ndarray | None,
+        value_grad: np.ndarray | None,
+    ):
+        """
+        Compute gradients of inputs given gradients of outputs.
+
+        Args:
+            ctx: The `AcadosCtx` object from the forward pass.
+            p_global_grad: Gradient with respect to `p_global`.
+            p_stagewise_idx_grad: Gradient with respect to
+                `p_stagewise_sparse_idx`.
+            p_stagewise_grad: Gradient with respect to `p_stagewise`.
+        """
+        if ctx.needs_input_grad is None:
+            return None, None, None, None, None
+
+        def _adjoint(x_seed, u_seed, with_respect_to: str):
+            # backpropagation via the adjoint operator
+            if x_seed is None and u_seed is None:
+                return None
+
+            # Check if x_seed and u_seed are all zeros
+            if np.all(x_seed == 0) and np.all(u_seed == 0):
+                return None
+
+            x_seed_with_stage = (
+                [
+                    (stage_idx, x_seed)
+                    for stage_idx in range(self.ocp.dims.N + 1)  # type: ignore
+                ]
+                if x_seed is not None
+                else []
+            )
+
+            u_seed_with_stage = (
+                [
+                    (stage_idx, u_seed)
+                    for stage_idx in range(self.ocp.dims.N)  # type: ignore
+                ]
+                if u_seed is not None
+                else []
+            )
+
+            return self.backward_batch_solver.eval_adjoint_solution_sensitivity(
+                seed_x=x_seed_with_stage,
+                seed_u=u_seed_with_stage,
+                with_respect_to=with_respect_to,
+                sanity_checks=True,
+            )
+
+        def _jacobian(output_grad, field_name: SensitivityField):
+            if output_grad is None or np.all(output_grad == 0):
+                return None
+
+            if output_grad.ndim == 1:
+                return np.einsum(
+                    "bj,b->bj", self.sensitivity(ctx, field_name), output_grad
+                )
+
+            return np.einsum(
+                "bij,bi->bj", self.sensitivity(ctx, field_name), output_grad
+            )
+
+        def _safe_sum(*args):
+            filtered_args = [a for a in args if a is not None]
+            if not filtered_args:
+                return None
+            return np.sum(filtered_args, axis=0)
+
+        if ctx.needs_input_grad[1]:
+            grad_x0 = _safe_sum(
+                _jacobian(value_grad, "dvalue_dx0"),
+                _jacobian(u0_grad, "du0_dx0"),
+            )
+        else:
+            grad_x0 = None
+
+        if ctx.needs_input_grad[2]:
+            grad_u0 = _jacobian(value_grad, "dvalue_du0")
+        else:
+            grad_u0 = None
+
+        if ctx.needs_input_grad[3]:
+            grad_p_global = _safe_sum(
+                _jacobian(value_grad, "dvalue_dp_global"),
+                _jacobian(u0_grad, "du0_dp_global"),
+                _adjoint(x_grad, u_grad, with_respect_to="p_global"),
+            )
+        else:
+            grad_p_global = None
+
+        return grad_x0, grad_u0, grad_p_global, None, None
+
+    def sensitivity(self, ctx, field_name: SensitivityField) -> np.ndarray:
+        """
+        Calculate a specific sensitivity field for a context.
+
+        The `sensitivity` method retrieves a specific sensitivity field from the
+        context object, or recalculates it if not already present.
+
+        Args:
+            ctx: The `AcadosCtx` object containing sensitivity information.
+            field_name: The name of the sensitivity field to retrieve.
+        """
+        # check if already calculated
+        if getattr(ctx, field_name) is not None:
+            return getattr(ctx, field_name)
+
+        prepare_batch_solver_for_backward(
+            self.backward_batch_solver, ctx.iterate, ctx.solver_input
+        )
+
+        sens = None
+        batch_size = ctx.solver_input.batch_size
+        active_solvers = self.backward_batch_solver.ocp_solvers[:batch_size]
+
+        if field_name == "du0_dp_global":
+            single_seed = np.eye(self.ocp.dims.nu)  # type: ignore
+            seed_vec = np.repeat(single_seed[None, :, :], batch_size, axis=0)
+            sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
+                seed_x=[],
+                seed_u=[(0, seed_vec)],
+                with_respect_to="p_global",
+                sanity_checks=True,
+            )
+        elif field_name == "dx_dp_global":
+            single_seed = np.eye(self.ocp.dims.nx)  # type: ignore
+            seed_vec = np.repeat(single_seed[None, :, :], batch_size, axis=0)
+            seed_x = [(stage_idx, seed_vec) for stage_idx in range(self.ocp.dims.N + 1)]  # type: ignore
+            sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
+                seed_x=seed_x,
+                seed_u=[],
+                with_respect_to="p_global",
+                sanity_checks=True,
+            )
+        elif field_name == "du_dp_global":
+            single_seed = np.eye(self.ocp.dims.nu)  # type: ignore
+            seed_vec = np.repeat(single_seed[None, :, :], batch_size, axis=0)
+            seed_u = [(stage_idx, seed_vec) for stage_idx in range(self.ocp.dims.N)]  # type: ignore
+            sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
+                seed_x=[],
+                seed_u=seed_u,
+                with_respect_to="p_global",
+                sanity_checks=True,
+            )
+        elif field_name == "du0_dx0":
+            sens = np.array(
+                [
+                    s.eval_solution_sensitivity(
+                        stages=0,
+                        with_respect_to="initial_state",
+                        return_sens_u=True,
+                        return_sens_x=False,
+                    )["sens_u"]
+                    for s in active_solvers
+                ]
+            )
+        elif field_name in ["dvalue_dp_global", "dvalue_dx0", "dvalue_du0"]:
+            with_respect_to = {
+                "dvalue_dp_global": "p_global",
+                "dvalue_dx0": "initial_state",
+                "dvalue_du0": "initial_control",
+            }[field_name]
+            sens = np.array(
+                [
+                    s.eval_and_get_optimal_value_gradient(with_respect_to)
+                    for s in active_solvers
+                ]
+            )
+        else:
+            raise ValueError
+
+        setattr(ctx, field_name, sens)
+
+        return sens

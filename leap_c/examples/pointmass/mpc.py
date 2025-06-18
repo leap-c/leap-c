@@ -4,6 +4,7 @@ import casadi as ca
 import numpy as np
 from acados_template import AcadosOcp
 from casadi.tools import struct_symSX
+
 from leap_c.examples.pointmass.env import _A_disc, _B_disc
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
@@ -12,7 +13,7 @@ from leap_c.examples.util import (
 from leap_c.ocp.acados.mpc import Mpc
 
 
-class PointMassMPC(Mpc):
+class PointMassMpc(Mpc):
     """docstring for PointMassMPC."""
 
     def __init__(
@@ -25,7 +26,7 @@ class PointMassMPC(Mpc):
         export_directory: Path | None = None,
         export_directory_sensitivity: Path | None = None,
         throw_error_if_u0_is_outside_ocp_bounds: bool = True,
-    ):
+    ) -> None:
         params = (
             {
                 "m": 1.0,
@@ -67,8 +68,7 @@ def _create_diag_matrix(
 ) -> np.ndarray | ca.SX:
     if any(isinstance(i, ca.SX) for i in [_q_sqrt]):
         return ca.diag(_q_sqrt)
-    else:
-        return np.diag(_q_sqrt)
+    return np.diag(_q_sqrt)
 
 
 def _disc_dyn_expr(
@@ -121,12 +121,12 @@ def _cost_expr_ext_cost_e(ocp: AcadosOcp) -> ca.SX:
 
 
 def export_parametric_ocp(
-    nominal_param: dict[str, np.ndarray],
+    nominal_param: dict[str, np.ndarray | float],
     name: str = "pointmass",
     learnable_params: list[str] | None = None,
     N_horizon: int = 50,
     tf: float = 2.0,
-    x0: np.ndarray = np.array([1.0, 1.0, 0.0, 0.0]),
+    x0: np.ndarray | None = None,
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
@@ -153,7 +153,7 @@ def export_parametric_ocp(
     ocp.model.cost_expr_ext_cost_e = _cost_expr_ext_cost_e(ocp=ocp)
     ocp.cost.cost_type_e = "EXTERNAL"
 
-    ocp.constraints.x0 = x0
+    ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0]) if x0 is None else x0
 
     Fmax = 10.0
     # Box constraints on u
@@ -173,7 +173,7 @@ def export_parametric_ocp(
     ocp.cost.zu = 10000 * np.ones((ns,))
     ocp.cost.Zu = 10 * np.ones((ns,))
 
-    # #############################
+    # Cast parameters to appropriate types for acados
     if isinstance(ocp.model.p, struct_symSX):
         ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
 
@@ -182,10 +182,13 @@ def export_parametric_ocp(
             ocp.model.p_global.cat if ocp.model.p_global is not None else None
         )
 
+    configure_ocp_solver(ocp=ocp, exact_hess_dyn=True)
+
     return ocp
 
 
-def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
+def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool) -> None:
+    """Configure the OCP solver options."""
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
@@ -195,4 +198,3 @@ def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.with_value_sens_wrt_params = True
     ocp.solver_options.with_solution_sens_wrt_params = True
     ocp.solver_options.with_batch_functionality = True
-
