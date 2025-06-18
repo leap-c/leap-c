@@ -32,7 +32,7 @@ def find_param_in_p_or_p_global(
     if model.p_global is None:
         return {key: model.p[key] for key in param_name}  # type:ignore
     return {
-        key: (model.p[key] if key in model.p else model.p_global[key])  # type:ignore
+        key: (model.p[key] if key in model.p.keys() else model.p_global[key])  # type:ignore  # noqa: SIM118
         for key in param_name
     }
 
@@ -266,6 +266,9 @@ def acados_test_ocp(ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions) -> Ac
 
     learnable_p_global = nominal_p_global.keys()
 
+    # Remove from learnable parameters to test non-learnable parameters
+    learnable_p_global = [p for p in learnable_p_global if p not in ["cx", "cy"]]
+
     name = "test_ocp"
 
     ocp = AcadosOcp()
@@ -284,7 +287,10 @@ def acados_test_ocp(ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions) -> Ac
         nominal_param=nominal_p_global,
         learnable_param=learnable_p_global,
         ocp=ocp,
+        verbosity=1,
     )
+
+    m = find_param_in_p_or_p_global(["m"], ocp.model)["m"]
 
     ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp=ocp)
 
