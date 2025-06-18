@@ -60,7 +60,7 @@ def prepare_batch_solver(
         and p_stagewise_sparse_idx is None
     ):
         # if p_stagewise is None and default exist, load default p
-        param_default = ocp.model.p.tile(batch_size, N + 1)  # type:ignore
+        param_default = np.tile(ocp.parameter_values, (batch_size, N + 1))
         param = param_default.reshape(batch_size, -1)
         batch_solver.set_flat("p", param)
     elif p_stagewise is not None and p_stagewise_sparse_idx is None:
