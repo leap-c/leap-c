@@ -11,7 +11,7 @@ from leap_c.ocp.acados.implicit import (
 from leap_c.ocp.acados.torch import AcadosImplicitLayer
 
 
-def test_initialization(implicit_layer):
+def test_initialization(implicit_layer: AcadosImplicitLayer):
     assert True
 
 
@@ -23,9 +23,84 @@ def test_ctx_loading(implicit_layer: AcadosImplicitLayer, export_dir):
     pass
 
 
-def test_statelessness(implicit_layer: AcadosImplicitLayer):
-    # See current MPC implementation. Needs rewrite.
-    pass
+def test_statelessness(implicit_layer: AcadosImplicitLayer) -> None:
+    """
+    Test the statelessness of the AcadosImplicitLayer by verifying that the
+    layer produces consistent outputs for identical inputs and different outputs
+    for modified parameters.
+
+    This test ensures that:
+    1. The layer's output changes when global and stagewise parameters are modified.
+    2. The layer's output remains consistent for identical inputs, confirming stateless
+    behavior.
+
+    Args:
+        implicit_layer (AcadosImplicitLayer): The implicit layer to be tested.
+
+    Raises:
+        AssertionError: If the layer does not produce different outputs for
+                        different parameters or if it does not produce consistent
+                        outputs for identical inputs.
+    """
+    x0 = np.tile(
+        A=np.array([0.5, 0.5, 0.5, 0.5]),
+        reps=(implicit_layer.implicit_fun.forward_batch_solver.N_batch_max, 1),
+    )
+    u0 = np.tile(
+        A=np.array([0.5, 0.5]),
+        reps=(implicit_layer.implicit_fun.forward_batch_solver.N_batch_max, 1),
+    )
+
+    p_global = implicit_layer.implicit_fun.ocp.p_global_values
+
+    assert p_global is not None
+
+    p_global = p_global + np.ones(p_global.shape[0]) * 0.01
+
+    p_global = np.tile(
+        A=p_global,
+        reps=(implicit_layer.implicit_fun.forward_batch_solver.N_batch_max, 1),
+    )
+
+    p_stagewise = implicit_layer.implicit_fun.ocp.parameter_values
+
+    assert p_stagewise is not None
+
+    p_stagewise = p_stagewise + np.ones(p_stagewise.shape) * 0.01
+
+    p_stagewise = np.tile(
+        A=p_stagewise,
+        reps=(
+            implicit_layer.implicit_fun.forward_batch_solver.N_batch_max,
+            implicit_layer.implicit_fun.ocp.solver_options.N_horizon + 1,
+            1,
+        ),
+    )
+
+    solutions = []
+    solutions.append(implicit_layer.forward(x0=x0, u0=u0))
+
+    solutions.append(
+        implicit_layer.forward(
+            x0=x0 - 0.01,
+            u0=u0 - 0.01,
+            p_global=p_global,
+            p_stagewise=p_stagewise,
+        )
+    )
+
+    solutions.append(implicit_layer.forward(x0=x0, u0=u0))
+
+    assert not np.allclose(solutions[0][-1], solutions[1][-1]), (
+        "The solutions should be different due to different parameters."
+    )
+
+    for i, field_name in enumerate(["u0", "x", "u", "Q value"], start=1):
+        np.testing.assert_allclose(
+            solutions[0][i],
+            solutions[2][i],
+            err_msg=f"The solutions should have the same {field_name}.",
+        )
 
 
 def test_backup_functionality(implicit_layer: AcadosImplicitLayer):
