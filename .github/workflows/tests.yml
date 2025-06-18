@@ -90,22 +90,22 @@ jobs:
         # Try acados example
         python examples/acados_python/getting_started/minimal_example_ocp.py
 
-    # - name: Install leap_c
-    #   working-directory: ${{github.workspace}}/leap_c
-    #   run: |
-    #     # Activate the micromamba environment
-    #     eval "$(micromamba shell hook --shell=bash)"
-    #     micromamba activate leapc_env
-    #     # Install packages
-    #     pip install -e .[test]
-    #     pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+    - name: Install leap_c
+      working-directory: ${{github.workspace}}/leap_c
+      run: |
+        # Activate the micromamba environment
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
+        # Install packages
+        pip install -e .[test]
+        pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
-    # - name: Run leap_c tests
-    #   working-directory: ${{github.workspace}}/leap_c
-    #   run: |
-    #     # Activate the micromamba environment
-    #     eval "$(micromamba shell hook --shell=bash)"
-    #     micromamba activate leapc_env
-    #     # Run tests
-    #     pwd
-    #     pytest tests -vv -s
+    - name: Run leap_c tests
+      working-directory: ${{github.workspace}}/leap_c
+      run: |
+        # Activate the micromamba environment
+        eval "$(micromamba shell hook --shell=bash)"
+        micromamba activate leapc_env
+        # Run tests
+        pwd
+        pytest tests -vv -s
