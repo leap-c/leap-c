@@ -143,17 +143,23 @@ class SacTrainer(Trainer):
     cfg: SacBaseConfig
 
     def __init__(
-        self, task: Task, output_path: str | Path, device: str, cfg: SacBaseConfig
+        self,
+        train_env: gym.Env,
+        val_env: gym.Env,
+        output_path: str | Path,
+        device: str,
+        cfg: SacBaseConfig,
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
         Args:
-            task: The task to be solved by the trainer.
+            train_env: The training environment.
+            val_env: The validation environment.
             output_path: The path to the output directory.
             device: The device on which the trainer is running
             cfg: The configuration for the trainer.
         """
-        super().__init__(task, output_path, device, cfg)
+        super().__init__(output_path, device, cfg)
 
         self.q = SacCritic(
             task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
