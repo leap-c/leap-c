@@ -108,30 +108,53 @@ def test_backup_functionality(implicit_layer: AcadosImplicitLayer):
     pass
 
 
-def test_closed_loop(implicit_layer: AcadosImplicitLayer):
-    # Test the acados_example_ocp in closed loop. Do we need a reference fixture?
-    # x0 = np.array([0.5, 0.5, 0.5, 0.5])
-    # x = [x0]
-    # u = []
+def test_closed_loop(implicit_layer: AcadosImplicitLayer) -> None:
+    """
+    Tests the closed-loop behavior of a system controlled by an AcadosImplicitLayer.
 
-    # p_global = acados_test_impl_fun.ocp.p_global_values
+    This function simulates a closed-loop system for 100 steps, where the control
+    inputs are computed using the provided implicit layer. It verifies that the
+    solver converges at each step and checks that the system states and control
+    inputs stabilize within a specified threshold.
 
-    # for step in range(100):
-    #     u_star, _, status = learnable_linear_mpc.policy(x[-1], p_global=p_global)
-    #     assert status == 0, f"Did not converge to a solution in step {step}"
-    #     u.append(u_star)
-    #     x.append(learnable_linear_mpc.ocp_batch_solver.ocp_solvers[0].get(1, "x"))
-    #     assert status == 0
+    Args:
+        implicit_layer (AcadosImplicitLayer): The implicit layer representing the
+            control system, which includes the solver and problem definition.
 
-    # x = np.array(x)
-    # u = np.array(u)
+    Raises:
+        AssertionError: If the solver fails to converge at any step or if the
+            median of the last 10 states or control inputs exceeds the specified
+            threshold.
+    """
+    nx = implicit_layer.implicit_fun.ocp.dims.nx
 
-    # assert (
-    #     np.median(x[-10:, 0]) <= 1e-1
-    #     and np.median(x[-10:, 1]) <= 1e-1
-    #     and np.median(u[-10:]) <= 1e-1
-    # )
-    pass
+    x0 = np.array([0.5, 0.5, 0.5, 0.5])
+    x = [x0]
+    u = []
+
+    # Need first dimension of inputs to be batch size
+    n_batch = 1
+
+    p_global = implicit_layer.implicit_fun.ocp.p_global_values.reshape(
+        n_batch, implicit_layer.implicit_fun.ocp.dims.np_global
+    )
+
+    for step in range(100):
+        # Need first dimension to be batch size
+        x0 = np.array(x[-1].reshape(n_batch, nx))
+        ctx, u0, _, _, _ = implicit_layer.forward(x0=x0, p_global=p_global)
+        assert ctx.status == 0, f"Did not converge to a solution in step {step}"
+        u.append(u0)
+        x.append(
+            implicit_layer.implicit_fun.forward_batch_solver.ocp_solvers[0].get(1, "x")
+        )
+
+    x = np.array(x)
+    u = np.array(u)
+
+    assert np.median(x[-10:, 0]) <= 1e-1, "Median of x[-10:, 0] exceeds threshold"
+    assert np.median(x[-10:, 1]) <= 1e-1, "Median of x[-10:, 1] exceeds threshold"
+    assert np.median(u[-10:]) <= 1e-1, "Median of u[-10:] exceeds threshold"
 
 
 @dataclass
