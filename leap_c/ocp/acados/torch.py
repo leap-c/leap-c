@@ -32,7 +32,7 @@ class AcadosImplicitLayer(nn.Module):
             initializer: Initializer for the OCP solver. If None, a zero initializer is used.
             sensitivity_ocp: The optimal control problem formulation to use for sensitivities.
                 If None, the sensitivity problem is derived from the ocp object, however only the EXTERNAL cost type is allowed then.
-                For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
+                For an example of how to set up other cost types refer, e.g., to examples/cartpole.py .
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
             export_directory: Directory to export the generated code.
         """
