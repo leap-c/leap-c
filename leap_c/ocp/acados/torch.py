@@ -10,7 +10,7 @@ from leap_c.autograd.torch import create_autograd_function
 from leap_c.ocp.acados.diff_mpc import (
     AcadosDiffMpcCtx,
     AcadosDiffMpcFunction,
-    DiffMpcSensitivityOptions,
+    AcadosDiffMpcSensitivityOptions,
 )
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 
@@ -102,7 +102,7 @@ class AcadosDiffMpc(nn.Module):
 
         return ctx, u0, x, u, value
 
-    def sensitivity(self, ctx, field_name: DiffMpcSensitivityOptions) -> np.ndarray:
+    def sensitivity(self, ctx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
         """
         Compute the sensitivity of the implicit function with respect to a field.
 

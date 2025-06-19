@@ -47,7 +47,7 @@ class AcadosDiffMpcCtx:
     dvalue_dp_global: np.ndarray | None = None
 
 
-DiffMpcSensitivityOptions = Literal[
+AcadosDiffMpcSensitivityOptions = Literal[
     "du0_dp_global",
     "du0_dx0",
     "dx_dp_global",
@@ -198,7 +198,7 @@ class AcadosDiffMpcFunction(DiffFunction):
                 sanity_checks=True,
             )
 
-        def _jacobian(output_grad, field_name: DiffMpcSensitivityOptions):
+        def _jacobian(output_grad, field_name: AcadosDiffMpcSensitivityOptions):
             if output_grad is None or np.all(output_grad == 0):
                 return None
 
@@ -241,7 +241,7 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         return grad_x0, grad_u0, grad_p_global, None, None
 
-    def sensitivity(self, ctx: AcadosDiffMpcCtx, field_name: DiffMpcSensitivityOptions) -> np.ndarray:
+    def sensitivity(self, ctx: AcadosDiffMpcCtx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
         """
         Calculate a specific sensitivity field for a context.
 
