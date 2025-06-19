@@ -7,20 +7,18 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.utils.logger import LoggerConfig
 from leap_c.torch.nn.gaussian import SquashedGaussian
 from leap_c.torch.nn.mlp import MLP, MlpConfig
 from leap_c.torch.nn.scale import min_max_scaling
-from leap_c.registry import register_trainer
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.utils import soft_target_update
-from leap_c.task import Task
-from leap_c.trainer import BaseConfig, TrainConfig, Trainer, ValConfig
+from leap_c.trainer import Trainer, TrainerConfig
+from leap_c.utils.gym import wrap_train_env
 
 
 @dataclass(kw_only=True)
-class SacAlgorithmConfig:
-    """Contains the necessary information for a SacTrainer.
+class SacTrainerConfig(TrainerConfig):
+    """Contains the necessary configuration for a SacTrainer.
 
     Attributes:
         critic_mlp: The configuration for the critic networks.
@@ -41,7 +39,6 @@ class SacAlgorithmConfig:
         report_loss_freq: The frequency of reporting the loss.
         update_freq: The frequency of updating the networks.
     """
-
     critic_mlp: MlpConfig = field(default_factory=MlpConfig)
     actor_mlp: MlpConfig = field(default_factory=MlpConfig)
     batch_size: int = 64
@@ -60,29 +57,11 @@ class SacAlgorithmConfig:
     update_freq: int = 4
 
 
-@dataclass(kw_only=True)
-class SacBaseConfig(BaseConfig):
-    """Contains the necessary information for a Trainer.
-
-    Attributes:
-        sac: The Sac algorithm configuration.
-        train: The training configuration.
-        val: The validation configuration.
-        log: The logging configuration.
-        seed: The seed for the trainer.
-    """
-
-    sac: SacAlgorithmConfig = field(default_factory=SacAlgorithmConfig)
-    train: TrainConfig = field(default_factory=TrainConfig)
-    val: ValConfig = field(default_factory=ValConfig)
-    log: LoggerConfig = field(default_factory=LoggerConfig)
-    seed: int = 0
-
 
 class SacCritic(nn.Module):
     def __init__(
         self,
-        task: Task,
+        extractor: nn.Module,
         env: gym.Env,
         mlp_cfg: MlpConfig,
         num_critics: int,
@@ -112,13 +91,11 @@ class SacCritic(nn.Module):
 
 
 class SacActor(nn.Module):
-    scale: torch.Tensor
-    loc: torch.Tensor
 
-    def __init__(self, task, env, mlp_cfg: MlpConfig):
+    def __init__(self, extractor, env, mlp_cfg: MlpConfig):
         super().__init__()
 
-        self.extractor = task.create_extractor(env)
+        self.extractor = extractor
         action_dim = env.action_space.shape[0]  # type: ignore
 
         self.mlp = MLP(
@@ -138,34 +115,39 @@ class SacActor(nn.Module):
         return action, log_prob, stats
 
 
-@register_trainer("sac", SacBaseConfig())
-class SacTrainer(Trainer):
-    cfg: SacBaseConfig
+class SacTrainer(Trainer[SacTrainerConfig]):
 
     def __init__(
         self,
-        train_env: gym.Env,
+        cfg: SacTrainerConfig,
         val_env: gym.Env,
         output_path: str | Path,
         device: str,
-        cfg: SacBaseConfig,
+        train_env: gym.Env,
+        extractor: nn.Module | None = None,
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
         Args:
-            train_env: The training environment.
+            cfg: The configuration for the trainer.
             val_env: The validation environment.
             output_path: The path to the output directory.
             device: The device on which the trainer is running
-            cfg: The configuration for the trainer.
+            train_env: The training environment.
+            extractor: An optional extractor module to use for the env.
         """
-        super().__init__(output_path, device, cfg)
+        super().__init__(cfg, val_env, output_path, device)
+
+        self.train_env = wrap_train_env(train_env)
+
+        if extractor is None:
+            extractor = IdendityExtractor()
 
         self.q = SacCritic(
-            task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
+            extractor, train_env, cfg.critic_mlp, cfg.num_critics
         )
         self.q_target = SacCritic(
-            task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
+            extractor, train_env, cfg.critic_mlp, cfg.num_critics
         )
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
@@ -175,19 +157,19 @@ class SacTrainer(Trainer):
 
         self.log_alpha = nn.Parameter(torch.tensor(self.cfg.sac.init_alpha).log())  # type: ignore
 
-        if self.cfg.sac.lr_alpha is not None:
+        if self.cfg.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
             action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
             self.target_entropy = (
                 -action_dim
-                if cfg.sac.target_entropy is None
-                else cfg.sac.target_entropy
+                if cfg.target_entropy is None
+                else cfg.target_entropy
             )
         else:
             self.alpha_optim = None
             self.target_entropy = None
 
-        self.buffer = ReplayBuffer(cfg.sac.buffer_size, device=device)
+        self.buffer = ReplayBuffer(cfg.buffer_size, device=device)
 
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
@@ -217,12 +199,12 @@ class SacTrainer(Trainer):
             obs = obs_prime
 
             if (
-                self.state.step >= self.cfg.train.start
-                and len(self.buffer) >= self.cfg.sac.batch_size
-                and self.state.step % self.cfg.sac.update_freq == 0
+                self.state.step >= self.cfg.train_start
+                and len(self.buffer) >= self.cfg.batch_size
+                and self.state.step % self.cfg.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te = self.buffer.sample(self.cfg.sac.batch_size)
+                o, a, r, o_prime, te = self.buffer.sample(self.cfg.batch_size)
 
                 # sample action
                 a_pi, log_p, _ = self.pi(o)
@@ -246,11 +228,11 @@ class SacTrainer(Trainer):
                     # add entropy
                     q_target = (
                         q_target
-                        - alpha * log_p_prime * self.cfg.sac.entropy_reward_bonus
+                        - alpha * log_p_prime * self.cfg.entropy_reward_bonus
                     )
 
                     target = (
-                        r[:, None] + self.cfg.sac.gamma * (1 - te[:, None]) * q_target
+                        r[:, None] + self.cfg.gamma * (1 - te[:, None]) * q_target
                     )
 
                 q = torch.cat(self.q(o, a), dim=1)
@@ -270,7 +252,7 @@ class SacTrainer(Trainer):
                 self.pi_optim.step()
 
                 # soft updates
-                soft_target_update(self.q, self.q_target, self.cfg.sac.tau)
+                soft_target_update(self.q, self.q_target, self.cfg.tau)
 
                 # report stats
                 loss_stats = {
@@ -288,6 +270,7 @@ class SacTrainer(Trainer):
     def act(
         self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, None, dict[str, float]]:
+        # TODO (Jasper): Update collate functionality
         obs = self.task.collate([obs], self.device)
         with torch.no_grad():
             action, _, stats = self.pi(obs, deterministic=deterministic)

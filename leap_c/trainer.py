@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterator, Literal
+from typing import Any, Generic, Iterator, Literal, TypeVar
 
 import numpy as np
 import torch
@@ -13,6 +13,9 @@ from leap_c.utils.logger import Logger, LoggerConfig
 from leap_c.utils.rollout import episode_rollout
 from leap_c.utils.gym import wrap_eval_env
 from leap_c.torch.utils.seed import set_seed
+
+
+TrainerConfigType = TypeVar("TrainerConfigType", bound="TrainerConfig")
 
 
 @dataclass(kw_only=True)
@@ -69,7 +72,7 @@ class TrainerState:
     max_score: float = -float("inf")
 
 
-class Trainer(ABC, nn.Module):
+class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
     """A trainer provides the implementation of an algorithm.
 
     It is responsible for training the components of the algorithm and
@@ -85,7 +88,7 @@ class Trainer(ABC, nn.Module):
     """
 
     def __init__(
-        self, cfg: TrainerConfig, eval_env: gym.Env, output_path: str | Path, device: str
+        self, cfg: TrainerConfigType, eval_env: gym.Env, output_path: str | Path, device: str
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
