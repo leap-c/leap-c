@@ -1,28 +1,25 @@
-"""Provides a trainer for a Soft Actor-Critic algorithm that uses a differentiable MPC
-layer for the policy network."""
+"""This is a generic trainer that can be used for any task that has a differentiable hierarchical controller.
+"""
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable, Iterator, NamedTuple
+from typing import Any, Iterator, NamedTuple, Protocol
 
 import gymnasium as gym
 import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.ocp.acados.mpc import MpcBatchedState
-from leap_c.torch.nn.gaussian import SquashedGaussian, BoundedTransform
-from leap_c.torch.nn.mlp import MLP, MlpConfig
-from leap_c.ocp.acados.layer import MpcSolutionModule
+from leap_c.controller import ParameterizedController
 from leap_c.registry import register_trainer
+from leap_c.task import HierarchicalControllerMixin, ReinforcementLearningMixin, Task
+from leap_c.torch.nn.gaussian import BoundedTransform, SquashedGaussian
+from leap_c.torch.nn.mlp import MLP, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.sac import SacBaseConfig, SacCritic
 from leap_c.torch.rl.utils import soft_target_update
-from leap_c.task import Task
 from leap_c.trainer import Trainer
 
-
-NUM_THREADS_ACADOS_BATCH = 4
 
 @dataclass(kw_only=True)
 class SacFopBaseConfig(SacBaseConfig):
@@ -48,13 +45,18 @@ class SacFopcBaseConfig(SacBaseConfig):
     entropy_correction: bool = True
 
 
+class SacFopCtx(Protocol):
+    log: dict[str, float] | None = None
+    status: np.ndarray | None = None
+
+
 class SacFopActorOutput(NamedTuple):
     param: torch.Tensor
     log_prob: torch.Tensor
     stats: dict[str, float]
     action: torch.Tensor
     status: torch.Tensor
-    state_solution: MpcBatchedState
+    ctx: SacFopCtx
 
     def select(self, mask: torch.Tensor) -> "SacFopActorOutput":
         return SacFopActorOutput(
@@ -73,15 +75,13 @@ class FopActor(nn.Module):
         task: Task,
         env: gym.Env,
         mlp_cfg: MlpConfig,
-        prepare_mpc_state: (
-            Callable[[torch.Tensor, torch.Tensor, MpcBatchedState], MpcBatchedState]
-            | None
-        ) = None,
         correction: bool = True,
     ):
         super().__init__()
 
-        param_space = task.param_space
+        self.param_controller: ParameterizedController = task.create_parameterized_controller()
+
+        param_space = self.param_controller.param_space()
 
         self.extractor = task.create_extractor(env)
         self.mlp = MLP(
@@ -91,15 +91,11 @@ class FopActor(nn.Module):
         )
         self.correction = correction
 
-        self.mpc: MpcSolutionModule = task.mpc  # type:ignore
-        self.prepare_mpc_input = task.prepare_mpc_input
-        self.prepare_mpc_state = prepare_mpc_state
-        self.actual_used_mpc_state = None
-
+        self.jacobian_action_param = self.param_controller.jacobian_action_param
         self.squashed_gaussian = SquashedGaussian(param_space)  # type:ignore
 
     def forward(
-        self, obs, mpc_state: MpcBatchedState, deterministic=False
+        self, obs, deterministic: bool = False, ctx: SacFopCtx | None = None
     ) -> SacFopActorOutput:
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
@@ -108,17 +104,11 @@ class FopActor(nn.Module):
             mean, log_std, deterministic=deterministic
         )
 
-        mpc_input = self.prepare_mpc_input(obs, param)
-        if self.prepare_mpc_state is not None:
-            mpc_state = self.prepare_mpc_state(obs, param, mpc_state)  # type:ignore
+        ctx, action = self.param_controller(obs, param, ctx)
 
-        # TODO: We have to catch and probably replace the state_solution somewhere,
-        #       if its not a converged solution
-        mpc_output, state_solution, mpc_stats = self.mpc(mpc_input, mpc_state)
-        self.actual_used_mpc_state = mpc_state
-
-        if mpc_output.du0_dp_global is not None and self.correction:
-            jtj = mpc_output.du0_dp_global @ mpc_output.du0_dp_global.transpose(1, 2)
+        jacobian_action_param = self.jacobian_action_param(ctx)
+        if jacobian_action_param is not None and self.correction:
+            jtj = jacobian_action_param @ jacobian_action_param.transpose(1, 2)
             correction = (
                 torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device))
                 .sqrt()
@@ -129,10 +119,10 @@ class FopActor(nn.Module):
         return SacFopActorOutput(
             param,
             log_prob,
-            {**gaussian_stats, **mpc_stats},
-            mpc_output.u0,
-            mpc_output.status,
-            state_solution,
+            {**gaussian_stats, **ctx.log},  # type:ignore
+            action,
+            ctx.status,
+            ctx,
         )
 
 
@@ -142,14 +132,11 @@ class FouActor(nn.Module):
         task: Task,
         env: gym.Env,
         mlp_cfg: MlpConfig,
-        prepare_mpc_state: (
-            Callable[[torch.Tensor, torch.Tensor, MpcBatchedState], MpcBatchedState]
-            | None
-        ) = None,
     ):
         super().__init__()
 
-        param_space = task.param_space
+        self.param_controller: ParameterizedController = task.create_parameterized_controller()
+        param_space = self.param_controller.param_space()
 
         self.extractor = task.create_extractor(env)
         self.mlp = MLP(
@@ -158,45 +145,33 @@ class FouActor(nn.Module):
             mlp_cfg=mlp_cfg,
         )
 
-        self.mpc: MpcSolutionModule = task.mpc  # type:ignore
-        self.prepare_mpc_input = task.prepare_mpc_input
-        self.prepare_mpc_state = prepare_mpc_state
-
-        self.parameter_transfrom = BoundedTransform(param_space)
+        self.parameter_transform = BoundedTransform(param_space)
         self.action_transform = BoundedTransform(env.action_space)
         self.squashed_gaussian = SquashedGaussian(env.action_space)  # type:ignore
 
     def forward(
-        self, obs, mpc_state: MpcBatchedState, deterministic: bool = False
+        self, obs, deterministic: bool = False, ctx: SacFopCtx | None = None
     ) -> torch.Tensor:
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
-        param = self.parameter_transfrom(mean)
+        param = self.parameter_transform(mean)
 
-        mpc_input = self.prepare_mpc_input(obs, param)
-        if self.prepare_mpc_state is not None:
-            mpc_state = self.prepare_mpc_state(obs, param, mpc_state)  # type:ignore
+        ctx, action = self.param_controller(obs, param, ctx)
 
-        mpc_output, state_solution, _ = self.mpc(mpc_input, mpc_state)
-
-        action_mpc = mpc_output.u0
-        action_unbounded = self.action_transform.inverse(action_mpc.detach(), padding=0.1)
-        action_unbounded = self.action_transform.inverse(
-            action_mpc.detach(), padding=0.1
-        )
+        action_unbounded = self.action_transform.inverse(action.detach(), padding=0.1)
         action_squashed, log_prob, gaussian_stats = self.squashed_gaussian(
             action_unbounded, log_std, deterministic=deterministic
         )
-        action = action_mpc + (action_squashed - action_mpc.detach())
+        action = action + (action_squashed - action.detach())
         # check if nan
 
         return SacFopActorOutput(
             param,
             log_prob,
-            gaussian_stats,
+            {**gaussian_stats, **ctx.log},  # type:ignore
             action,
-            mpc_output.status,
-            state_solution,
+            ctx.status,
+            ctx,
         )
 
 
@@ -217,6 +192,11 @@ class SacFopTrainer(Trainer):
         """
         super().__init__(task, output_path, device, cfg)
 
+        if not isinstance(task, ReinforcementLearningMixin):
+            raise ValueError("Task must be a reinforcement learning task")
+        if not isinstance(task, HierarchicalControllerMixin):
+            raise ValueError("Task must be a hierarchical controller task")
+
         self.q = SacCritic(
             task, self.train_env, cfg.sac.critic_mlp, cfg.sac.num_critics
         )
@@ -227,7 +207,6 @@ class SacFopTrainer(Trainer):
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
 
         if cfg.noise == "param":
-            self.pi = FopActor(task, self.train_env, cfg.sac.actor_mlp, correction=cfg.entropy_correction)
             self.pi = FopActor(
                 task,
                 self.train_env,
@@ -239,8 +218,6 @@ class SacFopTrainer(Trainer):
         else:
             raise ValueError(f"Unknown noise type: {cfg.noise}")
 
-        # TODO (Jasper): This should be refactored and is a config of the acados solver.
-        self.pi.mpc.mpc.num_threads_batch_methods = NUM_THREADS_ACADOS_BATCH
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(cfg.sac.init_alpha).log())  # type: ignore
@@ -248,8 +225,9 @@ class SacFopTrainer(Trainer):
         if self.cfg.sac.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
             action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
-            param_dim = np.prod(task.param_space.shape)  # type: ignore
             if cfg.noise == "param":
+                param_space = task.create_parameterized_controller().param_space()
+                param_dim = np.prod(param_space.shape)
                 self.entropy_norm = param_dim / action_dim
             else:
                 self.entropy_norm = 1
@@ -263,21 +241,21 @@ class SacFopTrainer(Trainer):
 
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
-        policy_state = None
+        ctx = None
         obs = None
 
         while True:
             if is_terminated or is_truncated:
                 obs, _ = self.train_env.reset()
-                policy_state = None
+                ctx = None
                 is_terminated = is_truncated = False
 
-            obs_batched = self.task.collate([obs], device=self.device)
+            obs_batched = torch.tensor([obs], device=self.device)
 
             with torch.no_grad():
                 # TODO (Jasper): Argument order is not consistent
                 pi_output: SacFopActorOutput = self.pi(
-                    obs_batched, policy_state, deterministic=False
+                    obs_batched, deterministic=False, ctx=ctx
                 )
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
@@ -302,12 +280,12 @@ class SacFopTrainer(Trainer):
                     reward,
                     obs_prime,
                     is_terminated,
-                    pi_output.state_solution,
+                    pi_output.ctx,
                 )
             )  # type: ignore
 
             obs = obs_prime
-            policy_state = pi_output.state_solution
+            ctx = pi_output.ctx
 
             if (
                 self.state.step >= self.cfg.train.start
@@ -315,14 +293,14 @@ class SacFopTrainer(Trainer):
                 and self.state.step % self.cfg.sac.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te, ps_sol = self.buffer.sample(
+                o, a, r, o_prime, te, ps_ctx = self.buffer.sample(
                     self.cfg.sac.batch_size
                 )
 
                 # sample action
-                pi_o = self.pi(o, ps_sol)
+                pi_o = self.pi(o, deterministic=False, ctx=ps_ctx)
                 with torch.no_grad():
-                    pi_o_prime = self.pi(o_prime, ps_sol)
+                    pi_o_prime = self.pi(o_prime, deterministic=False, ctx=ps_ctx)
 
                 pi_o_stats = pi_o.stats
 
@@ -400,16 +378,16 @@ class SacFopTrainer(Trainer):
             yield 1
 
     def act(
-        self, obs, deterministic: bool = False, state=None
+        self, obs, deterministic: bool = False, state: SacFopCtx | None = None
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
-        obs = self.task.collate([obs], device=self.device)
+        obs = torch.tensor([obs], device=self.device)
 
         with torch.no_grad():
-            pi_output = self.pi(obs, state, deterministic=deterministic)
+            pi_output = self.pi(obs, deterministic=deterministic, ctx=state)
 
         action = pi_output.action.cpu().numpy()[0]
 
-        return action, pi_output.state_solution, pi_output.stats
+        return action, pi_output.ctx, pi_output.stats
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:

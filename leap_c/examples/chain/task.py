@@ -76,7 +76,7 @@ class ChainTask(Task):
         high = self.param_high
         return spaces.Box(low=low, high=high, dtype=np.float32)
 
-    def create_env(self, train: bool) -> gym.Env:
+    def _create_env(self, train: bool) -> gym.Env:
         if train:
             phi_range = (0.5 * np.pi, 1.5 * np.pi)
             theta_range = (-0.1 * np.pi, 0.1 * np.pi)

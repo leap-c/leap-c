@@ -182,7 +182,7 @@ class SacZopTrainer(Trainer):
                 policy_state = None
                 is_terminated = is_truncated = False
 
-            obs_batched = self.task.collate([obs], device=self.device)
+            obs_batched = torch.tensor([obs], device=self.device)
 
             with torch.no_grad():
                 pi_output = self.pi(obs_batched, policy_state, deterministic=False)
@@ -289,7 +289,7 @@ class SacZopTrainer(Trainer):
     def act(
         self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
-        obs = self.task.collate([obs], device=self.device)
+        obs = torch.tensor([obs], device=self.device)
 
         with torch.no_grad():
             pi_output = self.pi(obs, state, deterministic=deterministic)

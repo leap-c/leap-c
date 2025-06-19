@@ -10,7 +10,8 @@ from acados_template.acados_ocp_iterate import (
 from torch.utils._pytree import tree_map_only
 from torch.utils.data._utils.collate import default_collate_fn_map
 
-from leap_c.ocp.acados.mpc import MpcParameter
+from leap_c.ocp.acados.mpc import MpcParameter, MpcOutput, MpcCtx
+from torch.utils.data._utils.collate import collate
 
 
 def safe_collate_possible_nones(
@@ -81,6 +82,45 @@ def _collate_acados_iterate_fn(batch, *, collate_fn_map=None):
     return list(batch)
 
 
+def _collate_mpc_output_fn(batch, *, collate_fn_map=None):
+    """Collate MpcOutput objects by stacking the fields."""
+    status_list = [x.status for x in batch]
+    u0_list = [x.u0 for x in batch]
+    Q_list = [x.Q for x in batch]
+    V_list = [x.V for x in batch]
+    dvalue_dx0_list = [x.dvalue_dx0 for x in batch]
+    dvalue_du0_list = [x.dvalue_du0 for x in batch]
+    dvalue_dp_global_list = [x.dvalue_dp_global for x in batch]
+    du0_dp_global_list = [x.du0_dp_global for x in batch]
+    du0_dx0_list = [x.du0_dx0 for x in batch]
+
+    return MpcOutput(
+        status=safe_collate_possible_nones(status_list),
+        u0=safe_collate_possible_nones(u0_list),
+        Q=safe_collate_possible_nones(Q_list),
+        V=safe_collate_possible_nones(V_list),
+        dvalue_dx0=safe_collate_possible_nones(dvalue_dx0_list),
+        dvalue_du0=safe_collate_possible_nones(dvalue_du0_list),
+        dvalue_dp_global=safe_collate_possible_nones(dvalue_dp_global_list),
+        du0_dp_global=safe_collate_possible_nones(du0_dp_global_list),
+        du0_dx0=safe_collate_possible_nones(du0_dx0_list),
+    )
+
+
+def _collate_mpc_ctx_fn(batch, *, collate_fn_map=None):
+    """Collate MpcCtx objects by stacking the fields."""
+    output_list = [x.output for x in batch]
+    state_list = [x.state for x in batch]
+    status_list = [x.status for x in batch]
+
+    return MpcCtx(
+        output=collate(output_list, collate_fn_map=collate_fn_map),
+        state=collate(state_list, collate_fn_map=collate_fn_map),
+        log=None,
+        status=safe_collate_possible_nones(status_list),
+    )
+
+
 def create_collate_fn_map():
     """Create the collate function map for the collate function.
     By default, this is the default_collate_fn_map in torch.utils.data._utils.collate, with an additional
@@ -104,7 +144,8 @@ def create_collate_fn_map():
         _collate_acados_flattened_batch_iterate_fn
     )
     custom_collate_map[AcadosOcpIterate] = _collate_acados_iterate_fn
-
+    custom_collate_map[MpcOutput] = _collate_mpc_output_fn
+    custom_collate_map[MpcCtx] = _collate_mpc_ctx_fn
     return custom_collate_map
 
 
