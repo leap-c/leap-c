@@ -1,11 +1,12 @@
-import copy
 from collections.abc import Callable
+import copy
 from dataclasses import dataclass
 from pathlib import Path
+import platform
 
+from acados_template import AcadosOcp
 import numpy as np
 import torch
-from acados_template import AcadosOcp
 
 from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 
@@ -14,9 +15,7 @@ def test_initialization(diff_mpc: AcadosDiffMpc):
     assert True
 
 
-def test_file_management(
-    diff_mpc: AcadosDiffMpc, export_dir: str, tol: float = 1e-5
-) -> None:
+def test_file_management(diff_mpc: AcadosDiffMpc, tol: float = 1e-5) -> None:
     """
     Tests the file management behavior of AcadosDiffMpcFunction during solver
     reloading and code export.
@@ -24,14 +23,11 @@ def test_file_management(
     Args:
         diff_mpc: The differentiable mpc object containing
             the OCP (Optimal Control Problem) and related configurations.
-        export_dir: The directory where exported files are expected to be
-            stored.
         tol: The tolerance for comparing file modification times.
             Defaults to 1e-5.
 
     Raises:
         AssertionError: If any of the following conditions are not met:
-            - The code export directory is the same as the export directory.
             - The `c_generated_code` directory does not exist or is not a 
                 directory.
             - No `.so` files are found in the `c_generated_code` directory.
@@ -41,17 +37,21 @@ def test_file_management(
     code_export_directory = Path(diff_mpc.ocp.code_export_directory)
     export_directory = code_export_directory.parent
 
-    assert export_directory != export_dir, (
-        "The code export directory should not be the same as the export directory."
-    )
     assert code_export_directory.exists(), "c_generated_code directory does not exist"
     assert code_export_directory.is_dir(), "c_generated_code is not a directory"
 
     # Get all files in the directory
-    files = list(code_export_directory.glob("*.so"))
-    files = [f for f in files if f.is_file()]  # Filter only files
+    system = platform.system()
+    if system == "Windows":
+        extensions = ["*.dll"]
+    elif system == "Darwin":
+        extensions = ["*.dylib", "*.so"]  # Support both for robustness
+    else:
+        extensions = ["*.so"]
 
-    __import__('pdb').set_trace()
+    files = []
+    for ext in extensions:
+        files.extend(f for f in code_export_directory.glob(ext) if f.is_file())
 
     assert len(files) > 0, "No *.so files found in c_generated_code directory"
 
@@ -72,10 +72,6 @@ def test_file_management(
     assert last_modified - reloaded_last_modified < tol, (
         "The reloaded initialization should not modify the library files."
     )
-
-
-def test_ctx_loading(diff_mpc: AcadosDiffMpc, export_dir: str) -> None:
-    pass
 
 
 def test_statelessness(diff_mpc: AcadosDiffMpc) -> None:
