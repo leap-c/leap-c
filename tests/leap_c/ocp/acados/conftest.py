@@ -385,8 +385,8 @@ def is_stagewise_varying(param_key: str) -> bool:
 
 
 def categorize_parameters(
-    nominal_params: dict[str, np.ndarray | float], nonlearnable_keys: set[str]
-) -> dict[str, dict[str, np.ndarray | float]]:
+    nominal_params: dict[str, np.ndarray], nonlearnable_keys: set[str]
+) -> dict[str, dict[str, np.ndarray]]:
     """Categorize parameters into learnable/nonlearnable and constant/varying."""
     learnable_keys = set(nominal_params.keys()) - nonlearnable_keys
 
@@ -415,55 +415,91 @@ def categorize_parameters(
     }
 
 
-def create_parameter_entries(
-    params: dict[str, dict[str, np.ndarray | float]], N_horizon: int
-) -> tuple[dict[str, list], dict[str, list]]:
+def create_p_global_entries(
+    params: dict[str, np.ndarray], N_horizon: int
+) -> tuple[dict[str, list]]:
     """Create casadi struct entries for parameters."""
     labels = {
-        "nonlearnable": list(params["nonlearnable"].keys()),
-        "learnable": {
-            "constant": list(params["learnable"]["constant"].keys()),
-            "varying": list(
-                {
-                    "_".join(key.split("_")[:-1])
-                    for key in params["learnable"]["varying"]
-                }
-            ),
-        },
+        "constant": list(params["constant"].keys()),
+        "varying": list({"_".join(key.split("_")[:-1]) for key in params["varying"]}),
     }
 
-    entries = {"learnable": []}
+    entries = []
 
     # Add constant parameter entries
-    for label in labels["learnable"]["constant"]:
-        param_shape = params["learnable"]["constant"][label].shape
-        entries["learnable"].append(entry(label, shape=param_shape))
+    for label in labels["constant"]:
+        param_shape = params["constant"][label].shape
+        entries.append(entry(label, shape=param_shape))
 
     # Add varying parameter entries with shape consistency check
-    for label in labels["learnable"]["varying"]:
+    for label in labels["varying"]:
         # Get all shapes for this parameter across stages
         shapes = {
-            params["learnable"]["varying"][f"{label}_{stage}"].shape
+            params["varying"][f"{label}_{stage}"].shape
             for stage in range(N_horizon)
-            if f"{label}_{stage}" in params["learnable"]["varying"]
+            if f"{label}_{stage}" in params["varying"]
         }
 
         if not shapes:
             continue  # Skip if no matching parameters
 
         if len(shapes) > 1:
-            raise ValueError(
-                f"Parameter '{label}' has inconsistent shapes across stages: {shapes}"
-            )
+            msg = f"Parameter '{label}' has inconsistent shapes across stages: {shapes}"
+            raise ValueError(msg)
 
-        entries["learnable"].append(entry(label, shape=shapes.pop(), repeat=N_horizon))
+        entries.append(entry(label, shape=shapes.pop(), repeat=N_horizon))
 
-    return entries, labels
+    return entries
+
+
+def fill_p_global_values(
+    params: dict[str, np.ndarray],
+    p_global_values: struct_symSX,
+) -> np.ndarray:
+    """Fill parameter values in the CasADi structure."""
+    # Fill constant values
+    for key, value in params["constant"].items():
+        p_global_values[key] = value
+
+    # Fill varying values
+    for key, value in params["varying"].items():
+        label, stage = key.rsplit("_", 1)
+        p_global_values[label, int(stage)] = value
+
+    return p_global_values.cat.full().flatten()
+
+
+def create_p_entries(
+    params: dict[str, np.ndarray],
+    N_horizon: int,
+) -> tuple[dict[str, list], dict[str, list]]:
+    """Create casadi struct entries for parameters."""
+    entries = []
+
+    # Add non-learnable parameter entries
+    for key, value in params.items():
+        entries.append(entry(key, shape=value.shape))
+
+    # Add indicator entry
+    entries.append(entry("indicator", shape=(1,), repeat=N_horizon))
+
+    return entries
+
+
+def fill_p_values(
+    params: dict[str, np.ndarray],
+    p_values: struct_symSX,
+) -> np.ndarray:
+    """Fill parameter values in the CasADi structure."""
+    # Fill non-learnable values
+    for key, value in params.items():
+        p_values[key] = value
+
+    return p_values.cat.full().flatten()
 
 
 @pytest.fixture(scope="session")
 def acados_test_ocp_with_stagewise_varying_params(
-    # ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions
     ocp_options: AcadosOcpOptions,
 ) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
@@ -482,9 +518,9 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
     nominal_params = {
-        "m": 1.0,
-        "cx": 0.1,
-        "cy": 0.1,
+        "m": np.array([1.0]),
+        "cx": np.array([0.1]),
+        "cy": np.array([0.1]),
         **{
             f"q_diag_{k}": np.array([1.0, 1.0, 1.0, 1.0])
             for k in range(ocp_options.N_horizon)
@@ -502,48 +538,35 @@ def acados_test_ocp_with_stagewise_varying_params(
     }
 
     # Categorize parameters
-    nonlearnable_keys = {"m", "cx", "cy"}
+    nonlearnable_keys = {"cx", "cy"}
 
     params = categorize_parameters(
         nominal_params=nominal_params, nonlearnable_keys=nonlearnable_keys
     )
 
-    entries, labels = create_parameter_entries(
-        params=params,
-        N_horizon=ocp.solver_options.N_horizon,
+    ocp.model.p_global = struct_symSX(
+        create_p_global_entries(
+            params=params["learnable"],
+            N_horizon=ocp.solver_options.N_horizon,
+        )
     )
 
-    ocp.model.p_global = struct_symSX(entries["learnable"])
-
-    p_global_values = ocp.model.p_global(0)
-
-    # Fill in the constant values
-    for key, value in params["learnable"]["constant"].items():
-        p_global_values[key] = value
-
-    # Fill in the varying values
-    for key, value in params["learnable"]["varying"].items():
-        label = "_".join(key.split("_")[:-1])
-        stage = int(key.split("_")[-1])
-
-        p_global_values[label, stage] = value
-
-    ocp.p_global_values = p_global_values.cat.full().flatten()
-
-    entries, values = _process_params(
-        params=params["nonlearnable"].keys(), nominal_param=nominal_params
+    ocp.p_global_values = fill_p_global_values(
+        params=params["learnable"],
+        p_global_values=ocp.model.p_global(0),
     )
 
-    entries.append(entry("indicator", shape=(1,), repeat=ocp.solver_options.N_horizon))
+    ocp.model.p = struct_symSX(
+        create_p_entries(
+            params=params["nonlearnable"],
+            N_horizon=ocp.solver_options.N_horizon,
+        )
+    )
 
-    ocp.model.p = struct_symSX(entries)
-
-    parameter_values = ocp.model.p(0)
-    for key, value in params["nonlearnable"].items():
-        parameter_values[key] = value
-
-    parameter_values["indicator"] = 0
-    ocp.parameter_values = parameter_values.cat.full().flatten()
+    ocp.parameter_values = fill_p_values(
+        params=params["nonlearnable"],
+        p_values=ocp.model.p(0),
+    )
 
     # Define cost
     stage_cost = [
