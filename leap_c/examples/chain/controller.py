@@ -1,6 +1,4 @@
-from copy import deepcopy
-from dataclasses import fields
-from pathlib import Path
+from dataclasses import asdict
 from typing import Any
 
 import gymnasium as gym
@@ -8,10 +6,9 @@ import torch
 import casadi as ca
 import numpy as np
 from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver, AcadosOcpFlattenedIterate
-from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchIterate
 from casadi import SX, norm_2, vertcat
 from casadi.tools import entry, struct_symSX
-from casadi.tools.structure3 import DMStruct, ssymStruct
+from casadi.tools.structure3 import ssymStruct
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.chain.utils import (
@@ -25,14 +22,14 @@ from leap_c.examples.util import (
 )
 from leap_c.ocp.acados.data import AcadosSolverInput
 from leap_c.ocp.acados.initializer import AcadosInitializer
-from leap_c.ocp.acados.mpc import Mpc, MpcBatchedState, MpcInput
 from leap_c.ocp.acados.torch import AcadosImplicitLayer
+from leap_c.examples.chain.config import ChainParams, make_default_chain_params
 
 
 class ChainController(ParameterizedController):
     def __init__(
             self,
-            params: dict[str, np.ndarray] | None = None,
+            params: ChainParams | None = None,
             learnable_params: list[str] | None = None,
             N_horizon: int = 20,
             T_horizon: float = 1.0,
@@ -44,28 +41,7 @@ class ChainController(ParameterizedController):
     ):
         super().__init__()
         if params is None:
-            self.params = {}
-
-            # rest length of spring
-            self.params["L"] = np.repeat([0.033, 0.033, 0.033], n_mass - 1)
-
-            # spring constant
-            self.params["D"] = np.repeat([1.0, 1.0, 1.0], n_mass - 1)
-
-            # damping constant
-            self.params["C"] = np.repeat([0.1, 0.1, 0.1], n_mass - 1)
-
-            # mass of the balls
-            self.params["m"] = np.repeat([0.033], n_mass - 1)
-
-            # disturbance on intermediate balls
-            self.params["w"] = np.repeat([0.0, 0.0, 0.0], n_mass - 2)
-
-            # Weight on state
-            self.params["q_sqrt_diag"] = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
-
-            # Weight on control inputs
-            self.params["r_sqrt_diag"] = 1e-1 * np.ones(3)
+            self.params = make_default_chain_params(n_mass)
         else:
             self.params = params
 
@@ -116,7 +92,7 @@ class ChainController(ParameterizedController):
 
 
 def export_parametric_ocp(
-        nominal_params: dict,
+        nominal_params: ChainParams,
         name: str = "chain",
         learnable_params: list[str] | None = None,
         N_horizon: int = 30,  # noqa: N803
@@ -132,7 +108,7 @@ def export_parametric_ocp(
     ocp.solver_options.tf = tf
 
     ocp = translate_learnable_param_to_p_global(
-        nominal_param=nominal_params,
+        nominal_param=asdict(nominal_params),
         learnable_param=learnable_params,
         ocp=ocp,
     )
@@ -177,9 +153,6 @@ def export_parametric_ocp(
     resting_chain_solver.set("p_last", pos_last_mass_ref)
 
     x_ss, u_ss = resting_chain_solver(p_last=pos_last_mass_ref)
-
-    if False:
-        plot_steady_state(x_ss=x_ss, u_ss=u_ss, n_mass=n_mass, pos_first_mass=fix_point)
 
     q_sqrt_diag = find_param_in_p_or_p_global(["q_sqrt_diag"], ocp.model)["q_sqrt_diag"]
     r_sqrt_diag = find_param_in_p_or_p_global(["r_sqrt_diag"], ocp.model)["r_sqrt_diag"]
