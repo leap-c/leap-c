@@ -24,4 +24,3 @@ def make_default_chain_params(n_mass: int) -> ChainParams:
         q_sqrt_diag=np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2)),
         r_sqrt_diag=1e-1 * np.ones(3),
     )
-

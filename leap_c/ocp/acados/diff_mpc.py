@@ -1,4 +1,4 @@
-"""Provides a differentiable implicit function based on acados."""
+"""Provides an implemenation of differentiable MPC based on acados."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -9,8 +9,8 @@ from acados_template import AcadosOcp
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 
 from leap_c.autograd.function import DiffFunction
-from leap_c.ocp.acados.data import AcadosSolverInput
-from leap_c.ocp.acados.initializer import AcadosInitializer, ZeroInitializer
+from leap_c.ocp.acados.data import AcadosOcpSolverInput
+from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer, ZeroDiffMpcInitializer
 from leap_c.ocp.acados.utils.create_solver import create_forward_backward_batch_solvers
 from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
 from leap_c.ocp.acados.utils.solve import solve_with_retry
@@ -21,11 +21,18 @@ NUM_THREADS_BATCH_SOLVER = 4
 
 
 @dataclass
-class AcadosImplicitCtx:
+class AcadosDiffMpcCtx:
+    """Context for differentiable MPC with acados.
+
+    This context holds the results of the forward pass, including the solution
+    iterate, solver status, log, and solver input. This information is needed
+    for the backward pass and to calculate the sensitivities. It also contains
+    fields for caching the sensitivity calculations.
+    """
     iterate: AcadosOcpFlattenedBatchIterate
     status: np.ndarray
     log: dict[str, float]
-    solver_input: AcadosSolverInput
+    solver_input: AcadosOcpSolverInput
 
     # backward pass
     needs_input_grad: list[bool] | None = None
@@ -40,7 +47,7 @@ class AcadosImplicitCtx:
     dvalue_dp_global: np.ndarray | None = None
 
 
-SensitivityField = Literal[
+AcadosDiffMpcSensitivityOptions = Literal[
     "du0_dp_global",
     "du0_dx0",
     "dx_dp_global",
@@ -51,13 +58,13 @@ SensitivityField = Literal[
 ]
 
 
-class AcadosImplicitFunction(DiffFunction):
-    """Function for differentiable implicit function based on Acados."""
+class AcadosDiffMpcFunction(DiffFunction):
+    """Differentiable MPC based on acados."""
 
     def __init__(
         self,
         ocp: AcadosOcp,
-        initializer: AcadosInitializer | None = None,
+        initializer: AcadosDiffMpcInitializer | None = None,
         sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
@@ -75,24 +82,24 @@ class AcadosImplicitFunction(DiffFunction):
         )
 
         if initializer is None:
-            self.initializer = ZeroInitializer(self.forward_batch_solver.ocp_solvers[0])
+            self.initializer = ZeroDiffMpcInitializer(self.forward_batch_solver.ocp_solvers[0])
         else:
             self.initializer = initializer
 
-    def forward(
+    def forward(  # type: ignore
         self,
-        ctx: AcadosImplicitCtx | None,
+        ctx: AcadosDiffMpcCtx | None,
         x0: np.ndarray,
         u0: np.ndarray | None = None,
         p_global: np.ndarray | None = None,
         p_stagewise: np.ndarray | None = None,
         p_stagewise_sparse_idx: np.ndarray | None = None,
-    ) -> tuple[AcadosImplicitCtx, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    ) -> tuple[AcadosDiffMpcCtx, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
-        Perform the forward pass of the implicit function.
+        Perform the forward pass by solving the OCP.
 
         Args:
-            ctx: An `AcadosImplicitCtx` object for storing context. Defaults to `None`.
+            ctx: An `AcadosDiffMpcCtx` object for storing context. Defaults to `None`.
             x0: Initial states with shape `(B, x_dim)`.
             u0: Initial actions with shape `(B, u_dim)`. Defaults to `None`.
             p_global: Global parameters shared across all stages,
@@ -107,7 +114,7 @@ class AcadosImplicitFunction(DiffFunction):
         """
         batch_size = x0.shape[0]
 
-        solver_input = AcadosSolverInput(
+        solver_input = AcadosOcpSolverInput(
             x0=x0,
             u0=u0,
             p_global=p_global,
@@ -128,7 +135,7 @@ class AcadosImplicitFunction(DiffFunction):
         sol_iterate = self.forward_batch_solver.store_iterate_to_flat_obj(
             n_batch=batch_size
         )
-        ctx = AcadosImplicitCtx(
+        ctx = AcadosDiffMpcCtx(
             iterate=sol_iterate, log=log, status=status, solver_input=solver_input
         )
         sol_value = np.array([s.get_cost() for s in active_solvers])
@@ -138,17 +145,17 @@ class AcadosImplicitFunction(DiffFunction):
 
     def backward(  # type: ignore
         self,
-        ctx: AcadosImplicitCtx,
+        ctx: AcadosDiffMpcCtx,
         u0_grad: np.ndarray | None,
         x_grad: np.ndarray | None,
         u_grad: np.ndarray | None,
         value_grad: np.ndarray | None,
     ):
         """
-        Compute gradients of inputs given gradients of outputs.
+        Perform the backward pass via implicit differentiation.
 
         Args:
-            ctx: The `AcadosCtx` object from the forward pass.
+            ctx: The `AcadosDiffMpcCtx` object from the forward pass.
             p_global_grad: Gradient with respect to `p_global`.
             p_stagewise_idx_grad: Gradient with respect to
                 `p_stagewise_sparse_idx`.
@@ -162,7 +169,7 @@ class AcadosImplicitFunction(DiffFunction):
             if x_seed is None and u_seed is None:
                 return None
 
-            # Check if x_seed and u_seed are all zeros
+            # check if x_seed and u_seed are all zeros
             if np.all(x_seed == 0) and np.all(u_seed == 0):
                 return None
 
@@ -191,7 +198,7 @@ class AcadosImplicitFunction(DiffFunction):
                 sanity_checks=True,
             )
 
-        def _jacobian(output_grad, field_name: SensitivityField):
+        def _jacobian(output_grad, field_name: AcadosDiffMpcSensitivityOptions):
             if output_grad is None or np.all(output_grad == 0):
                 return None
 
@@ -234,7 +241,7 @@ class AcadosImplicitFunction(DiffFunction):
 
         return grad_x0, grad_u0, grad_p_global, None, None
 
-    def sensitivity(self, ctx, field_name: SensitivityField) -> np.ndarray:
+    def sensitivity(self, ctx: AcadosDiffMpcCtx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
         """
         Calculate a specific sensitivity field for a context.
 
@@ -242,7 +249,7 @@ class AcadosImplicitFunction(DiffFunction):
         context object, or recalculates it if not already present.
 
         Args:
-            ctx: The `AcadosCtx` object containing sensitivity information.
+            ctx: The ctx object generated by the forward pass.
             field_name: The name of the sensitivity field to retrieve.
         """
         # check if already calculated

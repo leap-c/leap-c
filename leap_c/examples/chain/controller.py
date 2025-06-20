@@ -25,9 +25,9 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.ocp.acados.data import AcadosSolverInput
-from leap_c.ocp.acados.initializer import AcadosInitializer
-from leap_c.ocp.acados.torch import AcadosImplicitLayer
+from leap_c.ocp.acados.data import AcadosOcpSolverInput
+from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
+from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 class ChainController(ParameterizedController):
@@ -71,7 +71,7 @@ class ChainController(ParameterizedController):
 
         self.given_default_param_dict = self.params
 
-        self.acados_layer = AcadosImplicitLayer(
+        self.acados_layer = AcadosDiffMpc(
             self.ocp,
             initializer=ChainInitializer(self.ocp),
             discount_factor=discount_factor,
@@ -94,7 +94,7 @@ class ChainController(ParameterizedController):
         raise NotImplementedError
 
     def default_param(self) -> np.ndarray:
-        return np.concatenate([self.params[p].flatten() for p in self.learnable_params])
+        return np.concatenate([asdict(self.params)[p].flatten() for p in self.learnable_params])
 
 
 def export_parametric_ocp(
@@ -305,11 +305,11 @@ def get_disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
     return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
 
 
-class ChainInitializer(AcadosInitializer):
+class ChainInitializer(AcadosDiffMpcInitializer):
     def __init__(self, ocp: AcadosOcp):
         self.solver = AcadosOcpSolver(ocp)
 
-    def single_iterate(self, mpc_input: AcadosSolverInput) -> AcadosOcpFlattenedIterate:
+    def single_iterate(self, mpc_input: AcadosOcpSolverInput) -> AcadosOcpFlattenedIterate:
         for stage in range(self.solver.N + 1):
             self.solver.set(stage, "x", self.solver.acados_ocp.constraints.x0)
         self.solver.solve()

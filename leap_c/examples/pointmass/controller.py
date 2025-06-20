@@ -13,7 +13,7 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.ocp.acados.torch import AcadosImplicitLayer
+from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 class PointMassController(ParameterizedController):
@@ -54,7 +54,7 @@ class PointMassController(ParameterizedController):
 
         self.given_default_param_dict = self.params
 
-        self.acados_layer = AcadosImplicitLayer(self.ocp)
+        self.acados_layer = AcadosDiffMpc(self.ocp)
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         x0 = torch.as_tensor(obs, dtype=torch.float64)

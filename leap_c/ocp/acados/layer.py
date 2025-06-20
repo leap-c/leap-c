@@ -1,6 +1,7 @@
 # OUTDATED: This file is deprecated and will be removed in a couple of PRs.
 from dataclasses import dataclass
 from typing import Any
+import warnings
 
 import casadi as ca
 import numpy as np
@@ -231,6 +232,12 @@ class MpcSolutionModule(nn.Module):
 
     def __init__(self, mpc: Mpc):
         super().__init__()
+        # raise deprecation warning if mpc class is used
+        warning_msg = (
+            "The MpcSolutionModule class is deprecated and will be removed in a future version. "
+            "Please use the AcadosDiffMpc class instead."
+        )
+        warnings.warn(warning_msg, DeprecationWarning)
         self.mpc = mpc
 
     def forward(
