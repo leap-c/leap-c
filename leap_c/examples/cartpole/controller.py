@@ -96,16 +96,16 @@ class CartPoleController(ParameterizedController):
             sensitivity_ocp=False,
         )
 
-        self.acados_layer = AcadosDiffMpc(self.ocp, discount_factor=discount_factor)
+        self.diff_mpc = AcadosDiffMpc(self.ocp, discount_factor=discount_factor)
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         x0 = torch.as_tensor(obs, dtype=torch.float64)
         p_global = torch.as_tensor(param, dtype=torch.float64)
-        ctx, u0, x, u, value = self.acados_layer(x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx)
+        ctx, u0, x, u, value = self.diff_mpc(x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx)
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
-        return self.acados_layer.sensitivity(ctx, field_name="du0_dp_global")
+        return self.diff_mpc.sensitivity(ctx, field_name="du0_dp_global")
 
     def param_space(self) -> gym.Space:
         # TODO: can't determine the param space because it depends on the learnable parameters

@@ -62,8 +62,6 @@ class ChainController(ParameterizedController):
             pos_last_mass_ref=pos_last_mass_ref,
         )
 
-        self.given_default_param_dict = self.params
-
         initializer = ChainInitializer(
             self.ocp,
             nominal_params=asdict(self.params),
@@ -71,7 +69,7 @@ class ChainController(ParameterizedController):
             fix_point=fix_point,
             pos_last_mass_ref=pos_last_mass_ref,
         )
-        self.acados_layer = AcadosDiffMpc(
+        self.diff_mpc = AcadosDiffMpc(
             self.ocp,
             initializer=initializer,
             discount_factor=discount_factor,
@@ -80,13 +78,13 @@ class ChainController(ParameterizedController):
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         x0 = torch.as_tensor(obs)
         p_global = torch.as_tensor(param)
-        ctx, u0, *_ = self.acados_layer(
+        ctx, u0, *_ = self.diff_mpc(
             x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx
         )
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
-        return self.acados_layer.sensitivity(ctx, field_name="du0_dp_global")
+        return self.diff_mpc.sensitivity(ctx, field_name="du0_dp_global")
 
     def param_space(self) -> gym.Space:
         # TODO: can't determine the param space because it depends on the learnable parameters
@@ -208,7 +206,7 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
     ocp.solver_options.qp_tol = 1e-7
-    # TODO (Jasper): This should be set automatically!?
+    # TODO (Jasper): This should be/ is set automatically!?
     ocp.solver_options.with_value_sens_wrt_params = True
     ocp.solver_options.with_solution_sens_wrt_params = True
     ocp.solver_options.with_batch_functionality = True
