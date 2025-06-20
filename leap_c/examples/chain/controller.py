@@ -1,20 +1,25 @@
 from dataclasses import asdict
 from typing import Any
 
-import gymnasium as gym
-import torch
+from acados_template import (
+    AcadosModel,
+    AcadosOcp,
+    AcadosOcpFlattenedIterate,
+    AcadosOcpSolver,
+)
 import casadi as ca
-import numpy as np
-from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver, AcadosOcpFlattenedIterate
 from casadi import SX, norm_2, vertcat
 from casadi.tools import entry, struct_symSX
 from casadi.tools.structure3 import ssymStruct
+import gymnasium as gym
+import numpy as np
+import torch
 
 from leap_c.controller import ParameterizedController
+from leap_c.examples.chain.config import ChainParams, make_default_chain_params
 from leap_c.examples.chain.utils import (
     RestingChainSolver,
     nominal_params_to_structured_nominal_params,
-    plot_steady_state,
 )
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
@@ -23,21 +28,20 @@ from leap_c.examples.util import (
 from leap_c.ocp.acados.data import AcadosSolverInput
 from leap_c.ocp.acados.initializer import AcadosInitializer
 from leap_c.ocp.acados.torch import AcadosImplicitLayer
-from leap_c.examples.chain.config import ChainParams, make_default_chain_params
 
 
 class ChainController(ParameterizedController):
     def __init__(
-            self,
-            params: ChainParams | None = None,
-            learnable_params: list[str] | None = None,
-            N_horizon: int = 20,
-            T_horizon: float = 1.0,
-            discount_factor: float = 1.0,
-            exact_hess_dyn: bool = True,
-            n_mass: int = 5,
-            fix_point: np.ndarray | None = None,
-            pos_last_mass_ref: np.ndarray | None = None,
+        self,
+        params: ChainParams | None = None,
+        learnable_params: list[str] | None = None,
+        N_horizon: int = 20,
+        T_horizon: float = 1.0,
+        discount_factor: float = 1.0,
+        exact_hess_dyn: bool = True,
+        n_mass: int = 5,
+        fix_point: np.ndarray | None = None,
+        pos_last_mass_ref: np.ndarray | None = None,
     ):
         super().__init__()
         if params is None:
@@ -54,7 +58,7 @@ class ChainController(ParameterizedController):
         self.learnable_params = learnable_params if learnable_params is not None else []
 
         self.ocp = export_parametric_ocp(
-            nominal_params=self.params,
+            nominal_params=asdict(self.params),
             learnable_params=self.learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
@@ -76,7 +80,9 @@ class ChainController(ParameterizedController):
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         x0 = torch.as_tensor(obs, dtype=torch.float64)
         p_global = torch.as_tensor(param, dtype=torch.float64)
-        ctx, u0, x, u, value = self.acados_layer(x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx)
+        ctx, u0, x, u, value = self.acados_layer(
+            x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx
+        )
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
@@ -92,14 +98,14 @@ class ChainController(ParameterizedController):
 
 
 def export_parametric_ocp(
-        nominal_params: ChainParams,
-        name: str = "chain",
-        learnable_params: list[str] | None = None,
-        N_horizon: int = 30,  # noqa: N803
-        tf: float = 6.0,
-        n_mass: int = 5,
-        fix_point: np.ndarray = np.array([0.0, 0.0, 0.0]),
-        pos_last_mass_ref: np.ndarray = np.array([1.0, 0.0, 0.0]),
+    nominal_params: dict,
+    name: str = "chain",
+    learnable_params: list[str] | None = None,
+    N_horizon: int = 30,  # noqa: N803
+    tf: float = 6.0,
+    n_mass: int = 5,
+    fix_point: np.ndarray = np.array([0.0, 0.0, 0.0]),
+    pos_last_mass_ref: np.ndarray = np.array([1.0, 0.0, 0.0]),
 ) -> AcadosOcp:
     # create ocp object to formulate the OCP
     ocp = AcadosOcp()
@@ -108,7 +114,7 @@ def export_parametric_ocp(
     ocp.solver_options.tf = tf
 
     ocp = translate_learnable_param_to_p_global(
-        nominal_param=asdict(nominal_params),
+        nominal_param=nominal_params,
         learnable_param=learnable_params,
         ocp=ocp,
     )
@@ -213,10 +219,10 @@ def set_ocp_solver_options(ocp: AcadosOcp, exact_hess_dyn: bool):
 
 
 def get_f_expl_expr(
-        x: ssymStruct,
-        u: ca.SX,
-        p: dict[str, ca.SX],
-        x0: ca.SX = ca.SX.zeros(3),
+    x: ssymStruct,
+    u: ca.SX,
+    p: dict[str, ca.SX],
+    x0: ca.SX = ca.SX.zeros(3),
 ) -> ca.SX:
     n_masses = p["m"].shape[0] + 1
 
@@ -235,32 +241,32 @@ def get_f_expl_expr(
     # Spring force
     for i in range(n_link):
         if i == 0:
-            dist = xpos[i * 3: (i + 1) * 3] - x0
+            dist = xpos[i * 3 : (i + 1) * 3] - x0
         else:
-            dist = xpos[i * 3: (i + 1) * 3] - xpos[(i - 1) * 3: i * 3]
+            dist = xpos[i * 3 : (i + 1) * 3] - xpos[(i - 1) * 3 : i * 3]
 
         F = ca.SX.zeros(3, 1)
         for j in range(F.shape[0]):
             F[j] = (
-                    p["D"][i + j] / p["m"][i] * (1 - p["L"][i + j] / norm_2(dist)) * dist[j]
+                p["D"][i + j] / p["m"][i] * (1 - p["L"][i + j] / norm_2(dist)) * dist[j]
             )
 
         # mass on the right
         if i < n_link - 1:
-            f[i * 3: (i + 1) * 3] -= F
+            f[i * 3 : (i + 1) * 3] -= F
 
         # mass on the left
         if i > 0:
-            f[(i - 1) * 3: i * 3] += F
+            f[(i - 1) * 3 : i * 3] += F
 
     # Damping force
     for i in range(n_link):
         if i == 0:
-            vel = xvel[i * 3: (i + 1) * 3]
+            vel = xvel[i * 3 : (i + 1) * 3]
         elif i == n_link - 1:
-            vel = u - xvel[(i - 1) * 3: i * 3]
+            vel = u - xvel[(i - 1) * 3 : i * 3]
         else:
-            vel = xvel[i * 3: (i + 1) * 3] - xvel[(i - 1) * 3: i * 3]
+            vel = xvel[i * 3 : (i + 1) * 3] - xvel[(i - 1) * 3 : i * 3]
 
         F = ca.SX.zeros(3, 1)
         for j in range(3):
@@ -268,15 +274,15 @@ def get_f_expl_expr(
 
         # mass on the right
         if i < n_masses - 2:
-            f[i * 3: (i + 1) * 3] -= F
+            f[i * 3 : (i + 1) * 3] -= F
 
         # mass on the left
         if i > 0:
-            f[(i - 1) * 3: i * 3] += F
+            f[(i - 1) * 3 : i * 3] += F
 
     # Disturbance on intermediate masses
     for i in range(n_masses - 2):
-        f[i * 3: (i + 1) * 3] += p["w"][i]
+        f[i * 3 : (i + 1) * 3] += p["w"][i]
 
     return vertcat(xvel, u, f)
 
