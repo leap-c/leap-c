@@ -6,7 +6,7 @@ import pytest
 from acados_template import AcadosModel, AcadosOcp, AcadosOcpOptions
 from casadi.tools import entry, struct_symSX
 
-from leap_c.ocp.acados.torch import AcadosImplicitLayer
+from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 def _process_params(
@@ -328,19 +328,13 @@ def acados_test_ocp(ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions) -> Ac
 
 
 @pytest.fixture(scope="session")
-def implicit_layer(acados_test_ocp: AcadosOcp) -> AcadosImplicitLayer:
-    return AcadosImplicitLayer(
+def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpc:
+    return AcadosDiffMpc(
         ocp=acados_test_ocp,
         initializer=None,
         sensitivity_ocp=None,
         discount_factor=None,
     )
-
-
-@pytest.fixture(scope="session")
-def export_dir(tmp_path_factory: pytest.TempPathFactory) -> str:
-    """Fixture to create a temporary directory for exporting files."""
-    return str(tmp_path_factory.mktemp("export_dir"))
 
 
 @pytest.fixture(scope="session")

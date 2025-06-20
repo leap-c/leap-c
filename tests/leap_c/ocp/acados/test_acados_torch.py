@@ -1,67 +1,69 @@
-import copy
 from collections.abc import Callable
+import copy
 from dataclasses import dataclass
 from pathlib import Path
+import platform
 
+from acados_template import AcadosOcp
 import numpy as np
 import torch
-from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.implicit import (
-    AcadosImplicitCtx,
-)
-from leap_c.ocp.acados.torch import AcadosImplicitLayer
+from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 
 
-def test_initialization(implicit_layer: AcadosImplicitLayer):
+def test_initialization(diff_mpc: AcadosDiffMpc):
     assert True
 
 
-def test_file_management(
-    implicit_layer: AcadosImplicitLayer, export_dir: str, tol: float = 1e-5
-) -> None:
+def test_file_management(diff_mpc: AcadosDiffMpc, tol: float = 1e-5) -> None:
     """
-    Tests the file management behavior of the AcadosImplicitLayer during solver
+    Tests the file management behavior of AcadosDiffMpcFunction during solver
     reloading and code export.
 
     Args:
-        implicit_layer (AcadosImplicitLayer): The implicit layer object containing
+        diff_mpc: The differentiable mpc object containing
             the OCP (Optimal Control Problem) and related configurations.
-        export_dir (str): The directory where exported files are expected to be stored.
-        tol (float, optional): The tolerance for comparing file modification times.
+        tol: The tolerance for comparing file modification times.
             Defaults to 1e-5.
 
     Raises:
         AssertionError: If any of the following conditions are not met:
-            - The code export directory is the same as the export directory.
-            - The `c_generated_code` directory does not exist or is not a directory.
+            - The `c_generated_code` directory does not exist or is not a 
+                directory.
             - No `.so` files are found in the `c_generated_code` directory.
-            - Reloading the solver modifies the `.so` files beyond the specified tolerance.
+            - Reloading the solver modifies the `.so` files beyond the specified
+                tolerance.
     """
-    code_export_directory = Path(implicit_layer.implicit_fun.ocp.code_export_directory)
+    code_export_directory = Path(diff_mpc.ocp.code_export_directory)
     export_directory = code_export_directory.parent
 
-    assert export_directory != export_dir, (
-        "The code export directory should not be the same as the export directory."
-    )
     assert code_export_directory.exists(), "c_generated_code directory does not exist"
     assert code_export_directory.is_dir(), "c_generated_code is not a directory"
 
     # Get all files in the directory
-    files = list(code_export_directory.glob("*.so"))
-    files = [f for f in files if f.is_file()]  # Filter only files
+    system = platform.system()
+    if system == "Windows":
+        extensions = ["*.dll"]
+    elif system == "Darwin":
+        extensions = ["*.dylib", "*.so"]  # Support both for robustness
+    else:
+        extensions = ["*.so"]
+
+    files = []
+    for ext in extensions:
+        files.extend(f for f in code_export_directory.glob(ext) if f.is_file())
 
     assert len(files) > 0, "No *.so files found in c_generated_code directory"
 
     last_modified = files[0].stat().st_mtime
 
     # Should reload the solver
-    _ = AcadosImplicitLayer(
-        ocp=implicit_layer.implicit_fun.ocp,
-        initializer=implicit_layer.implicit_fun.initializer,
-        sensitivity_ocp=implicit_layer.implicit_fun.backward_batch_solver.ocp_solvers[
+    AcadosDiffMpc(
+        ocp=diff_mpc.ocp,
+        initializer=diff_mpc.diff_mpc_fun.initializer,
+        sensitivity_ocp=diff_mpc.diff_mpc_fun.backward_batch_solver.ocp_solvers[
             0
-        ].acados_ocp,
+        ].acados_ocp,  # type: ignore
         export_directory=export_directory,
     )
 
@@ -72,24 +74,19 @@ def test_file_management(
     )
 
 
-# TODO
-def test_ctx_loading(implicit_layer: AcadosImplicitLayer, export_dir: str) -> None:
-    pass
-
-
-def test_statelessness(implicit_layer: AcadosImplicitLayer) -> None:
+def test_statelessness(diff_mpc: AcadosDiffMpc) -> None:
     """
-    Test the statelessness of the AcadosImplicitLayer by verifying that the
+    Test the statelessness of AcadosDiffMpc by verifying that the
     layer produces consistent outputs for identical inputs and different outputs
     for modified parameters.
 
     This test ensures that:
     1. The layer's output changes when global and stagewise parameters are modified.
-    2. The layer's output remains consistent for identical inputs, confirming stateless
-    behavior.
+    2. The layer's output remains consistent for identical inputs, confirming 
+        stateless behavior.
 
     Args:
-        implicit_layer (AcadosImplicitLayer): The implicit layer to be tested.
+        diff_mpc: The implicit layer to be tested.
 
     Raises:
         AssertionError: If the layer does not produce different outputs for
@@ -98,14 +95,14 @@ def test_statelessness(implicit_layer: AcadosImplicitLayer) -> None:
     """
     x0 = np.tile(
         A=np.array([0.5, 0.5, 0.5, 0.5]),
-        reps=(implicit_layer.implicit_fun.forward_batch_solver.N_batch_max, 1),
+        reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
     )
     u0 = np.tile(
         A=np.array([0.5, 0.5]),
-        reps=(implicit_layer.implicit_fun.forward_batch_solver.N_batch_max, 1),
+        reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
     )
 
-    p_global = implicit_layer.implicit_fun.ocp.p_global_values
+    p_global = diff_mpc.diff_mpc_fun.ocp.p_global_values
 
     assert p_global is not None
 
@@ -113,10 +110,10 @@ def test_statelessness(implicit_layer: AcadosImplicitLayer) -> None:
 
     p_global = np.tile(
         A=p_global,
-        reps=(implicit_layer.implicit_fun.forward_batch_solver.N_batch_max, 1),
+        reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
     )
 
-    p_stagewise = implicit_layer.implicit_fun.ocp.parameter_values
+    p_stagewise = diff_mpc.diff_mpc_fun.ocp.parameter_values
 
     assert p_stagewise is not None
 
@@ -125,17 +122,17 @@ def test_statelessness(implicit_layer: AcadosImplicitLayer) -> None:
     p_stagewise = np.tile(
         A=p_stagewise,
         reps=(
-            implicit_layer.implicit_fun.forward_batch_solver.N_batch_max,
-            implicit_layer.implicit_fun.ocp.solver_options.N_horizon + 1,
+            diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max,
+            diff_mpc.ocp.solver_options.N_horizon + 1,  # type: ignore
             1,
         ),
     )
 
     solutions = []
-    solutions.append(implicit_layer.forward(x0=x0, u0=u0))
+    solutions.append(diff_mpc(x0=x0, u0=u0))
 
     solutions.append(
-        implicit_layer.forward(
+        diff_mpc(
             x0=x0 - 0.01,
             u0=u0 - 0.01,
             p_global=p_global,
@@ -143,7 +140,7 @@ def test_statelessness(implicit_layer: AcadosImplicitLayer) -> None:
         )
     )
 
-    solutions.append(implicit_layer.forward(x0=x0, u0=u0))
+    solutions.append(diff_mpc(x0=x0, u0=u0))
 
     assert not np.allclose(solutions[0][-1], solutions[1][-1]), (
         "The solutions should be different due to different parameters."
@@ -157,9 +154,9 @@ def test_statelessness(implicit_layer: AcadosImplicitLayer) -> None:
         )
 
 
-def test_backup_functionality(implicit_layer: AcadosImplicitLayer) -> None:
+def test_backup_functionality(diff_mpc: AcadosDiffMpc) -> None:
     """
-    Test the backup functionality of the AcadosImplicitLayer.
+    Test the backup functionality of AcadosDiffMpc.
 
     This test verifies that the backup mechanism in the implicit layer can
     restore a corrupted iterate to a valid state and produce consistent
@@ -168,18 +165,18 @@ def test_backup_functionality(implicit_layer: AcadosImplicitLayer) -> None:
     restores the iterate correctly.
 
     Args:
-        implicit_layer (AcadosImplicitLayer): The implicit layer to be tested.
+        diff_mpc: The AcadosDiffMpc to be tested.
 
     Raises:
         AssertionError: If the solver does not converge or if the solutions
                         before and after restoration are not consistent.
     """
-    reps = (implicit_layer.implicit_fun.forward_batch_solver.N_batch_max, 1)
+    reps = (diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1)
     x0 = np.tile(A=np.array([0.5, 0.5, 0.5, 0.5]), reps=reps)
     u0 = np.tile(A=np.array([0.5, 0.5]), reps=reps)
 
     solutions = []
-    solutions.append(implicit_layer.forward(x0=x0, u0=u0))
+    solutions.append(diff_mpc(x0=x0, u0=u0))
 
     assert np.all(solutions[-1][0].status == 0), (
         "Solver did not converge for all samples."
@@ -197,7 +194,7 @@ def test_backup_functionality(implicit_layer: AcadosImplicitLayer) -> None:
         )
 
     # Test that the backup function can restore the iterate
-    solutions.append(implicit_layer.forward(x0=x0, u0=u0, ctx=ctx))
+    solutions.append(diff_mpc(x0=x0, u0=u0, ctx=ctx))
 
     assert np.all(solutions[-1][0].status == 0), (
         "Solver did not converge for all samples."
@@ -211,9 +208,9 @@ def test_backup_functionality(implicit_layer: AcadosImplicitLayer) -> None:
         )
 
 
-def test_closed_loop(implicit_layer: AcadosImplicitLayer, tol: float = 1e-1) -> None:
+def test_closed_loop(diff_mpc: AcadosDiffMpc, tol: float = 1e-1) -> None:
     """
-    Tests the closed-loop behavior of a system controlled by an AcadosImplicitLayer.
+    Tests the closed-loop behavior of a system controlled by AcadosDiffMpc.
 
     This function simulates a closed-loop system for 100 steps, where the control
     inputs are computed using the provided implicit layer. It verifies that the
@@ -221,16 +218,16 @@ def test_closed_loop(implicit_layer: AcadosImplicitLayer, tol: float = 1e-1) -> 
     inputs stabilize within a specified threshold.
 
     Args:
-        implicit_layer (AcadosImplicitLayer): The implicit layer representing the
+        diff_mpc: The implicit layer representing the
             control system, which includes the solver and problem definition.
-        tol (float): The tolerance for checking the stabilization of states and
+        tol: The tolerance for checking the stabilization of states and
 
     Raises:
         AssertionError: If the solver fails to converge at any step or if the
             median of the last 10 states or control inputs exceeds the specified
             threshold.
     """
-    nx = implicit_layer.implicit_fun.ocp.dims.nx
+    nx = diff_mpc.ocp.dims.nx
 
     x0 = np.array([0.5, 0.5, 0.5, 0.5])
     x = [x0]
@@ -239,18 +236,18 @@ def test_closed_loop(implicit_layer: AcadosImplicitLayer, tol: float = 1e-1) -> 
     # Need first dimension of inputs to be batch size
     n_batch = 1
 
-    p_global = implicit_layer.implicit_fun.ocp.p_global_values.reshape(
-        n_batch, implicit_layer.implicit_fun.ocp.dims.np_global
+    p_global = diff_mpc.ocp.p_global_values.reshape(
+        n_batch, diff_mpc.ocp.dims.np_global
     )
 
     for step in range(100):
         # Need first dimension to be batch size
-        x0 = np.array(x[-1].reshape(n_batch, nx))
-        ctx, u0, _, _, _ = implicit_layer.forward(x0=x0, p_global=p_global)
+        x0 = np.array(x[-1].reshape(n_batch, nx))  # type: ignore
+        ctx, u0, _, _, _ = diff_mpc.forward(x0=x0, p_global=p_global)  # type: ignore
         assert ctx.status == 0, f"Did not converge to a solution in step {step}"
         u.append(u0)
         x.append(
-            implicit_layer.implicit_fun.forward_batch_solver.ocp_solvers[0].get(1, "x")
+            diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0].get(1, "x")
         )
 
     x = np.array(x)
@@ -281,13 +278,13 @@ class AcadosTestInputs:
 
 
 def _setup_test_inputs(
-    implicit_layer: AcadosImplicitLayer,
+    diff_mpc: AcadosDiffMpc,
     n_batch: int,
     dtype: torch.dtype,
     noise_scale: float,
 ) -> AcadosTestInputs:
     """Set up test data tensors with proper gradients enabled."""
-    ocp = implicit_layer.implicit_fun.ocp
+    ocp = diff_mpc.ocp
 
     # Create a seeded generator
     generator = torch.Generator()
@@ -305,7 +302,7 @@ def _setup_test_inputs(
 
     # Setup initial control
     loc = (
-        torch.tensor(np.zeros(ocp.dims.nu), dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
+        torch.tensor(np.zeros(ocp.dims.nu), dtype=dtype).unsqueeze(0).repeat(n_batch, 1)  # type: ignore
     )
     scale = noise_scale
     u0_batch = torch.normal(mean=loc, std=scale, generator=generator).requires_grad_()
@@ -328,17 +325,17 @@ def _setup_test_inputs(
 
 
 def test_forward(
-    implicit_layer: AcadosImplicitLayer,
+    diff_mpc: AcadosDiffMpc,
     n_batch: int = 4,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.05,
     verbosity: int = 0,
 ) -> None:
     """
-    Test the forward method of AcadosImplicitFunction with different input combinations.
+    Test the forward method of AcadosDiffMpc with different input combinations.
 
     Args:
-        implicit_layer: The implicit layer to test
+        diff_mpc: The differentiable mpc to test
         n_batch: Number of batch samples
         dtype: PyTorch data type for tensors
         noise_scale: Scale factor for noise added to parameters
@@ -347,7 +344,7 @@ def test_forward(
     """
 
     def _run_single_forward_test(
-        implicit_layer: AcadosImplicitLayer,
+        diff_mpc: AcadosDiffMpc,
         forward_kwargs: dict[str, torch.Tensor],
         expected_output_type: str,
         n_batch: int,
@@ -355,7 +352,7 @@ def test_forward(
     ) -> None:
         """Run a single forward test with given parameters."""
         # Call forward method
-        ctx, u0, x, u, value = implicit_layer.forward(**forward_kwargs)
+        ctx, u0, x, u, value = diff_mpc(**forward_kwargs)
 
         # Validate solver status
         assert np.all(ctx.status == 0), (
@@ -363,7 +360,7 @@ def test_forward(
         )
 
         # Validate output types
-        assert isinstance(ctx, AcadosImplicitCtx), (
+        assert isinstance(ctx, AcadosDiffMpcCtx), (
             "ctx should be an instance of AcadosImplicitCtx"
         )
         assert isinstance(u0, torch.Tensor), "u0 should be a torch.Tensor"
@@ -378,7 +375,7 @@ def test_forward(
 
         expected_x_shape = (
             n_batch,
-            acados_ocp.dims.nx * (acados_ocp.solver_options.N_horizon + 1),
+            acados_ocp.dims.nx * (acados_ocp.solver_options.N_horizon + 1),  # type: ignore
         )
         assert x.shape == expected_x_shape, (
             f"x shape mismatch. Expected: {expected_x_shape}, Got: {x.shape}"
@@ -386,7 +383,7 @@ def test_forward(
 
         expected_u_shape = (
             n_batch,
-            acados_ocp.dims.nu * acados_ocp.solver_options.N_horizon,
+            acados_ocp.dims.nu * acados_ocp.solver_options.N_horizon,  # type: ignore
         )
         assert u.shape == expected_u_shape, (
             f"u shape mismatch. Expected: {expected_u_shape}, Got: {u.shape}"
@@ -399,11 +396,11 @@ def test_forward(
             f", Got: {value.shape}"
         )
 
-    acados_ocp = implicit_layer.implicit_fun.ocp
-    n_batch = implicit_layer.implicit_fun.forward_batch_solver.N_batch_max
+    acados_ocp = diff_mpc.ocp
+    n_batch = diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max
 
     # Setup test data
-    test_inputs = _setup_test_inputs(implicit_layer, n_batch, dtype, noise_scale)
+    test_inputs = _setup_test_inputs(diff_mpc, n_batch, dtype, noise_scale)
 
     # Define test cases
     test_cases = [
@@ -438,7 +435,7 @@ def test_forward(
             print(f"Testing forward call: {test_case['name']}")
 
         _run_single_forward_test(
-            implicit_layer,
+            diff_mpc,
             test_case["kwargs"],
             test_case["expected_output"],
             n_batch,
@@ -447,17 +444,17 @@ def test_forward(
 
 
 def test_sensitivity(
-    implicit_layer: AcadosImplicitLayer,
+    diff_mpc: AcadosDiffMpc,
     n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
 ) -> None:
     """
-    Test sensitivity of AcadosImplicitLayer to changes in parameters.
+    Test sensitivity of AcadosDiffMpc to changes in parameters.
 
     Args:
-        implicit_layer: The implicit layer to test
+        diff_mpc: The differentiable mpc to test
         n_batch: Number of batch samples to generate
         max_batch_size: Maximum allowed batch size for performance
         dtype: PyTorch data type for tensors
@@ -472,58 +469,58 @@ def test_sensitivity(
         raise ValueError(error_message)
 
     # Setup test data
-    test_inputs = _setup_test_inputs(implicit_layer, n_batch, dtype, noise_scale)
+    test_inputs = _setup_test_inputs(diff_mpc, n_batch, dtype, noise_scale)
 
-    ctx, u0, x, u, value = implicit_layer.forward(x0=test_inputs.x0)
+    ctx, u0, x, u, value = diff_mpc.forward(x0=test_inputs.x0)
 
     results = {
-        field: implicit_layer.sensitivity(ctx=ctx, field_name=field)
+        field: diff_mpc.sensitivity(ctx=ctx, field_name=field)  # type: ignore
         for field in ["dvalue_dp_global", "dvalue_dx0"]
     }
 
     assert results["dvalue_dp_global"].shape == (
         n_batch,
-        implicit_layer.ocp.dims.np_global,
+        diff_mpc.ocp.dims.np_global,
     ), (
         f"dvalue_dp_global shape mismatch. Expected: \
-            {(n_batch, implicit_layer.ocp.dims.np_global)}, "
+            {(n_batch, diff_mpc.ocp.dims.np_global)}, "
         f"Got: {results['dvalue_dp_global'].shape}"
     )
 
     assert results["dvalue_dx0"].shape == (
         n_batch,
-        implicit_layer.ocp.dims.nx,
+        diff_mpc.ocp.dims.nx,
     ), (
-        f"dvalue_dx0 shape mismatch. Expected: {(n_batch, implicit_layer.ocp.dims.nx)},"
+        f"dvalue_dx0 shape mismatch. Expected: {(n_batch, diff_mpc.ocp.dims.nx)},"
         f" "
         f"Got: {results['dvalue_dx0'].shape}"
     )
 
-    ctx, u0, x, u, value = implicit_layer.forward(x0=test_inputs.x0, u0=test_inputs.u0)
-    results["dvalue_du0"] = implicit_layer.sensitivity(ctx=ctx, field_name="dvalue_du0")
+    ctx, u0, x, u, value = diff_mpc.forward(x0=test_inputs.x0, u0=test_inputs.u0)
+    results["dvalue_du0"] = diff_mpc.sensitivity(ctx=ctx, field_name="dvalue_du0")
 
     assert results["dvalue_du0"].shape == (
         n_batch,
-        implicit_layer.ocp.dims.nu,
+        diff_mpc.ocp.dims.nu,
     ), (
-        f"dvalue_du0 shape mismatch. Expected: {(n_batch, implicit_layer.ocp.dims.nu)},"
+        f"dvalue_du0 shape mismatch. Expected: {(n_batch, diff_mpc.ocp.dims.nu)},"
         f" "
         f"Got: {results['dvalue_du0'].shape}"
     )
 
 
 def test_backward(
-    implicit_layer: AcadosImplicitLayer,
+    diff_mpc: AcadosDiffMpc,
     n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
 ) -> None:
     """
-    Test gradient correctness for AcadosImplicitLayer using finite differences.
+    Test backward pass of AcadosDiffMpc using finite differences.
 
     Args:
-        implicit_layer: The implicit layer to test
+        diff_mpc: The differentiable mpc to test
         n_batch: Number of batch samples to generate
         max_batch_size: Maximum allowed batch size for performance
         dtype: PyTorch data type for tensors
@@ -556,87 +553,87 @@ def test_backward(
         return test_func
 
     # note: result 0:ctx, 1:u0, 2:x, 3:u, 4:value
-    def _create_du0dx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
+    def _create_du0dx0_test(diff_mpc: AcadosDiffMpc) -> Callable:
         """Create test function for du0/dx0 gradient."""
 
         def forward_func(x0):
-            return implicit_layer.forward(x0=x0)
+            return diff_mpc.forward(x0=x0)
 
         return _create_backward_test_function(
             forward_func, lambda result: result[1]
         )  # u0
 
-    def _create_dVdx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
+    def _create_dVdx0_test(diff_mpc: AcadosDiffMpc) -> Callable:
         """Create test function for dV/dx0 gradient."""
 
         def forward_func(x0):
-            return implicit_layer.forward(x0=x0)
+            return diff_mpc.forward(x0=x0)
 
         return _create_backward_test_function(
             forward_func, lambda result: result[4]
         )  # value
 
     def _create_dQdx0_test(
-        implicit_layer: AcadosImplicitLayer, u0: torch.Tensor
+        diff_mpc: AcadosDiffMpc, u0: torch.Tensor
     ) -> Callable:
         """Create test function for dQ/dx0 gradient."""
 
         def forward_func(x0):
-            return implicit_layer.forward(x0=x0, u0=u0)
+            return diff_mpc.forward(x0=x0, u0=u0)
 
         return _create_backward_test_function(
             forward_func, lambda result: result[4]
         )  # value
 
     def _create_du0dp_global_test(
-        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
+        diff_mpc: AcadosDiffMpc, x0: torch.Tensor
     ) -> Callable:
         """Create test function for du0/dp_global gradient."""
 
         def forward_func(p_global):
-            return implicit_layer.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, p_global=p_global)
 
         return _create_backward_test_function(
             forward_func, lambda result: result[1]
         )  # u0
 
     def _create_dVdp_global_test(
-        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
+        diff_mpc: AcadosDiffMpc, x0: torch.Tensor
     ) -> Callable:
         """Create test function for dV/dp_global gradient."""
 
         def forward_func(p_global):
-            return implicit_layer.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, p_global=p_global)
 
         return _create_backward_test_function(
             forward_func, lambda result: result[4]
         )  # value
 
     def _create_dQdp_global_test(
-        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, u0: torch.Tensor
+        diff_mpc: AcadosDiffMpc, x0: torch.Tensor, u0: torch.Tensor
     ) -> Callable:
         """Create test function for dQ/dp_global gradient."""
 
         def forward_func(p_global):
-            return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, u0=u0, p_global=p_global)
 
         return _create_backward_test_function(
             forward_func, lambda result: result[4]
         )  # value
 
     def _create_dQdu0_test(
-        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, p_global: torch.Tensor
+        diff_mpc: AcadosDiffMpc, x0: torch.Tensor, p_global: torch.Tensor
     ) -> Callable:
         """Create test function for dQ/du0 gradient."""
 
         def forward_func(u0):
-            return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, u0=u0, p_global=p_global)
 
         return _create_backward_test_function(
             forward_func, lambda result: result[4]
         )  # value
 
-    test_inputs = _setup_test_inputs(implicit_layer, n_batch, dtype, noise_scale)
+    test_inputs = _setup_test_inputs(diff_mpc, n_batch, dtype, noise_scale)
 
     # TODO: Sensitivities with respect to different parameters have different scales
     # that lead to different tolerances and step sizes for the parameters. At the moment,
@@ -645,43 +642,43 @@ def test_backward(
     test_cases = [
         (
             "dV/dx0",
-            _create_dVdx0_test(implicit_layer),
+            _create_dVdx0_test(diff_mpc),
             test_inputs.x0,
             GradCheckConfig(atol=1e-1, eps=1e-2),
         ),
         (
             "du0/dx0",
-            _create_du0dx0_test(implicit_layer),
+            _create_du0dx0_test(diff_mpc),
             test_inputs.x0,
             GradCheckConfig(atol=1e0, eps=1e-4),
         ),
         (
             "dQ/dx0",
-            _create_dQdx0_test(implicit_layer, test_inputs.u0),
+            _create_dQdx0_test(diff_mpc, test_inputs.u0),
             test_inputs.x0,
             GradCheckConfig(atol=1e-2, eps=1e-2),
         ),
         (
             "du0/dp_global",
-            _create_du0dp_global_test(implicit_layer, test_inputs.x0),
+            _create_du0dp_global_test(diff_mpc, test_inputs.x0),
             test_inputs.p_global,
             GradCheckConfig(atol=1e-2, eps=1e-4),
         ),
         (
             "dV/dp_global",
-            _create_dVdp_global_test(implicit_layer, test_inputs.x0),
+            _create_dVdp_global_test(diff_mpc, test_inputs.x0),
             test_inputs.p_global,
             GradCheckConfig(atol=1e-2, eps=1e-2),
         ),
         (
             "dQ/dp_global",
-            _create_dQdp_global_test(implicit_layer, test_inputs.x0, test_inputs.u0),
+            _create_dQdp_global_test(diff_mpc, test_inputs.x0, test_inputs.u0),
             test_inputs.p_global,
             GradCheckConfig(atol=1e-2, eps=1e-2),
         ),
         (
             "dQ/du0",
-            _create_dQdu0_test(implicit_layer, test_inputs.x0, test_inputs.p_global),
+            _create_dQdu0_test(diff_mpc, test_inputs.x0, test_inputs.p_global),
             test_inputs.u0,
             GradCheckConfig(atol=1e-2, eps=1e-2),
         ),

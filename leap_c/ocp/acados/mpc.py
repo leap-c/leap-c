@@ -8,6 +8,8 @@ from enum import IntEnum
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Callable, List, NamedTuple
+import warnings
+
 
 import casadi as ca
 import numpy as np
@@ -622,7 +624,14 @@ class Mpc(ABC):
         """
         self.ocp = ocp
 
-        # PART I: For deriving standard sensitivities
+        # raise deprecation warning if mpc class is used
+        warning_msg = (
+            "The Mpc class is deprecated and will be removed in a future version. "
+            "Please use the AcadosDiffMpc class instead."
+        )
+        warnings.warn(warning_msg, DeprecationWarning)
+
+
         if ocp_sensitivity is None:
             # setup OCP for sensitivity solver
             if (
@@ -640,7 +649,6 @@ class Mpc(ABC):
         else:
             self.ocp_sensitivity = ocp_sensitivity
 
-        # PART II: For solving the standard OCP structure.
         if self.ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
             self.ocp.translate_initial_cost_term_to_external(
                 cost_hessian=ocp.solver_options.hessian_approx
