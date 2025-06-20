@@ -51,6 +51,7 @@ class ParameterizedController(nn.Module):
         """
         raise NotImplementedError
 
+    @property
     @abstractmethod
     def param_space(self) -> gym.Space:
         """Describes the parameter space of the controller.
@@ -60,6 +61,7 @@ class ParameterizedController(nn.Module):
         """
         ...
 
+    @property
     @abstractmethod
     def default_param(self) -> np.ndarray:
         """Provides a default parameter configuration for the controller.

@@ -14,11 +14,9 @@ from leap_c.torch.nn.gaussian import SquashedGaussian
 from leap_c.torch.nn.mlp import MLP, MlpConfig
 from leap_c.ocp.acados.layer import MpcSolutionModule
 from leap_c.torch.nn.scale import min_max_scaling
-from leap_c.registry import register_trainer
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.utils import soft_target_update
 from leap_c.torch.rl.sac import SacBaseConfig
-from leap_c.task import Task
 from leap_c.trainer import Trainer
 
 
