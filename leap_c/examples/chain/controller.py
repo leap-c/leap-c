@@ -1,3 +1,4 @@
+from copy import deepcopy
 from dataclasses import asdict
 from typing import Any
 
@@ -25,7 +26,7 @@ from leap_c.examples.util import (
     translate_learnable_param_to_p_global,
 )
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
-from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
+from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer, create_zero_iterate_from_ocp
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
@@ -337,11 +338,12 @@ class ChainInitializer(AcadosDiffMpcInitializer):
         resting_chain_solver.set("p_last", pos_last_mass_ref)
 
         x_ss, u_ss = resting_chain_solver(p_last=pos_last_mass_ref)
+        x_ref = np.tile(x_ss, (1, ocp.solver_options.N_horizon + 1))[0]  # type:ignore
 
-        self.default_iterate = ocp.create_default_initial_iterate().flatten()
-        self.default_iterate.x = x_ss
+        self.default_iterate = create_zero_iterate_from_ocp(ocp)
+        self.default_iterate.x = x_ref  # type:ignore
 
     def single_iterate(
         self, solver_input: AcadosOcpSolverInput
     ) -> AcadosOcpFlattenedIterate:
-        return self.default_iterate
+        return deepcopy(self.default_iterate)

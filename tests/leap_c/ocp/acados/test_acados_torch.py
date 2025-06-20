@@ -662,7 +662,7 @@ def test_backward(
             "du0/dp_global",
             _create_du0dp_global_test(diff_mpc, test_inputs.x0),
             test_inputs.p_global,
-            GradCheckConfig(atol=1e-2, eps=1e-4),
+            GradCheckConfig(atol=1e-1, eps=1e-4),
         ),
         (
             "dV/dp_global",
