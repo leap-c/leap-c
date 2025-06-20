@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from itertools import chain
 
 import casadi as ca
 import numpy as np
@@ -28,11 +29,11 @@ def find_param_in_p_or_p_global(
     param_name: list[str], model: AcadosModel
 ) -> dict[str, ca.SX]:
     if model.p == []:
-        return {key: model.p_global[key] for key in param_name}  # type:ignore
+        return {key: model.p_global[key] for key in param_name}
     if model.p_global is None:
-        return {key: model.p[key] for key in param_name}  # type:ignore
+        return {key: model.p[key] for key in param_name}
     return {
-        key: (model.p[key] if key in model.p.keys() else model.p_global[key])  # type:ignore  # noqa: SIM118
+        key: (model.p[key] if key in model.p.keys() else model.p_global[key])  # noqa: SIM118
         for key in param_name
     }
 
@@ -72,7 +73,7 @@ def get_A_disc(
             ca.horzcat(0, 1, 0, dt),
             ca.horzcat(0, 0, ca.exp(-cx * dt / m), 0),
             ca.horzcat(0, 0, 0, ca.exp(-cy * dt / m)),
-        )  # type: ignore
+        )
 
     return np.array(
         [
@@ -96,7 +97,7 @@ def get_B_disc(
             ca.horzcat(0, 0),
             ca.horzcat((m / cx) * (1 - ca.exp(-cx * dt / m)), 0),
             ca.horzcat(0, (m / cy) * (1 - ca.exp(-cy * dt / m))),
-        )  # type: ignore
+        )
 
     return np.array(
         [
@@ -133,19 +134,32 @@ def _create_diag_matrix(
     return np.diag(_q_sqrt)
 
 
-def get_cost_expr_ext_cost(ocp: AcadosOcp) -> ca.SX:
+def get_cost_expr_ext_cost(ocp: AcadosOcp, **kwargs: dict[str, ca.SX]) -> ca.SX:
     x = ocp.model.x
     u = ocp.model.u
 
-    Q_sqrt = _create_diag_matrix(
-        find_param_in_p_or_p_global(["q_diag"], ocp.model)["q_diag"]
-    )
-    R_sqrt = _create_diag_matrix(
-        find_param_in_p_or_p_global(["r_diag"], ocp.model)["r_diag"]
-    )
+    try:
+        xref = kwargs["xref"]
+    except KeyError:
+        xref = find_param_in_p_or_p_global(["xref"], ocp.model)["xref"]
 
-    xref = find_param_in_p_or_p_global(["xref"], ocp.model)["xref"]
-    uref = find_param_in_p_or_p_global(["uref"], ocp.model)["uref"]
+    try:
+        uref = kwargs["uref"]
+    except KeyError:
+        uref = find_param_in_p_or_p_global(["uref"], ocp.model)["uref"]
+
+    try:
+        q_diag = kwargs["q_diag"]
+    except KeyError:
+        q_diag = find_param_in_p_or_p_global(["q_diag"], ocp.model)["q_diag"]
+
+    try:
+        r_diag = kwargs["r_diag"]
+    except KeyError:
+        r_diag = find_param_in_p_or_p_global(["r_diag"], ocp.model)["r_diag"]
+
+    Q_sqrt = _create_diag_matrix(q_diag)
+    R_sqrt = _create_diag_matrix(r_diag)
 
     return 0.5 * (
         ca.mtimes([ca.transpose(x - xref), Q_sqrt.T, Q_sqrt, x - xref])
@@ -335,6 +349,290 @@ def implicit_layer(acados_test_ocp: AcadosOcp) -> AcadosImplicitLayer:
         sensitivity_ocp=None,
         discount_factor=None,
     )
+
+
+def is_stagewise_varying(param_key: str) -> bool:
+    """
+    Determine if a parameter is stage-wise varying based on its key pattern.
+
+    Stage-wise varying parameters typically have keys in the format "label_stage_index",
+    for example: "xref_0", "uref_5", "Q_2", etc.
+
+    Args:
+        param_key: The parameter key to check
+
+    Returns:
+        True if the parameter is stage-wise varying, False otherwise
+    """
+    # If there's no underscore, it's definitely not stage-wise
+    if "_" not in param_key:
+        return False
+
+    # Split by underscore
+    parts = param_key.split("_")
+
+    # Check if the last part is a numeric stage index
+    try:
+        # Try to convert the last part to an integer
+        int(parts[-1])
+
+        # Make sure the base_name is not empty
+        base_name = "_".join(parts[:-1])
+        return bool(base_name)
+    except ValueError:
+        # The last part is not a numeric stage index
+        return False
+
+
+def categorize_parameters(
+    nominal_params: dict[str, np.ndarray | float], nonlearnable_keys: set[str]
+) -> dict[str, dict[str, np.ndarray | float]]:
+    """Categorize parameters into learnable/nonlearnable and constant/varying."""
+    learnable_keys = set(nominal_params.keys()) - nonlearnable_keys
+
+    nonlearnable = {
+        key: value for key, value in nominal_params.items() if key in nonlearnable_keys
+    }
+
+    learnable = {
+        key: value for key, value in nominal_params.items() if key in learnable_keys
+    }
+
+    varying_learnable = {
+        key: value for key, value in learnable.items() if is_stagewise_varying(key)
+    }
+
+    constant_learnable = {
+        key: value for key, value in learnable.items() if key not in varying_learnable
+    }
+
+    return {
+        "nonlearnable": nonlearnable,
+        "learnable": {
+            "constant": constant_learnable,
+            "varying": varying_learnable,
+        },
+    }
+
+
+def create_parameter_entries(
+    params: dict[str, dict[str, np.ndarray | float]], N_horizon: int
+) -> tuple[dict[str, list], dict[str, list]]:
+    """Create casadi struct entries for parameters."""
+    labels = {
+        "nonlearnable": list(params["nonlearnable"].keys()),
+        "learnable": {
+            "constant": list(params["learnable"]["constant"].keys()),
+            "varying": list(
+                {
+                    "_".join(key.split("_")[:-1])
+                    for key in params["learnable"]["varying"]
+                }
+            ),
+        },
+    }
+
+    entries = {"learnable": []}
+
+    # Add constant parameter entries
+    for label in labels["learnable"]["constant"]:
+        param_shape = params["learnable"]["constant"][label].shape
+        entries["learnable"].append(entry(label, shape=param_shape))
+
+    # Add varying parameter entries with shape consistency check
+    for label in labels["learnable"]["varying"]:
+        # Get all shapes for this parameter across stages
+        shapes = {
+            params["learnable"]["varying"][f"{label}_{stage}"].shape
+            for stage in range(N_horizon)
+            if f"{label}_{stage}" in params["learnable"]["varying"]
+        }
+
+        if not shapes:
+            continue  # Skip if no matching parameters
+
+        if len(shapes) > 1:
+            raise ValueError(
+                f"Parameter '{label}' has inconsistent shapes across stages: {shapes}"
+            )
+
+        entries["learnable"].append(entry(label, shape=shapes.pop(), repeat=N_horizon))
+
+    return entries, labels
+
+
+@pytest.fixture(scope="session")
+def acados_test_ocp_with_stagewise_varying_params(
+    # ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions
+    ocp_options: AcadosOcpOptions,
+) -> AcadosOcp:
+    """Define a simple AcadosOcp for testing purposes."""
+    name = "test_ocp_with_stagewise_varying_params"
+
+    ocp = AcadosOcp()
+
+    ocp.solver_options = ocp_options
+
+    ocp.model.name = name
+
+    ocp.dims.nu = 2
+    ocp.dims.nx = 4
+
+    ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
+    ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
+
+    nominal_params = {
+        "m": 1.0,
+        "cx": 0.1,
+        "cy": 0.1,
+        **{
+            f"q_diag_{k}": np.array([1.0, 1.0, 1.0, 1.0])
+            for k in range(ocp_options.N_horizon)
+        },  # q_diag for initial stage and each intermediate stage
+        "r_diag": np.array([0.1, 0.1]),
+        "q_diag_e": np.array([1.0, 1.0, 1.0, 1.0]),
+        **{
+            f"xref_{k}": np.array([0.1, 0.2, 0.3, 0.4])
+            for k in range(ocp_options.N_horizon)
+        },  # xref for initial stage and each intermediate each stage
+        **{
+            f"uref_{k}": np.array([0.5, 0.6]) for k in range(ocp_options.N_horizon)
+        },  # uref for initial stage and each intermediate each stage
+        "xref_e": np.array([0.0, 0.0, 0.0, 0.0]),
+    }
+
+    # Categorize parameters
+    nonlearnable_keys = {"m", "cx", "cy"}
+
+    params = categorize_parameters(
+        nominal_params=nominal_params, nonlearnable_keys=nonlearnable_keys
+    )
+
+    entries, labels = create_parameter_entries(
+        params=params,
+        N_horizon=ocp.solver_options.N_horizon,
+    )
+
+    ocp.model.p_global = struct_symSX(entries["learnable"])
+
+    p_global_values = ocp.model.p_global(0)
+
+    # Fill in the constant values
+    for key, value in params["learnable"]["constant"].items():
+        p_global_values[key] = value
+
+    # Fill in the varying values
+    for key, value in params["learnable"]["varying"].items():
+        label = "_".join(key.split("_")[:-1])
+        stage = int(key.split("_")[-1])
+
+        p_global_values[label, stage] = value
+
+    ocp.p_global_values = p_global_values.cat.full().flatten()
+
+    entries, values = _process_params(
+        params=params["nonlearnable"].keys(), nominal_param=nominal_params
+    )
+
+    entries.append(entry("indicator", shape=(1,), repeat=ocp.solver_options.N_horizon))
+
+    ocp.model.p = struct_symSX(entries)
+
+    parameter_values = ocp.model.p(0)
+    for key, value in params["nonlearnable"].items():
+        parameter_values[key] = value
+
+    parameter_values["indicator"] = 0
+    ocp.parameter_values = parameter_values.cat.full().flatten()
+
+    # Define cost
+    stage_cost = [
+        ocp.model.p["indicator", stage]
+        * get_cost_expr_ext_cost(
+            ocp=ocp,
+            xref=ocp.model.p_global["xref", stage],
+            uref=ocp.model.p_global["uref", stage],
+            q_diag=ocp.model.p_global["q_diag", stage],
+        )
+        for stage in range(ocp.solver_options.N_horizon)
+    ]
+
+    ocp.cost.cost_type_0 = "EXTERNAL"
+    ocp.model.cost_expr_ext_cost_0 = stage_cost[0]
+    ocp.cost.cost_type = "EXTERNAL"
+    ocp.model.cost_expr_ext_cost = ca.sum1(ca.vertcat(*stage_cost))
+    ocp.cost.cost_type_e = "EXTERNAL"
+    ocp.model.cost_expr_ext_cost_e = get_cost_expr_ext_cost_e(ocp=ocp)
+
+    ####
+
+    ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp=ocp)
+
+    ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
+
+    Fmax = 10.0
+    # Box constraints on u
+    ocp.constraints.lbu = np.array([-Fmax, -Fmax])
+    ocp.constraints.ubu = np.array([Fmax, Fmax])
+    ocp.constraints.idxbu = np.array([0, 1])
+
+    ocp.constraints.lbx = np.array([0.05, 0.05, -20.0, -20.0])
+    ocp.constraints.ubx = np.array([3.95, 0.95, 20.0, 20.0])
+    ocp.constraints.idxbx = np.array([0, 1, 2, 3])
+
+    ocp.constraints.idxsbx = np.array([0, 1, 2, 3])
+
+    ns = ocp.constraints.idxsbx.size
+    ocp.cost.zl = 10000 * np.ones((ns,))
+    ocp.cost.Zl = 10 * np.ones((ns,))
+    ocp.cost.zu = 10000 * np.ones((ns,))
+    ocp.cost.Zu = 10 * np.ones((ns,))
+
+    # Cast parameters to appropriate types for acados
+    if isinstance(ocp.model.p, struct_symSX):
+        ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
+
+    if isinstance(ocp.model.p_global, struct_symSX):
+        ocp.model.p_global = (
+            ocp.model.p_global.cat if ocp.model.p_global is not None else None
+        )
+
+    return ocp
+
+
+@pytest.fixture(scope="session")
+def implicit_layer_with_stagewise_varying_params(
+    acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
+) -> AcadosImplicitLayer:
+    implicit_layer_ = AcadosImplicitLayer(
+        ocp=acados_test_ocp_with_stagewise_varying_params,
+        initializer=None,
+        sensitivity_ocp=None,
+        discount_factor=None,
+    )
+
+    for ocp_solver in chain(
+        implicit_layer_.implicit_fun.forward_batch_solver.ocp_solvers,
+        implicit_layer_.implicit_fun.backward_batch_solver.ocp_solvers,
+    ):
+        for stage_ in range(ocp_solver.acados_ocp.solver_options.N_horizon):
+            idx_values_ = np.array(
+                [
+                    ocp_solver.acados_ocp.dims.np
+                    - ocp_solver.acados_ocp.solver_options.N_horizon
+                    + stage_
+                ]
+            )
+            ocp_solver.set_params_sparse(
+                stage_=stage_,
+                idx_values_=idx_values_,
+                param_values_=np.array([1.0]),
+            )
+
+        for stage_ in range(ocp_solver.acados_ocp.solver_options.N_horizon):
+            print(f"stage: {stage_}; p: {ocp_solver.get(stage_=stage_, field_='p')}")
+
+    return implicit_layer_
 
 
 @pytest.fixture(scope="session")

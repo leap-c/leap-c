@@ -13,8 +13,23 @@ from leap_c.ocp.acados.implicit import (
 from leap_c.ocp.acados.torch import AcadosImplicitLayer
 
 
-def test_initialization(implicit_layer: AcadosImplicitLayer):
-    assert True
+def test_initialization_with_stagewise_varying_params(
+    implicit_layer_with_stagewise_varying_params: AcadosImplicitLayer,
+) -> None:
+    """
+    Test the initialization of the AcadosImplicitLayer with stagewise varying
+    parameters.
+    """
+    assert implicit_layer_with_stagewise_varying_params is not None, (
+        "AcadosImplicitLayer with stagewise varying parameters should not be None."
+    )
+
+
+def test_initialization(implicit_layer: AcadosImplicitLayer) -> None:
+    """Test the initialization of the AcadosImplicitLayer."""
+    assert implicit_layer is not None, (
+        "AcadosImplicitLayer should not be None after initialization."
+    )
 
 
 def test_file_management(
