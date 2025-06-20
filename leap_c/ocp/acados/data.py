@@ -4,7 +4,7 @@ import numpy as np
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 
 
-class AcadosSolverInput(NamedTuple):
+class AcadosOcpSolverInput(NamedTuple):
     """Input for an Acados solver.
 
     Can be a batch of inputs, or a single input.
@@ -26,7 +26,7 @@ class AcadosSolverInput(NamedTuple):
             raise ValueError("Cannot get batch size from non-batched MPCInput.")
         return self.x0.shape[0]
 
-    def get_sample(self, idx: int) -> "AcadosSolverInput":
+    def get_sample(self, idx: int) -> "AcadosOcpSolverInput":
         """Get the sample at index i from the batch."""
         if not self.is_batched():
             raise ValueError("Cannot sample from non-batched MPCInput.")
@@ -34,7 +34,7 @@ class AcadosSolverInput(NamedTuple):
         def _g(data, idx):
             return None if data is None else data[idx]
 
-        return AcadosSolverInput(
+        return AcadosOcpSolverInput(
             x0=self.x0[idx],
             u0=_g(self.u0, idx),
             p_global=_g(self.p_global, idx),

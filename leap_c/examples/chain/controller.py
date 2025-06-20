@@ -24,9 +24,9 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.ocp.acados.data import AcadosSolverInput
-from leap_c.ocp.acados.initializer import AcadosInitializer
-from leap_c.ocp.acados.torch import AcadosImplicitLayer
+from leap_c.ocp.acados.data import AcadosOcpSolverInput
+from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
+from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 class ChainController(ParameterizedController):
@@ -65,9 +65,18 @@ class ChainController(ParameterizedController):
             pos_last_mass_ref=pos_last_mass_ref,
         )
 
-        self.acados_layer = AcadosImplicitLayer(
+        self.given_default_param_dict = self.params
+
+        initializer = ChainInitializer(
             self.ocp,
-            initializer=ChainInitializer(self.ocp),
+            nominal_params=asdict(self.params),
+            n_mass=n_mass,
+            fix_point=fix_point,
+            pos_last_mass_ref=pos_last_mass_ref,
+        )
+        self.acados_layer = AcadosDiffMpc(
+            self.ocp,
+            initializer=initializer,
             discount_factor=discount_factor,
         )
 
@@ -89,7 +98,7 @@ class ChainController(ParameterizedController):
 
     def default_param(self) -> np.ndarray:
         return np.concatenate(
-            [getattr(self.param, a).flatten() for a in self.learnable_params]
+            [asdict(self.params)[p].flatten() for p in self.learnable_params]
         )
 
 
@@ -149,9 +158,6 @@ def export_parametric_ocp(
         resting_chain_solver.set_mass_param(i, "m", structured_nominal_params["m"][i])
 
     resting_chain_solver.set("fix_point", fix_point)
-
-    # pos_last_mass = pos_first_mass + np.array([1.0, 0.0, 0.0])
-
     resting_chain_solver.set("p_last", pos_last_mass_ref)
 
     x_ss, u_ss = resting_chain_solver(p_last=pos_last_mass_ref)
@@ -225,7 +231,7 @@ def get_f_expl_expr(
     xvel = vertcat(*x["vel"])
 
     # Force on intermediate masses
-    f = SX.zeros(3 * (n_masses - 2), 1)
+    f = SX.zeros(3 * (n_masses - 2), 1)  # type: ignore
 
     # Gravity force on intermediate masses
     for i in range(int(f.shape[0] / 3)):
@@ -240,7 +246,7 @@ def get_f_expl_expr(
         else:
             dist = xpos[i * 3 : (i + 1) * 3] - xpos[(i - 1) * 3 : i * 3]
 
-        F = ca.SX.zeros(3, 1)
+        F = ca.SX.zeros(3, 1)  # type: ignore
         for j in range(F.shape[0]):
             F[j] = (
                 p["D"][i + j] / p["m"][i] * (1 - p["L"][i + j] / norm_2(dist)) * dist[j]
@@ -263,7 +269,7 @@ def get_f_expl_expr(
         else:
             vel = xvel[i * 3 : (i + 1) * 3] - xvel[(i - 1) * 3 : i * 3]
 
-        F = ca.SX.zeros(3, 1)
+        F = ca.SX.zeros(3, 1)  # type: ignore
         for j in range(3):
             F[j] = p["C"][i + j] * ca.norm_1(vel[j]) * vel[j]
 
@@ -279,7 +285,7 @@ def get_f_expl_expr(
     for i in range(n_masses - 2):
         f[i * 3 : (i + 1) * 3] += p["w"][i]
 
-    return vertcat(xvel, u, f)
+    return vertcat(xvel, u, f)  # type: ignore
 
 
 def get_disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
@@ -293,14 +299,14 @@ def get_disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
 
     ode = ca.Function("ode", [x, u, p], [f_expl_expr])
     k1 = ode(x, u, p)
-    k2 = ode(x + dt / 2 * k1, u, p)
-    k3 = ode(x + dt / 2 * k2, u, p)
-    k4 = ode(x + dt * k3, u, p)
+    k2 = ode(x + dt / 2 * k1, u, p)  # type:ignore
+    k3 = ode(x + dt / 2 * k2, u, p)  # type: ignore
+    k4 = ode(x + dt * k3, u, p)  # type: ignore
 
-    return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+    return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)  # type: ignore
 
 
-class ChainInitializer(AcadosInitializer):
+class ChainInitializer(AcadosDiffMpcInitializer):
     def __init__(
         self,
         ocp: AcadosOcp,
@@ -309,7 +315,6 @@ class ChainInitializer(AcadosInitializer):
         fix_point: np.ndarray = np.zeros(3),
         pos_last_mass_ref: np.ndarray = np.array([1.0, 0.0, 0.0]),
     ):
-        
 
         resting_chain_solver = RestingChainSolver(
             n_mass=n_mass, fix_point=fix_point, f_expl=get_f_expl_expr
@@ -340,5 +345,7 @@ class ChainInitializer(AcadosInitializer):
         self.default_iterate = ocp.create_default_initial_iterate().flatten()
         self.default_iterate.x = x_ss
 
-    def single_iterate(self, mpc_input: AcadosSolverInput) -> AcadosOcpFlattenedIterate:
+    def single_iterate(
+        self, solver_input: AcadosOcpSolverInput
+    ) -> AcadosOcpFlattenedIterate:
         return self.default_iterate

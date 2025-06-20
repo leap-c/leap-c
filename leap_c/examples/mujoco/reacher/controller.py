@@ -20,10 +20,10 @@ from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
-from leap_c.ocp.acados.data import AcadosSolverInput
-from leap_c.ocp.acados.initializer import AcadosInitializer
+from leap_c.ocp.acados.data import AcadosOcpSolverInput
+from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 from leap_c.ocp.acados.mpc import MpcBatchedState, MpcInput
-from leap_c.ocp.acados.torch import AcadosImplicitLayer
+from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 # Optional pinocchio import
 try:
@@ -107,7 +107,7 @@ class ReacherController(ParameterizedController):
             pinocchio_model=self.pinocchio_model,
         )
 
-        self.acados_layer = AcadosImplicitLayer(
+        self.acados_layer = AcadosDiffMpc(
             self.ocp,
             initializer=self.initializer,
             discount_factor=discount_factor
@@ -288,13 +288,13 @@ def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.with_batch_functionality = True
 
 
-class ReacherInitializer(AcadosInitializer):
+class ReacherInitializer(AcadosDiffMpcInitializer):
     def __init__(self, ocp: AcadosOcp, ik_solver, pinocchio_model):
         self.solver = AcadosOcpSolver(ocp)
         self.ik_solver = ik_solver
         self.pinocchio_model = pinocchio_model
 
-    def single_iterate(self, mpc_input: AcadosSolverInput) -> AcadosOcpFlattenedIterate:
+    def single_iterate(self, mpc_input: AcadosOcpSolverInput) -> AcadosOcpFlattenedIterate:
         # Use the same logic as in mpc.py for single initialization
         xy_ee_ref = mpc_input.parameters.p_global.flatten()[:2]
         target_angle = np.arctan2(xy_ee_ref[1], xy_ee_ref[0])
