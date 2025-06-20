@@ -1,4 +1,5 @@
-from dataclasses import fields, asdict
+from copy import deepcopy
+from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -8,8 +9,7 @@ import numpy as np
 import torch
 from casadi.tools import struct_symSX
 
-from acados_template import AcadosOcp, AcadosOcpSolver, AcadosOcpFlattenedIterate
-from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchIterate
+from acados_template import AcadosOcp, AcadosOcpFlattenedIterate
 from leap_c.controller import ParameterizedController
 from leap_c.examples.mujoco.reacher.config import make_default_reacher_params
 from leap_c.examples.mujoco.reacher.util import (
@@ -41,15 +41,15 @@ class ReacherController(ParameterizedController):
     """docstring for ReacherController."""
 
     def __init__(
-            self,
-            params: dict[str, np.ndarray] | None = None,
-            learnable_params: list[str] | None = None,
-            N_horizon: int = 50,
-            T_horizon: float = 0.5,
-            discount_factor: float = 0.99,
-            urdf_path: Path | None = None,
-            mjcf_path: Path | None = None,
-            state_representation: str = "q",
+        self,
+        params: dict[str, np.ndarray] | None = None,
+        learnable_params: list[str] | None = None,
+        N_horizon: int = 50,
+        T_horizon: float = 0.5,
+        discount_factor: float = 0.99,
+        urdf_path: Path | None = None,
+        mjcf_path: Path | None = None,
+        state_representation: str = "q",
     ):
         super().__init__()
         require_pinocchio()
@@ -67,7 +67,11 @@ class ReacherController(ParameterizedController):
             print(f"No urdf or mjcf provided. Using default model : {path}")
             self.pinocchio_model = pin.buildModelFromMJCF(path)
 
-        self.params = make_default_reacher_params(self.pinocchio_model) if params is None else params
+        self.params = (
+            make_default_reacher_params(self.pinocchio_model)
+            if params is None
+            else params
+        )
         self.learnable_params = learnable_params if learnable_params is not None else []
 
         print("learnable_params: ", self.learnable_params)
@@ -98,15 +102,15 @@ class ReacherController(ParameterizedController):
         )
 
         self.acados_layer = AcadosDiffMpc(
-            self.ocp,
-            initializer=self.initializer,
-            discount_factor=discount_factor
+            self.ocp, initializer=self.initializer, discount_factor=discount_factor
         )
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         x0 = torch.as_tensor(obs, dtype=torch.float64)
         p_global = torch.as_tensor(param, dtype=torch.float64)
-        ctx, u0, x, u, value = self.acados_layer(x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx)
+        ctx, u0, x, u, value = self.acados_layer(
+            x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx
+        )
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
@@ -118,7 +122,9 @@ class ReacherController(ParameterizedController):
         raise NotImplementedError
 
     def default_param(self) -> np.ndarray:
-        return np.concatenate([asdict(self.params)[p].flatten() for p in self.learnable_params])
+        return np.concatenate(
+            [asdict(self.params)[p].flatten() for p in self.learnable_params]
+        )
 
 
 def get_disc_dyn_expr(ocp: AcadosOcp, dt: float) -> ca.SX:
@@ -133,19 +139,19 @@ def get_disc_dyn_expr(ocp: AcadosOcp, dt: float) -> ca.SX:
 
 
 def create_diag_matrix(
-        v_diag: np.ndarray | ca.SX,
+    v_diag: np.ndarray | ca.SX,
 ) -> np.ndarray | ca.SX:
     return ca.diag(v_diag) if isinstance(v_diag, ca.SX) else np.diag(v_diag)
 
 
 def export_parametric_ocp(
-        pinocchio_model,
-        nominal_param: dict[str, np.ndarray],
-        N_horizon: int,
-        tf: float,
-        state_representation: str,
-        name: str = "reacher",
-        learnable_params: list[str] | None = None,
+    pinocchio_model,
+    nominal_param: dict[str, np.ndarray],
+    N_horizon: int,
+    tf: float,
+    state_representation: str,
+    name: str = "reacher",
+    learnable_params: list[str] | None = None,
 ) -> AcadosOcp:
     require_pinocchio()
 
@@ -280,13 +286,16 @@ def configure_ocp_solver(ocp: AcadosOcp, exact_hess_dyn: bool):
 
 class ReacherInitializer(AcadosDiffMpcInitializer):
     def __init__(self, ocp: AcadosOcp, ik_solver, pinocchio_model):
-        self.solver = AcadosOcpSolver(ocp)
+        self.ocp = ocp
         self.ik_solver = ik_solver
         self.pinocchio_model = pinocchio_model
+        self.zero_iterate = self.ocp.create_default_initial_iterate().flatten()
 
-    def single_iterate(self, mpc_input: AcadosOcpSolverInput) -> AcadosOcpFlattenedIterate:
+    def single_iterate(
+        self, solver_input: AcadosOcpSolverInput
+    ) -> AcadosOcpFlattenedIterate:
         # Use the same logic as in mpc.py for single initialization
-        xy_ee_ref = mpc_input.parameters.p_global.flatten()[:2]
+        xy_ee_ref = mpc_input.p_global.flatten()[:2]  # type: ignore
         target_angle = np.arctan2(xy_ee_ref[1], xy_ee_ref[0])
 
         q_ref, dq_ref, _, pos, _ = self.ik_solver(
@@ -296,18 +305,7 @@ class ReacherInitializer(AcadosDiffMpcInitializer):
         )
 
         x_ref = np.concatenate([q_ref, dq_ref])
+        iterate = deepcopy(self.zero_iterate)
+        iterate.x = x_ref
 
-        for stage in range(self.solver.acados_ocp.solver_options.N_horizon + 1):
-            self.solver.set(stage, "x", x_ref)
-
-        self.solver.set_p_global_and_precompute_dependencies(
-            mpc_input.parameters.p_global.flatten()
-        )
-
-        # Set the initial velocity to zero
-        x0 = mpc_input.x0.flatten()
-        x0[:2] = np.zeros(2)
-
-        _ = self.solver.solve_for_x0(x0, fail_on_nonzero_status=False)
-
-        return self.solver.store_iterate_to_flat_obj()
+        return iterate
