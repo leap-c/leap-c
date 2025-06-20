@@ -5,7 +5,6 @@ from acados_template import (
     AcadosModel,
     AcadosOcp,
     AcadosOcpFlattenedIterate,
-    AcadosOcpSolver,
 )
 import casadi as ca
 from casadi import SX, norm_2, vertcat
@@ -38,7 +37,6 @@ class ChainController(ParameterizedController):
         N_horizon: int = 20,
         T_horizon: float = 1.0,
         discount_factor: float = 1.0,
-        exact_hess_dyn: bool = True,
         n_mass: int = 5,
         fix_point: np.ndarray | None = None,
         pos_last_mass_ref: np.ndarray | None = None,
@@ -67,10 +65,6 @@ class ChainController(ParameterizedController):
             pos_last_mass_ref=pos_last_mass_ref,
         )
 
-        set_ocp_solver_options(self.ocp, exact_hess_dyn)
-
-        self.given_default_param_dict = self.params
-
         self.acados_layer = AcadosImplicitLayer(
             self.ocp,
             initializer=ChainInitializer(self.ocp),
@@ -78,9 +72,9 @@ class ChainController(ParameterizedController):
         )
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        x0 = torch.as_tensor(obs, dtype=torch.float64)
-        p_global = torch.as_tensor(param, dtype=torch.float64)
-        ctx, u0, x, u, value = self.acados_layer(
+        x0 = torch.as_tensor(obs)
+        p_global = torch.as_tensor(param)
+        ctx, u0, *_ = self.acados_layer(
             x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx
         )
         return ctx, u0
@@ -94,13 +88,15 @@ class ChainController(ParameterizedController):
         raise NotImplementedError
 
     def default_param(self) -> np.ndarray:
-        return np.concatenate([self.params[p].flatten() for p in self.learnable_params])
+        return np.concatenate(
+            [getattr(self.param, a).flatten() for a in self.learnable_params]
+        )
 
 
 def export_parametric_ocp(
     nominal_params: dict,
+    learnable_params: list[str],
     name: str = "chain",
-    learnable_params: list[str] | None = None,
     N_horizon: int = 30,  # noqa: N803
     tf: float = 6.0,
     n_mass: int = 5,
@@ -126,14 +122,14 @@ def export_parametric_ocp(
         ]
     )
 
-    ocp.model.xdot = ca.SX.sym("xdot", ocp.model.x.cat.shape[0], 1)
+    ocp.model.xdot = ca.SX.sym("xdot", ocp.model.x.cat.shape[0], 1)  # type:ignore
 
-    ocp.model.u = ca.SX.sym("u", 3, 1)
+    ocp.model.u = ca.SX.sym("u", 3, 1)  # type: ignore
 
     p = find_param_in_p_or_p_global(["D", "L", "C", "m", "w"], ocp.model)
 
     ocp.model.f_expl_expr = get_f_expl_expr(
-        x=ocp.model.x, u=ocp.model.u, p=p, x0=fix_point
+        x=ocp.model.x, u=ocp.model.u, p=p, x0=fix_point  # type:ignore
     )
     ocp.model.f_impl_expr = ocp.model.xdot - ocp.model.f_expl_expr
     ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp.model, tf / N_horizon)
@@ -202,20 +198,19 @@ def export_parametric_ocp(
             ocp.model.p_global.cat if ocp.model.p_global is not None else None
         )
 
-    return ocp
-
-
-def set_ocp_solver_options(ocp: AcadosOcp, exact_hess_dyn: bool):
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
-    ocp.solver_options.exact_hess_dyn = exact_hess_dyn
+    ocp.solver_options.exact_hess_dyn = True
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
     ocp.solver_options.qp_tol = 1e-7
+    # TODO (Jasper): This should be set automatically!?
     ocp.solver_options.with_value_sens_wrt_params = True
     ocp.solver_options.with_solution_sens_wrt_params = True
     ocp.solver_options.with_batch_functionality = True
+
+    return ocp
 
 
 def get_f_expl_expr(
@@ -306,11 +301,44 @@ def get_disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
 
 
 class ChainInitializer(AcadosInitializer):
-    def __init__(self, ocp: AcadosOcp):
-        self.solver = AcadosOcpSolver(ocp)
+    def __init__(
+        self,
+        ocp: AcadosOcp,
+        nominal_params: dict,
+        n_mass: int = 5,
+        fix_point: np.ndarray = np.zeros(3),
+        pos_last_mass_ref: np.ndarray = np.array([1.0, 0.0, 0.0]),
+    ):
+        
+
+        resting_chain_solver = RestingChainSolver(
+            n_mass=n_mass, fix_point=fix_point, f_expl=get_f_expl_expr
+        )
+
+        structured_nominal_params = nominal_params_to_structured_nominal_params(
+            nominal_params=nominal_params
+        )
+        for i in range(n_mass - 1):
+            resting_chain_solver.set_mass_param(
+                i, "D", structured_nominal_params["D"][i]
+            )
+            resting_chain_solver.set_mass_param(
+                i, "L", structured_nominal_params["L"][i]
+            )
+            resting_chain_solver.set_mass_param(
+                i, "C", structured_nominal_params["C"][i]
+            )
+            resting_chain_solver.set_mass_param(
+                i, "m", structured_nominal_params["m"][i]
+            )
+
+        resting_chain_solver.set("fix_point", fix_point)
+        resting_chain_solver.set("p_last", pos_last_mass_ref)
+
+        x_ss, u_ss = resting_chain_solver(p_last=pos_last_mass_ref)
+
+        self.default_iterate = ocp.create_default_initial_iterate().flatten()
+        self.default_iterate.x = x_ss
 
     def single_iterate(self, mpc_input: AcadosSolverInput) -> AcadosOcpFlattenedIterate:
-        for stage in range(self.solver.N + 1):
-            self.solver.set(stage, "x", self.solver.acados_ocp.constraints.x0)
-        self.solver.solve()
-        return self.solver.store_iterate_to_flat_obj()
+        return self.default_iterate
