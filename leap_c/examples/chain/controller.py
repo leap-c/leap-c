@@ -44,18 +44,14 @@ class ChainController(ParameterizedController):
         pos_last_mass_ref: np.ndarray | None = None,
     ):
         super().__init__()
-        if params is None:
-            self.params = make_default_chain_params(n_mass)
-        else:
-            self.params = params
+        self.params = make_default_chain_params(n_mass) if params is None else params
+        self.learnable_params = learnable_params if learnable_params is not None else []
 
         if fix_point is None:
             fix_point = np.zeros(3)
 
         if pos_last_mass_ref is None:
             pos_last_mass_ref = fix_point + np.array([0.033 * (n_mass - 1), 0, 0])
-
-        self.learnable_params = learnable_params if learnable_params is not None else []
 
         self.ocp = export_parametric_ocp(
             nominal_params=asdict(self.params),
@@ -68,8 +64,6 @@ class ChainController(ParameterizedController):
         )
 
         set_ocp_solver_options(self.ocp, exact_hess_dyn)
-
-        self.given_default_param_dict = self.params
 
         self.acados_layer = AcadosDiffMpc(
             self.ocp,

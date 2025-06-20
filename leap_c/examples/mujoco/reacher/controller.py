@@ -1,4 +1,4 @@
-from dataclasses import fields
+from dataclasses import fields, asdict
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +11,7 @@ from casadi.tools import struct_symSX
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosOcpFlattenedIterate
 from acados_template.acados_ocp_batch_solver import AcadosOcpFlattenedBatchIterate
 from leap_c.controller import ParameterizedController
+from leap_c.examples.mujoco.reacher.config import make_default_reacher_params
 from leap_c.examples.mujoco.reacher.util import (
     InverseKinematicsSolver,
     get_mjcf_path,
@@ -66,23 +67,14 @@ class ReacherController(ParameterizedController):
             print(f"No urdf or mjcf provided. Using default model : {path}")
             self.pinocchio_model = pin.buildModelFromMJCF(path)
 
-        self.params = (
-            {
-                "xy_ee_ref": np.array([0.21, 0.0]),
-                "q_sqrt_diag": np.array([10.0, 10.0]),
-                "r_sqrt_diag": np.array([0.05] * self.pinocchio_model.nq),
-            }
-            if params is None
-            else params
-        )
-
+        self.params = make_default_reacher_params(self.pinocchio_model) if params is None else params
         self.learnable_params = learnable_params if learnable_params is not None else []
 
         print("learnable_params: ", self.learnable_params)
 
         self.ocp = export_parametric_ocp(
             pinocchio_model=self.pinocchio_model,
-            nominal_param=self.params,
+            nominal_param=asdict(self.params),
             learnable_params=self.learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
@@ -90,8 +82,6 @@ class ReacherController(ParameterizedController):
         )
 
         configure_ocp_solver(ocp=self.ocp, exact_hess_dyn=True)
-
-        self.given_default_param_dict = self.params
 
         self.ik_solver = InverseKinematicsSolver(
             pinocchio_model=self.pinocchio_model,
@@ -128,7 +118,7 @@ class ReacherController(ParameterizedController):
         raise NotImplementedError
 
     def default_param(self) -> np.ndarray:
-        return np.concatenate([self.params[p].flatten() for p in self.learnable_params])
+        return np.concatenate([asdict(self.params)[p].flatten() for p in self.learnable_params])
 
 
 def get_disc_dyn_expr(ocp: AcadosOcp, dt: float) -> ca.SX:

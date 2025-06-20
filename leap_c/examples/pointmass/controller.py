@@ -5,10 +5,12 @@ import gymnasium as gym
 import numpy as np
 import torch
 from casadi.tools import struct_symSX
+from dataclasses import asdict
 
 from acados_template import AcadosOcp
 from leap_c.controller import ParameterizedController
 from leap_c.examples.pointmass.env import _A_disc, _B_disc
+from leap_c.examples.pointmass.config import PointMassParams, make_default_pointmass_params
 from leap_c.examples.util import (
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
@@ -20,39 +22,22 @@ class PointMassController(ParameterizedController):
     """docstring for PointMassController."""
     def __init__(
             self,
-            params: dict[str, np.ndarray] | None = None,
+            params: PointMassParams | None = None,
             learnable_params: list[str] | None = None,
             N_horizon: int = 20,
             T_horizon: float = 2.0,
     ) -> None:
         super().__init__()
-        self.params = (
-            {
-                "m": 1.0,
-                "cx": 0.1,
-                "cy": 0.1,
-                "q_diag": np.array([1.0, 1.0, 1.0, 1.0]),
-                "r_diag": np.array([0.1, 0.1]),
-                "q_diag_e": np.array([1.0, 1.0, 1.0, 1.0]),
-                "xref": np.array([0.0, 0.0, 0.0, 0.0]),
-                "uref": np.array([0.0, 0.0]),
-                "xref_e": np.array([0.0, 0.0, 0.0, 0.0]),
-            }
-            if params is None
-            else params
-        )
-
+        self.params = make_default_pointmass_params() if params is None else params
         self.learnable_params = learnable_params if learnable_params is not None else []
 
         self.ocp = export_parametric_ocp(
-            nominal_param=self.params,
+            nominal_param=asdict(self.params),
             learnable_params=self.learnable_params,
             N_horizon=N_horizon,
             tf=T_horizon,
         )
         configure_ocp_solver(ocp=self.ocp, exact_hess_dyn=True)
-
-        self.given_default_param_dict = self.params
 
         self.acados_layer = AcadosDiffMpc(self.ocp)
 
@@ -71,7 +56,7 @@ class PointMassController(ParameterizedController):
         raise NotImplementedError
 
     def default_param(self) -> np.ndarray:
-        return np.concatenate([np.array(self.params[p]).flatten() for p in self.learnable_params])
+        return np.concatenate([np.array(asdict(self.params)[p]).flatten() for p in self.learnable_params])
 
 
 def _create_diag_matrix(

@@ -32,14 +32,12 @@ def get_default_action(mpc_layer, controller):
 
 
 def test_cartpole_controller_matches_mpc():
-    params = PARAMS_SWINGUP
     learnable_params = ["xref2"]
 
     mpc = CartPoleMPC(
         N_horizon=5,
         T_horizon=0.25,
         learnable_params=learnable_params,
-        params=params,  # type: ignore
     )
     mpc_layer = MpcSolutionModule(mpc)
 
@@ -47,7 +45,6 @@ def test_cartpole_controller_matches_mpc():
         N_horizon=5,
         T_horizon=0.25,
         learnable_params=learnable_params,
-        params=params,  # type: ignore
     )
 
     # Get default action from both MPC layer and controller

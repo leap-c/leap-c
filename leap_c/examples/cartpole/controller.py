@@ -1,4 +1,4 @@
-from collections import OrderedDict
+from dataclasses import asdict
 from typing import Any
 
 import casadi as ca
@@ -9,69 +9,13 @@ from casadi.tools import struct_symSX
 
 from acados_template import AcadosModel, AcadosOcp
 from leap_c.controller import ParameterizedController
+from leap_c.examples.cartpole.config import CartPoleParams, make_default_cartpole_params
 from leap_c.examples.util import (
     assign_lower_triangular,
     find_param_in_p_or_p_global,
     translate_learnable_param_to_p_global,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpc
-
-# DO NOT TOUCH THE DEFAULT CONFIG!
-PARAMS = OrderedDict(
-    [
-        ("M", np.array([1.0])),  # mass of the cart [kg]
-        ("m", np.array([0.1])),  # mass of the ball [kg]
-        ("g", np.array([9.81])),  # gravity constant [m/s^2]
-        ("l", np.array([0.8])),  # length of the rod [m]
-        # The quadratic cost matrix is calculated according to L@L.T
-        ("L11", np.array([np.sqrt(2e3)])),
-        ("L22", np.array([np.sqrt(2e3)])),
-        ("L33", np.array([np.sqrt(1e-2)])),
-        ("L44", np.array([np.sqrt(1e-2)])),
-        ("L55", np.array([np.sqrt(2e-1)])),
-        ("Lloweroffdiag", np.array([0.0] * (4 + 3 + 2 + 1))),
-        (
-            "c1",
-            np.array([0.0]),
-        ),  # position linear cost, only used for EXTERNAL cost
-        (
-            "c2",
-            np.array([0.0]),
-        ),  # theta linear cost, only used for EXTERNAL cost
-        (
-            "c3",
-            np.array([0.0]),
-        ),  # v linear cost, only used for EXTERNAL cost
-        (
-            "c4",
-            np.array([0.0]),
-        ),  # thetadot linear cost, only used for EXTERNAL cost
-        (
-            "c5",
-            np.array([0.0]),
-        ),  # u linear cost, only used for EXTERNAL cost
-        (
-            "xref1",
-            np.array([0.0]),
-        ),  # reference position, only used for NONLINEAR_LS cost
-        (
-            "xref2",
-            np.array([0.0]),
-        ),  # reference theta, only used for NONLINEAR_LS cost
-        (
-            "xref3",
-            np.array([0.0]),
-        ),  # reference v, only used for NONLINEAR_LS cost
-        (
-            "xref4",
-            np.array([0.0]),
-        ),  # reference thetadot, only used for NONLINEAR_LS cost
-        (
-            "uref",
-            np.array([0.0]),
-        ),  # reference u, only used for NONLINEAR_LS cost
-    ]
-)
 
 
 class CartPoleController(ParameterizedController):
@@ -110,7 +54,7 @@ class CartPoleController(ParameterizedController):
 
     def __init__(
             self,
-            params: dict[str, np.ndarray] | None = None,
+            params: CartPoleParams | None = None,
             learnable_params: list[str] | None = None,
             N_horizon: int = 20,
             T_horizon: float = 1.0,
@@ -137,11 +81,11 @@ class CartPoleController(ParameterizedController):
             cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
         """
         super().__init__()
-        self.params = params if params is not None else PARAMS  # type:ignore
+        self.params = make_default_cartpole_params() if params is None else params
         self.learnable_params = learnable_params if learnable_params is not None else []
 
         self.ocp = export_parametric_ocp(
-            nominal_param=self.params.copy(),
+            nominal_param=asdict(self.params),
             cost_type=cost_type,
             exact_hess_dyn=exact_hess_dyn,
             name="cartpole",
@@ -169,7 +113,7 @@ class CartPoleController(ParameterizedController):
         raise NotImplementedError
 
     def default_param(self) -> np.ndarray:
-        return np.concatenate([self.params[p].flatten() for p in self.learnable_params])
+        return np.concatenate([asdict(self.params)[p].flatten() for p in self.learnable_params])
 
 
 def f_expl_expr(model: AcadosModel) -> ca.SX:
