@@ -7,7 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.torch.nn.extractor import IdentityExtractor
+from leap_c.torch.nn.extractor import IdentityExtractor, Extractor
 from leap_c.torch.nn.gaussian import SquashedGaussian
 from leap_c.torch.nn.mlp import MLP, MlpConfig
 from leap_c.torch.nn.scale import min_max_scaling
@@ -58,14 +58,13 @@ class SacTrainerConfig(TrainerConfig):
     update_freq: int = 4
 
 
-
 class SacCritic(nn.Module):
     def __init__(
-        self,
-        extractor: nn.Module,
-        env: gym.Env,
-        mlp_cfg: MlpConfig,
-        num_critics: int,
+            self,
+            extractor: Extractor,
+            env: gym.Env,
+            mlp_cfg: MlpConfig,
+            num_critics: int,
     ):
         super().__init__()
 
@@ -91,8 +90,12 @@ class SacCritic(nn.Module):
 
 
 class SacActor(nn.Module):
-
-    def __init__(self, extractor, env, mlp_cfg: MlpConfig):
+    def __init__(
+            self,
+            extractor: Extractor,
+            env: gym.Env,
+            mlp_cfg: MlpConfig
+    ):
         super().__init__()
 
         self.extractor = extractor
@@ -116,15 +119,14 @@ class SacActor(nn.Module):
 
 
 class SacTrainer(Trainer[SacTrainerConfig]):
-
     def __init__(
-        self,
-        cfg: SacTrainerConfig,
-        val_env: gym.Env,
-        output_path: str | Path,
-        device: str,
-        train_env: gym.Env,
-        extractor: nn.Module | None = None,
+            self,
+            cfg: SacTrainerConfig,
+            val_env: gym.Env,
+            output_path: str | Path,
+            device: str,
+            train_env: gym.Env,
+            extractor: Extractor | None = None,
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -142,19 +144,18 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         #  wrappers if needed, and in the order that we want.
         self.train_env = wrap_train_env(train_env)
 
-        if extractor is None:
-            extractor = IdentityExtractor(self.train_env)
+        self.extractor = IdentityExtractor(self.train_env) if extractor is None else extractor
 
         self.q = SacCritic(
-            extractor, train_env, self.cfg.critic_mlp, self.cfg.num_critics
+            self.extractor, self.train_env, self.cfg.critic_mlp, self.cfg.num_critics
         )
         self.q_target = SacCritic(
-            extractor, train_env, self.cfg.critic_mlp, self.cfg.num_critics
+            self.extractor, self.train_env, self.cfg.critic_mlp, self.cfg.num_critics
         )
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=self.cfg.lr_q)
 
-        self.pi = SacActor(extractor, self.train_env, self.cfg.actor_mlp)  # type: ignore
+        self.pi = SacActor(self.extractor, self.train_env, self.cfg.actor_mlp)  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=self.cfg.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(self.cfg.init_alpha).log())  # type: ignore
@@ -201,9 +202,9 @@ class SacTrainer(Trainer[SacTrainerConfig]):
             obs = obs_prime
 
             if (
-                self.state.step >= self.cfg.train_start
-                and len(self.buffer) >= self.cfg.batch_size
-                and self.state.step % self.cfg.update_freq == 0
+                    self.state.step >= self.cfg.train_start
+                    and len(self.buffer) >= self.cfg.batch_size
+                    and self.state.step % self.cfg.update_freq == 0
             ):
                 # sample batch
                 o, a, r, o_prime, te = self.buffer.sample(self.cfg.batch_size)
@@ -229,12 +230,12 @@ class SacTrainer(Trainer[SacTrainerConfig]):
 
                     # add entropy
                     q_target = (
-                        q_target
-                        - alpha * log_p_prime * self.cfg.entropy_reward_bonus
+                            q_target
+                            - alpha * log_p_prime * self.cfg.entropy_reward_bonus
                     )
 
                     target = (
-                        r[:, None] + self.cfg.gamma * (1 - te[:, None]) * q_target
+                            r[:, None] + self.cfg.gamma * (1 - te[:, None]) * q_target
                     )
 
                 q = torch.cat(self.q(o, a), dim=1)
@@ -270,7 +271,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
             yield 1
 
     def act(
-        self, obs, deterministic: bool = False, state=None
+            self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, None, dict[str, float]]:
         # TODO (Jasper): Update collate functionality
         obs = torch.tensor([obs], device=self.device, dtype=torch.float32)
