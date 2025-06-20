@@ -3,13 +3,13 @@ from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
+from acados_template import AcadosOcp, AcadosOcpFlattenedIterate
 import casadi as ca
+from casadi.tools import struct_symSX
 import gymnasium as gym
 import numpy as np
 import torch
-from casadi.tools import struct_symSX
 
-from acados_template import AcadosOcp, AcadosOcpFlattenedIterate
 from leap_c.controller import ParameterizedController
 from leap_c.examples.mujoco.reacher.config import make_default_reacher_params
 from leap_c.examples.mujoco.reacher.util import (
@@ -22,8 +22,10 @@ from leap_c.examples.util import (
     translate_learnable_param_to_p_global,
 )
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
-from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
-from leap_c.ocp.acados.mpc import MpcBatchedState, MpcInput
+from leap_c.ocp.acados.initializer import (
+    AcadosDiffMpcInitializer,
+    create_zero_iterate_from_ocp,
+)
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 # Optional pinocchio import
@@ -289,7 +291,7 @@ class ReacherInitializer(AcadosDiffMpcInitializer):
         self.ocp = ocp
         self.ik_solver = ik_solver
         self.pinocchio_model = pinocchio_model
-        self.zero_iterate = self.ocp.create_default_initial_iterate().flatten()
+        self.zero_iterate = create_zero_iterate_from_ocp(ocp)
 
     def single_iterate(
         self, solver_input: AcadosOcpSolverInput
