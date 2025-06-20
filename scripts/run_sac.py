@@ -24,6 +24,57 @@ def run_sac(
     cfg.env = env
     cfg.trainer.seed = seed
 
+    # ---- Configuration ----
+    cfg = RunSacConfig()
+    cfg.env = env
+    cfg.device = device
+
+    # ---- Section: cfg.trainer ----
+    cfg.trainer.seed = 0
+    cfg.trainer.train_steps = 100000
+    cfg.trainer.train_start = 0
+    cfg.trainer.val_interval = 10000
+    cfg.trainer.val_num_rollouts = 10
+    cfg.trainer.val_deterministic = True
+    cfg.trainer.val_num_render_rollouts = 1
+    cfg.trainer.val_render_mode = 'rgb_array'
+    cfg.trainer.val_render_deterministic = True
+    cfg.trainer.val_report_score = 'cum'
+    cfg.trainer.ckpt_modus = 'best'
+    cfg.trainer.batch_size = 64
+    cfg.trainer.buffer_size = 1000000
+    cfg.trainer.gamma = 0.99
+    cfg.trainer.tau = 0.005
+    cfg.trainer.soft_update_freq = 1
+    cfg.trainer.lr_q = 0.0001
+    cfg.trainer.lr_pi = 0.0001
+    cfg.trainer.lr_alpha = 0.001
+    cfg.trainer.init_alpha = 0.01
+    cfg.trainer.target_entropy = None
+    cfg.trainer.entropy_reward_bonus = True
+    cfg.trainer.num_critics = 2
+    cfg.trainer.report_loss_freq = 100
+    cfg.trainer.update_freq = 4
+
+    # ---- Section: cfg.trainer.log ----
+    cfg.trainer.log.verbose = False
+    cfg.trainer.log.interval = 1000
+    cfg.trainer.log.window = 10000
+    cfg.trainer.log.csv_logger = True
+    cfg.trainer.log.tensorboard_logger = True
+    cfg.trainer.log.wandb_logger = False
+    cfg.trainer.log.wandb_init_kwargs = {}
+
+    # ---- Section: cfg.trainer.critic_mlp ----
+    cfg.trainer.critic_mlp.hidden_dims = (256, 256, 256)
+    cfg.trainer.critic_mlp.activation = 'relu'
+    cfg.trainer.critic_mlp.weight_init = 'orthogonal'
+
+    # ---- Section: cfg.trainer.actor_mlp ----
+    cfg.trainer.actor_mlp.hidden_dims = (256, 256, 256)
+    cfg.trainer.actor_mlp.activation = 'relu'
+    cfg.trainer.actor_mlp.weight_init = 'orthogonal'
+
     trainer = SacTrainer(
         val_env=gym.make(cfg.env, render_mode="rgb_array"),
         train_env=gym.make(cfg.env),
