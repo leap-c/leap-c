@@ -6,7 +6,7 @@ from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 import casadi as ca
 import numpy as np
 
-from leap_c.ocp.acados.data import AcadosSolverInput
+from leap_c.ocp.acados.data import AcadosOcpSolverInput
 
 
 # TODO (Jasper): The caching could be improved as soon as we save the whole
@@ -20,7 +20,7 @@ _PREPARE_BACKWARD_CACHE = {}
 def prepare_batch_solver(
     batch_solver: AcadosOcpBatchSolver,
     ocp_iterate: AcadosOcpFlattenedBatchIterate,
-    solver_input: AcadosSolverInput,
+    solver_input: AcadosOcpSolverInput,
 ):
     # caching to improve performance
     if batch_solver in _PREPARE_CACHE:
@@ -92,7 +92,7 @@ def prepare_batch_solver(
 def prepare_batch_solver_for_backward(
     batch_solver: AcadosOcpBatchSolver,
     ocp_iterate: AcadosOcpFlattenedBatchIterate,
-    solver_input: AcadosSolverInput,
+    solver_input: AcadosOcpSolverInput,
 ):
     if batch_solver in _PREPARE_BACKWARD_CACHE:
         cached_ocp_iterate, cached_solver_input = _PREPARE_BACKWARD_CACHE[batch_solver]
