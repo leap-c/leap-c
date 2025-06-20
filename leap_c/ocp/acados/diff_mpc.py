@@ -82,7 +82,7 @@ class AcadosDiffMpcFunction(DiffFunction):
         )
 
         if initializer is None:
-            self.initializer = ZeroDiffMpcInitializer(self.forward_batch_solver.ocp_solvers[0])
+            self.initializer = ZeroDiffMpcInitializer(ocp)
         else:
             self.initializer = initializer
 

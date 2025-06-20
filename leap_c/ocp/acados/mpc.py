@@ -611,7 +611,7 @@ class Mpc(ABC):
             ocp: Optimal control problem formulation used for solving the OCP.
             ocp_sensitivity: The optimal control problem formulation to use for sensitivities.
                 If None, the sensitivity problem is derived from the ocp, however only the EXTERNAL cost type is allowed then.
-                For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
+                For an example of how to set up other cost types refer, e.g., to examples/cartpole.py .
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
             init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.
             n_batch_max: Maximum batch size.
