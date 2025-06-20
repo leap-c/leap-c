@@ -7,6 +7,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from leap_c.torch.nn.extractor import IdentityExtractor
 from leap_c.torch.nn.gaussian import SquashedGaussian
 from leap_c.torch.nn.mlp import MLP, MlpConfig
 from leap_c.torch.nn.scale import min_max_scaling
@@ -70,9 +71,8 @@ class SacCritic(nn.Module):
 
         action_dim = env.action_space.shape[0]  # type: ignore
 
-        self.extractor = nn.ModuleList(
-            [task.create_extractor(env) for _ in range(num_critics)]
-        )
+        # TODO (Mazen): I assumed here that the same extractor (i.e., same weights) is used for all critics and actor.
+        self.extractor = nn.ModuleList([extractor] * num_critics)
         self.mlp = nn.ModuleList(
             [
                 MLP(
@@ -138,38 +138,40 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         """
         super().__init__(cfg, val_env, output_path, device)
 
+        # TODO (Mazen): I'd rather make the wrappers explicit by writing them here, this should help adding more
+        #  wrappers if needed, and in the order that we want.
         self.train_env = wrap_train_env(train_env)
 
         if extractor is None:
-            extractor = IdendityExtractor()
+            extractor = IdentityExtractor(self.train_env)
 
         self.q = SacCritic(
-            extractor, train_env, cfg.critic_mlp, cfg.num_critics
+            extractor, train_env, self.cfg.critic_mlp, self.cfg.num_critics
         )
         self.q_target = SacCritic(
-            extractor, train_env, cfg.critic_mlp, cfg.num_critics
+            extractor, train_env, self.cfg.critic_mlp, self.cfg.num_critics
         )
         self.q_target.load_state_dict(self.q.state_dict())
-        self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.sac.lr_q)
+        self.q_optim = torch.optim.Adam(self.q.parameters(), lr=self.cfg.lr_q)
 
-        self.pi = SacActor(task, self.train_env, cfg.sac.actor_mlp)  # type: ignore
-        self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.sac.lr_pi)
+        self.pi = SacActor(extractor, self.train_env, self.cfg.actor_mlp)  # type: ignore
+        self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=self.cfg.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(self.cfg.sac.init_alpha).log())  # type: ignore
+        self.log_alpha = nn.Parameter(torch.tensor(self.cfg.init_alpha).log())  # type: ignore
 
         if self.cfg.lr_alpha is not None:
-            self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.sac.lr_alpha)  # type: ignore
+            self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=self.cfg.lr_alpha)  # type: ignore
             action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
             self.target_entropy = (
                 -action_dim
-                if cfg.target_entropy is None
-                else cfg.target_entropy
+                if self.cfg.target_entropy is None
+                else self.cfg.target_entropy
             )
         else:
             self.alpha_optim = None
             self.target_entropy = None
 
-        self.buffer = ReplayBuffer(cfg.buffer_size, device=device)
+        self.buffer = ReplayBuffer(self.cfg.buffer_size, device=device)
 
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
@@ -271,7 +273,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, None, dict[str, float]]:
         # TODO (Jasper): Update collate functionality
-        obs = self.task.collate([obs], self.device)
+        obs = torch.tensor([obs], device=self.device, dtype=torch.float32)
         with torch.no_grad():
             action, _, stats = self.pi(obs, deterministic=deterministic)
         return action.cpu().numpy()[0], None, stats

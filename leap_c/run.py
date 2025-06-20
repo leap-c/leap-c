@@ -3,7 +3,7 @@ from argparse import ArgumentParser
 import datetime
 from pathlib import Path
 
-import leap_c.examples  # noqa: F401
+# import leap_c.examples  # noqa: F401
 from leap_c.trainer import Trainer
 from leap_c.utils.cfg import cfg_as_python
 from leap_c.utils.git import log_git_hash_and_diff
@@ -14,7 +14,7 @@ def default_output_path(seed: int, tags: dict | None = None) -> Path:
     date = now.strftime("%Y_%m_%d")
     time = now.strftime("%H_%M_%S")
 
-    tag_str = sum((f"_{k}_{v}" for k, v in tags.items()), "") if tags else ""
+    tag_str = "".join([f"_{k}_{v}" for k, v in tags.items()]) if tags else ""
 
     return Path(f"output/{date}/{time}{tag_str}_seed_{seed}")
 

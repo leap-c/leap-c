@@ -35,7 +35,7 @@ class TrainerConfig:
         ckpt_modus: How to save the model, which can be "best", "last", "all" or "none".
     """
     # reproducibility
-    seed: int
+    seed: int = 0
 
     # configuration for the training loop
     train_steps: int = 100000
@@ -106,21 +106,22 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         self.output_path = Path(output_path)
         self.output_path.mkdir(parents=True, exist_ok=True)
 
+        # TODO (Mazen): I'd rather make the wrappers explicit by writing them here
         # envs
-        self.eval_env = wrap_eval_env(eval_env, seed=cfg.seed + 1)
+        self.eval_env = wrap_eval_env(eval_env, seed=self.cfg.seed + 1)
 
         # trainer state
         self.state = TrainerState()
 
         # logger
-        self.logger = Logger(cfg.log, self.output_path)
+        self.logger = Logger(self.cfg.log, self.output_path)
 
         # log dataclass config as yaml
         with open(self.output_path / "config.yaml", "w") as f:
-            safe_dump(asdict(cfg), f)
+            safe_dump(asdict(self.cfg), f)
 
         # seed
-        set_seed(cfg.seed)
+        set_seed(self.cfg.seed)
 
     @abstractmethod
     def train_loop(self) -> Iterator[int]:
