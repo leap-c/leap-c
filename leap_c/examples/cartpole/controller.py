@@ -17,6 +17,7 @@ from leap_c.examples.util import (
     translate_learnable_param_to_p_global,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpc
+from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
 
 
 class CartPoleController(ParameterizedController):
@@ -52,6 +53,8 @@ class CartPoleController(ParameterizedController):
             cost = 0.5 * z.T @ W @ z + c.T @ z, where W is the quadratic cost matrix from above
 
     """
+
+    collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,
@@ -111,12 +114,17 @@ class CartPoleController(ParameterizedController):
 
     @property
     def param_space(self) -> gym.Space:
-        # TODO: can't determine the param space because it depends on the learnable parameters
-        # we need to define boundaries for every parameter and based on that create a gym.Space
-        raise NotImplementedError
+        return gym.spaces.Box(
+            low=-2.0 * np.pi,
+            high=2.0 * np.pi,
+            dtype=np.float64,
+        )
 
     @property
     def default_param(self) -> np.ndarray:
+        return np.concatenate(
+            [asdict(self.params)[p].flatten() for p in self.learnable_params]
+        )
         return np.concatenate(
             [asdict(self.params)[p].flatten() for p in self.learnable_params]
         )
@@ -146,6 +154,9 @@ def define_f_expl_expr(ocp: AcadosOcp, param_manager: AcadosParamManager) -> ca.
         (-m * l * sin_theta * dtheta * dtheta + m * g * cos_theta * sin_theta + F)
         / denominator,
         (
+            -m * l * cos_theta * sin_theta * dtheta * dtheta
+            + F * cos_theta
+            + (M + m) * g * sin_theta
             -m * l * cos_theta * sin_theta * dtheta * dtheta
             + F * cos_theta
             + (M + m) * g * sin_theta

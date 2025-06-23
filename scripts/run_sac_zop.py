@@ -1,37 +1,40 @@
 """Main script to run experiments."""
-
+from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from leap_c.examples import create_env, create_controller
-from leap_c.run import create_parser, default_output_path, init_run
+from leap_c.run import default_output_path, init_run
 from leap_c.torch.rl.sac import SacTrainerConfig
-from leap_c.torch.rl.sac_fop import SacFopTrainer
+from leap_c.torch.rl.sac_zop import SacZopTrainer
 
 
 @dataclass
 class RunSacFopConfig:
     """Configuration for running SAC experiments."""
 
-    env_name: str = "pendulum"
-    controller_name: str = "pendulum"
+    env_name: str = "cartpole"
+    controller_name: str = "cartpole"
     device: str = "cuda"  # or 'cpu'
     trainer: SacTrainerConfig = field(default_factory=SacTrainerConfig)
 
 
-def run_sac_fop(
+def run_sac_zop(
     output_path: str | Path,
+    env_name: str,
+    controller_name: str,
     seed: int = 0,
-    env: str = "HalfCheetah-v4",
     device: str = "cuda",
+    verbose: bool = True,
 ) -> float:
-    cfg = RunSacFopConfig(env_name=env, device=device)
-    cfg.env_name = env
+    cfg = RunSacFopConfig(env_name=env_name, device=device)
+    cfg.env_name = env_name
     cfg.trainer.seed = seed
+    cfg.controller_name = controller_name
 
     # ---- Configuration ----
     cfg = RunSacFopConfig()
-    cfg.env_name = env
+    cfg.env_name = env_name
     cfg.device = device
 
     # ---- Section: cfg.trainer ----
@@ -62,7 +65,7 @@ def run_sac_fop(
     cfg.trainer.update_freq = 4
 
     # ---- Section: cfg.trainer.log ----
-    cfg.trainer.log.verbose = False
+    cfg.trainer.log.verbose = verbose
     cfg.trainer.log.interval = 1000
     cfg.trainer.log.window = 10000
     cfg.trainer.log.csv_logger = True
@@ -80,10 +83,10 @@ def run_sac_fop(
     cfg.trainer.actor_mlp.activation = "relu"
     cfg.trainer.actor_mlp.weight_init = "orthogonal"
 
-    trainer = SacFopTrainer(
+    trainer = SacZopTrainer(
         val_env=create_env(cfg.env_name, render_mode="rgb_array"),
-        train_env=gym.make(cfg.env_name),
-        controller=create_controller(cfg.controller),
+        train_env=create_env(cfg.env_name),
+        controller=create_controller(cfg.controller_name),
         output_path=output_path,
         device=args.device,
         cfg=cfg.trainer,
@@ -94,11 +97,22 @@ def run_sac_fop(
 
 
 if __name__ == "__main__":
-    parser = create_parser()
-    parser.add_argument("--env", type=str, default="pendulum")
-    parser.add_argument("--controller", type=str, default="pendulum")
+    parser = ArgumentParser()
+    parser.add_argument("--output_path", type=Path, default=None)
+    parser.add_argument("-v", "--verbose", action="store_true")
+    parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--env", type=str, default="cartpole")
+    parser.add_argument("--controller", type=str, default="cartpole")
     args = parser.parse_args()
 
-    output_path = default_output_path(seed=args.seed, tags={"trainer": "sac"})
+    output_path = default_output_path(seed=args.seed, tags=["sac_zop", args.env, args.controller])
 
-    run_sac_fop(output_path, seed=args.seed, env=args.env, device=args.device)
+    run_sac_zop(
+        output_path,
+        env_name=args.env,
+        controller_name=args.controller,
+        seed=args.seed,
+        device=args.device,
+    )
+

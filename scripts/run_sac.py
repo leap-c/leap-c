@@ -5,6 +5,7 @@ from pathlib import Path
 import gymnasium as gym
 
 from leap_c.run import init_run, create_parser, default_output_path
+from leap_c.examples import create_env
 from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
 
 
@@ -76,8 +77,8 @@ def run_sac(
     cfg.trainer.actor_mlp.weight_init = 'orthogonal'
 
     trainer = SacTrainer(
-        val_env=gym.make(cfg.env, render_mode="rgb_array"),
-        train_env=gym.make(cfg.env),
+        val_env=create_env(cfg.env, render_mode="rgb_array"),
+        train_env=create_env(cfg.env),
         output_path=output_path,
         device=args.device,
         cfg=cfg.trainer,
@@ -89,7 +90,7 @@ def run_sac(
 
 if __name__ == "__main__":
     parser = create_parser()
-    parser.add_argument("--env", type=str, default="HalfCheetah-v4")
+    parser.add_argument("--env", type=str, default="cartpole")
     args = parser.parse_args()
 
     output_path = default_output_path(seed=args.seed, tags={"trainer": "sac"})
