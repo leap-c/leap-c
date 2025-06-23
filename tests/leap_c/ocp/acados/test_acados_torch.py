@@ -527,6 +527,109 @@ def test_sensitivity(
     )
 
 
+def _create_backward_test_function(
+    forward_func: Callable, output_selector: Callable[[tuple], torch.Tensor]
+) -> Callable:
+    """Create a test function that returns (output, status) tuple."""
+
+    def test_func(*args, **kwargs) -> tuple[torch.Tensor, torch.Tensor]:
+        result = forward_func(*args, **kwargs)
+        ctx = result[0]
+
+        # Validate solver status
+        assert np.all(ctx.status == 0), (
+            f"Forward method failed with status {ctx.status}"
+        )
+        output = output_selector(result)
+        return output, torch.tensor(ctx.status, dtype=torch.float64)
+
+    return test_func
+
+
+# note: result 0:ctx, 1:u0, 2:x, 3:u, 4:value
+def _create_du0dx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
+    """Create test function for du0/dx0 gradient."""
+
+    def forward_func(x0):
+        return implicit_layer.forward(x0=x0)
+
+    return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
+
+
+def _create_dVdx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
+    """Create test function for dV/dx0 gradient."""
+
+    def forward_func(x0):
+        return implicit_layer.forward(x0=x0)
+
+    return _create_backward_test_function(
+        forward_func, lambda result: result[4]
+    )  # value
+
+
+def _create_dQdx0_test(
+    implicit_layer: AcadosImplicitLayer, u0: torch.Tensor
+) -> Callable:
+    """Create test function for dQ/dx0 gradient."""
+
+    def forward_func(x0):
+        return implicit_layer.forward(x0=x0, u0=u0)
+
+    return _create_backward_test_function(
+        forward_func, lambda result: result[4]
+    )  # value
+
+
+def _create_du0dp_global_test(
+    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
+) -> Callable:
+    """Create test function for du0/dp_global gradient."""
+
+    def forward_func(p_global):
+        return implicit_layer.forward(x0=x0, p_global=p_global)
+
+    return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
+
+
+def _create_dVdp_global_test(
+    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
+) -> Callable:
+    """Create test function for dV/dp_global gradient."""
+
+    def forward_func(p_global):
+        return implicit_layer.forward(x0=x0, p_global=p_global)
+
+    return _create_backward_test_function(
+        forward_func, lambda result: result[4]
+    )  # value
+
+
+def _create_dQdp_global_test(
+    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, u0: torch.Tensor
+) -> Callable:
+    """Create test function for dQ/dp_global gradient."""
+
+    def forward_func(p_global):
+        return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
+
+    return _create_backward_test_function(
+        forward_func, lambda result: result[4]
+    )  # value
+
+
+def _create_dQdu0_test(
+    implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, p_global: torch.Tensor
+) -> Callable:
+    """Create test function for dQ/du0 gradient."""
+
+    def forward_func(u0):
+        return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
+
+    return _create_backward_test_function(
+        forward_func, lambda result: result[4]
+    )  # value
+
+
 def test_backward(
     implicit_layer: AcadosImplicitLayer,
     n_batch: int = 4,
@@ -551,105 +654,6 @@ def test_backward(
             "Large batch sizes make the test very slow."
         )
         raise ValueError(error_message)
-
-    def _create_backward_test_function(
-        forward_func: Callable, output_selector: Callable[[tuple], torch.Tensor]
-    ) -> Callable:
-        """Create a test function that returns (output, status) tuple."""
-
-        def test_func(*args, **kwargs) -> tuple[torch.Tensor, torch.Tensor]:
-            result = forward_func(*args, **kwargs)
-            ctx = result[0]
-
-            # Validate solver status
-            assert np.all(ctx.status == 0), (
-                f"Forward method failed with status {ctx.status}"
-            )
-            output = output_selector(result)
-            return output, torch.tensor(ctx.status, dtype=torch.float64)
-
-        return test_func
-
-    # note: result 0:ctx, 1:u0, 2:x, 3:u, 4:value
-    def _create_du0dx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
-        """Create test function for du0/dx0 gradient."""
-
-        def forward_func(x0):
-            return implicit_layer.forward(x0=x0)
-
-        return _create_backward_test_function(
-            forward_func, lambda result: result[1]
-        )  # u0
-
-    def _create_dVdx0_test(implicit_layer: AcadosImplicitLayer) -> Callable:
-        """Create test function for dV/dx0 gradient."""
-
-        def forward_func(x0):
-            return implicit_layer.forward(x0=x0)
-
-        return _create_backward_test_function(
-            forward_func, lambda result: result[4]
-        )  # value
-
-    def _create_dQdx0_test(
-        implicit_layer: AcadosImplicitLayer, u0: torch.Tensor
-    ) -> Callable:
-        """Create test function for dQ/dx0 gradient."""
-
-        def forward_func(x0):
-            return implicit_layer.forward(x0=x0, u0=u0)
-
-        return _create_backward_test_function(
-            forward_func, lambda result: result[4]
-        )  # value
-
-    def _create_du0dp_global_test(
-        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
-    ) -> Callable:
-        """Create test function for du0/dp_global gradient."""
-
-        def forward_func(p_global):
-            return implicit_layer.forward(x0=x0, p_global=p_global)
-
-        return _create_backward_test_function(
-            forward_func, lambda result: result[1]
-        )  # u0
-
-    def _create_dVdp_global_test(
-        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor
-    ) -> Callable:
-        """Create test function for dV/dp_global gradient."""
-
-        def forward_func(p_global):
-            return implicit_layer.forward(x0=x0, p_global=p_global)
-
-        return _create_backward_test_function(
-            forward_func, lambda result: result[4]
-        )  # value
-
-    def _create_dQdp_global_test(
-        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, u0: torch.Tensor
-    ) -> Callable:
-        """Create test function for dQ/dp_global gradient."""
-
-        def forward_func(p_global):
-            return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
-
-        return _create_backward_test_function(
-            forward_func, lambda result: result[4]
-        )  # value
-
-    def _create_dQdu0_test(
-        implicit_layer: AcadosImplicitLayer, x0: torch.Tensor, p_global: torch.Tensor
-    ) -> Callable:
-        """Create test function for dQ/du0 gradient."""
-
-        def forward_func(u0):
-            return implicit_layer.forward(x0=x0, u0=u0, p_global=p_global)
-
-        return _create_backward_test_function(
-            forward_func, lambda result: result[4]
-        )  # value
 
     test_inputs = _setup_test_inputs(implicit_layer, n_batch, dtype, noise_scale)
 
