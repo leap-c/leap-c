@@ -118,11 +118,13 @@ class ReacherController(ParameterizedController):
     def jacobian_action_param(self, ctx) -> np.ndarray:
         return self.acados_layer.sensitivity(ctx, field_name="du0_dp_global")
 
+    @property
     def param_space(self) -> gym.Space:
         # TODO: can't determine the param space because it depends on the learnable parameters
         # we need to define boundaries for every parameter and based on that create a gym.Space
         raise NotImplementedError
 
+    @property
     def default_param(self) -> np.ndarray:
         return np.concatenate(
             [asdict(self.params)[p].flatten() for p in self.learnable_params]

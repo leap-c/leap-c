@@ -46,7 +46,6 @@ def create_controller(env_name: str):
         if controller_class is not None:
             return controller_class()
 
-    raise ValueError(f"Controller for environment '{env_name}' is not registered or does not exist.")
-
-
-
+    raise ValueError(
+        f"Controller for environment '{env_name}' is not registered or does not exist."
+    )
