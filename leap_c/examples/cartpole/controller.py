@@ -16,6 +16,7 @@ from leap_c.examples.util import (
     translate_learnable_param_to_p_global,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpc
+from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
 
 
 class CartPoleController(ParameterizedController):
@@ -52,16 +53,18 @@ class CartPoleController(ParameterizedController):
 
     """
 
+    collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
+
     def __init__(
-            self,
-            params: CartPoleParams | None = None,
-            learnable_params: list[str] | None = None,
-            N_horizon: int = 20,
-            T_horizon: float = 1.0,
-            Fmax: float = 80.0,
-            discount_factor: float = 0.99,
-            exact_hess_dyn: bool = True,
-            cost_type: str = "NONLINEAR_LS",
+        self,
+        params: CartPoleParams | None = None,
+        learnable_params: tuple[str] = ("xref2",),
+        N_horizon: int = 20,
+        T_horizon: float = 1.0,
+        Fmax: float = 80.0,
+        discount_factor: float = 0.99,
+        exact_hess_dyn: bool = True,
+        cost_type: str = "NONLINEAR_LS",
     ):
         """
         Args:
@@ -82,14 +85,14 @@ class CartPoleController(ParameterizedController):
         """
         super().__init__()
         self.params = make_default_cartpole_params() if params is None else params
-        self.learnable_params = learnable_params if learnable_params is not None else []
+        self.learnable_params = learnable_params
 
         self.ocp = export_parametric_ocp(
             nominal_param=asdict(self.params),
             cost_type=cost_type,
             exact_hess_dyn=exact_hess_dyn,
             name="cartpole",
-            learnable_param=self.learnable_params,
+            learnable_param=list(self.learnable_params),
             N_horizon=N_horizon,
             tf=T_horizon,
             Fmax=Fmax,
@@ -101,7 +104,9 @@ class CartPoleController(ParameterizedController):
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         x0 = torch.as_tensor(obs, dtype=torch.float64)
         p_global = torch.as_tensor(param, dtype=torch.float64)
-        ctx, u0, x, u, value = self.diff_mpc(x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx)
+        ctx, u0, x, u, value = self.diff_mpc(
+            x0, p_global=p_global, ctx=ctx
+        )
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
@@ -109,13 +114,17 @@ class CartPoleController(ParameterizedController):
 
     @property
     def param_space(self) -> gym.Space:
-        # TODO: can't determine the param space because it depends on the learnable parameters
-        # we need to define boundaries for every parameter and based on that create a gym.Space
-        raise NotImplementedError
+        return gym.spaces.Box(
+            low=-2.0 * np.pi,
+            high=2.0 * np.pi,
+            dtype=np.float64,
+        )
 
     @property
     def default_param(self) -> np.ndarray:
-        return np.concatenate([asdict(self.params)[p].flatten() for p in self.learnable_params])
+        return np.concatenate(
+            [asdict(self.params)[p].flatten() for p in self.learnable_params]
+        )
 
 
 def f_expl_expr(model: AcadosModel) -> ca.SX:
@@ -142,9 +151,9 @@ def f_expl_expr(model: AcadosModel) -> ca.SX:
         (-m * l * sin_theta * dtheta * dtheta + m * g * cos_theta * sin_theta + F)
         / denominator,
         (
-                -m * l * cos_theta * sin_theta * dtheta * dtheta
-                + F * cos_theta
-                + (M + m) * g * sin_theta
+            -m * l * cos_theta * sin_theta * dtheta * dtheta
+            + F * cos_theta
+            + (M + m) * g * sin_theta
         )
         / (l * denominator),
     )
@@ -235,15 +244,15 @@ def cost_expr_ext_cost_e(model: AcadosModel) -> ca.SX:
 
 
 def export_parametric_ocp(
-        nominal_param: dict[str, np.ndarray],
-        cost_type: str = "NONLINEAR_LS",
-        exact_hess_dyn: bool = True,
-        name: str = "cartpole",
-        learnable_param: list[str] | None = None,
-        Fmax: float = 80.0,
-        N_horizon: int = 50,
-        tf: float = 2.0,
-        sensitivity_ocp=False,
+    nominal_param: dict[str, np.ndarray],
+    cost_type: str = "NONLINEAR_LS",
+    exact_hess_dyn: bool = True,
+    name: str = "cartpole",
+    learnable_param: list[str] | None = None,
+    Fmax: float = 80.0,
+    N_horizon: int = 50,
+    tf: float = 2.0,
+    sensitivity_ocp=False,
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 

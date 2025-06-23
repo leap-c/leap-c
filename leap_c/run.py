@@ -9,12 +9,12 @@ from leap_c.utils.cfg import cfg_as_python
 from leap_c.utils.git import log_git_hash_and_diff
 
 
-def default_output_path(seed: int, tags: dict | None = None) -> Path:
+def default_output_path(seed: int, tags: list[str] | None = None) -> Path:
     now = datetime.datetime.now()
     date = now.strftime("%Y_%m_%d")
     time = now.strftime("%H_%M_%S")
 
-    tag_str = "".join([f"_{k}_{v}" for k, v in tags.items()]) if tags else ""
+    tag_str = "".join([f"_{v}" for v in tags]) if tags else ""
 
     return Path(f"output/{date}/{time}{tag_str}_seed_{seed}")
 
@@ -36,8 +36,10 @@ def init_run(trainer: Trainer, cfg, output_path: str | Path):
     output_path = Path(output_path)
     continue_run = output_path.exists()
 
-    print("Starting a trainer with:")
-    print(f"\noutput_path: \n{output_path}")
+    trainer_name = type(trainer).__name__
+
+    print(f"Starting {trainer_name} run")
+    print(f"\nOutput path: \n{output_path}")
     print("\nConfiguration:")
     print(cfg_as_python(cfg))
     print("\n")

@@ -20,10 +20,7 @@ from leap_c.torch.rl.utils import soft_target_update
 from leap_c.trainer import Trainer
 from leap_c.utils.gym import wrap_train_env
 
-NUM_THREADS_ACADOS_BATCH = 4
 
-
-# TODO (Mazen): How to define Foa and Fopc? Only updating the config?
 @dataclass(kw_only=True)
 class SacFopTrainerConfig(SacTrainerConfig):
     """Specific settings for the Fop trainer."""
@@ -47,17 +44,17 @@ class SacFopActorOutput(NamedTuple):
             None,  # type:ignore
             self.action[mask],
             self.status[mask],
-            None
+            None,
         )
 
 
 class FopActor(nn.Module):
     def __init__(
-            self,
-            extractor: Extractor,
-            mlp_cfg: MlpConfig,
-            controller: ParameterizedController,
-            correction: bool = True,
+        self,
+        extractor: Extractor,
+        mlp_cfg: MlpConfig,
+        controller: ParameterizedController,
+        correction: bool = True,
     ):
         super().__init__()
         self.controller = controller
@@ -71,9 +68,7 @@ class FopActor(nn.Module):
         self.correction = correction
         self.squashed_gaussian = SquashedGaussian(param_space)  # type:ignore
 
-    def forward(
-            self, obs, ctx=None, deterministic=False
-    ) -> SacFopActorOutput:
+    def forward(self, obs, ctx=None, deterministic=False) -> SacFopActorOutput:
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
@@ -105,36 +100,38 @@ class FopActor(nn.Module):
 
 class FoaActor(nn.Module):
     def __init__(
-            self,
-            env: gym.Env,
-            extractor: Extractor,
-            mlp_cfg: MlpConfig,
-            controller: ParameterizedController,
+        self,
+        env: gym.Env,
+        extractor: Extractor,
+        mlp_cfg: MlpConfig,
+        controller: ParameterizedController,
     ):
         super().__init__()
         self.env = env
         self.controller = controller
         self.extractor = extractor
-        param_dim = self.controller.param_space.shape[0]
-        action_dim = self.env.action_space.shape[0]
+        param_dim = controller.param_space.shape[0]  # type:ignore
+        action_dim = env.action_space.shape[0]  # type:ignore
         self.mlp = MLP(
             input_sizes=self.extractor.output_size,
             output_sizes=(param_dim, action_dim),  # type:ignore
             mlp_cfg=mlp_cfg,
         )
-        self.parameter_transform = BoundedTransform(self.controller.param_space)  # type:ignore
+        self.parameter_transform = BoundedTransform(
+            self.controller.param_space  # type:ignore
+        )  # type:ignore
         self.action_transform = BoundedTransform(self.env.action_space)  # type:ignore
         self.squashed_gaussian = SquashedGaussian(self.env.action_space)  # type:ignore
 
-    def forward(
-            self, obs, ctx=None, deterministic=False
-    ) -> SacFopActorOutput:
+    def forward(self, obs, ctx=None, deterministic=False) -> SacFopActorOutput:
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
         param = self.parameter_transform(mean)
 
         ctx, action_mpc = self.controller(obs, param, ctx=ctx)
-        action_unbounded = self.action_transform.inverse(action_mpc.detach(), padding=0.1)
+        action_unbounded = self.action_transform.inverse(
+            action_mpc.detach(), padding=0.1
+        )
         action_squashed, log_prob, gaussian_stats = self.squashed_gaussian(
             action_unbounded, log_std, deterministic=deterministic
         )
@@ -142,41 +139,40 @@ class FoaActor(nn.Module):
         # check if nan
 
         return SacFopActorOutput(
-            param,
-            log_prob,
-            {**gaussian_stats, **ctx.log},
-            action,
-            ctx.status,
-            ctx
+            param, log_prob, {**gaussian_stats, **ctx.log}, action, ctx.status, ctx
         )
 
 
 class SacFopTrainer(Trainer[SacFopTrainerConfig]):
     def __init__(
-            self,
-            cfg: SacFopTrainerConfig,
-            val_env: gym.Env,
-            output_path: str | Path,
-            device: str,
-            train_env: gym.Env,
-            controller: ParameterizedController,
-            extractor: Extractor | None = None,
+        self,
+        cfg: SacFopTrainerConfig,
+        val_env: gym.Env,
+        output_path: str | Path,
+        device: str,
+        train_env: gym.Env,
+        controller: ParameterizedController,
+        extractor: Extractor | None = None,
     ):
-        """Initializes the trainer with a configuration, output path, and device.
+        """Initializes the SAC FOP trainer.
 
         Args:
+            cfg: The configuration for the trainer.
+            val_env: The validation environment.
             output_path: The path to the output directory.
             device: The device on which the trainer is running
-            cfg: The configuration for the trainer.
+            train_env: The training environment.
+            controller: The controller to use for the policy.
+            extractor: The feature extractor to use for the policy.
+                If None, an IdentityExtractor is used.
         """
         super().__init__(cfg, val_env, output_path, device)
 
         self.train_env = wrap_train_env(train_env)
-
         self.controller = controller
-
-        self.extractor = IdentityExtractor(self.train_env) if extractor is None else extractor
-
+        self.extractor = (
+            IdentityExtractor(self.train_env) if extractor is None else extractor
+        )
         self.q = SacCritic(
             self.extractor, self.train_env, self.cfg.critic_mlp, self.cfg.num_critics
         )
@@ -191,7 +187,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 self.extractor,
                 self.cfg.actor_mlp,
                 self.controller,
-                correction=self.cfg.entropy_correction
+                correction=self.cfg.entropy_correction,
             )
         elif self.cfg.noise == "action":
             self.pi = FoaActor(
@@ -203,8 +199,6 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         else:
             raise ValueError(f"Unknown noise type: {self.cfg.noise}")
 
-        # TODO (Jasper): This should be refactored and is a config of the acados solver.
-        self.pi.mpc.mpc.num_threads_batch_methods = NUM_THREADS_ACADOS_BATCH
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=self.cfg.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(self.cfg.init_alpha).log())  # type: ignore
@@ -212,7 +206,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         if self.cfg.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=self.cfg.lr_alpha)  # type: ignore
             action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
-            param_dim = np.prod(task.param_space.shape)  # type: ignore
+            param_dim = np.prod(controller.param_space.shape)  # type: ignore
             if self.cfg.noise == "param":
                 self.entropy_norm = param_dim / action_dim
             else:
@@ -246,7 +240,9 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
-            self.report_stats("train_trajectory", {"param": param, "action": action}, verbose=True)
+            self.report_stats(
+                "train_trajectory", {"param": param, "action": action}, verbose=True
+            )
             self.report_stats("train_policy_rollout", pi_output.stats, verbose=True)  # type: ignore
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
@@ -274,14 +270,12 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             policy_state = pi_output.ctx
 
             if (
-                    self.state.step >= self.cfg.train_start
-                    and len(self.buffer) >= self.cfg.batch_size
-                    and self.state.step % self.cfg.update_freq == 0
+                self.state.step >= self.cfg.train_start
+                and len(self.buffer) >= self.cfg.batch_size
+                and self.state.step % self.cfg.update_freq == 0
             ):
                 # sample batch
-                o, a, r, o_prime, te, ps_sol = self.buffer.sample(
-                    self.cfg.batch_size
-                )
+                o, a, r, o_prime, te, ps_sol = self.buffer.sample(self.cfg.batch_size)
 
                 # sample action
                 pi_o = self.pi(o, ps_sol)
@@ -325,9 +319,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                     factor = self.cfg.entropy_reward_bonus / self.entropy_norm
                     q_target = q_target - alpha * pi_o_prime.log_prob * factor
 
-                    target = (
-                            r[:, None] + self.cfg.gamma * (1 - te[:, None]) * q_target
-                    )
+                    target = r[:, None] + self.cfg.gamma * (1 - te[:, None]) * q_target
 
                 q = torch.cat(self.q(o, a), dim=1)
                 q_loss = torch.mean((q - target).pow(2))
@@ -364,7 +356,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             yield 1
 
     def act(
-            self, obs, deterministic: bool = False, state=None
+        self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
         obs = self.task.collate([obs], device=self.device)
 

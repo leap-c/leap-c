@@ -1,16 +1,17 @@
 from typing import Any
 
 import gymnasium as gym
+from gymnasium import spaces
+from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 import matplotlib.pyplot as plt
 import numpy as np
-from gymnasium import spaces
-from leap_c.examples.chain.mpc import get_f_expl_expr
+
+from leap_c.examples.chain.controller import get_f_expl_expr
 from leap_c.examples.chain.utils import (
     Ellipsoid,
     RestingChainSolver,
     nominal_params_to_structured_nominal_params,
 )
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 
 def _cont_f_expl(
@@ -19,12 +20,12 @@ def _cont_f_expl(
     p: dict[str, np.ndarray],
     fix_point: np.ndarray | None = None,
 ) -> np.ndarray:
-    assert all(key in p for key in ["D", "L", "C", "m", "w"]), (
-        "Not all necessary parameters are in p."
-    )
+    assert all(
+        key in p for key in ["D", "L", "C", "m", "w"]
+    ), "Not all necessary parameters are in p."
 
     if fix_point is None:
-        fix_point = np.zeros(3, 1)
+        fix_point = np.zeros(3, 1)  # type: ignore
 
     n_masses = p["m"].shape[0] + 1
 
@@ -267,7 +268,9 @@ class ChainEnv(gym.Env):
         return self.state
 
     def _init_state_and_action(self):
-        phi = self.np_random.uniform(low=self.phi_range[0], high=self.phi_range[1])  # type:ignore
+        phi = self.np_random.uniform(
+            low=self.phi_range[0], high=self.phi_range[1]
+        )  # type:ignore
         theta = self.np_random.uniform(
             low=self.theta_range[0], high=self.theta_range[1]
         )  # type:ignore

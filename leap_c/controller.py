@@ -2,7 +2,7 @@
 controllers in PyTorch."""
 
 from abc import abstractmethod
-from typing import Callable, Optional, Any
+from typing import Any, Callable, Optional, Union
 
 import gymnasium as gym
 import numpy as np
@@ -13,9 +13,9 @@ import torch.nn as nn
 class ParameterizedController(nn.Module):
     """Abstract base class for differentiable parameterized controllers."""
 
-    # should be provided in cases the context should be stacked in a specific
-    # way when for example sampling in a replay buffer.
-    collate_state_fn: Optional[Callable] = None
+    # should be provided in cases the controller comes with specific collate
+    # functions for different data types. This is an advanced feature!
+    collate_fn_map: Optional[dict[Union[type, tuple[type, ...]], Callable]] = None
 
     @abstractmethod
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
