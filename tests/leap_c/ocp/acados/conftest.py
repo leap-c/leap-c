@@ -69,23 +69,6 @@ def get_B_disc(
     )
 
 
-def get_disc_dyn_expr(
-    ocp: AcadosOcp,
-) -> ca.SX:
-    x = ocp.model.x
-    u = ocp.model.u
-
-    m = find_param_in_p_or_p_global(["m"], ocp.model)["m"]
-    cx = find_param_in_p_or_p_global(["cx"], ocp.model)["cx"]
-    cy = find_param_in_p_or_p_global(["cy"], ocp.model)["cy"]
-    dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
-
-    A = get_A_disc(m=m, cx=cx, cy=cy, dt=dt)
-    B = get_B_disc(m=m, cx=cx, cy=cy, dt=dt)
-
-    return A @ x + B @ u
-
-
 def _create_diag_matrix(
     _q_sqrt: np.ndarray | ca.SX,
 ) -> np.ndarray | ca.SX:
@@ -496,16 +479,27 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
-    stage_cost = [
-        param_manager.get_sym(field_="indicator", stage_=stage)
-        * get_cost_expr_ext_cost(
-            ocp=ocp,
-            xref=param_manager.get_sym(field_="xref", stage_=stage),
-            uref=param_manager.get_sym(field_="uref", stage_=stage),
-            q_diag=param_manager.get_sym(field_="q_diag", stage_=stage),
+    x = ocp.model.x
+    u = ocp.model.u
+
+    stage_cost = []
+    r_diag = param_manager.get_sym(field_="r_diag")
+    R_sqrt = _create_diag_matrix(r_diag)
+    for stage in range(ocp.solver_options.N_horizon):
+        indicator = param_manager.get_sym(field_="indicator", stage_=stage)
+        xref = param_manager.get_sym(field_="xref", stage_=stage)
+        uref = param_manager.get_sym(field_="uref", stage_=stage)
+        q_diag = param_manager.get_sym(field_="q_diag", stage_=stage)
+        Q_sqrt = _create_diag_matrix(q_diag)
+
+        stage_cost.append(
+            indicator
+            * 0.5
+            * (
+                ca.mtimes([ca.transpose(x - xref), Q_sqrt.T, Q_sqrt, x - xref])
+                + ca.mtimes([ca.transpose(u - uref), R_sqrt.T, R_sqrt, u - uref])
+            )
         )
-        for stage in range(ocp.solver_options.N_horizon)
-    ]
 
     ocp.cost.cost_type_0 = "EXTERNAL"
     ocp.model.cost_expr_ext_cost_0 = stage_cost[0]
