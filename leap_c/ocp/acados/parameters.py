@@ -123,6 +123,10 @@ class AcadosParamManager:
     ) -> np.ndarray:
         """Get the value for a given field at a specific stage."""
         # TODO: Add error handling for invalid combinations of field_, _stage_, and value_
+
+        if stage_ is None:
+            stage_ = 0
+
         if field_ in self.p_global_values.keys():  # noqa: SIM118
             if stage_ is not None:
                 return self.p_global_values[field_, stage_]
@@ -132,7 +136,7 @@ class AcadosParamManager:
             return self.parameter_values[stage_][field_, stage_]
 
         available_fields = list(self.p_global_values.keys()) + list(
-            self.parameter_values.keys()
+            self.parameter_values[stage_].keys()
         )
         error_message = f"Unknown field: {field_}. Available fields: {available_fields}"
         raise ValueError(error_message)
@@ -214,15 +218,31 @@ class AcadosParamManager:
         }
 
     def get_default_param(self, field_: str) -> np.ndarray:
-        if field_ not in ["p_global", "p"]:
-            error_msg = f"Unknown field: {field_}. Available fields: p_global, p."
-            raise ValueError(error_msg)
+        """
+        Retrieve the default parameter array for a specified field.
 
+        Parameters
+        ----------
+        field_ : str
+            The name of the parameter field to retrieve. Must be one "p_global" or "p".
+
+        Returns
+        -------
+        np.ndarray
+            The default parameter array corresponding to the requested field.
+            Returns an empty array if the value is None.
+
+        Raises
+        ------
+        ValueError
+            If the provided field_ is not recognized.
+
+        """
+        available_fields = ["p_global", "p"]
         val = None
 
         if field_ == "p_global":
             val = self.p_global(0)
-            # Set the values for the symbolic structure
             for key, value in self.get_differentiable_constant_parameters().items():
                 val[key] = value
 
@@ -230,13 +250,17 @@ class AcadosParamManager:
                 for stage in range(self.N_horizon):
                     val[key, stage] = value
 
+            return val.cat.full().flatten() if val is not None else np.array([])
+
         if field_ == "p":
             val = self.p(0)
-            # Set the values for the symbolic structure
             for key, value in self.get_nondifferentiable_parameters().items():
                 val[key] = value
 
-        return val.cat.full().flatten() if val is not None else np.array([])
+            return val.cat.full().flatten() if val is not None else np.array([])
+
+        error_msg = f"Unknown field: {field_}. Available fields: {available_fields}."
+        raise ValueError(error_msg)
 
     def map_dense_to_structured(
         self, field_: str, values_: np.ndarray, stage_: int | None = None
@@ -278,8 +302,6 @@ class AcadosParamManager:
         if stage_ is None:
             stage_ = 0
         return self.parameter_values[stage_].cat.full().flatten()
-
-        # if stage_ is not None:
 
     def get_flat(self, field_: str) -> ca.SX | list:
         """Get the flat symbolic variable."""
