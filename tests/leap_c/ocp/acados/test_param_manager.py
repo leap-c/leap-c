@@ -44,13 +44,10 @@ def test_param_manager_add_and_get(
     acados_param_manager.initialize_p_global_values()
     acados_param_manager.initialize_parameter_values()
 
-    # for field in ["p_global", "p"]:
-    for field in ["p_global"]:
+    for field in ["p", "p_global"]:
         values = acados_param_manager.get_dense(field_=field)
         values += rng.normal(loc=values, scale=0.1, size=values.shape)
         acados_param_manager.map_dense_to_structured(field_=field, values_=values)
         assert np.allclose(
             acados_param_manager.get_dense(field_=field), values, atol=1e-12
         ), f"{field} values do not match expected values."
-
-    # print(acados_param_manager.get_parameter_values(stage_=2))

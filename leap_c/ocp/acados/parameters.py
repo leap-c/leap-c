@@ -242,7 +242,10 @@ class AcadosParamManager:
     def map_dense_to_structured(
         self, field_: str, values_: np.ndarray, stage_: int | None = None
     ) -> struct:
-        # TODO: Add error handling when field_ and stage_ are not compatible
+        # TODO: Add error handling when field_ and stage_ and values_ are not compatible
+
+        if stage_ is None:
+            stage_ = 0
 
         if field_ == "p_global":
             self.p_global_values = self.p_global(values_)
