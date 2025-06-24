@@ -5,18 +5,11 @@ import casadi as ca
 import numpy as np
 import pytest
 from acados_template import AcadosOcp, AcadosOcpOptions
-from casadi.tools import struct_symSX
 
 from leap_c.ocp.acados.parameters import (
     AcadosParamManager,
     Parameter,
-    categorize_parameters,
-    create_p_entries,
-    create_p_global_entries,
-    fill_p_global_values,
-    fill_p_values,
     find_param_in_p_or_p_global,
-    translate_learnable_param_to_p_global,
 )
 from leap_c.ocp.acados.torch import AcadosImplicitLayer
 
