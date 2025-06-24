@@ -185,6 +185,17 @@ class AcadosParamManager:
         error_msg = f"Unknown field: {field_}. Available fields: p_global, p."
         raise ValueError(error_msg)
 
+    def get_flat(self, field_: str) -> ca.SX | list:
+        """Get the flat symbolic variable."""
+        if field_ == "p_global":
+            return self.p_global.cat if self.p_global is not None else []
+
+        if field_ == "p":
+            return self.p.cat if self.p is not None else []
+
+        error_msg = f"Unknown field: {field_}. Available fields: p_global, p."
+        raise ValueError(error_msg)
+
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Assign the parameters to the OCP model."""
         if self.p_global is not None:

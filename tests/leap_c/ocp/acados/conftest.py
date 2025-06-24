@@ -270,14 +270,10 @@ def acados_test_ocp(
     ocp.cost.Zu = 10 * np.ones((ns,))
 
     # Cast parameters to appropriate types for acados
-    # TODO: Do this through the AcadosParamManager
-    if isinstance(ocp.model.p, struct_symSX):
-        ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
-
-    if isinstance(ocp.model.p_global, struct_symSX):
-        ocp.model.p_global = (
-            ocp.model.p_global.cat if ocp.model.p_global is not None else None
-        )
+    # TODO: Move to assign_to_ocp in AcadosParamManager. Requires a refactor that does
+    # not rely on ocp_cost_fun(ocp)
+    ocp.model.p = param_manager.get_flat("p")
+    ocp.model.p_global = param_manager.get_flat("p_global")
 
     return ocp
 
@@ -546,13 +542,8 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp.cost.Zu = 10 * np.ones((ns,))
 
     # Cast parameters to appropriate types for acados
-    if isinstance(ocp.model.p, struct_symSX):
-        ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
-
-    if isinstance(ocp.model.p_global, struct_symSX):
-        ocp.model.p_global = (
-            ocp.model.p_global.cat if ocp.model.p_global is not None else None
-        )
+    ocp.model.p = param_manager.get_flat("p")
+    ocp.model.p_global = param_manager.get_flat("p_global")
 
     return ocp
 
