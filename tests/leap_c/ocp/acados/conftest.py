@@ -4,61 +4,21 @@ from itertools import chain
 import casadi as ca
 import numpy as np
 import pytest
-from acados_template import AcadosModel, AcadosOcp, AcadosOcpOptions
-from casadi.tools import entry, struct_symSX
+from acados_template import AcadosOcp, AcadosOcpOptions
+from casadi.tools import struct_symSX
 
+from leap_c.ocp.acados.parameters import (
+    AcadosParamManager,
+    Parameter,
+    categorize_parameters,
+    create_p_entries,
+    create_p_global_entries,
+    fill_p_global_values,
+    fill_p_values,
+    find_param_in_p_or_p_global,
+    translate_learnable_param_to_p_global,
+)
 from leap_c.ocp.acados.torch import AcadosImplicitLayer
-
-
-def _process_params(
-    params: list[str], nominal_param: dict[str, np.ndarray]
-) -> tuple[list, list]:
-    entries = []
-    values = []
-    for param in params:
-        try:
-            entries.append(entry(param, shape=nominal_param[param].shape))
-            values.append(nominal_param[param].T.reshape(-1, 1))
-        except AttributeError:
-            entries.append(entry(param, shape=(1, 1)))
-            values.append(np.array([nominal_param[param]]).reshape(-1, 1))
-    return entries, values
-
-
-def find_param_in_p_or_p_global(
-    param_name: list[str], model: AcadosModel
-) -> dict[str, ca.SX]:
-    if model.p == []:
-        return {key: model.p_global[key] for key in param_name}
-    if model.p_global is None:
-        return {key: model.p[key] for key in param_name}
-    return {
-        key: (model.p[key] if key in model.p.keys() else model.p_global[key])  # noqa: SIM118
-        for key in param_name
-    }
-
-
-def translate_learnable_param_to_p_global(
-    nominal_param: dict[str, np.ndarray],
-    learnable_param: list[str],
-    ocp: AcadosOcp,
-    verbosity: int = 0,
-) -> AcadosOcp:
-    if learnable_param:
-        entries, values = _process_params(learnable_param, nominal_param)
-        ocp.model.p_global = struct_symSX(entries)
-        ocp.p_global_values = np.concatenate(values).flatten()
-
-    non_learnable_params = [key for key in nominal_param if key not in learnable_param]
-    if non_learnable_params:
-        entries, values = _process_params(non_learnable_params, nominal_param)
-        ocp.model.p = struct_symSX(entries)
-        ocp.parameter_values = np.concatenate(values).flatten()
-
-    if verbosity:
-        print("learnable_params", learnable_param)
-        print("non_learnable_params", non_learnable_params)
-    return ocp
 
 
 def get_A_disc(
@@ -167,7 +127,7 @@ def get_cost_expr_ext_cost(ocp: AcadosOcp, **kwargs: dict[str, ca.SX]) -> ca.SX:
     )
 
 
-def get_cost_expr_ext_cost_e(ocp: AcadosOcp) -> ca.SX:
+def get_cost_expr_ext_cost_e(ocp: AcadosOcp, **kwargs: dict[str, ca.SX]) -> ca.SX:
     x = ocp.model.x
 
     Q_sqrt_e = _create_diag_matrix(
@@ -244,8 +204,14 @@ def ocp_cost_fun(request: pytest.FixtureRequest) -> Callable:
     raise UnknownCostFunctionError
 
 
+@pytest.fixture(scope="session")
+def N_horizon() -> int:
+    """Fixture to define the number of steps in the horizon."""
+    return 10
+
+
 @pytest.fixture(scope="session", params=["exact", "gn"])
-def ocp_options(request: pytest.FixtureRequest) -> AcadosOcpOptions:
+def ocp_options(N_horizon: int, request: pytest.FixtureRequest) -> AcadosOcpOptions:
     """Configure the OCP options."""
     ocp_options = AcadosOcpOptions()
     ocp_options.integrator_type = "DISCRETE"
@@ -258,34 +224,25 @@ def ocp_options(request: pytest.FixtureRequest) -> AcadosOcpOptions:
     ocp_options.with_batch_functionality = True
 
     ocp_options.tf = 2.0
-    ocp_options.N_horizon = 10
+    ocp_options.N_horizon = N_horizon
 
     return ocp_options
 
 
 @pytest.fixture(scope="session")
-def acados_test_ocp(ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions) -> AcadosOcp:
+def acados_test_ocp(
+    ocp_cost_fun: Callable,
+    ocp_options: AcadosOcpOptions,
+    nominal_params: tuple[Parameter, ...],
+) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
-    nominal_p_global = {
-        "m": 1.0,
-        "cx": 0.1,
-        "cy": 0.1,
-        "q_diag": np.array([1.0, 1.0, 1.0, 1.0]),
-        "r_diag": np.array([0.1, 0.1]),
-        "q_diag_e": np.array([1.0, 1.0, 1.0, 1.0]),
-        "xref": np.array([0.0, 0.0, 0.0, 0.0]),
-        "uref": np.array([0.0, 0.0]),
-        "xref_e": np.array([0.0, 0.0, 0.0, 0.0]),
-    }
-
-    learnable_p_global = nominal_p_global.keys()
-
-    # Remove from learnable parameters to test non-learnable parameters
-    learnable_p_global = [p for p in learnable_p_global if p not in ["m", "cx", "cy"]]
-
     name = "test_ocp"
 
     ocp = AcadosOcp()
+
+    param_manager = AcadosParamManager(N_horizon=ocp_options.N_horizon)
+    [param_manager.add(param) for param in nominal_params]
+    param_manager.assign_to_ocp(ocp=ocp)
 
     ocp.solver_options = ocp_options
 
@@ -297,14 +254,14 @@ def acados_test_ocp(ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions) -> Ac
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
-    ocp = translate_learnable_param_to_p_global(
-        nominal_param=nominal_p_global,
-        learnable_param=learnable_p_global,
-        ocp=ocp,
-        verbosity=1,
+    m = param_manager.get_sym(field_="m")
+    cx = param_manager.get_sym(field_="cx")
+    cy = param_manager.get_sym(field_="cy")
+    dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
+    ocp.model.disc_dyn_expr = (
+        get_A_disc(m=m, cx=cx, cy=cy, dt=dt) @ ocp.model.x
+        + get_B_disc(m=m, cx=cx, cy=cy, dt=dt) @ ocp.model.u
     )
-
-    ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp=ocp)
 
     # Define cost
     ocp_cost_fun(ocp)
@@ -330,6 +287,7 @@ def acados_test_ocp(ocp_cost_fun: Callable, ocp_options: AcadosOcpOptions) -> Ac
     ocp.cost.Zu = 10 * np.ones((ns,))
 
     # Cast parameters to appropriate types for acados
+    # TODO: Do this through the AcadosParamManager
     if isinstance(ocp.model.p, struct_symSX):
         ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
 
@@ -351,156 +309,173 @@ def implicit_layer(acados_test_ocp: AcadosOcp) -> AcadosImplicitLayer:
     )
 
 
-def is_stagewise_varying(param_key: str) -> bool:
-    """
-    Determine if a parameter is stage-wise varying based on its key pattern.
-
-    Stage-wise varying parameters typically have keys in the format "label_stage_index",
-    for example: "xref_0", "uref_5", "Q_2", etc.
-
-    Args:
-        param_key: The parameter key to check
-
-    Returns:
-        True if the parameter is stage-wise varying, False otherwise
-    """
-    # If there's no underscore, it's definitely not stage-wise
-    if "_" not in param_key:
-        return False
-
-    # Split by underscore
-    parts = param_key.split("_")
-
-    # Check if the last part is a numeric stage index
-    try:
-        # Try to convert the last part to an integer
-        int(parts[-1])
-
-        # Make sure the base_name is not empty
-        base_name = "_".join(parts[:-1])
-        return bool(base_name)
-    except ValueError:
-        # The last part is not a numeric stage index
-        return False
-
-
-def categorize_parameters(
-    nominal_params: dict[str, np.ndarray], nonlearnable_keys: set[str]
-) -> dict[str, dict[str, np.ndarray]]:
-    """Categorize parameters into learnable/nonlearnable and constant/varying."""
-    learnable_keys = set(nominal_params.keys()) - nonlearnable_keys
-
-    nonlearnable = {
-        key: value for key, value in nominal_params.items() if key in nonlearnable_keys
-    }
-
-    learnable = {
-        key: value for key, value in nominal_params.items() if key in learnable_keys
-    }
-
-    varying_learnable = {
-        key: value for key, value in learnable.items() if is_stagewise_varying(key)
-    }
-
-    constant_learnable = {
-        key: value for key, value in learnable.items() if key not in varying_learnable
-    }
-
-    return {
-        "nonlearnable": nonlearnable,
-        "learnable": {
-            "constant": constant_learnable,
-            "varying": varying_learnable,
-        },
-    }
-
-
-def create_p_global_entries(
-    params: dict[str, np.ndarray], N_horizon: int
-) -> tuple[dict[str, list]]:
-    """Create casadi struct entries for parameters."""
-    labels = {
-        "constant": list(params["constant"].keys()),
-        "varying": list({"_".join(key.split("_")[:-1]) for key in params["varying"]}),
-    }
-
-    entries = []
-
-    # Add constant parameter entries
-    for label in labels["constant"]:
-        param_shape = params["constant"][label].shape
-        entries.append(entry(label, shape=param_shape))
-
-    # Add varying parameter entries with shape consistency check
-    for label in labels["varying"]:
-        # Get all shapes for this parameter across stages
-        shapes = {
-            params["varying"][f"{label}_{stage}"].shape
-            for stage in range(N_horizon)
-            if f"{label}_{stage}" in params["varying"]
-        }
-
-        if not shapes:
-            continue  # Skip if no matching parameters
-
-        if len(shapes) > 1:
-            msg = f"Parameter '{label}' has inconsistent shapes across stages: {shapes}"
-            raise ValueError(msg)
-
-        entries.append(entry(label, shape=shapes.pop(), repeat=N_horizon))
-
-    return entries
+@pytest.fixture(scope="session")
+def nominal_params() -> tuple[Parameter, ...]:
+    return (
+        Parameter(
+            name="m",
+            value=np.array([1.0]),
+            lower_bound=np.array([0.5]),
+            upper_bound=np.array([1.5]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="cx",
+            value=np.array([0.1]),
+            lower_bound=np.array([0.05]),
+            upper_bound=np.array([0.15]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="cy",
+            value=np.array([0.1]),
+            lower_bound=np.array([0.05]),
+            upper_bound=np.array([0.15]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="q_diag",
+            value=np.array([1.0, 1.0, 1.0, 1.0]),
+            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
+            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
+            differentiable=True,
+            varying=False,
+        ),
+        Parameter(
+            name="r_diag",
+            value=np.array([0.1, 0.1]),
+            lower_bound=np.array([0.05, 0.05]),
+            upper_bound=np.array([0.15, 0.15]),
+            differentiable=True,
+            varying=False,
+        ),
+        Parameter(
+            name="q_diag_e",
+            value=np.array([1.0, 1.0, 1.0, 1.0]),
+            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
+            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
+            differentiable=True,
+            varying=False,
+        ),
+        Parameter(
+            name="xref",
+            value=np.array([0.0, 0.0, 0.0, 0.0]),
+            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
+            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
+            differentiable=True,
+            varying=False,
+        ),
+        Parameter(
+            name="uref",
+            value=np.array([0.0, 0.0]),
+            lower_bound=np.array([-1.0, -1.0]),
+            upper_bound=np.array([1.0, 1.0]),
+            differentiable=True,
+            varying=False,
+        ),
+        Parameter(
+            name="xref_e",
+            value=np.array([0.0, 0.0, 0.0, 0.0]),
+            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
+            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
+            differentiable=True,
+            varying=False,
+        ),
+    )
 
 
-def fill_p_global_values(
-    params: dict[str, np.ndarray],
-    p_global_values: struct_symSX,
-) -> np.ndarray:
-    """Fill parameter values in the CasADi structure."""
-    # Fill constant values
-    for key, value in params["constant"].items():
-        p_global_values[key] = value
+@pytest.fixture(scope="session")
+def nominal_varying_params() -> tuple[Parameter, ...]:
+    return (
+        Parameter(
+            name="m",
+            value=np.array([1.0]),
+            lower_bound=np.array([0.5]),
+            upper_bound=np.array([1.5]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="cx",
+            value=np.array([0.1]),
+            lower_bound=np.array([0.05]),
+            upper_bound=np.array([0.15]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="cy",
+            value=np.array([0.1]),
+            lower_bound=np.array([0.05]),
+            upper_bound=np.array([0.15]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="q_diag",
+            value=np.array([1.0, 1.0, 1.0, 1.0]),
+            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
+            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
+            differentiable=True,
+            varying=True,
+        ),
+        Parameter(
+            name="r_diag",
+            value=np.array([0.1, 0.1]),
+            lower_bound=np.array([0.05, 0.05]),
+            upper_bound=np.array([0.15, 0.15]),
+            differentiable=True,
+            varying=False,
+        ),
+        Parameter(
+            name="q_diag_e",
+            value=np.array([1.0, 1.0, 1.0, 1.0]),
+            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
+            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
+            differentiable=True,
+            varying=False,
+        ),
+        Parameter(
+            name="xref",
+            value=np.array([0.1, 0.2, 0.3, 0.4]),
+            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
+            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
+            differentiable=True,
+            varying=True,
+        ),
+        Parameter(
+            name="uref",
+            value=np.array([0.5, 0.6]),
+            lower_bound=np.array([-1.0, -1.0]),
+            upper_bound=np.array([1.0, 1.0]),
+            differentiable=True,
+            varying=True,
+        ),
+        Parameter(
+            name="xref_e",
+            value=np.array([0.0, 0.0, 0.0, 0.0]),
+            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
+            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
+            differentiable=True,
+            varying=False,
+        ),
+    )
 
-    # Fill varying values
-    for key, value in params["varying"].items():
-        label, stage = key.rsplit("_", 1)
-        p_global_values[label, int(stage)] = value
 
-    return p_global_values.cat.full().flatten()
-
-
-def create_p_entries(
-    params: dict[str, np.ndarray],
+@pytest.fixture(scope="session")
+def acados_param_manager(
     N_horizon: int,
-) -> tuple[dict[str, list], dict[str, list]]:
-    """Create casadi struct entries for parameters."""
-    entries = []
-
-    # Add non-learnable parameter entries
-    for key, value in params.items():
-        entries.append(entry(key, shape=value.shape))
-
-    # Add indicator entry
-    entries.append(entry("indicator", shape=(1,), repeat=N_horizon))
-
-    return entries
-
-
-def fill_p_values(
-    params: dict[str, np.ndarray],
-    p_values: struct_symSX,
-) -> np.ndarray:
-    """Fill parameter values in the CasADi structure."""
-    # Fill non-learnable values
-    for key, value in params.items():
-        p_values[key] = value
-
-    return p_values.cat.full().flatten()
+) -> AcadosParamManager:
+    return AcadosParamManager(N_horizon=N_horizon)
 
 
 @pytest.fixture(scope="session")
 def acados_test_ocp_with_stagewise_varying_params(
     ocp_options: AcadosOcpOptions,
+    nominal_varying_params: tuple[Parameter, ...],
 ) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp_with_stagewise_varying_params"
@@ -508,6 +483,10 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp = AcadosOcp()
 
     ocp.solver_options = ocp_options
+
+    param_manager = AcadosParamManager(N_horizon=ocp_options.N_horizon)
+    [param_manager.add(param) for param in nominal_varying_params]
+    param_manager.assign_to_ocp(ocp=ocp)
 
     ocp.model.name = name
 
@@ -517,65 +496,13 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
-    nominal_params = {
-        "m": np.array([1.0]),
-        "cx": np.array([0.1]),
-        "cy": np.array([0.1]),
-        **{
-            f"q_diag_{k}": np.array([1.0, 1.0, 1.0, 1.0])
-            for k in range(ocp_options.N_horizon)
-        },  # q_diag for initial stage and each intermediate stage
-        "r_diag": np.array([0.1, 0.1]),
-        "q_diag_e": np.array([1.0, 1.0, 1.0, 1.0]),
-        **{
-            f"xref_{k}": np.array([0.1, 0.2, 0.3, 0.4])
-            for k in range(ocp_options.N_horizon)
-        },  # xref for initial stage and each intermediate each stage
-        **{
-            f"uref_{k}": np.array([0.5, 0.6]) for k in range(ocp_options.N_horizon)
-        },  # uref for initial stage and each intermediate each stage
-        "xref_e": np.array([0.0, 0.0, 0.0, 0.0]),
-    }
-
-    # Categorize parameters
-    nonlearnable_keys = {"cx", "cy"}
-
-    params = categorize_parameters(
-        nominal_params=nominal_params, nonlearnable_keys=nonlearnable_keys
-    )
-
-    ocp.model.p_global = struct_symSX(
-        create_p_global_entries(
-            params=params["learnable"],
-            N_horizon=ocp.solver_options.N_horizon,
-        )
-    )
-
-    ocp.p_global_values = fill_p_global_values(
-        params=params["learnable"],
-        p_global_values=ocp.model.p_global(0),
-    )
-
-    ocp.model.p = struct_symSX(
-        create_p_entries(
-            params=params["nonlearnable"],
-            N_horizon=ocp.solver_options.N_horizon,
-        )
-    )
-
-    ocp.parameter_values = fill_p_values(
-        params=params["nonlearnable"],
-        p_values=ocp.model.p(0),
-    )
-
-    # Define cost
     stage_cost = [
-        ocp.model.p["indicator", stage]
+        param_manager.get_sym(field_="indicator", stage_=stage)
         * get_cost_expr_ext_cost(
             ocp=ocp,
-            xref=ocp.model.p_global["xref", stage],
-            uref=ocp.model.p_global["uref", stage],
-            q_diag=ocp.model.p_global["q_diag", stage],
+            xref=param_manager.get_sym(field_="xref", stage_=stage),
+            uref=param_manager.get_sym(field_="uref", stage_=stage),
+            q_diag=param_manager.get_sym(field_="q_diag", stage_=stage),
         )
         for stage in range(ocp.solver_options.N_horizon)
     ]
@@ -583,13 +510,26 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp.cost.cost_type_0 = "EXTERNAL"
     ocp.model.cost_expr_ext_cost_0 = stage_cost[0]
     ocp.cost.cost_type = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost = ca.sum1(ca.vertcat(*stage_cost))
+    ocp.model.cost_expr_ext_cost = ca.sum1(ca.vertcat(*stage_cost[1:]))
     ocp.cost.cost_type_e = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost_e = get_cost_expr_ext_cost_e(ocp=ocp)
+    x = ocp.model.x
+    xref_e = param_manager.get_sym(field_="xref_e")
+    q_diag_e = param_manager.get_sym(field_="q_diag_e")
+    Q_sqrt_e = _create_diag_matrix(q_diag_e)
+
+    ocp.model.cost_expr_ext_cost_e = 0.5 * ca.mtimes(
+        [ca.transpose(x - xref_e), Q_sqrt_e.T, Q_sqrt_e, x - xref_e]
+    )
 
     ####
-
-    ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp=ocp)
+    m = param_manager.get_sym(field_="m")
+    cx = param_manager.get_sym(field_="cx")
+    cy = param_manager.get_sym(field_="cy")
+    dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
+    ocp.model.disc_dyn_expr = (
+        get_A_disc(m=m, cx=cx, cy=cy, dt=dt) @ ocp.model.x
+        + get_B_disc(m=m, cx=cx, cy=cy, dt=dt) @ ocp.model.u
+    )
 
     ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
 
@@ -634,6 +574,7 @@ def implicit_layer_with_stagewise_varying_params(
         discount_factor=None,
     )
 
+    # TODO: Setting the indicator variables for each stage. Do this via the param_manager
     for ocp_solver in chain(
         implicit_layer_.implicit_fun.forward_batch_solver.ocp_solvers,
         implicit_layer_.implicit_fun.backward_batch_solver.ocp_solvers,
