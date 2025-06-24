@@ -213,10 +213,12 @@ class AcadosParamManager:
             if not value.differentiable
         }
 
-    def get_default_param(self, field_: str) -> struct:
+    def get_default_param(self, field_: str) -> np.ndarray:
         if field_ not in ["p_global", "p"]:
             error_msg = f"Unknown field: {field_}. Available fields: p_global, p."
             raise ValueError(error_msg)
+
+        val = None
 
         if field_ == "p_global":
             val = self.p_global(0)
@@ -234,10 +236,7 @@ class AcadosParamManager:
             for key, value in self.get_nondifferentiable_parameters().items():
                 val[key] = value
 
-            # NB: The indicator variables are all zero by default. They need to handled
-            # together with the OCP solver.
-
-        return val
+        return val.cat.full().flatten() if val is not None else np.array([])
 
     def map_dense_to_structured(
         self, field_: str, values_: np.ndarray, stage_: int | None = None
