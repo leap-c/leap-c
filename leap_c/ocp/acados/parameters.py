@@ -1,3 +1,4 @@
+import contextlib
 from typing import ClassVar, NamedTuple
 
 import casadi as ca
@@ -20,9 +21,9 @@ class AcadosParamManager:
 
     parameters: ClassVar[dict[str, Parameter]] = {}
     p_global: struct_symSX | None = None
+    p_global_values: struct | None = None
     p: struct_symSX | None = None
-    p_global_val: struct | None = None
-    p_val: struct | None = None
+    parameter_values: list[struct] | None = None
 
     def __init__(self, N_horizon: int) -> None:
         self.N_horizon = N_horizon
@@ -31,9 +32,9 @@ class AcadosParamManager:
         """Reset the parameter manager."""
         self.parameters = {}
         self.p_global = None
+        self.p_global_values = None
         self.p = None
-        self.p_global_val = None
-        self.p_val = None
+        self.parameter_values = None
 
     def add(
         self,
@@ -49,37 +50,98 @@ class AcadosParamManager:
         self.update_p()
         self.update_p_global()
 
-    def set(self, stage_: int, field_: str, value_: np.ndarray) -> None:
+    def initialize_parameter_values(self) -> None:
+        self.parameter_values = [self.p(0) for _ in range(self.N_horizon)]
+
+        indicators = np.eye(self.N_horizon)
+
+        for stage in range(self.N_horizon):
+            for key, value in self.get_nondifferentiable_parameters().items():
+                self.parameter_values[stage][key] = value
+
+            if "indicator" in self.parameter_values[stage].keys():  # noqa: SIM118
+                self.parameter_values[stage]["indicator"] = indicators[stage, :]
+
+    def initialize_p_global_values(self) -> None:
+        self.p_global_values = self.p_global(0)
+
+        # Set the values for the symbolic structure
+        for key, value in self.get_differentiable_constant_parameters().items():
+            self.p_global_values[key] = value
+
+        for key, value in self.get_differentiable_varying_parameters().items():
+            for stage in range(self.N_horizon):
+                self.p_global_values[key, stage] = value
+
+    def set_parameter_value(self, stage_: int, field_: str, value_: np.ndarray) -> None:
         """Set the value for a given field at a specific stage."""
-        if field_ in self.p_global_val.keys():  # noqa: SIM118
-            if stage_ is not None:
-                self.p_global_val[field_, stage_] = value_
-            else:
-                self.p_global_val[field_] = value_
+        self.parameter_values[stage_][field_] = value_
 
-        if field_ in self.p_val.keys():  # noqa: SIM118
-            if stage_ is not None:
-                self.p_val[field_, stage_] = value_
-            else:
-                self.p_val[field_] = value_
+    def set_p_global_value(
+        self, stage_: int | None, field_: str, value_: np.ndarray
+    ) -> None:
+        """Set the global value for a given field at a specific stage."""
+        self.p_global_values[field_, stage_] = value_
 
-    def get(self, field_: str, stage_: int | None = None) -> np.ndarray:
+    def get_parameter_symbol(self, field_: str, stage_: int) -> ca.SX:
+        """Get the symbolic variable for a given field at a specific stage."""
+        return self.parameter_values(stage_)[field_]
+
+    def get_parameter_value(self, stage_: int, field_: str) -> np.ndarray:
         """Get the value for a given field at a specific stage."""
-        if field_ in self.p_global_val.keys():  # noqa: SIM118
-            if stage_ is not None:
-                return self.p_global_val[field_, stage_]
-            return self.p_global_val[field_]
+        raise NotImplementedError
 
-        if field_ in self.p_val.keys():  # noqa: SIM118
-            if stage_ is not None:
-                return self.p_val[field_, stage_]
-            return self.p_val[field_]
+    def get_p_global_symbol(self, field_: str, stage_: int | None = None) -> ca.SX:
+        """Get the symbolic variable for a given field at a specific stage."""
+        raise NotImplementedError
 
-        available_fields = list(self.p_global_val.keys()) + list(self.p_val.keys())
+    def get_p_global_value(self, field_: str, stage_: int | None = None) -> np.ndarray:
+        """Get the global value for a given field at a specific stage."""
+        raise NotImplementedError
+
+    def set(
+        self,
+        field_: str,
+        value_: np.ndarray,
+        stage_: int | None = None,
+    ) -> None:
+        """Set the value for a given field at a specific stage."""
+        # TODO: Add error handling for invalid combinations of field_, _stage_, and value_
+        if field_ in self.p_global_values.keys():  # noqa: SIM118
+            if stage_ is not None:
+                self.p_global_values[field_, stage_] = value_
+            else:
+                self.p_global_values[field_] = value_
+
+        if field_ in self.parameter_values[stage_].keys():  # noqa: SIM118
+            self.parameter_values[stage_][field_] = value_
+
+    def get(
+        self,
+        field_: str,
+        stage_: int | None = None,
+    ) -> np.ndarray:
+        """Get the value for a given field at a specific stage."""
+        # TODO: Add error handling for invalid combinations of field_, _stage_, and value_
+        if field_ in self.p_global_values.keys():  # noqa: SIM118
+            if stage_ is not None:
+                return self.p_global_values[field_, stage_]
+            return self.p_global_values[field_]
+
+        if field_ in self.parameter_values[stage_].keys():  # noqa: SIM118
+            return self.parameter_values[stage_][field_, stage_]
+
+        available_fields = list(self.p_global_values.keys()) + list(
+            self.parameter_values.keys()
+        )
         error_message = f"Unknown field: {field_}. Available fields: {available_fields}"
         raise ValueError(error_message)
 
-    def get_sym(self, field_: str, stage_: int | None = None) -> ca.SX:
+    def get_sym(
+        self,
+        field_: str,
+        stage_: int | None = None,
+    ) -> ca.SX:
         """Get the symbolic variable for a given field at a specific stage."""
         if field_ in self.p_global.keys():  # noqa: SIM118
             if stage_ is not None:
@@ -87,8 +149,8 @@ class AcadosParamManager:
             return self.p_global[field_]
 
         if field_ in self.p.keys():  # noqa: SIM118
-            if stage_ is not None:
-                return self.p[field_, stage_]
+            if stage_ is not None and field_ == "indicator":
+                return self.p[field_][stage_]
             return self.p[field_]
 
         available_fields = list(self.p_global.keys()) + list(self.p.keys())
@@ -99,23 +161,10 @@ class AcadosParamManager:
         """Update the structured parameter p."""
         entries = []
         for key, value in self.get_nondifferentiable_parameters().items():
-            entries.append(
-                entry(
-                    key,
-                    shape=value.shape,
-                )
-            )
+            entries.append(entry(key, shape=value.shape))
 
-        # If self.get_differentiable_varying_parameters() is not empty, we need
-        # indicator variables
         if self.get_differentiable_varying_parameters():
-            entries.append(
-                entry(
-                    "indicator",
-                    shape=(1,),
-                    repeat=self.N_horizon,
-                )
-            )
+            entries.append(entry("indicator", shape=(self.N_horizon,)))
 
         self.p = struct_symSX(entries)
 
@@ -164,7 +213,7 @@ class AcadosParamManager:
             if not value.differentiable
         }
 
-    def get_nominal_values(self, field_: str) -> struct:
+    def get_default_param(self, field_: str) -> struct:
         if field_ not in ["p_global", "p"]:
             error_msg = f"Unknown field: {field_}. Available fields: p_global, p."
             raise ValueError(error_msg)
@@ -190,13 +239,17 @@ class AcadosParamManager:
 
         return val
 
-    def map_dense_to_structured(self, field_: str, values_: np.ndarray) -> struct:
+    def map_dense_to_structured(
+        self, field_: str, values_: np.ndarray, stage_: int | None = None
+    ) -> struct:
+        # TODO: Add error handling when field_ and stage_ are not compatible
+
         if field_ == "p_global":
-            self.p_global_val = self.p_global(values_)
-            return self.p_global_val
+            self.p_global_values = self.p_global(values_)
+            return self.p_global_values
         if field_ == "p":
-            self.p_val = self.p(values_)
-            return self.p_val
+            self.parameter_values[stage_] = self.p(values_)
+            return self.parameter_values[stage_]
 
         error_msg = f"Unknown field: {field_}. Available fields: p_global, p."
         raise ValueError(error_msg)
@@ -204,21 +257,24 @@ class AcadosParamManager:
     def get_dense(self, field_: str) -> np.ndarray:
         """Get the dense values of the structured parameter."""
         if field_ == "p_global":
-            if self.p_global_val is None:
-                msg = "p_global_val is not set. Using nominal values."
-                print(msg)
-                self.p_global_val = self.get_nominal_values("p_global")
-            return self.p_global_val.cat.full().flatten()
+            return self.get_p_global_values()
 
         if field_ == "p":
-            if self.p_val is None:
-                msg = "p_val is not set. Using nominal values."
-                print(msg)
-                self.p_val = self.get_nominal_values("p")
-            return self.p_val.cat.full().flatten()
+            return self.get_parameter_values()
 
         error_msg = f"Unknown field: {field_}. Available fields: p_global, p."
         raise ValueError(error_msg)
+
+    def get_p_global_values(self) -> np.ndarray:
+        return self.p_global_values.cat.full().flatten() if self.p_global_values else []
+
+    def get_parameter_values(self, stage_: int | None = None) -> np.ndarray:
+        """Get the symbolic variable p."""
+        if stage_ is None:
+            stage_ = 0
+        return self.parameter_values[stage_].cat.full().flatten()
+
+        # if stage_ is not None:
 
     def get_flat(self, field_: str) -> ca.SX | list:
         """Get the flat symbolic variable."""
@@ -233,15 +289,25 @@ class AcadosParamManager:
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Assign the parameters to the OCP model."""
+        if self.parameter_values is None:
+            msg = "parameter_values is not set. Using nominal values."
+            print(msg)
+            self.initialize_parameter_values()
+
+        if self.p_global_values is None:
+            msg = "p_global_values is not set. Using nominal values."
+            print(msg)
+            self.initialize_p_global_values()
+
         if self.p_global is not None:
             # TODO: Refactor code to not rely on struct_symSX, then assign self.p_global.cat
             ocp.model.p_global = self.p_global
-            ocp.p_global_values = self.get_dense("p_global")
+            ocp.p_global_values = self.get_p_global_values()
 
         if self.p is not None:
             # TODO: Refactor code to not rely on struct_symSX, then assign self.p.cat
             ocp.model.p = self.p
-            ocp.parameter_values = self.get_dense("p")
+            ocp.parameter_values = self.get_parameter_values()
 
 
 # TODO: Remove this function and use the AcadosParamManager instead.
