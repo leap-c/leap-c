@@ -133,7 +133,11 @@ class AcadosParamManager:
         """Set the value for a given field."""
         pass
 
-    def get_nominal_values(self, field_: str):
+    def get_nominal_values(self, field_: str) -> struct:
+        if field_ not in ["p_global", "p"]:
+            error_msg = f"Unknown field: {field_}. Available fields: p_global, p."
+            raise ValueError(error_msg)
+
         if field_ == "p_global":
             val = self.p_global(0)
             # Set the values for the symbolic structure
