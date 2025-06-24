@@ -468,9 +468,6 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
-    x = ocp.model.x
-    u = ocp.model.u
-
     stage_cost = []
     r_diag = param_manager.get_sym(field_="r_diag")
     R_sqrt = _create_diag_matrix(r_diag)
@@ -485,8 +482,22 @@ def acados_test_ocp_with_stagewise_varying_params(
             indicator
             * 0.5
             * (
-                ca.mtimes([ca.transpose(x - xref), Q_sqrt.T, Q_sqrt, x - xref])
-                + ca.mtimes([ca.transpose(u - uref), R_sqrt.T, R_sqrt, u - uref])
+                ca.mtimes(
+                    [
+                        ca.transpose(ocp.model.x - xref),
+                        Q_sqrt.T,
+                        Q_sqrt,
+                        ocp.model.x - xref,
+                    ]
+                )
+                + ca.mtimes(
+                    [
+                        ca.transpose(ocp.model.u - uref),
+                        R_sqrt.T,
+                        R_sqrt,
+                        ocp.model.u - uref,
+                    ]
+                )
             )
         )
 
@@ -495,13 +506,12 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = ca.sum1(ca.vertcat(*stage_cost[1:]))
     ocp.cost.cost_type_e = "EXTERNAL"
-    x = ocp.model.x
     xref_e = param_manager.get_sym(field_="xref_e")
     q_diag_e = param_manager.get_sym(field_="q_diag_e")
     Q_sqrt_e = _create_diag_matrix(q_diag_e)
 
     ocp.model.cost_expr_ext_cost_e = 0.5 * ca.mtimes(
-        [ca.transpose(x - xref_e), Q_sqrt_e.T, Q_sqrt_e, x - xref_e]
+        [ca.transpose(ocp.model.x - xref_e), Q_sqrt_e.T, Q_sqrt_e, ocp.model.x - xref_e]
     )
 
     ####
