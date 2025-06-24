@@ -243,17 +243,20 @@ class AcadosParamManager:
     ) -> struct:
         # TODO: Add error handling when field_ and stage_ and values_ are not compatible
 
+        available_fields = ["p_global", "p"]
+
         if stage_ is None:
             stage_ = 0
 
         if field_ == "p_global":
             self.p_global_values = self.p_global(values_)
             return self.p_global_values
+
         if field_ == "p":
             self.parameter_values[stage_] = self.p(values_)
             return self.parameter_values[stage_]
 
-        error_msg = f"Unknown field: {field_}. Available fields: p_global, p."
+        error_msg = f"Unknown field: {field_}. Available fields: {available_fields}."
         raise ValueError(error_msg)
 
     def get_dense(self, field_: str) -> np.ndarray:
