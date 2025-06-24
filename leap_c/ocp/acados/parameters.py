@@ -21,8 +21,8 @@ class AcadosParamManager:
     parameters: ClassVar[dict[str, Parameter]] = {}
     p_global: struct_symSX | None = None
     p: struct_symSX | None = None
-    p_global_val: np.ndarray | None = None
-    p_val: np.ndarray | None = None
+    p_global_val: struct | None = None
+    p_val: struct | None = None
 
     def __init__(self, N_horizon: int) -> None:
         self.N_horizon = N_horizon
@@ -48,6 +48,52 @@ class AcadosParamManager:
         # TODO: Consider not updating p and p_global every time a parameter is added.
         self.update_p()
         self.update_p_global()
+
+    def set(self, stage_: int, field_: str, value_: np.ndarray) -> None:
+        """Set the value for a given field at a specific stage."""
+        if field_ in self.p_global_val.keys():  # noqa: SIM118
+            if stage_ is not None:
+                self.p_global_val[field_, stage_] = value_
+            else:
+                self.p_global_val[field_] = value_
+
+        if field_ in self.p_val.keys():  # noqa: SIM118
+            if stage_ is not None:
+                self.p_val[field_, stage_] = value_
+            else:
+                self.p_val[field_] = value_
+
+    def get(self, field_: str, stage_: int | None = None) -> np.ndarray:
+        """Get the value for a given field at a specific stage."""
+        if field_ in self.p_global_val.keys():  # noqa: SIM118
+            if stage_ is not None:
+                return self.p_global_val[field_, stage_]
+            return self.p_global_val[field_]
+
+        if field_ in self.p_val.keys():  # noqa: SIM118
+            if stage_ is not None:
+                return self.p_val[field_, stage_]
+            return self.p_val[field_]
+
+        available_fields = list(self.p_global_val.keys()) + list(self.p_val.keys())
+        error_message = f"Unknown field: {field_}. Available fields: {available_fields}"
+        raise ValueError(error_message)
+
+    def get_sym(self, field_: str, stage_: int | None = None) -> ca.SX:
+        """Get the symbolic variable for a given field at a specific stage."""
+        if field_ in self.p_global.keys():  # noqa: SIM118
+            if stage_ is not None:
+                return self.p_global[field_, stage_]
+            return self.p_global[field_]
+
+        if field_ in self.p.keys():  # noqa: SIM118
+            if stage_ is not None:
+                return self.p[field_, stage_]
+            return self.p[field_]
+
+        available_fields = list(self.p_global.keys()) + list(self.p.keys())
+        error_message = f"Unknown field: {field_}. Available fields: {available_fields}"
+        raise ValueError(error_message)
 
     def update_p(self) -> struct_symSX:
         """Update the structured parameter p."""
@@ -112,26 +158,6 @@ class AcadosParamManager:
             for key, value in self.parameters.items()
             if not value.differentiable
         }
-
-    def get_sym(self, field_: str, stage_: int | None = None) -> ca.SX:
-        """Get the symbolic variable for a given field."""
-        if field_ in self.p_global.keys():  # noqa: SIM118
-            if stage_ is not None:
-                return self.p_global[field_, stage_]
-            return self.p_global[field_]
-
-        if field_ in self.p.keys():  # noqa: SIM118
-            if stage_ is not None:
-                return self.p[field_, stage_]
-            return self.p[field_]
-
-        available_fields = list(self.p_global.keys()) + list(self.p.keys())
-        error_message = f"Unknown field: {field_}. Available fields: {available_fields}"
-        raise ValueError(error_message)
-
-    def set_val(self, field_: str, value: ca.SX, stage_: int | None = None) -> None:
-        """Set the value for a given field."""
-        pass
 
     def get_nominal_values(self, field_: str) -> struct:
         if field_ not in ["p_global", "p"]:
@@ -203,10 +229,12 @@ class AcadosParamManager:
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Assign the parameters to the OCP model."""
         if self.p_global is not None:
+            # TODO: Refactor code to not rely on struct_symSX, then assign self.p_global.cat
             ocp.model.p_global = self.p_global
             ocp.p_global_values = self.get_dense("p_global")
 
         if self.p is not None:
+            # TODO: Refactor code to not rely on struct_symSX, then assign self.p.cat
             ocp.model.p = self.p
             ocp.parameter_values = self.get_dense("p")
 
