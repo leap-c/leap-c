@@ -99,7 +99,12 @@ class AcadosParamManager:
         """Update the structured parameter p."""
         entries = []
         for key, value in self.get_nondifferentiable_parameters().items():
-            entries.append(entry(key, shape=value.shape))
+            entries.append(
+                entry(
+                    key,
+                    shape=value.shape,
+                )
+            )
 
         # If self.get_differentiable_varying_parameters() is not empty, we need
         # indicator variables
@@ -239,6 +244,7 @@ class AcadosParamManager:
             ocp.parameter_values = self.get_dense("p")
 
 
+# TODO: Remove this function and use the AcadosParamManager instead.
 def _process_params(
     params: list[str], nominal_param: dict[str, np.ndarray]
 ) -> tuple[list, list]:
@@ -254,6 +260,7 @@ def _process_params(
     return entries, values
 
 
+# TODO: Remove this function and use the AcadosParamManager instead.
 def find_param_in_p_or_p_global(
     param_name: list[str], model: AcadosModel
 ) -> dict[str, ca.SX]:
@@ -267,6 +274,7 @@ def find_param_in_p_or_p_global(
     }
 
 
+# TODO: Remove this function and use the AcadosParamManager instead.
 def translate_learnable_param_to_p_global(
     nominal_param: dict[str, np.ndarray],
     learnable_param: list[str],
@@ -290,6 +298,7 @@ def translate_learnable_param_to_p_global(
     return ocp
 
 
+# TODO: Remove this function and use the AcadosParamManager instead.
 def is_stagewise_varying(param_key: str) -> bool:
     """
     Determine if a parameter is stage-wise varying based on its key pattern.
@@ -323,6 +332,7 @@ def is_stagewise_varying(param_key: str) -> bool:
         return False
 
 
+# TODO: Remove this function and use the AcadosParamManager instead.
 def categorize_parameters(
     nominal_params: dict[str, np.ndarray], nonlearnable_keys: set[str]
 ) -> dict[str, dict[str, np.ndarray]]:
@@ -354,6 +364,7 @@ def categorize_parameters(
     }
 
 
+# TODO: Remove this function and use the AcadosParamManager instead.
 def create_p_global_entries(
     params: dict[str, np.ndarray], N_horizon: int
 ) -> tuple[dict[str, list]]:
@@ -391,6 +402,7 @@ def create_p_global_entries(
     return entries
 
 
+# TODO: Remove this function and use the AcadosParamManager instead.
 def fill_p_global_values(
     params: dict[str, np.ndarray],
     p_global_values: struct_symSX,
@@ -408,6 +420,7 @@ def fill_p_global_values(
     return p_global_values.cat.full().flatten()
 
 
+# TODO: Remove this function and use the AcadosParamManager instead.
 def create_p_entries(
     params: dict[str, np.ndarray],
     N_horizon: int,
@@ -425,6 +438,7 @@ def create_p_entries(
     return entries
 
 
+# TODO: Remove this function and use the AcadosParamManager instead.
 def fill_p_values(
     params: dict[str, np.ndarray],
     p_values: struct_symSX,
