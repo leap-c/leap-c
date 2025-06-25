@@ -11,7 +11,7 @@ from leap_c.ocp.acados.parameters import (
     Parameter,
     find_param_in_p_or_p_global,
 )
-from leap_c.ocp.acados.torch import AcadosImplicitLayer
+from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 def get_A_disc(
@@ -272,8 +272,8 @@ def acados_test_ocp(
 
 
 @pytest.fixture(scope="session")
-def implicit_layer(acados_test_ocp: AcadosOcp) -> AcadosImplicitLayer:
-    return AcadosImplicitLayer(
+def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpc:
+    return AcadosDiffMpc(
         ocp=acados_test_ocp,
         initializer=None,
         sensitivity_ocp=None,
@@ -552,10 +552,10 @@ def acados_test_ocp_with_stagewise_varying_params(
 
 
 @pytest.fixture(scope="session")
-def implicit_layer_with_stagewise_varying_params(
+def diff_mpc_with_stagewise_varying_params(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
-) -> AcadosImplicitLayer:
-    implicit_layer_ = AcadosImplicitLayer(
+) -> AcadosDiffMpc:
+    diff_mpc = AcadosDiffMpc(
         ocp=acados_test_ocp_with_stagewise_varying_params,
         initializer=None,
         sensitivity_ocp=None,
@@ -564,8 +564,8 @@ def implicit_layer_with_stagewise_varying_params(
 
     # TODO: Setting the indicator variables for each stage. Do this via the param_manager
     for ocp_solver in chain(
-        implicit_layer_.implicit_fun.forward_batch_solver.ocp_solvers,
-        implicit_layer_.implicit_fun.backward_batch_solver.ocp_solvers,
+        diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers,
+        diff_mpc.diff_mpc_fun.backward_batch_solver.ocp_solvers,
     ):
         for stage_ in range(ocp_solver.acados_ocp.solver_options.N_horizon):
             idx_values_ = np.array(
@@ -584,7 +584,7 @@ def implicit_layer_with_stagewise_varying_params(
         for stage_ in range(ocp_solver.acados_ocp.solver_options.N_horizon):
             print(f"stage: {stage_}; p: {ocp_solver.get(stage_=stage_, field_='p')}")
 
-    return implicit_layer_
+    return diff_mpc
 
 
 @pytest.fixture(scope="session")

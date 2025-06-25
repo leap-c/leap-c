@@ -8,6 +8,8 @@ from enum import IntEnum
 from functools import cached_property
 from pathlib import Path
 from typing import Any, Callable, List, NamedTuple
+import warnings
+
 
 import casadi as ca
 import numpy as np
@@ -609,7 +611,7 @@ class Mpc(ABC):
             ocp: Optimal control problem formulation used for solving the OCP.
             ocp_sensitivity: The optimal control problem formulation to use for sensitivities.
                 If None, the sensitivity problem is derived from the ocp, however only the EXTERNAL cost type is allowed then.
-                For an example of how to set up other cost types refer, e.g., to examples/pendulum_on_cart.py .
+                For an example of how to set up other cost types refer, e.g., to examples/cartpole.py .
             discount_factor: Discount factor. If None, acados default cost scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
             init_state_fn: Function to use as default iterate initialization for the solver. If None, the solver iterate is initialized with zeros.
             n_batch_max: Maximum batch size.
@@ -622,7 +624,14 @@ class Mpc(ABC):
         """
         self.ocp = ocp
 
-        # PART I: For deriving standard sensitivities
+        # raise deprecation warning if mpc class is used
+        warning_msg = (
+            "The Mpc class is deprecated and will be removed in a future version. "
+            "Please use the AcadosDiffMpc class instead."
+        )
+        warnings.warn(warning_msg, DeprecationWarning)
+
+
         if ocp_sensitivity is None:
             # setup OCP for sensitivity solver
             if (
@@ -640,7 +649,6 @@ class Mpc(ABC):
         else:
             self.ocp_sensitivity = ocp_sensitivity
 
-        # PART II: For solving the standard OCP structure.
         if self.ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
             self.ocp.translate_initial_cost_term_to_external(
                 cost_hessian=ocp.solver_options.hessian_approx
