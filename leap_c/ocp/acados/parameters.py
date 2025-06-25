@@ -1,4 +1,4 @@
-from typing import ClassVar, NamedTuple
+from typing import NamedTuple
 
 import casadi as ca
 import numpy as np
@@ -18,7 +18,7 @@ class Parameter(NamedTuple):
 class AcadosParamManager:
     """Manager for Acados parameters."""
 
-    parameters: ClassVar[dict[str, Parameter]] = {}
+    parameters: dict[str, Parameter] = {}
     p_global: struct_symSX | None = None
     p_global_values: struct | None = None
     p: struct_symSX | None = None
@@ -27,19 +27,16 @@ class AcadosParamManager:
     def __init__(self, N_horizon: int) -> None:
         self.N_horizon = N_horizon
 
-    def reset(self) -> None:
-        """Reset the parameter manager."""
-        self.parameters = {}
-        self.p_global = None
-        self.p_global_values = None
-        self.p = None
-        self.parameter_values = None
-
     def add(
         self,
         parameter: Parameter,
     ) -> None:
-        """Add a parameter to the manager."""
+        """
+        Add a parameter to the manager.
+
+        Args:
+            parameter (Parameter): The parameter to add, must be an instance of the Parameter NamedTuple.
+        """
         assert isinstance(parameter, Parameter), (
             "Parameter must be an instance of the Parameter NamedTuple."
         )
@@ -190,22 +187,16 @@ class AcadosParamManager:
         """
         Retrieve the default parameter array for a specified field.
 
-        Parameters
-        ----------
-        field_ : str
-            The name of the parameter field to retrieve. Must be one "p_global" or "p".
+        Args:
+            field_ (str): The name of the parameter field to retrieve. Must be one
+                "p_global" or "p".
 
-        Returns
-        -------
-        np.ndarray
-            The default parameter array corresponding to the requested field.
-            Returns an empty array if the value is None.
+        Returns:
+            np.ndarray: The default parameter array corresponding to the requested
+                field. Returns an empty array if the value is None.
 
-        Raises
-        ------
-        ValueError
-            If the provided field_ is not recognized.
-
+        Raises:
+            ValueError: If the provided field_ is not recognized.
         """
         available_fields = ["p_global", "p"]
         val = None
@@ -238,35 +229,23 @@ class AcadosParamManager:
         Map a dense 1D numpy array of parameter values to the appropriate structured field
         within the object, either globally or for a specific stage.
 
-        Parameters
-        ----------
-        field_ : str
-            The name of the parameter field to map values to. Must be one of "p_global" or "p".
-        values_ : np.ndarray
-            A 1D numpy array containing the parameter values to be mapped.
-        stage_ : int or None, optional
-            The stage index for stage-wise parameters. Must be a non-negative integer less than
-            `self.N_horizon` if specified. Should be None for global parameters.
+        Args:
+            field_ (str): The name of the parameter field to map values to. Must be one
+                of "p_global" or "p".
+            values_ (np.ndarray): A 1D numpy array containing the parameter values to be
+                mapped.
+            stage_ (int or None, optional): The stage index for stage-wise parameters.
+                Must be a non-negative integer less than `self.N_horizon` if specified.
+                Should be None for global parameters.
 
-        Returns
-        -------
-        struct
-            The structured parameter object after mapping the dense values.
+        Returns:
+            struct: The structured parameter object after mapping the dense values.
 
-        Raises
-        ------
-        ValueError
-            If `field_` is unknown, if `stage_` is out of bounds, if `values_` is not 1D,
-            or if an unhandled combination of arguments is provided.
-        TypeError
-            If `stage_` is not an integer when specified, or if `values_` is not a numpy array.
-
-        Notes
-        -----
-        - For `field_ == "p_global"`, `stage_` must be None.
-        - For `field_ == "p"`, `stage_` must be a valid stage index.
-        - The method assumes that `self.p_global` and `self.p` are callable methods that
-          convert the dense array to the appropriate structured format.
+        Raises:
+            ValueError: If `field_` is unknown, if `stage_` is out of bounds, if `values_`
+                is not 1D, or if an unhandled combination of arguments is provided.
+            TypeError: If `stage_` is not an integer when specified, or if `values_` is
+                not a numpy array.
         """
         available_fields = ["p_global", "p"]
         if field_ not in available_fields:
@@ -385,22 +364,6 @@ class AcadosParamManager:
 
 
 # TODO: Remove this function and use the AcadosParamManager instead.
-def _process_params(
-    params: list[str], nominal_param: dict[str, np.ndarray]
-) -> tuple[list, list]:
-    entries = []
-    values = []
-    for param in params:
-        try:
-            entries.append(entry(param, shape=nominal_param[param].shape))
-            values.append(nominal_param[param].T.reshape(-1, 1))
-        except AttributeError:
-            entries.append(entry(param, shape=(1, 1)))
-            values.append(np.array([nominal_param[param]]).reshape(-1, 1))
-    return entries, values
-
-
-# TODO: Remove this function and use the AcadosParamManager instead.
 def find_param_in_p_or_p_global(
     param_name: list[str], model: AcadosModel
 ) -> dict[str, ca.SX]:
@@ -412,180 +375,3 @@ def find_param_in_p_or_p_global(
         key: (model.p[key] if key in model.p.keys() else model.p_global[key])  # noqa: SIM118
         for key in param_name
     }
-
-
-# TODO: Remove this function and use the AcadosParamManager instead.
-def translate_learnable_param_to_p_global(
-    nominal_param: dict[str, np.ndarray],
-    learnable_param: list[str],
-    ocp: AcadosOcp,
-    verbosity: int = 0,
-) -> AcadosOcp:
-    if learnable_param:
-        entries, values = _process_params(learnable_param, nominal_param)
-        ocp.model.p_global = struct_symSX(entries)
-        ocp.p_global_values = np.concatenate(values).flatten()
-
-    non_learnable_params = [key for key in nominal_param if key not in learnable_param]
-    if non_learnable_params:
-        entries, values = _process_params(non_learnable_params, nominal_param)
-        ocp.model.p = struct_symSX(entries)
-        ocp.parameter_values = np.concatenate(values).flatten()
-
-    if verbosity:
-        print("learnable_params", learnable_param)
-        print("non_learnable_params", non_learnable_params)
-    return ocp
-
-
-# TODO: Remove this function and use the AcadosParamManager instead.
-def is_stagewise_varying(param_key: str) -> bool:
-    """
-    Determine if a parameter is stage-wise varying based on its key pattern.
-
-    Stage-wise varying parameters typically have keys in the format "label_stage_index",
-    for example: "xref_0", "uref_5", "Q_2", etc.
-
-    Args:
-        param_key: The parameter key to check
-
-    Returns:
-        True if the parameter is stage-wise varying, False otherwise
-    """
-    # If there's no underscore, it's definitely not stage-wise
-    if "_" not in param_key:
-        return False
-
-    # Split by underscore
-    parts = param_key.split("_")
-
-    # Check if the last part is a numeric stage index
-    try:
-        # Try to convert the last part to an integer
-        int(parts[-1])
-
-        # Make sure the base_name is not empty
-        base_name = "_".join(parts[:-1])
-        return bool(base_name)
-    except ValueError:
-        # The last part is not a numeric stage index
-        return False
-
-
-# TODO: Remove this function and use the AcadosParamManager instead.
-def categorize_parameters(
-    nominal_params: dict[str, np.ndarray], nonlearnable_keys: set[str]
-) -> dict[str, dict[str, np.ndarray]]:
-    """Categorize parameters into learnable/nonlearnable and constant/varying."""
-    learnable_keys = set(nominal_params.keys()) - nonlearnable_keys
-
-    nonlearnable = {
-        key: value for key, value in nominal_params.items() if key in nonlearnable_keys
-    }
-
-    learnable = {
-        key: value for key, value in nominal_params.items() if key in learnable_keys
-    }
-
-    varying_learnable = {
-        key: value for key, value in learnable.items() if is_stagewise_varying(key)
-    }
-
-    constant_learnable = {
-        key: value for key, value in learnable.items() if key not in varying_learnable
-    }
-
-    return {
-        "nonlearnable": nonlearnable,
-        "learnable": {
-            "constant": constant_learnable,
-            "varying": varying_learnable,
-        },
-    }
-
-
-# TODO: Remove this function and use the AcadosParamManager instead.
-def create_p_global_entries(
-    params: dict[str, np.ndarray], N_horizon: int
-) -> tuple[dict[str, list]]:
-    """Create casadi struct entries for parameters."""
-    labels = {
-        "constant": list(params["constant"].keys()),
-        "varying": list({"_".join(key.split("_")[:-1]) for key in params["varying"]}),
-    }
-
-    entries = []
-
-    # Add constant parameter entries
-    for label in labels["constant"]:
-        param_shape = params["constant"][label].shape
-        entries.append(entry(label, shape=param_shape))
-
-    # Add varying parameter entries with shape consistency check
-    for label in labels["varying"]:
-        # Get all shapes for this parameter across stages
-        shapes = {
-            params["varying"][f"{label}_{stage}"].shape
-            for stage in range(N_horizon)
-            if f"{label}_{stage}" in params["varying"]
-        }
-
-        if not shapes:
-            continue  # Skip if no matching parameters
-
-        if len(shapes) > 1:
-            msg = f"Parameter '{label}' has inconsistent shapes across stages: {shapes}"
-            raise ValueError(msg)
-
-        entries.append(entry(label, shape=shapes.pop(), repeat=N_horizon))
-
-    return entries
-
-
-# TODO: Remove this function and use the AcadosParamManager instead.
-def fill_p_global_values(
-    params: dict[str, np.ndarray],
-    p_global_values: struct_symSX,
-) -> np.ndarray:
-    """Fill parameter values in the CasADi structure."""
-    # Fill constant values
-    for key, value in params["constant"].items():
-        p_global_values[key] = value
-
-    # Fill varying values
-    for key, value in params["varying"].items():
-        label, stage = key.rsplit("_", 1)
-        p_global_values[label, int(stage)] = value
-
-    return p_global_values.cat.full().flatten()
-
-
-# TODO: Remove this function and use the AcadosParamManager instead.
-def create_p_entries(
-    params: dict[str, np.ndarray],
-    N_horizon: int,
-) -> tuple[dict[str, list], dict[str, list]]:
-    """Create casadi struct entries for parameters."""
-    entries = []
-
-    # Add non-learnable parameter entries
-    for key, value in params.items():
-        entries.append(entry(key, shape=value.shape))
-
-    # Add indicator entry
-    entries.append(entry("indicator", shape=(1,), repeat=N_horizon))
-
-    return entries
-
-
-# TODO: Remove this function and use the AcadosParamManager instead.
-def fill_p_values(
-    params: dict[str, np.ndarray],
-    p_values: struct_symSX,
-) -> np.ndarray:
-    """Fill parameter values in the CasADi structure."""
-    # Fill non-learnable values
-    for key, value in params.items():
-        p_values[key] = value
-
-    return p_values.cat.full().flatten()
