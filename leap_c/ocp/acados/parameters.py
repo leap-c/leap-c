@@ -91,6 +91,25 @@ class AcadosParamManager:
             for stage in range(self.N_horizon):
                 self.p_global_values[key, stage] = value
 
+    def get_p_global_bounds(self) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
+        """Get the lower bound for p_global parameters."""
+        if self.p_global is None:
+            return None, None
+
+        lower_bound = self.p_global(0)
+        upper_bound = self.p_global(0)
+
+        for key in self.p_global.keys():  # noqa: SIM118
+            if self.parameters[key].varying:
+                for stage in range(self.N_horizon):
+                    lower_bound[key, stage] = self.parameters[key].lower_bound
+                    upper_bound[key, stage] = self.parameters[key].upper_bound
+            else:
+                lower_bound[key] = self.parameters[key].lower_bound
+                upper_bound[key] = self.parameters[key].upper_bound
+
+        return lower_bound.cat.full().flatten(), upper_bound.cat.full().flatten()
+
     def set(
         self,
         field_: str,
