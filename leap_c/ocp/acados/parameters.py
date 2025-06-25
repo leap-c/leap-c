@@ -2,7 +2,7 @@ from typing import ClassVar, NamedTuple
 
 import casadi as ca
 import numpy as np
-from acados_template import AcadosModel, AcadosOcp
+from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
 from casadi.tools import entry, struct, struct_symSX
 
 
@@ -360,16 +360,24 @@ class AcadosParamManager:
         raise ValueError(error_msg)
 
     def get_p_global_values(self) -> np.ndarray:
-        return self.p_global_values.cat.full().flatten() if self.p_global_values else []
+        """Get the p_global values."""
+        return (
+            self.p_global_values.cat.full().flatten()
+            if self.p_global_values
+            else np.array([])
+        )
 
     def get_parameter_values(self, stage_: int | None = None) -> np.ndarray:
-        """Get the symbolic variable p."""
-        if stage_ is None:
-            stage_ = 0
-        return self.parameter_values[stage_].cat.full().flatten()
+        """Get the parameter values for a specific stage."""
+        stage_ = stage_ or 0
+        return (
+            self.parameter_values[stage_].cat.full().flatten()
+            if self.parameter_values
+            else np.array([])
+        )
 
     def get_flat(self, field_: str) -> ca.SX | list:
-        """Get the flat symbolic variable."""
+        """Get the flat symbolic variable to use in an AcadosModel."""
         if field_ == "p_global":
             return self.p_global.cat if self.p_global is not None else []
 
@@ -400,6 +408,10 @@ class AcadosParamManager:
             # TODO: Refactor code to not rely on struct_symSX, then assign self.p.cat
             ocp.model.p = self.p
             ocp.parameter_values = self.get_parameter_values()
+
+    def set_params(self, acados_ocp_solver: AcadosOcpSolver) -> None:
+        """Set_p_global and parameter_values in the AcadosOcpSolver."""
+        raise NotImplementedError
 
 
 # TODO: Remove this function and use the AcadosParamManager instead.
