@@ -35,14 +35,14 @@ class AcadosParamManager:
         Add a parameter to the manager.
 
         Args:
-            parameter (Parameter): The parameter to add, must be an instance of the Parameter NamedTuple.
+            parameter (Parameter): The parameter to add.
         """
         assert isinstance(parameter, Parameter), (
             "Parameter must be an instance of the Parameter NamedTuple."
         )
         self.parameters[parameter.name] = parameter
 
-        # TODO: Consider not updating p and p_global every time a parameter is added.
+        # TODO: Consider not initializing p and p_global every time a parameter is added.
         self.initialize_p()
         self.initialize_p_global()
 
@@ -349,12 +349,12 @@ class AcadosParamManager:
             self.initialize_p_global_values()
 
         if self.p_global is not None:
-            # TODO: Refactor code to not rely on struct_symSX, then assign self.p_global.cat
+            # TODO: Refactor code to not rely on struct_symSX, then assign get_flat("p_global")
             ocp.model.p_global = self.p_global
             ocp.p_global_values = self.get_p_global_values()
 
         if self.p is not None:
-            # TODO: Refactor code to not rely on struct_symSX, then assign self.p.cat
+            # TODO: Refactor code to not rely on struct_symSX, then assign get_flat("p")
             ocp.model.p = self.p
             ocp.parameter_values = self.get_parameter_values()
 
