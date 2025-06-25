@@ -46,8 +46,30 @@ class AcadosParamManager:
         self.parameters[parameter.name] = parameter
 
         # TODO: Consider not updating p and p_global every time a parameter is added.
-        self.update_p()
-        self.update_p_global()
+        self.initialize_p()
+        self.initialize_p_global()
+
+    def initialize_p(self) -> struct_symSX:
+        """Update the structured parameter p."""
+        entries = []
+        for key, value in self.get_nondifferentiable_parameters().items():
+            entries.append(entry(key, shape=value.shape))
+
+        if self.get_differentiable_varying_parameters():
+            entries.append(entry("indicator", shape=(self.N_horizon,)))
+
+        self.p = struct_symSX(entries)
+
+    def initialize_p_global(self) -> struct_symSX:
+        """Update the structured parameter p_global."""
+        entries = []
+        for key, value in self.get_differentiable_constant_parameters().items():
+            entries.append(entry(key, shape=value.shape))
+
+        for key, value in self.get_differentiable_varying_parameters().items():
+            entries.append(entry(key, shape=value.shape, repeat=self.N_horizon))
+
+        self.p_global = struct_symSX(entries)
 
     def initialize_parameter_values(self) -> None:
         self.parameter_values = [self.p(0) for _ in range(self.N_horizon)]
@@ -71,32 +93,6 @@ class AcadosParamManager:
         for key, value in self.get_differentiable_varying_parameters().items():
             for stage in range(self.N_horizon):
                 self.p_global_values[key, stage] = value
-
-    def set_parameter_value(self, stage_: int, field_: str, value_: np.ndarray) -> None:
-        """Set the value for a given field at a specific stage."""
-        self.parameter_values[stage_][field_] = value_
-
-    def set_p_global_value(
-        self, stage_: int | None, field_: str, value_: np.ndarray
-    ) -> None:
-        """Set the global value for a given field at a specific stage."""
-        self.p_global_values[field_, stage_] = value_
-
-    def get_parameter_symbol(self, field_: str, stage_: int) -> ca.SX:
-        """Get the symbolic variable for a given field at a specific stage."""
-        return self.parameter_values(stage_)[field_]
-
-    def get_parameter_value(self, stage_: int, field_: str) -> np.ndarray:
-        """Get the value for a given field at a specific stage."""
-        raise NotImplementedError
-
-    def get_p_global_symbol(self, field_: str, stage_: int | None = None) -> ca.SX:
-        """Get the symbolic variable for a given field at a specific stage."""
-        raise NotImplementedError
-
-    def get_p_global_value(self, field_: str, stage_: int | None = None) -> np.ndarray:
-        """Get the global value for a given field at a specific stage."""
-        raise NotImplementedError
 
     def set(
         self,
@@ -159,32 +155,6 @@ class AcadosParamManager:
         available_fields = list(self.p_global.keys()) + list(self.p.keys())
         error_message = f"Unknown field: {field_}. Available fields: {available_fields}"
         raise ValueError(error_message)
-
-    def update_p(self) -> struct_symSX:
-        """Update the structured parameter p."""
-        entries = []
-        for key, value in self.get_nondifferentiable_parameters().items():
-            entries.append(entry(key, shape=value.shape))
-
-        if self.get_differentiable_varying_parameters():
-            entries.append(entry("indicator", shape=(self.N_horizon,)))
-
-        self.p = struct_symSX(entries)
-
-    def update_p_global(self) -> struct_symSX:
-        """Update the structured parameter p_global."""
-        entries = []
-        for key, value in self.get_differentiable_constant_parameters().items():
-            entries.append(entry(key, shape=value.shape))
-
-        for key, value in self.get_differentiable_varying_parameters().items():
-            entries.append(entry(key, shape=value.shape, repeat=self.N_horizon))
-
-        self.p_global = struct_symSX(entries)
-
-    def get_parameter_by_name(self, name: str) -> Parameter | None:
-        """Get a parameter by its name."""
-        return self.parameters.get(name)
 
     def get_differentiable_constant_parameters(
         self,

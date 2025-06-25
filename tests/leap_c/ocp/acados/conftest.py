@@ -445,7 +445,7 @@ def acados_param_manager(
 
 
 @pytest.fixture(scope="session")
-def acados_test_ocp_with_stagewise_varying_params(
+def acados_test_ocp_with_stagewise_varying_params(  # noqa: PLR0915
     ocp_options: AcadosOcpOptions,
     nominal_varying_params: tuple[Parameter, ...],
 ) -> AcadosOcp:

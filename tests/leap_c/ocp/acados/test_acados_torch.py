@@ -1,12 +1,12 @@
-from collections.abc import Callable
 import copy
+import platform
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-import platform
 
-from acados_template import AcadosOcp
 import numpy as np
 import torch
+from acados_template import AcadosOcp
 
 from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 
@@ -23,8 +23,10 @@ def test_initialization_with_stagewise_varying_params(
     )
 
 
-def test_initialization(diff_mpc: AcadosDiffMpc):
-    assert True
+def test_initialization(diff_mpc: AcadosDiffMpc) -> None:
+    assert diff_mpc is not None, (
+        "AcadosDiffMpc should not be None after initialization."
+    )
 
 
 def test_file_management(diff_mpc: AcadosDiffMpc, tol: float = 1e-5) -> None:
