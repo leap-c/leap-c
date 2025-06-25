@@ -1,4 +1,3 @@
-import contextlib
 from typing import ClassVar, NamedTuple
 
 import casadi as ca
@@ -265,9 +264,72 @@ class AcadosParamManager:
     def map_dense_to_structured(
         self, field_: str, values_: np.ndarray, stage_: int | None = None
     ) -> struct:
-        # TODO: Add error handling when field_ and stage_ and values_ are not compatible
+        """
+        Map a dense 1D numpy array of parameter values to the appropriate structured field
+        within the object, either globally or for a specific stage.
 
+        Parameters
+        ----------
+        field_ : str
+            The name of the parameter field to map values to. Must be one of "p_global" or "p".
+        values_ : np.ndarray
+            A 1D numpy array containing the parameter values to be mapped.
+        stage_ : int or None, optional
+            The stage index for stage-wise parameters. Must be a non-negative integer less than
+            `self.N_horizon` if specified. Should be None for global parameters.
+
+        Returns
+        -------
+        struct
+            The structured parameter object after mapping the dense values.
+
+        Raises
+        ------
+        ValueError
+            If `field_` is unknown, if `stage_` is out of bounds, if `values_` is not 1D,
+            or if an unhandled combination of arguments is provided.
+        TypeError
+            If `stage_` is not an integer when specified, or if `values_` is not a numpy array.
+
+        Notes
+        -----
+        - For `field_ == "p_global"`, `stage_` must be None.
+        - For `field_ == "p"`, `stage_` must be a valid stage index.
+        - The method assumes that `self.p_global` and `self.p` are callable methods that
+          convert the dense array to the appropriate structured format.
+        """
         available_fields = ["p_global", "p"]
+        if field_ not in available_fields:
+            error_msg = (
+                f"Unknown field: {field_}. Available fields: {available_fields}."
+            )
+            raise ValueError(error_msg)
+
+        if field_ == "p_global" and stage_ is not None:
+            error_msg = "dense vector can not be mapped to be p_global stage-wise."
+            raise ValueError(error_msg)
+
+        if stage_ is not None and not isinstance(stage_, int):
+            error_msg = f"stage_ must be an integer, got {type(stage_)}."
+            raise TypeError(error_msg)
+
+        if stage_ is not None and stage_ < 0:
+            error_msg = f"stage_ must be non-negative, got {stage_}."
+            raise ValueError(error_msg)
+
+        if stage_ is not None and stage_ >= self.N_horizon:
+            error_msg = (
+                f"stage_ must be less than N_horizon ({self.N_horizon}), got {stage_}."
+            )
+            raise ValueError(error_msg)
+
+        if values_ is None or not isinstance(values_, np.ndarray):
+            error_msg = f"values_ must be a numpy array, got {type(values_)}."
+            raise TypeError(error_msg)
+
+        if values_.ndim != 1:
+            error_msg = f"values_ must be a 1D numpy array, got {values_.ndim}D."
+            raise ValueError(error_msg)
 
         if stage_ is None:
             stage_ = 0
@@ -280,7 +342,10 @@ class AcadosParamManager:
             self.parameter_values[stage_] = self.p(values_)
             return self.parameter_values[stage_]
 
-        error_msg = f"Unknown field: {field_}. Available fields: {available_fields}."
+        error_msg = (
+            f"Unhandled combination of field: {field_} and stage_: {stage_}"
+            f" and values_: {values_}."
+        )
         raise ValueError(error_msg)
 
     def get_dense(self, field_: str) -> np.ndarray:
