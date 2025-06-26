@@ -15,7 +15,7 @@ from leap_c.torch.nn.scale import min_max_scaling
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.utils import soft_target_update
 from leap_c.trainer import Trainer, TrainerConfig
-from leap_c.utils.gym import wrap_train_env
+from leap_c.utils.gym import wrap_env
 
 
 @dataclass(kw_only=True)
@@ -146,7 +146,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
 
         # TODO (Mazen): I'd rather make the wrappers explicit by writing them here, this should help adding more
         #  wrappers if needed, and in the order that we want.
-        self.train_env = wrap_train_env(train_env)
+        self.train_env = wrap_env(train_env)
         action_space: spaces.Box = self.train_env.action_space  # type: ignore
         observation_space = self.train_env.observation_space
 

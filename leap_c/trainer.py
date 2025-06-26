@@ -11,7 +11,7 @@ from yaml import safe_dump
 
 from leap_c.utils.logger import Logger, LoggerConfig
 from leap_c.utils.rollout import episode_rollout
-from leap_c.utils.gym import wrap_eval_env
+from leap_c.utils.gym import wrap_env
 from leap_c.torch.utils.seed import set_seed
 
 
@@ -108,7 +108,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
         # TODO (Mazen): I'd rather make the wrappers explicit by writing them here
         # envs
-        self.eval_env = wrap_eval_env(eval_env, seed=self.cfg.seed + 1)
+        self.eval_env = wrap_env(eval_env, seed=self.cfg.seed + 1)
 
         # trainer state
         self.state = TrainerState()
@@ -242,17 +242,17 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         parts_rollout = []
         parts_policy = []
 
-        for idx in range(self.cfg.val_num_rollouts):
-            if idx < self.cfg.val_num_render_rollouts:
-                video_folder = self.output_path / "video"
-                video_folder.mkdir(exist_ok=True)
-                video_path = video_folder / f"{self.state.step}_{idx}.mp4"
-            else:
-                video_path = None
+        rollouts = episode_rollout(
+            policy,
+            self.eval_env,
+            self.cfg.val_num_rollouts,
+            self.cfg.val_num_render_rollouts,
+            render_human=False,
+            video_folder=self.output_path / "video",
+            name_prefix=f"{self.state.step}"
+        )
 
-            r, p = episode_rollout(
-                policy, self.eval_env, render_human=False, video_path=video_path
-            )
+        for r, p in rollouts:
             parts_rollout.append(r)
             parts_policy.append(p)
 
