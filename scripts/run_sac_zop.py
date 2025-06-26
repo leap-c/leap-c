@@ -27,15 +27,11 @@ def run_sac_zop(
     device: str = "cuda",
     verbose: bool = True,
 ) -> float:
+    # ---- Configuration ----
     cfg = RunSacFopConfig(env_name=env_name, device=device)
     cfg.env_name = env_name
     cfg.trainer.seed = seed
     cfg.controller_name = controller_name
-
-    # ---- Configuration ----
-    cfg = RunSacFopConfig()
-    cfg.env_name = env_name
-    cfg.device = device
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = 0
@@ -99,7 +95,6 @@ def run_sac_zop(
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--output_path", type=Path, default=None)
-    parser.add_argument("-v", "--verbose", action="store_true")
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
