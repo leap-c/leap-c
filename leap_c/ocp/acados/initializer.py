@@ -13,7 +13,7 @@ import numpy as np
 
 from leap_c.ocp.acados.data import (
     AcadosOcpSolverInput,
-    _collate_acados_flattened_iterate_fn,
+    collate_acados_flattened_iterate_fn,
 )
 
 
@@ -66,7 +66,7 @@ class AcadosDiffMpcInitializer(ABC):
             for i in range(solver_input.batch_size)
         ]
 
-        return _collate_acados_flattened_iterate_fn(iterates)
+        return collate_acados_flattened_iterate_fn(iterates)
 
 
 def create_zero_iterate_from_ocp(ocp: AcadosOcp) -> AcadosOcpFlattenedIterate:

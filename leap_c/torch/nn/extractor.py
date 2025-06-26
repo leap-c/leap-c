@@ -15,14 +15,15 @@ from leap_c.torch.nn.scale import min_max_scaling
 class Extractor(nn.Module, ABC):
     """An abstract class for feature extraction from observations."""
 
-    def __init__(self, env: gym.Env) -> None:
+    def __init__(self, observation_space: gym.Space) -> None:
         """Initializes the extractor.
 
         Args:
-            env: The environment to extract features from.
+            observation_space: The observation space of the environment.
         """
         super().__init__()
-        self.env = env
+        self.observation_space = observation_space
+
 
     @property
     @abstractmethod
@@ -33,18 +34,15 @@ class Extractor(nn.Module, ABC):
 class ScalingExtractor(Extractor):
     """An extractor that returns the input as is."""
 
-    def __init__(self, env: gym.Env) -> None:
+    def __init__(self, observation_space: gym.Space) -> None:
         """Initializes the extractor.
 
         Args:
-            env: The environment to extract features from.
+            observation_space: The observation space of the environment.
         """
-        super().__init__(env)
+        super().__init__(observation_space)
 
-        if not hasattr(env, "observation_space"):
-            raise ValueError("The environment must have an observation space.")
-
-        if len(env.observation_space.shape) != 1:  # type: ignore
+        if len(observation_space.shape) != 1:  # type: ignore
             raise ValueError("ScalingExtractor only supports 1D observations.")
 
     def forward(self, x):
@@ -56,26 +54,26 @@ class ScalingExtractor(Extractor):
         Returns:
             The input tensor.
         """
-        return min_max_scaling(x, self.env.observation_space)  # type: ignore
+        return min_max_scaling(x, self.observation_space)  # type: ignore
 
     @property
     def output_size(self) -> int:
         """Returns the embedded vector size."""
-        return self.env.observation_space.shape[0]  # type: ignore
+        return self.observation_space.shape[0]  # type: ignore
 
 
 class IdentityExtractor(Extractor):
     """An extractor that returns the input as is."""
 
-    def __init__(self, env: gym.Env) -> None:
+    def __init__(self, observation_space: gym.Space) -> None:
         """Initializes the extractor.
 
         Args:
-            env: The environment to extract features from.
+            observation_space: The observation space of the environment.
         """
-        super().__init__(env)
+        super().__init__(observation_space)
         assert (
-            len(env.observation_space.shape) == 1  # type: ignore
+            len(observation_space.shape) == 1  # type: ignore
         ), "IdentityExtractor only supports 1D observations."
 
     def forward(self, x):
@@ -92,4 +90,4 @@ class IdentityExtractor(Extractor):
     @property
     def output_size(self) -> int:
         """Returns the embedded vector size."""
-        return self.env.observation_space.shape[0]  # type: ignore
+        return self.observation_space.shape[0]  # type: ignore

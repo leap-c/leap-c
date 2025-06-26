@@ -1,113 +1,91 @@
 """Contains the necessary functions for validation."""
 
 from collections import defaultdict
-
-from gymnasium import Env
-from typing import Callable, Optional
 from pathlib import Path
-from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
-
+from typing import Callable, Optional, Any, Generator
 
 import torch
-
-
-def save_video(
-    frames: list,
-    video_path: str | Path,
-    fps: int,
-):
-    """Save a video from a list of frames.
-
-    Args:
-        frames (list): A list of frames to compose the video.
-        video_path (str | Path): The path where the video will be saved.
-        fps (int): The frames per second of the video.
-    """
-    clip = ImageSequenceClip(frames, fps=fps)
-    clip.write_videofile(str(video_path), codec="libx264")
+from gymnasium import Env
+from gymnasium.wrappers import RecordVideo
 
 
 def episode_rollout(
-    policy: Callable,
-    env: Env,
-    render_human: bool = False,
-    video_path: Optional[str | Path] = None,
-) -> tuple[dict[str, float], dict[str, list[float]]]:
+        policy: Callable,
+        env: Env,
+        episodes: int = 1,
+        render_episodes: int = 0,
+        render_human: bool = False,
+        video_folder: Optional[str | Path] = None,
+        name_prefix: Optional[str] = None,
+) -> Generator[tuple[dict[str, bool | Any], defaultdict[Any, list]], Any, None]:
     """Rollout an episode and returns the cumulative reward.
 
     Args:
         policy (Callable): The policy to be used for the rollout.
         env (Env): The gym environment.
-        val_cfg (ValConfig): The validation configuration.
+        episodes (int): The number of episodes to run.
+        render_episodes (int): The number of episodes to render. If 0, no episodes
         render_human (bool): If True, render the environment should be in human render
             mode. Can not be true if video_path is set.
-        video_path (Optional[str | Path]): The environment is rendered and saved as a
-            video to this path. Can not be set if render_human is True.
+        video_folder (Optional[str | Path]): The environment is rendered and saved as a
+            video in this folder. Can not be set if render_human is True.
+        name_prefix (Optional[str]): The prefix for the video file names. Must be set if
+            video_folder is set.
 
     Returns:
         A dictionary containing the information about the rollout, at containing the
         keys "score", "length", "terminated", and "truncated" and a dictionary of
         policy statistics.
     """
-    if render_human and video_path is not None:
+    if render_human and video_folder is not None:
         raise ValueError("render_human and video_path can not be set at the same time.")
+    if video_folder is not None and name_prefix is None:
+        raise ValueError("name_prefix must be set if video_path is set.")
 
-    render = render_human or video_path is not None
+    render_trigger = lambda episode_id: episode_id < render_episodes
 
-    score = 0
-    count = 0
-    policy_stats = defaultdict(list)
-    episode_stats = defaultdict(list)
-    o, _ = env.reset()
-
-    frames = []
-    terminated = False
-    truncated = False
+    if video_folder is not None:
+        env = RecordVideo(env, video_folder, name_prefix=name_prefix, episode_trigger=render_trigger)
 
     with torch.no_grad():
-        while not terminated and not truncated:
-            a, stats = policy(o)
+        for episode in range(episodes):
+            policy_stats = defaultdict(list)
+            episode_stats = defaultdict(list)
+            o, _ = env.reset()
 
-            if stats is not None:
-                for key, value in stats.items():
-                    policy_stats[key].append(value)
+            terminated = False
+            truncated = False
 
-            if isinstance(a, torch.Tensor):
-                a = a.cpu().numpy()
+            while not terminated and not truncated:
+                a, stats = policy(o)
 
-            o_prime, r, terminated, truncated, info = env.step(a)
+                if stats is not None:
+                    for key, value in stats.items():
+                        policy_stats[key].append(value)
 
-            if "task" in info:
-                for key, value in info["task"].items():
-                    episode_stats[key].append(value)
+                if isinstance(a, torch.Tensor):
+                    a = a.cpu().numpy()
 
-            if render:
-                frame = env.render()
+                o_prime, r, terminated, truncated, info = env.step(a)
 
-                if video_path is not None:
-                    frames.append(frame)
+                if "task" in info:
+                    for key, value in info["task"].items():
+                        episode_stats[key].append(value)
 
-            score += r  # type: ignore
-            o = o_prime
-            count += 1
+                if render_human and render_trigger(episode):
+                    env.render()
 
-    if render_human:
+                o = o_prime
+
+            assert "episode" in info, "The environment did not return episode information."
+            rollout_stats = {
+                "score": info["episode"]["r"],
+                "length": info["episode"]["l"],
+                "terminated": terminated,
+                "truncated": truncated,
+            }
+            rollout_stats.update(episode_stats)
+
+            yield rollout_stats, policy_stats
+
         env.close()
-
-    if video_path is not None:  # human mode does not return frames
-        try:
-            render_fps = env.metadata["render_fps"]
-        except KeyError:
-            raise ValueError("The environment does not have a render_fps attribute.")
-
-        save_video(frames, video_path, render_fps)
-
-    rollout_stats = {
-        "score": score,
-        "length": count,
-        "terminated": terminated,
-        "truncated": truncated,
-    }
-    rollout_stats.update(episode_stats)
-
-    return rollout_stats, policy_stats

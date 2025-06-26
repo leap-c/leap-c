@@ -1,7 +1,10 @@
-from typing import NamedTuple
+from typing import NamedTuple, Sequence
 
+from acados_template.acados_ocp_iterate import (
+    AcadosOcpFlattenedBatchIterate,
+    AcadosOcpFlattenedIterate,
+)
 import numpy as np
-from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 
 
 class AcadosOcpSolverInput(NamedTuple):
@@ -43,7 +46,9 @@ class AcadosOcpSolverInput(NamedTuple):
         )
 
 
-def _collate_acados_flattened_iterate_fn(batch, *, collate_fn_map=None):
+def collate_acados_flattened_iterate_fn(
+    batch: Sequence[AcadosOcpFlattenedIterate],
+) -> AcadosOcpFlattenedBatchIterate:
     return AcadosOcpFlattenedBatchIterate(
         x=np.stack([x.x for x in batch], axis=0),
         u=np.stack([x.u for x in batch], axis=0),
@@ -56,7 +61,9 @@ def _collate_acados_flattened_iterate_fn(batch, *, collate_fn_map=None):
     )
 
 
-def _collate_acados_flattened_batch_iterate_fn(batch, *, collate_fn_map=None):
+def collate_acados_flattened_batch_iterate_fn(
+    batch: Sequence[AcadosOcpFlattenedBatchIterate],
+) -> AcadosOcpFlattenedBatchIterate:
     return AcadosOcpFlattenedBatchIterate(
         x=np.concat([x.x for x in batch], axis=0),
         u=np.concat([x.u for x in batch], axis=0),
@@ -69,8 +76,24 @@ def _collate_acados_flattened_batch_iterate_fn(batch, *, collate_fn_map=None):
     )
 
 
-def _collate_acados_iterate_fn(batch, *, collate_fn_map=None):
-    # NOTE: Could also be a FlattenedBatchIterate (which has a parallelized set in the batch solver),
-    # but this seems more intuitive. If the user wants to have a flattened batch iterate, he can
-    # just put in AcadosOcpIterate.flatten into the buffer.
-    return list(batch)
+def collate_acados_ocp_solver_input(
+    batch: Sequence[AcadosOcpSolverInput],
+) -> AcadosOcpSolverInput:
+    """Collates a batch of AcadosOcpSolverInput objects into a single object."""
+    return AcadosOcpSolverInput(
+        x0=np.stack([input.x0 for input in batch], axis=0),
+        u0=None if all(input.u0 is None for input in batch) else np.stack(
+            [input.u0 for input in batch if input.u0 is not None], axis=0
+        ),
+        p_global=None if all(input.p_global is None for input in batch) else np.stack(
+            [input.p_global for input in batch if input.p_global is not None], axis=0
+        ),
+        p_stagewise=None if all(input.p_stagewise is None for input in batch) else np.stack(
+            [input.p_stagewise for input in batch if input.p_stagewise is not None], axis=0
+        ),
+        p_stagewise_sparse_idx=None if all(input.p_stagewise_sparse_idx is None for input in batch) else np.stack(
+            [input.p_stagewise_sparse_idx for input in batch if input.p_stagewise_sparse_idx is not None], axis=0
+        ),
+    )
+
+
