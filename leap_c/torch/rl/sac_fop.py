@@ -18,7 +18,7 @@ from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.sac import SacTrainerConfig, SacCritic
 from leap_c.torch.rl.utils import soft_target_update
 from leap_c.trainer import Trainer
-from leap_c.utils.gym import wrap_env
+from leap_c.utils.gym import wrap_env, seed_env
 
 
 @dataclass(kw_only=True)
@@ -168,10 +168,10 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         """
         super().__init__(cfg, val_env, output_path, device)
 
-        self.train_env = wrap_env(train_env)
+        self.train_env = seed_env(wrap_env(train_env), seed=self.cfg.seed)
         self.controller = controller
         self.extractor = (
-            IdentityExtractor(self.train_env) if extractor is None else extractor
+            IdentityExtractor(self.train_env.observation_space) if extractor is None else extractor
         )
         self.q = SacCritic(
             self.extractor, self.train_env, self.cfg.critic_mlp, self.cfg.num_critics

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Generic, Iterator, Literal, TypeVar
+from typing import Any, Generic, Iterator, Literal, TypeVar, List
 
 import numpy as np
 import torch
@@ -11,7 +11,7 @@ from yaml import safe_dump
 
 from leap_c.utils.logger import Logger, LoggerConfig
 from leap_c.utils.rollout import episode_rollout
-from leap_c.utils.gym import wrap_env
+from leap_c.utils.gym import wrap_env, WrapperType, seed_env
 from leap_c.torch.utils.seed import set_seed
 
 
@@ -88,7 +88,11 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
     """
 
     def __init__(
-        self, cfg: TrainerConfigType, eval_env: gym.Env, output_path: str | Path, device: str
+        self,
+            cfg: TrainerConfigType,
+            eval_env: gym.Env,
+            output_path: str | Path, device: str,
+            wrappers: List[WrapperType] | None = None,
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -106,9 +110,8 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         self.output_path = Path(output_path)
         self.output_path.mkdir(parents=True, exist_ok=True)
 
-        # TODO (Mazen): I'd rather make the wrappers explicit by writing them here
         # envs
-        self.eval_env = wrap_env(eval_env, seed=self.cfg.seed + 1)
+        self.eval_env = seed_env(wrap_env(eval_env, wrappers=wrappers), seed=self.cfg.seed)
 
         # trainer state
         self.state = TrainerState()
