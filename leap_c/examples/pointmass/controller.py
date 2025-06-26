@@ -23,7 +23,7 @@ class PointMassController(ParameterizedController):
     def __init__(
             self,
             params: PointMassParams | None = None,
-            learnable_params: list[str] | None = None,
+            learnable_params: tuple[str, ...] = ("q_diag", "r_diag", "xref", "uref"),
             N_horizon: int = 20,
             T_horizon: float = 2.0,
     ) -> None:
@@ -33,28 +33,29 @@ class PointMassController(ParameterizedController):
 
         self.ocp = export_parametric_ocp(
             nominal_param=asdict(self.params),
-            learnable_params=self.learnable_params,
+            learnable_params=list(self.learnable_params),
             N_horizon=N_horizon,
             tf=T_horizon,
         )
         configure_ocp_solver(ocp=self.ocp, exact_hess_dyn=True)
 
-        self.acados_layer = AcadosDiffMpc(self.ocp)
+        self.diff_mpc = AcadosDiffMpc(self.ocp)
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        x0 = torch.as_tensor(obs, dtype=torch.float64)
-        p_global = torch.as_tensor(param, dtype=torch.float64)
-        ctx, u0, x, u, value = self.acados_layer(x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx)
+        __import__('pdb').set_trace()
+        ctx, u0, x, u, value = self.diff_mpc(obs, p_global=param, ctx=ctx)
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
-        return self.acados_layer.sensitivity(ctx, field_name="du0_dp_global")
+        return self.diff_mpc.sensitivity(ctx, field_name="du0_dp_global")
 
     @property
     def param_space(self) -> gym.Space:
-        # TODO: can't determine the param space because it depends on the learnable parameters
-        # we need to define boundaries for every parameter and based on that create a gym.Space
-        raise NotImplementedError
+        return gym.spaces.Box(
+            low=np.concatenate([np.array(asdict(self.params)[p]).flatten() for p in self.learnable_params]),
+            high=np.concatenate([np.array(asdict(self.params)[p]).flatten() for p in self.learnable_params]),
+            dtype=np.float32,
+        )
 
     @property
     def default_param(self) -> np.ndarray:
