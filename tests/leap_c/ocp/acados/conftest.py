@@ -391,8 +391,8 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
             value=np.array([1.0, 1.0, 1.0, 1.0]),
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
-            differentiable=False,
-            varying=False,
+            differentiable=True,
+            varying=True,
         ),
         Parameter(
             name="r_diag",
