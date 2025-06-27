@@ -230,9 +230,9 @@ def acados_test_ocp(
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
-    m = param_manager.get_sym(field_="m")
-    cx = param_manager.get_sym(field_="cx")
-    cy = param_manager.get_sym(field_="cy")
+    m = param_manager.get(field_="m")
+    cx = param_manager.get(field_="cx")
+    cy = param_manager.get(field_="cy")
     dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
     ocp.model.disc_dyn_expr = (
         get_A_disc(m=m, cx=cx, cy=cy, dt=dt) @ ocp.model.x
@@ -391,8 +391,8 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
             value=np.array([1.0, 1.0, 1.0, 1.0]),
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
-            differentiable=True,
-            varying=True,
+            differentiable=False,
+            varying=False,
         ),
         Parameter(
             name="r_diag",
@@ -439,9 +439,9 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
 
 @pytest.fixture(scope="session")
 def acados_param_manager(
-    N_horizon: int,
+    nominal_varying_params: tuple[Parameter, ...],
 ) -> AcadosParamManager:
-    return AcadosParamManager(N_horizon=N_horizon)
+    return AcadosParamManager(params=nominal_varying_params, ocp=AcadosOcp())
 
 
 @pytest.fixture(scope="session")
@@ -469,13 +469,13 @@ def acados_test_ocp_with_stagewise_varying_params(  # noqa: PLR0915
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
     stage_cost = []
-    r_diag = param_manager.get_sym(field_="r_diag")
+    r_diag = param_manager.get(field_="r_diag")
     R_sqrt = _create_diag_matrix(r_diag)
     for stage in range(ocp.solver_options.N_horizon):
-        indicator = param_manager.get_sym(field_="indicator", stage_=stage)
-        xref = param_manager.get_sym(field_="xref", stage_=stage)
-        uref = param_manager.get_sym(field_="uref", stage_=stage)
-        q_diag = param_manager.get_sym(field_="q_diag", stage_=stage)
+        indicator = param_manager.get(field_="indicator", stage_=stage)
+        xref = param_manager.get(field_="xref", stage_=stage)
+        uref = param_manager.get(field_="uref", stage_=stage)
+        q_diag = param_manager.get(field_="q_diag", stage_=stage)
         Q_sqrt = _create_diag_matrix(q_diag)
 
         stage_cost.append(
@@ -506,8 +506,8 @@ def acados_test_ocp_with_stagewise_varying_params(  # noqa: PLR0915
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = ca.sum1(ca.vertcat(*stage_cost[1:]))
     ocp.cost.cost_type_e = "EXTERNAL"
-    xref_e = param_manager.get_sym(field_="xref_e")
-    q_diag_e = param_manager.get_sym(field_="q_diag_e")
+    xref_e = param_manager.get(field_="xref_e")
+    q_diag_e = param_manager.get(field_="q_diag_e")
     Q_sqrt_e = _create_diag_matrix(q_diag_e)
 
     ocp.model.cost_expr_ext_cost_e = 0.5 * ca.mtimes(
@@ -515,9 +515,9 @@ def acados_test_ocp_with_stagewise_varying_params(  # noqa: PLR0915
     )
 
     ####
-    m = param_manager.get_sym(field_="m")
-    cx = param_manager.get_sym(field_="cx")
-    cy = param_manager.get_sym(field_="cy")
+    m = param_manager.get(field_="m")
+    cx = param_manager.get(field_="cx")
+    cy = param_manager.get(field_="cy")
     dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
     ocp.model.disc_dyn_expr = (
         get_A_disc(m=m, cx=cx, cy=cy, dt=dt) @ ocp.model.x

@@ -19,6 +19,23 @@ def test_param_manger_intializes(
         "AcadosParamManger should not be None after initialization."
     )
 
+    batch_size = 3
+    N_horizon = 5
+    m = 8
+    n = 4
+    overwrite = {}
+
+    # Scalar parameter should have shape (batch_size, N_horizon, 1)
+    overwrite["p"] = np.random.rand(batch_size, N_horizon, 1)
+
+    # Vector parameter should have shape (batch_size, N_horizon, m)
+
+    # Matrix parameter should have shape (batch_size, N_horizon, m, n)
+
+    overwrite["cx"] = (np.linspace(0, 1, batch_size),)
+    acados_param_manager.combine_parameter_values(batch_size=batch_size, **overwrite)
+    # acados_param_manager.combine_parameters()
+
 
 def test_param_manager_add_and_get(
     acados_param_manager: AcadosParamManager,
@@ -42,7 +59,7 @@ def test_param_manager_add_and_get(
     """
     [acados_param_manager.add(param) for param in nominal_varying_params]
     acados_param_manager.initialize_p_global_values()
-    acados_param_manager.initialize_parameter_values()
+    acados_param_manager.get_default_parameter_values()
 
     for field in ["p", "p_global"]:
         values = acados_param_manager.get_dense(field_=field)
