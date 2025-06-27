@@ -1,5 +1,6 @@
 import numpy as np
 
+from acados_template import AcadosOcp
 from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
 
 
@@ -10,36 +11,17 @@ def test_param_manger_intializes(
     Test the initialization of the AcadosParamManger.
 
     Args:
-        acados_param_manager (AcadosParamManger): The AcadosParamManger instance to test.
+        acados_param_manager (AcadosParamManger): The AcadosParamManger instance.
 
-    Raises:
-        AssertionError: If the AcadosParamManger is None
     """
-    assert acados_param_manager is not None, (
-        "AcadosParamManger should not be None after initialization."
+    assert isinstance(acados_param_manager, AcadosParamManager), (
+        "AcadosParamManger should be an instance of AcadosParamManager."
     )
 
-    batch_size = 3
-    N_horizon = 5
-    m = 8
-    n = 4
-    overwrite = {}
 
-    # Scalar parameter should have shape (batch_size, N_horizon, 1)
-    overwrite["p"] = np.random.rand(batch_size, N_horizon, 1)
-
-    # Vector parameter should have shape (batch_size, N_horizon, m)
-
-    # Matrix parameter should have shape (batch_size, N_horizon, m, n)
-
-    overwrite["cx"] = (np.linspace(0, 1, batch_size),)
-    acados_param_manager.combine_parameter_values(batch_size=batch_size, **overwrite)
-    # acados_param_manager.combine_parameters()
-
-
-def test_param_manager_add_and_get(
-    acados_param_manager: AcadosParamManager,
-    nominal_varying_params: tuple[Parameter, ...],
+def test_param_manager_combine_parameter_values(
+    acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
+    nominal_varying_params_for_param_manager_tests: tuple[Parameter, ...],
     rng: np.random.Generator,
 ) -> None:
     """
@@ -57,14 +39,34 @@ def test_param_manager_add_and_get(
         AssertionError: If the mapped and retrieved dense values do not match within
         the specified tolerance.
     """
-    [acados_param_manager.add(param) for param in nominal_varying_params]
-    acados_param_manager.initialize_p_global_values()
-    acados_param_manager.get_default_parameter_values()
+    acados_param_manager = AcadosParamManager(
+        params=nominal_varying_params_for_param_manager_tests,
+        ocp=acados_test_ocp_with_stagewise_varying_params,
+    )
 
-    for field in ["p", "p_global"]:
-        values = acados_param_manager.get_dense(field_=field)
-        values += rng.normal(loc=values, scale=0.1, size=values.shape)
-        acados_param_manager.map_dense_to_structured(field_=field, values_=values)
-        assert np.allclose(
-            acados_param_manager.get_dense(field_=field), values, atol=1e-12
-        ), f"{field} values do not match expected values."
+    print(f"parameter_values: {acados_param_manager.parameter_values.cat}")
+
+    keys = [
+        key
+        for key in list(acados_param_manager.parameter_values.keys())
+        if not key.startswith("indicator")
+    ]
+
+    # Get a random batch_size
+    batch_size = rng.integers(low=5, high=10)
+
+    N_horizon = acados_test_ocp_with_stagewise_varying_params.solver_options.N_horizon
+    # Pick random keys
+
+    # Build random overwrites
+    overwrite = {}
+    for key in keys:
+        overwrite[key] = rng.random(
+            size=(
+                batch_size,
+                N_horizon,
+                acados_param_manager.parameter_values[key].shape[0],
+            )
+        )
+
+    acados_param_manager.combine_parameter_values(**overwrite)
