@@ -438,6 +438,84 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
 
 
 @pytest.fixture(scope="session")
+def nominal_varying_params_for_param_manager_tests() -> tuple[Parameter, ...]:
+    return (
+        Parameter(
+            name="m",
+            value=np.array([1.0]),
+            lower_bound=np.array([0.5]),
+            upper_bound=np.array([1.5]),
+            differentiable=True,
+            varying=True,
+        ),
+        Parameter(
+            name="cx",
+            value=np.array([0.1]),
+            lower_bound=np.array([0.05]),
+            upper_bound=np.array([0.15]),
+            differentiable=True,
+            varying=True,
+        ),
+        Parameter(
+            name="cy",
+            value=np.array([0.1]),
+            lower_bound=np.array([0.05]),
+            upper_bound=np.array([0.15]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="q_diag",
+            value=np.array([1.0, 1.0, 1.0, 1.0]),
+            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
+            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="r_diag",
+            value=np.array([0.1, 0.1]),
+            lower_bound=np.array([0.05, 0.05]),
+            upper_bound=np.array([0.15, 0.15]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="q_diag_e",
+            value=np.array([1.0, 1.0, 1.0, 1.0]),
+            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
+            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="xref",
+            value=np.array([0.1, 0.2, 0.3, 0.4]),
+            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
+            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="uref",
+            value=np.array([0.5, 0.6]),
+            lower_bound=np.array([-1.0, -1.0]),
+            upper_bound=np.array([1.0, 1.0]),
+            differentiable=False,
+            varying=False,
+        ),
+        Parameter(
+            name="xref_e",
+            value=np.array([0.0, 0.0, 0.0, 0.0]),
+            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
+            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
+            differentiable=True,
+            varying=True,
+        ),
+    )
+
+
+@pytest.fixture(scope="session")
 def acados_param_manager(
     nominal_varying_params: tuple[Parameter, ...],
 ) -> AcadosParamManager:
@@ -456,9 +534,7 @@ def acados_test_ocp_with_stagewise_varying_params(  # noqa: PLR0915
 
     ocp.solver_options = ocp_options
 
-    param_manager = AcadosParamManager(N_horizon=ocp_options.N_horizon)
-    [param_manager.add(param) for param in nominal_varying_params]
-    param_manager.assign_to_ocp(ocp=ocp)
+    param_manager = AcadosParamManager(params=nominal_varying_params, ocp=ocp)
 
     ocp.model.name = name
 
