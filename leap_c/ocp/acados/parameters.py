@@ -2,7 +2,7 @@ from typing import NamedTuple
 
 import casadi as ca
 import numpy as np
-from acados_template import AcadosModel, AcadosOcp, AcadosOcpSolver
+from acados_template import AcadosOcp
 from casadi.tools import entry, struct, struct_symSX
 
 
@@ -86,6 +86,8 @@ class AcadosParamManager:
 
         self.lb = lb.cat.full().flatten()
         self.ub = ub.cat.full().flatten()
+
+        self.assign_to_ocp(ocp)
 
     def _get_differentiable_constant_parameters(
         self,
@@ -263,7 +265,7 @@ class AcadosParamManager:
         """Assign the parameters to the OCP model."""
         if self.p_global is not None:
             # TODO: Refactor code to not rely on struct_symSX, then assign get_flat("p_global")
-            ocp.model.p_global = self.p_global
+            ocp.model.p_global = self.p_global.cat
             ocp.p_global_values = (
                 self.p_global_values.cat.full().flatten()
                 if self.p_global_values
@@ -272,23 +274,9 @@ class AcadosParamManager:
 
         if self.p is not None:
             # TODO: Refactor code to not rely on struct_symSX, then assign get_flat("p")
-            ocp.model.p = self.p
+            ocp.model.p = self.p.cat
             ocp.parameter_values = (
                 self.parameter_values.cat.full().flatten()
                 if self.parameter_values
                 else np.array([])
             )
-
-
-# TODO: Remove this function and use the AcadosParamManager instead.
-def find_param_in_p_or_p_global(
-    param_name: list[str], model: AcadosModel
-) -> dict[str, ca.SX]:
-    if model.p == []:
-        return {key: model.p_global[key] for key in param_name}
-    if model.p_global is None:
-        return {key: model.p[key] for key in param_name}
-    return {
-        key: (model.p[key] if key in model.p.keys() else model.p_global[key])  # noqa: SIM118
-        for key in param_name
-    }
