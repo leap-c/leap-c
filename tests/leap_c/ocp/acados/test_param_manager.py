@@ -29,10 +29,10 @@ def test_param_manager_combine_parameter_values(
     retrieval and mapping of dense parameter values.
 
     Args:
-        acados_param_manager (AcadosParamManager): The parameter manager instance
-         to test.
-        nominal_varying_params (tuple[Parameter, ...]): Tuple of parameters to add and
-         test.
+        acados_test_ocp_with_stagewise_varying_params (AcadosOcp): AcadosOcp instance with
+         stagewise varying parameters.
+        nominal_varying_params_for_param_manager_tests (tuple[Parameter, ...]): Tuple of
+         test parameters to overwrite.
         rng (np.random.Generator): Random number generator for reproducible noise.
 
     Raises:
@@ -43,8 +43,6 @@ def test_param_manager_combine_parameter_values(
         params=nominal_varying_params_for_param_manager_tests,
         ocp=acados_test_ocp_with_stagewise_varying_params,
     )
-
-    print(f"parameter_values: {acados_param_manager.parameter_values.cat}")
 
     keys = [
         key
