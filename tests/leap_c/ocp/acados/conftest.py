@@ -125,16 +125,16 @@ def acados_test_ocp(
             ca.mtimes(
                 [
                     ca.transpose(ocp.model.x - xref),
-                    ca.transpose(Q_sqrt),
                     Q_sqrt,
+                    ca.transpose(Q_sqrt),
                     ocp.model.x - xref,
                 ]
             )
             + ca.mtimes(
                 [
                     ca.transpose(ocp.model.u - uref),
-                    ca.transpose(R_sqrt),
                     R_sqrt,
+                    ca.transpose(R_sqrt),
                     ocp.model.u - uref,
                 ]
             )
@@ -149,8 +149,8 @@ def acados_test_ocp(
             ca.mtimes(
                 [
                     ca.transpose(ocp.model.x - xref_e),
-                    ca.transpose(Q_sqrt_e),
                     Q_sqrt_e,
+                    ca.transpose(Q_sqrt_e),
                     ocp.model.x - xref_e,
                 ]
             )
@@ -173,6 +173,7 @@ def acados_test_ocp(
                 param_manager.get("r_diag"),
             )
         )
+        ocp.cost.W_0 = ca.mtimes(ocp.cost.W_0, ca.transpose(ocp.cost.W_0))
 
         # Intermediate stage costs
         ocp.cost.cost_type = "NONLINEAR_LS"
@@ -190,6 +191,7 @@ def acados_test_ocp(
                 param_manager.get("r_diag"),
             )
         )
+        ocp.cost.W = ca.mtimes(ocp.cost.W, ca.transpose(ocp.cost.W))
 
         # Terminal cost
         ocp.cost.cost_type_e = "NONLINEAR_LS"
@@ -198,6 +200,7 @@ def acados_test_ocp(
         ocp.cost.W_e = ca.diag(
             param_manager.get("q_diag_e"),
         )
+        ocp.cost.W_e = ca.mtimes(ocp.cost.W_e, ca.transpose(ocp.cost.W_e))
 
     ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
 
@@ -363,7 +366,7 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
         ),
         Parameter(
             name="xref",
-            value=np.array([0.1, 0.2, 0.3, 0.4]),
+            value=np.array([0.0, 0.0, 0.0, 0.0]),
             lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
             differentiable=True,
@@ -371,7 +374,7 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
         ),
         Parameter(
             name="uref",
-            value=np.array([0.5, 0.6]),
+            value=np.array([0.0, 0.0]),
             lower_bound=np.array([-1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0]),
             differentiable=True,
@@ -516,7 +519,7 @@ def acados_test_ocp_with_stagewise_varying_params(
             * 0.5
             * (
                 ca.mtimes(
-                    [ca.transpose(y - yref), ca.transpose(W_sqrt), W_sqrt, y - yref]
+                    [ca.transpose(y - yref), W_sqrt, ca.transpose(W_sqrt), y - yref]
                 )
             )
         )
@@ -531,7 +534,12 @@ def acados_test_ocp_with_stagewise_varying_params(
     Q_sqrt_e = ca.diag(q_diag_e)
 
     ocp.model.cost_expr_ext_cost_e = 0.5 * ca.mtimes(
-        [ca.transpose(ocp.model.x - xref_e), Q_sqrt_e.T, Q_sqrt_e, ocp.model.x - xref_e]
+        [
+            ca.transpose(ocp.model.x - xref_e),
+            Q_sqrt_e,
+            ca.transpose(Q_sqrt_e),
+            ocp.model.x - xref_e,
+        ]
     )
 
     ####
@@ -571,6 +579,8 @@ def acados_test_ocp_with_stagewise_varying_params(
 @pytest.fixture(scope="session")
 def diff_mpc_with_stagewise_varying_params(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
+    nominal_varying_params: tuple[Parameter, ...],
+    print_level: int = 0,
 ) -> AcadosDiffMpc:
     diff_mpc = AcadosDiffMpc(
         ocp=acados_test_ocp_with_stagewise_varying_params,
@@ -579,25 +589,25 @@ def diff_mpc_with_stagewise_varying_params(
         discount_factor=None,
     )
 
-    # TODO: Setting the indicator variables for each stage. Do this via the param_manager
+    acados_param_manager = AcadosParamManager(
+        params=nominal_varying_params,
+        ocp=diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0].acados_ocp,
+    )
+
+    # Get the default parameter values for each stage
+    p_global_values = acados_param_manager.p_global_values
+    parameter_values = acados_param_manager.combine_parameter_values()
+
     for ocp_solver in chain(
         diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers,
         diff_mpc.diff_mpc_fun.backward_batch_solver.ocp_solvers,
     ):
-        for stage_ in range(ocp_solver.acados_ocp.solver_options.N_horizon):
-            idx_values_ = np.array(
-                [
-                    ocp_solver.acados_ocp.dims.np
-                    - ocp_solver.acados_ocp.solver_options.N_horizon
-                    + stage_
-                ]
-            )
-            ocp_solver.set_params_sparse(
-                stage_=stage_,
-                idx_values_=idx_values_,
-                param_values_=np.array([1.0]),
-            )
+        for batch in range(parameter_values.shape[0]):
+            for stage in range(parameter_values.shape[1]):
+                ocp_solver.set(stage, "p", parameter_values[batch, stage, :])
 
+    if print_level > 0:
+        print("Parameter values for each stage:")
         for stage_ in range(ocp_solver.acados_ocp.solver_options.N_horizon):
             print(f"stage: {stage_}; p: {ocp_solver.get(stage_=stage_, field_='p')}")
 
