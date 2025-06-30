@@ -67,4 +67,10 @@ def test_param_manager_combine_parameter_values(
             )
         )
 
-    acados_param_manager.combine_parameter_values(**overwrite)
+    res = acados_param_manager.combine_parameter_values(**overwrite)
+
+    assert res.shape == (
+        batch_size,
+        N_horizon,
+        acados_param_manager.parameter_values.cat.shape[0],
+    ), "The shape of the combined parameter values does not match the expected shape."

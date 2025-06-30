@@ -565,10 +565,6 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp.cost.zu = 10000 * np.ones((ns,))
     ocp.cost.Zu = 10 * np.ones((ns,))
 
-    # Cast parameters to appropriate types for acados
-    ocp.model.p = param_manager.get_flat("p")
-    ocp.model.p_global = param_manager.get_flat("p_global")
-
     return ocp
 
 

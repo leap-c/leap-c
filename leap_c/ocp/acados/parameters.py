@@ -28,11 +28,18 @@ class AcadosParamManager:
         self,
         params: list[Parameter],
         ocp: AcadosOcp,
-    ):
+    ) -> None:
         self.parameters = {param.name: param for param in params}
 
         self.N_horizon = ocp.solver_options.N_horizon
 
+        self._build_p()
+        self._build_p_global()
+        self._build_p_global_bounds()
+
+        self.assign_to_ocp(ocp)
+
+    def _build_p(self) -> None:
         # Create symbolic structures for parameters
         entries = []
         for key, value in self._get_nondifferentiable_parameters().items():
@@ -52,6 +59,7 @@ class AcadosParamManager:
 
         self.parameter_values = parameter_values
 
+    def _build_p_global(self) -> None:
         # Create symbolic structure for global parameters
         entries = []
         for key, value in self._get_differentiable_constant_parameters().items():
@@ -72,6 +80,7 @@ class AcadosParamManager:
             for stage in range(self.N_horizon):
                 self.p_global_values[key, stage] = value
 
+    def _build_p_global_bounds(self) -> None:
         # Build bounds for p_global parameters
         lb = self.p_global(0)
         ub = self.p_global(0)
@@ -86,8 +95,6 @@ class AcadosParamManager:
 
         self.lb = lb.cat.full().flatten()
         self.ub = ub.cat.full().flatten()
-
-        self.assign_to_ocp(ocp)
 
     def _get_differentiable_constant_parameters(
         self,
@@ -134,7 +141,8 @@ class AcadosParamManager:
                 values need to be np.ndarray with shape (batch_size, N_horizon, ...).
 
         Returns:
-            np.ndarray: shape (batch_size, N_horizon, ...)
+            np.ndarray: shape (batch_size, N_horizon, np). with np being the number of
+            parameter_values.
         """
         # Infer batch size from overwrite if not provided.
         # Resolve to 1 if empty, will result in one batch sample of default values.
@@ -156,29 +164,16 @@ class AcadosParamManager:
 
         # Overwrite the values in the batch
         # TODO: Make sure indexing is consistent.
-        # Issue is the difference between casadi (row major) and numpy (column major).
+        # Issue is the difference between casadi (row major) and numpy (column major)
+        # when using matrix values.
         for key, val in overwrite.items():
             batch_parameter_values[:, :, self.p.f[key]] = val.reshape(
                 batch_size, self.N_horizon, -1
             )
 
-        assert batch_parameter_values.ndim == 3, (
-            f"batch_parameter_values should be 3D, got {batch_parameter_values.ndim}D."
-        )
-
-        npf = self.p.cat.shape[0]
-        assert batch_parameter_values.shape[0] == batch_size, (
-            f"batch_parameter_values should have shape (batch_size, N_horizon, {npf}"
-            f"got {batch_parameter_values.shape}."
-        )
-
-        assert batch_parameter_values.shape[1] == self.N_horizon, (
-            f"batch_parameter_values should have shape (batch_size, N_horizon, {npf}"
-            f"got {batch_parameter_values.shape}."
-        )
-
-        assert batch_parameter_values.shape[2] == npf, (
-            f"batch_parameter_values should have shape (batch_size, N_horizon, {npf}"
+        expected_shape = (batch_size, self.N_horizon, self.p.cat.shape[0])
+        assert batch_parameter_values.shape == expected_shape, (
+            f"batch_parameter_values should have shape {expected_shape}, "
             f"got {batch_parameter_values.shape}."
         )
 
@@ -211,60 +206,9 @@ class AcadosParamManager:
         error_message = f"Unknown field: {field_}. Available fields: {available_fields}"
         raise ValueError(error_message)
 
-    def get_default_param(self, field_: str) -> np.ndarray:
-        """
-        Retrieve the default parameter array for a specified field.
-
-        Args:
-            field_ (str): The name of the parameter field to retrieve. Must be one
-                "p_global" or "p".
-
-        Returns:
-            np.ndarray: The default parameter array corresponding to the requested
-                field. Returns an empty array if the value is None.
-
-        Raises:
-            ValueError: If the provided field_ is not recognized.
-        """
-        available_fields = ["p_global", "p"]
-        val = None
-
-        if field_ == "p_global":
-            val = self.p_global(0)
-            for key, value in self._get_differentiable_constant_parameters().items():
-                val[key] = value
-
-            for key, value in self._get_differentiable_varying_parameters().items():
-                for stage in range(self.N_horizon):
-                    val[key, stage] = value
-
-            return val.cat.full().flatten() if val is not None else np.array([])
-
-        if field_ == "p":
-            val = self.p(0)
-            for key, value in self._get_nondifferentiable_parameters().items():
-                val[key] = value
-
-            return val.cat.full().flatten() if val is not None else np.array([])
-
-        error_msg = f"Unknown field: {field_}. Available fields: {available_fields}."
-        raise ValueError(error_msg)
-
-    def get_flat(self, field_: str) -> ca.SX | list:
-        """Get the flat symbolic variable to use in an AcadosModel."""
-        if field_ == "p_global":
-            return self.p_global.cat if self.p_global is not None else []
-
-        if field_ == "p":
-            return self.p.cat if self.p is not None else []
-
-        error_msg = f"Unknown field: {field_}. Available fields: p_global, p."
-        raise ValueError(error_msg)
-
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Assign the parameters to the OCP model."""
         if self.p_global is not None:
-            # TODO: Refactor code to not rely on struct_symSX, then assign get_flat("p_global")
             ocp.model.p_global = self.p_global.cat
             ocp.p_global_values = (
                 self.p_global_values.cat.full().flatten()
@@ -273,7 +217,6 @@ class AcadosParamManager:
             )
 
         if self.p is not None:
-            # TODO: Refactor code to not rely on struct_symSX, then assign get_flat("p")
             ocp.model.p = self.p.cat
             ocp.parameter_values = (
                 self.parameter_values.cat.full().flatten()
