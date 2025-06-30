@@ -9,14 +9,15 @@ from casadi.tools import entry, struct, struct_symSX
 class Parameter(NamedTuple):
     name: str
     value: np.ndarray
+    # OJ: what are those bounds used for?
     lower_bound: np.ndarray | None
     upper_bound: np.ndarray | None
     differentiable: bool
-    varying: bool
+    varying: bool  # TODO: rename to global? or to stage_wise and use negated form, to not have the same word (global).
 
 
 class AcadosParamManager:
-    """Manager for Acados parameters."""
+    """Manager for acados parameters."""
 
     parameters: dict[str, Parameter] = {}
     p_global: struct_symSX | None = None
@@ -45,6 +46,7 @@ class AcadosParamManager:
         for key, value in self._get_nondifferentiable_parameters().items():
             entries.append(entry(key, shape=value.shape))
 
+        # TODO: N+1
         if self._get_differentiable_varying_parameters():
             entries.append(entry("indicator", shape=(self.N_horizon,)))
 
@@ -96,6 +98,7 @@ class AcadosParamManager:
         self.lb = lb.cat.full().flatten()
         self.ub = ub.cat.full().flatten()
 
+    # TODO: global instead of constant? as they are varied via learning.
     def _get_differentiable_constant_parameters(
         self,
     ) -> dict[str, np.ndarray]:
@@ -201,6 +204,9 @@ class AcadosParamManager:
             if stage_ is not None and field_ == "indicator":
                 return self.p[field_][stage_]
             return self.p[field_]
+
+        # if field_ in self.differentiable_varying:
+        #   return sum([self.indicator[i] * self.p_global[field_][stage_] for i in range(N+1)])
 
         available_fields = list(self.p_global.keys()) + list(self.p.keys())
         error_message = f"Unknown field: {field_}. Available fields: {available_fields}"
