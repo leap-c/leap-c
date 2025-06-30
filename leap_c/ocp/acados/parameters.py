@@ -9,11 +9,11 @@ from casadi.tools import entry, struct, struct_symSX
 class Parameter(NamedTuple):
     name: str
     value: np.ndarray
-    # OJ: what are those bounds used for?
+    # TODO: Check about infinity bounds.
     lower_bound: np.ndarray | None
     upper_bound: np.ndarray | None
     differentiable: bool
-    varying: bool  # TODO: rename to global? or to stage_wise and use negated form, to not have the same word (global).
+    stage_wise: bool
 
 
 class AcadosParamManager:
@@ -46,9 +46,8 @@ class AcadosParamManager:
         for key, value in self._get_nondifferentiable_parameters().items():
             entries.append(entry(key, shape=value.shape))
 
-        # TODO: N+1
-        if self._get_differentiable_varying_parameters():
-            entries.append(entry("indicator", shape=(self.N_horizon,)))
+        if self._get_differentiable_stage_wise_parameters():
+            entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
 
         self.p = struct_symSX(entries)
 
@@ -64,22 +63,22 @@ class AcadosParamManager:
     def _build_p_global(self) -> None:
         # Create symbolic structure for global parameters
         entries = []
-        for key, value in self._get_differentiable_constant_parameters().items():
+        for key, value in self._get_differentiable_global_parameters().items():
             entries.append(entry(key, shape=value.shape))
 
-        for key, value in self._get_differentiable_varying_parameters().items():
-            entries.append(entry(key, shape=value.shape, repeat=self.N_horizon))
+        for key, value in self._get_differentiable_stage_wise_parameters().items():
+            entries.append(entry(key, shape=value.shape, repeat=self.N_horizon + 1))
 
         self.p_global = struct_symSX(entries)
 
         # Initialize global parameter values
         self.p_global_values = self.p_global(0)
 
-        for key, value in self._get_differentiable_constant_parameters().items():
+        for key, value in self._get_differentiable_global_parameters().items():
             self.p_global_values[key] = value
 
-        for key, value in self._get_differentiable_varying_parameters().items():
-            for stage in range(self.N_horizon):
+        for key, value in self._get_differentiable_stage_wise_parameters().items():
+            for stage in range(self.N_horizon + 1):
                 self.p_global_values[key, stage] = value
 
     def _build_p_global_bounds(self) -> None:
@@ -87,8 +86,8 @@ class AcadosParamManager:
         lb = self.p_global(0)
         ub = self.p_global(0)
         for key in self.p_global.keys():  # noqa: SIM118
-            if self.parameters[key].varying:
-                for stage in range(self.N_horizon):
+            if self.parameters[key].stage_wise:
+                for stage in range(self.N_horizon + 1):
                     lb[key, stage] = self.parameters[key].lower_bound
                     ub[key, stage] = self.parameters[key].upper_bound
             else:
@@ -98,25 +97,24 @@ class AcadosParamManager:
         self.lb = lb.cat.full().flatten()
         self.ub = ub.cat.full().flatten()
 
-    # TODO: global instead of constant? as they are varied via learning.
-    def _get_differentiable_constant_parameters(
+    def _get_differentiable_global_parameters(
         self,
     ) -> dict[str, np.ndarray]:
-        """Get all differentiable constant parameters."""
+        """Get all differentiable global parameters."""
         return {
             key: value.value
             for key, value in self.parameters.items()
-            if value.differentiable and not value.varying
+            if value.differentiable and not value.stage_wise
         }
 
-    def _get_differentiable_varying_parameters(
+    def _get_differentiable_stage_wise_parameters(
         self,
     ) -> dict[str, np.ndarray]:
-        """Get all differentiable varying parameters."""
+        """Get all differentiable stage-wise parameters."""
         return {
             key: value.value
             for key, value in self.parameters.items()
-            if value.differentiable and value.varying
+            if value.differentiable and value.stage_wise
         }
 
     def _get_nondifferentiable_parameters(
@@ -156,12 +154,12 @@ class AcadosParamManager:
         # Create a batch of parameter values
         batch_parameter_values = np.tile(
             self.parameter_values.cat.full().reshape(1, -1),
-            (batch_size, self.N_horizon, 1),
+            (batch_size, self.N_horizon + 1, 1),
         )
 
         # Set indicator for each stage
-        batch_parameter_values[:, :, -self.N_horizon :] = np.tile(
-            np.eye(self.N_horizon),
+        batch_parameter_values[:, :, -(self.N_horizon + 1) :] = np.tile(
+            np.eye(self.N_horizon + 1),
             (batch_size, 1, 1),
         )
 
@@ -171,10 +169,10 @@ class AcadosParamManager:
         # when using matrix values.
         for key, val in overwrite.items():
             batch_parameter_values[:, :, self.p.f[key]] = val.reshape(
-                batch_size, self.N_horizon, -1
+                batch_size, self.N_horizon + 1, -1
             )
 
-        expected_shape = (batch_size, self.N_horizon, self.p.cat.shape[0])
+        expected_shape = (batch_size, self.N_horizon + 1, self.p.cat.shape[0])
         assert batch_parameter_values.shape == expected_shape, (
             f"batch_parameter_values should have shape {expected_shape}, "
             f"got {batch_parameter_values.shape}."
@@ -195,6 +193,15 @@ class AcadosParamManager:
         stage_: int | None = None,
     ) -> ca.SX:
         """Get the symbolic variable for a given field at a specific stage."""
+
+        if field_ in self._get_differentiable_stage_wise_parameters():
+            return sum(
+                [
+                    self.p["indicator"][stage_] * self.p_global[field_, stage_]
+                    for stage_ in range(self.N_horizon + 1)
+                ]
+            )
+
         if field_ in self.p_global.keys():  # noqa: SIM118
             if stage_ is not None:
                 return self.p_global[field_, stage_]
@@ -204,9 +211,6 @@ class AcadosParamManager:
             if stage_ is not None and field_ == "indicator":
                 return self.p[field_][stage_]
             return self.p[field_]
-
-        # if field_ in self.differentiable_varying:
-        #   return sum([self.indicator[i] * self.p_global[field_][stage_] for i in range(N+1)])
 
         available_fields = list(self.p_global.keys()) + list(self.p.keys())
         error_message = f"Unknown field: {field_}. Available fields: {available_fields}"

@@ -21,7 +21,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5]),
             upper_bound=np.array([1.5]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="cx",
@@ -29,7 +29,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05]),
             upper_bound=np.array([0.15]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="cy",
@@ -37,7 +37,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05]),
             upper_bound=np.array([0.15]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="q_diag",
@@ -45,7 +45,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
             differentiable=True,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="r_diag",
@@ -53,7 +53,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05, 0.05]),
             upper_bound=np.array([0.15, 0.15]),
             differentiable=True,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="q_diag_e",
@@ -61,7 +61,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
             differentiable=True,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="xref",
@@ -69,7 +69,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
             differentiable=True,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="uref",
@@ -77,7 +77,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0]),
             differentiable=True,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="xref_e",
@@ -85,7 +85,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
             differentiable=True,
-            varying=False,
+            stage_wise=False,
         ),
     )
 
@@ -99,7 +99,7 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5]),
             upper_bound=np.array([1.5]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="cx",
@@ -107,7 +107,7 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05]),
             upper_bound=np.array([0.15]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="cy",
@@ -115,7 +115,7 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05]),
             upper_bound=np.array([0.15]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="q_diag",
@@ -123,7 +123,7 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
             differentiable=True,
-            varying=True,
+            stage_wise=True,
         ),
         Parameter(
             name="r_diag",
@@ -131,7 +131,7 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05, 0.05]),
             upper_bound=np.array([0.15, 0.15]),
             differentiable=True,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="q_diag_e",
@@ -139,7 +139,7 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
             differentiable=True,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="xref",
@@ -147,7 +147,7 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
             differentiable=True,
-            varying=True,
+            stage_wise=True,
         ),
         Parameter(
             name="uref",
@@ -155,7 +155,7 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0]),
             differentiable=True,
-            varying=True,
+            stage_wise=True,
         ),
         Parameter(
             name="xref_e",
@@ -163,7 +163,7 @@ def nominal_varying_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
             differentiable=True,
-            varying=False,
+            stage_wise=False,
         ),
     )
 
@@ -177,7 +177,7 @@ def nominal_varying_params_for_param_manager_tests() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5]),
             upper_bound=np.array([1.5]),
             differentiable=True,
-            varying=True,
+            stage_wise=True,
         ),
         Parameter(
             name="cx",
@@ -185,7 +185,7 @@ def nominal_varying_params_for_param_manager_tests() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05]),
             upper_bound=np.array([0.15]),
             differentiable=True,
-            varying=True,
+            stage_wise=True,
         ),
         Parameter(
             name="cy",
@@ -193,7 +193,7 @@ def nominal_varying_params_for_param_manager_tests() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05]),
             upper_bound=np.array([0.15]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="q_diag",
@@ -201,7 +201,7 @@ def nominal_varying_params_for_param_manager_tests() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="r_diag",
@@ -209,7 +209,7 @@ def nominal_varying_params_for_param_manager_tests() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05, 0.05]),
             upper_bound=np.array([0.15, 0.15]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="q_diag_e",
@@ -217,7 +217,7 @@ def nominal_varying_params_for_param_manager_tests() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="xref",
@@ -225,7 +225,7 @@ def nominal_varying_params_for_param_manager_tests() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="uref",
@@ -233,7 +233,7 @@ def nominal_varying_params_for_param_manager_tests() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0]),
             differentiable=False,
-            varying=False,
+            stage_wise=False,
         ),
         Parameter(
             name="xref_e",
@@ -241,7 +241,7 @@ def nominal_varying_params_for_param_manager_tests() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
             differentiable=True,
-            varying=True,
+            stage_wise=True,
         ),
     )
 
@@ -481,47 +481,39 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp.model.x = ca.SX.sym("x", 4)
     ocp.model.u = ca.SX.sym("u", 2)
 
-    stage_cost = []
-    for stage in range(ocp.solver_options.N_horizon):
-        indicator = param_manager.get(field_="indicator", stage_=stage)
-        y = ca.vertcat(
-            ocp.model.x,
-            ocp.model.u,
+    y = ca.vertcat(
+        ocp.model.x,
+        ocp.model.u,
+    )
+    yref = ca.vertcat(
+        param_manager.get(field_="xref"),
+        param_manager.get(field_="uref"),
+    )
+    W_sqrt = ca.diag(
+        ca.vertcat(
+            param_manager.get(field_="q_diag"),
+            param_manager.get(field_="r_diag"),
         )
-        yref = ca.vertcat(
-            param_manager.get(field_="xref", stage_=stage),
-            param_manager.get(field_="uref", stage_=stage),
-        )
-        W_sqrt = ca.diag(
-            ca.vertcat(
-                param_manager.get(field_="q_diag", stage_=stage),
-                param_manager.get(field_="r_diag"),
-            )
-        )
+    )
 
-        stage_cost.append(
-            indicator
-            * 0.5
-            * (
-                ca.mtimes(
-                    [
-                        ca.transpose(y - yref),
-                        W_sqrt,
-                        ca.transpose(W_sqrt),
-                        y - yref,
-                    ]
-                )
-            )
+    stage_cost = 0.5 * (
+        ca.mtimes(
+            [
+                ca.transpose(y - yref),
+                W_sqrt,
+                ca.transpose(W_sqrt),
+                y - yref,
+            ]
         )
+    )
 
     ocp.cost.cost_type_0 = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost_0 = stage_cost[0]
+    ocp.model.cost_expr_ext_cost_0 = stage_cost
     ocp.cost.cost_type = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost = ca.sum1(ca.vertcat(*stage_cost[1:]))
+    ocp.model.cost_expr_ext_cost = stage_cost
     ocp.cost.cost_type_e = "EXTERNAL"
     xref_e = param_manager.get(field_="xref_e")
-    q_diag_e = param_manager.get(field_="q_diag_e")
-    Q_sqrt_e = ca.diag(q_diag_e)
+    Q_sqrt_e = ca.diag(param_manager.get(field_="q_diag_e"))
 
     ocp.model.cost_expr_ext_cost_e = 0.5 * ca.mtimes(
         [
