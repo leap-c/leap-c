@@ -293,11 +293,11 @@ def test_closed_loop(
         ax2.set_ylabel("Control")
         ax2.legend()
         plt.tight_layout()
-        plt.show()
+    plt.show()
 
-        # assert np.median(x[-10:, 0]) <= tol, "Median of x[-10:, 0] exceeds threshold"
-        # assert np.median(x[-10:, 1]) <= tol, "Median of x[-10:, 1] exceeds threshold"
-        # assert np.median(u[-10:]) <= tol, "Median of u[-10:] exceeds threshold"
+    # assert np.median(x[-10:, 0]) <= tol, "Median of x[-10:, 0] exceeds threshold"
+    # assert np.median(x[-10:, 1]) <= tol, "Median of x[-10:, 1] exceeds threshold"
+    # assert np.median(u[-10:]) <= tol, "Median of u[-10:] exceeds threshold"
 
 
 @dataclass

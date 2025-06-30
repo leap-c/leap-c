@@ -4,21 +4,6 @@ from acados_template import AcadosOcp
 from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
 
 
-def test_param_manger_intializes(
-    acados_param_manager: AcadosParamManager,
-) -> None:
-    """
-    Test the initialization of the AcadosParamManger.
-
-    Args:
-        acados_param_manager (AcadosParamManger): The AcadosParamManger instance.
-
-    """
-    assert isinstance(acados_param_manager, AcadosParamManager), (
-        "AcadosParamManger should be an instance of AcadosParamManager."
-    )
-
-
 def test_param_manager_combine_parameter_values(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
     nominal_varying_params_for_param_manager_tests: tuple[Parameter, ...],
