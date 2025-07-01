@@ -12,6 +12,7 @@ class Parameter(NamedTuple):
     # TODO: Check about infinity bounds.
     lower_bound: np.ndarray | None
     upper_bound: np.ndarray | None
+    fix: bool
     differentiable: bool
     stage_wise: bool
 
@@ -104,7 +105,7 @@ class AcadosParamManager:
         return {
             key: value.value
             for key, value in self.parameters.items()
-            if value.differentiable and not value.stage_wise
+            if value.differentiable and not value.stage_wise and not value.fix
         }
 
     def _get_differentiable_stage_wise_parameters(
@@ -114,7 +115,7 @@ class AcadosParamManager:
         return {
             key: value.value
             for key, value in self.parameters.items()
-            if value.differentiable and value.stage_wise
+            if value.differentiable and value.stage_wise and not value.fix
         }
 
     def _get_nondifferentiable_parameters(
@@ -124,7 +125,7 @@ class AcadosParamManager:
         return {
             key: value.value
             for key, value in self.parameters.items()
-            if not value.differentiable
+            if not value.differentiable and not value.fix
         }
 
     def combine_parameter_values(
@@ -191,8 +192,12 @@ class AcadosParamManager:
         self,
         field_: str,
         stage_: int | None = None,
-    ) -> ca.SX:
+    ) -> np.array | ca.SX:
         """Get the symbolic variable for a given field at a specific stage."""
+        
+        if field_ in self.parameters:
+            if self.parameters[field_].fix:
+                return self.parameters[field_].value
 
         if field_ in self._get_differentiable_stage_wise_parameters():
             return sum(

@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from leap_c.ocp.acados.parameters import Parameter
+from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
 import numpy as np
 
 
