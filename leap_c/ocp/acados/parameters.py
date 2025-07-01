@@ -195,7 +195,7 @@ class AcadosParamManager:
         return {
             key: value.value
             for key, value in self.parameters.items()
-            if not value.differentiable
+            if not value.differentiable and not value.fix
         }
 
     def combine_parameter_values(

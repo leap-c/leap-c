@@ -18,6 +18,7 @@ from leap_c.examples.util import (
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
+from leap_c.ocp.acados.parameters import AcadosParamManager, export_parametric_
 
 
 class CartPoleController(ParameterizedController):
@@ -53,6 +54,11 @@ class CartPoleController(ParameterizedController):
             cost = 0.5 * z.T @ W @ z + c.T @ z, where W is the quadratic cost matrix from above
 
     """
+
+    # Different param values:
+    # - fix parameters (just numpy arrays)
+    # - changeable parameters (torch tensors, non differentiable) -> p     # done
+    # - learnable parameters (torch tensors, differentiable) -> p_global  # done
 
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
@@ -138,8 +144,8 @@ def define_f_expl_expr(ocp: AcadosOcp, param_manager: AcadosParamManager) -> ca.
     g = param_manager.get("g")
     l = param_manager.get("l")
 
-    theta = model.x[1]
-    v1 = model.x[2]
+    v = model.x[1]
+    theta = model.x[2]
     dtheta = model.x[3]
 
     F = model.u[0]
@@ -149,7 +155,7 @@ def define_f_expl_expr(ocp: AcadosOcp, param_manager: AcadosParamManager) -> ca.
     sin_theta = ca.sin(theta)
     denominator = M + m - m * cos_theta * cos_theta
     f_expl = ca.vertcat(
-        v1,
+        v,
         dtheta,
         (-m * l * sin_theta * dtheta * dtheta + m * g * cos_theta * sin_theta + F)
         / denominator,
@@ -176,7 +182,7 @@ def define_disc_dyn_expr(
     u = model.u
 
     # discrete dynamics via RK4
-    p = ca.vertcat(*find_param_in_p_or_p_global(["M", "m", "g", "l"], model).values())
+    p = ca.vertcat(param_manager.p.cat, param_manager.p_global.cat)
 
     ode = ca.Function("ode", [x, u, p], [f_expl])
     k1 = ode(x, u, p)
