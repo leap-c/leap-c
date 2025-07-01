@@ -1,12 +1,14 @@
 import numpy as np
+import torch
+from acados_template import AcadosOcp, AcadosOcpSolver
 
-from acados_template import AcadosOcp
 from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
+from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 def test_param_manager_combine_parameter_values(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
-    nominal_varying_params_for_param_manager_tests: tuple[Parameter, ...],
+    nominal_stage_wise_params: tuple[Parameter, ...],
     rng: np.random.Generator,
 ) -> None:
     """
@@ -25,7 +27,7 @@ def test_param_manager_combine_parameter_values(
         the specified tolerance.
     """
     acados_param_manager = AcadosParamManager(
-        params=nominal_varying_params_for_param_manager_tests,
+        params=nominal_stage_wise_params,
         ocp=acados_test_ocp_with_stagewise_varying_params,
     )
 
@@ -47,7 +49,7 @@ def test_param_manager_combine_parameter_values(
         overwrite[key] = rng.random(
             size=(
                 batch_size,
-                N_horizon,
+                N_horizon + 1,
                 acados_param_manager.parameter_values[key].shape[0],
             )
         )
@@ -56,6 +58,69 @@ def test_param_manager_combine_parameter_values(
 
     assert res.shape == (
         batch_size,
-        N_horizon,
+        N_horizon + 1,
         acados_param_manager.parameter_values.cat.shape[0],
     ), "The shape of the combined parameter values does not match the expected shape."
+
+
+def test_diff_mpc_with_stage_wise_varying_params_equivalent_to_diff_mpc(
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
+    diff_mpc: AcadosDiffMpc,
+):
+    ocp = diff_mpc.diff_mpc_fun.ocp
+
+    x0 = torch.tensor(data=ocp.constraints.x0, dtype=torch.float32).reshape(1, -1)
+
+    res = {
+        "global": diff_mpc.forward(x0=x0),
+        "stagewise": diff_mpc_with_stagewise_varying_params.forward(x0=x0),
+    }
+
+    assert np.allclose(
+        res["global"][1].detach().numpy(),
+        res["stagewise"][1].detach().numpy(),
+        atol=1e-6,
+        rtol=1e-6,
+    ), (
+        "The initial control input u0 does not match between global and stagewise varying diff MPC."
+    )
+
+
+def test_stage_wise_varying_params_equivalent(
+    # nominal_stage_wise_params: tuple[Parameter, ...],
+    nominal_params: tuple[Parameter, ...],
+    acados_test_ocp_no_p_global: AcadosOcp,
+    # diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
+    diff_mpc: AcadosDiffMpc,
+    rng: np.random.Generator,
+) -> None:
+    global_solver = AcadosOcpSolver(acados_test_ocp_no_p_global)
+
+    # ocp = diff_mpc_with_stagewise_varying_params.diff_mpc_fun.ocp
+    # pm = AcadosParamManager(params=nominal_stage_wise_params, ocp=ocp)
+    ocp = diff_mpc.diff_mpc_fun.ocp
+    pm = AcadosParamManager(params=nominal_params, ocp=ocp)
+
+    p_global_values = pm.p_global_values
+
+    # xref_0 = rng.random(size=4)
+    # uref_0 = rng.random(size=2)
+    # yref_0 = np.concatenate((xref_0, uref_0))
+
+    # p_global_values["xref", 0] = xref_0
+    # p_global_values["uref", 0] = uref_0
+
+    # global_solver.cost_set(stage_=0, field_="yref", value_=yref_0)
+
+    x0 = ocp.constraints.x0
+
+    u0_global = global_solver.solve_for_x0(x0_bar=x0)
+
+    p_global = p_global_values.cat.full().flatten().reshape(1, ocp.dims.np_global)
+    x0 = torch.tensor(x0, dtype=torch.float32).reshape(1, -1)
+
+    # ctx, u0, x, u, value = diff_mpc_with_stagewise_varying_params.forward(
+    ctx, u0, x, u, value = diff_mpc.forward(x0=x0, p_global=p_global)
+
+    print("u0_global:", u0_global)
+    print("u0:", u0)
