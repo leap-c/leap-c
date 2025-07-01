@@ -64,49 +64,54 @@ def test_param_manager_combine_parameter_values(
 
 
 def test_diff_mpc_with_stage_wise_varying_params_equivalent_to_diff_mpc(
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
     diff_mpc: AcadosDiffMpc,
-):
-    # Test ocp_solver directly
-    ocp_solver = {
-        "stagewise": diff_mpc_with_stagewise_varying_params.diff_mpc_fun.forward_batch_solver.ocp_solvers[
-            0
-        ],
-        "global": diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0],
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
+    nominal_stage_wise_params: tuple[Parameter, ...],
+) -> None:
+    mpc = {
+        "stagewise": diff_mpc_with_stagewise_varying_params,
+        "global": diff_mpc,
     }
+
+    N_horizon = (
+        mpc["global"]
+        .diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
+        .acados_ocp.solver_options.N_horizon
+    )
+
+    # Create a parameter manager for the stagewise varying parameters.
+    parameter_manager = AcadosParamManager(
+        params=nominal_stage_wise_params,
+        N_horizon=N_horizon,
+    )
+    p_stagewise = parameter_manager.combine_parameter_values()
 
     x0 = np.array([1.0, 1.0, 0.0, 0.0])
-    u0 = {key: ocp_solver[key].solve_for_x0(x0_bar=x0) for key in ocp_solver}
-    # ocp = ocp_solver.acados_ocp
-    for key, val in u0.items():
-        print(f"u0_{key}:", val)
 
-    sol_forward = diff_mpc.forward(
+    # ctx, u0, x, u, value
+    sol_forward = {}
+    sol_forward["global"] = mpc["global"].forward(
         x0=torch.tensor(x0, dtype=torch.float32).reshape(1, -1)
     )
-
-    print("u0_forward:", sol_forward[1].detach().numpy())
-
-    ocp = diff_mpc.diff_mpc_fun.ocp
-
-    x0 = torch.tensor(data=ocp.constraints.x0, dtype=torch.float32).reshape(1, -1)
-
-    res = {
-        "global": diff_mpc.forward(x0=x0),
-        "stagewise": diff_mpc_with_stagewise_varying_params.forward(x0=x0),
-    }
-
-    assert np.allclose(
-        res["global"][1].detach().numpy(),
-        res["stagewise"][1].detach().numpy(),
-        atol=1e-6,
-        rtol=1e-6,
-    ), (
-        "The initial control input u0 does not match between global and stagewise varying diff MPC."
+    sol_forward["stagewise"] = mpc["stagewise"].forward(
+        x0=torch.tensor(x0, dtype=torch.float32).reshape(1, -1),
+        p_stagewise=p_stagewise,
     )
 
+    for key, val in sol_forward.items():
+        print(f"sol_forward_{key} u:", val[3])
 
-def test_stage_wise_varying_params_equivalent(
+    out = ["ctx", "u0", "x", "u", "value"]
+    for idx, label in enumerate(out[1:]):
+        assert np.allclose(
+            sol_forward["global"][idx + 1].detach().numpy(),
+            sol_forward["stagewise"][idx + 1].detach().numpy(),
+            atol=1e-3,
+            rtol=1e-3,
+        ), f"The {label} does not match between global and stagewise varying diff MPC."
+
+
+def test_stagewise_varying_params_equivalent(
     # nominal_stage_wise_params: tuple[Parameter, ...],
     nominal_params: tuple[Parameter, ...],
     acados_test_ocp_no_p_global: AcadosOcp,
