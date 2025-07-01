@@ -10,10 +10,11 @@ class Parameter(NamedTuple):
     name: str
     value: np.ndarray
     # TODO: Check about infinity bounds.
-    lower_bound: np.ndarray | None
-    upper_bound: np.ndarray | None
-    differentiable: bool
-    stage_wise: bool
+    lower_bound: np.ndarray | None = None
+    upper_bound: np.ndarray | None = None
+    fix: bool = True
+    differentiable: bool = False
+    stage_wise: bool = False
 
 
 class AcadosParamManager:
@@ -28,17 +29,15 @@ class AcadosParamManager:
     def __init__(
         self,
         params: list[Parameter],
-        ocp: AcadosOcp,
+        N_horizon: int,
     ) -> None:
         self.parameters = {param.name: param for param in params}
 
-        self.N_horizon = ocp.solver_options.N_horizon
+        self.N_horizon = N_horizon
 
         self._build_p()
         self._build_p_global()
         self._build_p_global_bounds()
-
-        self.assign_to_ocp(ocp)
 
     def _build_p(self) -> None:
         # Create symbolic structures for parameters
@@ -193,6 +192,10 @@ class AcadosParamManager:
         stage_: int | None = None,
     ) -> ca.SX:
         """Get the symbolic variable for a given field at a specific stage."""
+
+        if field_ in self.parameters:
+            if self.parameters[field_].fix:
+                return self.parameters[field_].value
 
         if field_ in self._get_differentiable_stage_wise_parameters():
             return sum(
