@@ -54,6 +54,7 @@ class AcadosParamManager:
         self,
         params: list[Parameter],
         N_horizon: int,
+        N_horizon: int,
     ) -> None:
         self.parameters = {param.name: param for param in params}
 
