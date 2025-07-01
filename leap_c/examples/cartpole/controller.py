@@ -181,32 +181,31 @@ def define_cost_matrix(
     r_diag = param_manager.get("r_diag")
     q_diag_e = param_manager.get("q_diag_e")
 
-    return L @ L.T
+    if isinstance(q_diag, np.ndarray) and isinstance(r_diag, np.ndarray):
+        W = np.diag([q_diag, r_diag])
+        W = W @ W.T
+    else:
+        # TODO (Jasper): Check whether we can even vertcat the diagonal elementst
+        #               if numpy array
+        W = ca.diag(ca.vertcat(q_diag, r_diag))
+        W = W @ W.T
+
+    if isinstance(q_diag_e, np.ndarray):
+        W_e = np.diag(q_diag_e)
+    else:
+        W_e = ca.diag(q_diag_e)
+
+    return W, W_e
 
 
 def define_yref(param_manager: AcadosParamManager) -> np.ndarray:
     xref = param_manager.get("xref")
     uref = param_manager.get("uref")
 
+    if isinstance(xref, np.ndarray) and isinstance(uref, np.ndarray):
+        return np.concatenate([xref, uref])
 
-def yref_numpy(nominal_params: dict[str, np.ndarray]) -> np.ndarray:
-    return np.array(
-        [nominal_params[f"xref{i}"] for i in range(1, 5)] + [nominal_params["uref"]]
-    ).squeeze()
-
-
-def yref_casadi(model: AcadosModel) -> ca.SX:
-    return ca.vertcat(
-        *find_param_in_p_or_p_global(
-            [f"xref{i}" for i in range(1, 5)] + ["uref"], model
-        ).values()
-    )  # type:ignore
-
-
-def c_casadi(model: AcadosModel) -> ca.SX:
-    return ca.vertcat(
-        *find_param_in_p_or_p_global([f"c{i}" for i in range(1, 6)], model).values()
-    )  # type:ignore
+    return ca.vertcat(xref, uref)  # type:ignore
 
 
 def define_cost_expr_ext_cost(
