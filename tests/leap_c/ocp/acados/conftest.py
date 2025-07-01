@@ -91,159 +91,28 @@ def nominal_params() -> tuple[Parameter, ...]:
 
 
 @pytest.fixture(scope="session")
-def nominal_stage_wise_params() -> tuple[Parameter, ...]:
-    return (
-        Parameter(
-            name="m",
-            value=np.array([1.0]),
-            lower_bound=np.array([0.5]),
-            upper_bound=np.array([1.5]),
-            differentiable=False,
-            stage_wise=False,
-        ),
-        Parameter(
-            name="cx",
-            value=np.array([0.1]),
-            lower_bound=np.array([0.05]),
-            upper_bound=np.array([0.15]),
-            differentiable=False,
-            stage_wise=False,
-        ),
-        Parameter(
-            name="cy",
-            value=np.array([0.1]),
-            lower_bound=np.array([0.05]),
-            upper_bound=np.array([0.15]),
-            differentiable=False,
-            stage_wise=False,
-        ),
-        Parameter(
-            name="q_diag",
-            value=np.array([1.0, 1.0, 1.0, 1.0]),
-            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
-            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
-            differentiable=True,
-            stage_wise=True,
-        ),
-        Parameter(
-            name="r_diag",
-            value=np.array([0.1, 0.1]),
-            lower_bound=np.array([0.05, 0.05]),
-            upper_bound=np.array([0.15, 0.15]),
-            differentiable=True,
-            stage_wise=False,
-        ),
-        Parameter(
-            name="q_diag_e",
-            value=np.array([1.0, 1.0, 1.0, 1.0]),
-            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
-            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
-            differentiable=True,
-            stage_wise=False,
-        ),
-        Parameter(
-            name="xref",
-            value=np.array([0.0, 0.0, 0.0, 0.0]),
-            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
-            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
-            differentiable=True,
-            stage_wise=True,
-        ),
-        Parameter(
-            name="uref",
-            value=np.array([0.0, 0.0]),
-            lower_bound=np.array([-1.0, -1.0]),
-            upper_bound=np.array([1.0, 1.0]),
-            differentiable=True,
-            stage_wise=True,
-        ),
-        Parameter(
-            name="xref_e",
-            value=np.array([0.0, 0.0, 0.0, 0.0]),
-            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
-            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
-            differentiable=True,
-            stage_wise=False,
-        ),
-    )
+def nominal_stage_wise_params(
+    nominal_params: tuple[Parameter, ...],
+) -> tuple[Parameter, ...]:
+    """Copy nominal_params and modify specific parameters to be stage_wise."""
+    # Override specific fields for stage-wise parameters
+    stage_wise_overrides = {
+        "q_diag": {"stage_wise": True},
+        "xref": {"stage_wise": True},
+        "uref": {"stage_wise": True},
+    }
 
+    modified_params = []
+    for param in nominal_params:
+        if param.name in stage_wise_overrides:
+            # Create new parameter with overridden fields
+            kwargs = param._asdict()
+            kwargs.update(stage_wise_overrides[param.name])
+            modified_params.append(Parameter(**kwargs))
+        else:
+            modified_params.append(param)
 
-@pytest.fixture(scope="session")
-def nominal_varying_params_for_param_manager_tests() -> tuple[Parameter, ...]:
-    return (
-        Parameter(
-            name="m",
-            value=np.array([1.0]),
-            lower_bound=np.array([0.5]),
-            upper_bound=np.array([1.5]),
-            differentiable=True,
-            stage_wise=True,
-        ),
-        Parameter(
-            name="cx",
-            value=np.array([0.1]),
-            lower_bound=np.array([0.05]),
-            upper_bound=np.array([0.15]),
-            differentiable=True,
-            stage_wise=True,
-        ),
-        Parameter(
-            name="cy",
-            value=np.array([0.1]),
-            lower_bound=np.array([0.05]),
-            upper_bound=np.array([0.15]),
-            differentiable=False,
-            stage_wise=False,
-        ),
-        Parameter(
-            name="q_diag",
-            value=np.array([1.0, 1.0, 1.0, 1.0]),
-            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
-            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
-            differentiable=False,
-            stage_wise=False,
-        ),
-        Parameter(
-            name="r_diag",
-            value=np.array([0.1, 0.1]),
-            lower_bound=np.array([0.05, 0.05]),
-            upper_bound=np.array([0.15, 0.15]),
-            differentiable=False,
-            stage_wise=False,
-        ),
-        Parameter(
-            name="q_diag_e",
-            value=np.array([1.0, 1.0, 1.0, 1.0]),
-            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
-            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
-            differentiable=False,
-            stage_wise=False,
-        ),
-        Parameter(
-            name="xref",
-            value=np.array([0.1, 0.2, 0.3, 0.4]),
-            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
-            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
-            differentiable=False,
-            stage_wise=False,
-        ),
-        Parameter(
-            name="uref",
-            value=np.array([0.5, 0.6]),
-            lower_bound=np.array([-1.0, -1.0]),
-            upper_bound=np.array([1.0, 1.0]),
-            differentiable=False,
-            stage_wise=False,
-        ),
-        Parameter(
-            name="xref_e",
-            value=np.array([0.0, 0.0, 0.0, 0.0]),
-            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
-            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
-            differentiable=True,
-            stage_wise=True,
-        ),
-    )
+    return tuple(modified_params)
 
 
 def get_A_disc(
@@ -313,7 +182,268 @@ def ocp_options(request: pytest.FixtureRequest) -> AcadosOcpOptions:
     return ocp_options
 
 
-# @pytest.fixture(scope="session")
+@pytest.fixture(scope="session")
+def acados_test_ocp_no_p_global(
+    ocp_options: AcadosOcpOptions,
+    nominal_params: tuple[Parameter, ...],
+) -> AcadosOcp:
+    """Define a simple AcadosOcp for testing purposes."""
+    name = "test_ocp"
+
+    ocp = AcadosOcp()
+
+    ocp.solver_options.integrator_type = ocp_options.integrator_type
+    ocp.solver_options.nlp_solver_type = ocp_options.nlp_solver_type
+    ocp.solver_options.hessian_approx = ocp_options.hessian_approx
+    ocp.solver_options.qp_solver = ocp_options.qp_solver
+    ocp.solver_options.qp_solver_ric_alg = ocp_options.qp_solver_ric_alg
+    ocp.solver_options.tf = ocp_options.tf
+    ocp.solver_options.N_horizon = ocp_options.N_horizon
+
+    # Make a copy of the nominal parameters where differentiable and stage_wise is set to False everywhere
+    params = tuple(
+        Parameter(
+            name=param.name,
+            value=param.value,
+            lower_bound=param.lower_bound,
+            upper_bound=param.upper_bound,
+            differentiable=False,
+            stage_wise=False,
+        )
+        for param in nominal_params
+    )
+
+    param_manager = AcadosParamManager(params=params, ocp=ocp)
+
+    ocp.model.name = name
+
+    ocp.model.x = ca.SX.sym("x", 4)
+    ocp.model.u = ca.SX.sym("u", 2)
+
+    ocp.dims.nx = ocp.model.x.shape[0]
+    ocp.dims.nu = ocp.model.u.shape[0]
+
+    kwargs = {
+        "m": param_manager.get(field_="m"),
+        "cx": param_manager.get(field_="cx"),
+        "cy": param_manager.get(field_="cy"),
+        "dt": ocp.solver_options.tf / ocp.solver_options.N_horizon,
+    }
+    ocp.model.disc_dyn_expr = (
+        get_A_disc(**kwargs) @ ocp.model.x + get_B_disc(**kwargs) @ ocp.model.u
+    )
+
+    # Initial stage cost
+    ocp.cost.cost_type_0 = "NONLINEAR_LS"
+    ocp.model.cost_y_expr_0 = ca.vertcat(
+        ocp.model.x,
+        ocp.model.u,
+    )
+    ocp.cost.yref_0 = np.concatenate(
+        [
+            param_manager.parameter_values["xref"].full().flatten(),
+            param_manager.parameter_values["uref"].full().flatten(),
+        ]
+    )
+
+    ocp.cost.W_0 = np.diag(
+        np.concatenate(
+            [
+                param_manager.parameter_values["q_diag"].full().flatten(),
+                param_manager.parameter_values["r_diag"].full().flatten(),
+            ]
+        )
+    )
+    ocp.cost.W_0 = ocp.cost.W_0 @ ocp.cost.W_0.T
+
+    # Intermediate stage costs
+    ocp.cost.cost_type = "NONLINEAR_LS"
+    ocp.model.cost_y_expr = ca.vertcat(
+        ocp.model.x,
+        ocp.model.u,
+    )
+    ocp.cost.yref = ocp.cost.yref_0
+    ocp.cost.W = ocp.cost.W_0
+
+    # Terminal cost
+    ocp.cost.cost_type_e = "NONLINEAR_LS"
+    ocp.model.cost_y_expr_e = ocp.model.x
+    ocp.cost.yref_e = param_manager.parameter_values["xref_e"].full().flatten()
+    ocp.cost.W_e = np.diag(param_manager.parameter_values["q_diag_e"].full().flatten())
+    ocp.cost.W_e = ocp.cost.W_e @ ocp.cost.W_e.T
+
+    ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
+
+    Fmax = 10.0
+    # Box constraints on u
+    ocp.constraints.lbu = np.array([-Fmax, -Fmax])
+    ocp.constraints.ubu = np.array([Fmax, Fmax])
+    ocp.constraints.idxbu = np.array([0, 1])
+
+    ocp.constraints.lbx = np.array([0.05, 0.05, -20.0, -20.0])
+    ocp.constraints.ubx = np.array([3.95, 0.95, 20.0, 20.0])
+    ocp.constraints.idxbx = np.array([0, 1, 2, 3])
+
+    ocp.constraints.idxsbx = np.array([0, 1, 2, 3])
+
+    ns = ocp.constraints.idxsbx.size
+    ocp.cost.zl = 10000 * np.ones((ns,))
+    ocp.cost.Zl = 10 * np.ones((ns,))
+    ocp.cost.zu = 10000 * np.ones((ns,))
+    ocp.cost.Zu = 10 * np.ones((ns,))
+
+    return ocp
+
+
+pytest.fixture(scope="session", params=["external", "nonlinear_ls"])
+
+
+def acados_test_ocp(  # noqa: PLR0915
+    ocp_options: AcadosOcpOptions,
+    nominal_params: tuple[Parameter, ...],
+    request: pytest.FixtureRequest,
+) -> AcadosOcp:
+    """Define a simple AcadosOcp for testing purposes."""
+    name = "test_ocp"
+
+    ocp = AcadosOcp()
+
+    ocp.solver_options = ocp_options
+
+    param_manager = AcadosParamManager(params=nominal_params, ocp=ocp)
+
+    ocp.model.name = name
+
+    ocp.model.x = ca.SX.sym("x", 4)
+    ocp.model.u = ca.SX.sym("u", 2)
+
+    kwargs = {
+        "m": param_manager.get(field_="m"),
+        "cx": param_manager.get(field_="cx"),
+        "cy": param_manager.get(field_="cy"),
+        "dt": ocp.solver_options.tf / ocp.solver_options.N_horizon,
+    }
+    ocp.model.disc_dyn_expr = (
+        get_A_disc(**kwargs) @ ocp.model.x + get_B_disc(**kwargs) @ ocp.model.u
+    )
+
+    # Define cost
+    if request.param == "external":
+        y = ca.vertcat(
+            ocp.model.x,
+            ocp.model.u,
+        )
+        yref = ca.vertcat(
+            param_manager.get(field_="xref"),
+            param_manager.get(field_="uref"),
+        )
+        W_sqrt = ca.diag(
+            ca.vertcat(
+                param_manager.get(field_="q_diag"),
+                param_manager.get(field_="r_diag"),
+            )
+        )
+        xref_e = param_manager.get(field_="xref_e")
+        Q_sqrt_e = ca.diag(param_manager.get(field_="q_diag_e"))
+
+        stage_cost = 0.5 * (
+            ca.mtimes(
+                [
+                    ca.transpose(y - yref),
+                    W_sqrt,
+                    ca.transpose(W_sqrt),
+                    y - yref,
+                ]
+            )
+        )
+
+        # # Initial stage costs
+        ocp.cost.cost_type_0 = "EXTERNAL"
+        ocp.model.cost_expr_ext_cost_0 = stage_cost
+        # # Intermediate stage costs
+        ocp.cost.cost_type = "EXTERNAL"
+        ocp.model.cost_expr_ext_cost = stage_cost
+        # Terminal cost
+        ocp.cost.cost_type_e = "EXTERNAL"
+        ocp.model.cost_expr_ext_cost_e = 0.5 * (
+            ca.mtimes(
+                [
+                    ca.transpose(ocp.model.x - xref_e),
+                    Q_sqrt_e,
+                    ca.transpose(Q_sqrt_e),
+                    ocp.model.x - xref_e,
+                ]
+            )
+        )
+    elif request.param == "nonlinear_ls":
+        # Initial stage cost
+        ocp.cost.cost_type_0 = "NONLINEAR_LS"
+        ocp.model.cost_y_expr_0 = ca.vertcat(
+            ocp.model.x,
+            ocp.model.u,
+        )
+        ocp.cost.yref_0 = ca.vertcat(
+            param_manager.get("xref"),
+            param_manager.get("uref"),
+        )
+        ocp.cost.W_0 = ca.diag(
+            ca.vertcat(
+                param_manager.get("q_diag"),
+                param_manager.get("r_diag"),
+            )
+        )
+        ocp.cost.W_0 = ca.mtimes(ocp.cost.W_0, ca.transpose(ocp.cost.W_0))
+
+        # Intermediate stage costs
+        ocp.cost.cost_type = "NONLINEAR_LS"
+        ocp.model.cost_y_expr = ca.vertcat(
+            ocp.model.x,
+            ocp.model.u,
+        )
+        ocp.cost.yref = ca.vertcat(
+            param_manager.get("xref"),
+            param_manager.get("uref"),
+        )
+        ocp.cost.W = ca.diag(
+            ca.vertcat(
+                param_manager.get("q_diag"),
+                param_manager.get("r_diag"),
+            )
+        )
+        ocp.cost.W = ca.mtimes(ocp.cost.W, ca.transpose(ocp.cost.W))
+
+        # Terminal cost
+        ocp.cost.cost_type_e = "NONLINEAR_LS"
+        ocp.model.cost_y_expr_e = ocp.model.x
+        ocp.cost.yref_e = param_manager.get("xref_e")
+        ocp.cost.W_e = ca.diag(
+            param_manager.get("q_diag_e"),
+        )
+        ocp.cost.W_e = ca.mtimes(ocp.cost.W_e, ca.transpose(ocp.cost.W_e))
+
+    ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
+
+    Fmax = 10.0
+    # Box constraints on u
+    ocp.constraints.lbu = np.array([-Fmax, -Fmax])
+    ocp.constraints.ubu = np.array([Fmax, Fmax])
+    ocp.constraints.idxbu = np.array([0, 1])
+
+    ocp.constraints.lbx = np.array([0.05, 0.05, -20.0, -20.0])
+    ocp.constraints.ubx = np.array([3.95, 0.95, 20.0, 20.0])
+    ocp.constraints.idxbx = np.array([0, 1, 2, 3])
+
+    ocp.constraints.idxsbx = np.array([0, 1, 2, 3])
+
+    ns = ocp.constraints.idxsbx.size
+    ocp.cost.zl = 10000 * np.ones((ns,))
+    ocp.cost.Zl = 10 * np.ones((ns,))
+    ocp.cost.zu = 10000 * np.ones((ns,))
+    ocp.cost.Zu = 10 * np.ones((ns,))
+
+    return ocp
+
+
 @pytest.fixture(scope="session", params=["external", "nonlinear_ls"])
 def acados_test_ocp(  # noqa: PLR0915
     ocp_options: AcadosOcpOptions,
@@ -392,8 +522,7 @@ def acados_test_ocp(  # noqa: PLR0915
                 ]
             )
         )
-
-    if request.param == "nonlinear_ls":
+    elif request.param == "nonlinear_ls":
         # Initial stage cost
         ocp.cost.cost_type_0 = "NONLINEAR_LS"
         ocp.model.cost_y_expr_0 = ca.vertcat(
@@ -573,7 +702,7 @@ def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpc:
 def diff_mpc_with_stagewise_varying_params(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
     nominal_stage_wise_params: tuple[Parameter, ...],
-    print_level: int = 1,
+    print_level: int = 0,
 ) -> AcadosDiffMpc:
     diff_mpc = AcadosDiffMpc(
         ocp=acados_test_ocp_with_stagewise_varying_params,
