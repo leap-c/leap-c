@@ -64,7 +64,6 @@ class CartPoleController(ParameterizedController):
     def __init__(
         self,
         params: CartPoleParams | None = None,
-        learnable_params: tuple[str] = ("xref2",),
         N_horizon: int = 20,
         T_horizon: float = 1.0,
         Fmax: float = 80.0,
@@ -91,18 +90,18 @@ class CartPoleController(ParameterizedController):
         """
         super().__init__()
         self.params = make_default_cartpole_params() if params is None else params
-        self.learnable_params = learnable_params
+        tuple_params = tuple(asdict(self.params).values())
+
+        param_manager = AcadosParamManager(params=tuple_params, N_horizon=N_horizon)
 
         self.ocp = export_parametric_ocp(
-            nominal_param=asdict(self.params),
+            param_manager=param_manager,
             cost_type=cost_type,
             exact_hess_dyn=exact_hess_dyn,
             name="cartpole",
-            learnable_param=list(self.learnable_params),
             N_horizon=N_horizon,
             tf=T_horizon,
             Fmax=Fmax,
-            sensitivity_ocp=False,
         )
 
         self.diff_mpc = AcadosDiffMpc(self.ocp, discount_factor=discount_factor)
@@ -131,7 +130,7 @@ class CartPoleController(ParameterizedController):
         )
 
 
-def f_expl_expr(ocp: AcadosOcp, param_manager: AcadosParamManager) -> ca.SX:
+def define_f_expl_expr(ocp: AcadosOcp, param_manager: AcadosParamManager) -> ca.SX:
     model = ocp.model
 
     # Assume symbolic    M = param_manager.get("M")
@@ -166,10 +165,10 @@ def f_expl_expr(ocp: AcadosOcp, param_manager: AcadosParamManager) -> ca.SX:
     return f_expl  # type:ignore
 
 
-def disc_dyn_expr(
+def define_disc_dyn_expr(
     model: AcadosModel, param_manager: AcadosParamManager, dt: float
 ) -> ca.SX:
-    f_expl = f_expl_expr(model, param_manager)
+    f_expl = define_f_expl_expr(model, param_manager)
 
     x = model.x
     u = model.u
@@ -186,10 +185,9 @@ def disc_dyn_expr(
     return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)  # type:ignore
 
 
-def cost_matrix(
+def define_cost_matrix(
     model: AcadosModel, param_manager: AcadosParamManager
 ) -> tuple[ca.SX, ca.SX] | tuple[np.ndarray, np.ndarray]:
-
     q_diag = param_manager.get("q_diag")
     r_diag = param_manager.get("r_diag")
     q_diag_e = param_manager.get("q_diag_e")
@@ -211,7 +209,7 @@ def cost_matrix(
     return W, W_e
 
 
-def yref(param_manager: AcadosParamManager) -> np.ndarray:
+def define_yref(param_manager: AcadosParamManager) -> np.ndarray:
     xref = param_manager.get("xref")
     uref = param_manager.get("uref")
 
@@ -221,22 +219,39 @@ def yref(param_manager: AcadosParamManager) -> np.ndarray:
     return ca.vertcat(xref, uref)  # type:ignore
 
 
-def cost_expr_ext_cost(model: AcadosModel) -> ca.SX:
-    pass
+def define_cost_expr_ext_cost(
+    ocp: AcadosOcp, param_manager: AcadosParamManager
+) -> ca.SX:
+    yref = define_yref(param_manager)
+    W = define_cost_matrix(ocp.model, param_manager)[0]
+    y = ca.vertcat(ocp.model.x, ocp.model.u)  # type:ignore
+    return 0.5 * ca.mtimes(ca.mtimes((y - yref).T, W), (y - yref))
+
+
+def define_cost_expr_ext_cost_e(
+    ocp: AcadosOcp, param_manager: AcadosParamManager
+) -> ca.SX:
+    yref_e = param_manager.get("yref_e")
+    W_e = define_cost_matrix(ocp.model, param_manager)[1]
+    y_e = ocp.model.x
+    return 0.5 * ca.mtimes(ca.mtimes((y_e - yref_e).T, W_e), (y_e - yref_e))
 
 
 def export_parametric_ocp(
+    param_manager: AcadosParamManager,
     cost_type: str = "NONLINEAR_LS",
     exact_hess_dyn: bool = True,
     name: str = "cartpole",
     Fmax: float = 80.0,
     N_horizon: int = 50,
     tf: float = 2.0,
-    sensitivity_ocp=False,
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
     ocp.solver_options.N_horizon = N_horizon
+
+    param_manager.assign_to_ocp(ocp)
+
     ocp.solver_options.tf = tf
     dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
 
@@ -249,15 +264,17 @@ def export_parametric_ocp(
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)  # type:ignore
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)  # type:ignore
 
-    ocp.model.disc_dyn_expr = disc_dyn_expr(model=ocp.model, dt=dt)  # type:ignore
+    ocp.model.disc_dyn_expr = define_disc_dyn_expr(
+        model=ocp.model, param_manager=param_manager, dt=dt
+    )  # type:ignore
 
     ######## Cost ########
     if cost_type == "EXTERNAL":
         ocp.cost.cost_type = cost_type
-        ocp.model.cost_expr_ext_cost = cost_expr_ext_cost(ocp.model)  # type:ignore
+        ocp.model.cost_expr_ext_cost = define_cost_expr_ext_cost(ocp, param_manager)  # type:ignore
 
         ocp.cost.cost_type_e = cost_type
-        ocp.model.cost_expr_ext_cost_e = cost_expr_ext_cost_e(ocp.model)  # type:ignore
+        ocp.model.cost_expr_ext_cost_e = define_cost_expr_ext_cost_e(ocp, param_manager)  # type:ignore
 
         ocp.solver_options.hessian_approx = "EXACT"
         ocp.solver_options.exact_hess_cost = True
@@ -266,12 +283,12 @@ def export_parametric_ocp(
         ocp.cost.cost_type = "NONLINEAR_LS"
         ocp.cost.cost_type_e = "NONLINEAR_LS"
 
-        ocp.cost.W = cost_matrix_casadi(ocp.model)
-        ocp.cost.yref = yref_casadi(ocp.model)
+        ocp.cost.W = define_cost_matrix(ocp.model, param_manager=param_manager)[0]
+        ocp.cost.yref = define_yref(param_manager=param_manager)
         ocp.model.cost_y_expr = ca.vertcat(ocp.model.x, ocp.model.u)
 
-        ocp.cost.W_e = ocp.cost.W[:4, :4]
-        ocp.cost.yref_e = ocp.cost.yref[:4]
+        ocp.cost.W_e = define_cost_matrix(ocp.model, param_manager=param_manager)[1]
+        ocp.cost.yref_e = param_manager.get("xref_e")
         ocp.model.cost_y_expr_e = ocp.model.x
 
         ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
@@ -309,20 +326,5 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
     ocp.solver_options.with_batch_functionality = True
-
-    # Enable sensitivity options if requested
-    if sensitivity_ocp:
-        ocp.solver_options.sens_algebraic = True
-        ocp.solver_options.sens_hess = True
-
-    #####################################################
-
-    if isinstance(ocp.model.p, struct_symSX):
-        ocp.model.p = ocp.model.p.cat if ocp.model.p is not None else []
-
-    if isinstance(ocp.model.p_global, struct_symSX):
-        ocp.model.p_global = (
-            ocp.model.p_global.cat if ocp.model.p_global is not None else None
-        )
 
     return ocp
