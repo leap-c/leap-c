@@ -277,6 +277,10 @@ def test_closed_loop(
         x = np.array(x)
         u = np.array(u).reshape(100, 2)
 
+        assert np.median(x[-10:, 0]) <= tol, "Median of x[-10:, 0] exceeds threshold"
+        assert np.median(x[-10:, 1]) <= tol, "Median of x[-10:, 1] exceeds threshold"
+        assert np.median(u[-10:]) <= tol, "Median of u[-10:] exceeds threshold"
+
         fig = plt.figure(figsize=(10, 5))
         ax1 = fig.add_subplot(121)
         ax1.plot(x[:, 0], label="x[0]")
@@ -294,10 +298,6 @@ def test_closed_loop(
         ax2.legend()
         plt.tight_layout()
     plt.show()
-
-    # assert np.median(x[-10:, 0]) <= tol, "Median of x[-10:, 0] exceeds threshold"
-    # assert np.median(x[-10:, 1]) <= tol, "Median of x[-10:, 1] exceeds threshold"
-    # assert np.median(u[-10:]) <= tol, "Median of u[-10:] exceeds threshold"
 
 
 @dataclass
