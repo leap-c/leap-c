@@ -1,4 +1,5 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
+from leap_c.ocp.acados.parameters import Parameter
 import numpy as np
 from typing import List
 from leap_c.ocp.acados.parameters import Parameter
@@ -24,7 +25,7 @@ class CartPoleParams:
     uref: np.ndarray  # reference u
 
 
-def make_default_cartpole_params() -> CartPoleParams:
+def make_default_cartpole_params(stage_wise: bool = False) -> CartPoleParams:
     """Returns a CartPoleParams instance with default parameter values."""
     return CartPoleParams(
         # Dynamics parameters
@@ -36,9 +37,16 @@ def make_default_cartpole_params() -> CartPoleParams:
         q_diag=Parameter("q_diag", np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))),
         r_diag=Parameter("r_diag", np.sqrt(np.array([2e-1]))),
         # Reference parameters (for NONLINEAR_LS cost)
-        xref1=np.array([0.0]),
-        xref2=np.array([0.0]),
-        xref3=np.array([0.0]),
-        xref4=np.array([0.0]),
-        uref=np.array([0.0]),
+        xref1=Parameter("xref1", np.array([0.0])),
+        xref2=Parameter(
+            "xref2",
+            np.array([0.0]),
+            lower_bound=-2.0 * np.pi,
+            upper_bound=2.0 * np.pi,
+            differentiable=True,
+            stage_wise=stage_wise,
+        ),
+        xref3=Parameter("xref3", np.array([0.0])),
+        xref4=Parameter("xref4", np.array([0.0])),
+        uref=Parameter("uref", np.array([0.0])),
     )
