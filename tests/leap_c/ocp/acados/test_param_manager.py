@@ -67,6 +67,26 @@ def test_diff_mpc_with_stage_wise_varying_params_equivalent_to_diff_mpc(
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
     diff_mpc: AcadosDiffMpc,
 ):
+    # Test ocp_solver directly
+    ocp_solver = {
+        "stagewise": diff_mpc_with_stagewise_varying_params.diff_mpc_fun.forward_batch_solver.ocp_solvers[
+            0
+        ],
+        "global": diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0],
+    }
+
+    x0 = np.array([1.0, 1.0, 0.0, 0.0])
+    u0 = {key: ocp_solver[key].solve_for_x0(x0_bar=x0) for key in ocp_solver}
+    # ocp = ocp_solver.acados_ocp
+    for key, val in u0.items():
+        print(f"u0_{key}:", val)
+
+    sol_forward = diff_mpc.forward(
+        x0=torch.tensor(x0, dtype=torch.float32).reshape(1, -1)
+    )
+
+    print("u0_forward:", sol_forward[1].detach().numpy())
+
     ocp = diff_mpc.diff_mpc_fun.ocp
 
     x0 = torch.tensor(data=ocp.constraints.x0, dtype=torch.float32).reshape(1, -1)
