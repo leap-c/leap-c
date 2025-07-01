@@ -22,6 +22,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             upper_bound=np.array([1.5]),
             differentiable=False,
             stage_wise=False,
+            fix=False,
         ),
         Parameter(
             name="cx",
@@ -30,6 +31,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             upper_bound=np.array([0.15]),
             differentiable=False,
             stage_wise=False,
+            fix=False,
         ),
         Parameter(
             name="cy",
@@ -38,6 +40,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             upper_bound=np.array([0.15]),
             differentiable=False,
             stage_wise=False,
+            fix=False,
         ),
         Parameter(
             name="q_diag",
@@ -46,6 +49,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
             differentiable=True,
             stage_wise=False,
+            fix=False,
         ),
         Parameter(
             name="r_diag",
@@ -54,6 +58,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             upper_bound=np.array([0.15, 0.15]),
             differentiable=True,
             stage_wise=False,
+            fix=False,
         ),
         Parameter(
             name="q_diag_e",
@@ -62,6 +67,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
             differentiable=True,
             stage_wise=False,
+            fix=False,
         ),
         Parameter(
             name="xref",
@@ -70,6 +76,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
             differentiable=True,
             stage_wise=False,
+            fix=False,
         ),
         Parameter(
             name="uref",
@@ -78,6 +85,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             upper_bound=np.array([1.0, 1.0]),
             differentiable=True,
             stage_wise=False,
+            fix=False,
         ),
         Parameter(
             name="xref_e",
@@ -86,6 +94,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
             differentiable=True,
             stage_wise=False,
+            fix=False,
         ),
     )
 
@@ -380,7 +389,7 @@ def define_constraints(ocp: AcadosOcp, param_manager: AcadosParamManager) -> Non
 
 
 @pytest.fixture(scope="session", params=["external", "nonlinear_ls"])
-def acados_test_ocp(  # noqa: PLR0915
+def acados_test_ocp(
     ocp_options: AcadosOcpOptions,
     nominal_params: tuple[Parameter, ...],
     request: pytest.FixtureRequest,
@@ -392,7 +401,10 @@ def acados_test_ocp(  # noqa: PLR0915
 
     ocp.solver_options = ocp_options
 
-    param_manager = AcadosParamManager(params=nominal_params, ocp=ocp)
+    param_manager = AcadosParamManager(
+        params=nominal_params, N_horizon=ocp.solver_options.N_horizon
+    )
+    param_manager.assign_to_ocp(ocp)
 
     ocp.model.name = name
 
@@ -466,7 +478,10 @@ def acados_test_ocp_with_stagewise_varying_params(
 
     ocp.solver_options = ocp_options
 
-    param_manager = AcadosParamManager(params=nominal_stage_wise_params, ocp=ocp)
+    param_manager = AcadosParamManager(
+        params=nominal_stage_wise_params, N_horizon=ocp.solver_options.N_horizon
+    )
+    param_manager.assign_to_ocp(ocp)
 
     ocp.model.name = name
 
@@ -505,7 +520,7 @@ def diff_mpc_with_stagewise_varying_params(
 
     acados_param_manager = AcadosParamManager(
         params=nominal_stage_wise_params,
-        ocp=diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0].acados_ocp,
+        N_horizon=acados_test_ocp_with_stagewise_varying_params.solver_options.N_horizon,
     )
 
     # Get the default parameter values for each stage
