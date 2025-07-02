@@ -236,9 +236,9 @@ def acados_test_ocp_no_p_global(
     ocp.dims.nu = ocp.model.u.shape[0]
 
     kwargs = {
-        "m": param_manager.get(field_="m"),
-        "cx": param_manager.get(field_="cx"),
-        "cy": param_manager.get(field_="cy"),
+        "m": param_manager.get(field="m"),
+        "cx": param_manager.get(field="cx"),
+        "cy": param_manager.get(field="cy"),
         "dt": ocp.solver_options.tf / ocp.solver_options.N_horizon,
     }
     # Make sure all entries are floats or casadi SX
@@ -319,17 +319,17 @@ def define_external_cost(ocp: AcadosOcp, param_manager: AcadosParamManager):
         ocp.model.u,
     )
     yref = ca.vertcat(
-        param_manager.get(field_="xref"),
-        param_manager.get(field_="uref"),
+        param_manager.get(field="xref"),
+        param_manager.get(field="uref"),
     )
     W_sqrt = ca.diag(
         ca.vertcat(
-            param_manager.get(field_="q_diag"),
-            param_manager.get(field_="r_diag"),
+            param_manager.get(field="q_diag"),
+            param_manager.get(field="r_diag"),
         )
     )
-    xref_e = param_manager.get(field_="xref_e")
-    Q_sqrt_e = ca.diag(param_manager.get(field_="q_diag_e"))
+    xref_e = param_manager.get(field="xref_e")
+    Q_sqrt_e = ca.diag(param_manager.get(field="q_diag_e"))
 
     stage_cost = 0.5 * (
         ca.mtimes(
@@ -364,9 +364,9 @@ def define_external_cost(ocp: AcadosOcp, param_manager: AcadosParamManager):
 
 def define_discrete_dynamics(ocp: AcadosOcp, param_manager: AcadosParamManager) -> None:
     kwargs = {
-        "m": param_manager.get(field_="m"),
-        "cx": param_manager.get(field_="cx"),
-        "cy": param_manager.get(field_="cy"),
+        "m": param_manager.get(field="m"),
+        "cx": param_manager.get(field="cx"),
+        "cy": param_manager.get(field="cy"),
         "dt": ocp.solver_options.tf / ocp.solver_options.N_horizon,
     }
     ocp.model.disc_dyn_expr = (

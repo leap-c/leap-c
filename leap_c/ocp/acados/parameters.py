@@ -254,33 +254,33 @@ class AcadosParamManager:
 
     def get(
         self,
-        field_: str,
-        stage_: int | None = None,
+        field: str,
+        stage: int | None = None,
     ) -> ca.SX | ca.MX | np.ndarray:
         """Get the variable for a given field at a specific stage."""
-        if field_ in self.parameters and self.parameters[field_].fix:
-            return self.parameters[field_].value
+        if field in self.parameters and self.parameters[field].fix:
+            return self.parameters[field].value
 
-        if field_ in self._get_differentiable_stagewise_parameters():
+        if field in self._get_differentiable_stagewise_parameters():
             return sum(
                 [
-                    self.p["indicator"][stage_] * self.p_global[field_, stage_]
+                    self.p["indicator"][stage_] * self.p_global[field, stage_]
                     for stage_ in range(self.N_horizon + 1)
                 ]
             )
 
-        if field_ in self.p_global.keys():
-            if stage_ is not None:
-                return self.p_global[field_, stage_]
-            return self.p_global[field_]
+        if field in self.p_global.keys():
+            if stage is not None:
+                return self.p_global[field, stage]
+            return self.p_global[field]
 
-        if field_ in self.p.keys():
-            if stage_ is not None and field_ == "indicator":
-                return self.p[field_][stage_]
-            return self.p[field_]
+        if field in self.p.keys():
+            if stage is not None and field == "indicator":
+                return self.p[field][stage]
+            return self.p[field]
 
         available_fields = list(self.p_global.keys()) + list(self.p.keys())
-        error_message = f"Unknown field: {field_}. Available fields: {available_fields}"
+        error_message = f"Unknown field: {field}. Available fields: {available_fields}"
         raise ValueError(error_message)
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
