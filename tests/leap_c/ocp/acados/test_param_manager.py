@@ -173,6 +173,10 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     u_stagewise = sol_pert[3].detach().numpy().reshape(-1, ocp.dims.nu)
     x_stagewise = sol_pert[2].detach().numpy().reshape(-1, ocp.dims.nx)
 
+    # TODO: Use flattened_iterate.allclose() when available for batch iterates.
+    # flattened_iterate = global_solver.store_iterate_to_flat_obj()
+    # sol_flattened_batch_iterate = sol_pert[0].iterate
+
     assert np.allclose(
         u_global,
         u_stagewise,
