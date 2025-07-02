@@ -100,7 +100,7 @@ def nominal_params() -> tuple[Parameter, ...]:
 
 
 @pytest.fixture(scope="session")
-def nominal_stage_wise_params(
+def nominal_stagewise_params(
     nominal_params: tuple[Parameter, ...],
 ) -> tuple[Parameter, ...]:
     """Copy nominal_params and modify specific parameters to be stage_wise."""
@@ -216,13 +216,16 @@ def acados_test_ocp_no_p_global(
             value=param.value,
             lower_bound=param.lower_bound,
             upper_bound=param.upper_bound,
+            fix=True,
             differentiable=False,
             stage_wise=False,
         )
         for param in nominal_params
     )
 
-    param_manager = AcadosParamManager(params=params, ocp=ocp)
+    param_manager = AcadosParamManager(
+        params=params, N_horizon=ocp.solver_options.N_horizon
+    )
 
     ocp.model.name = name
 
@@ -238,6 +241,12 @@ def acados_test_ocp_no_p_global(
         "cy": param_manager.get(field_="cy"),
         "dt": ocp.solver_options.tf / ocp.solver_options.N_horizon,
     }
+    # Make sure all entries are floats or casadi SX
+    # TODO: Move this into the AcadosParamManager
+    for key, value in kwargs.items():
+        if isinstance(value, np.ndarray):
+            kwargs[key] = value.item() if value.size == 1 else ca.SX(value)
+
     ocp.model.disc_dyn_expr = (
         get_A_disc(**kwargs) @ ocp.model.x + get_B_disc(**kwargs) @ ocp.model.u
     )
@@ -469,7 +478,7 @@ def acados_test_ocp(
 @pytest.fixture(scope="session")
 def acados_test_ocp_with_stagewise_varying_params(
     ocp_options: AcadosOcpOptions,
-    nominal_stage_wise_params: tuple[Parameter, ...],
+    nominal_stagewise_params: tuple[Parameter, ...],
 ) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp_with_stagewise_varying_params"
@@ -479,7 +488,7 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp.solver_options = ocp_options
 
     param_manager = AcadosParamManager(
-        params=nominal_stage_wise_params, N_horizon=ocp.solver_options.N_horizon
+        params=nominal_stagewise_params, N_horizon=ocp.solver_options.N_horizon
     )
     param_manager.assign_to_ocp(ocp)
 
@@ -508,7 +517,7 @@ def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpc:
 @pytest.fixture(scope="session")
 def diff_mpc_with_stagewise_varying_params(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
-    nominal_stage_wise_params: tuple[Parameter, ...],
+    nominal_stagewise_params: tuple[Parameter, ...],
     print_level: int = 0,
 ) -> AcadosDiffMpc:
     diff_mpc = AcadosDiffMpc(
@@ -519,7 +528,7 @@ def diff_mpc_with_stagewise_varying_params(
     )
 
     acados_param_manager = AcadosParamManager(
-        params=nominal_stage_wise_params,
+        params=nominal_stagewise_params,
         N_horizon=acados_test_ocp_with_stagewise_varying_params.solver_options.N_horizon,
     )
 
