@@ -1,18 +1,34 @@
-from collections.abc import Callable
 import copy
+import platform
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-import platform
 
-from acados_template import AcadosOcp
 import numpy as np
 import torch
+from acados_template import AcadosOcp
 
 from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 
+import matplotlib.pyplot as plt
 
-def test_initialization(diff_mpc: AcadosDiffMpc):
-    assert True
+
+def test_initialization_with_stagewise_varying_params(
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
+) -> None:
+    """
+    Test the initialization of the AcadosImplicitLayer with stagewise varying
+    parameters.
+    """
+    assert diff_mpc_with_stagewise_varying_params is not None, (
+        "AcadosImplicitLayer with stagewise varying parameters should not be None."
+    )
+
+
+def test_initialization(diff_mpc: AcadosDiffMpc) -> None:
+    assert diff_mpc is not None, (
+        "AcadosDiffMpc should not be None after initialization."
+    )
 
 
 def test_file_management(diff_mpc: AcadosDiffMpc, tol: float = 1e-5) -> None:
@@ -28,7 +44,7 @@ def test_file_management(diff_mpc: AcadosDiffMpc, tol: float = 1e-5) -> None:
 
     Raises:
         AssertionError: If any of the following conditions are not met:
-            - The `c_generated_code` directory does not exist or is not a 
+            - The `c_generated_code` directory does not exist or is not a
                 directory.
             - No `.so` files are found in the `c_generated_code` directory.
             - Reloading the solver modifies the `.so` files beyond the specified
@@ -82,7 +98,7 @@ def test_statelessness(diff_mpc: AcadosDiffMpc) -> None:
 
     This test ensures that:
     1. The layer's output changes when global and stagewise parameters are modified.
-    2. The layer's output remains consistent for identical inputs, confirming 
+    2. The layer's output remains consistent for identical inputs, confirming
         stateless behavior.
 
     Args:
@@ -208,7 +224,11 @@ def test_backup_functionality(diff_mpc: AcadosDiffMpc) -> None:
         )
 
 
-def test_closed_loop(diff_mpc: AcadosDiffMpc, tol: float = 1e-1) -> None:
+def test_closed_loop(
+    diff_mpc: AcadosDiffMpc,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
+    tol: float = 1e-1,
+) -> None:
     """
     Tests the closed-loop behavior of a system controlled by AcadosDiffMpc.
 
@@ -227,35 +247,57 @@ def test_closed_loop(diff_mpc: AcadosDiffMpc, tol: float = 1e-1) -> None:
             median of the last 10 states or control inputs exceeds the specified
             threshold.
     """
-    nx = diff_mpc.ocp.dims.nx
+    for diff_mpc_k in [
+        diff_mpc_with_stagewise_varying_params,
+        diff_mpc,
+    ]:
+        nx = diff_mpc_k.ocp.dims.nx
 
-    x0 = np.array([0.5, 0.5, 0.5, 0.5])
-    x = [x0]
-    u = []
+        x0 = np.array([0.5, 0.5, 0.5, 0.5])
+        x = [x0]
+        u = []
 
-    # Need first dimension of inputs to be batch size
-    n_batch = 1
+        # Need first dimension of inputs to be batch size
+        n_batch = 1
 
-    p_global = diff_mpc.ocp.p_global_values.reshape(
-        n_batch, diff_mpc.ocp.dims.np_global
-    )
-
-    for step in range(100):
-        # Need first dimension to be batch size
-        x0 = np.array(x[-1].reshape(n_batch, nx))  # type: ignore
-        ctx, u0, _, _, _ = diff_mpc.forward(x0=x0, p_global=p_global)  # type: ignore
-        assert ctx.status == 0, f"Did not converge to a solution in step {step}"
-        u.append(u0)
-        x.append(
-            diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0].get(1, "x")
+        p_global = diff_mpc_k.ocp.p_global_values.reshape(
+            n_batch, diff_mpc_k.ocp.dims.np_global
         )
 
-    x = np.array(x)
-    u = np.array(u)
+        for step in range(100):
+            # Need first dimension to be batch size
+            x0 = np.array(x[-1].reshape(n_batch, nx))  # type: ignore
+            ctx, u0, _, _, _ = diff_mpc_k.forward(x0=x0, p_global=p_global)  # type: ignore
+            assert ctx.status == 0, f"Did not converge to a solution in step {step}"
+            u.append(u0)
+            x.append(
+                diff_mpc_k.diff_mpc_fun.forward_batch_solver.ocp_solvers[0].get(1, "x")
+            )
 
-    assert np.median(x[-10:, 0]) <= tol, "Median of x[-10:, 0] exceeds threshold"
-    assert np.median(x[-10:, 1]) <= tol, "Median of x[-10:, 1] exceeds threshold"
-    assert np.median(u[-10:]) <= tol, "Median of u[-10:] exceeds threshold"
+        x = np.array(x)
+        u = np.array(u).reshape(100, 2)
+
+        assert np.median(x[-10:, 0]) <= tol, "Median of x[-10:, 0] exceeds threshold"
+        assert np.median(x[-10:, 1]) <= tol, "Median of x[-10:, 1] exceeds threshold"
+        assert np.median(u[-10:]) <= tol, "Median of u[-10:] exceeds threshold"
+
+        fig = plt.figure(figsize=(10, 5))
+        ax1 = fig.add_subplot(121)
+        ax1.plot(x[:, 0], label="x[0]")
+        ax1.plot(x[:, 1], label="x[1]")
+        ax1.set_title("State Trajectories")
+        ax1.set_xlabel("Time Step")
+        ax1.set_ylabel("Position")
+        ax1.legend()
+        ax2 = fig.add_subplot(122)
+        ax2.plot(u[:, 0], label="u[0]")
+        ax2.plot(u[:, 1], label="u[1]")
+        ax2.set_title("Control Inputs")
+        ax2.set_xlabel("Time Step")
+        ax2.set_ylabel("Control")
+        ax2.legend()
+        plt.tight_layout()
+    plt.show()
 
 
 @dataclass
@@ -326,6 +368,7 @@ def _setup_test_inputs(
 
 def test_forward(
     diff_mpc: AcadosDiffMpc,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
     n_batch: int = 4,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.05,
@@ -396,55 +439,57 @@ def test_forward(
             f", Got: {value.shape}"
         )
 
-    acados_ocp = diff_mpc.ocp
-    n_batch = diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max
+    for diff_mpc_k in [diff_mpc_with_stagewise_varying_params, diff_mpc]:
+        acados_ocp = diff_mpc_k.ocp
+        n_batch = diff_mpc_k.diff_mpc_fun.forward_batch_solver.N_batch_max
 
-    # Setup test data
-    test_inputs = _setup_test_inputs(diff_mpc, n_batch, dtype, noise_scale)
+        # Setup test data
+        test_inputs = _setup_test_inputs(diff_mpc_k, n_batch, dtype, noise_scale)
 
-    # Define test cases
-    test_cases = [
-        {
-            "name": "x0_only",
-            "kwargs": {"x0": test_inputs.x0},
-            "expected_output": "V",
-        },
-        {
-            "name": "x0_and_u0",
-            "kwargs": {"x0": test_inputs.x0, "u0": test_inputs.u0},
-            "expected_output": "Q",
-        },
-        {
-            "name": "x0_and_p_global",
-            "kwargs": {"x0": test_inputs.x0, "p_global": test_inputs.p_global},
-            "expected_output": "V",
-        },
-        {
-            "name": "all_parameters",
-            "kwargs": {
-                "x0": test_inputs.x0,
-                "u0": test_inputs.u0,
-                "p_global": test_inputs.p_global,
+        # Define test cases
+        test_cases = [
+            {
+                "name": "x0_only",
+                "kwargs": {"x0": test_inputs.x0},
+                "expected_output": "V",
             },
-            "expected_output": "Q",
-        },
-    ]
+            {
+                "name": "x0_and_u0",
+                "kwargs": {"x0": test_inputs.x0, "u0": test_inputs.u0},
+                "expected_output": "Q",
+            },
+            {
+                "name": "x0_and_p_global",
+                "kwargs": {"x0": test_inputs.x0, "p_global": test_inputs.p_global},
+                "expected_output": "V",
+            },
+            {
+                "name": "all_parameters",
+                "kwargs": {
+                    "x0": test_inputs.x0,
+                    "u0": test_inputs.u0,
+                    "p_global": test_inputs.p_global,
+                },
+                "expected_output": "Q",
+            },
+        ]
 
-    for test_case in test_cases:
-        if verbosity > 0:
-            print(f"Testing forward call: {test_case['name']}")
+        for test_case in test_cases:
+            if verbosity > 0:
+                print(f"Testing forward call: {test_case['name']}")
 
-        _run_single_forward_test(
-            diff_mpc,
-            test_case["kwargs"],
-            test_case["expected_output"],
-            n_batch,
-            acados_ocp,
-        )
+            _run_single_forward_test(
+                diff_mpc_k,
+                test_case["kwargs"],
+                test_case["expected_output"],
+                n_batch,
+                acados_ocp,
+            )
 
 
 def test_sensitivity(
     diff_mpc: AcadosDiffMpc,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
     n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
@@ -468,49 +513,54 @@ def test_sensitivity(
         )
         raise ValueError(error_message)
 
-    # Setup test data
-    test_inputs = _setup_test_inputs(diff_mpc, n_batch, dtype, noise_scale)
+    for diff_mpc_k in [
+        diff_mpc_with_stagewise_varying_params,
+        diff_mpc,
+    ]:
+        # Setup test data
+        test_inputs = _setup_test_inputs(diff_mpc_k, n_batch, dtype, noise_scale)
 
-    ctx, u0, x, u, value = diff_mpc.forward(x0=test_inputs.x0)
+        ctx, u0, x, u, value = diff_mpc_k.forward(x0=test_inputs.x0)
 
-    results = {
-        field: diff_mpc.sensitivity(ctx=ctx, field_name=field)  # type: ignore
-        for field in ["dvalue_dp_global", "dvalue_dx0"]
-    }
+        results = {
+            field: diff_mpc_k.sensitivity(ctx=ctx, field_name=field)  # type: ignore
+            for field in ["dvalue_dp_global", "dvalue_dx0"]
+        }
 
-    assert results["dvalue_dp_global"].shape == (
-        n_batch,
-        diff_mpc.ocp.dims.np_global,
-    ), (
-        f"dvalue_dp_global shape mismatch. Expected: \
-            {(n_batch, diff_mpc.ocp.dims.np_global)}, "
-        f"Got: {results['dvalue_dp_global'].shape}"
-    )
+        assert results["dvalue_dp_global"].shape == (
+            n_batch,
+            diff_mpc_k.ocp.dims.np_global,
+        ), (
+            f"dvalue_dp_global shape mismatch. Expected: \
+                {(n_batch, diff_mpc_k.ocp.dims.np_global)}, "
+            f"Got: {results['dvalue_dp_global'].shape}"
+        )
 
-    assert results["dvalue_dx0"].shape == (
-        n_batch,
-        diff_mpc.ocp.dims.nx,
-    ), (
-        f"dvalue_dx0 shape mismatch. Expected: {(n_batch, diff_mpc.ocp.dims.nx)},"
-        f" "
-        f"Got: {results['dvalue_dx0'].shape}"
-    )
+        assert results["dvalue_dx0"].shape == (
+            n_batch,
+            diff_mpc_k.ocp.dims.nx,
+        ), (
+            f"dvalue_dx0 shape mismatch. Expected: {(n_batch, diff_mpc_k.ocp.dims.nx)},"
+            f" "
+            f"Got: {results['dvalue_dx0'].shape}"
+        )
 
-    ctx, u0, x, u, value = diff_mpc.forward(x0=test_inputs.x0, u0=test_inputs.u0)
-    results["dvalue_du0"] = diff_mpc.sensitivity(ctx=ctx, field_name="dvalue_du0")
+        ctx, u0, x, u, value = diff_mpc_k.forward(x0=test_inputs.x0, u0=test_inputs.u0)
+        results["dvalue_du0"] = diff_mpc_k.sensitivity(ctx=ctx, field_name="dvalue_du0")
 
-    assert results["dvalue_du0"].shape == (
-        n_batch,
-        diff_mpc.ocp.dims.nu,
-    ), (
-        f"dvalue_du0 shape mismatch. Expected: {(n_batch, diff_mpc.ocp.dims.nu)},"
-        f" "
-        f"Got: {results['dvalue_du0'].shape}"
-    )
+        assert results["dvalue_du0"].shape == (
+            n_batch,
+            diff_mpc_k.ocp.dims.nu,
+        ), (
+            f"dvalue_du0 shape mismatch. Expected: {(n_batch, diff_mpc_k.ocp.dims.nu)},"
+            f" "
+            f"Got: {results['dvalue_du0'].shape}"
+        )
 
 
 def test_backward(
     diff_mpc: AcadosDiffMpc,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
     n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
@@ -573,9 +623,7 @@ def test_backward(
             forward_func, lambda result: result[4]
         )  # value
 
-    def _create_dQdx0_test(
-        diff_mpc: AcadosDiffMpc, u0: torch.Tensor
-    ) -> Callable:
+    def _create_dQdx0_test(diff_mpc: AcadosDiffMpc, u0: torch.Tensor) -> Callable:
         """Create test function for dQ/dx0 gradient."""
 
         def forward_func(x0):
@@ -597,9 +645,7 @@ def test_backward(
             forward_func, lambda result: result[1]
         )  # u0
 
-    def _create_dVdp_global_test(
-        diff_mpc: AcadosDiffMpc, x0: torch.Tensor
-    ) -> Callable:
+    def _create_dVdp_global_test(diff_mpc: AcadosDiffMpc, x0: torch.Tensor) -> Callable:
         """Create test function for dV/dp_global gradient."""
 
         def forward_func(p_global):
@@ -633,70 +679,71 @@ def test_backward(
             forward_func, lambda result: result[4]
         )  # value
 
-    test_inputs = _setup_test_inputs(diff_mpc, n_batch, dtype, noise_scale)
+    for diff_mpc_k in [diff_mpc_with_stagewise_varying_params, diff_mpc]:
+        test_inputs = _setup_test_inputs(diff_mpc_k, n_batch, dtype, noise_scale)
 
-    # TODO: Sensitivities with respect to different parameters have different scales
-    # that lead to different tolerances and step sizes for the parameters. At the moment,
-    # we use a single set of tolerances and step sizes for all parameters.
+        # TODO: Sensitivities with respect to different parameters have different scales
+        # that lead to different tolerances and step sizes for the parameters. At the moment,
+        # we use a single set of tolerances and step sizes for all parameters.
 
-    test_cases = [
-        (
-            "dV/dx0",
-            _create_dVdx0_test(diff_mpc),
-            test_inputs.x0,
-            GradCheckConfig(atol=1e-1, eps=1e-2),
-        ),
-        (
-            "du0/dx0",
-            _create_du0dx0_test(diff_mpc),
-            test_inputs.x0,
-            GradCheckConfig(atol=1e0, eps=1e-4),
-        ),
-        (
-            "dQ/dx0",
-            _create_dQdx0_test(diff_mpc, test_inputs.u0),
-            test_inputs.x0,
-            GradCheckConfig(atol=1e-2, eps=1e-2),
-        ),
-        (
-            "du0/dp_global",
-            _create_du0dp_global_test(diff_mpc, test_inputs.x0),
-            test_inputs.p_global,
-            GradCheckConfig(atol=1e-1, eps=1e-4),
-        ),
-        (
-            "dV/dp_global",
-            _create_dVdp_global_test(diff_mpc, test_inputs.x0),
-            test_inputs.p_global,
-            GradCheckConfig(atol=1e-2, eps=1e-2),
-        ),
-        (
-            "dQ/dp_global",
-            _create_dQdp_global_test(diff_mpc, test_inputs.x0, test_inputs.u0),
-            test_inputs.p_global,
-            GradCheckConfig(atol=1e-2, eps=1e-2),
-        ),
-        (
-            "dQ/du0",
-            _create_dQdu0_test(diff_mpc, test_inputs.x0, test_inputs.p_global),
-            test_inputs.u0,
-            GradCheckConfig(atol=1e-2, eps=1e-2),
-        ),
-    ]
+        test_cases = [
+            (
+                "dV/dx0",
+                _create_dVdx0_test(diff_mpc_k),
+                test_inputs.x0,
+                GradCheckConfig(atol=1e-1, eps=1e-2),
+            ),
+            (
+                "du0/dx0",
+                _create_du0dx0_test(diff_mpc_k),
+                test_inputs.x0,
+                GradCheckConfig(atol=1e0, eps=1e-4),
+            ),
+            (
+                "dQ/dx0",
+                _create_dQdx0_test(diff_mpc_k, test_inputs.u0),
+                test_inputs.x0,
+                GradCheckConfig(atol=1e-2, eps=1e-2),
+            ),
+            (
+                "du0/dp_global",
+                _create_du0dp_global_test(diff_mpc_k, test_inputs.x0),
+                test_inputs.p_global,
+                GradCheckConfig(atol=1e-1, eps=1e-4),
+            ),
+            (
+                "dV/dp_global",
+                _create_dVdp_global_test(diff_mpc_k, test_inputs.x0),
+                test_inputs.p_global,
+                GradCheckConfig(atol=1e-2, eps=1e-2),
+            ),
+            (
+                "dQ/dp_global",
+                _create_dQdp_global_test(diff_mpc_k, test_inputs.x0, test_inputs.u0),
+                test_inputs.p_global,
+                GradCheckConfig(atol=1e-2, eps=1e-2),
+            ),
+            (
+                "dQ/du0",
+                _create_dQdu0_test(diff_mpc_k, test_inputs.x0, test_inputs.p_global),
+                test_inputs.u0,
+                GradCheckConfig(atol=1e-2, eps=1e-2),
+            ),
+        ]
 
-    # Run gradient checks
-    for test_name, test_func, test_input, config in test_cases:
-        try:
-            print(f"{test_name} gradient check running")
-            torch.autograd.gradcheck(
-                func=test_func,
-                inputs=test_input,
-                atol=config.atol,
-                rtol=config.rtol,
-                eps=config.eps,
-                raise_exception=True,
-            )
-            print(f"✓ {test_name} gradient check passed")
-        except Exception as e:
-            print(f"✗ {test_name} gradient check failed: {e}")
-            raise
+        # Run gradient checks
+        for test_name, test_func, test_input, config in test_cases:
+            try:
+                print(f"{test_name} gradient check running")
+                torch.autograd.gradcheck(
+                    func=test_func,
+                    inputs=test_input,
+                    atol=config.atol,
+                    rtol=config.rtol,
+                    eps=config.eps,
+                    raise_exception=True,
+                )
+                print(f"✓ {test_name} gradient check passed")
+            except Exception as e:
+                print(f"✗ {test_name} gradient check failed: {e}")
+                raise

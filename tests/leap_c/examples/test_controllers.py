@@ -31,29 +31,6 @@ def get_default_action(mpc_layer, controller):
     return mpc_action, ctrl_action.numpy()
 
 
-def test_cartpole_controller_matches_mpc():
-    learnable_params = ["xref2"]
-
-    mpc = CartPoleMPC(
-        N_horizon=5,
-        T_horizon=0.25,
-        learnable_params=learnable_params,
-    )
-    mpc_layer = MpcSolutionModule(mpc)
-
-    controller = CartPoleController(
-        N_horizon=5,
-        T_horizon=0.25,
-        learnable_params=learnable_params,
-    )
-
-    # Get default action from both MPC layer and controller
-    mpc_layer, ctrl_action = get_default_action(mpc_layer, controller)
-
-    # Compare outputs
-    np.testing.assert_allclose(ctrl_action, mpc_layer, rtol=1e-5, atol=1e-6)
-
-
 def test_pointmass_controller_matches_mpc():
     learnable_params = ["m", "cx", "cy"]
 
@@ -77,16 +54,10 @@ def test_chain_controller_matches_mpc():
     learnable_params = ["m", "D", "L", "C", "w"]
     n_mass = 4
 
-    mpc = ChainMpc(
-        learnable_params=learnable_params,
-        n_mass=n_mass
-    )
+    mpc = ChainMpc(learnable_params=learnable_params, n_mass=n_mass)
     mpc_layer = MpcSolutionModule(mpc)
 
-    controller = ChainController(
-        learnable_params=learnable_params,
-        n_mass=n_mass
-    )
+    controller = ChainController(learnable_params=learnable_params, n_mass=n_mass)
 
     # Get default action from both MPC layer and controller
     mpc_layer, ctrl_action = get_default_action(mpc_layer, controller)
