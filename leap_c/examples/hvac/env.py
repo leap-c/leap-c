@@ -695,9 +695,9 @@ if __name__ == "__main__":
             action = heating_power_function(t)
 
             # Update state using the integrator
-            state = env.step(action, t)
+            obs = env.step(action)
 
-            x.append(state)
+            x.append(env.state)
             u.append(action)
 
         # Pop the last state
