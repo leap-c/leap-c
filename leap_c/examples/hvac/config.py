@@ -1,6 +1,8 @@
 from dataclasses import asdict, dataclass
 
 from leap_c.ocp.acados.parameters import Parameter
+from scipy.constants import convert_temperature
+import numpy as np
 
 
 @dataclass
@@ -77,117 +79,66 @@ class BestestHydronicHeatpumpParameters(BestestParameters):
 
 def make_default_hvac_params() -> tuple[Parameter, ...]:
     """Return a tuple of default parameters for the hvac problem."""
-    nominal_params = BestestHydronicParameters()
+    hydronic_params = BestestHydronicParameters().to_dict()
+    # Remove eta from the dictionary to handle it separately
+    hydronic_params.pop("eta", None)
 
-    return (
+    params = [
         Parameter(
-            name="gAw",
-            value=nominal_params.gAw,
-            lower_bound=0.95 * nominal_params.gAw,
-            upper_bound=1.05 * nominal_params.gAw,
+            name=k,
+            value=np.array([v]),
+            lower_bound=0.95 * np.array([v]),
+            upper_bound=1.05 * np.array([v]),
             fix=False,
             differentiable=True,
             stagewise=False,
-        ),
+        )
+        for k, v in hydronic_params.items()
+    ]
+
+    hydronic_params = BestestHydronicParameters().to_dict()
+    params.append(
         Parameter(
-            name="Ch",
-            value=nominal_params.Ch,
-            lower_bound=0.95 * nominal_params.Ch,
-            upper_bound=1.05 * nominal_params.Ch,
+            name="eta",  # Efficiency of the electric heater
+            value=np.array([hydronic_params["eta"]]),
+            lower_bound=0.95 * np.array([hydronic_params["eta"]]),
+            upper_bound=max(1.0, 1.05 * np.array([hydronic_params["eta"]])),
             fix=False,
             differentiable=True,
             stagewise=False,
-        ),
-        Parameter(
-            name="Ci",
-            value=nominal_params.Ci,
-            lower_bound=0.95 * nominal_params.Ci,
-            upper_bound=1.05 * nominal_params.Ci,
-            fix=False,
-            differentiable=True,
-            stagewise=False,
-        ),
-        Parameter(
-            name="Ce",
-            value=nominal_params.Ce,
-            lower_bound=0.95 * nominal_params.Ce,
-            upper_bound=1.05 * nominal_params.Ce,
-            fix=False,
-            differentiable=True,
-            stagewise=False,
-        ),
-        Parameter(
-            name="e11",
-            value=nominal_params.e11,
-            lower_bound=0.95 * nominal_params.e11,
-            upper_bound=1.05 * nominal_params.e11,
-            fix=False,
-            differentiable=True,
-            stagewise=False,
-        ),
-        Parameter(
-            name="sigmai",
-            value=nominal_params.sigmai,
-            lower_bound=0.95 * nominal_params.sigmai,
-            upper_bound=1.05 * nominal_params.sigmai,
-            fix=False,
-            differentiable=True,
-            stagewise=False,
-        ),
-        Parameter(
-            name="sigmah",
-            value=nominal_params.sigmah,
-            lower_bound=0.95 * nominal_params.sigmah,
-            upper_bound=1.05 * nominal_params.sigmah,
-            fix=False,
-            differentiable=True,
-            stagewise=False,
-        ),
-        Parameter(
-            name="sigmae",
-            value=nominal_params.sigmae,
-            lower_bound=0.95 * nominal_params.sigmae,
-            upper_bound=1.05 * nominal_params.sigmae,
-            fix=False,
-            differentiable=True,
-            stagewise=False,
-        ),
-        Parameter(
-            name="Rea",
-            value=nominal_params.Rea,
-            lower_bound=0.95 * nominal_params.Rea,
-            upper_bound=1.05 * nominal_params.Rea,
-            fix=False,
-            differentiable=True,
-            stagewise=False,
-        ),
-        Parameter(
-            name="Rhi",
-            value=nominal_params.Rhi,
-            lower_bound=0.95 * nominal_params.Rhi,
-            upper_bound=1.05 * nominal_params.Rhi,
-            fix=False,
-            differentiable=True,
-            stagewise=False,
-        ),
-        Parameter(
-            name="Rie",
-            value=nominal_params.Rie,
-            lower_bound=0.95 * nominal_params.Rie,
-            upper_bound=1.05 * nominal_params.Rie,
-            fix=False,
-            differentiable=True,
-            stagewise=False,
-        ),
-        Parameter(
-            name="eta",
-            value=nominal_params.eta,
-            lower_bound=0.95 * nominal_params.eta,
-            upper_bound=max(
-                1.0, 1.05 * nominal_params.eta
-            ),  # efficiency must be <= 1.0
-            fix=False,
-            differentiable=True,
-            stagewise=False,
-        ),
+        )
     )
+    params.extend(
+        [
+            Parameter(
+                name="Ta",  # Ambient temperature in Kelvin
+                value=np.array([convert_temperature(20.0, "celsius", "kelvin")]),
+                lower_bound=np.array([convert_temperature(-20.0, "celsius", "kelvin")]),
+                upper_bound=np.array([convert_temperature(40.0, "celsius", "kelvin")]),
+                fix=False,
+                differentiable=True,
+                stagewise=True,
+            ),
+            Parameter(
+                name="Phi_s",
+                value=np.array([200.0]),  # Solar radiation in W/m²
+                lower_bound=np.array([0.0]),
+                upper_bound=np.array([400.0]),
+                fix=False,
+                differentiable=True,
+                stagewise=True,
+            ),
+            Parameter(
+                name="price",
+                value=np.array([0.15]),  # Electricity price in €/kWh
+                lower_bound=np.array([0.00]),
+                upper_bound=np.array([0.30]),
+                fix=False,
+                differentiable=True,
+                stagewise=True,
+            ),
+        ]
+    )
+
+    print(params)
+    return tuple(params)
