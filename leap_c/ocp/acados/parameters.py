@@ -227,6 +227,11 @@ class AcadosParamManager:
         # TODO: Make sure indexing is consistent.
         # Issue is the difference between casadi (row major) and numpy (column major)
         # when using matrix values.
+        # NOTE: Can use numpy.reshape with order='C' or order='F'
+        # to specify column / row major.
+        # NOTE: First check the order, using something like a.flags.f_contiguous,
+        # see https://numpy.org/doc/2.1/reference/generated/numpy.isfortran.html
+        # and reshape if needed or raise an error.
         for key, val in overwrite.items():
             batch_parameter_values[:, :, self.p.f[key]] = val.reshape(
                 batch_size, self.N_horizon + 1, -1
