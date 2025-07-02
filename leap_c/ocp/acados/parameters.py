@@ -84,12 +84,28 @@ class AcadosParamManager:
         # Build bounds for p_global parameters
         lb = self.p_global(0)
         ub = self.p_global(0)
-        # TODO: Handle case where no bounds (i.e. None) are provided.
         for key in self.p_global.keys():
             if self.parameters[key].stagewise:
                 for stage in range(self.N_horizon + 1):
-                    lb[key, stage] = self.parameters[key].lower_bound
-                    ub[key, stage] = self.parameters[key].upper_bound
+                    if self.parameters[key].lower_bound is None:
+                        # TODO: Needs test if this is correct.
+                        # lb[key, stage] = -ca.inf
+                        raise ValueError(
+                            f"Lower bound for stagewise parameter '{key}' is None. "
+                            "This is not supported."
+                        )
+                    else:
+                        lb[key, stage] = self.parameters[key].lower_bound
+
+                    if self.parameters[key].upper_bound is None:
+                        # TODO: Needs test if this is correct.
+                        # ub[key, stage] = ca.inf
+                        raise ValueError(
+                            f"Upper bound for stagewise parameter '{key}' is None. "
+                            "This is not supported."
+                        )
+                    else:
+                        ub[key, stage] = self.parameters[key].upper_bound
             else:
                 lb[key] = self.parameters[key].lower_bound
                 ub[key] = self.parameters[key].upper_bound
