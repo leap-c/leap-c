@@ -1,8 +1,9 @@
 from dataclasses import asdict, dataclass
 
-from leap_c.ocp.acados.parameters import Parameter
-from scipy.constants import convert_temperature
 import numpy as np
+from scipy.constants import convert_temperature
+
+from leap_c.ocp.acados.parameters import Parameter
 
 
 @dataclass
@@ -80,34 +81,32 @@ class BestestHydronicHeatpumpParameters(BestestParameters):
 def make_default_hvac_params() -> tuple[Parameter, ...]:
     """Return a tuple of default parameters for the hvac problem."""
     hydronic_params = BestestHydronicParameters().to_dict()
-    # Remove eta from the dictionary to handle it separately
-    hydronic_params.pop("eta", None)
 
+    # NOTE: Only include parameters that are relevant for the parametric OCP.
     params = [
         Parameter(
             name=k,
             value=np.array([v]),
             lower_bound=0.95 * np.array([v]),
             upper_bound=1.05 * np.array([v]),
-            fix=False,
-            differentiable=True,
+            fix=True,
+            differentiable=False,
             stagewise=False,
         )
         for k, v in hydronic_params.items()
+        if k
+        in [
+            "gAw",  # Effective window area
+            "Ch",  # Heating system thermal capacity
+            "Ci",  # Indoor thermal capacity
+            "Ce",  # External thermal capacity
+            "Rea",  # Resistance external-ambient
+            "Rhi",  # Resistance heating-indoor
+            "Rie",  # Resistance indoor-external]
+            "eta",  # Efficiency for electric heater
+        ]
     ]
 
-    hydronic_params = BestestHydronicParameters().to_dict()
-    params.append(
-        Parameter(
-            name="eta",  # Efficiency of the electric heater
-            value=np.array([hydronic_params["eta"]]),
-            lower_bound=0.95 * np.array([hydronic_params["eta"]]),
-            upper_bound=max(1.0, 1.05 * np.array([hydronic_params["eta"]])),
-            fix=False,
-            differentiable=True,
-            stagewise=False,
-        )
-    )
     params.extend(
         [
             Parameter(
