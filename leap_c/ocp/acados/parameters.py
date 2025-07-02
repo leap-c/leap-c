@@ -243,7 +243,7 @@ class AcadosParamManager:
         self,
         field_: str,
         stage_: int | None = None,
-    ) -> ca.SX:
+    ) -> ca.SX | ca.MX | np.ndarray:
         """Get the symbolic variable for a given field at a specific stage."""
         if field_ in self.parameters and self.parameters[field_].fix:
             return self.parameters[field_].value
