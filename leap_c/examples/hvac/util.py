@@ -11,6 +11,11 @@ import scipy.linalg
 from scipy.constants import convert_temperature
 import pandas as pd
 from datetime import datetime, timedelta
+from config import (
+    BestestParameters,
+    BestestHydronicParameters,
+    BestestHydronicHeatpumpParameters,
+)
 
 
 @dataclass
@@ -667,78 +672,6 @@ def plot_comfort_violations(
 
     plt.tight_layout()
     return fig
-
-
-@dataclass
-class BestestParameters:
-    """Base class for hydronic system parameters."""
-
-    # Effective window area [m²]
-    gAw: float  # noqa: N815
-
-    # Thermal capacitances [J/K]
-    Ch: float  # Heating system thermal capacity
-    Ci: float  # Indoor thermal capacity
-    Ce: float  # External thermal capacity
-
-    # Noise parameters
-    e11: float  # Measurement noise
-    sigmai: float
-    sigmah: float
-    sigmae: float
-
-    # Thermal resistances [K/W]
-    Rea: float  # Resistance external-ambient
-    Rhi: float  # Resistance heating-indoor
-    Rie: float  # Resistance indoor-external
-
-    # Heater parameters
-    eta: float  # Efficiency for electric heater
-
-    def to_dict(self) -> dict[str, float]:
-        """Convert parameters to a dictionary with string keys and float values."""
-        return {k: float(v) for k, v in asdict(self).items()}
-
-    @classmethod
-    def from_dict(cls, params_dict: dict[str, float]) -> "BestestParameters":
-        """Create an instance from a dictionary."""
-        return cls(**params_dict)
-
-
-@dataclass
-class BestestHydronicParameters(BestestParameters):
-    """Standard hydronic system parameters."""
-
-    gAw: float = 10.1265729225269  # noqa: N815
-    Ch: float = 4015.39425109821
-    Ci: float = 1914908.30860716
-    Ce: float = 15545663.6743828
-    e11: float = -9.49409438095981
-    sigmai: float = -37.8538482163307
-    sigmah: float = -50.4867241844347
-    sigmae: float = -5.57887704511886
-    Rea: float = 0.00751396226986365
-    Rhi: float = 0.0761996125919563
-    Rie: float = 0.00135151763922409
-    eta: float = 0.98
-
-
-@dataclass
-class BestestHydronicHeatpumpParameters(BestestParameters):
-    """Heat pump system parameters for a hydronic heating system."""
-
-    gAw: float = 40.344131392192  # noqa: N815
-    Ch: float = 10447262.2318648
-    Ci: float = 14827137.0377258
-    Ce: float = 50508258.9032192
-    e11: float = -30.0936560706053
-    sigmai: float = -23.3175423490014
-    sigmah: float = -19.5274067368137
-    sigmae: float = -5.07591222090641
-    Rea: float = 0.00163027389197229
-    Rhi: float = 0.000437603769897038
-    Rie: float = 0.000855786902577802
-    eta: float = 0.98
 
 
 def transcribe_continuous_state_space(
