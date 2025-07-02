@@ -32,7 +32,7 @@ def find_param_in_p_or_p_global(
     if model.p_global is None:
         return {key: model.p[key] for key in param_name}  # type:ignore
     return {
-        key: (model.p[key] if key in model.p.keys() else model.p_global[key])  # type:ignore  # noqa: SIM118
+        key: (model.p[key] if key in model.p.keys() else model.p_global[key])  # type:ignore
         for key in param_name
     }
 
