@@ -21,7 +21,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5]),
             upper_bound=np.array([1.5]),
             differentiable=False,
-            stage_wise=False,
+            stagewise=False,
             fix=False,
         ),
         Parameter(
@@ -30,7 +30,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05]),
             upper_bound=np.array([0.15]),
             differentiable=False,
-            stage_wise=False,
+            stagewise=False,
             fix=False,
         ),
         Parameter(
@@ -39,7 +39,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05]),
             upper_bound=np.array([0.15]),
             differentiable=False,
-            stage_wise=False,
+            stagewise=False,
             fix=False,
         ),
         Parameter(
@@ -48,7 +48,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
             differentiable=True,
-            stage_wise=False,
+            stagewise=False,
             fix=False,
         ),
         Parameter(
@@ -57,7 +57,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.05, 0.05]),
             upper_bound=np.array([0.15, 0.15]),
             differentiable=True,
-            stage_wise=False,
+            stagewise=False,
             fix=False,
         ),
         Parameter(
@@ -66,7 +66,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
             differentiable=True,
-            stage_wise=False,
+            stagewise=False,
             fix=False,
         ),
         Parameter(
@@ -75,7 +75,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
             differentiable=True,
-            stage_wise=False,
+            stagewise=False,
             fix=False,
         ),
         Parameter(
@@ -84,7 +84,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0]),
             differentiable=True,
-            stage_wise=False,
+            stagewise=False,
             fix=False,
         ),
         Parameter(
@@ -93,7 +93,7 @@ def nominal_params() -> tuple[Parameter, ...]:
             lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
             differentiable=True,
-            stage_wise=False,
+            stagewise=False,
             fix=False,
         ),
     )
@@ -103,20 +103,20 @@ def nominal_params() -> tuple[Parameter, ...]:
 def nominal_stagewise_params(
     nominal_params: tuple[Parameter, ...],
 ) -> tuple[Parameter, ...]:
-    """Copy nominal_params and modify specific parameters to be stage_wise."""
+    """Copy nominal_params and modify specific parameters to be stagewise."""
     # Override specific fields for stage-wise parameters
-    stage_wise_overrides = {
-        "q_diag": {"stage_wise": True},
-        "xref": {"stage_wise": True},
-        "uref": {"stage_wise": True},
+    stagewise_overrides = {
+        "q_diag": {"stagewise": True},
+        "xref": {"stagewise": True},
+        "uref": {"stagewise": True},
     }
 
     modified_params = []
     for param in nominal_params:
-        if param.name in stage_wise_overrides:
+        if param.name in stagewise_overrides:
             # Create new parameter with overridden fields
             kwargs = param._asdict()
-            kwargs.update(stage_wise_overrides[param.name])
+            kwargs.update(stagewise_overrides[param.name])
             modified_params.append(Parameter(**kwargs))
         else:
             modified_params.append(param)
@@ -209,7 +209,7 @@ def acados_test_ocp_no_p_global(
     ocp.solver_options.tf = ocp_options.tf
     ocp.solver_options.N_horizon = ocp_options.N_horizon
 
-    # Make a copy of the nominal parameters where differentiable and stage_wise is set to False everywhere
+    # Make a copy of the nominal parameters where differentiable and stagewise is set to False everywhere
     params = tuple(
         Parameter(
             name=param.name,
@@ -218,7 +218,7 @@ def acados_test_ocp_no_p_global(
             upper_bound=param.upper_bound,
             fix=True,
             differentiable=False,
-            stage_wise=False,
+            stagewise=False,
         )
         for param in nominal_params
     )
@@ -474,7 +474,7 @@ def acados_test_ocp(
     return ocp
 
 
-# TODO: Remove this fixture once the nominal_stage_wise_params can be used in acados_test_ocp
+# TODO: Remove this fixture once the nominal_stagewise_params can be used in acados_test_ocp
 @pytest.fixture(scope="session")
 def acados_test_ocp_with_stagewise_varying_params(
     ocp_options: AcadosOcpOptions,

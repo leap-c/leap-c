@@ -14,7 +14,7 @@ class Parameter(NamedTuple):
     upper_bound: np.ndarray | None = None
     fix: bool = True
     differentiable: bool = False
-    stage_wise: bool = False
+    stagewise: bool = False
 
 
 class AcadosParamManager:
@@ -45,7 +45,7 @@ class AcadosParamManager:
         for key, value in self._get_nondifferentiable_parameters().items():
             entries.append(entry(key, shape=value.shape))
 
-        if self._get_differentiable_stage_wise_parameters():
+        if self._get_differentiable_stagewise_parameters():
             entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
 
         self.p = struct_symSX(entries)
@@ -65,7 +65,7 @@ class AcadosParamManager:
         for key, value in self._get_differentiable_global_parameters().items():
             entries.append(entry(key, shape=value.shape))
 
-        for key, value in self._get_differentiable_stage_wise_parameters().items():
+        for key, value in self._get_differentiable_stagewise_parameters().items():
             entries.append(entry(key, shape=value.shape, repeat=self.N_horizon + 1))
 
         self.p_global = struct_symSX(entries)
@@ -76,7 +76,7 @@ class AcadosParamManager:
         for key, value in self._get_differentiable_global_parameters().items():
             self.p_global_values[key] = value
 
-        for key, value in self._get_differentiable_stage_wise_parameters().items():
+        for key, value in self._get_differentiable_stagewise_parameters().items():
             for stage in range(self.N_horizon + 1):
                 self.p_global_values[key, stage] = value
 
@@ -84,8 +84,9 @@ class AcadosParamManager:
         # Build bounds for p_global parameters
         lb = self.p_global(0)
         ub = self.p_global(0)
-        for key in self.p_global.keys():  # noqa: SIM118
-            if self.parameters[key].stage_wise:
+        # TODO: Handle case where no bounds (i.e. None) are provided.
+        for key in self.p_global.keys():
+            if self.parameters[key].stagewise:
                 for stage in range(self.N_horizon + 1):
                     lb[key, stage] = self.parameters[key].lower_bound
                     ub[key, stage] = self.parameters[key].upper_bound
@@ -103,17 +104,17 @@ class AcadosParamManager:
         return {
             key: value.value
             for key, value in self.parameters.items()
-            if value.differentiable and not value.stage_wise
+            if value.differentiable and not value.stagewise
         }
 
-    def _get_differentiable_stage_wise_parameters(
+    def _get_differentiable_stagewise_parameters(
         self,
     ) -> dict[str, np.ndarray]:
         """Get all differentiable stage-wise parameters."""
         return {
             key: value.value
             for key, value in self.parameters.items()
-            if value.differentiable and value.stage_wise
+            if value.differentiable and value.stagewise
         }
 
     def _get_nondifferentiable_parameters(
@@ -192,12 +193,10 @@ class AcadosParamManager:
         stage_: int | None = None,
     ) -> ca.SX:
         """Get the symbolic variable for a given field at a specific stage."""
+        if field_ in self.parameters and self.parameters[field_].fix:
+            return self.parameters[field_].value
 
-        if field_ in self.parameters:
-            if self.parameters[field_].fix:
-                return self.parameters[field_].value
-
-        if field_ in self._get_differentiable_stage_wise_parameters():
+        if field_ in self._get_differentiable_stagewise_parameters():
             return sum(
                 [
                     self.p["indicator"][stage_] * self.p_global[field_, stage_]
@@ -205,12 +204,12 @@ class AcadosParamManager:
                 ]
             )
 
-        if field_ in self.p_global.keys():  # noqa: SIM118
+        if field_ in self.p_global.keys():
             if stage_ is not None:
                 return self.p_global[field_, stage_]
             return self.p_global[field_]
 
-        if field_ in self.p.keys():  # noqa: SIM118
+        if field_ in self.p.keys():
             if stage_ is not None and field_ == "indicator":
                 return self.p[field_][stage_]
             return self.p[field_]

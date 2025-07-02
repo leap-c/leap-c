@@ -62,7 +62,7 @@ def test_param_manager_combine_parameter_values(
     ), "The shape of the combined parameter values does not match the expected shape."
 
 
-def test_diff_mpc_with_stage_wise_varying_params_equivalent_to_diff_mpc(
+def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
     diff_mpc: AcadosDiffMpc,
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
     nominal_stagewise_params: tuple[Parameter, ...],
