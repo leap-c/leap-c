@@ -19,8 +19,7 @@ class HvacController(ParameterizedController):
     def __init__(
         self,
         params: tuple[Parameter, ...] | None = None,
-        N_horizon: int = 96,
-        T_horizon: float = 96,  # Using discrete dynamics with 15 minutes time steps,
+        N_horizon: int = 96,  # Using discrete dynamics with 15 minutes time steps,
     ) -> None:
         super().__init__()
         self.params = params = params or make_default_hvac_params()
@@ -32,7 +31,6 @@ class HvacController(ParameterizedController):
         self.ocp = export_parametric_ocp(
             param_manager=self.param_manager,
             N_horizon=N_horizon,
-            T_horizon=T_horizon,
         )
         self.diff_mpc = AcadosDiffMpc(self.ocp)
 
@@ -75,20 +73,26 @@ class HvacController(ParameterizedController):
 def export_parametric_ocp(
     param_manager: AcadosParamManager,
     N_horizon: int,
-    T_horizon: float,
     name: str = "hvac",
     x0: np.ndarray | None = None,
 ) -> AcadosOcp:
-    """Export the OCP for the HVAC problem with parameters."""
+    """
+    Export the HVAC OCP.
+
+    Args:
+        param_manager: The parameter manager containing the parameters for the OCP.
+        N_horizon: Number of time steps in the horizon.
+        name: Name of the OCP model.
+        x0: Initial state. If None, a default value is used.
+
+    Returns:
+        AcadosOcp: The configured OCP object.
+    """
     ocp = AcadosOcp()
 
     param_manager.assign_to_ocp(ocp)
 
-    x0 = x0 or np.array([17.0] * 3)
-
-    ocp.solver_options.tf = T_horizon
-    ocp.solver_options.N_horizon = N_horizon
-
+    # Model
     ocp.model.name = name
 
     ocp.model.x = ca.vertcat(
@@ -116,9 +120,9 @@ def export_parametric_ocp(
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = param_manager.get("price") * ocp.model.u
 
-    ocp.constraints.x0 = x0
+    # Constraints
+    ocp.constraints.x0 = x0 or np.array([17.0] * 3)
 
-    # Box constraints on u
     ocp.constraints.lbu = np.array([0.0])
     ocp.constraints.ubu = np.array([5000.0])  # [W]
     ocp.constraints.idxbu = np.array([0])
@@ -134,6 +138,8 @@ def export_parametric_ocp(
     ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
 
     # Solver options
+    ocp.solver_options.tf = N_horizon
+    ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
