@@ -19,8 +19,8 @@ class HvacController(ParameterizedController):
     def __init__(
         self,
         params: tuple[Parameter, ...] | None = None,
-        N_horizon: int = 288,
-        T_horizon: float = 24 * 3600.0,
+        N_horizon: int = 96,
+        T_horizon: float = 96,  # Using discrete dynamics with 15 minutes time steps,
     ) -> None:
         super().__init__()
         self.params = params = params or make_default_hvac_params()
