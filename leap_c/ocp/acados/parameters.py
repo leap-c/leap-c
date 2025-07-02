@@ -7,9 +7,33 @@ from casadi.tools import entry, struct, struct_symSX
 
 
 class Parameter(NamedTuple):
+    """
+    High-level parameter class for flexible optimization parameter configuration.
+
+    This class provides a user-friendly interface for defining parameter sets without
+    requiring knowledge of internal CasADi tools or acados interface details. It supports
+    configurable properties for bounds, differentiability, and parameter behavior.
+
+    Attributes:
+        name (str): The name identifier for the parameter.
+        value (np.ndarray): The parameter's numerical value(s).
+        lower_bound (np.ndarray | None, optional): Lower bounds for the parameter values.
+            Defaults to None (unbounded).
+        upper_bound (np.ndarray | None, optional): Upper bounds for the parameter values.
+            Defaults to None (unbounded).
+        fix (bool, optional): Flag indicating if this is a fixed value rather than a
+            settable parameter. Defaults to True.
+        differentiable (bool, optional): Flag indicating if the parameter should be
+            treated as differentiable in optimization. Defaults to False.
+        stagewise (bool, optional): Flag indicating if the parameter varies across
+            optimization stages. Defaults to False.
+
+    Note:
+        TODO: Check about infinity bounds implementation in lower_bound and upper_bound.
+    """
+
     name: str
     value: np.ndarray
-    # TODO: Check about infinity bounds.
     lower_bound: np.ndarray | None = None
     upper_bound: np.ndarray | None = None
     fix: bool = True
