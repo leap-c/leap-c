@@ -15,17 +15,17 @@ class Parameter(NamedTuple):
     configurable properties for bounds, differentiability, and parameter behavior.
 
     Attributes:
-        name (str): The name identifier for the parameter.
-        value (np.ndarray): The parameter's numerical value(s).
-        lower_bound (np.ndarray | None, optional): Lower bounds for the parameter values.
+        name: The name identifier for the parameter.
+        value: The parameter's numerical value(s).
+        lower_bound: Lower bounds for the parameter values.
             Defaults to None (unbounded).
-        upper_bound (np.ndarray | None, optional): Upper bounds for the parameter values.
+        upper_bound: Upper bounds for the parameter values.
             Defaults to None (unbounded).
-        fix (bool, optional): Flag indicating if this is a fixed value rather than a
+        fix: Flag indicating if this is a fixed value rather than a
             settable parameter. Defaults to True.
-        differentiable (bool, optional): Flag indicating if the parameter should be
+        differentiable: Flag indicating if the parameter should be
             treated as differentiable in optimization. Defaults to False.
-        stagewise (bool, optional): Flag indicating if the parameter varies across
+        stagewise: Flag indicating if the parameter varies across
             optimization stages. Defaults to False.
 
     Note:
@@ -63,6 +63,17 @@ class AcadosParamManager:
                 raise ValueError(
                     f"Parameter '{key}' has more than one dimension, "
                     "which is not supported. Use a single-dimensional array."
+                )
+
+        # Check tha no parameter has None as lower_bound or upper_bound.
+        for key, value in self.parameters.items():
+            if value.lower_bound is None:
+                raise ValueError(
+                    f"Parameter '{key}' has no lower bound. This is not supported."
+                )
+            if value.upper_bound is None and value.lower_bound is not None:
+                raise ValueError(
+                    f"Parameter '{key}' has no upper bound. This is not supported."
                 )
 
         self.N_horizon = N_horizon
@@ -196,7 +207,7 @@ class AcadosParamManager:
         Combine all parameters into a single numpy array.
 
         Args:
-            batch_size (int, optional): The batch size for the parameters.
+            batch_size: The batch size for the parameters.
             Not needed if overwrite is provided.
             **overwrite: Overwrite values for specific parameters.
                 values need to be np.ndarray with shape (batch_size, N_horizon, ...).

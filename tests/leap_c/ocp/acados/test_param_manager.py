@@ -16,11 +16,11 @@ def test_param_manager_combine_parameter_values(
     retrieval and mapping of dense parameter values.
 
     Args:
-        acados_test_ocp_with_stagewise_varying_params (AcadosOcp): AcadosOcp instance
+        acados_test_ocp_with_stagewise_varying_params: AcadosOcp instance
         with stagewise varying parameters.
-        nominal_stagewise_params (tuple[Parameter, ...]): Tuple of
+        nominal_stagewise_params: Tuple of
          test parameters to overwrite.
-        rng (np.random.Generator): Random number generator for reproducible noise.
+        rng: Random number generator for reproducible noise.
 
     Raises:
         AssertionError: If the mapped and retrieved dense values do not match within
@@ -174,8 +174,8 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     x_stagewise = sol_pert[2].detach().numpy().reshape(-1, ocp.dims.nx)
 
     # TODO: Use flattened_iterate.allclose() when available for batch iterates.
-    # flattened_iterate = global_solver.store_iterate_to_flat_obj()
-    # sol_flattened_batch_iterate = sol_pert[0].iterate
+    # NOTE: Use flattened_iterate = global_solver.store_iterate_to_flat_obj()
+    # NOTE: and sol_flattened_batch_iterate = sol_pert[0].iterate
 
     assert np.allclose(
         u_global,
