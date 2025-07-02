@@ -114,7 +114,7 @@ def test_diff_mpc_with_stage_wise_varying_params_equivalent_to_diff_mpc(
         ), f"The {label} does not match between global and stagewise varying diff MPC."
 
 
-def test_stagewise_varying_params_equivalent(
+def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     nominal_stagewise_params: tuple[Parameter, ...],
     acados_test_ocp_no_p_global: AcadosOcp,
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
