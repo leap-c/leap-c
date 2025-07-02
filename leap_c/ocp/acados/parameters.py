@@ -57,6 +57,14 @@ class AcadosParamManager:
     ) -> None:
         self.parameters = {param.name: param for param in params}
 
+        # Check that no parameter has more than one dimension.
+        for key, value in self.parameters.items():
+            if value.value.ndim > 1:
+                raise ValueError(
+                    f"Parameter '{key}' has more than one dimension, "
+                    "which is not supported. Use a single-dimensional array."
+                )
+
         self.N_horizon = N_horizon
 
         self._build_p()
