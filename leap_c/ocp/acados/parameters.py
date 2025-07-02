@@ -107,8 +107,20 @@ class AcadosParamManager:
                     else:
                         ub[key, stage] = self.parameters[key].upper_bound
             else:
-                lb[key] = self.parameters[key].lower_bound
-                ub[key] = self.parameters[key].upper_bound
+                if self.parameters[key].lower_bound is None:
+                    raise ValueError(
+                        f"Lower bound for global parameter '{key}' is None. "
+                        "This is not supported."
+                    )
+                else:
+                    lb[key] = self.parameters[key].lower_bound
+                if self.parameters[key].upper_bound is None:
+                    raise ValueError(
+                        f"Upper bound for global parameter '{key}' is None. "
+                        "This is not supported."
+                    )
+                else:
+                    ub[key] = self.parameters[key].upper_bound
 
         self.lb = lb.cat.full().flatten()
         self.ub = ub.cat.full().flatten()
