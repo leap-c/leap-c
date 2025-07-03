@@ -38,9 +38,9 @@ class HvacController(ParameterizedController):
         self.diff_mpc = AcadosDiffMpc(self.ocp, **diff_mpc_kwargs)
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        # TODO: Make this work on batches of observations and param
-        x0 = torch.as_tensor(decompose_observation(obs)[2:5], dtype=torch.float64)
-
+        # NOTE: obs includes datetime information,
+        # which is why we cast elements to dtype np.float64
+        x0 = torch.as_tensor(np.array(obs[:, 2:5], dtype=np.float64))
         p_global = torch.as_tensor(param, dtype=torch.float64)
 
         p_stagewise = self.param_manager.combine_parameter_values()
@@ -193,6 +193,9 @@ if __name__ == "__main__":
             "export_directory": Path("hvac_mpc_export"),
         },
     )
+
+    # Adjust to match shape (batch_size, ...)
+    obs = obs.reshape(1, -1)  # Reshape to match expected input shape
 
     ctx, u0 = controller.forward(obs=obs, param=param)
 
