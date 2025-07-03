@@ -22,7 +22,7 @@ class HvacController(ParameterizedController):
     def __init__(
         self,
         params: tuple[Parameter, ...] | None = None,
-        N_horizon: int = 96,  # Using discrete dynamics with 15 minutes time steps,
+        N_horizon: int = 96,  # 24 hours in 15 minutes time steps
         diff_mpc_kwargs: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
@@ -222,9 +222,3 @@ if __name__ == "__main__":
     plt.legend()
     plt.tight_layout()
     plt.show()
-
-    print("x.shape", x.shape)
-    print("u.shape", u.shape)
-
-    print("ctx", ctx)
-    print("u0", u0)

@@ -139,5 +139,4 @@ def make_default_hvac_params() -> tuple[Parameter, ...]:
         ]
     )
 
-    print(params)
     return tuple(params)

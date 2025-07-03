@@ -1,21 +1,15 @@
-from collections.abc import Callable, Iterable
-from dataclasses import asdict, dataclass
-from typing import Any
+from dataclasses import dataclass
+from datetime import timedelta
 from pathlib import Path
+from typing import Any
 
 import casadi as ca
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import scipy
 import scipy.linalg
 from scipy.constants import convert_temperature
-import pandas as pd
-from datetime import datetime, timedelta
-from config import (
-    BestestParameters,
-    BestestHydronicParameters,
-    BestestHydronicHeatpumpParameters,
-)
 
 
 @dataclass
@@ -66,7 +60,8 @@ class EnergyPriceProfile:
 
 
 def load_price_data(csv_path: str | Path) -> pd.DataFrame:
-    """Load electricity price data from CSV file.
+    """
+    Load electricity price data from CSV file.
 
     Args:
         csv_path: Path to the price CSV file
@@ -101,12 +96,14 @@ def create_price_profile_from_spot_sprices(
 ) -> EnergyPriceProfile:
     """
     Create a price profile from electricity price data using zero-order hold.
+
     Args:
         price_df: Price DataFrame from load_price_data()
         start_time: Start time as string (e.g., '2020-01-01 00:00:00')
         horizon_hours: Prediction horizon in hours
         dt_minutes: Time step in minutes
         region: Price region to extract (e.g., 'NO_1', 'NO_2', 'DK_1', etc.)
+
     Returns:
         numpy array with price values at 15-minute resolution
     """
@@ -137,19 +134,18 @@ def create_price_profile_from_spot_sprices(
                 latest_time = available_times[-1]
                 price_value = price_df.loc[latest_time, region]
                 prices.append(price_value)
+            # If no previous data available, use the first available price
+            elif len(price_df) > 0:
+                first_time = price_df.index[0]
+                price_value = price_df.loc[first_time, region]
+                prices.append(price_value)
+                print(
+                    f"Warning: Using first available price for time {t} (before data start)"
+                )
             else:
-                # If no previous data available, use the first available price
-                if len(price_df) > 0:
-                    first_time = price_df.index[0]
-                    price_value = price_df.loc[first_time, region]
-                    prices.append(price_value)
-                    print(
-                        f"Warning: Using first available price for time {t} (before data start)"
-                    )
-                else:
-                    raise ValueError("No price data available")
+                raise ValueError("No price data available")
 
-        except Exception as e:
+        except Exception:
             print(f"Warning: Could not get price data at {t}, using nearest value")
             # Use nearest available data as fallback
             if len(price_df) > 0:
@@ -283,7 +279,7 @@ def create_disturbance_from_weather(
                     T_outdoor.append(weather_df.loc[nearest_idx, "Tout_K"])
                     solar_radiation.append(weather_df.loc[nearest_idx, "SolGlob"])
 
-            except Exception as e:
+            except Exception:
                 print(
                     f"Warning: Could not interpolate weather data at {t}, using nearest value"
                 )
