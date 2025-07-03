@@ -1,22 +1,21 @@
 from itertools import chain
-from typing import Any
 from pathlib import Path
+from typing import Any
 
 import casadi as ca
 import gymnasium as gym
+import matplotlib.pyplot as plt
 import numpy as np
 import torch
 from acados_template import AcadosOcp
-from env import StochasticThreeStateRcEnv
+from env import StochasticThreeStateRcEnv, decompose_observation
 from scipy.constants import convert_temperature
 from util import transcribe_discrete_state_space
-from env import decompose_observation
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.hvac.config import make_default_hvac_params
 from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
 from leap_c.ocp.acados.torch import AcadosDiffMpc
-import matplotlib.pyplot as plt
 
 
 class HvacController(ParameterizedController):
@@ -56,11 +55,18 @@ class HvacController(ParameterizedController):
         #####
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
+        # TODO: Make this work on batches of observations and param
         x0 = torch.as_tensor(decompose_observation(obs)[2:5], dtype=torch.float64)
 
         p_global = torch.as_tensor(param, dtype=torch.float64)
+
+        p_stagewise = self.param_manager.combine_parameter_values()
+
         ctx, u0, x, u, value = self.diff_mpc(
-            x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx
+            x0.unsqueeze(0),
+            p_global=p_global.unsqueeze(0),
+            p_stagewise=p_stagewise,
+            ctx=ctx,
         )
         return ctx, u0
 
@@ -116,7 +122,15 @@ def export_parametric_ocp(
         dt=900.0,  # 15 minutes in seconds
         params={
             key: param_manager.get(key)
-            for key in ["Ch", "Ci", "Ce", "Rhi", "Rie", "Rea", "gAw"]
+            for key in [
+                "Ch",
+                "Ci",
+                "Ce",
+                "Rhi",
+                "Rie",
+                "Rea",
+                "gAw",
+            ]
         },
     )
 
@@ -132,7 +146,7 @@ def export_parametric_ocp(
 
     # Constraints
     ocp.constraints.x0 = x0 or np.array(
-        [convert_temperature(17.0, "celsius", "kelvin")] * 3
+        [convert_temperature(20.0, "celsius", "kelvin")] * 3
     )
 
     ocp.constraints.lbu = np.array([0.0])
@@ -156,7 +170,6 @@ def export_parametric_ocp(
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    # ocp.solver_options.qp_solver_cond_N = 4
 
     return ocp
 
@@ -170,7 +183,9 @@ if __name__ == "__main__":
         enable_noise=True,
     )
 
-    obs, _ = env.reset()
+    obs, _ = env.reset(
+        state_0=np.array([convert_temperature(20.0, "celsius", "kelvin")] * 3)
+    )
 
     x0 = torch.as_tensor(decompose_observation(obs)[2:5], dtype=torch.float64)
 
@@ -192,7 +207,7 @@ if __name__ == "__main__":
     controller = HvacController(
         N_horizon=N_horizon,
         diff_mpc_kwargs={
-            # "export_directory": Path("hvac_mpc_export"),
+            "export_directory": Path("hvac_mpc_export"),
         },
     )
 
