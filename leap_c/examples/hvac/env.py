@@ -197,18 +197,22 @@ class StochasticThreeStateRcEnv(gym.Env):
         day_of_year = datetime.timetuple().tm_yday
 
         price_forecast = (
-            self.data["price"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
+            self.data["price"]
+            .iloc[self.idx : self.idx + self.N_forecast + 1]
+            .to_numpy()
         )
 
         # TODO: Implement forecasts for weather that is not a perfect copy of the data
         ambient_temperature_forecast = (
-            self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
+            self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast + 1].to_numpy()
         )
         solar_radiation_forecast = (
-            self.data["solar"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
+            self.data["solar"]
+            .iloc[self.idx : self.idx + self.N_forecast + 1]
+            .to_numpy()
         )
 
-        datetime_forecast = self.data.index[self.idx : self.idx + self.N_forecast]
+        datetime_forecast = self.data.index[self.idx : self.idx + self.N_forecast + 1]
 
         return np.concatenate(
             [

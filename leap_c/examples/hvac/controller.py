@@ -1,13 +1,16 @@
 from itertools import chain
 from typing import Any
+from pathlib import Path
 
 import casadi as ca
 import gymnasium as gym
 import numpy as np
 import torch
 from acados_template import AcadosOcp
+from env import StochasticThreeStateRcEnv
 from scipy.constants import convert_temperature
 from util import transcribe_discrete_state_space
+from env import decompose_observation
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.hvac.config import make_default_hvac_params
@@ -20,6 +23,7 @@ class HvacController(ParameterizedController):
         self,
         params: tuple[Parameter, ...] | None = None,
         N_horizon: int = 96,  # Using discrete dynamics with 15 minutes time steps,
+        diff_mpc_kwargs: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
         self.params = params = params or make_default_hvac_params()
@@ -32,7 +36,7 @@ class HvacController(ParameterizedController):
             param_manager=self.param_manager,
             N_horizon=N_horizon,
         )
-        self.diff_mpc = AcadosDiffMpc(self.ocp)
+        self.diff_mpc = AcadosDiffMpc(self.ocp, **diff_mpc_kwargs)
 
         #####
         # TODO: Initialization of indicator variables. Should we move this to the AcadosParamManager?
@@ -51,7 +55,8 @@ class HvacController(ParameterizedController):
         #####
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        x0 = torch.as_tensor(obs, dtype=torch.float64)
+        x0 = torch.as_tensor(decompose_observation(obs)[2:5], dtype=torch.float64)
+
         p_global = torch.as_tensor(param, dtype=torch.float64)
         ctx, u0, x, u, value = self.diff_mpc(
             x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx
@@ -121,7 +126,9 @@ def export_parametric_ocp(
     ocp.model.cost_expr_ext_cost = param_manager.get("price") * ocp.model.u
 
     # Constraints
-    ocp.constraints.x0 = x0 or np.array([17.0] * 3)
+    ocp.constraints.x0 = x0 or np.array(
+        [convert_temperature(17.0, "celsius", "kelvin")] * 3
+    )
 
     ocp.constraints.lbu = np.array([0.0])
     ocp.constraints.ubu = np.array([5000.0])  # [W]
@@ -150,5 +157,41 @@ def export_parametric_ocp(
 
 
 if __name__ == "__main__":
-    controller = HvacController()
-    print("Controller initialized with parameters:")
+    horizon_hours = 24
+    N_horizon = horizon_hours * 4  # 4 time steps per hour
+    env = StochasticThreeStateRcEnv(
+        step_size=900.0,  # 15 minutes in seconds
+        horizon_hours=24,
+        enable_noise=True,
+    )
+
+    obs, _ = env.reset()
+
+    x0 = torch.as_tensor(decompose_observation(obs)[2:5], dtype=torch.float64)
+
+    param_manager = AcadosParamManager(
+        params=make_default_hvac_params(),
+        N_horizon=N_horizon,
+    )
+
+    Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:8]
+
+    # TODO: Move this into the param_manager?
+    param = param_manager.p_global_values(0)
+    for stage in range(N_horizon + 1):
+        param["Ta", stage] = Ta_forecast[stage]
+        param["Phi_s", stage] = solar_forecast[stage]
+        param["price", stage] = price_forecast[stage]
+    param = param.cat.full().flatten()
+
+    controller = HvacController(
+        N_horizon=N_horizon,
+        diff_mpc_kwargs={
+            "export_directory": Path("hvac_mpc_export"),
+        },
+    )
+
+    ctx, u0 = controller.forward(obs=obs, param=param)
+
+    print("ctx", ctx)
+    print("u0", u0)
