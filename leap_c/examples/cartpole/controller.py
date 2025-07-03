@@ -5,19 +5,13 @@ import casadi as ca
 import gymnasium as gym
 import numpy as np
 import torch
-from casadi.tools import struct_symSX
 
 from acados_template import AcadosModel, AcadosOcp
 from leap_c.controller import ParameterizedController
 from leap_c.examples.cartpole.config import CartPoleParams, make_default_cartpole_params
-from leap_c.examples.util import (
-    assign_lower_triangular,
-    find_param_in_p_or_p_global,
-    translate_learnable_param_to_p_global,
-)
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
-from leap_c.ocp.acados.parameters import AcadosParamManager, export_parametric_
+from leap_c.ocp.acados.parameters import AcadosParamManager
 
 
 class CartPoleController(ParameterizedController):
@@ -53,11 +47,6 @@ class CartPoleController(ParameterizedController):
             cost = 0.5 * z.T @ W @ z + c.T @ z, where W is the quadratic cost matrix from above
 
     """
-
-    # Different param values:
-    # - fix parameters (just numpy arrays)
-    # - changeable parameters (torch tensors, non differentiable) -> p     # done
-    # - learnable parameters (torch tensors, differentiable) -> p_global  # done
 
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 

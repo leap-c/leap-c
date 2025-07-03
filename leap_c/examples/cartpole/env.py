@@ -5,6 +5,7 @@ from gymnasium import spaces
 from gymnasium.envs.classic_control import utils as gym_utils
 from typing import Optional
 
+
 class CartPoleEnv(gym.Env):
     """
     An environment of a pendulum on a cart meant for swinging
