@@ -8,7 +8,6 @@ from acados_template import AcadosOcp, AcadosOcpSolver
 from casadi.tools import struct_symSX
 from scipy.constants import convert_temperature
 
-from leap_c.acados.mpc import Mpc
 from leap_c.examples.hvac.util import (
     BestestHydronicParameters,
     EnergyPriceProfile,
@@ -25,67 +24,15 @@ from leap_c.examples.hvac.util import (
 )
 
 
-class HvacMpc(Mpc):
-    """docstring for PointMassMPC."""
-
-    def __init__(
-        self,
-        params: dict[str, np.ndarray] | None = None,
-        learnable_params: list[str] | None = None,
-        N_horizon: int = 288,
-        T_horizon: float = 24 * 3600.0,
-        discount_factor: float = 0.99,
-        n_batch: int = 64,
-        export_directory: Path | None = None,
-        export_directory_sensitivity: Path | None = None,
-        throw_error_if_u0_is_outside_ocp_bounds: bool = True,
-    ):
-        # Default parameters if none provided
-        self.params = (
-            params if params is not None else BestestHydronicParameters().to_dict()
-        )
-
-        learnable_params = learnable_params if learnable_params is not None else []
-
-        print("learnable_params: ", learnable_params)
-
-        ocp = export_parametric_ocp(
-            params=self.params,
-            learnable_params=learnable_params,
-            N_horizon=N_horizon,
-            tf=T_horizon,
-        )
-
-        set_ocp_solver_options(ocp=ocp)
-
-        self.ocp = ocp
-
-        # TODO: Comment in again after providing p_global
-        # self.given_default_param_dict = params
-
-        # super().__init__(
-        #     ocp=ocp,
-        #     n_batch=n_batch,
-        #     export_directory=export_directory,
-        #     export_directory_sensitivity=export_directory_sensitivity,
-        #     throw_error_if_u0_is_outside_ocp_bounds=throw_error_if_u0_is_outside_ocp_bounds,
-        # )
-
-
 def export_parametric_ocp(
     params: dict[str, np.ndarray],
     name: str = "hvac",
-    learnable_params: list[str] | None = None,
     N_horizon: int = 288,
-    tf: float = 24.0 * 3600.0,
     x0: np.ndarray | None = None,
 ) -> AcadosOcp:
-    if x0 is None:
-        x0 = np.array([17.0] * 3)
-
     ocp = AcadosOcp()
 
-    ocp.solver_options.tf = tf
+    ocp.solver_options.tf = N_horizon
     ocp.solver_options.N_horizon = N_horizon
 
     ocp.model.name = name
@@ -120,7 +67,7 @@ def export_parametric_ocp(
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = ocp.model.p[2] * ocp.model.u
 
-    ocp.constraints.x0 = x0
+    ocp.constraints.x0 = x0 or np.array([17.0] * 3)
 
     # Box constraints on u
     ocp.constraints.lbu = np.array([0.0])
@@ -146,15 +93,13 @@ def export_parametric_ocp(
             ocp.model.p_global.cat if ocp.model.p_global is not None else None
         )
 
-    return ocp
-
-
-def set_ocp_solver_options(ocp: AcadosOcp) -> None:
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_cond_N = 4
+
+    return ocp
 
 
 def create_random_price_profile(
@@ -212,9 +157,14 @@ if __name__ == "__main__":
     horizon_hours = 36  # prediction horizon in hours
     N_horizon = horizon_hours * 4
 
-    mpc = HvacMpc(N_horizon=N_horizon, T_horizon=N_horizon)
+    # Default parameters if none provided
+    params = BestestHydronicParameters().to_dict()
 
-    ocp = mpc.ocp
+    ocp = export_parametric_ocp(
+        params=params,
+        N_horizon=N_horizon,
+    )
+
     ocp_solver = AcadosOcpSolver(acados_ocp=ocp)
 
     # Exogenous parameters
