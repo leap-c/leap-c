@@ -1,4 +1,5 @@
 from __future__ import annotations
+import torch
 
 from pathlib import Path
 
@@ -430,65 +431,72 @@ def decompose_observation(obs: np.ndarray) -> tuple:
 
 
 if __name__ == "__main__":
-    time_step = 900.0  # 15 minutes in seconds
-    days = 7
-    time_span = (0, days * 24 * 3600)
-    time = np.arange(time_span[0], time_span[1], time_step)
+    days = 100
+    n_steps = days * 24 * 4  # 4 time steps per hour
 
     env = StochasticThreeStateRcEnv(
-        step_size=time_step,
-        enable_noise=True,
+        step_size=900.0,  # 15 minutes in seconds
+        enable_noise=False,
     )
 
-    obs_0, _ = env.reset()
-    obs = [obs_0]
-
-    (
-        quarter_hour,
-        day_of_year,
-        Ti,
-        Th,
-        Te,
-        Ta_forecast,
-        solar_forecast,
-        price_forecast,
-        datetime_forecast,
-    ) = decompose_observation(obs_0)
-
-    x = [env.state]
+    x = []
     u = []
+    Ta = []  # Use the first forecasted ambient temperature
+    solar = []  # Use the first forecasted datetime
+    time = []  # Use the first forecasted datetime
+
+    # Run simulation
+    obs, _ = env.reset()
+    for _ in range(n_steps):
+        (
+            quarter_hour,
+            day_of_year,
+            Ti,
+            Th,
+            Te,
+            Ta_forecast,
+            solar_forecast,
+            price_forecast,
+            datetime_forecast,
+        ) = decompose_observation(obs)
+
+        # Get current inputs
+        action = np.array([0.0], dtype=np.float32)  # No control input
+
+        x.append(np.array([Ti, Th, Te], dtype=np.float32))
+        u.append(action)
+        Ta.append(Ta_forecast[0])
+        solar.append(solar_forecast[0])
+        time.append(datetime_forecast[0])
+
+        # Update state using the integrator
+        obs = env.step(action)
+
+    x = np.array(x)
+    u = np.array(u)
+    Ta = np.array(Ta)
+    solar = np.array(solar)
+    time = np.array(time)
 
     plt.figure(figsize=(12, 8))
     plt.subplot(3, 1, 1)
-    plt.ylabel("Temperature (deg C)")
-    plt.plot(datetime_forecast, convert_temperature(Ta_forecast, "k", "c"))
+    plt.ylabel("Temperature (K)")
+    plt.plot(time, x[:, 0], label="Indoor (Ti)")
+    plt.plot(time, x[:, 1], label="Radiator (Th)")
+    plt.plot(time, x[:, 2], label="Envelope (Te)")
+    plt.plot(time, Ta, label="Ambient (Ta)")
     plt.grid(visible=True)
+    plt.legend()
     plt.subplot(3, 1, 2)
-    plt.ylabel("Solar (W/m²)")
-    plt.plot(datetime_forecast, solar_forecast)
+    plt.ylabel("Solar Radiation (W/m²)")
+    plt.plot(time, solar, label="Solar Radiation")
     plt.grid(visible=True)
+    plt.legend()
     plt.subplot(3, 1, 3)
-    plt.ylabel("Price (EUR/kWh)")
-    plt.plot(datetime_forecast, price_forecast)
+    plt.ylabel("Control Input (W)")
+    plt.plot(time, u[:, 0], label="Heat Input (u)")
+    plt.xlabel("Time (s)")
     plt.grid(visible=True)
-    plt.xlabel("Datetime")
+    plt.legend()
+    plt.tight_layout()
     plt.show()
-
-#     # Run simulation
-#     for t in time:
-#         # Get current inputs
-#         action = heating_power_function(t)
-
-#         # Update state using the integrator
-#         obs.append(env.step(action))
-
-#         x.append(env.state)
-#         u.append(action)
-
-#     # Pop the last state
-#     x.pop()
-
-#     x = np.array(x)
-#     u = np.array(u)
-
-# plt.show()
