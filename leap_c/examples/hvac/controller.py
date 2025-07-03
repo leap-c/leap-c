@@ -16,6 +16,7 @@ from leap_c.controller import ParameterizedController
 from leap_c.examples.hvac.config import make_default_hvac_params
 from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
 from leap_c.ocp.acados.torch import AcadosDiffMpc
+import matplotlib.pyplot as plt
 
 
 class HvacController(ParameterizedController):
@@ -119,7 +120,11 @@ def export_parametric_ocp(
         },
     )
 
-    ocp.model.disc_dyn_expr = Ad @ ocp.model.x + Bd @ ocp.model.u + Ed @ ocp.model.p[:2]
+    d = ca.vertcat(
+        param_manager.get("Ta"),  # Ambient temperature
+        param_manager.get("Phi_s"),  # Solar radiation
+    )
+    ocp.model.disc_dyn_expr = Ad @ ocp.model.x + Bd @ ocp.model.u + Ed @ d
 
     # Cost function
     ocp.cost.cost_type = "EXTERNAL"
@@ -174,7 +179,7 @@ if __name__ == "__main__":
         N_horizon=N_horizon,
     )
 
-    Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:8]
+    Ta_forecast, solar_forecast, price_forecast, time = decompose_observation(obs)[5:]
 
     # TODO: Move this into the param_manager?
     param = param_manager.p_global_values(0)
@@ -187,11 +192,40 @@ if __name__ == "__main__":
     controller = HvacController(
         N_horizon=N_horizon,
         diff_mpc_kwargs={
-            "export_directory": Path("hvac_mpc_export"),
+            # "export_directory": Path("hvac_mpc_export"),
         },
     )
 
     ctx, u0 = controller.forward(obs=obs, param=param)
+
+    x = ctx.iterate.x.reshape(-1, 3)
+    u = ctx.iterate.u.reshape(-1, 1)
+
+    plt.figure(figsize=(12, 8))
+    plt.subplot(3, 1, 1)
+    plt.ylabel("Temperature (K)")
+    plt.plot(time, x[:, 0], label="Indoor (Ti)")
+    plt.plot(time, x[:, 1], label="Radiator (Th)")
+    plt.plot(time, x[:, 2], label="Envelope (Te)")
+    plt.plot(time, Ta_forecast, label="Ambient (Ta)")
+    plt.grid(visible=True)
+    plt.legend()
+    plt.subplot(3, 1, 2)
+    plt.ylabel("Solar Radiation (W/m²)")
+    plt.plot(time, solar_forecast, label="Solar Radiation")
+    plt.grid(visible=True)
+    plt.legend()
+    plt.subplot(3, 1, 3)
+    plt.ylabel("Control Input (W)")
+    plt.plot(time[:-1], u[:, 0], label="Heat Input (u)")
+    plt.xlabel("Time (s)")
+    plt.grid(visible=True)
+    plt.legend()
+    plt.tight_layout()
+    plt.show()
+
+    print("x.shape", x.shape)
+    print("u.shape", u.shape)
 
     print("ctx", ctx)
     print("u0", u0)
