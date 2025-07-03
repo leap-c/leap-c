@@ -38,22 +38,6 @@ class HvacController(ParameterizedController):
         )
         self.diff_mpc = AcadosDiffMpc(self.ocp, **diff_mpc_kwargs)
 
-        #####
-        # TODO: Initialization of indicator variables. Should we move this to the AcadosParamManager?
-        batch_size = self.diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max
-        parameter_values = self.param_manager.combine_parameter_values(
-            batch_size=batch_size
-        )
-
-        for ocp_solver in chain(
-            self.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers,
-            self.diff_mpc.diff_mpc_fun.backward_batch_solver.ocp_solvers,
-        ):
-            for batch in range(batch_size):
-                for stage in range(N_horizon + 1):
-                    ocp_solver.set(stage, "p", parameter_values[batch, stage, :])
-        #####
-
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         # TODO: Make this work on batches of observations and param
         x0 = torch.as_tensor(decompose_observation(obs)[2:5], dtype=torch.float64)
