@@ -791,3 +791,117 @@ def transcribe_discrete_state_space(
         )  # Discrete-time disturbance matrix
 
     return Ad, Bd, Ed
+
+
+def resample_prices_to_quarters(price_data: pd.DataFrame) -> pd.DataFrame:
+    """
+    Resample hourly price data to 15-minute intervals.
+    Each hour's price is kept constant for the following four 15-minute periods.
+
+    Parameters:
+    -----------
+    price_data : pd.DataFrame
+        DataFrame with hourly price data indexed by timestamp
+
+    Returns:
+    --------
+    pd.DataFrame
+        DataFrame with 15-minute price data
+    """
+    # Ensure the index is datetime
+    if not isinstance(price_data.index, pd.DatetimeIndex):
+        price_data.index = pd.to_datetime(price_data.index)
+
+    print(f"Original data shape: {price_data.shape}")
+    print(f"Original frequency: {pd.infer_freq(price_data.index)}")
+    print(f"Time range: {price_data.index.min()} to {price_data.index.max()}")
+
+    # Resample to 15-minute intervals using forward fill
+    # This keeps each hour's price constant for the following four quarters
+    price_quarterly = price_data.resample("15T").ffill()
+
+    print(f"\nResampled data shape: {price_quarterly.shape}")
+    print("New frequency: 15 minutes")
+    print(f"Time range: {price_quarterly.index.min()} to {price_quarterly.index.max()}")
+    print(f"Expansion factor: {price_quarterly.shape[0] / price_data.shape[0]:.1f}x")
+
+    return price_quarterly
+
+
+def merge_price_weather_data(
+    price_data: pd.DataFrame,
+    weather_data: pd.DataFrame,
+    merge_type: str = "inner",
+) -> pd.DataFrame:
+    """
+    Merge price and weather dataframes on their timestamp indices.
+
+    Parameters:
+    -----------
+    price_data : pd.DataFrame
+        DataFrame with price data indexed by timestamp
+    weather_data : pd.DataFrame
+        DataFrame with weather data indexed by timestamp
+    merge_type : str
+        Type of merge: 'inner', 'outer', 'left', 'right'
+
+    Returns:
+    --------
+    pd.DataFrame
+        Merged dataframe
+    """
+    print(
+        f"Price data time range: {price_data.index.min()} to {price_data.index.max()}"
+    )
+    print(
+        f"Weather data time range: {weather_data.index.min()} to {weather_data.index.max()}"
+    )
+    print(f"Price data shape: {price_data.shape}")
+    print(f"Weather data shape: {weather_data.shape}")
+
+    # Ensure both indices are datetime and timezone-aware
+    if not isinstance(price_data.index, pd.DatetimeIndex):
+        price_data.index = pd.to_datetime(price_data.index)
+    if not isinstance(weather_data.index, pd.DatetimeIndex):
+        weather_data.index = pd.to_datetime(weather_data.index)
+
+    # Perform the merge based on the timestamp index
+    if merge_type == "inner":
+        # Only keep timestamps that exist in both dataframes
+        merged_df = price_data.join(weather_data, how="inner")
+        print(f"\nInner join: {merged_df.shape[0]} overlapping timestamps")
+
+    elif merge_type == "outer":
+        # Keep all timestamps from both dataframes
+        merged_df = price_data.join(weather_data, how="outer")
+        print(f"\nOuter join: {merged_df.shape[0]} total timestamps")
+
+    elif merge_type == "left":
+        # Keep all price data timestamps, add weather where available
+        merged_df = price_data.join(weather_data, how="left")
+        print(f"\nLeft join: {merged_df.shape[0]} timestamps (all price data)")
+
+    elif merge_type == "right":
+        # Keep all weather data timestamps, add price where available
+        merged_df = price_data.join(weather_data, how="right")
+        print(f"\nRight join: {merged_df.shape[0]} timestamps (all weather data)")
+
+    else:
+
+        class MergeTypeError(ValueError):
+            def __init__(self) -> None:
+                super().__init__(
+                    "merge_type must be one of: 'inner', 'outer', 'left', 'right'"
+                )
+
+        raise MergeTypeError
+
+    # Print information about missing values
+    print("\nMissing values per column:")
+    missing_counts = merged_df.isnull().sum()
+    for col, count in missing_counts.items():
+        if count > 0:
+            print(f"  {col}: {count} missing ({count / len(merged_df) * 100:.1f}%)")
+
+    # Sort by index to ensure chronological order
+    return merged_df.sort_index()

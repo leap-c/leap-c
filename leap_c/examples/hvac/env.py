@@ -1,50 +1,29 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    from collections.abc import Callable
-
+from pathlib import Path
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import scipy
+from config import (
+    BestestHydronicParameters,
+    BestestParameters,
+)
+from gymnasium import spaces
 from scipy.constants import convert_temperature
 
 from leap_c.examples.hvac.util import (
     BestestHydronicParameters,
     BestestParameters,
+    load_price_data,
+    load_weather_data,
     transcribe_continuous_state_space,
     transcribe_discrete_state_space,
 )
 
-
-from leap_c.examples.hvac.util import (
-    BestestHydronicParameters,
-    EnergyPriceProfile,
-    create_constant_comfort_bounds,
-    create_constant_disturbance,
-    create_disturbance_from_weather,
-    create_price_profile_from_spot_sprices,
-    create_realistic_comfort_bounds,
-    create_time_of_use_energy_costs,
-    load_price_data,
-    load_weather_data,
-    plot_ocp_results,
-    transcribe_discrete_state_space,
-)
-
-from pathlib import Path
-
-import pandas as pd
-
-from gymnasium import spaces
-
-from config import (
-    BestestHydronicParameters,
-    BestestParameters,
-)
+from util import merge_price_weather_data, transcribe_continuous_state_space
 
 # Constants
 DAYLIGHT_START_HOUR = 6
@@ -71,8 +50,6 @@ class StochasticThreeStateRcEnv(gym.Env):
         price_zone: str = "NO_1",
         price_data_path: Path | None = None,
         weather_data_path: Path | None = None,
-        ambient_temperature_function: Callable | None = None,
-        solar_radiation_function: Callable | None = None,
         enable_noise: bool = True,
         random_seed: int | None = None,
     ) -> None:
@@ -90,6 +67,8 @@ class StochasticThreeStateRcEnv(gym.Env):
         N_forecast = 4 * horizon_hours  # Number of forecasted ambient temperatures
 
         self.N_forecast = N_forecast
+
+        print("env N_forecast: ", self.N_forecast)
 
         self.obs_low = np.array(
             [
@@ -146,25 +125,10 @@ class StochasticThreeStateRcEnv(gym.Env):
         # Precompute discrete-time matrices including noise covariance
         self.Ad, self.Bd, self.Ed, self.Qd = self._compute_discrete_matrices()
 
-        # Set default functions if not provided
-        if ambient_temperature_function is None:
-            self.ambient_temperature_function = self._get_default_ambient_temperature
-        else:
-            self.ambient_temperature_function = ambient_temperature_function
-
-        if solar_radiation_function is None:
-            self.solar_radiation_function = self._get_default_solar_radiation
-        else:
-            self.solar_radiation_function = solar_radiation_function
-
         if price_data_path is None:
             price_data_path = Path(__file__).parent / "spot_prices.csv"
         if weather_data_path is None:
             weather_data_path = Path(__file__).parent / "weather.csv"
-
-        # price_data = resample_prices_to_quarters(
-        #     load_price_data(csv_path=price_data_path)
-        # )
 
         price_data = load_price_data(csv_path=price_data_path).resample("15T").ffill()
 
@@ -218,6 +182,8 @@ class StochasticThreeStateRcEnv(gym.Env):
         | 5+2N| electricity price forecast t+0 [EUR/kWh]        |
         | 6+2N| electricity price forecast t+1 [EUR/kWh]        |
         | ... | electricity price forecast t+N-1 [EUR/kWh]      |
+        | 5+3N| datetime for forecast t+0 |
+        | 6+3N| datetime for forecast t+1 |
 
         Total observation size: 5 + 3*N_forecast
 
@@ -242,6 +208,8 @@ class StochasticThreeStateRcEnv(gym.Env):
             self.data["solar"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
         )
 
+        datetime_forecast = self.data.index[self.idx : self.idx + self.N_forecast]
+
         return np.concatenate(
             [
                 np.array([quarter_hour, day_of_year], dtype=np.float32),
@@ -249,6 +217,7 @@ class StochasticThreeStateRcEnv(gym.Env):
                 ambient_temperature_forecast.astype(np.float32),
                 solar_radiation_forecast.astype(np.float32),
                 price_forecast.astype(np.float32),
+                datetime_forecast,
             ]
         )
 
@@ -259,12 +228,24 @@ class StochasticThreeStateRcEnv(gym.Env):
         Compute discrete-time matrices using exact discretization via matrix exponential.
         This includes both deterministic dynamics and noise covariance.
         """
-        # Get continuous-time matrices
-        Ac, Bc, Ec = transcribe_continuous_state_space(
+        # Create noise intensity matrix Σ from parameters
+        # The stochastic terms are σᵢω̇ᵢ, σₕω̇ₕ, σₑω̇ₑ
+        sigma_i = np.exp(self.params["sigmai"])
+        sigma_h = np.exp(self.params["sigmah"])
+        sigma_e = np.exp(self.params["sigmae"])
+
+        # Compute continuous-time Ac
+        Ac, _, _ = transcribe_continuous_state_space(
             Ac=np.zeros((3, 3)),
             Bc=np.zeros((3, 1)),
             Ec=np.zeros((3, 2)),
             params=self.params,
+        )
+
+        Qd = self._compute_noise_covariance(
+            Ac=Ac,
+            Sigma=np.diag([sigma_i, sigma_h, sigma_e]),
+            dt=self.step_size,
         )
 
         # Compute discrete-time state-space matrices
@@ -274,18 +255,6 @@ class StochasticThreeStateRcEnv(gym.Env):
             Ed=np.zeros((3, 2)),
             dt=self.step_size,
             params=self.params,
-        )
-
-        # Create noise intensity matrix Σ from parameters
-        # The stochastic terms are σᵢω̇ᵢ, σₕω̇ₕ, σₑω̇ₑ
-        sigma_i = np.exp(self.params["sigmai"])
-        sigma_h = np.exp(self.params["sigmah"])
-        sigma_e = np.exp(self.params["sigmae"])
-
-        Qd = self._compute_noise_covariance(
-            Ac=Ac,
-            Sigma=np.diag([sigma_i, sigma_h, sigma_e]),
-            dt=self.step_size,
         )
 
         return Ad, Bd, Ed, Qd
@@ -375,6 +344,11 @@ class StochasticThreeStateRcEnv(gym.Env):
         else:
             self.idx = 0
 
+        obs = self._get_observation()
+        info = {}
+
+        return obs, info
+
     def get_noise_statistics(self) -> dict:
         """
         Get statistics about the noise model.
@@ -397,327 +371,120 @@ class StochasticThreeStateRcEnv(gym.Env):
             "step_size": self.step_size,
         }
 
-    def _get_default_ambient_temperature(self, t: float) -> float:
-        """Get default ambient temperature function value."""
-        MEAN_AMBIENT_TEMPERATURE = convert_temperature(0, "celsius", "kelvin")
-        MAGNITUDE_AMBIENT_TEMPERATURE = 5
-        return MEAN_AMBIENT_TEMPERATURE + MAGNITUDE_AMBIENT_TEMPERATURE * np.sin(
-            2 * np.pi * t / (24 * 3600)
+
+def decompose_observation(obs: np.ndarray) -> tuple:
+    """
+    Decompose the observation vector into its components.
+
+    Args:
+        obs: Observation vector from the environment.
+
+    Returns:
+        Tuple containing:
+        - quarter_hour: Current quarter hour of the day (0-95)
+        - day_of_year: Current day of the year (1-365)
+        - Ti: Indoor air temperature in Kelvin
+        - Th: Radiator temperature in Kelvin
+        - Te: Envelope temperature in Kelvin
+        - Ta_forecast: Ambient temperature forecast for the next N steps
+        - solar_forecast: Solar radiation forecast for the next N steps
+        - price_forecast: Electricity price forecast for the next N steps
+    """
+    N_forecast = (len(obs) - 5) // 4
+
+    quarter_hour = obs[0]
+    day_of_year = obs[1]
+    Ti = obs[2]
+    Th = obs[3]
+    Te = obs[4]
+
+    Ta_forecast = obs[5 : 5 + 1 * N_forecast]
+    solar_forecast = obs[5 + 1 * N_forecast : 5 + 2 * N_forecast]
+    price_forecast = obs[5 + 2 * N_forecast : 5 + 3 * N_forecast]
+    # Assuming datetime is the last part of the observation
+    datetime_forecast = obs[5 + 3 * N_forecast :]
+
+    for forecast in [Ta_forecast, solar_forecast, price_forecast, datetime_forecast]:
+        assert forecast.ndim == 1, (
+            f"Expected 1D array for forecast, got {forecast.ndim}D array"
+        )
+        assert len(forecast) == N_forecast, (
+            f"Expected {N_forecast} forecasts, got {len(forecast)}"
         )
 
-    def _get_default_solar_radiation(self, t: float) -> float:
-        """Get default solar radiation function value."""
-        DAYLIGHT_START_HOUR = 6
-        DAYLIGHT_END_HOUR = 18
-        MAGNITUDE_SOLAR_RADIATION = 200
-
-        hour = (t % (24 * 3600)) / 3600
-        if DAYLIGHT_START_HOUR <= hour <= DAYLIGHT_END_HOUR:
-            return MAGNITUDE_SOLAR_RADIATION * np.sin(np.pi * (hour - 6) / 12)
-        return 0.0
-
-
-def resample_prices_to_quarters(price_data: pd.DataFrame) -> pd.DataFrame:
-    """
-    Resample hourly price data to 15-minute intervals.
-    Each hour's price is kept constant for the following four 15-minute periods.
-
-    Parameters:
-    -----------
-    price_data : pd.DataFrame
-        DataFrame with hourly price data indexed by timestamp
-
-    Returns:
-    --------
-    pd.DataFrame
-        DataFrame with 15-minute price data
-    """
-    # Ensure the index is datetime
-    if not isinstance(price_data.index, pd.DatetimeIndex):
-        price_data.index = pd.to_datetime(price_data.index)
-
-    print(f"Original data shape: {price_data.shape}")
-    print(f"Original frequency: {pd.infer_freq(price_data.index)}")
-    print(f"Time range: {price_data.index.min()} to {price_data.index.max()}")
-
-    # Resample to 15-minute intervals using forward fill
-    # This keeps each hour's price constant for the following four quarters
-    price_quarterly = price_data.resample("15T").ffill()
-
-    print(f"\nResampled data shape: {price_quarterly.shape}")
-    print("New frequency: 15 minutes")
-    print(f"Time range: {price_quarterly.index.min()} to {price_quarterly.index.max()}")
-    print(f"Expansion factor: {price_quarterly.shape[0] / price_data.shape[0]:.1f}x")
-
-    return price_quarterly
-
-
-def merge_price_weather_data(
-    price_data: pd.DataFrame,
-    weather_data: pd.DataFrame,
-    merge_type: str = "inner",
-) -> pd.DataFrame:
-    """
-    Merge price and weather dataframes on their timestamp indices.
-
-    Parameters:
-    -----------
-    price_data : pd.DataFrame
-        DataFrame with price data indexed by timestamp
-    weather_data : pd.DataFrame
-        DataFrame with weather data indexed by timestamp
-    merge_type : str
-        Type of merge: 'inner', 'outer', 'left', 'right'
-
-    Returns:
-    --------
-    pd.DataFrame
-        Merged dataframe
-    """
-    print(
-        f"Price data time range: {price_data.index.min()} to {price_data.index.max()}"
+    return (
+        quarter_hour,
+        day_of_year,
+        Ti,
+        Th,
+        Te,
+        Ta_forecast,
+        solar_forecast,
+        price_forecast,
+        datetime_forecast,
     )
-    print(
-        f"Weather data time range: {weather_data.index.min()} to {weather_data.index.max()}"
-    )
-    print(f"Price data shape: {price_data.shape}")
-    print(f"Weather data shape: {weather_data.shape}")
-
-    # Ensure both indices are datetime and timezone-aware
-    if not isinstance(price_data.index, pd.DatetimeIndex):
-        price_data.index = pd.to_datetime(price_data.index)
-    if not isinstance(weather_data.index, pd.DatetimeIndex):
-        weather_data.index = pd.to_datetime(weather_data.index)
-
-    # Perform the merge based on the timestamp index
-    if merge_type == "inner":
-        # Only keep timestamps that exist in both dataframes
-        merged_df = price_data.join(weather_data, how="inner")
-        print(f"\nInner join: {merged_df.shape[0]} overlapping timestamps")
-
-    elif merge_type == "outer":
-        # Keep all timestamps from both dataframes
-        merged_df = price_data.join(weather_data, how="outer")
-        print(f"\nOuter join: {merged_df.shape[0]} total timestamps")
-
-    elif merge_type == "left":
-        # Keep all price data timestamps, add weather where available
-        merged_df = price_data.join(weather_data, how="left")
-        print(f"\nLeft join: {merged_df.shape[0]} timestamps (all price data)")
-
-    elif merge_type == "right":
-        # Keep all weather data timestamps, add price where available
-        merged_df = price_data.join(weather_data, how="right")
-        print(f"\nRight join: {merged_df.shape[0]} timestamps (all weather data)")
-
-    else:
-
-        class MergeTypeError(ValueError):
-            def __init__(self) -> None:
-                super().__init__(
-                    "merge_type must be one of: 'inner', 'outer', 'left', 'right'"
-                )
-
-        raise MergeTypeError
-
-    # Print information about missing values
-    print("\nMissing values per column:")
-    missing_counts = merged_df.isnull().sum()
-    for col, count in missing_counts.items():
-        if count > 0:
-            print(f"  {col}: {count} missing ({count / len(merged_df) * 100:.1f}%)")
-
-    # Sort by index to ensure chronological order
-    return merged_df.sort_index()
-
-
-def get_alternating_heating_power(t) -> float:
-    if (t // 3600) % 10 == 0:
-        return np.array([2000.0])  # 2 kW
-    return np.array([0.0])
-
-
-def get_constant_heating_power(t: float) -> float:
-    # Example: Constant heating power
-    return np.array([2000.0])
-
-
-# Example usage
-def plot_hvac_results(
-    get_ambient_temperature: Callable,
-    get_solar_radiation: Callable,
-    get_heating_power: Callable,
-    time: np.ndarray,
-    x: np.ndarray,
-    u: np.ndarray,
-) -> plt.Figure:
-    """
-    Plot the results of an HVAC simulation, including temperatures, heating power,
-    and solar radiation over time.
-
-    Parameters:
-    -----------
-    get_ambient_temperature : callable
-        A function that takes a time value (in seconds) and returns the ambient
-        (outdoor) temperature at that time.
-    get_solar_radiation : callable
-        A function that takes a time value (in seconds) and returns the solar
-        radiation (in W/m²) at that time.
-    get_heating_power : callable
-        A function that takes a time value (in seconds) and returns the heating
-        power (in W) at that time.
-    time : numpy.ndarray
-        A 1D array of time values (in seconds) corresponding to the simulation time steps.
-    x : numpy.ndarray
-        A 2D array where each row corresponds to the state variables at a given time step:
-        - x[:, 0]: Indoor temperature (°C)
-        - x[:, 1]: Radiator temperature (°C)
-        - x[:, 2]: Envelope temperature (°C)
-    u : numpy.ndarray
-        A 1D array of heating power values (in W) at each time step.
-
-    Returns:
-    --------
-    None
-        This function does not return any value. It generates and displays plots
-        of the simulation results.
-
-    Notes:
-    ------
-    - The time values are converted from seconds to hours for plotting.
-    - The function creates two subplots:
-        1. Temperatures (indoor, radiator, envelope, and outdoor) over time.
-        2. Heating power and solar radiation over time.
-    - The plots include legends, grid lines, and appropriate labels for clarity.
-    """
-    results = {
-        "Ti": convert_temperature(x[:, 0], "kelvin", "celsius"),  # Indoor temperature
-        "Th": convert_temperature(x[:, 1], "kelvin", "celsius"),  # Radiator temperature
-        "Te": convert_temperature(x[:, 2], "kelvin", "celsius"),  # Envelope temperature
-        "Ta": convert_temperature(
-            np.array([get_ambient_temperature(t) for t in time]), "kelvin", "celsius"
-        ),  # Outdoor temperature
-        "time": time,  # Time array
-        "qh": [get_heating_power(t) for t in time],  # Heating power
-        "Phi_s": [get_solar_radiation(t) for t in time],  # Solar radiation
-    }
-
-    dt = time[1] - time[0]  # Time step in seconds:w
-
-    # Plot results
-    plt.figure(figsize=(12, 8))
-    # Convert time from seconds to hours for plotting
-    time_hours = time / 3600
-
-    # Plot temperatures (first subplot - unchanged)
-    plt.subplot(3, 1, 1)
-    plt.plot(time_hours, results["Ti"], "b-", label="Indoor Temperature")
-    plt.plot(time_hours, results["Te"], "g-", label="Envelope Temperature")
-    plt.plot(time_hours, results["Ta"], "k--", label="Outdoor Temperature")
-    plt.ylabel("Temperature (°C)")
-    plt.legend()
-    plt.grid()
-
-    plt.subplot(3, 1, 2)
-    plt.plot(time_hours, results["Th"], "r-", label="Radiator Temperature")
-    plt.legend()
-    plt.ylabel("Temperature (°C)")
-    plt.grid()
-
-    # Plot heating power and solar radiation (second subplot - with twin axes)
-    ax1 = plt.subplot(3, 1, 3)
-    # Primary y-axis (left) for heating power
-    (line1,) = ax1.plot(
-        time_hours,
-        u,
-        "r-",
-        label="Heating Power",
-    )
-    ax1.set_xlabel("Time (hours)")
-    ax1.set_ylabel("Heating Power (W)", color="r")
-    ax1.tick_params(axis="y", labelcolor="r")
-    ax1.grid()
-
-    # Secondary y-axis (right) for solar radiation
-    ax2 = ax1.twinx()
-    solar_data = [get_solar_radiation(t) for t in results["time"]]
-    (line2,) = ax2.plot(
-        time_hours,
-        solar_data,
-        "y-",
-        label="Solar Radiation",
-    )
-    ax2.set_ylabel("Solar Radiation (W/m²)", color="y")
-    ax2.tick_params(axis="y", labelcolor="y")
-
-    # Create a combined legend for the second subplot
-    ax1.legend([line1, line2], ["Heating Power", "Solar Radiation"], loc="upper left")
-
-    plt.xlabel("Time (hours)")
-    plt.tight_layout()
-
-    # Add super title with dt
-    plt.suptitle(f"HVAC Simulation Results (dt = {dt:.2f} seconds)", fontsize=16)
-
-    # Save the figure
-    plt.savefig(f"hvac_simulation_results_{int(dt)}.png")
-
-    return plt.gcf()
 
 
 if __name__ == "__main__":
-    # Create the model
+    time_step = 900.0  # 15 minutes in seconds
+    days = 7
+    time_span = (0, days * 24 * 3600)
+    time = np.arange(time_span[0], time_span[1], time_step)
 
-    # Simulation parameters
+    env = StochasticThreeStateRcEnv(
+        step_size=time_step,
+        enable_noise=True,
+    )
 
-    # ambient_temperate_function = get_ambient_temperature
-    # solar_radiation_function = get_solar_radiation
-    ambient_temperate_function = lambda t: convert_temperature(10, "c", "k")
-    solar_radiation_function = lambda t: 0.0  # No solar radiation for simplicity
+    obs_0, _ = env.reset()
+    obs = [obs_0]
 
-    heating_power_function = get_alternating_heating_power
+    (
+        quarter_hour,
+        day_of_year,
+        Ti,
+        Th,
+        Te,
+        Ta_forecast,
+        solar_forecast,
+        price_forecast,
+        datetime_forecast,
+    ) = decompose_observation(obs_0)
 
-    for time_step in [900.0]:
-        days = 7
-        time_span = (0, days * 24 * 3600)
-        time = np.arange(time_span[0], time_span[1], time_step)
+    x = [env.state]
+    u = []
 
-        env = StochasticThreeStateRcEnv(
-            step_size=time_step,
-            ambient_temperature_function=ambient_temperate_function,
-            solar_radiation_function=solar_radiation_function,
-            enable_noise=True,
-        )
-
-        env.reset()
-
-        x = [env.state]
-        u = []
-
-        # Run simulation
-        for t in time:
-            # Get current inputs
-            action = heating_power_function(t)
-
-            # Update state using the integrator
-            obs = env.step(action)
-
-            x.append(env.state)
-            u.append(action)
-
-        # Pop the last state
-        x.pop()
-
-        x = np.array(x)
-        u = np.array(u)
-
-        fig = plot_hvac_results(
-            ambient_temperate_function,
-            solar_radiation_function,
-            heating_power_function,
-            time,
-            x,
-            u,
-        )
-
+    plt.figure(figsize=(12, 8))
+    plt.subplot(3, 1, 1)
+    plt.ylabel("Temperature (deg C)")
+    plt.plot(datetime_forecast, convert_temperature(Ta_forecast, "k", "c"))
+    plt.grid(visible=True)
+    plt.subplot(3, 1, 2)
+    plt.ylabel("Solar (W/m²)")
+    plt.plot(datetime_forecast, solar_forecast)
+    plt.grid(visible=True)
+    plt.subplot(3, 1, 3)
+    plt.ylabel("Price (EUR/kWh)")
+    plt.plot(datetime_forecast, price_forecast)
+    plt.grid(visible=True)
+    plt.xlabel("Datetime")
     plt.show()
+
+#     # Run simulation
+#     for t in time:
+#         # Get current inputs
+#         action = heating_power_function(t)
+
+#         # Update state using the integrator
+#         obs.append(env.step(action))
+
+#         x.append(env.state)
+#         u.append(action)
+
+#     # Pop the last state
+#     x.pop()
+
+#     x = np.array(x)
+#     u = np.array(u)
+
+# plt.show()
