@@ -54,7 +54,6 @@ class AcadosParamManager:
         self,
         params: list[Parameter],
         N_horizon: int,
-        N_horizon: int,
     ) -> None:
         self.parameters = {param.name: param for param in params}
 
@@ -196,7 +195,7 @@ class AcadosParamManager:
         return {
             key: value.value
             for key, value in self.parameters.items()
-            if not value.differentiable and not value.fix
+            if not value.differentiable
         }
 
     def combine_parameter_values(
