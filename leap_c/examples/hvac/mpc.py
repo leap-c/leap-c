@@ -32,9 +32,6 @@ def export_parametric_ocp(
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
-    ocp.solver_options.tf = N_horizon
-    ocp.solver_options.N_horizon = N_horizon
-
     ocp.model.name = name
 
     ocp.model.x = ca.vertcat(
@@ -67,7 +64,9 @@ def export_parametric_ocp(
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = ocp.model.p[2] * ocp.model.u
 
-    ocp.constraints.x0 = x0 or np.array([17.0] * 3)
+    ocp.constraints.x0 = x0 or np.array(
+        [convert_temperature(17.0, "celsius", "kelvin")] * 3
+    )
 
     # Box constraints on u
     ocp.constraints.lbu = np.array([0.0])
@@ -93,6 +92,8 @@ def export_parametric_ocp(
             ocp.model.p_global.cat if ocp.model.p_global is not None else None
         )
 
+    ocp.solver_options.tf = N_horizon
+    ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
