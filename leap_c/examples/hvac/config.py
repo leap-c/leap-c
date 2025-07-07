@@ -139,6 +139,27 @@ def make_default_hvac_params() -> tuple[Parameter, ...]:
         ]
     )
 
-    # TODO: Add time-varying bounds for indoor temperature (relaxed during night)
+    params.extend(
+        [
+            Parameter(
+                name="lb_Ti",
+                value=np.array([convert_temperature(17.0, "celsius", "kelvin")]),
+                lower_bound=np.array([convert_temperature(15.0, "celsius", "kelvin")]),
+                upper_bound=np.array([convert_temperature(19.0, "celsius", "kelvin")]),
+                fix=False,
+                differentiable=False,
+                stagewise=True,
+            ),
+            Parameter(
+                name="ub_Ti",
+                value=np.array([convert_temperature(23.0, "celsius", "kelvin")]),
+                lower_bound=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
+                upper_bound=np.array([convert_temperature(25.0, "celsius", "kelvin")]),
+                fix=False,
+                differentiable=False,
+                stagewise=True,
+            ),
+        ]
+    )
 
     return tuple(params)
