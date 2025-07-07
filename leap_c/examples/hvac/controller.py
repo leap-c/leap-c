@@ -48,7 +48,7 @@ class HvacController(ParameterizedController):
         p_stagewise = self.param_manager.combine_parameter_values()
 
         ctx, u0, x, u, value = self.diff_mpc(
-            x0.unsqueeze(0),
+            x0,
             p_global=p_global.unsqueeze(0),
             p_stagewise=p_stagewise,
             ctx=ctx,
@@ -212,9 +212,9 @@ if __name__ == "__main__":
     # TODO: Move this into the param_manager?
     param = param_manager.p_global_values(0)
     for stage in range(N_horizon + 1):
-        param["Ta", stage] = Ta_forecast[stage]
-        param["Phi_s", stage] = solar_forecast[stage]
-        param["price", stage] = price_forecast[stage]
+        param["Ta", stage] = Ta_forecast[:, stage]
+        param["Phi_s", stage] = solar_forecast[:, stage]
+        param["price", stage] = price_forecast[:, stage]
     param = param.cat.full().flatten()
 
     controller = HvacController(
@@ -232,18 +232,20 @@ if __name__ == "__main__":
     x = ctx.iterate.x.reshape(-1, 3)
     u = ctx.iterate.u.reshape(-1, 1)
 
+    time = time.flatten()
+
     plt.figure(figsize=(12, 8))
     plt.subplot(3, 1, 1)
     plt.ylabel("Temperature (K)")
     plt.plot(time, x[:, 0], label="Indoor (Ti)")
     plt.plot(time, x[:, 1], label="Radiator (Th)")
     plt.plot(time, x[:, 2], label="Envelope (Te)")
-    plt.plot(time, Ta_forecast, label="Ambient (Ta)")
+    plt.plot(time, Ta_forecast.reshape(-1), label="Ambient (Ta)")
     plt.grid(visible=True)
     plt.legend()
     plt.subplot(3, 1, 2)
     plt.ylabel("Solar Radiation (W/m²)")
-    plt.plot(time, solar_forecast, label="Solar Radiation")
+    plt.plot(time, solar_forecast.reshape(-1), label="Solar Radiation")
     plt.grid(visible=True)
     plt.legend()
     plt.subplot(3, 1, 3)
