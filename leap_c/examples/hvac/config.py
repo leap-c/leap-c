@@ -139,4 +139,6 @@ def make_default_hvac_params() -> tuple[Parameter, ...]:
         ]
     )
 
+    # TODO: Add time-varying bounds for indoor temperature (relaxed during night)
+
     return tuple(params)

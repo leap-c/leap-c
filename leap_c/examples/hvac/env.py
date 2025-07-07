@@ -1,5 +1,4 @@
 from __future__ import annotations
-import torch
 
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from config import (
 )
 from gymnasium import spaces
 from scipy.constants import convert_temperature
+from util import merge_price_weather_data, transcribe_continuous_state_space
 
 from leap_c.examples.hvac.util import (
     load_price_data,
@@ -21,8 +21,6 @@ from leap_c.examples.hvac.util import (
     transcribe_continuous_state_space,
     transcribe_discrete_state_space,
 )
-
-from util import merge_price_weather_data, transcribe_continuous_state_space
 
 # Constants
 DAYLIGHT_START_HOUR = 6
@@ -393,26 +391,26 @@ def decompose_observation(obs: np.ndarray) -> tuple:
         - solar_forecast: Solar radiation forecast for the next N steps
         - price_forecast: Electricity price forecast for the next N steps
     """
-    N_forecast = (len(obs) - 5) // 4
+    if obs.ndim == 1:
+        obs = obs.reshape(1, -1)
 
-    quarter_hour = obs[0]
-    day_of_year = obs[1]
-    Ti = obs[2]
-    Th = obs[3]
-    Te = obs[4]
+    N_forecast = (obs.shape[1] - 5) // 4
 
-    Ta_forecast = obs[5 : 5 + 1 * N_forecast]
-    solar_forecast = obs[5 + 1 * N_forecast : 5 + 2 * N_forecast]
-    price_forecast = obs[5 + 2 * N_forecast : 5 + 3 * N_forecast]
+    quarter_hour = obs[:, 0]
+    day_of_year = obs[:, 1]
+    Ti = obs[:, 2]
+    Th = obs[:, 3]
+    Te = obs[:, 4]
+
+    Ta_forecast = obs[:, 5 : 5 + 1 * N_forecast]
+    solar_forecast = obs[:, 5 + 1 * N_forecast : 5 + 2 * N_forecast]
+    price_forecast = obs[:, 5 + 2 * N_forecast : 5 + 3 * N_forecast]
     # Assuming datetime is the last part of the observation
-    datetime_forecast = obs[5 + 3 * N_forecast :]
+    datetime_forecast = obs[:, 5 + 3 * N_forecast :]
 
     for forecast in [Ta_forecast, solar_forecast, price_forecast, datetime_forecast]:
-        assert forecast.ndim == 1, (
-            f"Expected 1D array for forecast, got {forecast.ndim}D array"
-        )
-        assert len(forecast) == N_forecast, (
-            f"Expected {N_forecast} forecasts, got {len(forecast)}"
+        assert forecast.shape[1] == N_forecast, (
+            f"Expected {N_forecast} forecasts, got {forecast.shape[1]}"
         )
 
     return (

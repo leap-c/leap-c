@@ -6,10 +6,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from acados_template import AcadosOcp, AcadosOcpSolver
 from casadi.tools import struct_symSX
+from config import BestestHydronicParameters
 from scipy.constants import convert_temperature
 
 from leap_c.examples.hvac.util import (
-    BestestHydronicParameters,
     EnergyPriceProfile,
     create_constant_comfort_bounds,
     create_constant_disturbance,
