@@ -46,7 +46,12 @@ class HvacController(ParameterizedController):
 
         lb, ub = set_temperature_limits(decompose_observation(obs)[-1])
 
-        p_stagewise = self.param_manager.combine_parameter_values()
+        overwrite = {
+            "lb_Ti": lb.reshape(1, -1, 1),
+            "ub_Ti": ub.reshape(1, -1, 1),
+        }
+
+        p_stagewise = self.param_manager.combine_parameter_values(**overwrite)
 
         ctx, u0, x, u, value = self.diff_mpc(
             x0,
@@ -135,30 +140,18 @@ def export_parametric_ocp(
         [convert_temperature(20.0, "celsius", "kelvin")] * 3
     )
 
-    if True:
-        ocp.model.con_h_expr = ca.vertcat(
-            ocp.model.x[0] - convert_temperature(17.0, "celsius", "kelvin"),
-            convert_temperature(25.0, "celsius", "kelvin") - ocp.model.x[0],
-        )
-        ocp.constraints.lh = np.array([0.0, 00])
-        ocp.constraints.uh = np.array([1e3, 1e3])
+    ocp.model.con_h_expr = ca.vertcat(
+        ocp.model.x[0] - param_manager.get("lb_Ti"),
+        param_manager.get("ub_Ti") - ocp.model.x[0],
+    )
+    ocp.constraints.lh = np.array([0.0, 00])
+    ocp.constraints.uh = np.array([1e3, 1e3])
 
-        ocp.constraints.idxsh = np.array([0, 1])
-        ocp.cost.zl = 1e4 * np.ones((ocp.constraints.idxsh.size,))
-        ocp.cost.Zl = 1e4 * np.ones((ocp.constraints.idxsh.size,))
-        ocp.cost.zu = 1e4 * np.ones((ocp.constraints.idxsh.size,))
-        ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsh.size,))
-    else:
-        # TODO: Use time-varying bounds for indoor temperature (relaxed during night)
-        ocp.constraints.lbx = convert_temperature(np.array([17.0]), "celsius", "kelvin")
-        ocp.constraints.ubx = convert_temperature(np.array([25.0]), "celsius", "kelvin")
-        ocp.constraints.idxbx = np.array([0])
-
-        ocp.constraints.idxsbx = np.array([0])
-        ocp.cost.zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
-        ocp.cost.Zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
-        ocp.cost.zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
-        ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
+    ocp.constraints.idxsh = np.array([0, 1])
+    ocp.cost.zl = 1e4 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.Zl = 1e4 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.zu = 1e4 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsh.size,))
 
     ocp.constraints.lbu = np.array([0.0])
     ocp.constraints.ubu = np.array([5000.0])  # [W]
@@ -196,8 +189,16 @@ def set_temperature_limits(
     night_idx = (hours >= night_start_hour) | (hours < night_end_hour)
 
     # Initialize and set values
-    lb = np.where(night_idx, 15.0, 19.0)
-    ub = np.where(night_idx, 21.0, 23.0)
+    lb = np.where(
+        night_idx,
+        convert_temperature(15.0, "celsius", "kelvin"),
+        convert_temperature(19.0, "celsius", "kelvin"),
+    )
+    ub = np.where(
+        night_idx,
+        convert_temperature(21.0, "celsius", "kelvin"),
+        convert_temperature(23.0, "celsius", "kelvin"),
+    )
 
     return lb, ub
 
@@ -235,7 +236,7 @@ if __name__ == "__main__":
     controller = HvacController(
         N_horizon=N_horizon,
         diff_mpc_kwargs={
-            # "export_directory": Path("hvac_mpc_export"),
+            "export_directory": Path("hvac_mpc_export"),
         },
     )
 
@@ -252,10 +253,26 @@ if __name__ == "__main__":
     plt.figure(figsize=(12, 8))
     plt.subplot(3, 1, 1)
     plt.ylabel("Temperature (K)")
-    plt.plot(time, x[:, 0], label="Indoor (Ti)")
-    plt.plot(time, x[:, 1], label="Radiator (Th)")
-    plt.plot(time, x[:, 2], label="Envelope (Te)")
-    plt.plot(time, Ta_forecast.reshape(-1), label="Ambient (Ta)")
+    plt.plot(
+        time,
+        convert_temperature(x[:, 0], "kelvin", "celsius"),
+        label="Indoor (Ti)",
+    )
+    # plt.plot(
+    #     time,
+    #     convert_temperature(x[:, 1], "kelvin", "celsius"),
+    #     label="Radiator (Th)",
+    # )
+    plt.plot(
+        time,
+        convert_temperature(x[:, 2], "kelvin", "celsius"),
+        label="Envelope (Te)",
+    )
+    plt.plot(
+        time,
+        convert_temperature(Ta_forecast.reshape(-1), "kelvin", "celsius"),
+        label="Ambient (Ta)",
+    )
     plt.grid(visible=True)
     plt.legend()
     plt.subplot(3, 1, 2)
