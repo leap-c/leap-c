@@ -6,6 +6,7 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from itertools import chain
 from acados_template import AcadosOcp
 from env import StochasticThreeStateRcEnv, decompose_observation
 from scipy.constants import convert_temperature
@@ -134,20 +135,34 @@ def export_parametric_ocp(
         [convert_temperature(20.0, "celsius", "kelvin")] * 3
     )
 
+    if True:
+        ocp.model.con_h_expr = ca.vertcat(
+            ocp.model.x[0] - convert_temperature(17.0, "celsius", "kelvin"),
+            convert_temperature(25.0, "celsius", "kelvin") - ocp.model.x[0],
+        )
+        ocp.constraints.lh = np.array([0.0, 00])
+        ocp.constraints.uh = np.array([1e3, 1e3])
+
+        ocp.constraints.idxsh = np.array([0, 1])
+        ocp.cost.zl = 1e4 * np.ones((ocp.constraints.idxsh.size,))
+        ocp.cost.Zl = 1e4 * np.ones((ocp.constraints.idxsh.size,))
+        ocp.cost.zu = 1e4 * np.ones((ocp.constraints.idxsh.size,))
+        ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsh.size,))
+    else:
+        # TODO: Use time-varying bounds for indoor temperature (relaxed during night)
+        ocp.constraints.lbx = convert_temperature(np.array([17.0]), "celsius", "kelvin")
+        ocp.constraints.ubx = convert_temperature(np.array([25.0]), "celsius", "kelvin")
+        ocp.constraints.idxbx = np.array([0])
+
+        ocp.constraints.idxsbx = np.array([0])
+        ocp.cost.zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
+        ocp.cost.Zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
+        ocp.cost.zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
+        ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
+
     ocp.constraints.lbu = np.array([0.0])
     ocp.constraints.ubu = np.array([5000.0])  # [W]
     ocp.constraints.idxbu = np.array([0])
-
-    # TODO: Use time-varying bounds for indoor temperature (relaxed during night)
-    ocp.constraints.lbx = convert_temperature(np.array([17.0]), "celsius", "kelvin")
-    ocp.constraints.ubx = convert_temperature(np.array([25.0]), "celsius", "kelvin")
-    ocp.constraints.idxbx = np.array([0])
-
-    ocp.constraints.idxsbx = np.array([0])
-    ocp.cost.zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
-    ocp.cost.Zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
-    ocp.cost.zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
-    ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
 
     # Solver options
     ocp.solver_options.tf = N_horizon
@@ -220,7 +235,7 @@ if __name__ == "__main__":
     controller = HvacController(
         N_horizon=N_horizon,
         diff_mpc_kwargs={
-            "export_directory": Path("hvac_mpc_export"),
+            # "export_directory": Path("hvac_mpc_export"),
         },
     )
 
