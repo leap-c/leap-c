@@ -46,12 +46,10 @@ class HvacController(ParameterizedController):
 
         lb, ub = set_temperature_limits(decompose_observation(obs)[-1])
 
-        overwrite = {
-            "lb_Ti": lb.reshape(1, -1, 1),
-            "ub_Ti": ub.reshape(1, -1, 1),
-        }
-
-        p_stagewise = self.param_manager.combine_parameter_values(**overwrite)
+        p_stagewise = self.param_manager.combine_parameter_values(
+            lb_Ti=lb.reshape(1, -1, 1),
+            ub_Ti=ub.reshape(1, -1, 1),
+        )
 
         ctx, u0, x, u, value = self.diff_mpc(
             x0,
@@ -253,7 +251,7 @@ if __name__ == "__main__":
     plt.figure(figsize=(12, 8))
     plt.subplot(3, 1, 1)
     plt.ylabel("Temperature (K)")
-    plt.plot(
+    plt.step(
         time,
         convert_temperature(x[:, 0], "kelvin", "celsius"),
         label="Indoor (Ti)",
@@ -263,12 +261,12 @@ if __name__ == "__main__":
     #     convert_temperature(x[:, 1], "kelvin", "celsius"),
     #     label="Radiator (Th)",
     # )
-    plt.plot(
+    plt.step(
         time,
         convert_temperature(x[:, 2], "kelvin", "celsius"),
         label="Envelope (Te)",
     )
-    plt.plot(
+    plt.step(
         time,
         convert_temperature(Ta_forecast.reshape(-1), "kelvin", "celsius"),
         label="Ambient (Ta)",
@@ -277,12 +275,12 @@ if __name__ == "__main__":
     plt.legend()
     plt.subplot(3, 1, 2)
     plt.ylabel("Solar Radiation (W/m²)")
-    plt.plot(time, solar_forecast.reshape(-1), label="Solar Radiation")
+    plt.step(time, solar_forecast.reshape(-1), label="Solar Radiation")
     plt.grid(visible=True)
     plt.legend()
     plt.subplot(3, 1, 3)
     plt.ylabel("Control Input (W)")
-    plt.plot(time[:-1], u[:, 0], label="Heat Input (u)")
+    plt.step(time[:-1], u[:, 0], label="Heat Input (u)")
     plt.xlabel("Time (s)")
     plt.grid(visible=True)
     plt.legend()
