@@ -49,7 +49,7 @@ class HvacController(ParameterizedController):
 
         ctx, u0, x, u, value = self.diff_mpc(
             x0,
-            p_global=p_global.unsqueeze(0),
+            p_global=p_global,
             p_stagewise=p_stagewise,
             ctx=ctx,
         )
