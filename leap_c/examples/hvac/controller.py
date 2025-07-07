@@ -405,6 +405,7 @@ if __name__ == "__main__":
         N_horizon=N_horizon,
     )
 
+    obs = obs.reshape(1, -1)  # Reshape to match expected input shape
     Ta_forecast, solar_forecast, price_forecast, time = decompose_observation(obs)[5:]
 
     # TODO: Move this into the param_manager?
@@ -429,7 +430,7 @@ if __name__ == "__main__":
 
     ctx, u0 = controller.forward(obs=obs, param=param)
 
-    action = u0.detach().numpy()
+    action = np.array(u0.detach().numpy(), dtype=np.float32).reshape(-1)
 
     obs = env.step(action=action)
 
