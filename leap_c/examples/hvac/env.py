@@ -1,5 +1,4 @@
 from __future__ import annotations
-import torch
 
 from pathlib import Path
 
@@ -14,6 +13,7 @@ from config import (
 )
 from gymnasium import spaces
 from scipy.constants import convert_temperature
+from util import merge_price_weather_data, transcribe_continuous_state_space
 
 from leap_c.examples.hvac.util import (
     load_price_data,
@@ -21,8 +21,6 @@ from leap_c.examples.hvac.util import (
     transcribe_continuous_state_space,
     transcribe_discrete_state_space,
 )
-
-from util import merge_price_weather_data, transcribe_continuous_state_space
 
 # Constants
 DAYLIGHT_START_HOUR = 6

@@ -43,6 +43,8 @@ class HvacController(ParameterizedController):
         x0 = torch.as_tensor(np.array(obs[:, 2:5], dtype=np.float64))
         p_global = torch.as_tensor(param, dtype=torch.float64)
 
+        lb, ub = set_temperature_limits(decompose_observation(obs)[-1])
+
         p_stagewise = self.param_manager.combine_parameter_values()
 
         ctx, u0, x, u, value = self.diff_mpc(
@@ -136,6 +138,7 @@ def export_parametric_ocp(
     ocp.constraints.ubu = np.array([5000.0])  # [W]
     ocp.constraints.idxbu = np.array([0])
 
+    # TODO: Use time-varying bounds for indoor temperature (relaxed during night)
     ocp.constraints.lbx = convert_temperature(np.array([17.0]), "celsius", "kelvin")
     ocp.constraints.ubx = convert_temperature(np.array([25.0]), "celsius", "kelvin")
     ocp.constraints.idxbx = np.array([0])
@@ -155,6 +158,33 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
 
     return ocp
+
+
+# def get_comfort_bounds(tuple[pd.datetime]
+
+
+def set_temperature_limits(
+    time: np.ndarray[np.datetime64],
+    night_start_hour: int = 21,
+    night_end_hour: int = 8,
+) -> tuple[np.ndarray[np.float64], np.ndarray[np.float64]]:
+    """Set temperature limits based on the time of day."""
+    if len(time) == 0:
+        raise ValueError("Time array cannot be empty")
+
+    n_points = len(time)
+
+    # Extract hours using numpy datetime operations
+    hours = (time.astype("datetime64[h]") - time.astype("datetime64[D]")).astype(int)
+
+    # Vectorized night detection
+    night_idx = (hours >= night_start_hour) | (hours < night_end_hour)
+
+    # Initialize and set values
+    lb = np.where(night_idx, 15.0, 19.0)
+    ub = np.where(night_idx, 21.0, 23.0)
+
+    return lb, ub
 
 
 if __name__ == "__main__":
