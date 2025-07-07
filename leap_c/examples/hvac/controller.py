@@ -230,7 +230,6 @@ def plot_ocp_results(
     )
 
     # Subplot 1: Thermal States
-    ax0 = axes[0]
 
     # Convert temperatures to Celsius for plotting
     Ti_celsius = convert_temperature(x[:, 0], "kelvin", "celsius")
@@ -250,6 +249,7 @@ def plot_ocp_results(
     T_upper_celsius = convert_temperature(T_upper.reshape(-1), "kelvin", "celsius")
     Ta_celsius = convert_temperature(Ta_forecast.reshape(-1), "kelvin", "celsius")
 
+    ax0 = axes[0]
     ax0.fill_between(
         time,
         T_lower_celsius,
@@ -425,7 +425,13 @@ if __name__ == "__main__":
     # Adjust to match shape (batch_size, ...)
     obs = obs.reshape(1, -1)  # Reshape to match expected input shape
 
-    ctx, _ = controller.forward(obs=obs, param=param)
+    obs_old = obs.copy()
+
+    ctx, u0 = controller.forward(obs=obs, param=param)
+
+    action = u0.detach().numpy()
+
+    obs = env.step(action=action)
 
     plot_ocp_results(obs=obs, ctx=ctx)
     plt.show()
