@@ -88,7 +88,13 @@ class AcadosParamManager:
         for key, value in self._get_nondifferentiable_parameters().items():
             entries.append(entry(key, shape=value.shape))
 
-        if self._get_differentiable_stagewise_parameters():
+        for key, value in self._get_nondifferentiable_stagewise_parameters().items():
+            entries.append(entry(key, shape=value.shape, repeat=self.N_horizon + 1))
+
+        if (
+            self._get_differentiable_stagewise_parameters()
+            or self._get_nondifferentiable_stagewise_parameters()
+        ):
             entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
 
         self.p = struct_symSX(entries)
@@ -99,6 +105,10 @@ class AcadosParamManager:
         # for stage in range(self.N_horizon):
         for key, value in self._get_nondifferentiable_parameters().items():
             parameter_values[key] = value
+
+        for key, value in self._get_nondifferentiable_stagewise_parameters().items():
+            for stage in range(self.N_horizon + 1):
+                parameter_values[key, stage] = value
 
         self.parameter_values = parameter_values
 
@@ -186,6 +196,16 @@ class AcadosParamManager:
             key: value.value
             for key, value in self.parameters.items()
             if value.differentiable and value.stagewise
+        }
+
+    def _get_nondifferentiable_stagewise_parameters(
+        self,
+    ) -> dict[str, np.ndarray]:
+        """Get all differentiable stage-wise parameters."""
+        return {
+            key: value.value
+            for key, value in self.parameters.items()
+            if not value.differentiable and value.stagewise
         }
 
     def _get_nondifferentiable_parameters(
@@ -276,6 +296,14 @@ class AcadosParamManager:
             return sum(
                 [
                     self.p["indicator"][stage_] * self.p_global[field, stage_]
+                    for stage_ in range(self.N_horizon + 1)
+                ]
+            )
+
+        if field in self._get_nondifferentiable_stagewise_parameters():
+            return sum(
+                [
+                    self.p["indicator"][stage_] * self.p[field, stage_]
                     for stage_ in range(self.N_horizon + 1)
                 ]
             )
