@@ -41,13 +41,13 @@ class HvacController(ParameterizedController):
         # NOTE: obs includes datetime information,
         # which is why we cast elements to dtype np.float64
         x0 = torch.as_tensor(np.array(obs[:, 2:5], dtype=np.float64))
-        p_global = torch.as_tensor(param, dtype=torch.float64)
+        p_global = torch.as_tensor(param, dtype=torch.float64).unsqueeze(0)
 
         p_stagewise = self.param_manager.combine_parameter_values()
 
         ctx, u0, x, u, value = self.diff_mpc(
-            x0.unsqueeze(0),
-            p_global=p_global.unsqueeze(0),
+            x0,
+            p_global=p_global,
             p_stagewise=p_stagewise,
             ctx=ctx,
         )
