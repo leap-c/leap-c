@@ -58,7 +58,10 @@ class HvacController(ParameterizedController):
             p_stagewise=p_stagewise,
             ctx=ctx,
         )
-        return ctx, u0
+
+        action = np.array(u0.detach().numpy(), dtype=np.float32).reshape(-1)
+
+        return ctx, action
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
         return self.diff_mpc.sensitivity(ctx, field_name="du0_dp_global")
@@ -132,7 +135,7 @@ def export_parametric_ocp(
 
     # Cost function
     ocp.cost.cost_type = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost = param_manager.get("price") * ocp.model.u
+    ocp.model.cost_expr_ext_cost = 0.25 * param_manager.get("price") * ocp.model.u
 
     # Constraints
     ocp.constraints.x0 = x0 or np.array(
@@ -243,7 +246,7 @@ def plot_ocp_results(
     price_forecast = price_forecast.reshape(-1)
     time = time.reshape(-1)
 
-    T_lower, T_upper = set_temperature_limits(decompose_observation(obs)[-1])
+    T_lower, T_upper = set_temperature_limits(time)
 
     T_lower_celsius = convert_temperature(T_lower.reshape(-1), "kelvin", "celsius")
     T_upper_celsius = convert_temperature(T_upper.reshape(-1), "kelvin", "celsius")
@@ -394,27 +397,10 @@ if __name__ == "__main__":
         enable_noise=True,
     )
 
-    obs, _ = env.reset(
-        state_0=np.array([convert_temperature(20.0, "celsius", "kelvin")] * 3)
-    )
-
-    x0 = torch.as_tensor(decompose_observation(obs)[2:5], dtype=torch.float64)
-
     param_manager = AcadosParamManager(
         params=make_default_hvac_params(),
         N_horizon=N_horizon,
     )
-
-    obs = obs.reshape(1, -1)  # Reshape to match expected input shape
-    Ta_forecast, solar_forecast, price_forecast, time = decompose_observation(obs)[5:]
-
-    # TODO: Move this into the param_manager?
-    param = param_manager.p_global_values(0)
-    for stage in range(N_horizon + 1):
-        param["Ta", stage] = Ta_forecast[:, stage]
-        param["Phi_s", stage] = solar_forecast[:, stage]
-        param["price", stage] = price_forecast[:, stage]
-    param = param.cat.full().flatten()
 
     controller = HvacController(
         N_horizon=N_horizon,
@@ -423,16 +409,208 @@ if __name__ == "__main__":
         },
     )
 
-    # Adjust to match shape (batch_size, ...)
-    obs = obs.reshape(1, -1)  # Reshape to match expected input shape
+    days = 10
+    n_steps = days * 24 * 4  # 4 time steps per hour
 
-    obs_old = obs.copy()
+    obs, _ = env.reset(
+        state_0=np.array([convert_temperature(20.0, "celsius", "kelvin")] * 3)
+    )
 
-    ctx, u0 = controller.forward(obs=obs, param=param)
+    results = {
+        key: np.empty(
+            n_steps,
+        )
+        for key in [
+            "Ti",
+            "Th",
+            "Te",
+            "qh",
+            "Ta",
+            "Phi_s",
+            "price",
+        ]
+    }
 
-    action = np.array(u0.detach().numpy(), dtype=np.float32).reshape(-1)
+    results["time"] = []
 
-    obs = env.step(action=action)
+    print(obs.shape)
 
-    plot_ocp_results(obs=obs, ctx=ctx)
+    for k in range(n_steps):
+        # NOTE: The SAC controller would modify the forecasted parameters
+        Ti, Th, Te, Ta_forecast, solar_forecast, price_forecast, time = (
+            decompose_observation(obs.reshape(1, -1))[2:]
+        )
+
+        param = param_manager.p_global_values(0)
+        for stage in range(N_horizon + 1):
+            param["Ta", stage] = Ta_forecast[:, stage]
+            param["Phi_s", stage] = solar_forecast[:, stage]
+            param["price", stage] = price_forecast[:, stage]
+        param = param.cat.full().flatten()
+
+        ctx, action = controller.forward(obs=obs.reshape(1, -1), param=param)
+
+        if False:
+            plot_ocp_results(obs=obs, ctx=ctx)
+            plt.show()
+
+        results["Ti"][k] = Ti[0]
+        results["Th"][k] = Th[0]
+        results["Te"][k] = Te[0]
+        results["qh"][k] = action[0]
+        results["Ta"][k] = Ta_forecast[0, 0]
+        results["Phi_s"][k] = solar_forecast[0, 0]
+        results["price"][k] = price_forecast[0, 0]
+        results["time"].append(time[0, 0])
+
+        obs = env.step(action=action)
+
+    time = np.array(results["time"])
+    Ti_lower, Ti_upper = set_temperature_limits(time)
+    # Convert temperatures to Celsius for plotting
+    Ti_celsius = convert_temperature(results["Ti"], "kelvin", "celsius")
+    Th_celsius = convert_temperature(results["Th"], "kelvin", "celsius")
+    Te_celsius = convert_temperature(results["Te"], "kelvin", "celsius")
+    Ta_celsius = convert_temperature(results["Ta"], "kelvin", "celsius")
+    Ti_lower_celsius = convert_temperature(Ti_lower.reshape(-1), "kelvin", "celsius")
+    Ti_upper_celsius = convert_temperature(Ti_upper.reshape(-1), "kelvin", "celsius")
+    qh = results["qh"]
+    solar = results["Phi_s"]
+    price = results["price"]
+
+    fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
+    fig.suptitle(
+        "Thermal Building Control - OCP Solution",
+        fontsize=16,
+        fontweight="bold",
+    )
+
+    ax0 = axes[0]
+    ax0.fill_between(
+        time,
+        Ti_lower_celsius,
+        Ti_upper_celsius,
+        alpha=0.2,
+        color="lightgreen",
+        label="Comfort zone",
+    )
+
+    # Plot comfort bounds as dashed lines
+    ax0.step(time, Ti_lower_celsius, "g--", alpha=0.7, label="Lower bound")
+    ax0.step(time, Ti_upper_celsius, "g--", alpha=0.7, label="Upper bound")
+
+    # Plot state trajectories
+    ax0.step(time, Ti_celsius, "b-", linewidth=2, label="Indoor temp. (Ti)")
+    ax0.step(
+        time,
+        Te_celsius,
+        "orange",
+        linewidth=2,
+        label="Envelope temp. (Te)",
+    )
+
+    ax0.set_ylabel("Temperature [°C]", fontsize=12)
+    ax0.legend(loc="best")
+    ax0.grid(visible=True, alpha=0.3)
+    ax0.set_title("Indoor/Envelope Temperature", fontsize=14, fontweight="bold")
+
+    # Subplot 1: Heater Temperature
+    ax1 = axes[1]
+    ax1.step(time, Th_celsius, "b-", linewidth=2, label="Radiator temp. (Th)")
+    ax1.set_ylabel("Temperature [°C]", fontsize=12)
+    ax1.grid(visible=True, alpha=0.3)
+    ax1.set_title("Heater Temperature", fontsize=14, fontweight="bold")
+
+    # Subplot 2: Disturbance Signals (twin axes)
+    ax2 = axes[2]
+
+    # Outdoor temperature (left y-axis)
+    ax2.step(
+        time,
+        Ta_celsius,
+        "b-",
+        where="post",
+        linewidth=2,
+        label="Outdoor temp.",
+    )
+    ax2.set_ylabel("Outdoor Temperature [°C]", color="b", fontsize=12)
+    ax2.tick_params(axis="y", labelcolor="b")
+
+    # Solar radiation (right y-axis)
+    ax2_twin = ax2.twinx()
+    ax2_twin.step(
+        time,
+        solar,
+        color="orange",
+        where="post",
+        linewidth=2,
+        label="Solar radiation",
+    )
+    ax2_twin.set_ylabel("Solar Radiation [W/m²]", color="orange", fontsize=12)
+    ax2_twin.tick_params(axis="y", labelcolor="orange")
+
+    ax2.grid(visible=True, alpha=0.3)
+    ax2.set_title("Exogeneous Signals", fontsize=14, fontweight="bold")
+
+    # Subplot 3: Control Input
+    ax3 = axes[3]
+
+    # Plot control as step function
+    ax3.step(
+        time,
+        qh,
+        "b-",
+        where="post",
+        linewidth=2,
+        label="Heat input",
+    )
+
+    ax3.set_xlabel("Time [hours]", fontsize=12)
+    ax3.set_ylabel("Heat Input [W]", color="b", fontsize=12)
+    ax3.grid(visible=True, alpha=0.3)
+    ax3.set_title("Control Input", fontsize=14, fontweight="bold")
+
+    # Set y-axis lower limit to 0 for better visualization
+    ax3.set_ylim(bottom=0)
+
+    ax3_twin = ax3.twinx()
+    # Add energy cost as a secondary y-axis
+    ax3_twin.step(
+        time,
+        price,
+        color="orange",
+        where="post",
+        linewidth=2,
+        label="Energy cost (scaled)",
+    )
+    ax3_twin.set_ylabel("Energy Price [EUR/kWh]", color="orange", fontsize=12)
+    ax3_twin.tick_params(axis="y", labelcolor="orange")
+    ax3_twin.grid(visible=False)  # Disable grid for twin axis
+    ax3_twin.set_ylim(bottom=0)  # Set lower limit to 0 for energy cost
+
+    # Adjust layout
+    plt.tight_layout()
+
+    # Add summary statistics as text
+    dt = 900.0  # Time step in seconds (15 minutes)
+    total_energy_kWh = qh.sum() * dt / 3600 / 1000  # Convert to kWh
+    # max_comfort_violation = max(
+    #     ctx.iterate.sl.reshape(-1, 2).max(),
+    #     ctx.iterate.su.reshape(-1, 2).max(),
+    # )
+
+    stats_text = (
+        f"Total Energy: {total_energy_kWh:.1f} kWh | "
+        # f"Max Comfort Violation: {max_comfort_violation:.2f} K"
+    )
+
+    fig.text(
+        0.78,
+        0.02,
+        stats_text,
+        ha="center",
+        fontsize=10,
+        bbox={"boxstyle": "round,pad=0.3", "facecolor": "lightgray", "alpha": 0.8},
+    )
+
     plt.show()
