@@ -57,6 +57,7 @@ class AcadosDiffMpcCtx:
 
 def collate_acados_diff_mpc_ctx(
     batch: Sequence[AcadosDiffMpcCtx],
+    collate_fn_map: dict[str, callable] | None = None,
 ) -> AcadosDiffMpcCtx:
     """Collates a batch of AcadosDiffMpcCtx objects into a single object."""
     return AcadosDiffMpcCtx(

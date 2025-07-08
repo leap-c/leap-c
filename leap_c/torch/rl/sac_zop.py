@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 
 from leap_c.controller import ParameterizedController
-from leap_c.torch.nn.extractor import Extractor, IdentityExtractor
+from leap_c.torch.nn.extractor import Extractor, IdentityExtractor, ScalingExtractor
 from leap_c.torch.nn.gaussian import SquashedGaussian
 from leap_c.torch.nn.mlp import MLP, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
@@ -70,6 +70,10 @@ class MpcSacActor(nn.Module):
         with torch.no_grad():
             ctx, action = self.controller(obs, param, ctx=ctx)
 
+        print("param", param)
+        print("action", action)
+        print("obs", obs)
+
         return SacZopActorOutput(
             param,
             log_prob,
@@ -88,7 +92,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
         device: str,
         train_env: gym.Env,
         controller: ParameterizedController,
-        extractor_cls: Type[Extractor] = IdentityExtractor,
+        extractor_cls: Type[Extractor] = ScalingExtractor,
     ):
         """Initializes the SAC ZOP trainer.
 
@@ -158,7 +162,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
 
         while True:
             if is_terminated or is_truncated:
-                obs, _ = self.train_env.reset()
+                obs, _ = self.train_env.reset(options={"mode": "train"})
                 policy_ctx = None
                 is_terminated = is_truncated = False
 
@@ -178,10 +182,13 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
                 action
             )
 
+            # print("action", action)
+
             if "episode" in info:
                 stats = info["episode"]
                 if "task" in info:
                     stats.update(info["task"])
+                print(info["episode"])
                 self.report_stats("train", info["episode"])
 
             self.buffer.put(

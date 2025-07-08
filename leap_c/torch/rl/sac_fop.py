@@ -3,15 +3,16 @@ layer for the policy network."""
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, NamedTuple, Literal
+from typing import Any, Iterator, NamedTuple, Literal, Type
 
 import gymnasium as gym
+import gymnasium.spaces as spaces
 import numpy as np
 import torch
 import torch.nn as nn
 
 from leap_c.controller import ParameterizedController
-from leap_c.torch.nn.extractor import Extractor, IdentityExtractor
+from leap_c.torch.nn.extractor import Extractor, ScalingExtractor
 from leap_c.torch.nn.gaussian import SquashedGaussian, BoundedTransform
 from leap_c.torch.nn.mlp import MLP, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
@@ -66,7 +67,7 @@ class FopActor(nn.Module):
             mlp_cfg=mlp_cfg,
         )
         self.correction = correction
-        self.squashed_gaussian = SquashedGaussian(param_space)  # type:ignore
+        self.squashed_gaussian = SquashedGaussian(controller.param_space)  # type:ignore
 
     def forward(self, obs, ctx=None, deterministic=False) -> SacFopActorOutput:
         e = self.extractor(obs)
@@ -152,7 +153,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         device: str,
         train_env: gym.Env,
         controller: ParameterizedController,
-        extractor: Extractor | None = None,
+        extractor_cls: Type[Extractor] = ScalingExtractor,
     ):
         """Initializes the SAC FOP trainer.
 
@@ -163,61 +164,67 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             device: The device on which the trainer is running
             train_env: The training environment.
             controller: The controller to use for the policy.
-            extractor: The feature extractor to use for the policy.
-                If None, an IdentityExtractor is used.
+            extractor_cls: The feature extractor class to use for the policy.
         """
         super().__init__(cfg, val_env, output_path, device)
 
+        param_space: spaces.Box = controller.param_space  # type: ignore
+        observation_space = train_env.observation_space
+        action_dim = np.prod(train_env.action_space.shape)  # type: ignore
+        param_dim = np.prod(param_space.shape)
+
         self.train_env = seed_env(wrap_env(train_env), seed=self.cfg.seed)
         self.controller = controller
-        self.extractor = (
-            IdentityExtractor(self.train_env.observation_space) if extractor is None else extractor
-        )
+
         self.q = SacCritic(
-            self.extractor, self.train_env, self.cfg.critic_mlp, self.cfg.num_critics
+            extractor_cls,
+            train_env.action_space,
+            observation_space,
+            cfg.critic_mlp,
+            cfg.num_critics,
         )
         self.q_target = SacCritic(
-            self.extractor, self.train_env, self.cfg.critic_mlp, self.cfg.num_critics
+            extractor_cls,
+            train_env.action_space,
+            observation_space,
+            cfg.critic_mlp,
+            cfg.num_critics,
         )
         self.q_target.load_state_dict(self.q.state_dict())
-        self.q_optim = torch.optim.Adam(self.q.parameters(), lr=self.cfg.lr_q)
+        self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.lr_q)
 
-        if self.cfg.noise == "param":
+        if cfg.noise == "param":
             self.pi = FopActor(
-                self.extractor,
-                self.cfg.actor_mlp,
-                self.controller,
-                correction=self.cfg.entropy_correction,
+                extractor_cls(observation_space),
+                cfg.actor_mlp,
+                controller,
+                correction=cfg.entropy_correction,
             )
-        elif self.cfg.noise == "action":
+        elif cfg.noise == "action":
             self.pi = FoaActor(
-                self.train_env,
-                self.extractor,
-                self.cfg.actor_mlp,
-                self.controller,
+                train_env,
+                extractor_cls(observation_space),
+                cfg.actor_mlp,
+                controller,
             )
         else:
-            raise ValueError(f"Unknown noise type: {self.cfg.noise}")
+            raise ValueError(f"Unknown noise type: {cfg.noise}")
 
-        self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=self.cfg.lr_pi)
+        self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(self.cfg.init_alpha).log())  # type: ignore
+        self.log_alpha = nn.Parameter(torch.tensor(cfg.init_alpha).log())  # type: ignore
 
-        if self.cfg.lr_alpha is not None:
-            self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=self.cfg.lr_alpha)  # type: ignore
-            action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
-            param_dim = np.prod(controller.param_space.shape)  # type: ignore
-            if self.cfg.noise == "param":
-                self.entropy_norm = param_dim / action_dim
-            else:
-                self.entropy_norm = 1
+        self.entropy_norm = param_dim / action_dim
+        if cfg.lr_alpha is not None:
+            self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)  # type: ignore
             self.target_entropy = (
-                -action_dim
-                if self.cfg.target_entropy is None
-                else self.cfg.target_entropy
+                -action_dim if cfg.target_entropy is None else cfg.target_entropy
             )
+        else:
+            self.alpha_optim = None
+            self.target_entropy = None
 
-        self.buffer = ReplayBuffer(self.cfg.buffer_size, device=device)
+        self.buffer = ReplayBuffer(cfg.buffer_size, device=device, collate_fn_map=controller.collate_fn_map)
 
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
@@ -226,11 +233,11 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
 
         while True:
             if is_terminated or is_truncated:
-                obs, _ = self.train_env.reset()
+                obs, _ = self.train_env.reset(options={"mode": "train"})
                 policy_state = None
                 is_terminated = is_truncated = False
 
-            obs_batched = self.task.collate([obs], device=self.device)
+            obs_batched = self.buffer.collate([obs])
 
             with torch.no_grad():
                 # TODO (Jasper): Argument order is not consistent
@@ -347,7 +354,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                     "alpha": alpha,
                     "q": q.mean().item(),
                     "q_target": target.mean().item(),
-                    "masked_samples_perc": 1 - mask_status.float().mean().item(),
+                    "masked_samples_perc": 1 - float(mask_status.mean().item()),
                     "entropy": -log_p.mean().item(),
                 }
                 self.report_stats("loss", loss_stats)
@@ -358,18 +365,18 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
     def act(
         self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
-        obs = self.task.collate([obs], device=self.device)
+        obs = self.buffer.collate([obs])
 
         with torch.no_grad():
             pi_output = self.pi(obs, state, deterministic=deterministic)
 
         action = pi_output.action.cpu().numpy()[0]
 
-        return action, pi_output.state_solution, pi_output.stats
+        return action, pi_output.ctx , pi_output.stats
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
-        if self.cfg.lr_alpha is None:
+        if self.alpha_optim is None:
             return [self.q_optim, self.pi_optim]
 
         return [self.q_optim, self.pi_optim, self.alpha_optim]
