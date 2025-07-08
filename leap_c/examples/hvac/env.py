@@ -334,7 +334,7 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         return self._get_observation()
 
-    def reset(self, state_0: np.ndarray | None = None) -> None:
+    def reset(self, state_0: np.ndarray | None = None) -> tuple[np.ndarray, dict]:
         """Reset the model state to initial values."""
         if state_0 is None:
             state_0 = self.state_0
@@ -440,6 +440,16 @@ def decompose_observation(obs: np.ndarray) -> tuple:
             assert len(forecast) == N_forecast, (
                 f"Expected {N_forecast} forecasts, got {len(forecast)}"
             )
+
+    # Cast to appropriate types
+    quarter_hour = quarter_hour.astype(np.int32)
+    day_of_year = day_of_year.astype(np.int32)
+    Ti = Ti.astype(np.float32)
+    Th = Th.astype(np.float32)
+    Te = Te.astype(np.float32)
+    Ta_forecast = Ta_forecast.astype(np.float32)
+    solar_forecast = solar_forecast.astype(np.float32)
+    price_forecast = price_forecast.astype(np.float32)
 
     return (
         quarter_hour,
