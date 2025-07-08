@@ -170,9 +170,6 @@ def export_parametric_ocp(
     return ocp
 
 
-# def get_comfort_bounds(tuple[pd.datetime]
-
-
 def set_temperature_limits(
     time: np.ndarray[np.datetime64],
     night_start_hour: int = 22,
@@ -204,6 +201,7 @@ def set_temperature_limits(
 
 
 def plot_ocp_results(
+    time: np.ndarray[np.datetime64],
     obs: np.ndarray,
     ctx: Any,
     figsize: tuple[float, float] = (12, 10),
@@ -239,9 +237,7 @@ def plot_ocp_results(
     Th_celsius = convert_temperature(x[:, 1], "kelvin", "celsius")
     Te_celsius = convert_temperature(x[:, 2], "kelvin", "celsius")
 
-    Ta_forecast, solar_forecast, price_forecast, time = decompose_observation(obs=obs)[
-        5:
-    ]
+    Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs=obs)[5:]
     solar_forecast = solar_forecast.reshape(-1)
     price_forecast = price_forecast.reshape(-1)
     time = time.reshape(-1)
@@ -394,7 +390,6 @@ if __name__ == "__main__":
     env = StochasticThreeStateRcEnv(
         step_size=900.0,  # 15 minutes in seconds
         horizon_hours=24,
-        enable_noise=True,
     )
 
     param_manager = AcadosParamManager(
@@ -409,10 +404,10 @@ if __name__ == "__main__":
         },
     )
 
-    days = 10
+    days = 2
     n_steps = days * 24 * 4  # 4 time steps per hour
 
-    obs, _ = env.reset(
+    obs, info = env.reset(
         state_0=np.array([convert_temperature(20.0, "celsius", "kelvin")] * 3)
     )
 
@@ -426,7 +421,7 @@ if __name__ == "__main__":
             "Te",
             "qh",
             "Ta",
-            "Phi_s",
+            "solar",
             "price",
         ]
     }
@@ -437,9 +432,9 @@ if __name__ == "__main__":
 
     for k in range(n_steps):
         # NOTE: The SAC controller would modify the forecasted parameters
-        Ti, Th, Te, Ta_forecast, solar_forecast, price_forecast, time = (
-            decompose_observation(obs.reshape(1, -1))[2:]
-        )
+        Ti, Th, Te, Ta_forecast, solar_forecast, price_forecast = decompose_observation(
+            obs.reshape(1, -1)
+        )[2:]
 
         param = param_manager.p_global_values(0)
         for stage in range(N_horizon + 1):
@@ -450,8 +445,11 @@ if __name__ == "__main__":
 
         ctx, action = controller.forward(obs=obs.reshape(1, -1), param=param)
 
-        if False:
-            plot_ocp_results(obs=obs, ctx=ctx)
+        # if ctx.status != 0:
+        if k > 20:
+            # print(f"Controller failed at step {k} with status {ctx.status}")
+            fig = plot_ocp_results(time=info["time_forecast"], obs=obs, ctx=ctx)
+            fig.savefig(f"hvac_ocp_step_{k}.png", dpi=300, bbox_inches="tight")
             plt.show()
 
         results["Ti"][k] = Ti[0]
@@ -459,9 +457,9 @@ if __name__ == "__main__":
         results["Te"][k] = Te[0]
         results["qh"][k] = action[0]
         results["Ta"][k] = Ta_forecast[0, 0]
-        results["Phi_s"][k] = solar_forecast[0, 0]
+        results["solar"][k] = solar_forecast[0, 0]
         results["price"][k] = price_forecast[0, 0]
-        results["time"].append(time[0, 0])
+        results["time"].append(info["time_forecast"][0, 0])
 
         obs = env.step(action=action)
 
@@ -475,7 +473,7 @@ if __name__ == "__main__":
     Ti_lower_celsius = convert_temperature(Ti_lower.reshape(-1), "kelvin", "celsius")
     Ti_upper_celsius = convert_temperature(Ti_upper.reshape(-1), "kelvin", "celsius")
     qh = results["qh"]
-    solar = results["Phi_s"]
+    solar = results["solar"]
     price = results["price"]
 
     fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True)

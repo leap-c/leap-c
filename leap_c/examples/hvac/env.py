@@ -152,6 +152,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         self.data["price"] = self.data["price"].astype(np.float32)
         self.data["Ta"] = self.data["Ta"].astype(np.float32)
         self.data["solar"] = self.data["solar"].astype(np.float32)
+        self.data["time"] = self.data.index.to_numpy(dtype="datetime64[m]")
 
         self.start_time = start_time
 
@@ -203,22 +204,19 @@ class StochasticThreeStateRcEnv(gym.Env):
         ambient_temperature_forecast = (
             self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast + 1].to_numpy()
         )
-        solar_radiation_forecast = (
+        solar_forecast = (
             self.data["solar"]
             .iloc[self.idx : self.idx + self.N_forecast + 1]
             .to_numpy()
         )
-
-        datetime_forecast = self.data.index[self.idx : self.idx + self.N_forecast + 1]
 
         return np.concatenate(
             [
                 np.array([quarter_hour, day_of_year], dtype=np.float32),
                 self.state.astype(np.float32),
                 ambient_temperature_forecast.astype(np.float32),
-                solar_radiation_forecast.astype(np.float32),
+                solar_forecast.astype(np.float32),
                 price_forecast.astype(np.float32),
-                datetime_forecast,
             ]
         )
 
@@ -297,7 +295,9 @@ class StochasticThreeStateRcEnv(gym.Env):
         # The discrete-time covariance is Qd = Ad @ Phi
         return Ad @ Phi
 
-    def step(self, action: np.ndarray) -> np.ndarray:
+    def step(
+        self, action: np.ndarray
+    ) -> tuple[np.ndarray, None, None, None, dict, None]:
         """
         Perform a simulation step with exact discrete-time dynamics including noise.
 
@@ -332,7 +332,20 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         self.Ti, self.Th, self.Te = self.state[0], self.state[1], self.state[2]
 
-        return self._get_observation()
+        time_forecast = (
+            self.data["time"]
+            .iloc[self.idx : self.idx + self.N_forecast + 1]
+            .to_numpy(dtype="datetime64[m]")
+        )
+
+        obs = self._get_observation()
+        reward = None
+        terminated = None
+        truncated = None
+        info = {"time_forecast": time_forecast}
+        done = None
+
+        return obs, reward, terminated, truncated, info, done
 
     def reset(self, state_0: np.ndarray | None = None) -> tuple[np.ndarray, dict]:
         """Reset the model state to initial values."""
@@ -346,7 +359,12 @@ class StochasticThreeStateRcEnv(gym.Env):
             self.idx = 0
 
         obs = self._get_observation()
-        info = {}
+        time_forecast = (
+            self.data["time"]
+            .iloc[self.idx : self.idx + self.N_forecast + 1]
+            .to_numpy(dtype="datetime64[m]")
+        )
+        info = {"time_forecast": time_forecast}
 
         return obs, info
 
@@ -392,7 +410,7 @@ def decompose_observation(obs: np.ndarray) -> tuple:
         - price_forecast: Electricity price forecast for the next N steps
     """
     if obs.ndim > 1:
-        N_forecast = (obs.shape[1] - 5) // 4
+        N_forecast = (obs.shape[1] - 5) // 3
 
         quarter_hour = obs[:, 0]
         day_of_year = obs[:, 1]
@@ -403,18 +421,25 @@ def decompose_observation(obs: np.ndarray) -> tuple:
         Ta_forecast = obs[:, 5 : 5 + 1 * N_forecast]
         solar_forecast = obs[:, 5 + 1 * N_forecast : 5 + 2 * N_forecast]
         price_forecast = obs[:, 5 + 2 * N_forecast : 5 + 3 * N_forecast]
-        # Assuming datetime is the last part of the observation
-        datetime_forecast = obs[:, 5 + 3 * N_forecast :]
 
         for forecast in [
             Ta_forecast,
             solar_forecast,
             price_forecast,
-            datetime_forecast,
         ]:
             assert forecast.shape[1] == N_forecast, (
                 f"Expected {N_forecast} forecasts, got {forecast.shape[1]}"
             )
+
+        # Cast to appropriate types
+        quarter_hour = quarter_hour.astype(np.int32)
+        day_of_year = day_of_year.astype(np.int32)
+        Ti = Ti.astype(np.float32)
+        Th = Th.astype(np.float32)
+        Te = Te.astype(np.float32)
+        Ta_forecast = Ta_forecast.astype(np.float32)
+        solar_forecast = solar_forecast.astype(np.float32)
+        price_forecast = price_forecast.astype(np.float32)
 
     else:
         N_forecast = (len(obs) - 5) // 4
@@ -428,28 +453,25 @@ def decompose_observation(obs: np.ndarray) -> tuple:
         Ta_forecast = obs[5 : 5 + 1 * N_forecast]
         solar_forecast = obs[5 + 1 * N_forecast : 5 + 2 * N_forecast]
         price_forecast = obs[5 + 2 * N_forecast : 5 + 3 * N_forecast]
-        # Assuming datetime is the last part of the observation
-        datetime_forecast = obs[5 + 3 * N_forecast :]
 
         for forecast in [
             Ta_forecast,
             solar_forecast,
             price_forecast,
-            datetime_forecast,
         ]:
             assert len(forecast) == N_forecast, (
                 f"Expected {N_forecast} forecasts, got {len(forecast)}"
             )
 
-    # Cast to appropriate types
-    quarter_hour = quarter_hour.astype(np.int32)
-    day_of_year = day_of_year.astype(np.int32)
-    Ti = Ti.astype(np.float32)
-    Th = Th.astype(np.float32)
-    Te = Te.astype(np.float32)
-    Ta_forecast = Ta_forecast.astype(np.float32)
-    solar_forecast = solar_forecast.astype(np.float32)
-    price_forecast = price_forecast.astype(np.float32)
+        # # Cast to appropriate types
+        # quarter_hour = quarter_hour.astype(np.int32)
+        # day_of_year = day_of_year.astype(np.int32)
+        # Ti = Ti.astype(np.float32)
+        # Th = Th.astype(np.float32)
+        # Te = Te.astype(np.float32)
+        # Ta_forecast = Ta_forecast.astype(np.float32)
+        # solar_forecast = solar_forecast.astype(np.float32)
+        # price_forecast = price_forecast.astype(np.float32)
 
     return (
         quarter_hour,
@@ -460,7 +482,6 @@ def decompose_observation(obs: np.ndarray) -> tuple:
         Ta_forecast,
         solar_forecast,
         price_forecast,
-        datetime_forecast,
     )
 
 
@@ -480,7 +501,9 @@ if __name__ == "__main__":
     time = []  # Use the first forecasted datetime
 
     # Run simulation
-    obs, _ = env.reset()
+    obs, info = env.reset()
+
+    datetime_forecast = info["time_forecast"]
     for _ in range(n_steps):
         (
             quarter_hour,
@@ -491,7 +514,6 @@ if __name__ == "__main__":
             Ta_forecast,
             solar_forecast,
             price_forecast,
-            datetime_forecast,
         ) = decompose_observation(obs)
 
         # Get current inputs
@@ -501,10 +523,10 @@ if __name__ == "__main__":
         u.append(action)
         Ta.append(Ta_forecast[0])
         solar.append(solar_forecast[0])
-        time.append(datetime_forecast[0])
+        time.append(info["time_forecast"])
 
         # Update state using the integrator
-        obs = env.step(action)
+        obs, _, _, _, info, _ = env.step(action)
 
     x = np.array(x)
     u = np.array(u)
