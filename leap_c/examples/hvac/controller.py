@@ -37,6 +37,8 @@ class HvacController(ParameterizedController):
         )
         self.diff_mpc = AcadosDiffMpc(self.ocp, **diff_mpc_kwargs)
 
+        self.N_horizon = N_horizon
+
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         # NOTE: obs includes datetime information,
         # which is why we cast elements to dtype np.float64
@@ -45,7 +47,8 @@ class HvacController(ParameterizedController):
 
         batch_size = x0.shape[0]
 
-        lb, ub = set_temperature_limits(decompose_observation(obs)[-1])
+        quarter_hours = np.arange(obs[:, 0], obs[:, 0] + N_horizon + 1) % N_horizon
+        lb, ub = set_temperature_limits(quarter_hours=quarter_hours)
 
         p_stagewise = self.param_manager.combine_parameter_values(
             lb_Ti=lb.reshape(batch_size, -1, 1),
@@ -171,16 +174,13 @@ def export_parametric_ocp(
 
 
 def set_temperature_limits(
-    time: np.ndarray[np.datetime64],
+    # time: np.ndarray[np.datetime64],
+    quarter_hours: np.ndarray,
     night_start_hour: int = 22,
     night_end_hour: int = 8,
 ) -> tuple[np.ndarray[np.float64], np.ndarray[np.float64]]:
     """Set temperature limits based on the time of day."""
-    if len(time) == 0:
-        raise ValueError("Time array cannot be empty")
-
-    # Extract hours using numpy datetime operations
-    hours = (time.astype("datetime64[h]") - time.astype("datetime64[D]")).astype(int)
+    hours = np.floor(quarter_hours / 4)
 
     # Vectorized night detection
     night_idx = (hours >= night_start_hour) | (hours < night_end_hour)
@@ -242,7 +242,8 @@ def plot_ocp_results(
     price_forecast = price_forecast.reshape(-1)
     time = time.reshape(-1)
 
-    T_lower, T_upper = set_temperature_limits(time)
+    quarter_hours = np.arange(obs[0], obs[0] + len(time)) % len(time)
+    T_lower, T_upper = set_temperature_limits(quarter_hours=quarter_hours)
 
     T_lower_celsius = convert_temperature(T_lower.reshape(-1), "kelvin", "celsius")
     T_upper_celsius = convert_temperature(T_upper.reshape(-1), "kelvin", "celsius")
@@ -446,10 +447,11 @@ if __name__ == "__main__":
         ctx, action = controller.forward(obs=obs.reshape(1, -1), param=param)
 
         # if ctx.status != 0:
-        if k > 20:
+        if True:
             # print(f"Controller failed at step {k} with status {ctx.status}")
+            print(k)
             fig = plot_ocp_results(time=info["time_forecast"], obs=obs, ctx=ctx)
-            fig.savefig(f"hvac_ocp_step_{k}.png", dpi=300, bbox_inches="tight")
+            # fig.savefig(f"hvac_ocp_step_{k}.png", dpi=300, bbox_inches="tight")
             plt.show()
 
         results["Ti"][k] = Ti[0]
@@ -459,9 +461,9 @@ if __name__ == "__main__":
         results["Ta"][k] = Ta_forecast[0, 0]
         results["solar"][k] = solar_forecast[0, 0]
         results["price"][k] = price_forecast[0, 0]
-        results["time"].append(info["time_forecast"][0, 0])
+        results["time"].append(info["time_forecast"][0])
 
-        obs = env.step(action=action)
+        obs, _, _, _, info, _ = env.step(action=action)
 
     time = np.array(results["time"])
     Ti_lower, Ti_upper = set_temperature_limits(time)

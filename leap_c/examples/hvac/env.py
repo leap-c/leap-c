@@ -442,7 +442,7 @@ def decompose_observation(obs: np.ndarray) -> tuple:
         price_forecast = price_forecast.astype(np.float32)
 
     else:
-        N_forecast = (len(obs) - 5) // 4
+        N_forecast = (len(obs) - 5) // 3
 
         quarter_hour = obs[0]
         day_of_year = obs[1]
