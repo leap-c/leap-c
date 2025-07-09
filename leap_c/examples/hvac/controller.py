@@ -6,6 +6,7 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from acados_template import ACADOS_INFTY
 from acados_template import AcadosOcp
 from env import StochasticThreeStateRcEnv, decompose_observation
 from scipy.constants import convert_temperature
@@ -47,7 +48,13 @@ class HvacController(ParameterizedController):
 
         batch_size = x0.shape[0]
 
-        quarter_hours = np.arange(obs[:, 0], obs[:, 0] + N_horizon + 1) % N_horizon
+        quarter_hours = np.array(
+            [
+                np.arange(obs[i, 0], obs[i, 0] + N_horizon + 1) % N_horizon
+                for i in range(batch_size)
+            ]
+        )
+
         lb, ub = set_temperature_limits(quarter_hours=quarter_hours)
 
         p_stagewise = self.param_manager.combine_parameter_values(
@@ -138,7 +145,13 @@ def export_parametric_ocp(
 
     # Cost function
     ocp.cost.cost_type = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost = 0.25 * param_manager.get("price") * ocp.model.u
+    ocp.model.cost_expr_ext_cost = (
+        0.25 * param_manager.get("price") * ocp.model.u
+        + 0.01 * (ocp.model.u - 1000) ** 2  # Regularization term
+        + 0.01
+        * (ocp.model.x[0] - convert_temperature(21.0, "celsius", "kelvin"))
+        ** 2  # Regularization term
+    )
 
     # Constraints
     ocp.constraints.x0 = x0 or np.array(
@@ -150,13 +163,13 @@ def export_parametric_ocp(
         param_manager.get("ub_Ti") - ocp.model.x[0],
     )
     ocp.constraints.lh = np.array([0.0, 00])
-    ocp.constraints.uh = np.array([1e3, 1e3])
+    ocp.constraints.uh = np.array([ACADOS_INFTY, ACADOS_INFTY])
 
     ocp.constraints.idxsh = np.array([0, 1])
-    ocp.cost.zl = 1e4 * np.ones((ocp.constraints.idxsh.size,))
-    ocp.cost.Zl = 1e4 * np.ones((ocp.constraints.idxsh.size,))
-    ocp.cost.zu = 1e4 * np.ones((ocp.constraints.idxsh.size,))
-    ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.Zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.Zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
 
     ocp.constraints.lbu = np.array([0.0])
     ocp.constraints.ubu = np.array([5000.0])  # [W]
@@ -447,7 +460,7 @@ if __name__ == "__main__":
         ctx, action = controller.forward(obs=obs.reshape(1, -1), param=param)
 
         # if ctx.status != 0:
-        if True:
+        if k > 20:
             # print(f"Controller failed at step {k} with status {ctx.status}")
             print(k)
             fig = plot_ocp_results(time=info["time_forecast"], obs=obs, ctx=ctx)
