@@ -129,6 +129,9 @@ def export_parametric_ocp(
     Returns:
         AcadosOcp: The configured OCP object.
     """
+
+    dt: float = 900.0  # Time step in seconds (15 minutes)
+
     ocp = AcadosOcp()
 
     param_manager.assign_to_ocp(ocp)
@@ -146,7 +149,6 @@ def export_parametric_ocp(
     dqh = ca.SX.sym("dqh")  # Increment Heat input to radiator
     ddqh = ca.SX.sym("ddqh")  # Increment Heat input to radiator
 
-    dt = 900.0  # Time step in seconds (15 minutes)
     Ad, Bd, Ed = transcribe_discrete_state_space(
         Ad=np.zeros((3, 3)),
         Bd=np.zeros((3, 1)),
@@ -172,65 +174,53 @@ def export_parametric_ocp(
     )
     ocp.model.disc_dyn_expr = Ad @ ocp.model.x + Bd @ qh + Ed @ d
 
-    # Augment the model with the control input
+    # Augment the model with double integrator for the control input
     ocp.model.x = ca.vertcat(ocp.model.x, qh, dqh)
     ocp.model.disc_dyn_expr = ca.vertcat(
         ocp.model.disc_dyn_expr,
         qh + dt * dqh + 0.5*dt**2*ddqh,
         dqh + dt * ddqh,
 
-    )  # Append the control input to the dynamics
+    )
     ocp.model.u = ddqh
 
     # Cost function
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = (
         0.25 * param_manager.get("price") * qh
-        + 1 * (dqh) ** 2  # Regularization term
-        + 1 * (ddqh) ** 2  # Regularization term
-        # + 0.1
-        # * (ocp.model.x[0] - convert_temperature(21.0, "celsius", "kelvin"))
-        # ** 2  # Regularization term
+        + param_manager.get("q_dqh") * (dqh) ** 2
+        + param_manager.get("q_ddqh") * (ddqh) ** 2
     )
-    # ocp.model.cost_expr_ext_cost_e = (ocp.model.x[0] - convert_temperature(21.0, "celsius", "kelvin"))** 2  # Regularization term
+
+    ocp.cost.cost_type_e = "EXTERNAL"
+    ocp.model.cost_expr_ext_cost_e = (
+        0.25 * param_manager.get("price") * qh
+        + param_manager.get("q_dqh") * (dqh) ** 2
+    )
+
 
     # Constraints
     ocp.constraints.x0 = x0 or np.array(
         [convert_temperature(20.0, "celsius", "kelvin")] * 3 + [0.0, 0.0]
     )
 
-    if True:
-        ocp.model.con_h_expr = ca.vertcat(
-            ocp.model.x[0] - param_manager.get("lb_Ti"),
-            param_manager.get("ub_Ti") - ocp.model.x[0],
-        )
-        ocp.constraints.lh = np.array([0.0, 00])
-        ocp.constraints.uh = np.array([ACADOS_INFTY, ACADOS_INFTY])
+    # Comfort constraints
+    ocp.model.con_h_expr = ca.vertcat(
+        ocp.model.x[0] - param_manager.get("lb_Ti"),
+        param_manager.get("ub_Ti") - ocp.model.x[0],
+    )
+    ocp.constraints.lh = np.array([0.0, 00])
+    ocp.constraints.uh = np.array([ACADOS_INFTY, ACADOS_INFTY])
 
-        ocp.constraints.idxsh = np.array([0, 1])
-        ocp.cost.zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
-        ocp.cost.Zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
-        ocp.cost.zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
-        ocp.cost.Zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.constraints.idxsh = np.array([0, 1])
+    ocp.cost.zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.Zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.Zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
 
-        ocp.constraints.lbx = np.array([0.0])
-        ocp.constraints.ubx = np.array([5000.0])
-        ocp.constraints.idxbx = np.array([3])  # qh
-    else:
-        # TODO: Use time-varying bounds for indoor temperature (relaxed during night)
-        ocp.constraints.lbx = convert_temperature(np.array([17.0]), "celsius", "kelvin")
-        ocp.constraints.ubx = convert_temperature(np.array([25.0]), "celsius", "kelvin")
-        ocp.constraints.idxbx = np.array([0])
-
-        ocp.constraints.idxsbx = np.array([0])
-        ocp.cost.zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
-        ocp.cost.Zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
-        ocp.cost.zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
-        ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
-
-    # ocp.constraints.lbu = np.array([-5000.0])
-    # ocp.constraints.ubu = np.array([5000.0])  # [W]
-    # ocp.constraints.idxbu = np.array([0])
+    ocp.constraints.lbx = np.array([0.0])
+    ocp.constraints.ubx = np.array([5000.0])
+    ocp.constraints.idxbx = np.array([3])  # qh
 
     # Solver options
     ocp.solver_options.tf = N_horizon
@@ -239,21 +229,10 @@ def export_parametric_ocp(
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    # ocp.solver_options.regularize_method = "GERSHGORIN_LEVENBERG_MARQUARDT"
-    # ocp.solver_options.reg_adaptive_eps = True
 
     return ocp
 
-def apply_exponential_smoothing(data, alpha=0.3):
-    """Exponential smoothing"""
-    smoothed = np.zeros_like(data)
-    smoothed[0] = data[0]
-    for i in range(1, len(data)):
-        smoothed[i] = alpha * data[i] + (1 - alpha) * smoothed[i-1]
-    return smoothed
-
 def set_temperature_limits(
-    # time: np.ndarray[np.datetime64],
     quarter_hours: np.ndarray,
     night_start_hour: int = 22,
     night_end_hour: int = 8,
@@ -263,7 +242,6 @@ def set_temperature_limits(
 
     # Vectorized night detection
     night_idx = (hours >= night_start_hour) | (hours < night_end_hour)
-    # night_idx2 = np.arange(0, quarter_hours.shape[1])
 
     # Initialize and set values
     lb = np.where(
@@ -276,28 +254,6 @@ def set_temperature_limits(
         convert_temperature(25.0, "celsius", "kelvin"),
         convert_temperature(22.0, "celsius", "kelvin"),
     )
-
-    window_size = 4
-    # lb_smooth = np.convolve(lb.reshape(-1), np.ones(window_size)/window_size, mode='same')
-    lb_smooth = apply_exponential_smoothing(lb.reshape(-1), alpha=0.3).reshape(lb.shape)
-    ub_smooth = apply_exponential_smoothing(ub.reshape(-1), alpha=0.3).reshape(ub.shape)
-
-
-    if False:
-        plt.figure(figsize=(10, 5))
-        plt.plot(lb.reshape(-1), label="Lower Bound", color="green", linestyle="--")
-        plt.plot(lb_smooth.reshape(-1), label="Lower Bound", color="green", linestyle="-")
-        plt.plot(ub.reshape(-1), label="Upper Bound", color="red", linestyle="--")
-        plt.plot(ub_smooth.reshape(-1), label="Lower Bound", color="green", linestyle="-")
-        plt.xlabel("Quarter Hours")
-        plt.ylabel("Temperature (K)")
-        plt.title("Temperature Limits Over Time")
-        plt.legend()
-        plt.grid()
-        plt.tight_layout()
-        plt.show()
-
-    # return lb_smooth, ub_smooth
     return lb, ub
 
 
@@ -509,7 +465,7 @@ if __name__ == "__main__":
         },
     )
 
-    days = 30
+    days = 3
     n_steps = days * 24 * 4  # 4 time steps per hour
 
     obs, info = env.reset(
@@ -534,7 +490,10 @@ if __name__ == "__main__":
 
     results["time"] = []
 
-    print(obs.shape)
+    param = param_manager.p_global_values(0)
+    for stage in range(N_horizon + 1):
+        param["q_dqh", stage] = 1.0  # weight on rate of change of heater power
+        param["q_ddqh", stage] = 1.0  # weight on acceleration of heater power
 
     for k in range(n_steps):
         # NOTE: The SAC controller would modify the forecasted parameters
@@ -542,23 +501,13 @@ if __name__ == "__main__":
             obs.reshape(1, -1)
         )
 
-        param = param_manager.p_global_values(0)
         for stage in range(N_horizon + 1):
             param["Ta", stage] = Ta_forecast[:, stage]
             param["Phi_s", stage] = solar_forecast[:, stage]
             param["price", stage] = price_forecast[:, stage]
-        param = param.cat.full().flatten()
 
-        ctx, action = controller.forward(obs=obs.reshape(1, -1), param=param)
 
-        if False:
-        # if ctx.status != 0:
-        # if k > 20:
-            # print(f"Controller failed at step {k} with status {ctx.status}")
-            print(k)
-            fig = plot_ocp_results(time=info["time_forecast"], obs=obs, ctx=ctx)
-            # fig.savefig(f"hvac_ocp_step_{k}.png", dpi=300, bbox_inches="tight")
-            plt.show()
+        ctx, action = controller.forward(obs=obs.reshape(1, -1), param=param.cat.full().flatten())
 
         results["quarter_hour"][k] = quarter_hour[0]
         results["Ti"][k] = Ti[0]
