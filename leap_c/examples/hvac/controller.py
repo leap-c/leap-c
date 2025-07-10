@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Any
+from itertools import chain
 
 import casadi as ca
 import gymnasium as gym
@@ -43,7 +44,7 @@ class HvacController(ParameterizedController):
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         # NOTE: obs includes datetime information,
         # which is why we cast elements to dtype np.float64
-        x0 = torch.as_tensor(np.array(obs[:, 2:5], dtype=np.float64))
+        x0 = torch.as_tensor(np.array(obs[:, 2:6], dtype=np.float64))
         p_global = torch.as_tensor(param, dtype=torch.float64).unsqueeze(0)
 
         batch_size = x0.shape[0]
@@ -62,12 +63,18 @@ class HvacController(ParameterizedController):
             ub_Ti=ub.reshape(batch_size, -1, 1),
         )
 
+        # for ocp_solver in chain([self.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0], self.diff_mpc.diff_mpc_fun.backward_batch_solver.ocp_solvers[0]]):
+        #     for stage in range(1, self.N_horizon):
+        #         ocp_solver.constraints_set(stage_=stage, field_="lbx", value_=lb[0, stage])
+        #         ocp_solver.constraints_set(stage_=stage, field_="ubx", value_=ub[0, stage])
+
         ctx, u0, x, u, value = self.diff_mpc(
             x0,
             p_global=p_global,
             p_stagewise=p_stagewise,
             ctx=ctx,
         )
+
 
         action = np.array(u0.detach().numpy(), dtype=np.float32).reshape(-1)
 
@@ -116,7 +123,8 @@ def export_parametric_ocp(
         ca.SX.sym("Te"),  # Envelope temperature
     )
 
-    ocp.model.u = ca.SX.sym("qh")  # Heat input to radiator
+    qh = ca.SX.sym("qh")  # Heat input to radiator
+    dqh = ca.SX.sym("dqh")  # Increment Heat input to radiator
 
     Ad, Bd, Ed = transcribe_discrete_state_space(
         Ad=np.zeros((3, 3)),
@@ -141,35 +149,56 @@ def export_parametric_ocp(
         param_manager.get("Ta"),  # Ambient temperature
         param_manager.get("Phi_s"),  # Solar radiation
     )
-    ocp.model.disc_dyn_expr = Ad @ ocp.model.x + Bd @ ocp.model.u + Ed @ d
+    ocp.model.disc_dyn_expr = Ad @ ocp.model.x + Bd @ qh + Ed @ d
+
+    # Augment the model with the control input
+    ocp.model.x = ca.vertcat(ocp.model.x, qh)
+    ocp.model.disc_dyn_expr = ca.vertcat(
+        ocp.model.disc_dyn_expr,
+        qh + dqh,
+    )  # Append the control input to the dynamics
+    ocp.model.u = dqh
 
     # Cost function
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = (
-        0.25 * param_manager.get("price") * ocp.model.u
-        + 0.01 * (ocp.model.u - 1000) ** 2  # Regularization term
-        + 0.01
-        * (ocp.model.x[0] - convert_temperature(21.0, "celsius", "kelvin"))
-        ** 2  # Regularization term
+        0.25 * param_manager.get("price") * qh
+        + 0.1 * (ocp.model.u) ** 2  # Regularization term
+        # + 0.1
+        # * (ocp.model.x[0] - convert_temperature(21.0, "celsius", "kelvin"))
+        # ** 2  # Regularization term
     )
+    # ocp.model.cost_expr_ext_cost_e = (ocp.model.x[0] - convert_temperature(21.0, "celsius", "kelvin"))** 2  # Regularization term
 
     # Constraints
     ocp.constraints.x0 = x0 or np.array(
-        [convert_temperature(20.0, "celsius", "kelvin")] * 3
+        [convert_temperature(20.0, "celsius", "kelvin")] * 3 + [0.0]
     )
 
-    ocp.model.con_h_expr = ca.vertcat(
-        ocp.model.x[0] - param_manager.get("lb_Ti"),
-        param_manager.get("ub_Ti") - ocp.model.x[0],
-    )
-    ocp.constraints.lh = np.array([0.0, 00])
-    ocp.constraints.uh = np.array([ACADOS_INFTY, ACADOS_INFTY])
+    if True:
+        ocp.model.con_h_expr = ca.vertcat(
+            ocp.model.x[0] - param_manager.get("lb_Ti"),
+            param_manager.get("ub_Ti") - ocp.model.x[0],
+        )
+        ocp.constraints.lh = np.array([0.0, 00])
+        ocp.constraints.uh = np.array([ACADOS_INFTY, ACADOS_INFTY])
 
-    ocp.constraints.idxsh = np.array([0, 1])
-    ocp.cost.zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
-    ocp.cost.Zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
-    ocp.cost.zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
-    ocp.cost.Zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+        ocp.constraints.idxsh = np.array([0, 1])
+        ocp.cost.zl = 1e6 * np.ones((ocp.constraints.idxsh.size,))
+        ocp.cost.Zl = 1e6 * np.ones((ocp.constraints.idxsh.size,))
+        ocp.cost.zu = 1e6 * np.ones((ocp.constraints.idxsh.size,))
+        ocp.cost.Zu = 1e6 * np.ones((ocp.constraints.idxsh.size,))
+    else:
+        # TODO: Use time-varying bounds for indoor temperature (relaxed during night)
+        ocp.constraints.lbx = convert_temperature(np.array([17.0]), "celsius", "kelvin")
+        ocp.constraints.ubx = convert_temperature(np.array([25.0]), "celsius", "kelvin")
+        ocp.constraints.idxbx = np.array([0])
+
+        ocp.constraints.idxsbx = np.array([0])
+        ocp.cost.zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
+        ocp.cost.Zl = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
+        ocp.cost.zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
+        ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
 
     ocp.constraints.lbu = np.array([0.0])
     ocp.constraints.ubu = np.array([5000.0])  # [W]
@@ -182,9 +211,18 @@ def export_parametric_ocp(
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    # ocp.solver_options.regularize_method = "GERSHGORIN_LEVENBERG_MARQUARDT"
+    # ocp.solver_options.reg_adaptive_eps = True
 
     return ocp
 
+def apply_exponential_smoothing(data, alpha=0.3):
+    """Exponential smoothing"""
+    smoothed = np.zeros_like(data)
+    smoothed[0] = data[0]
+    for i in range(1, len(data)):
+        smoothed[i] = alpha * data[i] + (1 - alpha) * smoothed[i-1]
+    return smoothed
 
 def set_temperature_limits(
     # time: np.ndarray[np.datetime64],
@@ -197,19 +235,41 @@ def set_temperature_limits(
 
     # Vectorized night detection
     night_idx = (hours >= night_start_hour) | (hours < night_end_hour)
+    # night_idx2 = np.arange(0, quarter_hours.shape[1])
 
     # Initialize and set values
     lb = np.where(
         night_idx,
-        convert_temperature(15.0, "celsius", "kelvin"),
+        convert_temperature(19.0, "celsius", "kelvin"),
         convert_temperature(19.0, "celsius", "kelvin"),
     )
     ub = np.where(
         night_idx,
         convert_temperature(21.0, "celsius", "kelvin"),
-        convert_temperature(23.0, "celsius", "kelvin"),
+        convert_temperature(21.0, "celsius", "kelvin"),
     )
 
+    window_size = 4
+    # lb_smooth = np.convolve(lb.reshape(-1), np.ones(window_size)/window_size, mode='same')
+    lb_smooth = apply_exponential_smoothing(lb.reshape(-1), alpha=0.3).reshape(lb.shape)
+    ub_smooth = apply_exponential_smoothing(ub.reshape(-1), alpha=0.3).reshape(ub.shape)
+
+
+    if False:
+        plt.figure(figsize=(10, 5))
+        plt.plot(lb.reshape(-1), label="Lower Bound", color="green", linestyle="--")
+        plt.plot(lb_smooth.reshape(-1), label="Lower Bound", color="green", linestyle="-")
+        plt.plot(ub.reshape(-1), label="Upper Bound", color="red", linestyle="--")
+        plt.plot(ub_smooth.reshape(-1), label="Lower Bound", color="green", linestyle="-")
+        plt.xlabel("Quarter Hours")
+        plt.ylabel("Temperature (K)")
+        plt.title("Temperature Limits Over Time")
+        plt.legend()
+        plt.grid()
+        plt.tight_layout()
+        plt.show()
+
+    # return lb_smooth, ub_smooth
     return lb, ub
 
 
@@ -406,6 +466,8 @@ if __name__ == "__main__":
         horizon_hours=24,
     )
 
+    print("N_horizon:", N_horizon)
+
     param_manager = AcadosParamManager(
         params=make_default_hvac_params(),
         N_horizon=N_horizon,
@@ -430,6 +492,7 @@ if __name__ == "__main__":
             n_steps,
         )
         for key in [
+            "quarter_hour",
             "Ti",
             "Th",
             "Te",
@@ -446,9 +509,9 @@ if __name__ == "__main__":
 
     for k in range(n_steps):
         # NOTE: The SAC controller would modify the forecasted parameters
-        Ti, Th, Te, Ta_forecast, solar_forecast, price_forecast = decompose_observation(
+        quarter_hour, _, Ti, Th, Te, qh, Ta_forecast, solar_forecast, price_forecast = decompose_observation(
             obs.reshape(1, -1)
-        )[2:]
+        )
 
         param = param_manager.p_global_values(0)
         for stage in range(N_horizon + 1):
@@ -459,14 +522,16 @@ if __name__ == "__main__":
 
         ctx, action = controller.forward(obs=obs.reshape(1, -1), param=param)
 
+        if False:
         # if ctx.status != 0:
-        if k > 20:
+        # if k > 20:
             # print(f"Controller failed at step {k} with status {ctx.status}")
             print(k)
             fig = plot_ocp_results(time=info["time_forecast"], obs=obs, ctx=ctx)
             # fig.savefig(f"hvac_ocp_step_{k}.png", dpi=300, bbox_inches="tight")
             plt.show()
 
+        results["quarter_hour"][k] = quarter_hour[0]
         results["Ti"][k] = Ti[0]
         results["Th"][k] = Th[0]
         results["Te"][k] = Te[0]
@@ -478,8 +543,9 @@ if __name__ == "__main__":
 
         obs, _, _, _, info, _ = env.step(action=action)
 
+    quarter_hours = results["quarter_hour"]
     time = np.array(results["time"])
-    Ti_lower, Ti_upper = set_temperature_limits(time)
+    Ti_lower, Ti_upper = set_temperature_limits(quarter_hours)
     # Convert temperatures to Celsius for plotting
     Ti_celsius = convert_temperature(results["Ti"], "kelvin", "celsius")
     Th_celsius = convert_temperature(results["Th"], "kelvin", "celsius")
