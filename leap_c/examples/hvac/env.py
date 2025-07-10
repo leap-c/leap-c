@@ -169,7 +169,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         | Num | Observation                                     |
         | --- | ------------------------------------------------|
         | 0   | quarter hour of day (0-95, 15-min intervals)    |
-        | 1   | day of year (1-365/366)                         |
+        | 1   | day of year (0-365)                         |
         | 2   | indoor air temperature Ti [K]                   |
         | 3   | radiator temperature Th [K]                     |
         | 4   | envelope temperature Te [K]                     |
@@ -294,6 +294,47 @@ class StochasticThreeStateRcEnv(gym.Env):
         # The discrete-time covariance is Qd = Ad @ Phi
         return Ad @ Phi
 
+    def _compute_reward(self, state: np.ndarray, action: np.ndarray) -> float:
+        """
+        Compute the reward based on the current state and action.
+
+        Args:
+            action: Control input (heat input to radiator)
+        Returns:
+            float: Reward value
+        """
+
+        # Compute the reward for action such that 0.0 return 0.5 and 5000.0 return 0.0
+        # TODO: Think about rewarding energy cost instead of energy usage
+
+        # Compute the indoor temperature violating the temperature comfort zone
+        Ti = state[0]
+
+
+
+        return None  # Placeholder for reward computation logic
+
+    def _is_terminated(self) -> bool:
+        """
+        Check if the current state is terminal.
+
+        Returns:
+            bool: True if terminal, False otherwise
+        """
+        # TODO: Include a max time step condition. With max_time_step=30 days
+        dt = self.data.index[self.idx] - self.start_time
+
+        # Convert dt to days
+        if isinstance(dt, pd.Timedelta):
+            dt = dt.to_pytimedelta()
+
+        # Check if dt exceeds 30 days
+        reached_max_time =  dt.total_seconds() > 30 * 24 * 3600:
+        reached_end_of_data = self.idx >= len(self.data) - self.N_forecast
+
+        return reached_max_time or reached_end_of_data
+
+
     def step(
         self, action: np.ndarray
     ) -> tuple[np.ndarray, None, None, None, dict, None]:
@@ -338,9 +379,9 @@ class StochasticThreeStateRcEnv(gym.Env):
         )
 
         obs = self._get_observation()
-        reward = None
-        terminated = None
-        truncated = None
+        reward = self._compute_reward(state=self.state, action=action)
+        terminated = self._is_terminated()
+        truncated = None  # We do not truncate based on time steps
         info = {"time_forecast": time_forecast}
         done = None
 
