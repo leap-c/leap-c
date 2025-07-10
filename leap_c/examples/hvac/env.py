@@ -153,6 +153,8 @@ class StochasticThreeStateRcEnv(gym.Env):
         self.data["Ta"] = self.data["Ta"].astype(np.float32)
         self.data["solar"] = self.data["solar"].astype(np.float32)
         self.data["time"] = self.data.index.to_numpy(dtype="datetime64[m]")
+        self.data["quarter_hour"] = (self.data.index.hour * 4 + self.data.index.minute // 15) % (24 * 4)
+        self.data["day"] = self.data["time"].dt.dayofyear % 366
 
         self.start_time = start_time
 
@@ -180,8 +182,6 @@ class StochasticThreeStateRcEnv(gym.Env):
         | 5+2N| electricity price forecast t+0 [EUR/kWh]        |
         | 6+2N| electricity price forecast t+1 [EUR/kWh]        |
         | ... | electricity price forecast t+N-1 [EUR/kWh]      |
-        | 5+3N| datetime for forecast t+0 |
-        | 6+3N| datetime for forecast t+1 |
 
         Total observation size: 5 + 3*N_forecast
 
@@ -190,9 +190,8 @@ class StochasticThreeStateRcEnv(gym.Env):
             - All forecasts are at 15-minute intervals starting from current time
             - N_forecast is the prediction horizon length (typically 96 for 24h)
         """
-        datetime = self.data.index[self.idx]
-        quarter_hour = (datetime.hour * 4 + datetime.minute // 15) % (24 * 4)
-        day_of_year = datetime.timetuple().tm_yday
+        quarter_hour = self.data["quarter_hour"].iloc[self.idx]
+        day_of_year = self.data["day"].iloc[self.idx]
 
         price_forecast = (
             self.data["price"]
