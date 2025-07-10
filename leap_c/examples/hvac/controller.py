@@ -37,14 +37,29 @@ class HvacController(ParameterizedController):
             param_manager=self.param_manager,
             N_horizon=N_horizon,
         )
+
+
         self.diff_mpc = AcadosDiffMpc(self.ocp, **diff_mpc_kwargs)
 
         self.N_horizon = N_horizon
 
+        self.qh = 0.0
+        self.dqh = 0.0
+
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         # NOTE: obs includes datetime information,
         # which is why we cast elements to dtype np.float64
-        x0 = torch.as_tensor(np.array(obs[:, 2:6], dtype=np.float64))
+        x0 = torch.as_tensor(np.array(obs[:, 2:5], dtype=np.float64))
+
+        # Append  [self.qh, self.dqh] to x0
+        x0 = torch.cat(
+            [
+                x0,
+                torch.as_tensor([[self.qh, self.dqh]], dtype=torch.float64),
+            ],
+            dim=1,
+        )
+
         p_global = torch.as_tensor(param, dtype=torch.float64).unsqueeze(0)
 
         batch_size = x0.shape[0]
@@ -75,8 +90,12 @@ class HvacController(ParameterizedController):
             ctx=ctx,
         )
 
+        # xshaped = x.reshape(batch_size, -1, self.ocp.dims.nx)
 
-        action = np.array(u0.detach().numpy(), dtype=np.float32).reshape(-1)
+        self.qh = x[:, 2*self.ocp.dims.nx-2]
+        self.dqh = x[:, 2*self.ocp.dims.nx-1]
+
+        action = np.array(self.qh.detach().numpy(), dtype=np.float32).reshape(-1)
 
         return ctx, action
 
@@ -125,12 +144,14 @@ def export_parametric_ocp(
 
     qh = ca.SX.sym("qh")  # Heat input to radiator
     dqh = ca.SX.sym("dqh")  # Increment Heat input to radiator
+    ddqh = ca.SX.sym("ddqh")  # Increment Heat input to radiator
 
+    dt = 900.0  # Time step in seconds (15 minutes)
     Ad, Bd, Ed = transcribe_discrete_state_space(
         Ad=np.zeros((3, 3)),
         Bd=np.zeros((3, 1)),
         Ed=np.zeros((3, 2)),
-        dt=900.0,  # 15 minutes in seconds
+        dt=dt,
         params={
             key: param_manager.get(key)
             for key in [
@@ -152,18 +173,21 @@ def export_parametric_ocp(
     ocp.model.disc_dyn_expr = Ad @ ocp.model.x + Bd @ qh + Ed @ d
 
     # Augment the model with the control input
-    ocp.model.x = ca.vertcat(ocp.model.x, qh)
+    ocp.model.x = ca.vertcat(ocp.model.x, qh, dqh)
     ocp.model.disc_dyn_expr = ca.vertcat(
         ocp.model.disc_dyn_expr,
-        qh + dqh,
+        qh + dt * dqh + 0.5*dt**2*ddqh,
+        dqh + dt * ddqh,
+
     )  # Append the control input to the dynamics
-    ocp.model.u = dqh
+    ocp.model.u = ddqh
 
     # Cost function
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = (
         0.25 * param_manager.get("price") * qh
-        + 0.1 * (ocp.model.u) ** 2  # Regularization term
+        + 1 * (dqh) ** 2  # Regularization term
+        + 1 * (ddqh) ** 2  # Regularization term
         # + 0.1
         # * (ocp.model.x[0] - convert_temperature(21.0, "celsius", "kelvin"))
         # ** 2  # Regularization term
@@ -172,7 +196,7 @@ def export_parametric_ocp(
 
     # Constraints
     ocp.constraints.x0 = x0 or np.array(
-        [convert_temperature(20.0, "celsius", "kelvin")] * 3 + [0.0]
+        [convert_temperature(20.0, "celsius", "kelvin")] * 3 + [0.0, 0.0]
     )
 
     if True:
@@ -184,10 +208,14 @@ def export_parametric_ocp(
         ocp.constraints.uh = np.array([ACADOS_INFTY, ACADOS_INFTY])
 
         ocp.constraints.idxsh = np.array([0, 1])
-        ocp.cost.zl = 1e6 * np.ones((ocp.constraints.idxsh.size,))
-        ocp.cost.Zl = 1e6 * np.ones((ocp.constraints.idxsh.size,))
-        ocp.cost.zu = 1e6 * np.ones((ocp.constraints.idxsh.size,))
-        ocp.cost.Zu = 1e6 * np.ones((ocp.constraints.idxsh.size,))
+        ocp.cost.zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+        ocp.cost.Zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+        ocp.cost.zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+        ocp.cost.Zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+
+        ocp.constraints.lbx = np.array([0.0])
+        ocp.constraints.ubx = np.array([5000.0])
+        ocp.constraints.idxbx = np.array([3])  # qh
     else:
         # TODO: Use time-varying bounds for indoor temperature (relaxed during night)
         ocp.constraints.lbx = convert_temperature(np.array([17.0]), "celsius", "kelvin")
@@ -200,9 +228,9 @@ def export_parametric_ocp(
         ocp.cost.zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
         ocp.cost.Zu = 1e4 * np.ones((ocp.constraints.idxsbx.size,))
 
-    ocp.constraints.lbu = np.array([0.0])
-    ocp.constraints.ubu = np.array([5000.0])  # [W]
-    ocp.constraints.idxbu = np.array([0])
+    # ocp.constraints.lbu = np.array([-5000.0])
+    # ocp.constraints.ubu = np.array([5000.0])  # [W]
+    # ocp.constraints.idxbu = np.array([0])
 
     # Solver options
     ocp.solver_options.tf = N_horizon
@@ -240,13 +268,13 @@ def set_temperature_limits(
     # Initialize and set values
     lb = np.where(
         night_idx,
-        convert_temperature(19.0, "celsius", "kelvin"),
+        convert_temperature(12.0, "celsius", "kelvin"),
         convert_temperature(19.0, "celsius", "kelvin"),
     )
     ub = np.where(
         night_idx,
-        convert_temperature(21.0, "celsius", "kelvin"),
-        convert_temperature(21.0, "celsius", "kelvin"),
+        convert_temperature(25.0, "celsius", "kelvin"),
+        convert_temperature(22.0, "celsius", "kelvin"),
     )
 
     window_size = 4
@@ -293,8 +321,9 @@ def plot_ocp_results(
     Returns:
         matplotlib Figure object
     """
-    x = ctx.iterate.x.reshape(-1, 3)
-    u = ctx.iterate.u.reshape(-1, 1)
+    x = ctx.iterate.x.reshape(-1, 5)
+    # u = ctx.iterate.u.reshape(-1, 1)
+    u = x[:, 4]
     # Create time vectors
 
     # Create figure with subplots
@@ -394,7 +423,7 @@ def plot_ocp_results(
 
     # Plot control as step function
     ax3.step(
-        time[:-1],
+        time,
         u,
         "b-",
         where="post",
@@ -476,11 +505,11 @@ if __name__ == "__main__":
     controller = HvacController(
         N_horizon=N_horizon,
         diff_mpc_kwargs={
-            "export_directory": Path("hvac_mpc_export"),
+            # "export_directory": Path("hvac_mpc_export"),
         },
     )
 
-    days = 2
+    days = 30
     n_steps = days * 24 * 4  # 4 time steps per hour
 
     obs, info = env.reset(
@@ -509,7 +538,7 @@ if __name__ == "__main__":
 
     for k in range(n_steps):
         # NOTE: The SAC controller would modify the forecasted parameters
-        quarter_hour, _, Ti, Th, Te, qh, Ta_forecast, solar_forecast, price_forecast = decompose_observation(
+        quarter_hour, _, Ti, Th, Te, Ta_forecast, solar_forecast, price_forecast = decompose_observation(
             obs.reshape(1, -1)
         )
 
