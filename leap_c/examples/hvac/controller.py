@@ -46,7 +46,7 @@ class HvacController(ParameterizedController):
         self.qh = 0.0
         self.dqh = 0.0
 
-    def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
+    def forward(self, obs, param: Any = None, ctx=None) -> tuple[Any, torch.Tensor]:
         # NOTE: obs includes datetime information,
         # which is why we cast elements to dtype np.float64
         x0 = torch.as_tensor(np.array(obs[:, 2:5], dtype=np.float64))
@@ -59,6 +59,20 @@ class HvacController(ParameterizedController):
             ],
             dim=1,
         )
+
+        if param is None:
+            # Use default parameters if none are provided
+            # NOTE: The SAC controller would modify the forecasted parameters
+            param = self.param_manager.p_global_values(0)
+            Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
+            for stage in range(self.N_horizon + 1):
+                param["Ta", stage] = Ta_forecast[:, stage]
+                param["Phi_s", stage] = solar_forecast[:, stage]
+                param["price", stage] = price_forecast[:, stage]
+                param["q_dqh", stage] = 1.0  # weight on rate of change of heater power
+                param["q_ddqh", stage] = 1.0  # weight on acceleration of heater power
+            param=param.cat.full().flatten()
+
 
         p_global = torch.as_tensor(param, dtype=torch.float64).unsqueeze(0)
 
@@ -78,11 +92,6 @@ class HvacController(ParameterizedController):
             ub_Ti=ub.reshape(batch_size, -1, 1),
         )
 
-        # for ocp_solver in chain([self.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0], self.diff_mpc.diff_mpc_fun.backward_batch_solver.ocp_solvers[0]]):
-        #     for stage in range(1, self.N_horizon):
-        #         ocp_solver.constraints_set(stage_=stage, field_="lbx", value_=lb[0, stage])
-        #         ocp_solver.constraints_set(stage_=stage, field_="ubx", value_=ub[0, stage])
-
         ctx, u0, x, u, value = self.diff_mpc(
             x0,
             p_global=p_global,
@@ -90,7 +99,6 @@ class HvacController(ParameterizedController):
             ctx=ctx,
         )
 
-        # xshaped = x.reshape(batch_size, -1, self.ocp.dims.nx)
 
         self.qh = x[:, 2*self.ocp.dims.nx-2]
         self.dqh = x[:, 2*self.ocp.dims.nx-1]
@@ -443,97 +451,23 @@ def plot_ocp_results(
     return fig
 
 
-if __name__ == "__main__":
-    horizon_hours = 24
-    N_horizon = horizon_hours * 4  # 4 time steps per hour
-    env = StochasticThreeStateRcEnv(
-        step_size=900.0,  # 15 minutes in seconds
-        horizon_hours=24,
-    )
+def plot_simulation(time: np.ndarray, obs: np.ndarray, action: np.ndarray) -> plt.Figure:
 
-    print("N_horizon:", N_horizon)
+    quarter_hours, day, Ti, Th, Te, Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs=obs)
 
-    param_manager = AcadosParamManager(
-        params=make_default_hvac_params(),
-        N_horizon=N_horizon,
-    )
-
-    controller = HvacController(
-        N_horizon=N_horizon,
-        diff_mpc_kwargs={
-            # "export_directory": Path("hvac_mpc_export"),
-        },
-    )
-
-    days = 3
-    n_steps = days * 24 * 4  # 4 time steps per hour
-
-    obs, info = env.reset(
-        state_0=np.array([convert_temperature(20.0, "celsius", "kelvin")] * 3)
-    )
-
-    results = {
-        key: np.empty(
-            n_steps,
-        )
-        for key in [
-            "quarter_hour",
-            "Ti",
-            "Th",
-            "Te",
-            "qh",
-            "Ta",
-            "solar",
-            "price",
-        ]
-    }
-
-    results["time"] = []
-
-    param = param_manager.p_global_values(0)
-    for stage in range(N_horizon + 1):
-        param["q_dqh", stage] = 1.0  # weight on rate of change of heater power
-        param["q_ddqh", stage] = 1.0  # weight on acceleration of heater power
-
-    for k in range(n_steps):
-        # NOTE: The SAC controller would modify the forecasted parameters
-        quarter_hour, _, Ti, Th, Te, Ta_forecast, solar_forecast, price_forecast = decompose_observation(
-            obs.reshape(1, -1)
-        )
-
-        for stage in range(N_horizon + 1):
-            param["Ta", stage] = Ta_forecast[:, stage]
-            param["Phi_s", stage] = solar_forecast[:, stage]
-            param["price", stage] = price_forecast[:, stage]
-
-
-        ctx, action = controller.forward(obs=obs.reshape(1, -1), param=param.cat.full().flatten())
-
-        results["quarter_hour"][k] = quarter_hour[0]
-        results["Ti"][k] = Ti[0]
-        results["Th"][k] = Th[0]
-        results["Te"][k] = Te[0]
-        results["qh"][k] = action[0]
-        results["Ta"][k] = Ta_forecast[0, 0]
-        results["solar"][k] = solar_forecast[0, 0]
-        results["price"][k] = price_forecast[0, 0]
-        results["time"].append(info["time_forecast"][0])
-
-        obs, _, _, _, info, _ = env.step(action=action)
-
-    quarter_hours = results["quarter_hour"]
-    time = np.array(results["time"])
-    Ti_lower, Ti_upper = set_temperature_limits(quarter_hours)
     # Convert temperatures to Celsius for plotting
-    Ti_celsius = convert_temperature(results["Ti"], "kelvin", "celsius")
-    Th_celsius = convert_temperature(results["Th"], "kelvin", "celsius")
-    Te_celsius = convert_temperature(results["Te"], "kelvin", "celsius")
-    Ta_celsius = convert_temperature(results["Ta"], "kelvin", "celsius")
-    Ti_lower_celsius = convert_temperature(Ti_lower.reshape(-1), "kelvin", "celsius")
-    Ti_upper_celsius = convert_temperature(Ti_upper.reshape(-1), "kelvin", "celsius")
-    qh = results["qh"]
-    solar = results["solar"]
-    price = results["price"]
+    Ti_celsius = convert_temperature(Ti, "kelvin", "celsius")
+    Th_celsius = convert_temperature(Th, "kelvin", "celsius")
+    Te_celsius = convert_temperature(Te, "kelvin", "celsius")
+    Ta_celsius = convert_temperature(Ta_forecast[:, 0], "kelvin", "celsius")
+
+    Ti_lower, Ti_upper = set_temperature_limits(quarter_hours)
+    Ti_lower_celsius = convert_temperature(Ti_lower, "kelvin", "celsius")
+    Ti_upper_celsius = convert_temperature(Ti_upper, "kelvin", "celsius")
+
+    qh = action
+    solar = solar_forecast[:, 0]
+    price = price_forecast[:, 0]
 
     fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
     fig.suptitle(
@@ -669,5 +603,39 @@ if __name__ == "__main__":
         fontsize=10,
         bbox={"boxstyle": "round,pad=0.3", "facecolor": "lightgray", "alpha": 0.8},
     )
+
+    return fig
+
+if __name__ == "__main__":
+    horizon_hours = 24
+    N_horizon = horizon_hours * 4  # 4 time steps per hour
+    env = StochasticThreeStateRcEnv(
+        step_size=900.0,  # 15 minutes in seconds
+        horizon_hours=horizon_hours,
+    )
+
+    controller = HvacController(
+        N_horizon=N_horizon,
+        diff_mpc_kwargs={
+            "export_directory": Path("hvac_mpc_export"),
+        },
+    )
+
+    n_steps = 1 * 24 * 4  # days * hours * 4 time steps per hour
+
+    obs, info = env.reset()
+
+    obs = np.tile(obs, (n_steps + 1, 1))
+    time = np.empty(n_steps)
+    action = np.zeros((n_steps, 1), dtype=np.float32)
+
+    for k in range(n_steps):
+        time[k] = info["time_forecast"][0]
+        _, action[k] = controller.forward(obs=obs[k, :].reshape(1, -1))
+        obs[k+1, :], _, _, _, info, _ = env.step(action=action[k])
+
+    obs = obs[:-1, :]
+
+    plot_simulation(time, obs, action)
 
     plt.show()
