@@ -47,14 +47,10 @@ class HvacController(ParameterizedController):
         self.dqh = 0.0
 
     def forward(self, obs, param: Any = None, ctx=None) -> tuple[Any, torch.Tensor]:
-        # NOTE: obs includes datetime information,
-        # which is why we cast elements to dtype np.float64
-        x0 = torch.as_tensor(np.array(obs[:, 2:5], dtype=np.float64))
 
-        # Append  [self.qh, self.dqh] to x0
         x0 = torch.cat(
             [
-                x0,
+                torch.as_tensor(obs[:, 2:5], dtype=torch.float64),
                 torch.as_tensor([[self.qh, self.dqh]], dtype=torch.float64),
             ],
             dim=1,
@@ -76,7 +72,7 @@ class HvacController(ParameterizedController):
 
         p_global = torch.as_tensor(param, dtype=torch.float64).unsqueeze(0)
 
-        batch_size = x0.shape[0]
+        batch_size = obs.shape[0]
 
         quarter_hours = np.array(
             [
@@ -265,6 +261,161 @@ def set_temperature_limits(
     return lb, ub
 
 
+def _create_base_plot(figsize: tuple[float, float] = (12, 10)) -> tuple[plt.Figure, list]:
+    """Create base figure and axes for thermal building control plots."""
+    fig, axes = plt.subplots(4, 1, figsize=figsize, sharex=True)
+    fig.suptitle(
+        "Thermal Building Control - OCP Solution", fontsize=16, fontweight="bold"
+    )
+    return fig, axes
+
+
+def _plot_temperature_subplot(
+    ax: plt.Axes,
+    time: np.ndarray,
+    Ti_celsius: np.ndarray,
+    Te_celsius: np.ndarray,
+    Ti_lower_celsius: np.ndarray,
+    Ti_upper_celsius: np.ndarray,
+) -> None:
+    """Plot temperature data with comfort zone on given axes."""
+    ax.fill_between(
+        time,
+        Ti_lower_celsius,
+        Ti_upper_celsius,
+        alpha=0.2,
+        color="lightgreen",
+        label="Comfort zone",
+    )
+    
+    # Plot comfort bounds as dashed lines
+    ax.step(time, Ti_lower_celsius, "g--", alpha=0.7, label="Lower bound")
+    ax.step(time, Ti_upper_celsius, "g--", alpha=0.7, label="Upper bound")
+    
+    # Plot state trajectories
+    ax.step(time, Ti_celsius, "b-", linewidth=2, label="Indoor temp. (Ti)")
+    ax.step(
+        time,
+        Te_celsius,
+        "orange",
+        linewidth=2,
+        label="Envelope temp. (Te)",
+    )
+    
+    ax.set_ylabel("Temperature [°C]", fontsize=12)
+    ax.legend(loc="best")
+    ax.grid(visible=True, alpha=0.3)
+    ax.set_title("Indoor/Envelope Temperature", fontsize=14, fontweight="bold")
+
+
+def _plot_heater_subplot(ax: plt.Axes, time: np.ndarray, Th_celsius: np.ndarray) -> None:
+    """Plot heater temperature on given axes."""
+    ax.step(time, Th_celsius, "b-", linewidth=2, label="Radiator temp. (Th)")
+    ax.set_ylabel("Temperature [°C]", fontsize=12)
+    ax.grid(visible=True, alpha=0.3)
+    ax.set_title("Heater Temperature", fontsize=14, fontweight="bold")
+
+
+def _plot_disturbance_subplot(
+    ax: plt.Axes, time: np.ndarray, Ta_celsius: np.ndarray, solar: np.ndarray
+) -> None:
+    """Plot disturbance signals (outdoor temperature and solar radiation) on given axes."""
+    # Outdoor temperature (left y-axis)
+    ax.step(
+        time,
+        Ta_celsius,
+        "b-",
+        where="post",
+        linewidth=2,
+        label="Outdoor temp.",
+    )
+    ax.set_ylabel("Outdoor Temperature [°C]", color="b", fontsize=12)
+    ax.tick_params(axis="y", labelcolor="b")
+    
+    # Solar radiation (right y-axis)
+    ax_twin = ax.twinx()
+    ax_twin.step(
+        time,
+        solar,
+        color="orange",
+        where="post",
+        linewidth=2,
+        label="Solar radiation",
+    )
+    ax_twin.set_ylabel("Solar Radiation [W/m²]", color="orange", fontsize=12)
+    ax_twin.tick_params(axis="y", labelcolor="orange")
+    
+    ax.grid(visible=True, alpha=0.3)
+    ax.set_title("Exogeneous Signals", fontsize=14, fontweight="bold")
+
+
+def _plot_control_subplot(
+    ax: plt.Axes, time: np.ndarray, control_input: np.ndarray, price: np.ndarray
+) -> None:
+    """Plot control input and energy price on given axes."""
+    # Plot control as step function
+    ax.step(
+        time,
+        control_input,
+        "b-",
+        where="post",
+        linewidth=2,
+        label="Heat input",
+    )
+    
+    ax.set_xlabel("Time [hours]", fontsize=12)
+    ax.set_ylabel("Heat Input [W]", color="b", fontsize=12)
+    ax.grid(visible=True, alpha=0.3)
+    ax.set_title("Control Input", fontsize=14, fontweight="bold")
+    ax.set_ylim(bottom=0)
+    
+    # Add energy cost as a secondary y-axis
+    ax_twin = ax.twinx()
+    ax_twin.step(
+        time,
+        price,
+        color="orange",
+        where="post",
+        linewidth=2,
+        label="Energy cost (scaled)",
+    )
+    ax_twin.set_ylabel("Energy Price [EUR/kWh]", color="orange", fontsize=12)
+    ax_twin.tick_params(axis="y", labelcolor="orange")
+    ax_twin.grid(visible=False)
+    ax_twin.set_ylim(bottom=0)
+
+
+def _add_summary_stats(
+    fig: plt.Figure, 
+    control_input: np.ndarray, 
+    ctx: Any = None
+) -> None:
+    """Add summary statistics text to the figure."""
+    dt = 900.0  # Time step in seconds (15 minutes)
+    total_energy_kWh = control_input.sum() * dt / 3600 / 1000  # Convert to kWh
+    
+    if ctx is not None:
+        max_comfort_violation = max(
+            ctx.iterate.sl.reshape(-1, 2).max(),
+            ctx.iterate.su.reshape(-1, 2).max(),
+        )
+        stats_text = (
+            f"Total Energy: {total_energy_kWh:.1f} kWh | "
+            f"Max Comfort Violation: {max_comfort_violation:.2f} K"
+        )
+    else:
+        stats_text = f"Total Energy: {total_energy_kWh:.1f} kWh"
+    
+    fig.text(
+        0.78,
+        0.02,
+        stats_text,
+        ha="center",
+        fontsize=10,
+        bbox={"boxstyle": "round,pad=0.3", "facecolor": "lightgray", "alpha": 0.8},
+    )
+
+
 def plot_ocp_results(
     time: np.ndarray[np.datetime64],
     obs: np.ndarray,
@@ -286,325 +437,89 @@ def plot_ocp_results(
         matplotlib Figure object
     """
     x = ctx.iterate.x.reshape(-1, 5)
-    # u = ctx.iterate.u.reshape(-1, 1)
     u = x[:, 4]
-    # Create time vectors
-
-    # Create figure with subplots
-    fig, axes = plt.subplots(4, 1, figsize=figsize, sharex=True)
-    fig.suptitle(
-        "Thermal Building Control - OCP Solution", fontsize=16, fontweight="bold"
-    )
-
-    # Subplot 1: Thermal States
-
+    
     # Convert temperatures to Celsius for plotting
     Ti_celsius = convert_temperature(x[:, 0], "kelvin", "celsius")
     Th_celsius = convert_temperature(x[:, 1], "kelvin", "celsius")
     Te_celsius = convert_temperature(x[:, 2], "kelvin", "celsius")
-
+    
     Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs=obs)[5:]
     solar_forecast = solar_forecast.reshape(-1)
     price_forecast = price_forecast.reshape(-1)
     time = time.reshape(-1)
-
+    
     quarter_hours = np.arange(obs[0], obs[0] + len(time)) % len(time)
     T_lower, T_upper = set_temperature_limits(quarter_hours=quarter_hours)
-
+    
     T_lower_celsius = convert_temperature(T_lower.reshape(-1), "kelvin", "celsius")
     T_upper_celsius = convert_temperature(T_upper.reshape(-1), "kelvin", "celsius")
     Ta_celsius = convert_temperature(Ta_forecast.reshape(-1), "kelvin", "celsius")
-
-    ax0 = axes[0]
-    ax0.fill_between(
-        time,
-        T_lower_celsius,
-        T_upper_celsius,
-        alpha=0.2,
-        color="lightgreen",
-        label="Comfort zone",
-    )
-
-    # Plot comfort bounds as dashed lines
-    ax0.step(time, T_lower_celsius, "g--", alpha=0.7, label="Lower bound")
-    ax0.step(time, T_upper_celsius, "g--", alpha=0.7, label="Upper bound")
-
-    # Plot state trajectories
-    ax0.step(time, Ti_celsius, "b-", linewidth=2, label="Indoor temp. (Ti)")
-    ax0.step(
-        time,
-        Te_celsius,
-        "orange",
-        linewidth=2,
-        label="Envelope temp. (Te)",
-    )
-
-    ax0.set_ylabel("Temperature [°C]", fontsize=12)
-    ax0.legend(loc="best")
-    ax0.grid(visible=True, alpha=0.3)
-    ax0.set_title("Indoor/Envelope Temperature", fontsize=14, fontweight="bold")
-
-    # Subplot 1: Heater Temperature
-    ax1 = axes[1]
-    ax1.step(time, Th_celsius, "b-", linewidth=2, label="Radiator temp. (Th)")
-    ax1.set_ylabel("Temperature [°C]", fontsize=12)
-    ax1.grid(visible=True, alpha=0.3)
-    ax1.set_title("Heater Temperature", fontsize=14, fontweight="bold")
-
-    # Subplot 2: Disturbance Signals (twin axes)
-    ax2 = axes[2]
-
-    # Outdoor temperature (left y-axis)
-    ax2.step(
-        time,
-        Ta_celsius,
-        "b-",
-        where="post",
-        linewidth=2,
-        label="Outdoor temp.",
-    )
-    ax2.set_ylabel("Outdoor Temperature [°C]", color="b", fontsize=12)
-    ax2.tick_params(axis="y", labelcolor="b")
-
-    # Solar radiation (right y-axis)
-    ax2_twin = ax2.twinx()
-    ax2_twin.step(
-        time,
-        solar_forecast,
-        color="orange",
-        where="post",
-        linewidth=2,
-        label="Solar radiation",
-    )
-    ax2_twin.set_ylabel("Solar Radiation [W/m²]", color="orange", fontsize=12)
-    ax2_twin.tick_params(axis="y", labelcolor="orange")
-
-    ax2.grid(visible=True, alpha=0.3)
-    ax2.set_title("Exogeneous Signals", fontsize=14, fontweight="bold")
-
-    # Subplot 3: Control Input
-    ax3 = axes[3]
-
-    # Plot control as step function
-    ax3.step(
-        time,
-        u,
-        "b-",
-        where="post",
-        linewidth=2,
-        label="Heat input",
-    )
-
-    ax3.set_xlabel("Time [hours]", fontsize=12)
-    ax3.set_ylabel("Heat Input [W]", color="b", fontsize=12)
-    ax3.grid(visible=True, alpha=0.3)
-    ax3.set_title("Control Input", fontsize=14, fontweight="bold")
-
-    # Set y-axis lower limit to 0 for better visualization
-    ax3.set_ylim(bottom=0)
-
-    ax3_twin = ax3.twinx()
-    # Add energy cost as a secondary y-axis
-    ax3_twin.step(
-        time,
-        price_forecast,
-        color="orange",
-        where="post",
-        linewidth=2,
-        label="Energy cost (scaled)",
-    )
-    ax3_twin.set_ylabel("Energy Price [EUR/kWh]", color="orange", fontsize=12)
-    ax3_twin.tick_params(axis="y", labelcolor="orange")
-    ax3_twin.grid(visible=False)  # Disable grid for twin axis
-    ax3_twin.set_ylim(bottom=0)  # Set lower limit to 0 for energy cost
-
-    # Adjust layout
+    
+    # Create base plot
+    fig, axes = _create_base_plot(figsize)
+    
+    # Plot each subplot using helper functions
+    _plot_temperature_subplot(axes[0], time, Ti_celsius, Te_celsius, T_lower_celsius, T_upper_celsius)
+    _plot_heater_subplot(axes[1], time, Th_celsius)
+    _plot_disturbance_subplot(axes[2], time, Ta_celsius, solar_forecast)
+    _plot_control_subplot(axes[3], time, u, price_forecast)
+    
+    # Adjust layout and add summary stats
     plt.tight_layout()
-
-    # Add summary statistics as text
-    dt = 900.0  # Time step in seconds (15 minutes)
-    total_energy_kWh = u.sum() * dt / 3600 / 1000  # Convert to kWh
-    max_comfort_violation = max(
-        ctx.iterate.sl.reshape(-1, 2).max(),
-        ctx.iterate.su.reshape(-1, 2).max(),
-    )
-
-    stats_text = (
-        f"Total Energy: {total_energy_kWh:.1f} kWh | "
-        f"Max Comfort Violation: {max_comfort_violation:.2f} K"
-    )
-
-    fig.text(
-        0.78,
-        0.02,
-        stats_text,
-        ha="center",
-        fontsize=10,
-        bbox={"boxstyle": "round,pad=0.3", "facecolor": "lightgray", "alpha": 0.8},
-    )
-
+    _add_summary_stats(fig, u, ctx)
+    
     # Save figure if path provided
     if save_path:
         plt.savefig(save_path, dpi=300, bbox_inches="tight")
         print(f"Figure saved to: {save_path}")
-
+    
     return fig
 
 
 def plot_simulation(time: np.ndarray, obs: np.ndarray, action: np.ndarray) -> plt.Figure:
+    """
+    Plot simulation results in a figure with four vertically stacked subplots.
 
+    Args:
+        time: Time array
+        obs: Observation data
+        action: Control action array
+
+    Returns:
+        matplotlib Figure object
+    """
     quarter_hours, day, Ti, Th, Te, Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs=obs)
-
+    
     # Convert temperatures to Celsius for plotting
     Ti_celsius = convert_temperature(Ti, "kelvin", "celsius")
     Th_celsius = convert_temperature(Th, "kelvin", "celsius")
     Te_celsius = convert_temperature(Te, "kelvin", "celsius")
     Ta_celsius = convert_temperature(Ta_forecast[:, 0], "kelvin", "celsius")
-
+    
     Ti_lower, Ti_upper = set_temperature_limits(quarter_hours)
     Ti_lower_celsius = convert_temperature(Ti_lower, "kelvin", "celsius")
     Ti_upper_celsius = convert_temperature(Ti_upper, "kelvin", "celsius")
-
+    
     qh = action
     solar = solar_forecast[:, 0]
     price = price_forecast[:, 0]
-
-    fig, axes = plt.subplots(4, 1, figsize=(12, 10), sharex=True)
-    fig.suptitle(
-        "Thermal Building Control - OCP Solution",
-        fontsize=16,
-        fontweight="bold",
-    )
-
-    ax0 = axes[0]
-    ax0.fill_between(
-        time,
-        Ti_lower_celsius,
-        Ti_upper_celsius,
-        alpha=0.2,
-        color="lightgreen",
-        label="Comfort zone",
-    )
-
-    # Plot comfort bounds as dashed lines
-    ax0.step(time, Ti_lower_celsius, "g--", alpha=0.7, label="Lower bound")
-    ax0.step(time, Ti_upper_celsius, "g--", alpha=0.7, label="Upper bound")
-
-    # Plot state trajectories
-    ax0.step(time, Ti_celsius, "b-", linewidth=2, label="Indoor temp. (Ti)")
-    ax0.step(
-        time,
-        Te_celsius,
-        "orange",
-        linewidth=2,
-        label="Envelope temp. (Te)",
-    )
-
-    ax0.set_ylabel("Temperature [°C]", fontsize=12)
-    ax0.legend(loc="best")
-    ax0.grid(visible=True, alpha=0.3)
-    ax0.set_title("Indoor/Envelope Temperature", fontsize=14, fontweight="bold")
-
-    # Subplot 1: Heater Temperature
-    ax1 = axes[1]
-    ax1.step(time, Th_celsius, "b-", linewidth=2, label="Radiator temp. (Th)")
-    ax1.set_ylabel("Temperature [°C]", fontsize=12)
-    ax1.grid(visible=True, alpha=0.3)
-    ax1.set_title("Heater Temperature", fontsize=14, fontweight="bold")
-
-    # Subplot 2: Disturbance Signals (twin axes)
-    ax2 = axes[2]
-
-    # Outdoor temperature (left y-axis)
-    ax2.step(
-        time,
-        Ta_celsius,
-        "b-",
-        where="post",
-        linewidth=2,
-        label="Outdoor temp.",
-    )
-    ax2.set_ylabel("Outdoor Temperature [°C]", color="b", fontsize=12)
-    ax2.tick_params(axis="y", labelcolor="b")
-
-    # Solar radiation (right y-axis)
-    ax2_twin = ax2.twinx()
-    ax2_twin.step(
-        time,
-        solar,
-        color="orange",
-        where="post",
-        linewidth=2,
-        label="Solar radiation",
-    )
-    ax2_twin.set_ylabel("Solar Radiation [W/m²]", color="orange", fontsize=12)
-    ax2_twin.tick_params(axis="y", labelcolor="orange")
-
-    ax2.grid(visible=True, alpha=0.3)
-    ax2.set_title("Exogeneous Signals", fontsize=14, fontweight="bold")
-
-    # Subplot 3: Control Input
-    ax3 = axes[3]
-
-    # Plot control as step function
-    ax3.step(
-        time,
-        qh,
-        "b-",
-        where="post",
-        linewidth=2,
-        label="Heat input",
-    )
-
-    ax3.set_xlabel("Time [hours]", fontsize=12)
-    ax3.set_ylabel("Heat Input [W]", color="b", fontsize=12)
-    ax3.grid(visible=True, alpha=0.3)
-    ax3.set_title("Control Input", fontsize=14, fontweight="bold")
-
-    # Set y-axis lower limit to 0 for better visualization
-    ax3.set_ylim(bottom=0)
-
-    ax3_twin = ax3.twinx()
-    # Add energy cost as a secondary y-axis
-    ax3_twin.step(
-        time,
-        price,
-        color="orange",
-        where="post",
-        linewidth=2,
-        label="Energy cost (scaled)",
-    )
-    ax3_twin.set_ylabel("Energy Price [EUR/kWh]", color="orange", fontsize=12)
-    ax3_twin.tick_params(axis="y", labelcolor="orange")
-    ax3_twin.grid(visible=False)  # Disable grid for twin axis
-    ax3_twin.set_ylim(bottom=0)  # Set lower limit to 0 for energy cost
-
-    # Adjust layout
+    
+    # Create base plot
+    fig, axes = _create_base_plot()
+    
+    # Plot each subplot using helper functions
+    _plot_temperature_subplot(axes[0], time, Ti_celsius, Te_celsius, Ti_lower_celsius, Ti_upper_celsius)
+    _plot_heater_subplot(axes[1], time, Th_celsius)
+    _plot_disturbance_subplot(axes[2], time, Ta_celsius, solar)
+    _plot_control_subplot(axes[3], time, qh, price)
+    
+    # Adjust layout and add summary stats
     plt.tight_layout()
-
-    # Add summary statistics as text
-    dt = 900.0  # Time step in seconds (15 minutes)
-    total_energy_kWh = qh.sum() * dt / 3600 / 1000  # Convert to kWh
-    # max_comfort_violation = max(
-    #     ctx.iterate.sl.reshape(-1, 2).max(),
-    #     ctx.iterate.su.reshape(-1, 2).max(),
-    # )
-
-    stats_text = (
-        f"Total Energy: {total_energy_kWh:.1f} kWh | "
-        # f"Max Comfort Violation: {max_comfort_violation:.2f} K"
-    )
-
-    fig.text(
-        0.78,
-        0.02,
-        stats_text,
-        ha="center",
-        fontsize=10,
-        bbox={"boxstyle": "round,pad=0.3", "facecolor": "lightgray", "alpha": 0.8},
-    )
-
+    _add_summary_stats(fig, qh)
+    
     return fig
+
 
 if __name__ == "__main__":
     horizon_hours = 24
