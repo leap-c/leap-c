@@ -45,6 +45,7 @@ class HvacController(ParameterizedController):
 
         self.N_horizon = N_horizon
 
+        # TODO: Move to ctx
         self.qh = 0.0
         self.dqh = 0.0
 
@@ -69,7 +70,7 @@ class HvacController(ParameterizedController):
                 param["price", stage] = price_forecast[:, stage]
                 param["q_dqh", stage] = 1.0  # weight on rate of change of heater power
                 param["q_ddqh", stage] = 1.0  # weight on acceleration of heater power
-                param["q_Ti", stage] = 1.0  # weight on acceleration of heater power
+                param["q_Ti", stage] = 0.001  # weight on acceleration of heater power
                 param["ref_Ti", stage] = convert_temperature(21.0, "celsius", "kelvin")  # weight on acceleration of heater power
             param=param.cat.full().flatten()
 
@@ -196,7 +197,7 @@ def export_parametric_ocp(
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = (
         0.25 * param_manager.get("price") * qh
-        + param_manager.get("q_Ti") * (param_manager.get("Ti_ref") - ocp.model.x[0]) ** 2
+        + param_manager.get("q_Ti") * (param_manager.get("ref_Ti") - ocp.model.x[0]) ** 2
         + param_manager.get("q_dqh") * (dqh) ** 2
         + param_manager.get("q_ddqh") * (ddqh) ** 2
     )
@@ -204,7 +205,7 @@ def export_parametric_ocp(
     ocp.cost.cost_type_e = "EXTERNAL"
     ocp.model.cost_expr_ext_cost_e = (
         0.25 * param_manager.get("price") * qh
-        + param_manager.get("q_Ti") * (param_manager.get("Ti_ref") - ocp.model.x[0]) ** 2
+        + param_manager.get("q_Ti") * (param_manager.get("ref_Ti") - ocp.model.x[0]) ** 2
         + param_manager.get("q_dqh") * (dqh) ** 2
     )
 
@@ -229,7 +230,7 @@ def export_parametric_ocp(
     ocp.cost.Zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
 
     ocp.constraints.lbx = np.array([-5000.0])
-    ocp.constraints.ubx = np.array([5000.0])
+    ocp.constraints.ubx = np.array([5000.0])  # Watt
     ocp.constraints.idxbx = np.array([3])  # qh
 
     # Solver options

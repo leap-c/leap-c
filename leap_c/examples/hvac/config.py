@@ -176,9 +176,9 @@ def make_default_hvac_params() -> tuple[Parameter, ...]:
         [
             Parameter(
                 name="q_Ti",
-                value=np.array([1.0]),  # weight on rate of change of heater power
-                lower_bound=np.array([0.5]),
-                upper_bound=np.array([1.5]),
+                value=np.array([0.001]),  # weight on rate of change of heater power
+                lower_bound=np.array([0.0001]),
+                upper_bound=np.array([0.001]),
                 fix=False,
                 differentiable=True,
                 stagewise=True,
