@@ -101,7 +101,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         )
         self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
 
-        self.action_low = np.array([0.0], dtype=np.float32)
+        self.action_low = np.array([-5000.0], dtype=np.float32)
         self.action_high = np.array([5000.0], dtype=np.float32)
         self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
 

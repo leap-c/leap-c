@@ -224,7 +224,7 @@ def export_parametric_ocp(
     ocp.cost.zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
     ocp.cost.Zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
 
-    ocp.constraints.lbx = np.array([0.0])
+    ocp.constraints.lbx = np.array([-5000.0])
     ocp.constraints.ubx = np.array([5000.0])
     ocp.constraints.idxbx = np.array([3])  # qh
 
@@ -520,14 +520,15 @@ if __name__ == "__main__":
     obs, info = env.reset()
 
     obs = np.tile(obs, (n_steps + 1, 1))
-    time = np.empty(n_steps)
     action = np.zeros((n_steps, 1), dtype=np.float32)
+    time = []
 
     for k in range(n_steps):
-        time[k] = info["time_forecast"][0]
+        time.append(info["time_forecast"][0])
         _, action[k] = controller.forward(obs=obs[k, :].reshape(1, -1))
         obs[k+1, :], _, _, _, info, _ = env.step(action=action[k])
 
+    time = np.array(time)
     obs = obs[:-1, :]
 
     plot_simulation(time, obs, action)
