@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Any
 from itertools import chain
 
+import pandas as pd
 import casadi as ca
 import gymnasium as gym
 import matplotlib.pyplot as plt
@@ -29,9 +30,9 @@ class HvacController(ParameterizedController):
         diff_mpc_kwargs: dict[str, Any] | None = None,
     ) -> None:
         super().__init__()
-        self.params = params = params or make_default_hvac_params()
+        
         self.param_manager = AcadosParamManager(
-            params=self.params,
+            params=params or make_default_hvac_params(),
             N_horizon=N_horizon,
         )
 
@@ -40,31 +41,29 @@ class HvacController(ParameterizedController):
             N_horizon=N_horizon,
         )
 
-
         self.diff_mpc = AcadosDiffMpc(self.ocp, **diff_mpc_kwargs)
 
-        self.N_horizon = N_horizon
-
-        # TODO: Move to ctx
-        self.qh = 0.0
-        self.dqh = 0.0
-
     def forward(self, obs, param: Any = None, ctx=None) -> tuple[Any, torch.Tensor]:
+
+        qh = ctx.iterate.x[:, 2*self.ocp.dims.nx-2] if ctx else 0.0
+        dqh = ctx.iterate.x[:, 2*self.ocp.dims.nx-1] if ctx else 0.0
 
         x0 = torch.cat(
             [
                 torch.as_tensor(obs[:, 2:5], dtype=torch.float64),
-                torch.as_tensor([[self.qh, self.dqh]], dtype=torch.float64),
+                torch.as_tensor([[qh, dqh]], dtype=torch.float64),
             ],
             dim=1,
         )
+
+        N_horizon = self.ocp.solver_options.N_horizon
 
         if param is None:
             # Use default parameters if none are provided
             # NOTE: The SAC controller would modify the forecasted parameters
             param = self.param_manager.p_global_values(0)
             Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
-            for stage in range(self.N_horizon + 1):
+            for stage in range(N_horizon + 1):
                 param["Ta", stage] = Ta_forecast[:, stage]
                 param["Phi_s", stage] = solar_forecast[:, stage]
                 param["price", stage] = price_forecast[:, stage]
@@ -101,10 +100,9 @@ class HvacController(ParameterizedController):
         )
 
 
-        self.qh = x[:, 2*self.ocp.dims.nx-2]
-        self.dqh = x[:, 2*self.ocp.dims.nx-1]
+        qh = x[:, 2*self.ocp.dims.nx-2]
 
-        action = np.array(self.qh.detach().numpy(), dtype=np.float32).reshape(-1)
+        action = np.array(qh.detach().numpy(), dtype=np.float32).reshape(-1)
 
         return ctx, action
 
@@ -508,9 +506,12 @@ def plot_simulation(time: np.ndarray, obs: np.ndarray, action: np.ndarray) -> pl
 if __name__ == "__main__":
     horizon_hours = 24
     N_horizon = horizon_hours * 4  # 4 time steps per hour
+
+    start_time = pd.Timestamp('2021-01-01 00:00:00+0100', tz='UTC+01:00')
     env = StochasticThreeStateRcEnv(
         step_size=900.0,  # 15 minutes in seconds
         horizon_hours=horizon_hours,
+        start_time=start_time,
     )
 
     controller = HvacController(
@@ -520,7 +521,7 @@ if __name__ == "__main__":
         },
     )
 
-    n_steps = 20 * 24 * 4  # days * hours * 4 time steps per hour
+    n_steps = 1 * 24 * 4  # days * hours * 4 time steps per hour
 
     obs, info = env.reset()
 
