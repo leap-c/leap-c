@@ -15,6 +15,7 @@ from gymnasium import spaces
 from scipy.constants import convert_temperature
 from util import merge_price_weather_data, transcribe_continuous_state_space
 
+from leap_c.examples.hvac.controller import set_temperature_limits
 from leap_c.examples.hvac.util import (
     load_price_data,
     load_weather_data,
@@ -44,6 +45,8 @@ class StochasticThreeStateRcEnv(gym.Env):
         step_size: float = 900.0,  # Default 15 minutes
         start_time: pd.Timestamp | None = None,
         horizon_hours: int = 36,
+        max_hours: int = 30 * 24,  # 30 days
+        render_mode: str | None = None,
         price_zone: str = "NO_1",
         price_data_path: Path | None = None,
         weather_data_path: Path | None = None,
@@ -64,6 +67,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         N_forecast = 4 * horizon_hours  # Number of forecasted ambient temperatures
 
         self.N_forecast = N_forecast
+        self.max_steps = int(max_hours * 3600 / step_size)
 
         print("env N_forecast: ", self.N_forecast)
 
@@ -155,6 +159,8 @@ class StochasticThreeStateRcEnv(gym.Env):
         self.data["time"] = self.data.index.to_numpy(dtype="datetime64[m]")
         self.data["quarter_hour"] = (self.data.index.hour * 4 + self.data.index.minute // 15) % (24 * 4)
         self.data["day"] = self.data["time"].dt.dayofyear % 366
+
+        print(len(data))
 
         self.start_time = start_time
 
@@ -304,15 +310,20 @@ class StochasticThreeStateRcEnv(gym.Env):
             float: Reward value
         """
 
-        # Compute the reward for action such that 0.0 return 0.5 and 5000.0 return 0.0
-        # TODO: Think about rewarding energy cost instead of energy usage
+        quarter_hour = self.data["quarter_hour"].iloc[self.idx].to_numpy(dtype=np.int32)
+        lb, ub = set_temperature_limits(quarter_hours=quarter_hour)
 
-        # Compute the indoor temperature violating the temperature comfort zone
-        Ti = state[0]
+        # Reward for comfort zone compliance
+        comfort_reward = int(lb <= state[0] <= ub)
 
+        # Reward for energy saving
+        energy_reward = 1.0 - np.clip(
+            a=action[0] / self.action_high[0], a_min=0.0, a_max=1.0
+        )
 
+        reward = 0.5 * (comfort_reward + energy_reward)
 
-        return None  # Placeholder for reward computation logic
+        return reward
 
     def _is_terminated(self) -> bool:
         """
@@ -321,18 +332,11 @@ class StochasticThreeStateRcEnv(gym.Env):
         Returns:
             bool: True if terminal, False otherwise
         """
-        # TODO: Include a max time step condition. With max_time_step=30 days
-        dt = self.data.index[self.idx] - self.start_time
-
-        # Convert dt to days
-        if isinstance(dt, pd.Timedelta):
-            dt = dt.to_pytimedelta()
-
-        # Check if dt exceeds 30 days
-        reached_max_time =  dt.total_seconds() > 30 * 24 * 3600:
+        reached_max_steps = self.step_cnter >= self.max_steps
         reached_end_of_data = self.idx >= len(self.data) - self.N_forecast
 
-        return reached_max_time or reached_end_of_data
+        # return reached_max_time or reached_end_of_data
+        return reached_end_of_data or reached_max_steps
 
 
     def step(
@@ -369,6 +373,7 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         self.state = x_next
         self.idx += 1
+        self.step_cnter += 1
 
         self.Ti, self.Th, self.Te = self.state[0], self.state[1], self.state[2]
 
@@ -397,6 +402,8 @@ class StochasticThreeStateRcEnv(gym.Env):
             self.idx = self.data.index.get_loc(self.start_time, method="nearest")
         else:
             self.idx = 0
+
+        self.step_cnter = 0
 
         obs = self._get_observation()
         time_forecast = (
