@@ -191,3 +191,5 @@ c_generated_code
 
 # Trash
 **/trash
+leap_c/examples/hvac/mpc.py
+leap_c/examples/hvac/thermal_ocp_lp_solver.py
