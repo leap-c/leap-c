@@ -401,7 +401,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         self.state = state_0.copy()
 
         if self.start_time is not None:
-            self.idx = self.data.index.get_loc(self.start_time, method="nearest")
+            self.idx = self.data.index.get_loc(self.start_time)
         else:
             min_start_idx = 0
             max_start_idx = len(self.data) - self.N_forecast - self.max_steps +1
