@@ -302,7 +302,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         # The discrete-time covariance is Qd = Ad @ Phi
         return Ad @ Phi
 
-    def _compute_reward(self, state: np.ndarray, action: np.ndarray) -> float:
+    def _reward_function(self, state: np.ndarray, action: np.ndarray) -> float:
         """
         Compute the reward based on the current state and action.
 
@@ -386,7 +386,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         )
 
         obs = self._get_observation()
-        reward = self._compute_reward(state=self.state, action=action)
+        reward = self._reward_function(state=self.state, action=action)
         terminated = self._is_terminated()
         truncated = None  # We do not truncate based on time steps
         info = {"time_forecast": time_forecast}

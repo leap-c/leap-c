@@ -160,11 +160,29 @@ def make_default_hvac_params() -> tuple[Parameter, ...]:
                 differentiable=False,
                 stagewise=True,
             ),
+            Parameter(
+                name="ref_Ti",
+                value=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
+                lower_bound=np.array([convert_temperature(10.0, "celsius", "kelvin")]),
+                upper_bound=np.array([convert_temperature(30.0, "celsius", "kelvin")]),
+                fix=False,
+                differentiable=True,
+                stagewise=True,
+            ),
         ]
     )
 
     params.extend(
         [
+            Parameter(
+                name="q_Ti",
+                value=np.array([1.0]),  # weight on rate of change of heater power
+                lower_bound=np.array([0.5]),
+                upper_bound=np.array([1.5]),
+                fix=False,
+                differentiable=True,
+                stagewise=True,
+            ),
             Parameter(
                 name="q_dqh",
                 value=np.array([1.0]),  # weight on rate of change of heater power
