@@ -15,12 +15,12 @@ from gymnasium import spaces
 from scipy.constants import convert_temperature
 from util import merge_price_weather_data, transcribe_continuous_state_space
 
-from leap_c.examples.hvac.controller import set_temperature_limits
 from leap_c.examples.hvac.util import (
     load_price_data,
     load_weather_data,
     transcribe_continuous_state_space,
     transcribe_discrete_state_space,
+    set_temperature_limits,
 )
 
 # Constants
@@ -143,7 +143,10 @@ class StochasticThreeStateRcEnv(gym.Env):
             price_data=price_data, weather_data=weather_data, merge_type="inner"
         )
 
+
+
         self.data = data
+
 
         # Rename NO1 to price
         self.data.rename(
@@ -160,7 +163,6 @@ class StochasticThreeStateRcEnv(gym.Env):
         self.data["quarter_hour"] = (self.data.index.hour * 4 + self.data.index.minute // 15) % (24 * 4)
         self.data["day"] = self.data["time"].dt.dayofyear % 366
 
-        print(len(data))
 
         self.start_time = start_time
 
@@ -310,7 +312,7 @@ class StochasticThreeStateRcEnv(gym.Env):
             float: Reward value
         """
 
-        quarter_hour = self.data["quarter_hour"].iloc[self.idx].to_numpy(dtype=np.int32)
+        quarter_hour = self.data["quarter_hour"].iloc[self.idx]
         lb, ub = set_temperature_limits(quarter_hours=quarter_hour)
 
         # Reward for comfort zone compliance
@@ -401,7 +403,11 @@ class StochasticThreeStateRcEnv(gym.Env):
         if self.start_time is not None:
             self.idx = self.data.index.get_loc(self.start_time, method="nearest")
         else:
-            self.idx = 0
+            min_start_idx = 0
+            max_start_idx = len(self.data) - self.N_forecast - self.max_steps +1
+            self.idx = np.random.randint(
+                low=min_start_idx, high=max_start_idx
+            )
 
         self.step_cnter = 0
 
@@ -570,7 +576,7 @@ if __name__ == "__main__":
         u.append(action)
         Ta.append(Ta_forecast[0])
         solar.append(solar_forecast[0])
-        time.append(info["time_forecast"])
+        time.append(info["time_forecast"][0])
 
         # Update state using the integrator
         obs, _, _, _, info, _ = env.step(action)
