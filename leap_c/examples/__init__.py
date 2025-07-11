@@ -1,5 +1,5 @@
 from .cartpole.env import CartPoleEnv
-from .cartpole.controller import CartPoleController
+from .cartpole.controller import CartPoleController, OldCartPoleController
 from .chain.env import ChainEnv
 from .chain.controller import ChainController
 from .mujoco.reacher.env import ReacherEnv
@@ -18,6 +18,7 @@ ENV_REGISTRY = {
 
 CONTROLLER_REGISTRY = {
     "cartpole": CartPoleController,
+    "cartpole_old": OldCartPoleController, 
     "chain": ChainController,
     "reacher": ReacherController,
     "pointmass": PointMassController,

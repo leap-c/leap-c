@@ -70,10 +70,6 @@ class MpcSacActor(nn.Module):
         with torch.no_grad():
             ctx, action = self.controller(obs, param, ctx=ctx)
 
-        print("param", param)
-        print("action", action)
-        print("obs", obs)
-
         return SacZopActorOutput(
             param,
             log_prob,
@@ -202,7 +198,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
             )  # type: ignore
 
             obs = obs_prime
-            policy_ctx = policy_ctx
+            policy_ctx = pi_output.ctx
 
             if (
                 self.state.step >= self.cfg.train_start

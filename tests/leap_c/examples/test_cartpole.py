@@ -170,7 +170,7 @@ def main():
 
 
 if __name__ == "__main__":
-    pytest.main([__file__])
+    main()
 
 
 def create_dir_if_not_exists(directory):

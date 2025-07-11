@@ -110,8 +110,8 @@ class CartPoleEnv(gym.Env):
             [
                 self.x_threshold * 2,
                 2 * np.pi,
-                np.finfo(np.float32).max,
-                np.finfo(np.float32).max,
+                10,
+                10,
             ],
             dtype=np.float32,
         )

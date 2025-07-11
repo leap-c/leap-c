@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 
 from leap_c.controller import ParameterizedController
-from leap_c.torch.nn.extractor import Extractor, ScalingExtractor
+from leap_c.torch.nn.extractor import Extractor, IdentityExtractor, ScalingExtractor
 from leap_c.torch.nn.gaussian import SquashedGaussian, BoundedTransform
 from leap_c.torch.nn.mlp import MLP, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
@@ -79,8 +79,9 @@ class FopActor(nn.Module):
 
         ctx, action = self.controller(obs, param, ctx=ctx)
 
-        j = self.controller.jacobian_action_param(ctx)
-        if j is not None and self.correction:
+        if self.correction:
+            j = self.controller.jacobian_action_param(ctx)
+            j = torch.from_numpy(j).to(param.device)  # type:ignore
             jtj = j @ j.transpose(1, 2)
             correction = (
                 torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device))
@@ -153,7 +154,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         device: str,
         train_env: gym.Env,
         controller: ParameterizedController,
-        extractor_cls: Type[Extractor] = ScalingExtractor,
+        extractor_cls: Type[Extractor] = IdentityExtractor,
     ):
         """Initializes the SAC FOP trainer.
 

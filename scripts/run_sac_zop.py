@@ -50,8 +50,8 @@ def run_sac_zop(
     cfg.trainer.gamma = 0.99
     cfg.trainer.tau = 0.005
     cfg.trainer.soft_update_freq = 1
-    cfg.trainer.lr_q = 0.0001
-    cfg.trainer.lr_pi = 0.0001
+    cfg.trainer.lr_q = 0.001
+    cfg.trainer.lr_pi = 0.001
     cfg.trainer.lr_alpha = 0.001
     cfg.trainer.init_alpha = 0.01
     cfg.trainer.target_entropy = None
@@ -63,7 +63,7 @@ def run_sac_zop(
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = verbose
     cfg.trainer.log.interval = 1000
-    cfg.trainer.log.window = 10000
+    cfg.trainer.log.window = 5000
     cfg.trainer.log.csv_logger = True
     cfg.trainer.log.tensorboard_logger = True
     cfg.trainer.log.wandb_logger = False
@@ -98,10 +98,13 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
-    parser.add_argument("--controller", type=str, default="cartpole")
+    parser.add_argument("--controller", type=str, default=None)
     args = parser.parse_args()
 
     output_path = default_output_path(seed=args.seed, tags=["sac_zop", args.env, args.controller])
+
+    if args.controller is None:
+        args.controller = args.env
 
     run_sac_zop(
         output_path,

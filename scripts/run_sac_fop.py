@@ -34,7 +34,7 @@ def run_sac_fop(
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = 0
-    cfg.trainer.train_steps = 100000
+    cfg.trainer.train_steps = 1000000
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 10000
     cfg.trainer.val_num_rollouts = 10
@@ -49,15 +49,17 @@ def run_sac_fop(
     cfg.trainer.gamma = 0.99
     cfg.trainer.tau = 0.005
     cfg.trainer.soft_update_freq = 1
-    cfg.trainer.lr_q = 0.0011916569650377194
-    cfg.trainer.lr_pi = 0.0011916569650377194
+    cfg.trainer.lr_q = 0.0006379868500802872
+    cfg.trainer.lr_pi = 0.0006379868500802872
     cfg.trainer.lr_alpha = 0.001
     cfg.trainer.init_alpha = 0.01
-    cfg.trainer.target_entropy = 0.018045011408676054
+    cfg.trainer.target_entropy = 0.8388812321
     cfg.trainer.entropy_reward_bonus = True
     cfg.trainer.num_critics = 2
     cfg.trainer.report_loss_freq = 100
     cfg.trainer.update_freq = 4
+    cfg.trainer.noise = 'param'
+    cfg.trainer.entropy_correction = False
 
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = verbose
@@ -97,10 +99,13 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
-    parser.add_argument("--controller", type=str, default="cartpole")
+    parser.add_argument("--controller", type=str, default=None)
     args = parser.parse_args()
 
     output_path = default_output_path(seed=args.seed, tags=["sac_fop", args.env, args.controller])
+
+    if args.controller is None:
+        args.controller = args.env
 
     run_sac_fop(
         output_path,

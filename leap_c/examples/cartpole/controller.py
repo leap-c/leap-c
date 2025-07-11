@@ -1,18 +1,22 @@
 from dataclasses import asdict
 from typing import Any, Literal
 
+from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 import casadi as ca
 import gymnasium as gym
 import numpy as np
 import torch
 
 from acados_template import AcadosModel, AcadosOcp
+from leap_c.ocp.acados.data import collate_acados_flattened_batch_iterate_fn
+from leap_c.ocp.acados.layer import MpcSolutionModule
 from leap_c.ocp.acados.parameters import AcadosParamManager
 from leap_c.controller import ParameterizedController
 from leap_c.examples.cartpole.config import CartPoleParams, make_default_cartpole_params
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
 from leap_c.ocp.acados.parameters import AcadosParamManager
+from leap_c.examples.cartpole.task import CartPoleSwingup
 
 
 class CartPoleController(ParameterizedController):
@@ -99,7 +103,8 @@ class CartPoleController(ParameterizedController):
         self.diff_mpc = AcadosDiffMpc(self.ocp, discount_factor=discount_factor)
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        ctx, u0, x, u, value = self.diff_mpc(obs, p_global=param, ctx=ctx)
+        p_stagewise = self.param_manager.combine_parameter_values(batch_size=obs.shape[0])
+        ctx, u0, x, u, value = self.diff_mpc(obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
@@ -115,14 +120,47 @@ class CartPoleController(ParameterizedController):
         return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
 
 
+class OldMpcCtx:
+    state: AcadosOcpFlattenedBatchIterate
+    jacobian_action_param: np.ndarray
+
+
+class OldCartPoleController(ParameterizedController):
+
+    collate_fn_map = {AcadosOcpFlattenedBatchIterate: collate_acados_flattened_batch_iterate_fn}
+
+    def __init__(self):
+        super().__init__()
+
+        self.task = CartPoleSwingup()
+
+    def forward(self, obs, param, ctx=None):
+        mpc_input = self.task.prepare_mpc_input(obs, param_nn=param)
+        mpc_output, mpc_state, mpc_stats = self.task.mpc(mpc_input)
+
+        u0 = mpc_output.u0
+        return mpc_state, u0
+
+    def jacobian_action_param(self, ctx) -> np.ndarray:
+        raise NotADirectoryError
+
+    @property
+    def param_space(self) -> gym.Space:
+        return self.task.param_space
+    
+    @property
+    def default_param(self) -> np.ndarray:
+        return (self.task.param_space.high + self.task.param_space.low) / 2
+
+
 def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParamManager) -> ca.SX:
     M = param_manager.get("M")
     m = param_manager.get("m")
     g = param_manager.get("g")
     l = param_manager.get("l")
 
-    v = model.x[1]
-    theta = model.x[2]
+    theta = model.x[1]
+    v = model.x[2]
     dtheta = model.x[3]
 
     F = model.u[0]
@@ -186,7 +224,8 @@ def define_cost_matrix(
 
 
 def define_yref(param_manager: AcadosParamManager):
-    xref0 = np.array([0.0])
+    # xref0 = np.array([0.0])
+    xref0 = param_manager.get("xref0")
     xref1 = param_manager.get("xref1")
     xref2 = param_manager.get("xref2")
     xref3 = param_manager.get("xref3")

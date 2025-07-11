@@ -21,12 +21,9 @@ from leap_c.examples.chain.utils import (
     RestingChainSolver,
     nominal_params_to_structured_nominal_params,
 )
-from leap_c.examples.util import (
-    find_param_in_p_or_p_global,
-    translate_learnable_param_to_p_global,
-)
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer, create_zero_iterate_from_ocp
+from leap_c.ocp.acados.parameters import AcadosParamManager
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
@@ -34,7 +31,6 @@ class ChainController(ParameterizedController):
     def __init__(
         self,
         params: ChainParams | None = None,
-        learnable_params: list[str] | None = None,
         N_horizon: int = 20,
         T_horizon: float = 1.0,
         discount_factor: float = 1.0,
@@ -44,7 +40,7 @@ class ChainController(ParameterizedController):
     ):
         super().__init__()
         self.params = make_default_chain_params(n_mass) if params is None else params
-        self.learnable_params = learnable_params if learnable_params is not None else []
+        tuple_params = tuple(asdict(self.params).values())
 
         if fix_point is None:
             fix_point = np.zeros(3)
@@ -52,9 +48,12 @@ class ChainController(ParameterizedController):
         if pos_last_mass_ref is None:
             pos_last_mass_ref = fix_point + np.array([0.033 * (n_mass - 1), 0, 0])
 
+        self.param_manager = AcadosParamManager(
+            params=tuple_params, N_horizon=N_horizon  # type:ignore
+        )
+
         self.ocp = export_parametric_ocp(
-            nominal_params=asdict(self.params),
-            learnable_params=self.learnable_params,
+            param_manager=self.param_manager,
             N_horizon=N_horizon,
             tf=T_horizon,
             n_mass=n_mass,
@@ -62,9 +61,11 @@ class ChainController(ParameterizedController):
             pos_last_mass_ref=pos_last_mass_ref,
         )
 
+        # Extract values from Parameter objects for initializer
+        nominal_params = {k: v.value for k, v in asdict(self.params).items()}
         initializer = ChainInitializer(
             self.ocp,
-            nominal_params=asdict(self.params),
+            nominal_params=nominal_params,
             n_mass=n_mass,
             fix_point=fix_point,
             pos_last_mass_ref=pos_last_mass_ref,
@@ -76,11 +77,8 @@ class ChainController(ParameterizedController):
         )
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        x0 = torch.as_tensor(obs)
-        p_global = torch.as_tensor(param)
-        ctx, u0, *_ = self.diff_mpc(
-            x0.unsqueeze(0), p_global=p_global.unsqueeze(0), ctx=ctx
-        )
+        p_stagewise = self.param_manager.combine_parameter_values(batch_size=obs.shape[0])
+        ctx, u0, x, u, value = self.diff_mpc(obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
@@ -88,20 +86,16 @@ class ChainController(ParameterizedController):
 
     @property
     def param_space(self) -> gym.Space:
-        # TODO: can't determine the param space because it depends on the learnable parameters
-        # we need to define boundaries for every parameter and based on that create a gym.Space
-        raise NotImplementedError
+        low, high = self.param_manager.get_p_global_bounds()
+        return gym.spaces.Box(low=low, high=high, dtype=np.float64)  # type:ignore
 
     @property
     def default_param(self) -> np.ndarray:
-        return np.concatenate(
-            [asdict(self.params)[p].flatten() for p in self.learnable_params]
-        )
+        return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
 
 
 def export_parametric_ocp(
-    nominal_params: dict,
-    learnable_params: list[str],
+    param_manager: AcadosParamManager,
     name: str = "chain",
     N_horizon: int = 30,  # noqa: N803
     tf: float = 6.0,
@@ -115,11 +109,7 @@ def export_parametric_ocp(
     ocp.solver_options.Tsim = tf
     ocp.solver_options.tf = tf
 
-    ocp = translate_learnable_param_to_p_global(
-        nominal_param=nominal_params,
-        learnable_param=learnable_params,
-        ocp=ocp,
-    )
+    param_manager.assign_to_ocp(ocp)
 
     ocp.model.x = struct_symSX(
         [
@@ -132,18 +122,38 @@ def export_parametric_ocp(
 
     ocp.model.u = ca.SX.sym("u", 3, 1)  # type: ignore
 
-    p = find_param_in_p_or_p_global(["D", "L", "C", "m", "w"], ocp.model)
+    # Get parameters from param_manager
+    p = {
+        "D": param_manager.get("D"),
+        "L": param_manager.get("L"), 
+        "C": param_manager.get("C"),
+        "m": param_manager.get("m"),
+        "w": param_manager.get("w")
+    }
 
     ocp.model.f_expl_expr = get_f_expl_expr(
         x=ocp.model.x, u=ocp.model.u, p=p, x0=fix_point  # type:ignore
     )
     ocp.model.f_impl_expr = ocp.model.xdot - ocp.model.f_expl_expr
-    ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp.model, tf / N_horizon)
+    ocp.model.disc_dyn_expr = get_disc_dyn_expr(ocp.model, tf / N_horizon, param_manager)
     ocp.model.name = name
 
     resting_chain_solver = RestingChainSolver(
         n_mass=n_mass, fix_point=fix_point, f_expl=get_f_expl_expr
     )
+
+    # Extract nominal parameter values from param_manager for initialization
+    nominal_params = {}
+    param_names = ["L", "D", "C", "m", "w", "q_sqrt_diag", "r_sqrt_diag"]
+    for name in param_names:
+        param_val = param_manager.get(name)
+        if isinstance(param_val, ca.DM):
+            nominal_params[name] = param_val.full().flatten()
+        elif hasattr(param_val, 'value'):
+            nominal_params[name] = param_val.value
+        else:
+            # Fallback to get from parameter definitions
+            nominal_params[name] = param_val
 
     structured_nominal_params = nominal_params_to_structured_nominal_params(
         nominal_params=nominal_params
@@ -159,8 +169,8 @@ def export_parametric_ocp(
 
     x_ss, u_ss = resting_chain_solver(p_last=pos_last_mass_ref)
 
-    q_sqrt_diag = find_param_in_p_or_p_global(["q_sqrt_diag"], ocp.model)["q_sqrt_diag"]
-    r_sqrt_diag = find_param_in_p_or_p_global(["r_sqrt_diag"], ocp.model)["r_sqrt_diag"]
+    q_sqrt_diag = param_manager.get("q_sqrt_diag")
+    r_sqrt_diag = param_manager.get("r_sqrt_diag")
 
     Q = ca.diag(q_sqrt_diag) @ ca.diag(q_sqrt_diag).T
     R = ca.diag(r_sqrt_diag) @ ca.diag(r_sqrt_diag).T
@@ -285,13 +295,17 @@ def get_f_expl_expr(
     return vertcat(xvel, u, f)  # type: ignore
 
 
-def get_disc_dyn_expr(model: AcadosModel, dt: float) -> ca.SX:
+def get_disc_dyn_expr(model: AcadosModel, dt: float, param_manager: AcadosParamManager) -> ca.SX:
     f_expl_expr = model.f_expl_expr
 
     x = model.x
     u = model.u
     p = ca.vertcat(
-        *find_param_in_p_or_p_global(["L", "C", "D", "m", "w"], model).values()
+        param_manager.get("L"),
+        param_manager.get("C"), 
+        param_manager.get("D"),
+        param_manager.get("m"),
+        param_manager.get("w")
     )
 
     ode = ca.Function("ode", [x, u, p], [f_expl_expr])

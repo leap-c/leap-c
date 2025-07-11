@@ -54,7 +54,8 @@ class ScalingExtractor(Extractor):
         Returns:
             The input tensor.
         """
-        return min_max_scaling(x, self.observation_space)  # type: ignore
+        y = min_max_scaling(x, self.observation_space)  # type: ignore
+        return y
 
     @property
     def output_size(self) -> int:

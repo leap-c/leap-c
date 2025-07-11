@@ -18,10 +18,10 @@ class CartPoleParams:
     r_diag: Parameter
 
     # Reference parameters (for NONLINEAR_LS cost)
-    xref1: Parameter  # reference position
-    xref2: Parameter  # reference theta
-    xref3: Parameter  # reference v
-    xref4: Parameter  # reference thetadot
+    xref0: Parameter  # reference position
+    xref1: Parameter  # reference theta
+    xref2: Parameter  # reference v
+    xref3: Parameter  # reference thetadot
     uref: Parameter  # reference u
 
 
@@ -37,9 +37,9 @@ def make_default_cartpole_params(stagewise: bool = False) -> CartPoleParams:
         q_diag=Parameter("q_diag", np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))),
         r_diag=Parameter("r_diag", np.sqrt(np.array([2e-1]))),
         # Reference parameters (for NONLINEAR_LS cost)
-        xref1=Parameter("xref1", np.array([0.0])),
+        xref0=Parameter("xref0", np.array([0.0]), fix=False),
         xref2=Parameter(
-            "xref2",
+            "xref1",
             np.array([0.0]),
             lower_bound=np.array([-2.0 * np.pi]),
             upper_bound=np.array([2.0 * np.pi]),
@@ -47,7 +47,7 @@ def make_default_cartpole_params(stagewise: bool = False) -> CartPoleParams:
             stagewise=stagewise,
             fix=False,
         ),
-        xref3=Parameter("xref3", np.array([0.0])),
-        xref4=Parameter("xref4", np.array([0.0])),
-        uref=Parameter("uref", np.array([0.0])),
+        xref1=Parameter("xref2", np.array([0.0]), fix=False),
+        xref3=Parameter("xref3", np.array([0.0]), fix=False),
+        uref=Parameter("uref", np.array([0.0]), fix=False),
     )
