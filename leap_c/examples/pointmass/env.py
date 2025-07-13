@@ -11,7 +11,7 @@ from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.patches import FancyArrowPatch
 
-from leap_c.examples.plot_utils import latex_plot_context
+from leap_c.utils.latexify import latex_plot_context
 
 
 class Circle:

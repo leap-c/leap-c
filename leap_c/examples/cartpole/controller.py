@@ -64,6 +64,7 @@ class CartPoleController(ParameterizedController):
         discount_factor: float = 1.00,
         exact_hess_dyn: bool = True,
         cost_type: Literal["EXTERNAL", "NONLINEAR_LS"] = "NONLINEAR_LS",
+        stagewise: bool = False,
     ):
         """
         Args:
@@ -81,9 +82,11 @@ class CartPoleController(ParameterizedController):
                 (currently this is static).
             exact_hess_dyn: If False, the contributions of the dynamics will be left out of the Hessian.
             cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
+            stagewise: If True, the parameters will be stagewise, meaning that they can change over the horizon.
+                If False, the parameters will be global, meaning that they are the same for all steps in the horizon.
         """
         super().__init__()
-        self.params = make_default_cartpole_params() if params is None else params
+        self.params = make_default_cartpole_params(stagewise=stagewise) if params is None else params
         tuple_params = tuple(asdict(self.params).values())
 
         self.param_manager = AcadosParamManager(
@@ -118,39 +121,6 @@ class CartPoleController(ParameterizedController):
     @property
     def default_param(self) -> np.ndarray:
         return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
-
-
-class OldMpcCtx:
-    state: AcadosOcpFlattenedBatchIterate
-    jacobian_action_param: np.ndarray
-
-
-class OldCartPoleController(ParameterizedController):
-
-    collate_fn_map = {AcadosOcpFlattenedBatchIterate: collate_acados_flattened_batch_iterate_fn}
-
-    def __init__(self):
-        super().__init__()
-
-        self.task = CartPoleSwingup()
-
-    def forward(self, obs, param, ctx=None):
-        mpc_input = self.task.prepare_mpc_input(obs, param_nn=param)
-        mpc_output, mpc_state, mpc_stats = self.task.mpc(mpc_input)
-
-        u0 = mpc_output.u0
-        return mpc_state, u0
-
-    def jacobian_action_param(self, ctx) -> np.ndarray:
-        raise NotADirectoryError
-
-    @property
-    def param_space(self) -> gym.Space:
-        return self.task.param_space
-    
-    @property
-    def default_param(self) -> np.ndarray:
-        return (self.task.param_space.high + self.task.param_space.low) / 2
 
 
 def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParamManager) -> ca.SX:

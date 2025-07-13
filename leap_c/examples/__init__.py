@@ -1,5 +1,6 @@
+from functools import partial
 from .cartpole.env import CartPoleEnv
-from .cartpole.controller import CartPoleController, OldCartPoleController
+from .cartpole.controller import CartPoleController
 from .chain.env import ChainEnv
 from .chain.controller import ChainController
 from .mujoco.reacher.env import ReacherEnv
@@ -18,10 +19,12 @@ ENV_REGISTRY = {
 
 CONTROLLER_REGISTRY = {
     "cartpole": CartPoleController,
-    "cartpole_old": OldCartPoleController, 
+    "cartpole_stagewise": partial(CartPoleController, stagewise=True),
     "chain": ChainController,
+    "chain_stagewise": partial(ChainController, stagewise=True),
     "reacher": ReacherController,
     "pointmass": PointMassController,
+    "pointmass_stagewise": partial(PointMassController, stagewise=True),
 }
 
 

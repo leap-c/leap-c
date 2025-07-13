@@ -14,9 +14,12 @@ class ChainParams:
     w: Parameter  # disturbance on intermediate balls
     q_sqrt_diag: Parameter  # weight on state
     r_sqrt_diag: Parameter  # weight on control inputs
+    fix_point: Parameter  # fixed point for the chain (the anchor point)
+    phi_range: Parameter  # range for phi angle initialization (min, max)
+    theta_range: Parameter  # range for theta angle initialization (min, max)
 
 
-def make_default_chain_params(n_mass: int, stagewise: bool = False) -> ChainParams:
+def make_default_chain_params(n_mass: int = 3, stagewise: bool = False) -> ChainParams:
     """Returns a ChainParams instance with default parameter values."""
     q_sqrt_diag = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
     r_sqrt_diag = 1e-1 * np.ones(3)
@@ -47,4 +50,8 @@ def make_default_chain_params(n_mass: int, stagewise: bool = False) -> ChainPara
             stagewise=stagewise,
             fix=False,
         ),
+        # General parameters
+        fix_point=Parameter("fix_point", np.zeros(3)),
+        phi_range=Parameter("phi_range", np.array([np.pi / 6, np.pi / 3])),
+        theta_range=Parameter("theta_range", np.array([-np.pi / 4, np.pi / 4])),
     )

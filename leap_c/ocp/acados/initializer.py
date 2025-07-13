@@ -69,7 +69,7 @@ class AcadosDiffMpcInitializer(ABC):
         return collate_acados_flattened_iterate_fn(iterates)
 
 
-def create_zero_iterate_from_ocp(ocp: AcadosOcp) -> AcadosOcpFlattenedIterate:
+def create_zero_iterate_from_ocp(ocp: AcadosOcp) -> AcadosOcpIterate:
     # TODO (Jasper): Remove this function as soon as Acados updates the 
     #   ocp.create_default_initial_iterate for slacked OCPs.
 
@@ -100,12 +100,12 @@ def create_zero_iterate_from_ocp(ocp: AcadosOcp) -> AcadosOcpFlattenedIterate:
         pi_traj=pi_traj,
         lam_traj=lam_traj,
     )
-    return iterate.flatten()
+    return iterate
 
 
 class ZeroDiffMpcInitializer(AcadosDiffMpcInitializer):
     def __init__(self, ocp: AcadosOcp) -> None:
-        self.zero_iterate = create_zero_iterate_from_ocp(ocp)
+        self.zero_iterate = create_zero_iterate_from_ocp(ocp).flatten()
 
     def single_iterate(
         self,

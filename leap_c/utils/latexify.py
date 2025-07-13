@@ -2,7 +2,7 @@ import shutil
 from contextlib import contextmanager
 from typing import Any, Iterator
 
-import matplotlib.pyplot as plt
+from matplotlib import pyplot as plt
 
 
 @contextmanager

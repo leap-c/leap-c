@@ -29,9 +29,10 @@ class PointMassController(ParameterizedController):
         params: PointMassParams | None = None,
         N_horizon: int = 20,
         T_horizon: float = 2.0,
+        stagewise: bool = False,
     ):
         super().__init__()
-        self.params = make_default_pointmass_params() if params is None else params
+        self.params = make_default_pointmass_params(stagewise) if params is None else params
         tuple_params = tuple(asdict(self.params).values())
 
         self.param_manager = AcadosParamManager(
