@@ -1,22 +1,18 @@
 from dataclasses import asdict
 from typing import Any, Literal
 
-from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 import casadi as ca
 import gymnasium as gym
 import numpy as np
 import torch
 
 from acados_template import AcadosModel, AcadosOcp
-from leap_c.ocp.acados.data import collate_acados_flattened_batch_iterate_fn
-from leap_c.ocp.acados.layer import MpcSolutionModule
 from leap_c.ocp.acados.parameters import AcadosParamManager
 from leap_c.controller import ParameterizedController
 from leap_c.examples.cartpole.config import CartPoleParams, make_default_cartpole_params
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
 from leap_c.ocp.acados.parameters import AcadosParamManager
-from leap_c.examples.cartpole.task import CartPoleSwingup
 
 
 class CartPoleController(ParameterizedController):

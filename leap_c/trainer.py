@@ -198,6 +198,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
         train_loop_iter = self.train_loop()
 
+
         while self.state.step < self.cfg.train_steps:
             # train
             self.state.step += next(train_loop_iter)

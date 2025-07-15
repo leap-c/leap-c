@@ -66,7 +66,6 @@ def test_chain_env_mpc_closed_loop():
     xstart, _ = resting_chain_solver(
         p_last=ellipsoid.spherical_to_cartesian(phi=0.0, theta=np.pi)
     )
-    # TODO: Jasper check this
     pos_last_mass_ref = ellipsoid.spherical_to_cartesian(
         phi=0.75 * np.pi, theta=np.pi / 2
     )

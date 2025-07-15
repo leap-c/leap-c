@@ -8,7 +8,7 @@ import pytest
 from acados_template import AcadosOcpSolver
 from gymnasium.utils.save_video import save_video
 from leap_c.examples.cartpole.env import CartPoleEnv
-from leap_c.examples.cartpole.mpc import CartPoleMPC
+from leap_c.examples.cartpole.controller import CartPoleController
 
 
 def plot_cart_pole_solution(
@@ -34,29 +34,10 @@ def plot_cart_pole_solution(
     return fig, axs
 
 
-def test_solution(
-    mpc: CartPoleMPC = CartPoleMPC(
-        learnable_params=[
-            "M",
-            "m",
-            "g",
-            "l",
-            "L11",
-            "L22",
-            "L33",
-            "L44",
-            "L55",
-            "Lloweroffdiag",
-            "c1",
-            "c2",
-            "c3",
-            "c4",
-            "c5",
-        ],
-        exact_hess_dyn=False,
-    ),
-):
-    ocp_solver = mpc.ocp_solver
+def test_solution():
+    controller = CartPoleController()
+
+    ocp_solver = controller.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
     ocp_solver.solve_for_x0(np.array([0.0, np.pi, 0.0, 0.0]))
 
     if ocp_solver.status != 0:
@@ -142,7 +123,8 @@ def test_closed_loop_rendering(
         frames = []
         cwd = os.getcwd()
         savefile_dir_path = os.path.join(cwd, "test_closed_loop_pendulum_on_cart")
-        create_dir_if_not_exists(savefile_dir_path)
+        if not os.path.exists(directory):
+            os.mkdir(directory)
         while count < 300 and not terminated and not truncated:
             a = pendulum_mpc.policy(obs, pendulum_mpc.default_p_global)[0]
             obs_prime, r, terminated, truncated, info = (
@@ -162,17 +144,3 @@ def test_closed_loop_rendering(
         )
 
         shutil.rmtree(savefile_dir_path)
-
-
-def main():
-    test_solution()
-    plt.show()
-
-
-if __name__ == "__main__":
-    main()
-
-
-def create_dir_if_not_exists(directory):
-    if not os.path.exists(directory):
-        os.mkdir(directory)

@@ -32,10 +32,10 @@ def run_sac(
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = 0
-    cfg.trainer.train_steps = 100000
+    cfg.trainer.train_steps = 1000000
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 10000
-    cfg.trainer.val_num_rollouts = 10
+    cfg.trainer.val_num_rollouts = 20
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 1
     cfg.trainer.val_render_mode = 'rgb_array'
@@ -47,8 +47,8 @@ def run_sac(
     cfg.trainer.gamma = 0.99
     cfg.trainer.tau = 0.005
     cfg.trainer.soft_update_freq = 1
-    cfg.trainer.lr_q = 0.0001
-    cfg.trainer.lr_pi = 0.0001
+    cfg.trainer.lr_q = 0.001
+    cfg.trainer.lr_pi = 0.001
     cfg.trainer.lr_alpha = 0.001
     cfg.trainer.init_alpha = 0.01
     cfg.trainer.target_entropy = None

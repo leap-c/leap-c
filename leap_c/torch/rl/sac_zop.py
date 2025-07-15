@@ -178,13 +178,10 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
                 action
             )
 
-            # print("action", action)
-
             if "episode" in info:
                 stats = info["episode"]
                 if "task" in info:
                     stats.update(info["task"])
-                print(info["episode"])
                 self.report_stats("train", info["episode"])
 
             self.buffer.put(
