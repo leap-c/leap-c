@@ -49,8 +49,8 @@ class PointMassController(ParameterizedController):
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         x = obs[:, :4]
-        # p_stagewise = self.param_manager.combine_parameter_values(batch_size=x.shape[0])
-        ctx, u0, x, u, value = self.diff_mpc(x, p_global=param, p_stagewise=None, ctx=ctx)
+        p_stagewise = self.param_manager.combine_parameter_values(batch_size=x.shape[0])
+        ctx, u0, x, u, value = self.diff_mpc(x, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:

@@ -123,8 +123,8 @@ def test_closed_loop_rendering(
         frames = []
         cwd = os.getcwd()
         savefile_dir_path = os.path.join(cwd, "test_closed_loop_pendulum_on_cart")
-        if not os.path.exists(directory):
-            os.mkdir(directory)
+        if not os.path.exists(savefile_dir_path):
+            os.mkdir(savefile_dir_path)
         while count < 300 and not terminated and not truncated:
             a = pendulum_mpc.policy(obs, pendulum_mpc.default_p_global)[0]
             obs_prime, r, terminated, truncated, info = (

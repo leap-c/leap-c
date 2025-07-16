@@ -2,7 +2,7 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Sequence
+from typing import Callable, Literal, Sequence
 
 import numpy as np
 from acados_template import AcadosOcp
@@ -57,7 +57,7 @@ class AcadosDiffMpcCtx:
 
 def collate_acados_diff_mpc_ctx(
     batch: Sequence[AcadosDiffMpcCtx],
-    collate_fn_map: dict[str, callable] | None = None,
+    collate_fn_map: dict[str, Callable] | None = None,
 ) -> AcadosDiffMpcCtx:
     """Collates a batch of AcadosDiffMpcCtx objects into a single object."""
     return AcadosDiffMpcCtx(

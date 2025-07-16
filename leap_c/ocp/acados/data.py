@@ -80,20 +80,20 @@ def collate_acados_ocp_solver_input(
     batch: Sequence[AcadosOcpSolverInput],
 ) -> AcadosOcpSolverInput:
     """Collates a batch of AcadosOcpSolverInput objects into a single object."""
+    def stack_safe(attr):
+        parts = [attr for attr in attr if attr is not None]
+
+        if all(part is None for part in parts):
+            return None
+
+        return np.stack(parts, axis=0)
+
     return AcadosOcpSolverInput(
         x0=np.stack([input.x0 for input in batch], axis=0),
-        u0=None if all(input.u0 is None for input in batch) else np.stack(
-            [input.u0 for input in batch if input.u0 is not None], axis=0
-        ),
-        p_global=None if all(input.p_global is None for input in batch) else np.stack(
-            [input.p_global for input in batch if input.p_global is not None], axis=0
-        ),
-        p_stagewise=None if all(input.p_stagewise is None for input in batch) else np.stack(
-            [input.p_stagewise for input in batch if input.p_stagewise is not None], axis=0
-        ),
-        p_stagewise_sparse_idx=None if all(input.p_stagewise_sparse_idx is None for input in batch) else np.stack(
-            [input.p_stagewise_sparse_idx for input in batch if input.p_stagewise_sparse_idx is not None], axis=0
-        ),
+        u0=stack_safe([input.u0 for input in batch]),
+        p_global=stack_safe([input.p_global for input in batch]),
+        p_stagewise=stack_safe([input.p_stagewise for input in batch]),
+        p_stagewise_sparse_idx=stack_safe([input.p_stagewise_sparse_idx for input in batch]),
     )
 
 

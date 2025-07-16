@@ -32,7 +32,7 @@ class Extractor(nn.Module, ABC):
 
 
 class ScalingExtractor(Extractor):
-    """An extractor that returns the input as is."""
+    """An extractor that returns the input normalized."""
 
     def __init__(self, observation_space: gym.Space) -> None:
         """Initializes the extractor.
@@ -46,7 +46,7 @@ class ScalingExtractor(Extractor):
             raise ValueError("ScalingExtractor only supports 1D observations.")
 
     def forward(self, x):
-        """Returns the input as is.
+        """Returns the input normalized.
 
         Args:
             x: The input tensor.

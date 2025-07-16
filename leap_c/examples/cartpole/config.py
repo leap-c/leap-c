@@ -14,8 +14,8 @@ class CartPoleParams:
     l: Parameter  # length of the rod [m]
 
     # Cost matrix factorization parameters
-    q_diag: Parameter
-    r_diag: Parameter
+    q_diag_sqrt: Parameter
+    r_diag_sqrt: Parameter
 
     # Reference parameters (for NONLINEAR_LS cost)
     xref0: Parameter  # reference position
@@ -34,11 +34,11 @@ def make_default_cartpole_params(stagewise: bool = False) -> CartPoleParams:
         g=Parameter("g", np.array([9.81])),
         l=Parameter("l", np.array([0.8])),
         # Cost matrix factorization parameters
-        q_diag=Parameter("q_diag", np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))),
-        r_diag=Parameter("r_diag", np.sqrt(np.array([2e-1]))),
+        q_diag_sqrt=Parameter("q_diag_sqrt", np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))),
+        r_diag_sqrt=Parameter("r_diag_sqrt", np.sqrt(np.array([2e-1]))),
         # Reference parameters (for NONLINEAR_LS cost)
         xref0=Parameter("xref0", np.array([0.0]), fix=False),
-        xref2=Parameter(
+        xref1=Parameter(
             "xref1",
             np.array([0.0]),
             lower_bound=np.array([-2.0 * np.pi]),
@@ -47,7 +47,7 @@ def make_default_cartpole_params(stagewise: bool = False) -> CartPoleParams:
             stagewise=stagewise,
             fix=False,
         ),
-        xref1=Parameter("xref2", np.array([0.0]), fix=False),
+        xref2=Parameter("xref2", np.array([0.0]), fix=False),
         xref3=Parameter("xref3", np.array([0.0]), fix=False),
         uref=Parameter("uref", np.array([0.0]), fix=False),
     )

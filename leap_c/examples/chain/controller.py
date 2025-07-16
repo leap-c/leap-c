@@ -14,13 +14,13 @@ import torch
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.chain.config import ChainParams, make_default_chain_params
-from leap_c.examples.chain.utils.dynamics import (
-    rk4_integrator_casadi,
-    get_f_expl_expr
-)
+from leap_c.examples.chain.utils.dynamics import rk4_integrator_casadi, get_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
-from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer, create_zero_iterate_from_ocp
+from leap_c.ocp.acados.initializer import (
+    AcadosDiffMpcInitializer,
+    create_zero_iterate_from_ocp,
+)
 from leap_c.ocp.acados.parameters import AcadosParamManager
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx, AcadosDiffMpcCtx
 from leap_c.ocp.acados.torch import AcadosDiffMpc
@@ -38,26 +38,27 @@ class ChainController(ParameterizedController):
         discount_factor: float = 1.0,
         n_mass: int = 5,
         pos_last_mass_ref: np.ndarray | None = None,
-        stagewise: bool = False
+        stagewise: bool = False,
     ):
         super().__init__()
-        params = make_default_chain_params(n_mass, stagewise) if params is None else params
+        params = (
+            make_default_chain_params(n_mass, stagewise) if params is None else params
+        )
 
         # find resting reference position
         if pos_last_mass_ref is None:
-            pos_last_mass_ref = params.fix_point.value + np.array([0.033 * (n_mass - 1), 0, 0])
+            pos_last_mass_ref = params.fix_point.value + np.array(
+                [0.033 * (n_mass - 1), 0, 0]
+            )
 
         resting_chain_solver = RestingChainSolver(
-            n_mass=n_mass, 
-            f_expl=get_f_expl_expr,
-            params=params
+            n_mass=n_mass, f_expl=get_f_expl_expr, params=params
         )
         x_ref, u_ref = resting_chain_solver(p_last=pos_last_mass_ref)
 
         self.param_manager = AcadosParamManager(
             params=asdict(params).values(), N_horizon=N_horizon  # type:ignore
         )
-
 
         self.ocp = export_parametric_ocp(
             param_manager=self.param_manager,
@@ -67,12 +68,7 @@ class ChainController(ParameterizedController):
             n_mass=n_mass,
         )
 
-        print("controller __init__:\n", x_ref, "\n", u_ref)
-
-        initializer = ChainInitializer(
-            self.ocp,
-            x_ref=x_ref
-        )
+        initializer = ChainInitializer(self.ocp, x_ref=x_ref)
         self.diff_mpc = AcadosDiffMpc(
             self.ocp,
             initializer=initializer,
@@ -80,8 +76,12 @@ class ChainController(ParameterizedController):
         )
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        p_stagewise = self.param_manager.combine_parameter_values(batch_size=obs.shape[0])
-        ctx, u0, x, u, value = self.diff_mpc(obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
+        p_stagewise = self.param_manager.combine_parameter_values(
+            batch_size=obs.shape[0]
+        )
+        ctx, u0, x, u, value = self.diff_mpc(
+            obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx
+        )
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
@@ -108,7 +108,6 @@ def export_parametric_ocp(
     ocp = AcadosOcp()
 
     ocp.solver_options.N_horizon = N_horizon
-    ocp.solver_options.Tsim = tf
     ocp.solver_options.tf = tf
 
     param_manager.assign_to_ocp(ocp)
@@ -128,21 +127,22 @@ def export_parametric_ocp(
 
     x = ocp.model.x
     u = ocp.model.u
-    dyn_param_dict = OrderedDict([
-        ("D", param_manager.get("D")),
-        ("L", param_manager.get("L")),
-        ("C", param_manager.get("C")),
-        ("m", param_manager.get("m")),
-        ("w", param_manager.get("w")),
-    ])
-
-    f_expl = get_f_expl_expr(
-        x=x,
-        u=u,
-        p=dyn_param_dict,
-        x0=param_manager.get("fix_point"),
+    dyn_param_dict = OrderedDict(
+        [
+            ("D", param_manager.get("D")),
+            ("L", param_manager.get("L")),
+            ("C", param_manager.get("C")),
+            ("m", param_manager.get("m")),
+            ("w", param_manager.get("w")),
+        ]
     )
-    ocp.model.disc_dyn_expr = rk4_integrator_casadi(f_expl, x.cat, u, ocp.model.p, tf / N_horizon)
+
+    p_cat_sym = ca.vertcat(
+        *[v for v in dyn_param_dict.values() if not isinstance(v, np.ndarray)]
+    )
+    ocp.model.disc_dyn_expr = rk4_integrator_casadi(
+        f_expl, x.cat, u, p_cat_sym, tf / N_horizon  # type:ignore
+    )
 
     ######## Cost ########
     q_sqrt_diag = param_manager.get("q_sqrt_diag")
@@ -152,8 +152,6 @@ def export_parametric_ocp(
     x_res = ocp.model.x.cat - x_ref
     u = ocp.model.u
 
-    ocp.cost.cost_type_0 = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost_0 = 0.5 * (x_res.T @ Q @ x_res + u.T @ R @ u)
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = 0.5 * (x_res.T @ Q @ x_res + u.T @ R @ u)
     ocp.cost.cost_type_e = "EXTERNAL"
@@ -175,7 +173,7 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver_ric_alg = 1
     ocp.solver_options.qp_tol = 1e-7
 
-    # flatten x 
+    # flatten x
     if isinstance(ocp.model.x, struct_symSX):
         ocp.model.x = ocp.model.x.cat
 
@@ -183,14 +181,10 @@ def export_parametric_ocp(
 
 
 class ChainInitializer(AcadosDiffMpcInitializer):
-    def __init__(
-        self,
-        ocp: AcadosOcp,
-        x_ref: np.ndarray
-    ):
-        iterate = create_zero_iterate_from_ocp(ocp)
-        iterate.x = x_ref
-        self.default_iterate = iterate.flatten()
+    def __init__(self, ocp: AcadosOcp, x_ref: np.ndarray):
+        iterate = create_zero_iterate_from_ocp(ocp).flatten()
+        iterate.x = np.tile(x_ref, ocp.solver_options.N_horizon + 1)
+        self.default_iterate = iterate
 
     def single_iterate(
         self, solver_input: AcadosOcpSolverInput

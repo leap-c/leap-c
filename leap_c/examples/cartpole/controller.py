@@ -16,38 +16,6 @@ from leap_c.ocp.acados.parameters import AcadosParamManager
 
 
 class CartPoleController(ParameterizedController):
-    """
-    Describes an inverted pendulum on a cart.
-    The (possibly learnable) parameters of the system are given by
-        ---------Dynamics---------
-        M: mass of the cart [kg]
-        m: mass of the ball [kg]
-        g: gravity constant [m/s^2]
-        l: length of the rod [m]
-
-        ---------Cost---------
-        The parameters of the quadratic cost matrix describe a cholesky factorization of the cost matrix.
-        In more detail, the cost matrix W is calculated like this:
-        L_diag = np.diag([L11, L22, L33, L44, L55]) # cost matrix factorization diagonal
-        L_diag[np.tril_indices_from(L_diag, -1)] = L_lower_offdiag
-        W = L@L.T
-
-        If the cost is a least squares cost (see docstring of __init__), the parameters
-        c1, c2, c3, c4, c5 are not used.
-        Instead, the parameters xref1, xref2, xref3, xref4, uref are used for the reference vector.
-        If the cost is not the least squares cost, the parameters
-        xref1, xref2, xref3, xref4, uref are not used.
-        Instead, the parameters c1, c2, c3, c4, c5 are used for the linear cost vector.
-
-        The possible costs are either a least squares cost or a general quadratic cost.
-        The least squares cost takes the form of:
-            z_ref = cat(xref, uref)
-            cost = 0.5 * (z - z_ref).T @ W @ (z - z_ref), where W is the quadratic cost matrix from above.
-        The general quadratic cost takes the form of:
-            z = cat(x, u)
-            cost = 0.5 * z.T @ W @ z + c.T @ z, where W is the quadratic cost matrix from above
-
-    """
 
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
@@ -66,16 +34,12 @@ class CartPoleController(ParameterizedController):
         Args:
             params: A dict with the parameters of the ocp, together with their default values.
                 For a description of the parameters, see the docstring of the class.
-            learnable_params: A list of the parameters that should be learnable
-                (necessary for calculating their gradients).
             N_horizon: The number of steps in the MPC horizon.
                 The MPC will have N+1 nodes (the nodes 0...N-1 and the terminal node N).
             T_horizon: The length (meaning time) of the MPC horizon.
                 One step in the horizon will equal T_horizon/N_horizon simulation time.
             Fmax: The maximum force that can be applied to the cart.
             discount_factor: The discount factor for the cost.
-            n_batch: The batch size the MPC should be able to process
-                (currently this is static).
             exact_hess_dyn: If False, the contributions of the dynamics will be left out of the Hessian.
             cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
             stagewise: If True, the parameters will be stagewise, meaning that they can change over the horizon.
@@ -174,8 +138,8 @@ def define_disc_dyn_expr(
 def define_cost_matrix(
     model: AcadosModel, param_manager: AcadosParamManager
 ) -> ca.SX | np.ndarray:
-    q_diag = param_manager.get("q_diag")
-    r_diag = param_manager.get("r_diag")
+    q_diag = param_manager.get("q_diag_sqrt")
+    r_diag = param_manager.get("r_diag_sqrt")
 
     if isinstance(q_diag, np.ndarray) and isinstance(r_diag, np.ndarray):
         W = np.diag(np.concatenate([q_diag, r_diag]))
@@ -190,7 +154,6 @@ def define_cost_matrix(
 
 
 def define_yref(param_manager: AcadosParamManager):
-    # xref0 = np.array([0.0])
     xref0 = param_manager.get("xref0")
     xref1 = param_manager.get("xref1")
     xref2 = param_manager.get("xref2")

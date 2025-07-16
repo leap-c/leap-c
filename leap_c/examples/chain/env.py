@@ -110,9 +110,6 @@ class ChainEnv(gym.Env):
             fix_point=self.fix_point,
         )
 
-
-        # TODO (Jasper): Add noise to transitions
-
         o = self.state.copy()
 
         # Calculate reward directly
