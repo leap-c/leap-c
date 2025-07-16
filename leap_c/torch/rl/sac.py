@@ -278,8 +278,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
     def act(
         self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, None, dict[str, float]]:
-        # TODO (Jasper): Update collate functionality
-        obs = torch.tensor([obs], device=self.device, dtype=torch.float32)
+        obs = self.buffer.collate([obs])
         with torch.no_grad():
             action, _, stats = self.pi(obs, deterministic=deterministic)
         return action.cpu().numpy()[0], None, stats
