@@ -52,7 +52,8 @@ def init_run(trainer: Trainer, cfg, output_path: str | Path):
 
 
 def create_parser() -> ArgumentParser:
-    """Create an argument parser for a script.
+    """Create an argument parser for a script, containing the common arguments --output_path,
+    --verbose, --device, and --seed.
 
     Returns:
         An ArgumentParser object.

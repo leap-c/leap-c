@@ -1,10 +1,9 @@
 """Main script to run experiments."""
-from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from leap_c.examples import create_env, create_controller
-from leap_c.run import default_output_path, init_run
+from leap_c.run import default_output_path, init_run, create_parser
 from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
 
 
@@ -94,10 +93,7 @@ def run_sac_fop(
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("--output_path", type=Path, default=None)
-    parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--seed", type=int, default=0)
+    parser = create_parser()
     parser.add_argument("--env", type=str, default="cartpole")
     parser.add_argument("--controller", type=str, default=None)
     args = parser.parse_args()
