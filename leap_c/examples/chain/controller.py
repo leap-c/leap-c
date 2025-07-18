@@ -140,6 +140,9 @@ def export_parametric_ocp(
     p_cat_sym = ca.vertcat(
         *[v for v in dyn_param_dict.values() if not isinstance(v, np.ndarray)]
     )
+    f_expl = get_f_expl_expr(
+        x=x, u=u, p=dyn_param_dict, x0=param_manager.get("fix_point") #type:ignore
+    )
     ocp.model.disc_dyn_expr = rk4_integrator_casadi(
         f_expl, x.cat, u, p_cat_sym, tf / N_horizon  # type:ignore
     )
