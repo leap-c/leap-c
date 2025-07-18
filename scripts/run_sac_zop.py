@@ -63,7 +63,7 @@ def run_sac_zop(
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = verbose
     cfg.trainer.log.interval = 1000
-    cfg.trainer.log.window = 5000
+    cfg.trainer.log.window = 10000
     cfg.trainer.log.csv_logger = True
     cfg.trainer.log.tensorboard_logger = True
     cfg.trainer.log.wandb_logger = False
