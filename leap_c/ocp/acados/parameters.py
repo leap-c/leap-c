@@ -66,15 +66,17 @@ class AcadosParamManager:
                 )
 
         # Check tha no parameter has None as lower_bound or upper_bound.
-        for key, value in self.parameters.items():
-            if value.lower_bound is None:
-                raise ValueError(
-                    f"Parameter '{key}' has no lower bound. This is not supported."
-                )
-            if value.upper_bound is None and value.lower_bound is not None:
-                raise ValueError(
-                    f"Parameter '{key}' has no upper bound. This is not supported."
-                )
+        # for key, value in self.parameters.items():
+        #     if value.fix:
+        #         continue
+        #     if value.lower_bound is None:
+        #         raise ValueError(
+        #             f"Parameter '{key}' has no lower bound. This is not supported."
+        #         )
+        #     if value.upper_bound is None:
+        #         raise ValueError(
+        #             f"Parameter '{key}' has no upper bound. This is not supported."
+        #         )
 
         self.N_horizon = N_horizon
 
