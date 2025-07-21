@@ -10,7 +10,7 @@ from acados_template import AcadosOcp
 
 from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 
 def test_initialization_with_stagewise_varying_params(
@@ -281,23 +281,23 @@ def test_closed_loop(
         assert np.median(x[-10:, 1]) <= tol, "Median of x[-10:, 1] exceeds threshold"
         assert np.median(u[-10:]) <= tol, "Median of u[-10:] exceeds threshold"
 
-        fig = plt.figure(figsize=(10, 5))
-        ax1 = fig.add_subplot(121)
-        ax1.plot(x[:, 0], label="x[0]")
-        ax1.plot(x[:, 1], label="x[1]")
-        ax1.set_title("State Trajectories")
-        ax1.set_xlabel("Time Step")
-        ax1.set_ylabel("Position")
-        ax1.legend()
-        ax2 = fig.add_subplot(122)
-        ax2.plot(u[:, 0], label="u[0]")
-        ax2.plot(u[:, 1], label="u[1]")
-        ax2.set_title("Control Inputs")
-        ax2.set_xlabel("Time Step")
-        ax2.set_ylabel("Control")
-        ax2.legend()
-        plt.tight_layout()
-    plt.show()
+    #     fig = plt.figure(figsize=(10, 5))
+    #     ax1 = fig.add_subplot(121)
+    #     ax1.plot(x[:, 0], label="x[0]")
+    #     ax1.plot(x[:, 1], label="x[1]")
+    #     ax1.set_title("State Trajectories")
+    #     ax1.set_xlabel("Time Step")
+    #     ax1.set_ylabel("Position")
+    #     ax1.legend()
+    #     ax2 = fig.add_subplot(122)
+    #     ax2.plot(u[:, 0], label="u[0]")
+    #     ax2.plot(u[:, 1], label="u[1]")
+    #     ax2.set_title("Control Inputs")
+    #     ax2.set_xlabel("Time Step")
+    #     ax2.set_ylabel("Control")
+    #     ax2.legend()
+    #     plt.tight_layout()
+    # plt.show()
 
 
 @dataclass

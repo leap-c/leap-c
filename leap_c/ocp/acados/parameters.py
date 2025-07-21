@@ -66,15 +66,17 @@ class AcadosParamManager:
                 )
 
         # Check tha no parameter has None as lower_bound or upper_bound.
-        for key, value in self.parameters.items():
-            if value.lower_bound is None:
-                raise ValueError(
-                    f"Parameter '{key}' has no lower bound. This is not supported."
-                )
-            if value.upper_bound is None and value.lower_bound is not None:
-                raise ValueError(
-                    f"Parameter '{key}' has no upper bound. This is not supported."
-                )
+        # for key, value in self.parameters.items():
+        #     if value.fix:
+        #         continue
+        #     if value.lower_bound is None:
+        #         raise ValueError(
+        #             f"Parameter '{key}' has no lower bound. This is not supported."
+        #         )
+        #     if value.upper_bound is None:
+        #         raise ValueError(
+        #             f"Parameter '{key}' has no upper bound. This is not supported."
+        #         )
 
         self.N_horizon = N_horizon
 
@@ -91,11 +93,15 @@ class AcadosParamManager:
         for key, value in self._get_nondifferentiable_stagewise_parameters().items():
             entries.append(entry(key, shape=value.shape, repeat=self.N_horizon + 1))
 
-        if (
-            self._get_differentiable_stagewise_parameters()
-            or self._get_nondifferentiable_stagewise_parameters()
-        ):
-            entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
+        # if (
+        #     self._get_differentiable_stagewise_parameters()
+        #     or self._get_nondifferentiable_stagewise_parameters()
+        # ):
+        #     entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
+        #    # Add indicator for stagewise parameters
+        # TODO (Jasper): Fix this, currently in the overwrite function we always try
+        #  to set the indicator, even if there are no stagewise parameters.
+        entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
 
         self.p = struct_symSX(entries)
 

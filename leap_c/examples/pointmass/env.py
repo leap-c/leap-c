@@ -11,7 +11,7 @@ from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.patches import FancyArrowPatch
 
-from leap_c.examples.plot_utils import latex_plot_context
+from leap_c.utils.latexify import latex_plot_context
 
 
 class Circle:
@@ -221,7 +221,6 @@ class PointMassEnv(gym.Env):
 
     def __init__(
         self,
-        train: bool = False,
         param: PointMassParam = PointMassParam(dt=0.1, m=1.0, cx=15, cy=15),
         Fmax: float = 10,
         max_time: float = 10.0,
@@ -244,7 +243,6 @@ class PointMassEnv(gym.Env):
         self.render_mode = render_mode
 
         # env logic
-        self.train = train
         self.max_time = max_time
         self.dt = param.dt
         self.Fmax = Fmax
@@ -308,7 +306,7 @@ class PointMassEnv(gym.Env):
     ) -> tuple[Any, dict]:
         super().reset(seed=seed)
         self.time = 0.0
-        self.state = self._init_state()
+        self.state = self._init_state(options=options)
         self.action = np.zeros(self.action_space.shape, dtype=np.float32)  # type: ignore
         self.trajectory = [self.state.copy()]
 
@@ -323,17 +321,17 @@ class PointMassEnv(gym.Env):
         wind_field = self.wind_field(self.state[:2]).astype(np.float32)  # type: ignore
         return np.concatenate([ode_state, wind_field])
 
-    def _init_state(self, num_tries: int = 100) -> np.ndarray:
+    def _init_state(self, num_tries: int = 100, options=None) -> np.ndarray:
         if num_tries <= 0:
             raise ValueError("Could not find a valid initial state.")
 
-        if not self.train:
+        if options is not None and "mode" in options and options["mode"] == "train":
+            low = np.array([0.1, 0.1, 0.0, 0.0])
+            high = np.array([3.9, 0.9, 0.0, 0.0])
+            state = self.np_random.uniform(low=low, high=high)
+        else:
             pos = self.start.sample(self.np_random)
             state = np.array([*pos, 0.0, 0.0])
-        else:
-            low = (np.array([0.1, 0.1, 0.0, 0.0]),)
-            high = np.array([3.9, 0.9, 0.0, 0.0])
-            state = self.np_random.uniform(low=low, high=high)[0]
 
         # check if the state is in the wind field
         if (self.wind_field(state[:2]) != 0).any():

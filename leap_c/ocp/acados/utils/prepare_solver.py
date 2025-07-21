@@ -51,6 +51,7 @@ def prepare_batch_solver(
     elif p_global is not None:
         # if p_global is provided, set it
         for param, solver in zip(p_global, active_solvers):
+            param = param.astype(np.float64)
             solver.set_p_global_and_precompute_dependencies(param)
 
     # set p_stagewise

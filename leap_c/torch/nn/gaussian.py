@@ -47,7 +47,7 @@ class BoundedTransform(nn.Module):
         x = torch.tanh(x)
         return x * self.scale[None, :] + self.loc[None, :]
 
-    def inverse(self, x: torch.Tensor, padding: float = 0.) -> tuple[torch.Tensor]:
+    def inverse(self, x: torch.Tensor, padding: float = 0.001) -> tuple[torch.Tensor]:
         """Applies the inverse squashing function to the input tensor.
 
         Args:
@@ -57,7 +57,8 @@ class BoundedTransform(nn.Module):
         Returns:
             The inverse squashed tensor, scaled and shifted to match the action space.
         """
-        x = (x - self.loc[None, :]) / (self.scale[None, :] + 2 * padding)
+        abs_padding = self.scale[None, :] * padding
+        x = (x - self.loc[None, :]) / (self.scale[None, :] + 2 * abs_padding)
         return torch.arctanh(x)
 
 

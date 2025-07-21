@@ -1,12 +1,20 @@
 import collections
 import random
-from typing import Any
+from typing import Any, Callable, Optional, Union
 
 import torch
 import torch.nn as nn
-from torch.utils.data._utils.collate import collate
+from torch.utils.data._utils.collate import collate, default_collate_fn_map
+from torch.utils._pytree import tree_map_only
 
-from leap_c.torch.utils.collate import create_collate_fn_map, pytree_tensor_to
+
+def pytree_tensor_to(pytree: Any, device: str, tensor_dtype: torch.dtype) -> Any:
+    """Convert tensors in the pytree to tensor_dtype and move them to device."""
+    return tree_map_only(
+        torch.Tensor,
+        lambda t: t.to(device=device, dtype=tensor_dtype),
+        pytree,
+    )
 
 
 class ReplayBuffer(nn.Module):
@@ -28,6 +36,7 @@ class ReplayBuffer(nn.Module):
         buffer_limit: int,
         device: str,
         tensor_dtype: torch.dtype = torch.float32,
+        collate_fn_map: Optional[dict[Union[tuple, tuple[type, ...]], Callable]] = None,
     ):
         """
         Initialize the replay buffer.
@@ -44,8 +53,10 @@ class ReplayBuffer(nn.Module):
         self.device = device
         self.tensor_dtype = tensor_dtype
 
-        # TODO (Jasper): This should be derived from task.
-        self.collate_fn_map = create_collate_fn_map()
+        if collate_fn_map is None:
+            self.collate_fn_map = default_collate_fn_map
+        else:
+            self.collate_fn_map = {**default_collate_fn_map, **collate_fn_map}
 
     def put(self, data: Any):
         """Put the data into the replay buffer. If the buffer is full, the oldest data is discarded.
@@ -67,8 +78,19 @@ class ReplayBuffer(nn.Module):
             n: The number of samples to draw.
         """
         mini_batch = random.sample(self.buffer, n)
+        return self.collate(mini_batch)
+
+    def collate(self, batch: Any) -> Any:
+        """Collate a batch of data according to the collate function map.
+
+        Args:
+            batch: The batch of data to collate.
+
+        Returns:
+            The collated batch.
+        """
         return pytree_tensor_to(
-            collate(mini_batch, collate_fn_map=self.collate_fn_map),
+            collate(batch, collate_fn_map=self.collate_fn_map),  # type: ignore
             device=self.device,
             tensor_dtype=self.tensor_dtype,
         )

@@ -2,15 +2,22 @@
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Callable, Literal, Sequence
 
 import numpy as np
 from acados_template import AcadosOcp
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 
 from leap_c.autograd.function import DiffFunction
-from leap_c.ocp.acados.data import AcadosOcpSolverInput
-from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer, ZeroDiffMpcInitializer
+from leap_c.ocp.acados.data import (
+    AcadosOcpSolverInput,
+    collate_acados_flattened_batch_iterate_fn,
+    collate_acados_ocp_solver_input,
+)
+from leap_c.ocp.acados.initializer import (
+    AcadosDiffMpcInitializer,
+    ZeroDiffMpcInitializer,
+)
 from leap_c.ocp.acados.utils.create_solver import create_forward_backward_batch_solvers
 from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
 from leap_c.ocp.acados.utils.solve import solve_with_retry
@@ -29,9 +36,10 @@ class AcadosDiffMpcCtx:
     for the backward pass and to calculate the sensitivities. It also contains
     fields for caching the sensitivity calculations.
     """
+
     iterate: AcadosOcpFlattenedBatchIterate
     status: np.ndarray
-    log: dict[str, float]
+    log: dict[str, float] | None
     solver_input: AcadosOcpSolverInput
 
     # backward pass
@@ -45,6 +53,23 @@ class AcadosDiffMpcCtx:
     dx_dp_global: np.ndarray | None = None
     du_dp_global: np.ndarray | None = None
     dvalue_dp_global: np.ndarray | None = None
+
+
+def collate_acados_diff_mpc_ctx(
+    batch: Sequence[AcadosDiffMpcCtx],
+    collate_fn_map: dict[str, Callable] | None = None,
+) -> AcadosDiffMpcCtx:
+    """Collates a batch of AcadosDiffMpcCtx objects into a single object."""
+    return AcadosDiffMpcCtx(
+        iterate=collate_acados_flattened_batch_iterate_fn(
+            [ctx.iterate for ctx in batch]
+        ),
+        log=None,
+        status=np.array([ctx.status for ctx in batch]),
+        solver_input=collate_acados_ocp_solver_input(
+            [ctx.solver_input for ctx in batch]
+        ),
+    )
 
 
 AcadosDiffMpcSensitivityOptions = Literal[
@@ -241,7 +266,9 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         return grad_x0, grad_u0, grad_p_global, None, None
 
-    def sensitivity(self, ctx: AcadosDiffMpcCtx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
+    def sensitivity(
+        self, ctx: AcadosDiffMpcCtx, field_name: AcadosDiffMpcSensitivityOptions
+    ) -> np.ndarray:
         """
         Calculate a specific sensitivity field for a context.
 

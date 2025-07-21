@@ -1,17 +1,5 @@
-from abc import abstractmethod
-from typing import Callable
-
-import casadi as ca
-import matplotlib.pyplot as plt
 import numpy as np
-from acados_template import latexify_plot
-from casadi import vertcat
-from casadi.tools import entry, struct_symSX
-from matplotlib import animation
-
-from matplotlib.gridspec import GridSpec
-
-latexify_plot()
+from matplotlib import pyplot as plt, animation
 
 
 def sample_from_ellipsoid_surface(w, Z):
@@ -373,7 +361,15 @@ def animate_chain_position(
 
         return lines
 
-    ani = animation.FuncAnimation(fig, animate, Nsim, interval=Ts * 1000, repeat_delay=500, blit=True, init_func=init)
+    ani = animation.FuncAnimation(
+        fig,
+        animate,
+        Nsim,
+        interval=Ts * 1000,
+        repeat_delay=500,
+        blit=True,
+        init_func=init,
+    )
     return ani
 
 
@@ -396,7 +392,9 @@ def animate_chain_position_3D(simX, xPosFirstMass, Ts=0.1):
     zlim = get_plot_lims(pos_z)
 
     fig = plt.figure()
-    plt.subplot(111, projection="3d", autoscale_on=False, xlim=xlim, ylim=ylim, zlim=zlim)
+    plt.subplot(
+        111, projection="3d", autoscale_on=False, xlim=xlim, ylim=ylim, zlim=zlim
+    )
     # ax = fig.add_subplot(111, projection="3d", autoscale_on=False, xlim=xlim, ylim=ylim, zlim=zlim)
     plt.xlabel("x")
     plt.ylabel("y")
@@ -430,148 +428,3 @@ def animate_chain_position_3D(simX, xPosFirstMass, Ts=0.1):
     )
     plt.show()
     return ani
-
-
-def define_param_struct(n_mass: int) -> struct_symSX:
-    return struct_symSX(
-        [
-            entry("m", shape=(1,), repeat=n_mass - 1),
-            entry("D", shape=(3,), repeat=n_mass - 1),
-            entry("L", shape=(3,), repeat=n_mass - 1),
-            entry("C", shape=(3,), repeat=n_mass - 1),
-            entry("w", shape=(3,), repeat=n_mass - 2),
-            entry("fix_point", shape=(3,)),
-            entry("p_last", shape=(3,)),
-        ]
-    )
-
-
-def nominal_params_to_structured_nominal_params(nominal_params: dict[str, np.ndarray]) -> dict:
-    n_mass = nominal_params["m"].shape[0] + 1
-    structured_nominal_params = {}
-    for key in ["D", "L", "C"]:
-        structured_nominal_params[key] = [nominal_params[key][3 * i : 3 * (i + 1)] for i in range(n_mass - 1)]
-
-    for key in ["m"]:
-        structured_nominal_params[key] = [nominal_params[key][i] for i in range(n_mass - 1)]
-
-    for key in ["w"]:
-        structured_nominal_params[key] = [nominal_params[key][3 * i : 3 * (i + 1)] for i in range(n_mass - 2)]
-
-    return structured_nominal_params
-
-
-def _define_nlp_solver(n_mass: int, f_expl: Callable) -> Callable:
-    x = struct_symSX(
-        [
-            entry("pos", shape=(3, 1), repeat=n_mass - 1),
-            entry("vel", shape=(3, 1), repeat=n_mass - 2),
-        ]
-    )
-
-    xdot = ca.SX.sym("xdot", x.cat.shape)
-
-    u = ca.SX.sym("u", 3, 1)
-
-    p = define_param_struct(n_mass=n_mass)
-    # decision variables
-    w = vertcat(*[x.cat, xdot, u])
-
-    g = vertcat(
-        *[
-            xdot - f_expl(x=x, u=u, p={key: vertcat(*p[key]) for key in ["m", "D", "L", "C", "w"]}, x0=p["fix_point"]),
-            x["pos", -1] - p["p_last"],
-            u,
-        ]
-    )
-
-    nlp = {"x": w, "f": 0, "g": g, "p": p.cat}
-
-    return ca.nlpsol("solver", "ipopt", nlp), x(0), p(0)
-
-
-class RestingChainSolver:
-    def __init__(self, n_mass: int, fix_point: np.ndarray, f_expl: Callable):
-        self.n_mass = n_mass
-        self.f_expl = f_expl
-        self.nlp_solver, x0, p0 = _define_nlp_solver(n_mass=n_mass, f_expl=f_expl)
-
-        p0["fix_point"] = fix_point  # Anchor point of the chain. See f_expl for more details.
-        for i_mass in range(n_mass - 1):
-            p0["m", i_mass] = 0.033
-            p0["D", i_mass] = np.array([1.0, 1.0, 1.0])
-            p0["C", i_mass] = np.array([0.1, 0.1, 0.1])
-            p0["L", i_mass] = np.array([0.033, 0.033, 0.033])
-
-        for i_pos in range(len(x0["pos"])):
-            x0["pos", i_pos] = x0["pos", 0] + p0["L", i_pos] * (i_pos + 1)
-
-        p0["p_last"] = p0["fix_point"] + np.array([1.0, 0.0, 0.0])
-
-        self.x0 = x0
-        self.p0 = p0
-
-    def set(self, field: str, value: np.ndarray) -> None:
-        self.p0[field] = value
-
-    def set_mass_param(self, i: int, field: str, value: np.ndarray) -> None:
-        self.p0[field, i] = value
-
-    def __call__(self, p_last: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
-        self.p0["p_last"] = p_last
-
-        self.w0 = np.concatenate([self.x0.cat.full().flatten(), 0 * self.x0.cat.full().flatten(), np.zeros(3)])
-        sol = self.nlp_solver(x0=self.w0, lbg=0, ubg=0, p=self.p0.cat)
-
-        nx = self.x0.cat.shape[0]
-
-        x_ss = sol["x"].full()[:nx].flatten()
-        u_ss = sol["x"].full()[-3:].flatten()
-
-        return x_ss, u_ss
-
-
-class Ellipsoid:
-    """docstring for Ellipsoid."""
-
-    def __init__(self, center: np.ndarray, radii: np.ndarray, seed: int = 0):
-        self.center = center
-        self.radii = radii
-
-        self.surface = self.spherical_to_cartesian(phi=np.linspace(0, 2 * np.pi, 100), theta=np.linspace(0, np.pi, 100))
-        self.seed = seed
-        self.rng = np.random.default_rng(seed)
-
-    def plot_surface(self) -> plt.Figure:
-        fig = plt.figure(figsize=plt.figaspect(1))
-        ax = fig.add_subplot(111, projection="3d")
-        ax.plot_wireframe(*self.surface.transpose(2, 0, 1), rstride=4, cstride=4, color="b", alpha=0.75)
-        ax.set_xlabel("x")
-        ax.set_ylabel("y")
-        ax.set_zlabel("z")
-        ax.set_title("Ellipsoid")
-        return fig
-
-    def plot_points(self, points: np.ndarray) -> plt.Figure:
-        fig = self.plot_surface()
-        ax = fig.get_axes()[0]
-        ax.plot(points[..., 0], points[..., 1], points[..., 2], "o", color="r")
-        return fig
-
-    def spherical_to_cartesian(self, phi: np.ndarray | float, theta: np.ndarray | float) -> np.ndarray:
-        x = self.radii[0] * np.outer(np.cos(phi), np.sin(theta)) + self.center[0]
-        y = self.radii[1] * np.outer(np.sin(phi), np.sin(theta)) + self.center[1]
-        z = self.radii[2] * np.outer(np.ones_like(phi), np.cos(theta)) + self.center[2]
-
-        out = np.stack((x, y, z), axis=-1)
-
-        if type(phi) is float:
-            return out.squeeze()
-
-        return out
-
-    def sample_within_range(self, phi_range: list[float, float], theta_range: list[float, float], size: int) -> np.ndarray:
-        phi = self.rng.uniform(low=phi_range[0], high=phi_range[1], size=size)
-        theta = self.rng.uniform(low=theta_range[0], high=theta_range[1], size=size)
-
-        return self.spherical_to_cartesian(phi, theta)

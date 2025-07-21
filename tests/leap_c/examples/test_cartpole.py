@@ -5,10 +5,17 @@ from typing import Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 import pytest
+import torch
 from acados_template import AcadosOcpSolver
 from gymnasium.utils.save_video import save_video
+
+from leap_c.examples.cartpole.controller import CartPoleController
 from leap_c.examples.cartpole.env import CartPoleEnv
-from leap_c.examples.cartpole.mpc import CartPoleMPC
+
+
+@pytest.fixture(scope="module", params=["EXTERNAL", "NONLINEAR_LS"])
+def cartpole_controller(request):
+    return CartPoleController(cost_type=request.param)
 
 
 def plot_cart_pole_solution(
@@ -34,29 +41,8 @@ def plot_cart_pole_solution(
     return fig, axs
 
 
-def test_solution(
-    mpc: CartPoleMPC = CartPoleMPC(
-        learnable_params=[
-            "M",
-            "m",
-            "g",
-            "l",
-            "L11",
-            "L22",
-            "L33",
-            "L44",
-            "L55",
-            "Lloweroffdiag",
-            "c1",
-            "c2",
-            "c3",
-            "c4",
-            "c5",
-        ],
-        exact_hess_dyn=False,
-    ),
-):
-    ocp_solver = mpc.ocp_solver
+def test_solution(cartpole_controller: CartPoleController):
+    ocp_solver = cartpole_controller.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
     ocp_solver.solve_for_x0(np.array([0.0, np.pi, 0.0, 0.0]))
 
     if ocp_solver.status != 0:
@@ -65,7 +51,7 @@ def test_solution(
     fig, axs = plot_cart_pole_solution(ocp_solver)
 
 
-def test_env_terminates(pendulum_on_cart_ocp_swingup_env: CartPoleEnv):
+def test_env_terminates():
     """Test if the environment terminates correctly when applying minimum and maximum control inputs.
 
     This test ensures that the environment terminates properly when applying either minimum or maximum control
@@ -73,7 +59,7 @@ def test_env_terminates(pendulum_on_cart_ocp_swingup_env: CartPoleEnv):
     rather than a truncation.
     """
 
-    env = pendulum_on_cart_ocp_swingup_env
+    env = CartPoleEnv()
 
     for action in [env.action_space.low, env.action_space.high]:  # type:ignore
         env.reset(seed=0)
@@ -84,12 +70,12 @@ def test_env_terminates(pendulum_on_cart_ocp_swingup_env: CartPoleEnv):
         assert term
         assert not trunc
         assert (
-            state[0] < -pendulum_on_cart_ocp_swingup_env.x_threshold
-            or state[0] > pendulum_on_cart_ocp_swingup_env.x_threshold
+            state[0] < -env.x_threshold
+            or state[0] > env.x_threshold
         )
 
 
-def test_env_truncates(pendulum_on_cart_ocp_swingup_env: CartPoleEnv):
+def test_env_truncates():
     """Test if the environment truncates correctly when applying minimum and maximum control inputs.
 
     This test ensures that the environment truncates properly when doing nothing (i.e. it cannot come from termination).
@@ -97,7 +83,7 @@ def test_env_truncates(pendulum_on_cart_ocp_swingup_env: CartPoleEnv):
     rather than a truncation.
     """
 
-    env = pendulum_on_cart_ocp_swingup_env
+    env = CartPoleEnv()
     env.reset(seed=0)
 
     action = np.array([0])
@@ -109,12 +95,12 @@ def test_env_truncates(pendulum_on_cart_ocp_swingup_env: CartPoleEnv):
     assert trunc
 
 
-def test_env_types(pendulum_on_cart_ocp_swingup_env: CartPoleEnv):
+def test_env_types():
     """Test whether the type of the state is and stays np.float32
     for an action from the action space (note that the action space has type np.float32).
     """
 
-    env = pendulum_on_cart_ocp_swingup_env
+    env = CartPoleEnv()
 
     x, _ = env.reset(seed=0)
     assert x.dtype == np.float32
@@ -124,55 +110,44 @@ def test_env_types(pendulum_on_cart_ocp_swingup_env: CartPoleEnv):
 
 
 def test_closed_loop_rendering(
-    learnable_pendulum_on_cart_mpc: CartPoleMPC,
-    learnable_pendulum_on_cart_mpc_ext_cost: CartPoleMPC,
-    learnable_pendulum_on_cart_mpc_only_cost_params: CartPoleMPC,
-    pendulum_on_cart_ocp_swingup_env: CartPoleEnv,
+    cartpole_controller: CartPoleController,
 ):
-    for pendulum_mpc in [
-        learnable_pendulum_on_cart_mpc,
-        learnable_pendulum_on_cart_mpc_ext_cost,
-        learnable_pendulum_on_cart_mpc_only_cost_params,
-    ]:
-        obs, _ = pendulum_on_cart_ocp_swingup_env.reset(seed=1337)
+    env = CartPoleEnv()
 
-        count = 0
-        terminated = False
-        truncated = False
-        frames = []
-        cwd = os.getcwd()
-        savefile_dir_path = os.path.join(cwd, "test_closed_loop_pendulum_on_cart")
-        create_dir_if_not_exists(savefile_dir_path)
-        while count < 300 and not terminated and not truncated:
-            a = pendulum_mpc.policy(obs, pendulum_mpc.default_p_global)[0]
-            obs_prime, r, terminated, truncated, info = (
-                pendulum_on_cart_ocp_swingup_env.step(a)
-            )
-            frames.append(pendulum_on_cart_ocp_swingup_env.render())
-            obs = obs_prime
-            count += 1
-        assert (
-            count <= 200
-        ), "max_time and dt dictate that no more than 200 steps should be possible until termination."
-        save_video(
-            frames,  # type:ignore
-            video_folder=savefile_dir_path,
-            name_prefix="pendulum_on_cart",
-            fps=pendulum_on_cart_ocp_swingup_env.metadata["render_fps"],
+    obs, _ = env.reset(seed=1337)
+
+    count = 0
+    terminated = False
+    truncated = False
+    frames = []
+    cwd = os.getcwd()
+    savefile_dir_path = os.path.join(cwd, "test_closed_loop_pendulum_on_cart")
+
+    default_param = cartpole_controller.default_param
+    default_param = torch.as_tensor(default_param, dtype=torch.float32).unsqueeze(0)
+
+    ctx = None
+
+    if not os.path.exists(savefile_dir_path):
+        os.mkdir(savefile_dir_path)
+    while count < 300 and not terminated and not truncated:
+        obs = torch.as_tensor(obs, dtype=torch.float32).unsqueeze(0)
+        ctx, a = cartpole_controller(obs, default_param, ctx=ctx)
+        a = a.squeeze(0).numpy()
+        obs_prime, r, terminated, truncated, info = (
+            env.step(a)
         )
+        frames.append(env.render())
+        obs = obs_prime
+        count += 1
+    assert (
+        count <= 200
+    ), "max_time and dt dictate that no more than 200 steps should be possible until termination."
+    save_video(
+        frames,  # type:ignore
+        video_folder=savefile_dir_path,
+        name_prefix="pendulum_on_cart",
+        fps=env.metadata["render_fps"],
+    )
 
-        shutil.rmtree(savefile_dir_path)
-
-
-def main():
-    test_solution()
-    plt.show()
-
-
-if __name__ == "__main__":
-    pytest.main([__file__])
-
-
-def create_dir_if_not_exists(directory):
-    if not os.path.exists(directory):
-        os.mkdir(directory)
+    shutil.rmtree(savefile_dir_path)

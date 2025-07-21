@@ -5,6 +5,7 @@ from gymnasium import spaces
 from gymnasium.envs.classic_control import utils as gym_utils
 from typing import Optional
 
+
 class CartPoleEnv(gym.Env):
     """
     An environment of a pendulum on a cart meant for swinging
@@ -109,8 +110,8 @@ class CartPoleEnv(gym.Env):
             [
                 self.x_threshold * 2,
                 2 * np.pi,
-                np.finfo(np.float32).max,
-                np.finfo(np.float32).max,
+                10,
+                10,
             ],
             dtype=np.float32,
         )
