@@ -3,8 +3,6 @@ from .cartpole.env import CartPoleEnv
 from .cartpole.controller import CartPoleController
 from .chain.env import ChainEnv
 from .chain.controller import ChainController
-from .mujoco.reacher.env import ReacherEnv
-from .mujoco.reacher.controller import ReacherController
 from .pointmass.env import PointMassEnv
 from .pointmass.controller import PointMassController
 
@@ -12,7 +10,6 @@ from .pointmass.controller import PointMassController
 ENV_REGISTRY = {
     "cartpole": CartPoleEnv,
     "chain": ChainEnv,
-    "reacher": ReacherEnv,
     "pointmass": PointMassEnv,
 }
 
@@ -22,7 +19,6 @@ CONTROLLER_REGISTRY = {
     "cartpole_stagewise": partial(CartPoleController, stagewise=True),
     "chain": ChainController,
     "chain_stagewise": partial(ChainController, stagewise=True),
-    "reacher": ReacherController,
     "pointmass": PointMassController,
     "pointmass_stagewise": partial(PointMassController, stagewise=True),
 }
