@@ -95,10 +95,10 @@ def collate_acados_ocp_solver_input(
 
     return AcadosOcpSolverInput(
         x0=np.stack([input.x0 for input in batch], axis=0),
-        u0=_stack_safe("u0"),
-        p_global=_stack_safe("p_global"),
-        p_stagewise=_stack_safe("p_stagewise"),
-        p_stagewise_sparse_idx=_stack_safe("p_stagewise_sparse_idx"),
+        u0=_stack_safe("u0", batch),
+        p_global=_stack_safe("p_global", batch),
+        p_stagewise=_stack_safe("p_stagewise", batch),
+        p_stagewise_sparse_idx=_stack_safe("p_stagewise_sparse_idx", batch),
     )
 
 
