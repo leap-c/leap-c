@@ -331,13 +331,19 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
             path: The folder where to save the checkpoint.
         """
 
+        def save_element(name: str, elem: Any, path: Path, singleton: bool = False):
+            """Saves an element to the checkpoint path."""
+            if isinstance(elem, nn.Module):
+                state_dict = elem.state_dict()
+                torch.save(state_dict, self._ckpt_path(name, "ckpt", path, singleton))
+            else:
+                torch.save(elem, self._ckpt_path(name, "ckpt", path, singleton))
+
         # split the state_dict into seperate parts
         for name in self.periodic_ckpt_modules():
-            state_dict = getattr(self, name).state_dict()
-            torch.save(state_dict, self._ckpt_path(name, "ckpt", path))
+            save_element(name, getattr(self, name), self.output_path)
         for name in self.singleton_ckpt_modules():
-            state_dict = getattr(self, name).state_dict()
-            torch.save(state_dict, self._ckpt_path(name, "ckpt", path, singleton=True))
+            save_element(name, getattr(self, name), self.output_path, singleton=True)
 
         torch.save(self.state, self._ckpt_path("trainer_state", "ckpt", path))
 
@@ -356,16 +362,21 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         """
         basedir = Path(path)
 
+        def load_element(name: str, path: Path, singleton: bool = False):
+            """Loads an element from the checkpoint path."""
+            if isinstance(getattr(self, name), nn.Module):
+                state_dict = torch.load(self._ckpt_path(name, "ckpt", path, singleton), weights_only=False)
+                getattr(self, name).load_state_dict(state_dict)
+            else:
+                elem = torch.load(self._ckpt_path(name, "ckpt", path, singleton), weights_only=False)
+                setattr(self, name, elem)
+
         # load
         for name in self.periodic_ckpt_modules():
-            state_dict = torch.load(self._ckpt_path(name, "ckpt", basedir))
-            getattr(self, name).load_state_dict(state_dict)
+            load_element(name, basedir)
 
         for name in self.singleton_ckpt_modules():
-            state_dict = torch.load(
-                self._ckpt_path(name, "ckpt", basedir), weights_only=False
-            )
-            getattr(self, name).load_state_dict(state_dict)
+            load_element(name, basedir, singleton=True)
 
         self.state = torch.load(
             self._ckpt_path("trainer_state", "ckpt", basedir), weights_only=False

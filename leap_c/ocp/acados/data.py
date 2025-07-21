@@ -48,6 +48,7 @@ class AcadosOcpSolverInput(NamedTuple):
 
 def collate_acados_flattened_iterate_fn(
     batch: Sequence[AcadosOcpFlattenedIterate],
+    collate_fn_map: dict = None,
 ) -> AcadosOcpFlattenedBatchIterate:
     return AcadosOcpFlattenedBatchIterate(
         x=np.stack([x.x for x in batch], axis=0),
@@ -63,6 +64,7 @@ def collate_acados_flattened_iterate_fn(
 
 def collate_acados_flattened_batch_iterate_fn(
     batch: Sequence[AcadosOcpFlattenedBatchIterate],
+    collate_fn_map: dict = None,
 ) -> AcadosOcpFlattenedBatchIterate:
     return AcadosOcpFlattenedBatchIterate(
         x=np.concat([x.x for x in batch], axis=0),
@@ -78,10 +80,11 @@ def collate_acados_flattened_batch_iterate_fn(
 
 def collate_acados_ocp_solver_input(
     batch: Sequence[AcadosOcpSolverInput],
+    collate_fn_map: dict = None,
 ) -> AcadosOcpSolverInput:
     """Collates a batch of AcadosOcpSolverInput objects into a single object."""
     def stack_safe(attr):
-        parts = [attr for attr in attr if attr is not None]
+        parts = [getattr(part, attr) for part in batch]
 
         if all(part is None for part in parts):
             return None
@@ -90,10 +93,10 @@ def collate_acados_ocp_solver_input(
 
     return AcadosOcpSolverInput(
         x0=np.stack([input.x0 for input in batch], axis=0),
-        u0=stack_safe([input.u0 for input in batch]),
-        p_global=stack_safe([input.p_global for input in batch]),
-        p_stagewise=stack_safe([input.p_stagewise for input in batch]),
-        p_stagewise_sparse_idx=stack_safe([input.p_stagewise_sparse_idx for input in batch]),
+        u0=stack_safe("u0"),
+        p_global=stack_safe("p_global"),
+        p_stagewise=stack_safe("p_stagewise"),
+        p_stagewise_sparse_idx=stack_safe("p_stagewise_sparse_idx"),
     )
 
 

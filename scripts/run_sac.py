@@ -50,7 +50,7 @@ def run_sac(
     cfg.trainer.lr_q = 0.001
     cfg.trainer.lr_pi = 0.001
     cfg.trainer.lr_alpha = 0.001
-    cfg.trainer.init_alpha = 0.01
+    cfg.trainer.init_alpha = 0.02
     cfg.trainer.target_entropy = None
     cfg.trainer.entropy_reward_bonus = True
     cfg.trainer.num_critics = 2

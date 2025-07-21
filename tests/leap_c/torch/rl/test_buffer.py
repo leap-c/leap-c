@@ -7,8 +7,7 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
 )
-from leap_c.torch.utils.collate import safe_collate_possible_nones
-from leap_c.ocp.acados.mpc import MpcParameter
+from leap_c.ocp.acados.data import AcadosOcpSolverInput, collate_acados_ocp_solver_input, collate_acados_flattened_iterate_fn
 from leap_c.torch.rl.buffer import ReplayBuffer
 
 
@@ -17,16 +16,23 @@ class ForNesting(NamedTuple):
     b: Any
 
 
+
 def test_sample_collation_and_dtype_and_device():
     # NOTE: Only tests moving to devices if cuda is available, i.e., github probably won't test it
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float32
-    buffer = ReplayBuffer(buffer_limit=10, device=device, tensor_dtype=dtype)
+    collate_fn_map = {
+        AcadosOcpSolverInput: collate_acados_ocp_solver_input,
+        AcadosOcpFlattenedIterate: collate_acados_flattened_iterate_fn
+    }
+
+    buffer = ReplayBuffer(buffer_limit=10, device=device, tensor_dtype=dtype, collate_fn_map=collate_fn_map)
     data_one = (
         1,
         np.array([2], dtype=np.float64),
         torch.tensor([3], device="cpu", dtype=torch.float64),
-        MpcParameter(
+        AcadosOcpSolverInput(
+            x0=np.array([[1, 2, 3]], dtype=np.float32),
             p_global=np.array([1, 2, 3], dtype=np.float32),
             p_stagewise=np.ones((2, 2), dtype=np.float32),
             p_stagewise_sparse_idx=None,
@@ -46,7 +52,8 @@ def test_sample_collation_and_dtype_and_device():
         1,
         np.array([2], dtype=np.float64),
         torch.tensor([3], device="cpu", dtype=torch.float64),
-        MpcParameter(
+        AcadosOcpSolverInput(
+            x0=np.array([[1, 2, 3]], dtype=np.float32),
             p_global=np.array([1, 2, 3], dtype=np.float32),
             p_stagewise=np.ones((2, 2), dtype=np.float32),
             p_stagewise_sparse_idx=None,
@@ -75,7 +82,8 @@ def test_sample_collation_and_dtype_and_device():
         batch[2], torch.tensor([[3], [3]], device=device, dtype=dtype)
     )
 
-    test_param = MpcParameter(
+    test_param = AcadosOcpSolverInput(
+        x0=np.array([[1, 2, 3], [1, 2, 3]], dtype=np.float32),
         p_global=np.array([[1, 2, 3], [1, 2, 3]], dtype=np.float32),
         p_stagewise=np.ones((2, 2, 2), dtype=np.float32),
         p_stagewise_sparse_idx=None,
@@ -109,9 +117,14 @@ def test_sample_collation_and_dtype_and_device():
 def test_sample_order_consistency():
     # NOTE: It should be enough to test preservation of order here for the types
     # for which we have custom rules
-    buffer = ReplayBuffer(buffer_limit=10, device="cpu", tensor_dtype=torch.float32)
+    collate_fn_map = {
+        AcadosOcpSolverInput: collate_acados_ocp_solver_input,
+        AcadosOcpFlattenedIterate: collate_acados_flattened_iterate_fn
+    }
+    buffer = ReplayBuffer(buffer_limit=10, device="cpu", tensor_dtype=torch.float32, collate_fn_map=collate_fn_map)
     data_one = (
-        MpcParameter(
+        AcadosOcpSolverInput(
+            x0=np.array([[1, 2, 3]], dtype=np.float32),
             p_global=np.array([1, 1, 1]),
             p_stagewise=np.ones((2, 2)),
             p_stagewise_sparse_idx=np.ones((2, 2)),
@@ -127,7 +140,8 @@ def test_sample_order_consistency():
         ),
     )
     data_two = (
-        MpcParameter(
+        AcadosOcpSolverInput(
+            x0=np.array([[1, 2, 3]], dtype=np.float32),
             p_global=np.array([0, 0, 0]),
             p_stagewise=np.zeros((2, 2)),
             p_stagewise_sparse_idx=np.zeros((2, 2)),
@@ -177,28 +191,6 @@ def test_sample_order_consistency():
     sample_is_consistent(1)
     assert not np.array_equal(batch[0].p_global[0], batch[0].p_global[1])
 
-
-def test_safe_collate_possible_nones():
-    data = [
-        np.array([1, 2, 3], dtype=np.float64),
-        None,
-        np.array([4, 5, 6], dtype=np.float64),
-    ]
-    try:
-        safe_collate_possible_nones(data)
-        assert False
-    except ValueError:
-        pass
-    data = [
-        np.array([1, 2, 3], dtype=np.float64),
-        np.array([4, 5, 6], dtype=np.float64),
-    ]
-    assert np.array_equal(
-        safe_collate_possible_nones(data),  # type:ignore
-        np.array([[1, 2, 3], [4, 5, 6]], dtype=np.float64),
-    )
-    data = [None, None, None]
-    assert safe_collate_possible_nones(data) is None
 
 
 def test_length():

@@ -288,7 +288,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
         return [self.q_optim, self.pi_optim, self.alpha_optim]
 
     def periodic_ckpt_modules(self) -> list[str]:
-        return ["q", "pi", "q_target"]
+        return ["q", "pi", "q_target", "log_alpha"]
 
     def singleton_ckpt_modules(self) -> list[str]:
         return ["buffer"]

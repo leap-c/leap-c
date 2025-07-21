@@ -131,17 +131,12 @@ class FoaActor(nn.Module):
         param = self.parameter_transform(mean)
 
         ctx, action_mpc = self.controller(obs, param, ctx=ctx)
-        action_unbounded = self.action_transform.inverse(
-            action_mpc.detach(), padding=0.1
-        )
+        action_unbounded = self.action_transform.inverse(action_mpc)
         action_squashed, log_prob, gaussian_stats = self.squashed_gaussian(
             action_unbounded, log_std, deterministic=deterministic
         )
-        action = action_mpc + (action_squashed - action_mpc.detach())
-        # check if nan
-
         return SacFopActorOutput(
-            param, log_prob, {**gaussian_stats, **ctx.log}, action, ctx.status, ctx
+            param, log_prob, {**gaussian_stats, **ctx.log}, action_squashed, ctx.status, ctx
         )
 
 
@@ -383,7 +378,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         return [self.q_optim, self.pi_optim, self.alpha_optim]
 
     def periodic_ckpt_modules(self) -> list[str]:
-        return ["q", "pi", "q_target"]
+        return ["q", "pi", "q_target", "log_alpha"]
 
     def singleton_ckpt_modules(self) -> list[str]:
         return ["buffer"]

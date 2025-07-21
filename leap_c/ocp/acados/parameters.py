@@ -93,11 +93,15 @@ class AcadosParamManager:
         for key, value in self._get_nondifferentiable_stagewise_parameters().items():
             entries.append(entry(key, shape=value.shape, repeat=self.N_horizon + 1))
 
-        if (
-            self._get_differentiable_stagewise_parameters()
-            or self._get_nondifferentiable_stagewise_parameters()
-        ):
-            entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
+        # if (
+        #     self._get_differentiable_stagewise_parameters()
+        #     or self._get_nondifferentiable_stagewise_parameters()
+        # ):
+        #     entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
+        #    # Add indicator for stagewise parameters
+        # TODO (Jasper): Fix this, currently in the overwrite function we always try
+        #  to set the indicator, even if there are no stagewise parameters.
+        entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
 
         self.p = struct_symSX(entries)
 

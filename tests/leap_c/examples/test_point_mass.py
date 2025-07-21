@@ -1,66 +1,59 @@
 import numpy as np
+import torch
 
-import leap_c.torch.rl  # noqa: F401
+from leap_c.ocp.acados.parameters import Parameter
+from leap_c.examples.pointmass.controller import PointMassController
 from leap_c.examples.pointmass.env import PointMassEnv
-from leap_c.examples.pointmass.mpc import PointMassMpc
-
-MAX_FINAL_DIST = 1.0
-MAX_FINAL_VEL = 0.1
-
-
-def run_closed_loop(
-    mpc: PointMassMpc,
-    env: PointMassEnv,
-    n_iter: int = int(2e2),
-) -> tuple[np.ndarray, np.ndarray]:
-    """Run a closed-loop simulation of a point mass system using a given model predictive controller (MPC) and environment.
-
-    Args:
-        mpc (PointMassMPC): The model predictive controller to use for generating actions.
-        env (PointMassEnv): The environment representing the point mass system.
-        n_iter (int, optional): The number of iterations to run the simulation. Defaults to 200.
-
-    Returns:
-        Observations and actions
-
-    """
-    s, _ = env.reset()
-
-    observations = np.zeros((n_iter, 6))
-    observations[0, :] = s
-    actions = np.zeros((n_iter, 2))
-    for i in range(n_iter - 1):
-        state = observations[i, :4]
-        actions[i, :] = mpc.policy(state=state, p_global=None)[0]
-        observations[i + 1, :], *_ = env.step(actions[i, :])
-
-    return observations, actions
+from leap_c.examples.pointmass.config import make_default_pointmass_params
 
 
 def test_run_closed_loop(
-    learnable_point_mass_mpc_m: PointMassMpc,
-    point_mass_env: PointMassEnv,
-    n_iter: int = int(2e2),
+    n_iter: int = 200,
 ) -> None:
     """
-    Test the closed-loop performance of a learnable point mass MPC (Model Predictive Control) in a point mass environment.
+    Test the closed-loop performance of a learnable point mass MPC.
 
-    Args:
-        learnable_point_mass_mpc_m (PointMassMPC): The learnable point mass MPC to be tested.
-        point_mass_env (PointMassEnv): The point mass environment in which the MPC will be tested.
-        n_iter (int, optional): The number of iterations for the closed-loop simulation. Default is 200.
 
     Asserts:
-    - The final position of the point mass is close to the origin (within MAX_FINAL_DIST).
-    - The final velocity of the point mass is close to zero (within MAX_FINAL_VEL).
+    - The final position of the point mass is close to the origin.
+    - The final velocity of the point mass is close to zero.
 
     """
-    observations, _ = run_closed_loop(
-        mpc=learnable_point_mass_mpc_m, env=point_mass_env, n_iter=n_iter
-    )
+
+    env = PointMassEnv()
+    env.reset()
+
+    # overwrite initial state closely over the goal
+    goal_pos = env.goal.pos
+    goal_x_ref = np.array([goal_pos[0], goal_pos[1], 0.0, 0.0])
+    start_pos = goal_pos + np.array([0.0, 0.7])
+    env.state[:2] = start_pos
+
+    # replace the default reference with the goal position
+    param = make_default_pointmass_params()
+    old_xref_param = param.xref
+    kw = {**old_xref_param._asdict(), 'value': goal_x_ref}
+    param.xref = Parameter(**kw)
+    controller = PointMassController(params=param)
+
+    default_param = controller.default_param
+    default_param = torch.as_tensor(default_param, dtype=torch.float32).unsqueeze(0)
+    ctx = None
+
+    obs = env._observation()
+
+    for _ in range(n_iter - 1):
+        obs = torch.as_tensor(obs, dtype=torch.float32).unsqueeze(0)
+        ctx, a = controller(obs, default_param, ctx=ctx)
+        a = a.squeeze(0).numpy()
+        obs, r, terminated, truncated, info = env.step(a)
+
+        if terminated or truncated:
+            break
+
     assert (
-        np.linalg.norm(observations[-1, :2]) < MAX_FINAL_DIST
-    )  # Check that the final position is close to the origin
+        np.linalg.norm(obs[:2] - goal_pos) < 0.2
+    ), "Final position is not close to the goal"  # Check that the final position is close to the goal
     assert (
-        np.linalg.norm(observations[-1, 2:4]) < MAX_FINAL_VEL
+        np.linalg.norm(obs[2:4]) < 0.1 
     )  # Check that the final velocity is close to zero

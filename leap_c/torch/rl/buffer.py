@@ -56,7 +56,7 @@ class ReplayBuffer(nn.Module):
         if collate_fn_map is None:
             self.collate_fn_map = default_collate_fn_map
         else:
-            self.collate_fn_map = {**collate_fn_map, **default_collate_fn_map}
+            self.collate_fn_map = {**default_collate_fn_map, **collate_fn_map}
 
     def put(self, data: Any):
         """Put the data into the replay buffer. If the buffer is full, the oldest data is discarded.
