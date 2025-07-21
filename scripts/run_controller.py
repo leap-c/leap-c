@@ -25,8 +25,8 @@ class ControllerTrainerConfig(TrainerConfig):
 class RunControllerConfig:
     """Configuration for running controller experiments."""
     
-    env_name: str = "pointmass"
-    controller_name: str = "pointmass"
+    env_name: str = "cartpole"
+    controller_name: str = "cartpole"
     device: str = "cpu"
     trainer: ControllerTrainerConfig = field(default_factory=ControllerTrainerConfig)
 
@@ -126,7 +126,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_path", type=Path, default=None)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--env", type=str, default="pointmass")
+    parser.add_argument("--env", type=str, default="cartpole")
     parser.add_argument("--controller", type=str, default=None)
     args = parser.parse_args()
 

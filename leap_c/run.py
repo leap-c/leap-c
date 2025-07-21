@@ -50,18 +50,3 @@ def init_run(trainer: Trainer, cfg, output_path: str | Path):
     # store git hash and diff
     log_git_hash_and_diff(output_path / "git.txt") 
 
-
-def create_parser() -> ArgumentParser:
-    """Create an argument parser for a script, containing the common arguments --output_path,
-    --verbose, --device, and --seed.
-
-    Returns:
-        An ArgumentParser object.
-    """
-    parser = ArgumentParser()
-    parser.add_argument("--output_path", type=Path, default=None)
-    parser.add_argument("-v", "--verbose", action="store_true")
-    parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--seed", type=int, default=0)
-
-    return parser

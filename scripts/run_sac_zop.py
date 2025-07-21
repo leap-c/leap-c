@@ -1,15 +1,16 @@
 """Main script to run experiments."""
+from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from leap_c.examples import create_env, create_controller
-from leap_c.run import default_output_path, init_run, create_parser
+from leap_c.run import default_output_path, init_run
 from leap_c.torch.rl.sac import SacTrainerConfig
 from leap_c.torch.rl.sac_zop import SacZopTrainer
 
 
 @dataclass
-class RunSacFopConfig:
+class RunSacZopConfig:
     """Configuration for running SAC experiments."""
 
     env_name: str = "cartpole"
@@ -27,7 +28,7 @@ def run_sac_zop(
     verbose: bool = True,
 ) -> float:
     # ---- Configuration ----
-    cfg = RunSacFopConfig(env_name=env_name, device=device)
+    cfg = RunSacZopConfig(env_name=env_name, device=device)
     cfg.env_name = env_name
     cfg.trainer.seed = seed
     cfg.controller_name = controller_name
@@ -92,12 +93,17 @@ def run_sac_zop(
 
 
 if __name__ == "__main__":
-    parser = create_parser()
+    parser = ArgumentParser()
+    parser.add_argument("--output_path", type=Path, default=None)
+    parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
     parser.add_argument("--controller", type=str, default=None)
     args = parser.parse_args()
 
-    output_path = default_output_path(seed=args.seed, tags=["sac_zop", args.env, args.controller])
+    controller_name = args.controller if args.controller else "default"
+
+    output_path = default_output_path(seed=args.seed, tags=["sac_zop", args.env, controller_name])
 
     if args.controller is None:
         args.controller = args.env
