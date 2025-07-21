@@ -5,18 +5,18 @@ import numpy as np
 import torch
 from gymnasium import spaces
 from leap_c.examples.pointmass.env import PointMassEnv
-from leap_c.examples.pointmass.mpc import PointMassMPC
-from leap_c.mpc import MpcInput, MpcParameter
-from leap_c.nn.modules import MpcSolutionModule
-from leap_c.nn.extractor import ScalingExtractor
+from leap_c.examples.pointmass.mpc import PointMassMpc
+from leap_c.ocp.acados.mpc import MpcInput, MpcParameter
+from leap_c.ocp.acados.layer import MpcSolutionModule
+from leap_c.torch.nn.extractor import ScalingExtractor
 from leap_c.registry import register_task
 from leap_c.task import Task
 
 
-@register_task("point_mass")
-class PointMassTask(Task):
+@register_task("point_mass_easy")
+class PointMassEasyTask(Task):
     def __init__(self):
-        mpc = PointMassMPC(
+        mpc = PointMassMpc(
             learnable_params=[
                 # "m",
                 # "cx",
@@ -48,7 +48,9 @@ class PointMassTask(Task):
         return spaces.Box(low=self.param_low, high=self.param_high, dtype=np.float32)
 
     def create_env(self, train: bool) -> gym.Env:
-        return PointMassEnv(max_time=20.0, train=train, render_mode="rgb_array")
+        return PointMassEnv(
+            max_time=20.0, train=train, render_mode="rgb_array", difficulty="easy"
+        )
 
     def create_extractor(self, env):
         return ScalingExtractor(env)
@@ -63,3 +65,11 @@ class PointMassTask(Task):
         obs = obs[..., :4]
 
         return MpcInput(x0=obs, parameters=mpc_param)
+
+
+@register_task("point_mass_hard")
+class PointMassHardTask(PointMassEasyTask):
+    def create_env(self, train: bool) -> gym.Env:
+        return PointMassEnv(
+            max_time=20.0, train=train, render_mode="rgb_array", difficulty="hard"
+        )
