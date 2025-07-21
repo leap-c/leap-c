@@ -77,6 +77,7 @@ def collate_acados_flattened_batch_iterate_fn(
         N_batch=sum([x.N_batch for x in batch]),
     )
 
+
 def _stack_safe(attr, batch):
     parts = [getattr(part, attr) for part in batch]
 
