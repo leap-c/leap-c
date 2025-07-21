@@ -10,7 +10,7 @@ from acados_template import AcadosOcp
 
 from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
 
 def test_initialization_with_stagewise_varying_params(
