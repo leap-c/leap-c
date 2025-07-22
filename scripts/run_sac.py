@@ -95,6 +95,6 @@ if __name__ == "__main__":
     parser.add_argument("--env", type=str, default="cartpole")
     args = parser.parse_args()
 
-    output_path = default_output_path(seed=args.seed, tags={"trainer": "sac"})
+    output_path = default_output_path(seed=args.seed, tags=["sac", args.env])
 
     run_sac(output_path, seed=args.seed, env=args.env, device=args.device)

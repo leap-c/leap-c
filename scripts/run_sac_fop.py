@@ -19,24 +19,14 @@ class RunSacFopConfig:
 
 
 def run_sac_fop(
-    output_path: str | Path,
+    trainer_output_path: str | Path,
     env_name: str,
     controller_name: str,
     seed: int = 0,
     device: str = "cuda",
     verbose: bool = True,
-    reuse_code: bool = False,
+    reuse_code_dir: Path | None = None,
 ) -> float:
-    if output_path is None:
-        trainer_output_path = default_output_path(
-            seed=args.seed, tags=["sac_fop", args.env, controller_name]
-        )
-        reuse_code_base_dir = default_controller_code_path() if reuse_code else None
-    else:
-        assert not reuse_code, "Cannot reuse code when output_path is specified."
-        trainer_output_path = args.output_path
-        reuse_code_base_dir = None
-
     # ---- Configuration ----
     cfg = RunSacFopConfig(env_name=env_name, device=device)
     cfg.env_name = env_name
@@ -94,7 +84,7 @@ def run_sac_fop(
     trainer = SacFopTrainer(
         val_env=create_env(cfg.env_name, render_mode="rgb_array"),
         train_env=create_env(cfg.env_name),
-        controller=create_controller(cfg.controller_name, reuse_code_base_dir),
+        controller=create_controller(cfg.controller_name, reuse_code_dir),
         output_path=trainer_output_path,
         device=device,
         cfg=cfg.trainer,
@@ -122,12 +112,24 @@ if __name__ == "__main__":
     if args.controller is None:
         args.controller = args.env
 
+    if args.output_path is None:
+        trainer_output_path = default_output_path(
+            seed=args.seed, tags=["sac_fop", args.env, args.controller]
+        )
+        reuse_code_dir = (
+            default_controller_code_path() if args.reuse_code else None
+        )
+    else:
+        assert not args.reuse_code, "Cannot reuse code when output_path is specified."
+        trainer_output_path = args.output_path
+        reuse_code_dir = None
+
     run_sac_fop(
-        args.output_path,
+        trainer_output_path,
         env_name=args.env,
         controller_name=args.controller,
         seed=args.seed,
         device=args.device,
         verbose=True,
-        reuse_code=args.reuse_code,
+        reuse_code_dir=reuse_code_dir,
     )
