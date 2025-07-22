@@ -107,6 +107,7 @@ if __name__ == "__main__":
         action="store_true",
         help="Reuse compiled code. The first time this is run, it will compile the code.",
     )
+    parser.add_argument("--reuse_code_dir", type=Path, default=None)
     args = parser.parse_args()
 
     if args.controller is None:
@@ -114,14 +115,18 @@ if __name__ == "__main__":
 
     if args.output_path is None:
         trainer_output_path = default_output_path(
-            seed=args.seed, tags=["sac_zop", args.env, args.controller]
+            seed=args.seed, tags=["sac_fop", args.env, args.controller]
         )
+    else:
+        trainer_output_path = args.output_path
+
+    if args.reuse_code and args.reuse_code_dir is None:
         reuse_code_dir = (
             default_controller_code_path() if args.reuse_code else None
         )
+    elif args.reuse_code_dir is not None:
+        reuse_code_dir = args.reuse_code_dir
     else:
-        assert not args.reuse_code, "Cannot reuse code when output_path is specified."
-        trainer_output_path = args.output_path
         reuse_code_dir = None
 
     run_sac_zop(
