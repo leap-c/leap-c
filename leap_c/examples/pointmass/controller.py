@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any
 
 from acados_template import AcadosOcp
@@ -30,6 +31,7 @@ class PointMassController(ParameterizedController):
         N_horizon: int = 20,
         T_horizon: float = 2.0,
         stagewise: bool = False,
+        export_directory: Path | None = None,
     ):
         super().__init__()
         self.params = make_default_pointmass_params(stagewise) if params is None else params
@@ -45,7 +47,7 @@ class PointMassController(ParameterizedController):
             tf=T_horizon,
         )
 
-        self.diff_mpc = AcadosDiffMpc(self.ocp)
+        self.diff_mpc = AcadosDiffMpc(self.ocp, export_directory=export_directory)
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         x = obs[:, :4]

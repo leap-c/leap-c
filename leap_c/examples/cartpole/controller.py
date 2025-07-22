@@ -1,4 +1,5 @@
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, Literal
 
 import casadi as ca
@@ -29,6 +30,7 @@ class CartPoleController(ParameterizedController):
         exact_hess_dyn: bool = True,
         cost_type: Literal["EXTERNAL", "NONLINEAR_LS"] = "NONLINEAR_LS",
         stagewise: bool = False,
+        export_directory: Path | None = None,
     ):
         """
         Args:
@@ -44,6 +46,7 @@ class CartPoleController(ParameterizedController):
             cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
             stagewise: If True, the parameters will be stagewise, meaning that they can change over the horizon.
                 If False, the parameters will be global, meaning that they are the same for all steps in the horizon.
+            export_directory: Directory to export the generated code.
         """
         super().__init__()
         self.params = make_default_cartpole_params(stagewise=stagewise) if params is None else params
@@ -63,7 +66,7 @@ class CartPoleController(ParameterizedController):
             Fmax=Fmax,
         )
 
-        self.diff_mpc = AcadosDiffMpc(self.ocp, discount_factor=discount_factor)
+        self.diff_mpc = AcadosDiffMpc(self.ocp, discount_factor=discount_factor, export_directory=export_directory)
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         p_stagewise = self.param_manager.combine_parameter_values(batch_size=obs.shape[0])

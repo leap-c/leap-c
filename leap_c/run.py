@@ -19,6 +19,10 @@ def default_output_path(seed: int, tags: list[str] | None = None) -> Path:
     return Path(f"output/{date}/{time}{tag_str}_seed_{seed}")
 
 
+def default_controller_code_path():
+    return Path("output/controller_code")
+
+
 def init_run(trainer: Trainer, cfg, output_path: str | Path):
     """Init function to run experiments.
 

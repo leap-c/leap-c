@@ -1,5 +1,6 @@
 from copy import deepcopy
 from dataclasses import asdict
+from pathlib import Path
 from typing import Any, OrderedDict
 
 from acados_template import (
@@ -39,6 +40,7 @@ class ChainController(ParameterizedController):
         n_mass: int = 5,
         pos_last_mass_ref: np.ndarray | None = None,
         stagewise: bool = False,
+        export_directory: Path | None = None,
     ):
         super().__init__()
         params = (
@@ -73,6 +75,7 @@ class ChainController(ParameterizedController):
             self.ocp,
             initializer=initializer,
             discount_factor=discount_factor,
+            export_directory=export_directory,
         )
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:

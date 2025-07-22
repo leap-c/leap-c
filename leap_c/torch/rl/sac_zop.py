@@ -11,7 +11,7 @@ import torch
 import torch.nn as nn
 
 from leap_c.controller import ParameterizedController
-from leap_c.torch.nn.extractor import Extractor, IdentityExtractor, ScalingExtractor
+from leap_c.torch.nn.extractor import Extractor, IdentityExtractor
 from leap_c.torch.nn.gaussian import SquashedGaussian
 from leap_c.torch.nn.mlp import MLP, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
@@ -88,7 +88,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
         device: str,
         train_env: gym.Env,
         controller: ParameterizedController,
-        extractor_cls: Type[Extractor] = ScalingExtractor,
+        extractor_cls: Type[Extractor] = IdentityExtractor,
     ):
         """Initializes the SAC ZOP trainer.
 
