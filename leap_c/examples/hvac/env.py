@@ -3,17 +3,16 @@ from __future__ import annotations
 from pathlib import Path
 
 import gymnasium as gym
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy
-from config import (
+from .config import (
     BestestHydronicParameters,
     BestestParameters,
 )
 from gymnasium import spaces
 from scipy.constants import convert_temperature
-from util import merge_price_weather_data, transcribe_continuous_state_space
+from .util import merge_price_weather_data, transcribe_continuous_state_space
 
 from leap_c.examples.hvac.util import (
     load_price_data,
@@ -203,17 +202,17 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         price_forecast = (
             self.data["price"]
-            .iloc[self.idx : self.idx + self.N_forecast + 1]
+            .iloc[self.idx : self.idx + self.N_forecast]
             .to_numpy()
         )
 
         # TODO: Implement forecasts for weather that is not a perfect copy of the data
         ambient_temperature_forecast = (
-            self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast + 1].to_numpy()
+            self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
         )
         solar_forecast = (
             self.data["solar"]
-            .iloc[self.idx : self.idx + self.N_forecast + 1]
+            .iloc[self.idx : self.idx + self.N_forecast]
             .to_numpy()
         )
 
@@ -342,7 +341,7 @@ class StochasticThreeStateRcEnv(gym.Env):
 
 
     def step(
-        self, action: np.ndarray
+        self, action: np.ndarray,
     ) -> tuple[np.ndarray, None, None, None, dict, None]:
         """
         Perform a simulation step with exact discrete-time dynamics including noise.
@@ -390,12 +389,13 @@ class StochasticThreeStateRcEnv(gym.Env):
         terminated = self._is_terminated()
         truncated = None  # We do not truncate based on time steps
         info = {"time_forecast": time_forecast}
-        done = None
 
-        return obs, reward, terminated, truncated, info, done
+        return obs, reward, terminated, truncated, info
 
-    def reset(self, state_0: np.ndarray | None = None) -> tuple[np.ndarray, dict]:
+    def reset(self, state_0: np.ndarray | None = None, seed=None, options=None) -> tuple[np.ndarray, dict]:
         """Reset the model state to initial values."""
+        super().reset(seed=seed)
+
         if state_0 is None:
             state_0 = self.state_0
         self.state = state_0.copy()

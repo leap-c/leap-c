@@ -33,9 +33,10 @@ class HvacController(ParameterizedController):
         params: tuple[Parameter, ...] | None = None,
         N_horizon: int = 96,  # 24 hours in 15 minutes time steps
         diff_mpc_kwargs: dict[str, Any] | None = None,
+        export_directory: Path | None = None,
     ) -> None:
         super().__init__()
-        
+
         self.param_manager = AcadosParamManager(
             params=params or make_default_hvac_params(),
             N_horizon=N_horizon,
@@ -46,17 +47,30 @@ class HvacController(ParameterizedController):
             N_horizon=N_horizon,
         )
 
-        self.diff_mpc = AcadosDiffMpc(self.ocp, **diff_mpc_kwargs)
+        if diff_mpc_kwargs is None:
+            diff_mpc_kwargs = {}
+
+        self.diff_mpc = AcadosDiffMpc(
+            self.ocp, **diff_mpc_kwargs, export_directory=export_directory
+        )
 
     def forward(self, obs, param: Any = None, ctx=None) -> tuple[Any, torch.Tensor]:
+        batch_size = obs.shape[0]
 
-        qh = ctx.iterate.x[:, 2*self.ocp.dims.nx-2] if ctx else 0.0
-        dqh = ctx.iterate.x[:, 2*self.ocp.dims.nx-1] if ctx else 0.0
+        if ctx is None:
+            ctx = HvacControllerCtx(
+                diff_mpc_ctx=None,
+                qh=torch.zeros((batch_size, 1), dtype=torch.float64),
+                dqh=torch.zeros((batch_size, 1), dtype=torch.float64),
+            )
+        # qh = ctx.iterate.x[:, 2*self.ocp.dims.nx-2] if ctx else 0.0
+        # dqh = ctx.iterate.x[:, 2*self.ocp.dims.nx-1] if ctx else 0.0
 
         x0 = torch.cat(
             [
-                torch.as_tensor(obs[:, 2:5], dtype=torch.float64),
-                torch.as_tensor([[qh, dqh]], dtype=torch.float64),
+                obs[:, 2:5],
+                ctx.qh,
+                ctx.dqh,
             ],
             dim=1,
         )
