@@ -122,12 +122,12 @@ class HvacController(ParameterizedController):
             dqh=x[:, 2 * self.ocp.dims.nx - 1][None, :],
         )
 
-        # qh = x[:, 2*self.ocp.dims.nx-2]
+        qh = x[:, 2*self.ocp.dims.nx-2]
         # __import__('pdb').set_trace()
 
         # action = np.array(qh.detach().numpy(), dtype=np.float32).reshape(-1)
 
-        return ctx, u0
+        return ctx, qh
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
         return self.diff_mpc.sensitivity(ctx, field_name="du0_dp_global")
@@ -243,7 +243,7 @@ def export_parametric_ocp(
         ocp.model.x[0] - param_manager.get("lb_Ti"),
         param_manager.get("ub_Ti") - ocp.model.x[0],
     )
-    ocp.constraints.lh = np.array([0.0, 00])
+    ocp.constraints.lh = np.array([0.0, 0.0])
     ocp.constraints.uh = np.array([ACADOS_INFTY, ACADOS_INFTY])
 
     ocp.constraints.idxsh = np.array([0, 1])

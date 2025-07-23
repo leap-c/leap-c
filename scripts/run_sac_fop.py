@@ -10,28 +10,18 @@ from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
 
 @dataclass
 class RunSacFopConfig:
-    """Configuration for running SAC experiments."""
+    """Configuration for running SAC-FOP experiments."""
 
-    env_name: str = "cartpole"
-    controller_name: str = "cartpole"
-    device: str = "cuda"  # or 'cpu'
+    env: str = "cartpole"
+    controller: str = "cartpole"
     trainer: SacFopTrainerConfig = field(default_factory=SacFopTrainerConfig)
 
 
-def run_sac_fop(
-    trainer_output_path: str | Path,
-    env_name: str,
-    controller_name: str,
-    seed: int = 0,
-    device: str = "cuda",
-    verbose: bool = True,
-    reuse_code_dir: Path | None = None,
-) -> float:
+def create_cfg() -> RunSacFopConfig:
     # ---- Configuration ----
-    cfg = RunSacFopConfig(env_name=env_name, device=device)
-    cfg.env_name = env_name
-    cfg.trainer.seed = seed
-    cfg.controller_name = controller_name
+    cfg = RunSacFopConfig()
+    cfg.env = "cartpole"
+    cfg.controller = "cartpole"
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = 0
@@ -63,7 +53,7 @@ def run_sac_fop(
     cfg.trainer.entropy_correction = False
 
     # ---- Section: cfg.trainer.log ----
-    cfg.trainer.log.verbose = verbose
+    cfg.trainer.log.verbose = True
     cfg.trainer.log.interval = 1000
     cfg.trainer.log.window = 10000
     cfg.trainer.log.csv_logger = True
@@ -81,15 +71,24 @@ def run_sac_fop(
     cfg.trainer.actor_mlp.activation = "relu"
     cfg.trainer.actor_mlp.weight_init = "orthogonal"
 
+    return cfg
+
+
+def run_sac_fop(
+    cfg: RunSacFopConfig,
+    output_path: str | Path,
+    device: str = "cuda",
+    reuse_code_dir: Path | None = None,
+) -> float:
     trainer = SacFopTrainer(
-        val_env=create_env(cfg.env_name, render_mode="rgb_array"),
-        train_env=create_env(cfg.env_name),
-        controller=create_controller(cfg.controller_name, reuse_code_dir),
-        output_path=trainer_output_path,
+        val_env=create_env(cfg.env, render_mode="rgb_array"),
+        train_env=create_env(cfg.env),
+        controller=create_controller(cfg.controller, reuse_code_dir),
+        output_path=output_path,
         device=device,
         cfg=cfg.trainer,
     )
-    init_run(trainer, cfg, trainer_output_path)
+    init_run(trainer, cfg, output_path)
 
     return trainer.run()
 
@@ -110,15 +109,17 @@ if __name__ == "__main__":
     parser.add_argument("--reuse_code_dir", type=Path, default=None)
     args = parser.parse_args()
 
-    if args.controller is None:
-        args.controller = args.env
+    cfg = create_cfg()
+    cfg.controller = args.controller if args.controller else args.env
+    cfg.env = args.env
+    cfg.trainer.seed = args.seed
 
     if args.output_path is None:
-        trainer_output_path = default_output_path(
+        output_path = default_output_path(
             seed=args.seed, tags=["sac_fop", args.env, args.controller]
         )
     else:
-        trainer_output_path = args.output_path
+        output_path = args.output_path
 
     if args.reuse_code and args.reuse_code_dir is None:
         reuse_code_dir = (
@@ -130,11 +131,8 @@ if __name__ == "__main__":
         reuse_code_dir = None
 
     run_sac_fop(
-        trainer_output_path,
-        env_name=args.env,
-        controller_name=args.controller,
-        seed=args.seed,
+        cfg,
+        output_path=output_path,
         device=args.device,
-        verbose=True,
         reuse_code_dir=reuse_code_dir,
     )

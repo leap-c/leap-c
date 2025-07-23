@@ -1,4 +1,5 @@
 """Main script to run controller with default parameters."""
+
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -8,7 +9,7 @@ import gymnasium as gym
 
 from leap_c.examples import create_env, create_controller
 from leap_c.torch.rl.buffer import ReplayBuffer
-from leap_c.run import default_output_path, init_run
+from leap_c.run import default_controller_code_path, default_output_path, init_run
 from leap_c.trainer import Trainer, TrainerConfig
 from leap_c.controller import ParameterizedController
 
@@ -16,6 +17,7 @@ from leap_c.controller import ParameterizedController
 @dataclass
 class ControllerTrainerConfig(TrainerConfig):
     """Configuration for running controller without training."""
+
     # Override defaults to skip training
     train_steps: int = 1  # No training
     val_interval: int = 1  # Validate immediately
@@ -24,16 +26,15 @@ class ControllerTrainerConfig(TrainerConfig):
 @dataclass
 class RunControllerConfig:
     """Configuration for running controller experiments."""
-    
-    env_name: str = "cartpole"
-    controller_name: str = "cartpole"
-    device: str = "cpu"
+
+    env: str = "cartpole"
+    controller: str = "cartpole"
     trainer: ControllerTrainerConfig = field(default_factory=ControllerTrainerConfig)
 
 
 class ControllerTrainer(Trainer[ControllerTrainerConfig]):
     """A trainer that just runs the controller with default parameters."""
-    
+
     def __init__(
         self,
         cfg: ControllerTrainerConfig,
@@ -48,41 +49,36 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
 
         buffer = ReplayBuffer(1, device, collate_fn_map=controller.collate_fn_map)
         self.collate_fn = buffer.collate
-        
+
     def train_loop(self) -> Iterator[int]:
         """No training - just return immediately."""
-        yield 1
-        
+        step = 0
+        while True:
+            yield step
+            step += 1
+
     def act(
         self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
         """Use controller with default parameters."""
         obs_batched = self.collate_fn([obs])
         param_batched = self.collate_fn([self.default_param])
-        
+
         ctx, action = self.controller(obs_batched, param_batched, ctx=state)
 
         action = action.cpu().numpy()[0]
-        
+
         return action, ctx, {}
 
 
-def run_controller(
-    output_path: str | Path,
-    env_name: str,
-    controller_name: str,
-    seed: int = 0,
-    device: str = "cpu",
-    verbose: bool = True,
-) -> float:
-    # ---- Configuration ----
-    cfg = RunControllerConfig(env_name=env_name, device=device)
-    cfg.env_name = env_name
-    cfg.trainer.seed = seed
-    cfg.controller_name = controller_name
+def create_cfg() -> RunControllerConfig:
+    """Return the default configuration for running controller experiments."""
+    cfg = RunControllerConfig()
+    cfg.env = "cartpole"
+    cfg.controller = "cartpole"
 
     # ---- Section: cfg.trainer ----
-    cfg.trainer.seed = seed
+    cfg.trainer.seed = 0
     cfg.trainer.train_steps = 1  # No training
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 1  # Validate immediately
@@ -95,7 +91,7 @@ def run_controller(
     cfg.trainer.ckpt_modus = "none"  # No checkpoints needed
 
     # ---- Section: cfg.trainer.log ----
-    cfg.trainer.log.verbose = verbose
+    cfg.trainer.log.verbose = True
     cfg.trainer.log.interval = 1000
     cfg.trainer.log.window = 10000
     cfg.trainer.log.csv_logger = True
@@ -103,16 +99,26 @@ def run_controller(
     cfg.trainer.log.wandb_logger = False
     cfg.trainer.log.wandb_init_kwargs = {}
 
+    return cfg
+
+
+def run_controller(
+    cfg: RunControllerConfig,
+    output_path: str | Path,
+    device: str = "cpu",
+    reuse_code_dir: Path | None = None,
+) -> float:
+
     trainer = ControllerTrainer(
-        val_env=create_env(cfg.env_name, render_mode="rgb_array"),
-        controller=create_controller(cfg.controller_name),
+        val_env=create_env(cfg.env, render_mode="rgb_array"),
+        controller=create_controller(cfg.controller, reuse_code_base_dir=reuse_code_dir),
         output_path=output_path,
         device=device,
         cfg=cfg.trainer,
     )
     init_run(trainer, cfg, output_path)
 
-    print(f"Running controller '{controller_name}' on environment '{env_name}'")
+    print(f"Running controller '{cfg.controller}' on environment '{cfg.env}'")
     print(f"Default parameters: {trainer.default_param}")
 
     final_score = trainer.run()
@@ -128,12 +134,33 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
     parser.add_argument("--controller", type=str, default=None)
+    parser.add_argument(
+        "-r",
+        "--reuse_code",
+        action="store_true",
+        help="Reuse compiled code. The first time this is run, it will compile the code.",
+    )
+    parser.add_argument("--reuse_code_dir", type=Path, default=None)
     args = parser.parse_args()
 
-    output_path = default_output_path(seed=args.seed, tags=["controller", args.env, args.controller])
+    output_path = default_output_path(
+        seed=args.seed, tags=["controller", args.env, args.controller]
+    )
 
-    if args.controller is None:
-        args.controller = args.env
+    cfg = create_cfg()
+    cfg.trainer.seed = args.seed
+    cfg.env = args.env
+    cfg.controller = args.controller if args.controller else args.env
+
+    if args.reuse_code and args.reuse_code_dir is None:
+        reuse_code_dir = (
+            default_controller_code_path() if args.reuse_code else None
+        )
+    elif args.reuse_code_dir is not None:
+        reuse_code_dir = args.reuse_code_dir
+    else:
+        reuse_code_dir = None
+
 
     run_controller(
         output_path,
