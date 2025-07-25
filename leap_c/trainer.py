@@ -221,10 +221,10 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
                 if self.cfg.ckpt_modus in ["last", "all"]:
                     self.save()
 
+        self.logger.close()
+
         if self.cfg.val_report_score == "cum":
             return sum(self.state.scores)
-
-        self.logger.close()
 
         return self.state.max_score
 
