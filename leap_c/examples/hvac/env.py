@@ -318,9 +318,20 @@ class StochasticThreeStateRcEnv(gym.Env):
         comfort_reward = int(lb <= state[0] <= ub)
 
         # Reward for energy saving
-        energy_reward = 1.0 - np.clip(
-            a=action[0] / self.action_high[0], a_min=0.0, a_max=1.0
+        price_forecast = (
+            self.data["price"]
+            .iloc[self.idx]
+            .to_numpy()
         )
+        price = state[5+2*self.N_forecast]
+        assert np.all(price_forecast, price)
+        energy_consumption_normalized = np.clip(
+            a=np.abs(action[0]) / self.action_high[0], a_min=0.0, a_max=1.0
+        )
+
+        # Price range across all regions: 0.00000 to 0.87100
+        price_normalized = np.clip(price / 0.871)
+        energy_reward = 1.0 - (price_normalized * energy_consumption_normalized)
 
         reward = 0.5 * (comfort_reward + energy_reward)
 
