@@ -117,7 +117,7 @@ if __name__ == "__main__":
 
     if args.output_path is None:
         output_path = default_output_path(
-            seed=args.seed, tags=["sac_fop", args.env, args.controller]
+            seed=args.seed, tags=["sac_zop", args.env, args.controller]
         )
     else:
         output_path = args.output_path
