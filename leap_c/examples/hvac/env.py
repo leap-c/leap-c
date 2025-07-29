@@ -46,7 +46,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         step_size: float = 900.0,  # Default 15 minutes
         start_time: pd.Timestamp | None = None,
         horizon_hours: int = 36,
-        max_hours: int = 7 * 24,  # 30 days
+        max_hours: int = 3 * 24,  # 3 days
         render_mode: str | None = None,
         price_zone: str = "NO_1",
         price_data_path: Path | None = None,
@@ -320,20 +320,14 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         # Price range across all regions: 0.00000 to 0.87100
         price_normalized = price / 0.871
-        energy_reward = 10 * (0.1 - (price_normalized * energy_consumption_normalized))
+        energy_reward = - price_normalized * energy_consumption_normalized
 
         # scale energy_reward
-
-        # print(
-        #     "reward parts - ", f"comfort: {comfort_reward}", f"price: {energy_reward}"
-        # )
-
         reward = 0.5 * (comfort_reward + energy_reward)
 
         reward_info = {
-            "prize_normalized": price_normalized,
-            "energy_consumption_normalized": energy_consumption_normalized,
-            "combined_reward": reward,
+            "prize": price,
+            "energy": np.abs(action[0]),
             "comfort_reward": comfort_reward,
             "energy_reward": energy_reward,
             "sucess": comfort_reward,

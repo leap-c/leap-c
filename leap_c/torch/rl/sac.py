@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable, Iterator, Type
+from typing import Iterator, Type
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -8,7 +8,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.torch.nn.extractor import IdentityExtractor, Extractor
+from leap_c.torch.nn.extractor import ExtractorName, Extractor, get_extractor_cls
 from leap_c.torch.nn.gaussian import SquashedGaussian
 from leap_c.torch.nn.mlp import MLP, MlpConfig
 from leap_c.torch.nn.scale import min_max_scaling
@@ -130,7 +130,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         output_path: str | Path,
         device: str,
         train_env: gym.Env,
-        extractor_cls: Type[Extractor] = IdentityExtractor,
+        extractor_cls: Type[Extractor] | ExtractorName = "identity",
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -148,15 +148,18 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         action_space: spaces.Box = self.train_env.action_space  # type: ignore
         observation_space = self.train_env.observation_space
 
+        if isinstance(extractor_cls, str):
+            extractor_cls = get_extractor_cls(extractor_cls)
+
         self.q = SacCritic(
-            extractor_cls,
+            extractor_cls,  # type: ignore
             action_space,
             observation_space,
             cfg.critic_mlp,
             cfg.num_critics,
         )
         self.q_target = SacCritic(
-            extractor_cls,
+            extractor_cls,  # type: ignore
             action_space,
             observation_space,
             cfg.critic_mlp,
@@ -198,11 +201,10 @@ class SacTrainer(Trainer[SacTrainerConfig]):
                 action
             )
 
-            if "episode" in info:
-                stats = info["episode"]
-                if "task" in info:
-                    stats.update(info["task"])
-                self.report_stats("train", info["episode"])
+            if "episode" in info or "task" in info:
+                self.report_stats(
+                    "train", {**info.get("episode", {}), **info.get("task", {})}
+                )
 
             # TODO (Jasper): Add is_truncated to buffer.
             self.buffer.put((obs, action, reward, obs_prime, is_terminated))  # type: ignore

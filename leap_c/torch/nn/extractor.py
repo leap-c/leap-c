@@ -5,6 +5,7 @@ types of observations and using different neural network architectures.
 """
 
 from abc import ABC, abstractmethod
+from typing import Literal
 
 import gymnasium as gym
 import torch.nn as nn
@@ -23,7 +24,6 @@ class Extractor(nn.Module, ABC):
         """
         super().__init__()
         self.observation_space = observation_space
-
 
     @property
     @abstractmethod
@@ -92,3 +92,19 @@ class IdentityExtractor(Extractor):
     def output_size(self) -> int:
         """Returns the embedded vector size."""
         return self.observation_space.shape[0]  # type: ignore
+
+
+ExtractorName = Literal["identity", "scaling"]
+
+
+EXTRACTOR_REGISTRY = {
+    "identity": IdentityExtractor,
+    "scaling": ScalingExtractor,
+}
+
+
+def get_extractor_cls(name: ExtractorName):
+    try:
+        return EXTRACTOR_REGISTRY[name]
+    except KeyError:
+        raise ValueError(f"Unknown extractor type: {name}")

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from leap_c.run import init_run, default_output_path
 from leap_c.examples import create_env
+from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
 
 
@@ -15,6 +16,7 @@ class RunSacConfig:
 
     env: str = "cartpole"
     trainer: SacTrainerConfig = field(default_factory=SacTrainerConfig)
+    extractor: ExtractorName = "identity"  # for hvac use "scaling"
 
 
 def create_cfg() -> RunSacConfig:
@@ -22,6 +24,7 @@ def create_cfg() -> RunSacConfig:
     # ---- Configuration ----
     cfg = RunSacConfig()
     cfg.env = "cartpole"
+    cfg.extractor = "identity"  # for hvac use "scaling"
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = 0
@@ -30,7 +33,7 @@ def create_cfg() -> RunSacConfig:
     cfg.trainer.val_interval = 10000
     cfg.trainer.val_num_rollouts = 20
     cfg.trainer.val_deterministic = True
-    cfg.trainer.val_num_render_rollouts = 1
+    cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
     cfg.trainer.val_render_deterministic = True
     cfg.trainer.val_report_score = "cum"
@@ -51,7 +54,7 @@ def create_cfg() -> RunSacConfig:
     cfg.trainer.update_freq = 4
 
     # ---- Section: cfg.trainer.log ----
-    cfg.trainer.log.verbose = False
+    cfg.trainer.log.verbose = True
     cfg.trainer.log.interval = 1000
     cfg.trainer.log.window = 10000
     cfg.trainer.log.csv_logger = True
@@ -75,11 +78,12 @@ def create_cfg() -> RunSacConfig:
 def run_sac(cfg: RunSacConfig, output_path: str | Path, device: str = "cuda") -> float:
 
     trainer = SacTrainer(
+        cfg=cfg.trainer,
         val_env=create_env(cfg.env, render_mode="rgb_array"),
-        train_env=create_env(cfg.env),
         output_path=output_path,
         device=device,
-        cfg=cfg.trainer,
+        train_env=create_env(cfg.env),
+        extractor_cls=cfg.extractor,
     )
     init_run(trainer, cfg, output_path)
 

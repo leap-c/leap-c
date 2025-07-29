@@ -6,6 +6,7 @@ from pathlib import Path
 
 from leap_c.examples import create_controller, create_env
 from leap_c.run import default_controller_code_path, default_output_path, init_run
+from leap_c.torch.nn.extractor import ExtractorName, ScalingExtractor
 from leap_c.torch.rl.sac import SacTrainerConfig
 from leap_c.torch.rl.sac_zop import SacZopTrainer
 
@@ -17,6 +18,7 @@ class RunSacZopConfig:
     env: str = "cartpole"
     controller: str = "cartpole"
     trainer: SacTrainerConfig = field(default_factory=SacTrainerConfig)
+    extractor: ExtractorName = "identity"  # for hvac use "scaling"
 
 
 def create_cfg() -> RunSacZopConfig:
@@ -24,6 +26,7 @@ def create_cfg() -> RunSacZopConfig:
     cfg = RunSacZopConfig()
     cfg.env = "cartpole"
     cfg.controller = "cartpole"
+    cfg.extractor = "identity"  # for hvac use "scaling"
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = 0
@@ -32,7 +35,7 @@ def create_cfg() -> RunSacZopConfig:
     cfg.trainer.val_interval = 10000
     cfg.trainer.val_num_rollouts = 20
     cfg.trainer.val_deterministic = True
-    cfg.trainer.val_num_render_rollouts = 1
+    cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
     cfg.trainer.val_render_deterministic = True
     cfg.trainer.val_report_score = "cum"
@@ -82,12 +85,13 @@ def run_sac_zop(
 ) -> float:
 
     trainer = SacZopTrainer(
+        cfg=cfg.trainer,
         val_env=create_env(cfg.env, render_mode="rgb_array"),
-        train_env=create_env(cfg.env),
-        controller=create_controller(cfg.controller, reuse_code_dir),
         output_path=output_path,
         device=device,
-        cfg=cfg.trainer,
+        train_env=create_env(cfg.env),
+        controller=create_controller(cfg.controller, reuse_code_dir),
+        extractor_cls=cfg.extractor,
     )
     init_run(trainer, cfg, output_path)
 

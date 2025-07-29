@@ -5,6 +5,7 @@ from pathlib import Path
 
 from leap_c.examples import create_env, create_controller
 from leap_c.run import default_controller_code_path, default_output_path, init_run
+from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
 
 
@@ -12,25 +13,27 @@ from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
 class RunSacFopConfig:
     """Configuration for running SAC-FOP experiments."""
 
-    env: str = "hvac"
-    controller: str = "hvac"
+    env: str = "cartpole"
+    controller: str = "cartpole"
     trainer: SacFopTrainerConfig = field(default_factory=SacFopTrainerConfig)
+    extractor: ExtractorName = "identity"  # for hvac use "scaling"
 
 
 def create_cfg() -> RunSacFopConfig:
     # ---- Configuration ----
     cfg = RunSacFopConfig()
-    cfg.env = "hvac"
-    cfg.controller = "hvac"
+    cfg.env = "cartpole"
+    cfg.controller = "cartpole"
+    cfg.extractor = "identity"  # for hvac use "scaling"
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = 0
     cfg.trainer.train_steps = 1000000
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 10000
-    cfg.trainer.val_num_rollouts = 20
+    cfg.trainer.val_num_rollouts = 1
     cfg.trainer.val_deterministic = True
-    cfg.trainer.val_num_render_rollouts = 1
+    cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
     cfg.trainer.val_render_deterministic = True
     cfg.trainer.val_report_score = "cum"
@@ -80,6 +83,7 @@ def run_sac_fop(
     device: str = "cuda",
     reuse_code_dir: Path | None = None,
 ) -> float:
+
     trainer = SacFopTrainer(
         val_env=create_env(cfg.env, render_mode="rgb_array"),
         train_env=create_env(cfg.env),
@@ -87,6 +91,7 @@ def run_sac_fop(
         output_path=output_path,
         device=device,
         cfg=cfg.trainer,
+        extractor_cls=cfg.extractor,
     )
     init_run(trainer, cfg, output_path)
 

@@ -12,7 +12,7 @@ import torch
 import torch.nn as nn
 
 from leap_c.controller import ParameterizedController
-from leap_c.torch.nn.extractor import Extractor, IdentityExtractor, ScalingExtractor
+from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
 from leap_c.torch.nn.gaussian import SquashedGaussian, BoundedTransform
 from leap_c.torch.nn.mlp import MLP, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
@@ -149,7 +149,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         device: str,
         train_env: gym.Env,
         controller: ParameterizedController,
-        extractor_cls: Type[Extractor] = IdentityExtractor,
+        extractor_cls: Type[Extractor] | ExtractorName = "identity",
     ):
         """Initializes the SAC FOP trainer.
 
@@ -160,7 +160,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             device: The device on which the trainer is running
             train_env: The training environment.
             controller: The controller to use for the policy.
-            extractor_cls: The feature extractor class to use for the policy.
+            extractor_cls: The class used for extracting features from observations.
         """
         super().__init__(cfg, val_env, output_path, device)
 
@@ -172,15 +172,18 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         self.train_env = seed_env(wrap_env(train_env), seed=self.cfg.seed)
         self.controller = controller
 
+        if isinstance(extractor_cls, str):
+            extractor_cls = get_extractor_cls(extractor_cls)
+
         self.q = SacCritic(
-            extractor_cls,
+            extractor_cls,  # type: ignore
             train_env.action_space,
             observation_space,
             cfg.critic_mlp,
             cfg.num_critics,
         )
         self.q_target = SacCritic(
-            extractor_cls,
+            extractor_cls,  # type: ignore
             train_env.action_space,
             observation_space,
             cfg.critic_mlp,
@@ -191,7 +194,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
 
         if cfg.noise == "param":
             self.pi = FopActor(
-                extractor_cls(observation_space),
+                extractor_cls(observation_space),  # type: ignore
                 cfg.actor_mlp,
                 controller,
                 correction=cfg.entropy_correction,
@@ -199,7 +202,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         elif cfg.noise == "action":
             self.pi = FoaActor(
                 train_env,
-                extractor_cls(observation_space),
+                extractor_cls(observation_space),  # type: ignore
                 cfg.actor_mlp,
                 controller,
             )
@@ -252,11 +255,10 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 action
             )
 
-            if "episode" in info:
-                stats = info["episode"]
-                if "task" in info:
-                    stats.update(info["task"])
-                self.report_stats("train", info["episode"])
+            if "episode" in info or "task" in info:
+                self.report_stats(
+                    "train", {**info.get("episode", {}), **info.get("task", {})}
+                )
 
             self.buffer.put(
                 (
@@ -277,7 +279,6 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 and len(self.buffer) >= self.cfg.batch_size
                 and self.state.step % self.cfg.update_freq == 0
             ):
-                print(f"Training step {self.state.step}...")
                 # sample batch
                 o, a, r, o_prime, te, ps_sol = self.buffer.sample(self.cfg.batch_size)
 

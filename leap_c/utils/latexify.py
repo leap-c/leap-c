@@ -39,3 +39,24 @@ def latex_plot_context(**kw: Any) -> Iterator[None]:
 
     with plt.rc_context(base_config):
         yield
+
+
+def latex_plot_decorator(**kw: Any):
+    """
+    A decorator that applies LaTeX-style settings to Matplotlib plots within the decorated function.
+
+    Usage:
+        @latex_plot_decorator()
+        def plot():
+            # LaTeX-styled plot
+
+        @latex_plot_decorator(font_size=14)
+        def plot_custom():
+            # override some defaults
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            with latex_plot_context(**kw):
+                return func(*args, **kwargs)
+        return wrapper
+    return decorator
