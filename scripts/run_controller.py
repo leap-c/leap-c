@@ -163,9 +163,8 @@ if __name__ == "__main__":
 
 
     run_controller(
+        cfg,
         output_path,
-        env_name=args.env,
-        controller_name=args.controller,
-        seed=args.seed,
         device=args.device,
+        reuse_code_dir=args.reuse_code_dir,
     )

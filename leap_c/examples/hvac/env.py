@@ -38,13 +38,15 @@ class StochasticThreeStateRcEnv(gym.Env):
     deterministic dynamics and the stochastic noise terms.
     """
 
+    metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
+
     def __init__(
         self,
         params: None | BestestParameters = None,
         step_size: float = 900.0,  # Default 15 minutes
         start_time: pd.Timestamp | None = None,
         horizon_hours: int = 36,
-        max_hours: int = 30 * 24,  # 30 days
+        max_hours: int = 7 * 24,  # 30 days
         render_mode: str | None = None,
         price_zone: str = "NO_1",
         price_data_path: Path | None = None,
@@ -95,7 +97,7 @@ class StochasticThreeStateRcEnv(gym.Env):
             + [convert_temperature(40.0, "celsius", "kelvin")]
             * N_forecast  # Ambient temperatures
             + [MAGNITUDE_SOLAR_RADIATION] * N_forecast  # Solar radiation
-            + [np.inf] * N_forecast,  # Prices
+            + [1] * N_forecast,  # Prices
             dtype=np.float32,
         )
         self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
@@ -142,10 +144,8 @@ class StochasticThreeStateRcEnv(gym.Env):
             price_data=price_data, weather_data=weather_data, merge_type="inner"
         )
 
-
-
+        self.render_mode = render_mode
         self.data = data
-
 
         # Rename NO1 to price
         self.data.rename(
@@ -159,9 +159,10 @@ class StochasticThreeStateRcEnv(gym.Env):
         self.data["Ta"] = self.data["Ta"].astype(np.float32)
         self.data["solar"] = self.data["solar"].astype(np.float32)
         self.data["time"] = self.data.index.to_numpy(dtype="datetime64[m]")
-        self.data["quarter_hour"] = (self.data.index.hour * 4 + self.data.index.minute // 15) % (24 * 4)
+        self.data["quarter_hour"] = (
+            self.data.index.hour * 4 + self.data.index.minute // 15
+        ) % (24 * 4)
         self.data["day"] = self.data["time"].dt.dayofyear % 366
-
 
         self.start_time = start_time
 
@@ -201,9 +202,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         day_of_year = self.data["day"].iloc[self.idx]
 
         price_forecast = (
-            self.data["price"]
-            .iloc[self.idx : self.idx + self.N_forecast]
-            .to_numpy()
+            self.data["price"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
         )
 
         # TODO: Implement forecasts for weather that is not a perfect copy of the data
@@ -211,9 +210,7 @@ class StochasticThreeStateRcEnv(gym.Env):
             self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
         )
         solar_forecast = (
-            self.data["solar"]
-            .iloc[self.idx : self.idx + self.N_forecast]
-            .to_numpy()
+            self.data["solar"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
         )
 
         return np.concatenate(
@@ -301,7 +298,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         # The discrete-time covariance is Qd = Ad @ Phi
         return Ad @ Phi
 
-    def _reward_function(self, state: np.ndarray, action: np.ndarray) -> float:
+    def _reward_function(self, state: np.ndarray, action: np.ndarray):
         """
         Compute the reward based on the current state and action.
 
@@ -318,21 +315,31 @@ class StochasticThreeStateRcEnv(gym.Env):
         comfort_reward = int(lb <= state[0] <= ub)
 
         # Reward for energy saving
-        price = (
-            self.data["price"]
-            .iloc[self.idx]
-        )
-        energy_consumption_normalized = np.clip(
-            a=np.abs(action[0]) / self.action_high[0], a_min=0.0, a_max=1.0
-        )
+        price = self.data["price"].iloc[self.idx]
+        energy_consumption_normalized = np.abs(action[0]) / self.action_high[0]
 
         # Price range across all regions: 0.00000 to 0.87100
-        price_normalized = np.clip(price / 0.871)
-        energy_reward = 1.0 - (price_normalized * energy_consumption_normalized)
+        price_normalized = price / 0.871
+        energy_reward = 10 * (0.1 - (price_normalized * energy_consumption_normalized))
+
+        # scale energy_reward
+
+        # print(
+        #     "reward parts - ", f"comfort: {comfort_reward}", f"price: {energy_reward}"
+        # )
 
         reward = 0.5 * (comfort_reward + energy_reward)
 
-        return reward
+        reward_info = {
+            "prize_normalized": price_normalized,
+            "energy_consumption_normalized": energy_consumption_normalized,
+            "combined_reward": reward,
+            "comfort_reward": comfort_reward,
+            "energy_reward": energy_reward,
+            "sucess": comfort_reward,
+        }
+
+        return reward, reward_info
 
     def _is_terminated(self) -> bool:
         """
@@ -347,9 +354,9 @@ class StochasticThreeStateRcEnv(gym.Env):
         # return reached_max_time or reached_end_of_data
         return reached_end_of_data or reached_max_steps
 
-
     def step(
-        self, action: np.ndarray,
+        self,
+        action: np.ndarray,
     ) -> tuple[np.ndarray, None, None, None, dict, None]:
         """
         Perform a simulation step with exact discrete-time dynamics including noise.
@@ -393,14 +400,16 @@ class StochasticThreeStateRcEnv(gym.Env):
         )
 
         obs = self._get_observation()
-        reward = self._reward_function(state=self.state, action=action)
-        terminated = self._is_terminated()
-        truncated = None  # We do not truncate based on time steps
-        info = {"time_forecast": time_forecast}
+        reward, reward_info = self._reward_function(state=self.state, action=action)
+        truncated = self._is_terminated()
+        terminated = False  # We do not truncate based on time steps
+        info = {"time_forecast": time_forecast, "task": reward_info}
 
         return obs, reward, terminated, truncated, info
 
-    def reset(self, state_0: np.ndarray | None = None, seed=None, options=None) -> tuple[np.ndarray, dict]:
+    def reset(
+        self, state_0: np.ndarray | None = None, seed=None, options=None
+    ) -> tuple[np.ndarray, dict]:
         """Reset the model state to initial values."""
         super().reset(seed=seed)
 
@@ -412,10 +421,8 @@ class StochasticThreeStateRcEnv(gym.Env):
             self.idx = self.data.index.get_loc(self.start_time)
         else:
             min_start_idx = 0
-            max_start_idx = len(self.data) - self.N_forecast - self.max_steps +1
-            self.idx = np.random.randint(
-                low=min_start_idx, high=max_start_idx
-            )
+            max_start_idx = len(self.data) - self.N_forecast - self.max_steps + 1
+            self.idx = np.random.randint(low=min_start_idx, high=max_start_idx)
 
         self.step_cnter = 0
 
@@ -488,9 +495,9 @@ def decompose_observation(obs: np.ndarray) -> tuple:
             solar_forecast,
             price_forecast,
         ]:
-            assert forecast.shape[1] == N_forecast, (
-                f"Expected {N_forecast} forecasts, got {forecast.shape[1]}"
-            )
+            assert (
+                forecast.shape[1] == N_forecast
+            ), f"Expected {N_forecast} forecasts, got {forecast.shape[1]}"
 
         # Cast to appropriate types
         quarter_hour = quarter_hour.astype(np.int32)
@@ -520,10 +527,9 @@ def decompose_observation(obs: np.ndarray) -> tuple:
             solar_forecast,
             price_forecast,
         ]:
-            assert len(forecast) == N_forecast, (
-                f"Expected {N_forecast} forecasts, got {len(forecast)}"
-            )
-
+            assert (
+                len(forecast) == N_forecast
+            ), f"Expected {N_forecast} forecasts, got {len(forecast)}"
 
     return (
         quarter_hour,

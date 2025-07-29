@@ -166,7 +166,10 @@ class AcadosDiffMpcFunction(DiffFunction):
         sol_value = np.array([s.get_cost() for s in active_solvers])
         sol_u0 = sol_iterate.u[:, : self.ocp.dims.nu]
 
-        return ctx, sol_u0, sol_iterate.x, sol_iterate.u, sol_value
+        x = sol_iterate.x.reshape(batch_size, self.ocp.dims.N + 1, -1)  # type: ignore
+        u = sol_iterate.u.reshape(batch_size, self.ocp.dims.N, -1)  # type: ignore
+
+        return ctx, sol_u0, x, u, sol_value
 
     def backward(  # type: ignore
         self,
@@ -198,30 +201,41 @@ class AcadosDiffMpcFunction(DiffFunction):
             if np.all(x_seed == 0) and np.all(u_seed == 0):
                 return None
 
+            # TODO (Jasper): Filter out stages that are not needed.
+            print(x_seed[:, 1])
+
             x_seed_with_stage = (
                 [
-                    (stage_idx, x_seed)
-                    for stage_idx in range(self.ocp.dims.N + 1)  # type: ignore
+                    (stage_idx + 1, x_seed[:, stage_idx + 1][..., None])
+                    for stage_idx in range(0, 1)  # type: ignore
                 ]
                 if x_seed is not None
                 else []
             )
 
+            # TODO (Leonard): Check this
+            print(x_seed_with_stage)
+            __import__('pdb').set_trace()
+
             u_seed_with_stage = (
                 [
-                    (stage_idx, u_seed)
+                    (stage_idx, u_seed[:, stage_idx][..., None])
                     for stage_idx in range(self.ocp.dims.N)  # type: ignore
                 ]
                 if u_seed is not None
                 else []
             )
 
-            return self.backward_batch_solver.eval_adjoint_solution_sensitivity(
+            grad = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
                 seed_x=x_seed_with_stage,
                 seed_u=u_seed_with_stage,
                 with_respect_to=with_respect_to,
                 sanity_checks=True,
-            )
+            )[:, 0]
+
+            print(grad.min(), grad.max())
+
+            return grad
 
         def _jacobian(output_grad, field_name: AcadosDiffMpcSensitivityOptions):
             if output_grad is None or np.all(output_grad == 0):

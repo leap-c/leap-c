@@ -1,7 +1,7 @@
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, fields
 
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Sequence, Callable
 
 import pandas as pd
 import casadi as ca
@@ -19,17 +19,28 @@ from leap_c.controller import ParameterizedController
 from leap_c.examples.hvac.config import make_default_hvac_params
 from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
 from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
+from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
 
 from .util import set_temperature_limits
 
 
-@dataclass(kw_only=True)
-class HvacControllerCtx(AcadosDiffMpcCtx):
+class HvacControllerCtx(NamedTuple):
+    diff_mpc_ctx: AcadosDiffMpc
     qh: torch.Tensor
     dqh: torch.Tensor
 
+    @property
+    def status(self):
+        return self.diff_mpc_ctx.status
+
+    @property
+    def log(self):
+        return self.diff_mpc_ctx.log
+
 
 class HvacController(ParameterizedController):
+    collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
+
     def __init__(
         self,
         params: tuple[Parameter, ...] | None = None,
@@ -62,18 +73,28 @@ class HvacController(ParameterizedController):
         if ctx is None:
             qh = torch.zeros((batch_size, 1), dtype=torch.float64)
             dqh = torch.zeros((batch_size, 1), dtype=torch.float64)
+            diff_mpc_ctx = None
         else:
             qh = ctx.qh
             dqh = ctx.dqh
+            if qh.ndim == 1:
+                qh = qh.unsqueeze(0)
+            if dqh.ndim == 1:
+                dqh = dqh.unsqueeze(0)
 
-        x0 = torch.cat(
-            [
-                obs[:, 2:5],
-                qh,
-                dqh,
-            ],
-            dim=1,
-        )
+            diff_mpc_ctx = ctx.diff_mpc_ctx
+
+        try:
+            x0 = torch.cat(
+                [
+                    obs[:, 2:5],
+                    qh,
+                    dqh,
+                ],
+                dim=1,
+            )
+        except RuntimeError:
+            __import__('pdb').set_trace()
 
         N_horizon = self.ocp.solver_options.N_horizon
 
@@ -113,20 +134,17 @@ class HvacController(ParameterizedController):
             x0,
             p_global=param,
             p_stagewise=p_stagewise,
-            ctx=ctx,
+            ctx=diff_mpc_ctx,
         )
+
 
         ctx = HvacControllerCtx(
-            **asdict(diff_mpc_ctx),
-            qh=x[:, 2 * self.ocp.dims.nx - 2][None, :],
-            dqh=x[:, 2 * self.ocp.dims.nx - 1][None, :],
+            diff_mpc_ctx,
+            qh=x[:, 1, 3].detach(),
+            dqh=x[:, 1, 4].detach(),
         )
 
-        qh = x[:, 2*self.ocp.dims.nx-2][None, :]
-
-        # action = np.array(qh.detach().numpy(), dtype=np.float32).reshape(-1)
-
-        return ctx, qh
+        return ctx, x[:, 1, 3][:, None]
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
         return self.diff_mpc.sensitivity(ctx, field_name="du0_dp_global")
