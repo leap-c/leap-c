@@ -71,8 +71,8 @@ class HvacController(ParameterizedController):
         batch_size = obs.shape[0]
 
         if ctx is None:
-            qh = torch.zeros((batch_size, 1), dtype=torch.float64)
-            dqh = torch.zeros((batch_size, 1), dtype=torch.float64)
+            qh = torch.zeros((batch_size, 1), dtype=torch.float64, device=obs.device)
+            dqh = torch.zeros((batch_size, 1), dtype=torch.float64, device=obs.device)
             diff_mpc_ctx = None
         else:
             qh = ctx.qh
@@ -84,17 +84,14 @@ class HvacController(ParameterizedController):
 
             diff_mpc_ctx = ctx.diff_mpc_ctx
 
-        try:
-            x0 = torch.cat(
-                [
-                    obs[:, 2:5],
-                    qh,
-                    dqh,
-                ],
-                dim=1,
-            )
-        except RuntimeError:
-            __import__('pdb').set_trace()
+        x0 = torch.cat(
+            [
+                obs[:, 2:5],
+                qh,
+                dqh,
+            ],
+            dim=1,
+        )
 
         N_horizon = self.ocp.solver_options.N_horizon
 
@@ -118,7 +115,7 @@ class HvacController(ParameterizedController):
 
         quarter_hours = np.array(
             [
-                np.arange(obs[i, 0], obs[i, 0] + N_horizon + 1) % N_horizon
+                np.arange(obs[i, 0].cpu().numpy(), obs[i, 0].cpu().numpy() + N_horizon + 1) % N_horizon
                 for i in range(batch_size)
             ]
         )
@@ -143,7 +140,6 @@ class HvacController(ParameterizedController):
             qh=x[:, 1, 3].detach(),
             dqh=x[:, 1, 4].detach(),
         )
-
         return ctx, x[:, 1, 3][:, None]
 
     def jacobian_action_param(self, ctx) -> np.ndarray:

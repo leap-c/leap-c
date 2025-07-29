@@ -277,6 +277,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 and len(self.buffer) >= self.cfg.batch_size
                 and self.state.step % self.cfg.update_freq == 0
             ):
+                print(f"Training step {self.state.step}...")
                 # sample batch
                 o, a, r, o_prime, te, ps_sol = self.buffer.sample(self.cfg.batch_size)
 

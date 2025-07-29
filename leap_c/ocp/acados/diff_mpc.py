@@ -192,6 +192,10 @@ class AcadosDiffMpcFunction(DiffFunction):
         if ctx.needs_input_grad is None:
             return None, None, None, None, None
 
+        prepare_batch_solver_for_backward(
+            self.backward_batch_solver, ctx.iterate, ctx.solver_input
+        )
+
         def _adjoint(x_seed, u_seed, with_respect_to: str):
             # backpropagation via the adjoint operator
             if x_seed is None and u_seed is None:
@@ -204,19 +208,14 @@ class AcadosDiffMpcFunction(DiffFunction):
                 return None
 
             # TODO (Jasper): Filter out stages that are not needed.
-            print(x_seed[:, 1])
-
             x_seed_with_stage = (
                 [
-                    (stage_idx + 1, x_seed[:, stage_idx + 1][..., None])
-                    for stage_idx in range(0, 1)  # type: ignore
+                    (stage_idx + 1, x_seed[:, stage_idx + 1][..., None]) #TODO: Remove HVAC Hack
+                    for stage_idx in range(0, 1)  # type: ignore #TODO: Remove HVAC Hack
                 ]
                 if x_seed is not None and not dx_zero
                 else []
             )
-
-            # TODO (Leonard): Check this
-            print(x_seed_with_stage)
 
             u_seed_with_stage = (
                 [
@@ -226,15 +225,12 @@ class AcadosDiffMpcFunction(DiffFunction):
                 if u_seed is not None and not du_zero
                 else []
             )
-
             grad = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
                 seed_x=x_seed_with_stage,
                 seed_u=u_seed_with_stage,
                 with_respect_to=with_respect_to,
                 sanity_checks=True,
             )[:, 0]
-
-            print(grad.min(), grad.max())
 
             return grad
 
