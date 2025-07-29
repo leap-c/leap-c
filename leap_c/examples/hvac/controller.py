@@ -1,3 +1,5 @@
+from dataclasses import dataclass, asdict
+
 from pathlib import Path
 from typing import Any, NamedTuple
 
@@ -21,8 +23,8 @@ from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 from .util import set_temperature_limits
 
 
-class HvacControllerCtx(NamedTuple):
-    diff_mpc_ctx: AcadosDiffMpcCtx | None
+@dataclass(kw_only=True)
+class HvacControllerCtx(AcadosDiffMpcCtx):
     qh: torch.Tensor
     dqh: torch.Tensor
 
@@ -58,19 +60,17 @@ class HvacController(ParameterizedController):
         batch_size = obs.shape[0]
 
         if ctx is None:
-            ctx = HvacControllerCtx(
-                diff_mpc_ctx=None,
-                qh=torch.zeros((batch_size, 1), dtype=torch.float64),
-                dqh=torch.zeros((batch_size, 1), dtype=torch.float64),
-            )
-        # qh = ctx.iterate.x[:, 2*self.ocp.dims.nx-2] if ctx else 0.0
-        # dqh = ctx.iterate.x[:, 2*self.ocp.dims.nx-1] if ctx else 0.0
+            qh = torch.zeros((batch_size, 1), dtype=torch.float64)
+            dqh = torch.zeros((batch_size, 1), dtype=torch.float64)
+        else:
+            qh = ctx.qh
+            dqh = ctx.dqh
 
         x0 = torch.cat(
             [
                 obs[:, 2:5],
-                ctx.qh,
-                ctx.dqh,
+                qh,
+                dqh,
             ],
             dim=1,
         )
@@ -113,17 +113,16 @@ class HvacController(ParameterizedController):
             x0,
             p_global=param,
             p_stagewise=p_stagewise,
-            ctx=ctx.diff_mpc_ctx,
+            ctx=ctx,
         )
 
         ctx = HvacControllerCtx(
-            diff_mpc_ctx=diff_mpc_ctx,
+            **asdict(diff_mpc_ctx),
             qh=x[:, 2 * self.ocp.dims.nx - 2][None, :],
             dqh=x[:, 2 * self.ocp.dims.nx - 1][None, :],
         )
 
-        qh = x[:, 2*self.ocp.dims.nx-2]
-        # __import__('pdb').set_trace()
+        qh = x[:, 2*self.ocp.dims.nx-2][None, :]
 
         # action = np.array(qh.detach().numpy(), dtype=np.float32).reshape(-1)
 

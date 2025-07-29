@@ -12,16 +12,16 @@ from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
 class RunSacFopConfig:
     """Configuration for running SAC-FOP experiments."""
 
-    env: str = "cartpole"
-    controller: str = "cartpole"
+    env: str = "hvac"
+    controller: str = "hvac"
     trainer: SacFopTrainerConfig = field(default_factory=SacFopTrainerConfig)
 
 
 def create_cfg() -> RunSacFopConfig:
     # ---- Configuration ----
     cfg = RunSacFopConfig()
-    cfg.env = "cartpole"
-    cfg.controller = "cartpole"
+    cfg.env = "hvac"
+    cfg.controller = "hvac"
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = 0
