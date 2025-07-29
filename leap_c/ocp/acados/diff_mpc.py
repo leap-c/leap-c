@@ -198,7 +198,9 @@ class AcadosDiffMpcFunction(DiffFunction):
                 return None
 
             # check if x_seed and u_seed are all zeros
-            if np.all(x_seed == 0) and np.all(u_seed == 0):
+            dx_zero = np.all(x_seed == 0) if x_seed is not None else True
+            du_zero = np.all(u_seed == 0) if u_seed is not None else True
+            if dx_zero and du_zero:
                 return None
 
             # TODO (Jasper): Filter out stages that are not needed.
@@ -209,20 +211,19 @@ class AcadosDiffMpcFunction(DiffFunction):
                     (stage_idx + 1, x_seed[:, stage_idx + 1][..., None])
                     for stage_idx in range(0, 1)  # type: ignore
                 ]
-                if x_seed is not None
+                if x_seed is not None and not dx_zero
                 else []
             )
 
             # TODO (Leonard): Check this
             print(x_seed_with_stage)
-            __import__('pdb').set_trace()
 
             u_seed_with_stage = (
                 [
                     (stage_idx, u_seed[:, stage_idx][..., None])
                     for stage_idx in range(self.ocp.dims.N)  # type: ignore
                 ]
-                if u_seed is not None
+                if u_seed is not None and not du_zero
                 else []
             )
 
