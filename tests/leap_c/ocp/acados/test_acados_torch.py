@@ -418,7 +418,8 @@ def test_forward(
 
         expected_x_shape = (
             n_batch,
-            acados_ocp.dims.nx * (acados_ocp.solver_options.N_horizon + 1),  # type: ignore
+            (acados_ocp.solver_options.N_horizon + 1),  # type: ignore
+            acados_ocp.dims.nx
         )
         assert x.shape == expected_x_shape, (
             f"x shape mismatch. Expected: {expected_x_shape}, Got: {x.shape}"
@@ -426,7 +427,8 @@ def test_forward(
 
         expected_u_shape = (
             n_batch,
-            acados_ocp.dims.nu * acados_ocp.solver_options.N_horizon,  # type: ignore
+            acados_ocp.solver_options.N_horizon, 
+            acados_ocp.dims.nu
         )
         assert u.shape == expected_u_shape, (
             f"u shape mismatch. Expected: {expected_u_shape}, Got: {u.shape}"
