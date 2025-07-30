@@ -330,7 +330,7 @@ class StochasticThreeStateRcEnv(gym.Env):
             "energy": np.abs(action[0]),
             "comfort_reward": comfort_reward,
             "energy_reward": energy_reward,
-            "sucess": comfort_reward,
+            "success": comfort_reward,
         }
 
         return reward, reward_info
