@@ -166,6 +166,8 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         self.start_time = start_time
 
+        self.uncertainty_params = self._load_uncertainty_params()
+
     def _get_observation(self) -> np.ndarray:
         """
         Get the current observation including time, state, ambient temperatures,
@@ -205,7 +207,8 @@ class StochasticThreeStateRcEnv(gym.Env):
             self.data["price"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
         )
 
-        # TODO: Implement forecasts for weather that is not a perfect copy of the data
+        # TODO: Use self.error_forecast_temp and self.error_forecast_solar
+        # to add noise to the forecasts. Propagated using the AR1 models in step function.
         ambient_temperature_forecast = (
             self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
         )
@@ -348,6 +351,131 @@ class StochasticThreeStateRcEnv(gym.Env):
         # return reached_max_time or reached_end_of_data
         return reached_end_of_data or reached_max_steps
 
+
+
+    def _load_uncertainty_params(self):
+        '''Load the uncertainty parameters.
+
+        Returns
+        -------
+        uncertainty_params : dict
+            Uncertainty parameters
+
+        '''
+
+        return {
+            "temperature": {
+                "low": {
+                    "F0": 0,
+                    "K0": 0.6,
+                    "F": 0.92,
+                    "K": 0.4,
+                    "mu": 0
+                },
+                "medium": {
+                    "F0": 0.15,
+                    "K0": 1.2,
+                    "F": 0.93,
+                    "K": 0.6,
+                    "mu": 0
+                },
+                "high": {
+                    "F0": -0.58,
+                    "K0": 1.5,
+                    "F": 0.95,
+                    "K": 0.7,
+                    "mu": -0.015
+                }
+            },
+            "solar": {
+                "low": {
+                    "ag0": 4.44,
+                    "bg0": 57.42,
+                    "phi": 0.62,
+                    "ag": 1.86,
+                    "bg": 45.64
+                },
+                "medium": {
+                    "ag0": 15.02,
+                    "bg0": 122.6,
+                    "phi": 0.63,
+                    "ag": 4.44,
+                    "bg": 91.97
+                },
+                "high": {
+                    "ag0": 32.09,
+                    "bg0": 119.94,
+                    "phi": 0.67,
+                    "ag": 10.63,
+                    "bg": 87.44
+                }
+            }
+
+        }
+
+
+
+    def _predict_temperature_error_AR1(hp: int, F0: float, K0: float, F: float, K: float, mu: float) -> np.ndarray:
+        '''
+        Generates an error for the temperature forecast with an AR model with normal distribution in the hp points of the predictions horizon.
+
+        Parameters
+        ----------
+        hp :
+            Number of points in the prediction horizon.
+        F0 :
+            Mean of the initial error model.
+        K0 :
+            Standard deviation of the initial error model.
+        F : 
+            Autocorrelation factor of the AR error model, value should be between 0 and 1.
+        K :
+            Standard deviation of the AR error model.
+        mu :
+            Mean value of the distribution function integrated in the AR error model.
+
+        Returns
+        -------
+        error : 1D array
+            Array containing the error values in the hp points.
+
+        '''
+
+        error = np.zeros(hp)
+        error[0] = np.random.normal(F0, K0)
+        for i_c in range(hp - 1):
+            error[i_c + 1] = np.random.normal(
+                error[i_c] * F + mu, K
+            )
+
+        return error
+
+    def _predict_solar_error_AR1(hp: int, ag0: float, bg0: float, phi: float, ag: float, bg: float) -> np.ndarray:
+        '''
+        Generates an error for the solar forecast based on the specified parameters using an AR model with Laplace distribution in the hp points of the predictions horizon.
+
+        Parameters
+        ----------
+        hp :
+            Number of points in the prediction horizon.
+        ag0, bg0, phi, ag, bg :
+            Parameters for the AR1 model.
+
+        Returns
+        -------
+        error : 1D numpy array
+            Contains the error values in the hp points.
+
+        '''
+
+        error = np.zeros(hp)
+        error[0] = np.random.laplace(ag0, bg0)
+        for i_c in range(1, hp):
+            error[i_c] = np.random.laplace(error[i_c - 1] * phi + ag, bg)
+
+        return error
+
+
     def step(
         self,
         action: np.ndarray,
@@ -391,6 +519,24 @@ class StochasticThreeStateRcEnv(gym.Env):
             self.data["time"]
             .iloc[self.idx : self.idx + self.N_forecast + 1]
             .to_numpy(dtype="datetime64[m]")
+        )
+
+        # Step the temperature and solar forecasting errors via the AR1 models
+        self.error_forecast_temp = self._predict_temperature_error_AR1(
+            hp=self.N_forecast,
+            F0=self.uncertainty_params['temperature']['low']['F0'],
+            K0=self.uncertainty_params['temperature']['low']['K0'],
+            F=self.uncertainty_params['temperature']['low']['F'],
+            K=self.uncertainty_params['temperature']['low']['K'],
+            mu=self.uncertainty_params['temperature']['low']['mu']
+        )
+        self.error_forecast_solar = self._predict_solar_error_AR1(
+            hp=self.N_forecast,
+            ag0=self.uncertainty_params['solar']['low']['ag0'],
+            bg0=self.uncertainty_params['solar']['low']['bg0'],
+            phi=self.uncertainty_params['solar']['low']['phi'],
+            ag=self.uncertainty_params['solar']['low']['ag'],
+            bg=self.uncertainty_params['solar']['low']['bg']
         )
 
         obs = self._get_observation()
