@@ -522,22 +522,22 @@ class StochasticThreeStateRcEnv(gym.Env):
         )
 
         # Step the temperature and solar forecasting errors via the AR1 models
-        self.error_forecast_temp = self._predict_temperature_error_AR1(
-            hp=self.N_forecast,
-            F0=self.uncertainty_params['temperature']['low']['F0'],
-            K0=self.uncertainty_params['temperature']['low']['K0'],
-            F=self.uncertainty_params['temperature']['low']['F'],
-            K=self.uncertainty_params['temperature']['low']['K'],
-            mu=self.uncertainty_params['temperature']['low']['mu']
-        )
-        self.error_forecast_solar = self._predict_solar_error_AR1(
-            hp=self.N_forecast,
-            ag0=self.uncertainty_params['solar']['low']['ag0'],
-            bg0=self.uncertainty_params['solar']['low']['bg0'],
-            phi=self.uncertainty_params['solar']['low']['phi'],
-            ag=self.uncertainty_params['solar']['low']['ag'],
-            bg=self.uncertainty_params['solar']['low']['bg']
-        )
+        # self.error_forecast_temp = self._predict_temperature_error_AR1(
+        #     hp=self.N_forecast,
+        #     F0=self.uncertainty_params['temperature']['low']['F0'],
+        #     K0=self.uncertainty_params['temperature']['low']['K0'],
+        #     F=self.uncertainty_params['temperature']['low']['F'],
+        #     K=self.uncertainty_params['temperature']['low']['K'],
+        #     mu=self.uncertainty_params['temperature']['low']['mu']
+        # )
+        # self.error_forecast_solar = self._predict_solar_error_AR1(
+        #     hp=self.N_forecast,
+        #     ag0=self.uncertainty_params['solar']['low']['ag0'],
+        #     bg0=self.uncertainty_params['solar']['low']['bg0'],
+        #     phi=self.uncertainty_params['solar']['low']['phi'],
+        #     ag=self.uncertainty_params['solar']['low']['ag'],
+        #     bg=self.uncertainty_params['solar']['low']['bg']
+        # )
 
         obs = self._get_observation()
         reward, reward_info = self._reward_function(state=self.state, action=action)

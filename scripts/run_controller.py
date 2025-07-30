@@ -45,7 +45,6 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
     ):
         super().__init__(cfg, val_env, output_path, device)
         self.controller = controller
-        self.default_param = controller.default_param
 
         buffer = ReplayBuffer(1, device, collate_fn_map=controller.collate_fn_map)
         self.collate_fn = buffer.collate
@@ -62,7 +61,10 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
         """Use controller with default parameters."""
         obs_batched = self.collate_fn([obs])
-        param_batched = self.collate_fn([self.default_param])
+
+        default_param = self.controller.default_param(obs)
+
+        param_batched = self.collate_fn([default_param])
 
         ctx, action = self.controller(obs_batched, param_batched, ctx=state)
 
@@ -108,7 +110,6 @@ def run_controller(
     device: str = "cpu",
     reuse_code_dir: Path | None = None,
 ) -> float:
-
     trainer = ControllerTrainer(
         val_env=create_env(cfg.env, render_mode="rgb_array"),
         controller=create_controller(cfg.controller, reuse_code_base_dir=reuse_code_dir),
@@ -119,7 +120,6 @@ def run_controller(
     init_run(trainer, cfg, output_path)
 
     print(f"Running controller '{cfg.controller}' on environment '{cfg.env}'")
-    print(f"Default parameters: {trainer.default_param}")
 
     final_score = trainer.run()
     print(f"Final validation score: {final_score}")
@@ -166,5 +166,5 @@ if __name__ == "__main__":
         cfg,
         output_path,
         device=args.device,
-        reuse_code_dir=args.reuse_code_dir,
+        reuse_code_dir=reuse_code_dir,
     )

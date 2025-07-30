@@ -37,6 +37,10 @@ class HvacControllerCtx(NamedTuple):
     def log(self):
         return self.diff_mpc_ctx.log
 
+    @property
+    def du0_dp_global(self):
+        return self.diff_mpc_ctx.du0_dp_global
+
 
 class HvacController(ParameterizedController):
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
@@ -94,25 +98,6 @@ class HvacController(ParameterizedController):
         )
 
         N_horizon = self.ocp.solver_options.N_horizon
-
-        if param is None:
-            # Use default parameters if none are provided
-            # NOTE: The SAC controller would modify the forecasted parameters
-            param = self.param_manager.p_global_values(0)
-            Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
-            for stage in range(N_horizon + 1):
-                param["Ta", stage] = Ta_forecast[:, stage]
-                param["Phi_s", stage] = solar_forecast[:, stage]
-                param["price", stage] = price_forecast[:, stage]
-                param["q_dqh", stage] = 1.0  # weight on rate of change of heater power
-                param["q_ddqh", stage] = 1.0  # weight on acceleration of heater power
-                param["q_Ti", stage] = 0.001  # weight on acceleration of heater power
-                param["ref_Ti", stage] = convert_temperature(
-                    21.0, "celsius", "kelvin"
-                )  # weight on acceleration of heater power
-            param = param.cat.full().flatten()
-            param = torch.as_tensor(param, dtype=torch.float64)
-
         quarter_hours = np.array(
             [
                 np.arange(obs[i, 0].cpu().numpy(), obs[i, 0].cpu().numpy() + N_horizon + 1) % N_horizon
@@ -143,17 +128,31 @@ class HvacController(ParameterizedController):
         return ctx, x[:, 1, 3][:, None]
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
-        return self.diff_mpc.sensitivity(ctx, field_name="du0_dp_global")
+        return self.diff_mpc.sensitivity(ctx.diff_mpc_ctx, field_name="du0_dp_global")
 
     @property
     def param_space(self) -> gym.Space:
         lb, ub = self.param_manager.get_p_global_bounds()
         return gym.spaces.Box(low=lb, high=ub, dtype=np.float64)
 
-    @property
-    def default_param(self) -> np.ndarray:
-        # TODO: Move cat.full().flatten() to AcadosParamManager
-        return self.param_manager.p_global_values.cat.full().flatten()
+    def default_param(self, obs) -> np.ndarray | None:
+        param = self.param_manager.p_global_values(0)
+
+        N_horizon = self.ocp.solver_options.N_horizon
+        Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
+
+        for stage in range(N_horizon + 1):
+            param["Ta", stage] = Ta_forecast[stage]
+            param["Phi_s", stage] = solar_forecast[stage]
+            param["price", stage] = price_forecast[stage]
+            param["q_dqh", stage] = 1.0  # weight on rate of change of heater power
+            param["q_ddqh", stage] = 1.0  # weight on acceleration of heater power
+            param["q_Ti", stage] = 0.001  # weight on acceleration of heater power
+            param["ref_Ti", stage] = convert_temperature(
+                21.0, "celsius", "kelvin"
+            )  # weight on acceleration of heater power
+
+        return param.cat.full().flatten()
 
 
 def export_parametric_ocp(

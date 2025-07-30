@@ -61,10 +61,12 @@ class ParameterizedController(nn.Module):
         """
         ...
 
-    @property
     @abstractmethod
-    def default_param(self) -> np.ndarray:
+    def default_param(self, obs) -> np.ndarray:
         """Provides a default parameter configuration for the controller.
+
+        Args:
+            obs: Observation input to the controller (e.g., state vector).
 
         Returns:
             A default parameter array or structure matching the expected input
