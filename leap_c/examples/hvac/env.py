@@ -504,7 +504,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         # Add Gaussian noise if enabled
         if self.enable_noise:
             # Sample from multivariate normal distribution with exact covariance
-            noise = np.random.default_rng().multivariate_normal(
+            noise = self.np_random.multivariate_normal(
                 mean=np.zeros(3), cov=self.Qd
             )
             x_next += noise
@@ -562,7 +562,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         else:
             min_start_idx = 0
             max_start_idx = len(self.data) - self.N_forecast - self.max_steps + 1
-            self.idx = np.random.randint(low=min_start_idx, high=max_start_idx)
+            self.idx = self.np_random.integers(low=min_start_idx, high=max_start_idx + 1)
 
         self.step_cnter = 0
 
