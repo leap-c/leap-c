@@ -202,16 +202,17 @@ class AcadosDiffMpcFunction(DiffFunction):
                 return None
 
             # check if x_seed and u_seed are all zeros
+            # TODO (Jasper): Optimize this such that we also
+            #   filter out individual stages
             dx_zero = np.all(x_seed == 0) if x_seed is not None else True
             du_zero = np.all(u_seed == 0) if u_seed is not None else True
             if dx_zero and du_zero:
                 return None
 
-            # TODO (Jasper): Filter out stages that are not needed.
             x_seed_with_stage = (
                 [
-                    (stage_idx, x_seed[:, stage_idx][..., None]) #TODO: Remove HVAC Hack
-                    for stage_idx in range(0, self.ocp.dims.N + 1)  # type: ignore #TODO: Remove HVAC Hack
+                    (stage_idx, x_seed[:, stage_idx][..., None])
+                    for stage_idx in range(0, self.ocp.dims.N + 1)  # type: ignore
                 ]
                 if x_seed is not None and not dx_zero
                 else []

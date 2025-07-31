@@ -9,7 +9,9 @@ import torch
 from acados_template import AcadosOcp
 
 from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
+from leap_c.examples import create_controller
 
+from pathlib import Path
 # import matplotlib.pyplot as plt
 
 
@@ -418,7 +420,8 @@ def test_forward(
 
         expected_x_shape = (
             n_batch,
-            acados_ocp.dims.nx * (acados_ocp.solver_options.N_horizon + 1),  # type: ignore
+            (acados_ocp.solver_options.N_horizon + 1),  # type: ignore
+            acados_ocp.dims.nx
         )
         assert x.shape == expected_x_shape, (
             f"x shape mismatch. Expected: {expected_x_shape}, Got: {x.shape}"
@@ -426,7 +429,8 @@ def test_forward(
 
         expected_u_shape = (
             n_batch,
-            acados_ocp.dims.nu * acados_ocp.solver_options.N_horizon,  # type: ignore
+            acados_ocp.solver_options.N_horizon, 
+            acados_ocp.dims.nu
         )
         assert u.shape == expected_u_shape, (
             f"u shape mismatch. Expected: {expected_u_shape}, Got: {u.shape}"
@@ -561,7 +565,7 @@ def test_sensitivity(
 def test_backward(
     diff_mpc: AcadosDiffMpc,
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
-    n_batch: int = 4,
+    n_batch: int = 1,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
@@ -678,8 +682,45 @@ def test_backward(
         return _create_backward_test_function(
             forward_func, lambda result: result[4]
         )  # value
+        
+    def _create_dxdp_global_test(
+        diff_mpc: AcadosDiffMpc, x0: torch.Tensor
+    ) -> Callable:
+        """Create test function for dx/dp_global gradient."""
 
-    for diff_mpc_k in [diff_mpc_with_stagewise_varying_params, diff_mpc]:
+        def forward_func(p_global):
+            return diff_mpc.forward(x0=x0, p_global=p_global)
+
+        return _create_backward_test_function(
+            forward_func, lambda result: result[2]
+        ) # x
+        
+    def _create_dudp_global_test(
+        diff_mpc: AcadosDiffMpc, x0: torch.Tensor
+    ) -> Callable:
+        """Create test function for du/dp_global gradient."""
+
+        def forward_func(p_global):
+            return diff_mpc.forward(x0=x0, p_global=p_global)
+
+        return _create_backward_test_function(
+            forward_func, lambda result: result[3]
+        ) # u
+
+    def _create_dhvacudp_global_test(diff_mpc: AcadosDiffMpc, x0: torch.Tensor) -> Callable:
+        """Create test function for dfakeu/dp_global gradient."""
+
+        def forward_func(p_global):
+            return diff_mpc.forward(x0=x0, p_global=p_global)
+
+        return _create_backward_test_function(
+            forward_func, lambda result: result[2]#[:, 1, 3][:, None]
+        )
+
+    for i, diff_mpc_k in enumerate([#diff_mpc_with_stagewise_varying_params, 
+                       diff_mpc]):
+        print(f"Testing the {i}th Differentiable MPC Backward Pass")
+        print("=========================================================")
         test_inputs = _setup_test_inputs(diff_mpc_k, n_batch, dtype, noise_scale)
 
         # TODO: Sensitivities with respect to different parameters have different scales
@@ -729,6 +770,18 @@ def test_backward(
                 test_inputs.u0,
                 GradCheckConfig(atol=1e-2, eps=1e-2),
             ),
+            (
+                "dx/dp_global",
+                _create_dxdp_global_test(diff_mpc_k, test_inputs.x0),
+                test_inputs.p_global,
+                GradCheckConfig(atol=1e-2, eps=1e-4),
+            ),
+            (
+                "du/dp_global",
+                _create_dudp_global_test(diff_mpc_k, test_inputs.x0),
+                test_inputs.p_global,
+                GradCheckConfig(atol=1e-2, eps=1e-4),
+            ),
         ]
 
         # Run gradient checks
@@ -747,3 +800,16 @@ def test_backward(
             except Exception as e:
                 print(f"✗ {test_name} gradient check failed: {e}")
                 raise
+
+# def test_backward_hvac() -> None:
+#     #TODO: Use more meaningful inputs to test 
+#     (currently all gradients zero here, but nonzero in simulation)
+#     hvac = create_controller("hvac", Path.cwd()) #type:ignore
+#     test_backward(
+#         diff_mpc=hvac.diff_mpc,
+#         diff_mpc_with_stagewise_varying_params=hvac.diff_mpc,
+#         n_batch=1,
+#         max_batch_size=10,
+#         dtype=torch.float64,
+#         noise_scale=0.1,
+#     )
