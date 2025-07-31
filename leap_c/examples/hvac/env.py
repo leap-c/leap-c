@@ -111,6 +111,9 @@ class StochasticThreeStateRcEnv(gym.Env):
             params if params is not None else BestestHydronicParameters().to_dict()
         )
 
+        for k, v in self.params.items():
+            self.params[k] = np.random.normal(loc=v, scale=0.1 * np.sqrt(v**2))
+
         self.step_size = step_size
         self.enable_noise = enable_noise
 
@@ -208,7 +211,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         )
 
         # Step the temperature and solar forecasting errors via the AR1 models
-        uncertainty_level = "low"  # TODO: Make this configurable
+        uncertainty_level = "high"  # TODO: Make this configurable
         self.error_forecast_temp = self._predict_temperature_error_AR1(
             hp=self.N_forecast,
             F0=self.uncertainty_params["temperature"][uncertainty_level]["F0"],
@@ -227,8 +230,6 @@ class StochasticThreeStateRcEnv(gym.Env):
             bg=self.uncertainty_params["solar"][uncertainty_level]["bg"],
         )
 
-        # TODO: Use self.error_forecast_temp and self.error_forecast_solar
-        # to add noise to the forecasts. Propagated using the AR1 models in step function.
         ambient_temperature_forecast = (
             self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
         ) + self.error_forecast_temp
