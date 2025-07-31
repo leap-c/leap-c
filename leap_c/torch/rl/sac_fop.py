@@ -246,9 +246,9 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
-            self.report_stats(
-                "train_trajectory", {"param": param, "action": action}, verbose=True
-            )
+            # self.report_stats(
+            #     "train_trajectory", {"param": param, "action": action}, verbose=True
+            # )
             self.report_stats("train_policy_rollout", pi_output.stats, verbose=True)  # type: ignore
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(

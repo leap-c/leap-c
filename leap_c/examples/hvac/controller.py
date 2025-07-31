@@ -1,7 +1,5 @@
-from dataclasses import dataclass, asdict, fields
-
 from pathlib import Path
-from typing import Any, NamedTuple, Sequence, Callable
+from typing import Any, NamedTuple
 
 import pandas as pd
 import casadi as ca
@@ -48,14 +46,18 @@ class HvacController(ParameterizedController):
     def __init__(
         self,
         params: tuple[Parameter, ...] | None = None,
+        stagewise: bool = False,
         N_horizon: int = 96,  # 24 hours in 15 minutes time steps
         diff_mpc_kwargs: dict[str, Any] | None = None,
         export_directory: Path | None = None,
     ) -> None:
         super().__init__()
 
+
+        self.stagewise = stagewise
+
         self.param_manager = AcadosParamManager(
-            params=params or make_default_hvac_params(),
+            params=params or make_default_hvac_params(stagewise),
             N_horizon=N_horizon,
         )
 
@@ -136,23 +138,25 @@ class HvacController(ParameterizedController):
         return gym.spaces.Box(low=lb, high=ub, dtype=np.float64)
 
     def default_param(self, obs) -> np.ndarray | None:
-        param = self.param_manager.p_global_values(0)
+        if self.stagewise:
+            param = self.param_manager.p_global_values(0)
 
-        N_horizon = self.ocp.solver_options.N_horizon
-        Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
+            N_horizon = self.ocp.solver_options.N_horizon
+            Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
 
-        for stage in range(N_horizon + 1):
-            param["Ta", stage] = Ta_forecast[stage]
-            param["Phi_s", stage] = solar_forecast[stage]
-            param["price", stage] = price_forecast[stage]
-            param["q_dqh", stage] = 1.0  # weight on rate of change of heater power
-            param["q_ddqh", stage] = 1.0  # weight on acceleration of heater power
-            param["q_Ti", stage] = 0.001  # weight on acceleration of heater power
-            param["ref_Ti", stage] = convert_temperature(
-                21.0, "celsius", "kelvin"
-            )  # weight on acceleration of heater power
+            for stage in range(N_horizon + 1):
+                param["Ta", stage] = Ta_forecast[stage]
+                param["Phi_s", stage] = solar_forecast[stage]
+                param["price", stage] = price_forecast[stage]
+                param["q_dqh", stage] = 1.0  # weight on rate of change of heater power
+                param["q_ddqh", stage] = 1.0  # weight on acceleration of heater power
+                param["q_Ti", stage] = 0.001  # weight on acceleration of heater power
+                param["ref_Ti", stage] = convert_temperature(
+                    21.0, "celsius", "kelvin"
+                )  # weight on acceleration of heater power
+            return param.cat.full().flatten()
 
-        return param.cat.full().flatten()
+        return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
 
 
 def export_parametric_ocp(
