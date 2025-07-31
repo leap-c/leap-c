@@ -210,12 +210,13 @@ class AcadosDiffMpcFunction(DiffFunction):
             # TODO (Jasper): Filter out stages that are not needed.
             x_seed_with_stage = (
                 [
-                    (stage_idx + 1, x_seed[:, stage_idx + 1][..., None]) #TODO: Remove HVAC Hack
-                    for stage_idx in range(0, 1)  # type: ignore #TODO: Remove HVAC Hack
+                    (stage_idx, x_seed[:, stage_idx][..., None]) #TODO: Remove HVAC Hack
+                    for stage_idx in range(0, self.ocp.dims.N + 1)  # type: ignore #TODO: Remove HVAC Hack
                 ]
                 if x_seed is not None and not dx_zero
                 else []
             )
+
 
             u_seed_with_stage = (
                 [

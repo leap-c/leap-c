@@ -119,12 +119,12 @@ class HvacController(ParameterizedController):
             ctx=diff_mpc_ctx,
         )
 
-
         ctx = HvacControllerCtx(
             diff_mpc_ctx,
             qh=x[:, 1, 3].detach(),
             dqh=x[:, 1, 4].detach(),
         )
+
         return ctx, x[:, 1, 3][:, None]
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
