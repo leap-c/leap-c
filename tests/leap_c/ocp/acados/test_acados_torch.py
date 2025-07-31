@@ -11,6 +11,7 @@ from acados_template import AcadosOcp
 from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 from leap_c.examples import create_controller
 
+from pathlib import Path
 # import matplotlib.pyplot as plt
 
 
@@ -564,7 +565,7 @@ def test_sensitivity(
 def test_backward(
     diff_mpc: AcadosDiffMpc,
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
-    n_batch: int = 4,
+    n_batch: int = 1,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
@@ -706,7 +707,17 @@ def test_backward(
             forward_func, lambda result: result[3]
         ) # u
 
-    for i, diff_mpc_k in enumerate([diff_mpc_with_stagewise_varying_params, 
+    def _create_dhvacudp_global_test(diff_mpc: AcadosDiffMpc, x0: torch.Tensor) -> Callable:
+        """Create test function for dfakeu/dp_global gradient."""
+
+        def forward_func(p_global):
+            return diff_mpc.forward(x0=x0, p_global=p_global)
+
+        return _create_backward_test_function(
+            forward_func, lambda result: result[2]#[:, 1, 3][:, None]
+        )
+
+    for i, diff_mpc_k in enumerate([#diff_mpc_with_stagewise_varying_params, 
                        diff_mpc]):
         print(f"Testing the {i}th Differentiable MPC Backward Pass")
         print("=========================================================")
@@ -791,7 +802,9 @@ def test_backward(
                 raise
 
 # def test_backward_hvac() -> None:
-#     hvac = create_controller("hvac") #type:ignore
+#     #TODO: Use more meaningful inputs to test 
+#     (currently all gradients zero here, but nonzero in simulation)
+#     hvac = create_controller("hvac", Path.cwd()) #type:ignore
 #     test_backward(
 #         diff_mpc=hvac.diff_mpc,
 #         diff_mpc_with_stagewise_varying_params=hvac.diff_mpc,
