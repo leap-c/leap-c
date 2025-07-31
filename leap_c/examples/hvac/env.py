@@ -52,7 +52,6 @@ class StochasticThreeStateRcEnv(gym.Env):
         price_data_path: Path | None = None,
         weather_data_path: Path | None = None,
         enable_noise: bool = True,
-        random_seed: int | None = None,
     ) -> None:
         """
         Initialize the stochastic environment.
@@ -63,7 +62,6 @@ class StochasticThreeStateRcEnv(gym.Env):
             ambient_temperature_function: Function for ambient temperature
             solar_radiation_function: Function for solar radiation
             enable_noise: Whether to include stochastic noise
-            random_seed: Random seed for reproducibility
         """
         N_forecast = 4 * horizon_hours  # Number of forecasted ambient temperatures
 
@@ -111,15 +109,13 @@ class StochasticThreeStateRcEnv(gym.Env):
             params if params is not None else BestestHydronicParameters().to_dict()
         )
 
-        for k, v in self.params.items():
-            self.params[k] = np.random.normal(loc=v, scale=0.1 * np.sqrt(v**2))
 
         self.step_size = step_size
         self.enable_noise = enable_noise
 
-        # Set random seed for reproducibility
-        if random_seed is not None:
-            np.random.seed(random_seed)
+        rng = np.random.default_rng(0)
+        for k, v in self.params.items():
+            self.params[k] = rng.normal(loc=v, scale=0.3 * np.sqrt(v**2))
 
         # Initial state variables [K]
         self.Ti = convert_temperature(20.0, "celsius", "kelvin")
@@ -461,9 +457,9 @@ class StochasticThreeStateRcEnv(gym.Env):
         """
 
         error = np.zeros(hp)
-        error[0] = np.random.normal(F0, K0)
+        error[0] = self.np_random.normal(F0, K0)
         for i_c in range(hp - 1):
-            error[i_c + 1] = np.random.normal(error[i_c] * F + mu, K)
+            error[i_c + 1] = self.np_random.normal(error[i_c] * F + mu, K)
 
         return error
 
@@ -488,9 +484,9 @@ class StochasticThreeStateRcEnv(gym.Env):
         """
 
         error = np.zeros(hp)
-        error[0] = np.random.laplace(ag0, bg0)
+        error[0] = self.np_random.laplace(ag0, bg0)
         for i_c in range(1, hp):
-            error[i_c] = np.random.laplace(error[i_c - 1] * phi + ag, bg)
+            error[i_c] = self.np_random.laplace(error[i_c - 1] * phi + ag, bg)
 
         return error
 
@@ -522,7 +518,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         # Add Gaussian noise if enabled
         if self.enable_noise:
             # Sample from multivariate normal distribution with exact covariance
-            noise = np.random.default_rng().multivariate_normal(
+            noise = self.np_random.multivariate_normal(
                 mean=np.zeros(3), cov=self.Qd
             )
             x_next += noise
@@ -562,7 +558,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         else:
             min_start_idx = 0
             max_start_idx = len(self.data) - self.N_forecast - self.max_steps + 1
-            self.idx = np.random.randint(low=min_start_idx, high=max_start_idx)
+            self.idx = self.np_random.integers(low=min_start_idx, high=max_start_idx + 1)
 
         self.step_cnter = 0
 
