@@ -7,6 +7,7 @@ from typing import Callable, Optional, Any, Generator
 import torch
 from gymnasium import Env
 from gymnasium.wrappers import RecordVideo
+from timeit import default_timer
 
 
 def episode_rollout(
@@ -55,9 +56,13 @@ def episode_rollout(
 
             terminated = False
             truncated = False
+            
+            cum_inference_time = 0.0
 
             while not terminated and not truncated:
+                t0 = default_timer()
                 a, stats = policy(o)
+                cum_inference_time += default_timer() - t0
 
                 if stats is not None:
                     for key, value in stats.items():
@@ -83,6 +88,7 @@ def episode_rollout(
                 "length": info["episode"]["l"],
                 "terminated": terminated,
                 "truncated": truncated,
+                "inference_time": cum_inference_time / info["episode"]["l"],
             }
             rollout_stats.update(episode_stats)
 
