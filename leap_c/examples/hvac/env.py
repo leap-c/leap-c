@@ -12,7 +12,6 @@ from .config import (
 )
 from gymnasium import spaces
 from scipy.constants import convert_temperature
-from .util import merge_price_weather_data, transcribe_continuous_state_space
 
 from leap_c.examples.hvac.util import (
     load_price_data,
@@ -20,6 +19,7 @@ from leap_c.examples.hvac.util import (
     transcribe_continuous_state_space,
     transcribe_discrete_state_space,
     set_temperature_limits,
+    merge_price_weather_data
 )
 
 # Constants
@@ -340,6 +340,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         energy_consumption_normalized = np.abs(action[0]) / self.action_high[0]
 
         # Price range across all regions: 0.00000 to 0.87100
+        # TODO: Dont hardcode the normalization
         price_normalized = price / 0.871
         energy_reward = -price_normalized * energy_consumption_normalized
 
