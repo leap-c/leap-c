@@ -148,6 +148,7 @@ class HvacController(ParameterizedController):
                 param["Ta", stage] = Ta_forecast[stage]
                 param["Phi_s", stage] = solar_forecast[stage]
                 param["price", stage] = price_forecast[stage]
+                #TODO: Retrieve this from the parameter manager after its refactored
                 param["q_dqh", stage] = 1.0  # weight on rate of change of heater power
                 param["q_ddqh", stage] = 1.0  # weight on acceleration of heater power
                 param["q_Ti", stage] = 0.001  # weight on acceleration of heater power
