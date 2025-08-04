@@ -565,7 +565,7 @@ def test_sensitivity(
 def test_backward(
     diff_mpc: AcadosDiffMpc,
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
-    n_batch: int = 1,
+    n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
