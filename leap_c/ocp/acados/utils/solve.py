@@ -45,14 +45,10 @@ def solve_with_retry(
 
     start = time.perf_counter()
     batch_solver.solve(n_batch=batch_size)
-    iterate = batch_solver.store_iterate_to_flat_obj()
     time_solve = time.perf_counter() - start
 
     active_solvers = batch_solver.ocp_solvers[:batch_size]
     batch_status = np.array([solver.status for solver in active_solvers])
-
-    if batch_size > 1:
-        pass
 
     if with_retry and any(status != 0 for status in batch_status):
 
