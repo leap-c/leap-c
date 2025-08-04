@@ -23,7 +23,7 @@ from .util import set_temperature_limits
 
 
 class HvacControllerCtx(NamedTuple):
-    diff_mpc_ctx: AcadosDiffMpc
+    diff_mpc_ctx: AcadosDiffMpcCtx
     qh: torch.Tensor
     dqh: torch.Tensor
 
