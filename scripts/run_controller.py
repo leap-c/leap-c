@@ -51,10 +51,7 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
 
     def train_loop(self) -> Iterator[int]:
         """No training - just return immediately."""
-        step = 0
-        while True:
-            yield step
-            step += 1
+        yield 1
 
     def act(
         self, obs, deterministic: bool = False, state=None
