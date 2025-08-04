@@ -67,71 +67,14 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         self.N_forecast = N_forecast
         self.max_steps = int(max_hours * 3600 / step_size)
-
-        print("env N_forecast: ", self.N_forecast)
-
-        self.obs_low = np.array(
-            [
-                0.0,  # quarter hour within a day
-                0.0,  # day within a year
-                0.0,  # Indoor temperature
-                0.0,  # Radiator temperature
-                0.0,  # Envelope temperature
-            ]
-            + [0.0] * N_forecast  # Ambient temperatures
-            + [0.0] * N_forecast  # Solar radiation
-            + [0.0] * N_forecast,  # Prices  TODO: Allow negative prices
-            dtype=np.float32,
-        )
-
-        self.obs_high = np.array(
-            [
-                24 * 4 - 1,  # quarter hour within a day
-                365,  # day within a year
-                convert_temperature(30.0, "celsius", "kelvin"),  # Indoor temperature
-                convert_temperature(500.0, "celsius", "kelvin"),  # Radiator temperature
-                convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
-            ]
-            + [convert_temperature(40.0, "celsius", "kelvin")]
-            * N_forecast  # Ambient temperatures
-            + [MAGNITUDE_SOLAR_RADIATION] * N_forecast  # Solar radiation
-            + [1] * N_forecast,  # Prices
-            dtype=np.float32,
-        )
-        self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
-
-        self.action_low = np.array([-5000.0], dtype=np.float32)
-        self.action_high = np.array([5000.0], dtype=np.float32)
-        self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
-
-        # Store parameters
-        self.params = (
-            params if params is not None else BestestHydronicParameters().to_dict()
-        )
-
-
-        self.step_size = step_size
-        self.enable_noise = enable_noise
-
-        rng = np.random.default_rng(0)
-        for k, v in self.params.items():
-            self.params[k] = rng.normal(loc=v, scale=0.3 * np.sqrt(v**2))
-
-        # Initial state variables [K]
-        self.Ti = convert_temperature(20.0, "celsius", "kelvin")
-        self.Th = convert_temperature(20.0, "celsius", "kelvin")
-        self.Te = convert_temperature(20.0, "celsius", "kelvin")
-        self.state_0 = np.array([self.Ti, self.Th, self.Te])
-
-        # Precompute discrete-time matrices including noise covariance
-        self.Ad, self.Bd, self.Ed, self.Qd = self._compute_discrete_matrices()
-
+        
         if price_data_path is None:
             price_data_path = Path(__file__).parent / "spot_prices.csv"
         if weather_data_path is None:
             weather_data_path = Path(__file__).parent / "weather.csv"
 
         price_data = load_price_data(csv_path=price_data_path).resample("15T").ffill()
+        self.price_data_max = price_data.max(axis=None)
 
         weather_data = (
             load_weather_data(csv_path=weather_data_path)
@@ -162,6 +105,65 @@ class StochasticThreeStateRcEnv(gym.Env):
             self.data.index.hour * 4 + self.data.index.minute // 15
         ) % (24 * 4)
         self.data["day"] = self.data["time"].dt.dayofyear % 366
+
+        print("env N_forecast: ", self.N_forecast)
+
+        self.obs_low = np.array(
+            [
+                0.0,  # quarter hour within a day
+                0.0,  # day within a year
+                0.0,  # Indoor temperature
+                0.0,  # Radiator temperature
+                0.0,  # Envelope temperature
+            ]
+            + [0.0] * N_forecast  # Ambient temperatures
+            + [0.0] * N_forecast  # Solar radiation
+            + [0.0] * N_forecast,  # Prices  TODO: Allow negative prices
+            dtype=np.float32,
+        )
+
+        self.obs_high = np.array(
+            [
+                24 * 4 - 1,  # quarter hour within a day
+                365,  # day within a year
+                convert_temperature(30.0, "celsius", "kelvin"),  # Indoor temperature
+                convert_temperature(500.0, "celsius", "kelvin"),  # Radiator temperature
+                convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
+            ]
+            + [convert_temperature(40.0, "celsius", "kelvin")]
+            * N_forecast  # Ambient temperatures
+            + [MAGNITUDE_SOLAR_RADIATION] * N_forecast  # Solar radiation
+            + [self.price_data_max] * N_forecast,  # Prices
+            dtype=np.float32,
+        )
+        self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
+
+        self.action_low = np.array([-5000.0], dtype=np.float32)
+        self.action_high = np.array([5000.0], dtype=np.float32)
+        self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
+
+        # Store parameters
+        self.params = (
+            params if params is not None else BestestHydronicParameters().to_dict()
+        )
+
+
+        self.step_size = step_size
+        self.enable_noise = enable_noise
+
+        #TODO: Make this configurable
+        rng = np.random.default_rng(0)
+        for k, v in self.params.items():
+            self.params[k] = rng.normal(loc=v, scale=0.3 * np.sqrt(v**2))
+
+        # Initial state variables [K]
+        self.Ti = convert_temperature(20.0, "celsius", "kelvin")
+        self.Th = convert_temperature(20.0, "celsius", "kelvin")
+        self.Te = convert_temperature(20.0, "celsius", "kelvin")
+        self.state_0 = np.array([self.Ti, self.Th, self.Te])
+
+        # Precompute discrete-time matrices including noise covariance
+        self.Ad, self.Bd, self.Ed, self.Qd = self._compute_discrete_matrices()
 
         self.start_time = start_time
 
@@ -339,9 +341,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         price = self.data["price"].iloc[self.idx]
         energy_consumption_normalized = np.abs(action[0]) / self.action_high[0]
 
-        # Price range across all regions: 0.00000 to 0.87100
-        # TODO: Dont hardcode the normalization
-        price_normalized = price / 0.871
+        price_normalized = price / self.price_data_max
         energy_reward = -price_normalized * energy_consumption_normalized
 
         # scale energy_reward
