@@ -53,6 +53,9 @@ def init_run(trainer: Trainer, cfg, output_path: str | Path):
         trainer.load(output_path)
 
     # store git hash and diff
-    module_root = Path(leap_c.__file__).parent.parent
+    if leap_c.__file__ is not None:
+        module_root = Path(leap_c.__file__).parent.parent
+    else:
+        module_root = Path(leap_c.__path__[0]).parent
     log_git_hash_and_diff(output_path / "git.txt", module_root)
 
