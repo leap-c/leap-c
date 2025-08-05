@@ -1,3 +1,5 @@
+default_language_version:
+  python: python3.11
 files: '^(tests|leap_c)(/|\\).*\.py$'
 repos:
 - repo: https://github.com/astral-sh/ruff-pre-commit
