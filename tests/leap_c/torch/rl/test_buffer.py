@@ -7,7 +7,11 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
 )
-from leap_c.ocp.acados.data import AcadosOcpSolverInput, collate_acados_ocp_solver_input, collate_acados_flattened_iterate_fn
+from leap_c.ocp.acados.data import (
+    AcadosOcpSolverInput,
+    collate_acados_ocp_solver_input,
+    collate_acados_flattened_iterate_fn,
+)
 from leap_c.torch.rl.buffer import ReplayBuffer
 
 
@@ -16,17 +20,21 @@ class ForNesting(NamedTuple):
     b: Any
 
 
-
 def test_sample_collation_and_dtype_and_device():
     # NOTE: Only tests moving to devices if cuda is available, i.e., github probably won't test it
     device = "cuda" if torch.cuda.is_available() else "cpu"
     dtype = torch.float32
     collate_fn_map = {
         AcadosOcpSolverInput: collate_acados_ocp_solver_input,
-        AcadosOcpFlattenedIterate: collate_acados_flattened_iterate_fn
+        AcadosOcpFlattenedIterate: collate_acados_flattened_iterate_fn,
     }
 
-    buffer = ReplayBuffer(buffer_limit=10, device=device, tensor_dtype=dtype, collate_fn_map=collate_fn_map)
+    buffer = ReplayBuffer(
+        buffer_limit=10,
+        device=device,
+        tensor_dtype=dtype,
+        collate_fn_map=collate_fn_map,
+    )
     data_one = (
         1,
         np.array([2], dtype=np.float64),
@@ -113,15 +121,19 @@ def test_sample_collation_and_dtype_and_device():
         assert np.array_equal(arr, np.ones((2, i + 1), dtype=np.float64))
 
 
-
 def test_sample_order_consistency():
     # NOTE: It should be enough to test preservation of order here for the types
     # for which we have custom rules
     collate_fn_map = {
         AcadosOcpSolverInput: collate_acados_ocp_solver_input,
-        AcadosOcpFlattenedIterate: collate_acados_flattened_iterate_fn
+        AcadosOcpFlattenedIterate: collate_acados_flattened_iterate_fn,
     }
-    buffer = ReplayBuffer(buffer_limit=10, device="cpu", tensor_dtype=torch.float32, collate_fn_map=collate_fn_map)
+    buffer = ReplayBuffer(
+        buffer_limit=10,
+        device="cpu",
+        tensor_dtype=torch.float32,
+        collate_fn_map=collate_fn_map,
+    )
     data_one = (
         AcadosOcpSolverInput(
             x0=np.array([[1, 2, 3]], dtype=np.float32),
@@ -192,7 +204,6 @@ def test_sample_order_consistency():
     assert not np.array_equal(batch[0].p_global[0], batch[0].p_global[1])
 
 
-
 def test_length():
     buffer = ReplayBuffer(buffer_limit=2, device="cpu", tensor_dtype=torch.float32)
     dummy1 = (1, 2, 3)
@@ -227,4 +238,3 @@ def test_state_dict():
 
     assert len(buffer) == 2
     assert torch.equal(buffer.sample(2), dummy_tensor)
-

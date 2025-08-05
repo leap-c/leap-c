@@ -1,4 +1,5 @@
 """Central interface to use acados in PyTorch."""
+
 from pathlib import Path
 
 from acados_template import AcadosOcp
@@ -28,6 +29,7 @@ class AcadosDiffMpc(nn.Module):
         diff_mpc_fun: The differentiable MPC function wrapper for acados.
         autograd_fun: A PyTorch autograd function created from the MPC function.
     """
+
     def __init__(
         self,
         ocp: AcadosOcp,
@@ -41,7 +43,7 @@ class AcadosDiffMpc(nn.Module):
 
         Args:
             ocp: Optimal control problem formulation used for solving the OCP.
-            initializer: Initializer for the OCP solver. If None, solvers 
+            initializer: Initializer for the OCP solver. If None, solvers
                 are initialized with zeros.
             sensitivity_ocp: The optimal control problem formulation to use
                 for sensitivities. If None, the sensitivity problem is derived
@@ -102,7 +104,9 @@ class AcadosDiffMpc(nn.Module):
 
         return ctx, u0, x, u, value
 
-    def sensitivity(self, ctx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
+    def sensitivity(
+        self, ctx, field_name: AcadosDiffMpcSensitivityOptions
+    ) -> np.ndarray:
         """
         Compute the sensitivity of the implicit function with respect to a field.
 

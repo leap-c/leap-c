@@ -13,7 +13,7 @@ def cfg_as_python(obj: Any, root_name: str = "cfg") -> str:
         root_name: The name of the root variable in the output.
 
     Returns:
-        A string representing the dataclass as a Python script.  
+        A string representing the dataclass as a Python script.
     """
     lines = []
 

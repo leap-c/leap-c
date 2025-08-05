@@ -162,7 +162,9 @@ class CartPoleEnv(gym.Env):
         if self.t > self.max_time:
             # check if the pole is upright in the last 10 steps
             if len(self.x_trajectory) >= 10:
-                success = all(np.abs(self.x_trajectory[i][1]) < 0.1 for i in range(-10, 0))
+                success = all(
+                    np.abs(self.x_trajectory[i][1]) < 0.1 for i in range(-10, 0)
+                )
             else:
                 success = False  # Not enough data to determine success
 
@@ -351,6 +353,8 @@ class CartPoleEnv(gym.Env):
 class CartPoleBalanceEnv(CartPoleEnv):
     def init_state(self, options: Optional[dict] = None) -> np.ndarray:
         low, high = gym_utils.maybe_parse_reset_bounds(
-            options, -0.05, 0.05  # default low
+            options,
+            -0.05,
+            0.05,  # default low
         )  # default high
         return self.np_random.uniform(low=low, high=high, size=(4,))

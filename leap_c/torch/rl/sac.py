@@ -168,7 +168,9 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.lr_q)
 
-        self.pi = SacActor(extractor_cls, action_space, observation_space, cfg.actor_mlp)  # type: ignore
+        self.pi = SacActor(
+            extractor_cls, action_space, observation_space, cfg.actor_mlp
+        )  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(cfg.init_alpha).log())  # type: ignore

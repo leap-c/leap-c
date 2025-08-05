@@ -27,7 +27,7 @@ CONTROLLER_REGISTRY = {
     "pointmass": PointMassController,
     "pointmass_stagewise": partial(PointMassController, stagewise=True),
     "hvac": HvacController,
-    "hvac_stagewise": partial(HvacController, stagewise=True), 
+    "hvac_stagewise": partial(HvacController, stagewise=True),
 }
 
 

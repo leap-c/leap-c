@@ -11,6 +11,7 @@ class BoundedTransform(nn.Module):
 
     The output is squashed with a tanh function and then scaled and shifted to match the space.
     """
+
     scale: torch.tensor
     loc: torch.tensor
 
@@ -21,7 +22,7 @@ class BoundedTransform(nn.Module):
         """Initializes the Bounded Transform module.
 
         Args:
-            space: The space that the transform is bounded to. 
+            space: The space that the transform is bounded to.
             padding: The amount of padding to subtract to the bounds.
         """
         super().__init__()
@@ -35,7 +36,6 @@ class BoundedTransform(nn.Module):
         self.register_buffer("scale", scale)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-
         """Applies the squashing function to the input tensor.
 
         Args:

@@ -1,9 +1,10 @@
 """Module for running experiments."""
-from argparse import ArgumentParser
+
 import datetime
 from pathlib import Path
 
 import leap_c
+
 # import leap_c.examples  # noqa: F401
 from leap_c.trainer import Trainer
 from leap_c.utils.cfg import cfg_as_python
@@ -58,4 +59,3 @@ def init_run(trainer: Trainer, cfg, output_path: str | Path):
     else:
         module_root = Path(leap_c.__path__[0]).parent
     log_git_hash_and_diff(output_path / "git.txt", module_root)
-

@@ -19,7 +19,7 @@ from leap_c.examples.hvac.util import (
     transcribe_continuous_state_space,
     transcribe_discrete_state_space,
     set_temperature_limits,
-    merge_price_weather_data
+    merge_price_weather_data,
 )
 
 # Constants
@@ -67,7 +67,7 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         self.N_forecast = N_forecast
         self.max_steps = int(max_hours * 3600 / step_size)
-        
+
         if price_data_path is None:
             price_data_path = Path(__file__).parent / "spot_prices.csv"
         if weather_data_path is None:
@@ -147,11 +147,10 @@ class StochasticThreeStateRcEnv(gym.Env):
             params if params is not None else BestestHydronicParameters().to_dict()
         )
 
-
         self.step_size = step_size
         self.enable_noise = enable_noise
 
-        #TODO: Make this configurable
+        # TODO: Make this configurable
         rng = np.random.default_rng(0)
         for k, v in self.params.items():
             self.params[k] = rng.normal(loc=v, scale=0.3 * np.sqrt(v**2))
@@ -519,9 +518,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         # Add Gaussian noise if enabled
         if self.enable_noise:
             # Sample from multivariate normal distribution with exact covariance
-            noise = self.np_random.multivariate_normal(
-                mean=np.zeros(3), cov=self.Qd
-            )
+            noise = self.np_random.multivariate_normal(mean=np.zeros(3), cov=self.Qd)
             x_next += noise
 
         self.state = x_next
@@ -559,7 +556,9 @@ class StochasticThreeStateRcEnv(gym.Env):
         else:
             min_start_idx = 0
             max_start_idx = len(self.data) - self.N_forecast - self.max_steps + 1
-            self.idx = self.np_random.integers(low=min_start_idx, high=max_start_idx + 1)
+            self.idx = self.np_random.integers(
+                low=min_start_idx, high=max_start_idx + 1
+            )
 
         self.step_cnter = 0
 

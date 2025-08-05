@@ -4,7 +4,6 @@ from typing import Any
 
 from acados_template import AcadosOcp
 import casadi as ca
-from casadi.tools import struct_symSX
 import gymnasium as gym
 import numpy as np
 import torch
@@ -34,11 +33,14 @@ class PointMassController(ParameterizedController):
         export_directory: Path | None = None,
     ):
         super().__init__()
-        self.params = make_default_pointmass_params(stagewise) if params is None else params
+        self.params = (
+            make_default_pointmass_params(stagewise) if params is None else params
+        )
         tuple_params = tuple(asdict(self.params).values())
 
         self.param_manager = AcadosParamManager(
-            params=tuple_params, N_horizon=N_horizon  # type: ignore
+            params=tuple_params,
+            N_horizon=N_horizon,  # type: ignore
         )
 
         self.ocp = export_parametric_ocp(
@@ -52,7 +54,9 @@ class PointMassController(ParameterizedController):
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         x = obs[:, :4]
         p_stagewise = self.param_manager.combine_parameter_values(batch_size=x.shape[0])
-        ctx, u0, x, u, value = self.diff_mpc(x, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
+        ctx, u0, x, u, value = self.diff_mpc(
+            x, p_global=param, p_stagewise=p_stagewise, ctx=ctx
+        )
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
@@ -99,9 +103,7 @@ def _cost_expr_ext_cost(ocp: AcadosOcp, param_manager: AcadosParamManager) -> ca
 
     Q_sqrt = _create_diag_matrix(param_manager.get("q_sqrt_diag"))
     Q = Q_sqrt.T @ Q_sqrt
-    R_sqrt = _create_diag_matrix(
-        param_manager.get("r_sqrt_diag")
-    )
+    R_sqrt = _create_diag_matrix(param_manager.get("r_sqrt_diag"))
     R = R_sqrt.T @ R_sqrt
 
     xref = param_manager.get("xref")
@@ -145,11 +147,17 @@ def export_parametric_ocp(
     ocp.model.disc_dyn_expr = _disc_dyn_expr(ocp=ocp, param_manager=param_manager)
 
     ######## Cost ########
-    ocp.model.cost_expr_ext_cost_0 = _cost_expr_ext_cost(ocp=ocp, param_manager=param_manager)
+    ocp.model.cost_expr_ext_cost_0 = _cost_expr_ext_cost(
+        ocp=ocp, param_manager=param_manager
+    )
     ocp.cost.cost_type_0 = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost = _cost_expr_ext_cost(ocp=ocp, param_manager=param_manager)
+    ocp.model.cost_expr_ext_cost = _cost_expr_ext_cost(
+        ocp=ocp, param_manager=param_manager
+    )
     ocp.cost.cost_type = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost_e = _cost_expr_ext_cost_e(ocp=ocp, param_manager=param_manager)
+    ocp.model.cost_expr_ext_cost_e = _cost_expr_ext_cost_e(
+        ocp=ocp, param_manager=param_manager
+    )
     ocp.cost.cost_type_e = "EXTERNAL"
 
     ######## Constraints ########

@@ -46,7 +46,7 @@ def _define_nlp_solver(n_mass: int, f_expl: Callable) -> Callable:
                 u=u,
                 p={key: vertcat(*p[key]) for key in ["m", "D", "L", "C", "w"]},
                 x0=p["fix_point"],
-        ),
+            ),
             x["pos", -1] - p["p_last"],
             u,
         ]
@@ -59,8 +59,8 @@ def _define_nlp_solver(n_mass: int, f_expl: Callable) -> Callable:
 
 class RestingChainSolver:
     def __init__(
-        self, 
-        n_mass: int, 
+        self,
+        n_mass: int,
         f_expl: Callable,
         params: ChainParams,
     ):
@@ -69,13 +69,13 @@ class RestingChainSolver:
         self.nlp_solver, x0, p0 = _define_nlp_solver(n_mass=n_mass, f_expl=f_expl)
 
         p0["fix_point"] = params.fix_point.value  # Anchor point of the chain.
-        
+
         # Extract parameter values from ChainParams
         for i_mass in range(n_mass - 1):
             p0["m", i_mass] = params.m.value[i_mass]
-            p0["D", i_mass] = params.D.value[3*i_mass:3*(i_mass+1)]
-            p0["C", i_mass] = params.C.value[3*i_mass:3*(i_mass+1)]
-            p0["L", i_mass] = params.L.value[3*i_mass:3*(i_mass+1)]
+            p0["D", i_mass] = params.D.value[3 * i_mass : 3 * (i_mass + 1)]
+            p0["C", i_mass] = params.C.value[3 * i_mass : 3 * (i_mass + 1)]
+            p0["L", i_mass] = params.L.value[3 * i_mass : 3 * (i_mass + 1)]
 
         for i_pos in range(len(x0["pos"])):
             x0["pos", i_pos] = x0["pos", 0] + p0["L", i_pos] * (i_pos + 1)
@@ -101,4 +101,3 @@ class RestingChainSolver:
         u_ss = sol["x"].full()[-3:].flatten()
 
         return x_ss, u_ss
- 

@@ -1,4 +1,4 @@
-""" This file contains utility functions that are used in the training loop. """
+"""This file contains utility functions that are used in the training loop."""
 
 import torch.nn as nn
 

@@ -40,7 +40,6 @@ def solve_with_retry(
     else:
         with_retry = True
 
-
     prepare_batch_solver(batch_solver, ocp_iterate, solver_input)
 
     start = time.perf_counter()
@@ -51,7 +50,6 @@ def solve_with_retry(
     batch_status = np.array([solver.status for solver in active_solvers])
 
     if with_retry and any(status != 0 for status in batch_status):
-
         for idx, solver in enumerate(active_solvers):
             if batch_status[idx] == 0:
                 continue

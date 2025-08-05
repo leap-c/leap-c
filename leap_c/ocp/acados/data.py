@@ -100,5 +100,3 @@ def collate_acados_ocp_solver_input(
         p_stagewise=_stack_safe("p_stagewise", batch),
         p_stagewise_sparse_idx=_stack_safe("p_stagewise_sparse_idx", batch),
     )
-
-

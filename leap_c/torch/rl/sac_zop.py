@@ -233,9 +233,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
                     factor = self.cfg.entropy_reward_bonus / self.entropy_norm
                     q_target = q_target - alpha * pi_o_prime.log_prob * factor
 
-                    target = (
-                        r[:, None] + self.cfg.gamma * (1 - te[:, None]) * q_target
-                    )
+                    target = r[:, None] + self.cfg.gamma * (1 - te[:, None]) * q_target
 
                 q = torch.cat(self.q(o, a), dim=1)
                 q_loss = torch.mean((q - target).pow(2))

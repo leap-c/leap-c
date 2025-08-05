@@ -1,9 +1,7 @@
 import torch
-import torch.nn as nn
 import torch.autograd as autograd
 
 from gymnasium import spaces
-
 
 
 class MinMaxStraightThroughFunction(autograd.Function):

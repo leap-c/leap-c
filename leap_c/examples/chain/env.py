@@ -31,7 +31,9 @@ class ChainEnv(gym.Env):
             params = make_default_chain_params(n_mass)
 
         if pos_last_mass_ref is None:
-            pos_last_mass_ref = params.fix_point.value + np.array([0.033 * (n_mass - 1), 0.0, 0.0])
+            pos_last_mass_ref = params.fix_point.value + np.array(
+                [0.033 * (n_mass - 1), 0.0, 0.0]
+            )
 
         self.n_mass = n_mass
 
@@ -102,7 +104,6 @@ class ChainEnv(gym.Env):
 
         self.u = u
 
-
         self.state = self.discrete_dynamics(
             x=self.state,
             u=self.action,
@@ -122,7 +123,7 @@ class ChainEnv(gym.Env):
         reached_goal_pos = bool(
             np.linalg.norm(self.x_ref - self.state, axis=0, ord=2) < 1e-1
         )
-        term = False 
+        term = False
 
         self.time += self.dt
         trunc = self.time > self.max_time
@@ -155,15 +156,12 @@ class ChainEnv(gym.Env):
         return self.state.copy(), {}
 
     def _init_state_and_action(self):
-        phi = self.np_random.uniform(
-            low=self.phi_range[0], high=self.phi_range[1]
-        )  # type:ignore
+        phi = self.np_random.uniform(low=self.phi_range[0], high=self.phi_range[1])  # type:ignore
         theta = self.np_random.uniform(
             low=self.theta_range[0], high=self.theta_range[1]
         )  # type:ignore
         p_last = self.ellipsoid.spherical_to_cartesian(phi=phi, theta=theta)
         x_ss, u_ss = self.resting_chain_solver(p_last=p_last)
-
 
         return x_ss, u_ss
 

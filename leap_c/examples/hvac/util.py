@@ -919,14 +919,6 @@ def set_temperature_limits(
     night_idx = (hours >= night_start_hour) | (hours < night_end_hour)
 
     # Initialize and set values
-    lb = np.where(
-        night_idx,
-        lb_night,
-        lb_day
-    )
-    ub = np.where(
-        night_idx,
-        ub_night,
-        ub_day
-    )
+    lb = np.where(night_idx, lb_night, lb_day)
+    ub = np.where(night_idx, ub_night, ub_day)
     return lb, ub

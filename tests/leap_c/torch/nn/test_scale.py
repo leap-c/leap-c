@@ -58,4 +58,3 @@ def test_min_max_scaling_straight_through():
     # Check the gradient
     scaled_x.sum().backward()
     assert (x.grad == 1).all()
-

@@ -34,6 +34,7 @@ class TrainerConfig:
         val_report_score: Whether to report the cummulative score or the final evaluation score.
         ckpt_modus: How to save the model, which can be "best", "last", "all" or "none".
     """
+
     # reproducibility
     seed: int = 0
 
@@ -48,7 +49,9 @@ class TrainerConfig:
     val_num_render_rollouts: int = 1
     val_render_mode: str | None = "rgb_array"  # rgb_array or human
     val_render_deterministic: bool = True
-    val_report_score: Literal["cum", "final"] = "cum"  # "cum" for cumulative score, "final" for final score
+    val_report_score: Literal["cum", "final"] = (
+        "cum"  # "cum" for cumulative score, "final" for final score
+    )
 
     # checkpointing configuration
     ckpt_modus: Literal["best", "last", "all", "none"] = "best"
@@ -89,10 +92,11 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
     def __init__(
         self,
-            cfg: TrainerConfigType,
-            eval_env: gym.Env,
-            output_path: str | Path, device: str,
-            wrappers: List[WrapperType] | None = None,
+        cfg: TrainerConfigType,
+        eval_env: gym.Env,
+        output_path: str | Path,
+        device: str,
+        wrappers: List[WrapperType] | None = None,
     ):
         """Initializes the trainer with a configuration, output path, and device.
 
@@ -111,7 +115,9 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
-        self.eval_env = seed_env(wrap_env(eval_env, wrappers=wrappers), seed=self.cfg.seed)
+        self.eval_env = seed_env(
+            wrap_env(eval_env, wrappers=wrappers), seed=self.cfg.seed
+        )
 
         # trainer state
         self.state = TrainerState()
@@ -257,7 +263,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
             self.cfg.val_num_render_rollouts,
             render_human=False,
             video_folder=self.output_path / "video",
-            name_prefix=f"{self.state.step}"
+            name_prefix=f"{self.state.step}",
         )
 
         for r, p in rollouts:
@@ -369,10 +375,14 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         def load_element(name: str, path: Path, singleton: bool = False):
             """Loads an element from the checkpoint path."""
             if isinstance(getattr(self, name), nn.Module):
-                state_dict = torch.load(self._ckpt_path(name, "ckpt", path, singleton), weights_only=False)
+                state_dict = torch.load(
+                    self._ckpt_path(name, "ckpt", path, singleton), weights_only=False
+                )
                 getattr(self, name).load_state_dict(state_dict)
             else:
-                elem = torch.load(self._ckpt_path(name, "ckpt", path, singleton), weights_only=False)
+                elem = torch.load(
+                    self._ckpt_path(name, "ckpt", path, singleton), weights_only=False
+                )
                 setattr(self, name, elem)
 
         # load

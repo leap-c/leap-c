@@ -222,7 +222,6 @@ class AcadosParamManager:
             key: value.value
             for key, value in self.parameters.items()
             if not value.differentiable and not value.stagewise
-
         }
 
     def combine_parameter_values(

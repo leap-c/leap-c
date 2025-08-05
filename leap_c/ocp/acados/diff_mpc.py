@@ -218,7 +218,6 @@ class AcadosDiffMpcFunction(DiffFunction):
                 else []
             )
 
-
             u_seed_with_stage = (
                 [
                     (stage_idx, u_seed[:, stage_idx][..., None])

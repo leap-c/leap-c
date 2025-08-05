@@ -27,7 +27,9 @@ class AcadosDiffMpcInitializer(ABC):
     """
 
     @abstractmethod
-    def single_iterate(self, solver_input: AcadosOcpSolverInput) -> AcadosOcpFlattenedIterate:
+    def single_iterate(
+        self, solver_input: AcadosOcpSolverInput
+    ) -> AcadosOcpFlattenedIterate:
         """Abstract method to generate an initial iterate for a single OCP.
 
         Subclasses must implement this method to provide a specific
@@ -70,7 +72,7 @@ class AcadosDiffMpcInitializer(ABC):
 
 
 def create_zero_iterate_from_ocp(ocp: AcadosOcp) -> AcadosOcpIterate:
-    # TODO (Jasper): Remove this function as soon as Acados updates the 
+    # TODO (Jasper): Remove this function as soon as Acados updates the
     #   ocp.create_default_initial_iterate for slacked OCPs.
 
     ocp.make_consistent()
@@ -81,15 +83,27 @@ def create_zero_iterate_from_ocp(ocp: AcadosOcp) -> AcadosOcpIterate:
         x_traj = (ocp.solver_options.N_horizon + 1) * [np.zeros(dims.nx)]  # type: ignore
     u_traj = ocp.solver_options.N_horizon * [np.zeros(dims.nu)]  # type: ignore
     z_traj = ocp.solver_options.N_horizon * [np.zeros(dims.nz)]  # type: ignore
-    sl_traj = [np.zeros(dims.ns_0)] + (ocp.solver_options.N_horizon - 1) * [np.zeros(dims.ns)] + [np.zeros(dims.ns_e)]  # type: ignore
-    su_traj = [np.zeros(dims.ns_0)] + (ocp.solver_options.N_horizon - 1) * [np.zeros(dims.ns)] + [np.zeros(dims.ns_e)]  # type: ignore
+    sl_traj = (
+        [np.zeros(dims.ns_0)]
+        + (ocp.solver_options.N_horizon - 1) * [np.zeros(dims.ns)]
+        + [np.zeros(dims.ns_e)]
+    )  # type: ignore
+    su_traj = (
+        [np.zeros(dims.ns_0)]
+        + (ocp.solver_options.N_horizon - 1) * [np.zeros(dims.ns)]
+        + [np.zeros(dims.ns_e)]
+    )  # type: ignore
 
     pi_traj = ocp.solver_options.N_horizon * [np.zeros(dims.nx)]  # type: ignore
 
     ni_0 = dims.nbu + dims.nbx_0 + dims.nh_0 + dims.nphi_0 + dims.ng + dims.ns_0
     ni = dims.nbu + dims.nbx + dims.nh + dims.nphi + dims.ng + dims.ns
     ni_e = dims.nbx_e + dims.nh_e + dims.nphi_e + dims.ng_e + dims.ns_e
-    lam_traj = [np.zeros(2 * ni_0)] + (ocp.solver_options.N_horizon - 1) * [np.zeros(2 * ni)] + [np.zeros(2 * ni_e)]  # type: ignore
+    lam_traj = (
+        [np.zeros(2 * ni_0)]
+        + (ocp.solver_options.N_horizon - 1) * [np.zeros(2 * ni)]
+        + [np.zeros(2 * ni_e)]
+    )  # type: ignore
 
     iterate = AcadosOcpIterate(
         x_traj=x_traj,  # type: ignore

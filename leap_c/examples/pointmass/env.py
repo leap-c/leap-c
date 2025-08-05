@@ -86,7 +86,6 @@ class WindField(ABC):
         )
 
 
-
 class WindParcour(WindField):
     def __init__(self, magnitude: float = 10.0, difficulty: str = "easy"):
         self.magnitude = magnitude

@@ -5,7 +5,6 @@ from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
 from leap_c.examples.cartpole.env import CartPoleEnv
 
 
-
 def test_trainer_checkpointing():
     """
     Test the checkpointing functionality of the Trainer class.
@@ -21,12 +20,12 @@ def test_trainer_checkpointing():
         train_env = CartPoleEnv()
 
         trainer = SacTrainer(
-                cfg=SacTrainerConfig(),
-                val_env=val_env,
-                output_path=tmpdir,
-                device="cpu",
-                train_env=train_env,
-            )
+            cfg=SacTrainerConfig(),
+            val_env=val_env,
+            output_path=tmpdir,
+            device="cpu",
+            train_env=train_env,
+        )
 
         orig_step = trainer.state.step
         orig_param = next(trainer.parameters()).data.clone()

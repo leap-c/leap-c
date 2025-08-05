@@ -13,7 +13,6 @@ from acados_template import (
     AcadosSim,
     AcadosSimSolver,
 )
-from acados_template import AcadosOcp, AcadosOcpBatchSolver, AcadosOcpSolver
 
 from leap_c.ocp.acados.utils.delete_directory_hook import DeleteDirectoryHook
 

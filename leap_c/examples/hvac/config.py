@@ -78,7 +78,6 @@ class BestestHydronicHeatpumpParameters(BestestParameters):
     eta: float = 0.98
 
 
-
 def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
     """Return a tuple of default parameters for the hvac problem."""
     hydronic_params = BestestHydronicParameters().to_dict()
@@ -195,13 +194,14 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
             ),
             Parameter(
                 name="q_ddqh",
-                value=np.array([1.0]), # weight for acceleration of heater power
+                value=np.array([1.0]),  # weight for acceleration of heater power
                 lower_bound=np.array([0.5]),
                 upper_bound=np.array([1.5]),
                 fix=False,
                 differentiable=True,
                 stagewise=stagewise,
             ),
-        ])
+        ]
+    )
 
     return tuple(params)

@@ -136,7 +136,12 @@ class FoaActor(nn.Module):
             action_unbounded, log_std, deterministic=deterministic
         )
         return SacFopActorOutput(
-            param, log_prob, {**gaussian_stats, **ctx.log}, action_squashed, ctx.status, ctx
+            param,
+            log_prob,
+            {**gaussian_stats, **ctx.log},
+            action_squashed,
+            ctx.status,
+            ctx,
         )
 
 
@@ -223,7 +228,9 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             self.alpha_optim = None
             self.target_entropy = None
 
-        self.buffer = ReplayBuffer(cfg.buffer_size, device=device, collate_fn_map=controller.collate_fn_map)
+        self.buffer = ReplayBuffer(
+            cfg.buffer_size, device=device, collate_fn_map=controller.collate_fn_map
+        )
 
     def train_loop(self) -> Iterator[int]:
         is_terminated = is_truncated = True
@@ -370,7 +377,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
 
         action = pi_output.action.cpu().numpy()[0]
 
-        return action, pi_output.ctx , pi_output.stats
+        return action, pi_output.ctx, pi_output.stats
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:

@@ -17,7 +17,7 @@ class DeleteDirectoryHook:
         obj,
         dir: str | Path,
     ):
-        """Initializes the DeleteDirectoryHook and registers the cleanup 
+        """Initializes the DeleteDirectoryHook and registers the cleanup
         function.
 
         Args:
@@ -32,7 +32,7 @@ class DeleteDirectoryHook:
         obj.__delete_dir_hook = self
 
     def __del__(self):
-        """Deletes the directory when the object is garbage collected or at 
+        """Deletes the directory when the object is garbage collected or at
         exit.
 
         This method is registered with `atexit`. It attempts to remove the

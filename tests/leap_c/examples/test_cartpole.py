@@ -42,7 +42,9 @@ def plot_cart_pole_solution(
 
 
 def test_solution(cartpole_controller: CartPoleController):
-    ocp_solver = cartpole_controller.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
+    ocp_solver = (
+        cartpole_controller.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
+    )
     ocp_solver.solve_for_x0(np.array([0.0, np.pi, 0.0, 0.0]))
 
     if ocp_solver.status != 0:
@@ -69,10 +71,7 @@ def test_env_terminates():
                 break
         assert term
         assert not trunc
-        assert (
-            state[0] < -env.x_threshold
-            or state[0] > env.x_threshold
-        )
+        assert state[0] < -env.x_threshold or state[0] > env.x_threshold
 
 
 def test_env_truncates():
@@ -134,15 +133,13 @@ def test_closed_loop_rendering(
         obs = torch.as_tensor(obs, dtype=torch.float32).unsqueeze(0)
         ctx, a = cartpole_controller(obs, default_param, ctx=ctx)
         a = a.squeeze(0).numpy()
-        obs_prime, r, terminated, truncated, info = (
-            env.step(a)
-        )
+        obs_prime, r, terminated, truncated, info = env.step(a)
         frames.append(env.render())
         obs = obs_prime
         count += 1
-    assert (
-        count <= 200
-    ), "max_time and dt dictate that no more than 200 steps should be possible until termination."
+    assert count <= 200, (
+        "max_time and dt dictate that no more than 200 steps should be possible until termination."
+    )
     save_video(
         frames,  # type:ignore
         video_folder=savefile_dir_path,

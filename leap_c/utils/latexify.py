@@ -54,9 +54,12 @@ def latex_plot_decorator(**kw: Any):
         def plot_custom():
             # override some defaults
     """
+
     def decorator(func):
         def wrapper(*args, **kwargs):
             with latex_plot_context(**kw):
                 return func(*args, **kwargs)
+
         return wrapper
+
     return decorator

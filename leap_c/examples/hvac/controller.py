@@ -53,7 +53,6 @@ class HvacController(ParameterizedController):
     ) -> None:
         super().__init__()
 
-
         self.stagewise = stagewise
 
         self.param_manager = AcadosParamManager(
@@ -102,7 +101,10 @@ class HvacController(ParameterizedController):
         N_horizon = self.ocp.solver_options.N_horizon
         quarter_hours = np.array(
             [
-                np.arange(obs[i, 0].cpu().numpy(), obs[i, 0].cpu().numpy() + N_horizon + 1) % N_horizon
+                np.arange(
+                    obs[i, 0].cpu().numpy(), obs[i, 0].cpu().numpy() + N_horizon + 1
+                )
+                % N_horizon
                 for i in range(batch_size)
             ]
         )
@@ -148,7 +150,7 @@ class HvacController(ParameterizedController):
                 param["Ta", stage] = Ta_forecast[stage]
                 param["Phi_s", stage] = solar_forecast[stage]
                 param["price", stage] = price_forecast[stage]
-                #TODO: Retrieve these from the parameter manager after its refactored
+                # TODO: Retrieve these from the parameter manager after its refactored
                 param["q_dqh", stage] = 1.0  # weight on rate of change of heater power
                 param["q_ddqh", stage] = 1.0  # weight on acceleration of heater power
                 param["q_Ti", stage] = 0.001  # weight on acceleration of heater power
@@ -285,7 +287,7 @@ def export_parametric_ocp(
 
 
 def _create_base_plot(
-    figsize: tuple[float, float] = (12, 10)
+    figsize: tuple[float, float] = (12, 10),
 ) -> tuple[plt.Figure, list]:
     """Create base figure and axes for thermal building control plots."""
     fig, axes = plt.subplots(4, 1, figsize=figsize, sharex=True)

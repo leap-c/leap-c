@@ -13,11 +13,9 @@ from leap_c.controller import ParameterizedController
 from leap_c.examples.cartpole.config import CartPoleParams, make_default_cartpole_params
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
-from leap_c.ocp.acados.parameters import AcadosParamManager
 
 
 class CartPoleController(ParameterizedController):
-
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
@@ -49,11 +47,16 @@ class CartPoleController(ParameterizedController):
             export_directory: Directory to export the generated code.
         """
         super().__init__()
-        self.params = make_default_cartpole_params(stagewise=stagewise) if params is None else params
+        self.params = (
+            make_default_cartpole_params(stagewise=stagewise)
+            if params is None
+            else params
+        )
         tuple_params = tuple(asdict(self.params).values())
 
         self.param_manager = AcadosParamManager(
-            params=tuple_params, N_horizon=N_horizon  # type:ignore
+            params=tuple_params,
+            N_horizon=N_horizon,  # type:ignore
         )
 
         self.ocp = export_parametric_ocp(
@@ -66,11 +69,17 @@ class CartPoleController(ParameterizedController):
             Fmax=Fmax,
         )
 
-        self.diff_mpc = AcadosDiffMpc(self.ocp, discount_factor=discount_factor, export_directory=export_directory)
+        self.diff_mpc = AcadosDiffMpc(
+            self.ocp, discount_factor=discount_factor, export_directory=export_directory
+        )
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        p_stagewise = self.param_manager.combine_parameter_values(batch_size=obs.shape[0])
-        ctx, u0, x, u, value = self.diff_mpc(obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
+        p_stagewise = self.param_manager.combine_parameter_values(
+            batch_size=obs.shape[0]
+        )
+        ctx, u0, x, u, value = self.diff_mpc(
+            obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx
+        )
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
@@ -89,7 +98,7 @@ def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParamManager) ->
     M = param_manager.get("M")
     m = param_manager.get("m")
     g = param_manager.get("g")
-    l = param_manager.get("l")
+    l = param_manager.get("l")  # noqa
 
     theta = model.x[1]
     v = model.x[2]
@@ -226,14 +235,10 @@ def export_parametric_ocp(
     ######## Cost ########
     if cost_type == "EXTERNAL":
         ocp.cost.cost_type = cost_type
-        ocp.model.cost_expr_ext_cost = define_cost_expr_ext_cost(
-            ocp, param_manager
-        )  # type:ignore
+        ocp.model.cost_expr_ext_cost = define_cost_expr_ext_cost(ocp, param_manager)  # type:ignore
 
         ocp.cost.cost_type_e = cost_type
-        ocp.model.cost_expr_ext_cost_e = define_cost_expr_ext_cost_e(
-            ocp, param_manager
-        )  # type:ignore
+        ocp.model.cost_expr_ext_cost_e = define_cost_expr_ext_cost_e(ocp, param_manager)  # type:ignore
 
         ocp.solver_options.hessian_approx = "EXACT"
         ocp.solver_options.exact_hess_cost = True

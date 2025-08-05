@@ -4,7 +4,7 @@ from pathlib import Path
 
 def log_git_hash_and_diff(filename: Path, repo_path: Path = Path(".")):
     """Log the git hash and diff of the current commit to a file.
-    
+
     Args:
         filename: File to write the log.
         repo_path: Path to the git repository (default: current dir).

@@ -60,7 +60,9 @@ def make_default_pointmass_params(stagewise: bool = False) -> PointMassParams:
             differentiable=True,
             stagewise=stagewise,
         ),
-        uref=Parameter("uref", np.array([0.0, 0.0]),
+        uref=Parameter(
+            "uref",
+            np.array([0.0, 0.0]),
             lower_bound=np.array([-10.0, -10.0]),
             upper_bound=np.array([10.0, 10.0]),
             fix=False,
