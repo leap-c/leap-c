@@ -1,4 +1,5 @@
 """Main script to run experiments."""
+
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -52,7 +53,7 @@ def create_cfg() -> RunSacFopConfig:
     cfg.trainer.num_critics = 2
     cfg.trainer.report_loss_freq = 100
     cfg.trainer.update_freq = 4
-    cfg.trainer.noise = 'param'
+    cfg.trainer.noise = "param"
     cfg.trainer.entropy_correction = False
 
     # ---- Section: cfg.trainer.log ----
@@ -83,7 +84,6 @@ def run_sac_fop(
     device: str = "cuda",
     reuse_code_dir: Path | None = None,
 ) -> float:
-
     trainer = SacFopTrainer(
         val_env=create_env(cfg.env, render_mode="rgb_array"),
         train_env=create_env(cfg.env),
@@ -127,9 +127,7 @@ if __name__ == "__main__":
         output_path = args.output_path
 
     if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = (
-            default_controller_code_path() if args.reuse_code else None
-        )
+        reuse_code_dir = default_controller_code_path() if args.reuse_code else None
     elif args.reuse_code_dir is not None:
         reuse_code_dir = args.reuse_code_dir
     else:
@@ -143,9 +141,7 @@ if __name__ == "__main__":
         trainer_output_path = args.output_path
 
     if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = (
-            default_controller_code_path() if args.reuse_code else None
-        )
+        reuse_code_dir = default_controller_code_path() if args.reuse_code else None
     elif args.reuse_code_dir is not None:
         reuse_code_dir = args.reuse_code_dir
     else:

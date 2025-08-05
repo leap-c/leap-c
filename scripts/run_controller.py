@@ -109,7 +109,9 @@ def run_controller(
 ) -> float:
     trainer = ControllerTrainer(
         val_env=create_env(cfg.env, render_mode="rgb_array"),
-        controller=create_controller(cfg.controller, reuse_code_base_dir=reuse_code_dir),
+        controller=create_controller(
+            cfg.controller, reuse_code_base_dir=reuse_code_dir
+        ),
         output_path=output_path,
         device=device,
         cfg=cfg.trainer,
@@ -150,14 +152,11 @@ if __name__ == "__main__":
     cfg.controller = args.controller if args.controller else args.env
 
     if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = (
-            default_controller_code_path() if args.reuse_code else None
-        )
+        reuse_code_dir = default_controller_code_path() if args.reuse_code else None
     elif args.reuse_code_dir is not None:
         reuse_code_dir = args.reuse_code_dir
     else:
         reuse_code_dir = None
-
 
     run_controller(
         cfg,

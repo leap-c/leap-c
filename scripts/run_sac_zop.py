@@ -83,7 +83,6 @@ def run_sac_zop(
     device: str = "cuda",
     reuse_code_dir: Path | None = None,
 ) -> float:
-
     trainer = SacZopTrainer(
         cfg=cfg.trainer,
         val_env=create_env(cfg.env, render_mode="rgb_array"),
@@ -127,9 +126,7 @@ if __name__ == "__main__":
         output_path = args.output_path
 
     if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = (
-            default_controller_code_path() if args.reuse_code else None
-        )
+        reuse_code_dir = default_controller_code_path() if args.reuse_code else None
     elif args.reuse_code_dir is not None:
         reuse_code_dir = args.reuse_code_dir
     else:
@@ -143,9 +140,7 @@ if __name__ == "__main__":
         trainer_output_path = args.output_path
 
     if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = (
-            default_controller_code_path() if args.reuse_code else None
-        )
+        reuse_code_dir = default_controller_code_path() if args.reuse_code else None
     elif args.reuse_code_dir is not None:
         reuse_code_dir = args.reuse_code_dir
     else:

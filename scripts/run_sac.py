@@ -76,7 +76,6 @@ def create_cfg() -> RunSacConfig:
 
 
 def run_sac(cfg: RunSacConfig, output_path: str | Path, device: str = "cuda") -> float:
-
     trainer = SacTrainer(
         cfg=cfg.trainer,
         val_env=create_env(cfg.env, render_mode="rgb_array"),
