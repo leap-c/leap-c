@@ -40,8 +40,6 @@ def test_run_closed_loop(
     default_param = torch.as_tensor(default_param, dtype=torch.float32).unsqueeze(0)
     ctx = None
 
-    obs = env._observation()
-
     for _ in range(n_iter - 1):
         obs = torch.as_tensor(obs, dtype=torch.float32).unsqueeze(0)
         ctx, a = controller(obs, default_param, ctx=ctx)
