@@ -154,7 +154,7 @@ class Logger:
 
         # init wandb
         if cfg.wandb_logger:
-            if not cfg.log.wandb_init_kwargs.get("dir", False):  # type:ignore
+            if not cfg.wandb_init_kwargs.get("dir", False):  # type:ignore
                 wandbdir = self.output_path / "wandb"
                 wandbdir.mkdir(exist_ok=True)
                 cfg.wandb_init_kwargs["dir"] = str(wandbdir)

@@ -494,7 +494,7 @@ class StochasticThreeStateRcEnv(gym.Env):
     def step(
         self,
         action: np.ndarray,
-    ) -> tuple[np.ndarray, None, None, None, dict, None]:
+    ) -> tuple[np.ndarray, float, bool, bool, dict]:
         """
         Perform a simulation step with exact discrete-time dynamics including noise.
 

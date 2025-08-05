@@ -6,7 +6,7 @@ from pathlib import Path
 
 from leap_c.examples import create_controller, create_env
 from leap_c.run import default_controller_code_path, default_output_path, init_run
-from leap_c.torch.nn.extractor import ExtractorName, ScalingExtractor
+from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac import SacTrainerConfig
 from leap_c.torch.rl.sac_zop import SacZopTrainer
 
@@ -93,7 +93,7 @@ def run_sac_zop(
         controller=create_controller(cfg.controller, reuse_code_dir),
         extractor_cls=cfg.extractor,
     )
-    init_run(trainer, cfg, output_path)
+    init_run(trainer, cfg, trainer_output_path)
 
     return trainer.run()
 
@@ -135,9 +135,25 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
+    if args.output_path is None:
+        trainer_output_path = default_output_path(
+            seed=args.seed, tags=["sac_fop", args.env, args.controller]
+        )
+    else:
+        trainer_output_path = args.output_path
+
+    if args.reuse_code and args.reuse_code_dir is None:
+        reuse_code_dir = (
+            default_controller_code_path() if args.reuse_code else None
+        )
+    elif args.reuse_code_dir is not None:
+        reuse_code_dir = args.reuse_code_dir
+    else:
+        reuse_code_dir = None
+
     run_sac_zop(
-        cfg,
-        output_path=output_path,
+        cfg=cfg,
+        output_path=trainer_output_path,
         device=args.device,
         reuse_code_dir=reuse_code_dir,
     )

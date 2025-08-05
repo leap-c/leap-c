@@ -198,13 +198,17 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
         train_loop_iter = self.train_loop()
 
+        # initial policy validation
+        val_score = self.validate()
+        self.state.scores.append(val_score)
+        self.state.max_score = val_score
 
         while self.state.step < self.cfg.train_steps:
             # train
             self.state.step += next(train_loop_iter)
 
             # validate
-            if self.state.step // self.cfg.val_interval > len(self.state.scores):
+            if self.state.step // self.cfg.val_interval > len(self.state.scores) - 1:
                 val_score = self.validate()
                 self.state.scores.append(val_score)
 
@@ -217,10 +221,10 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
                 if self.cfg.ckpt_modus in ["last", "all"]:
                     self.save()
 
+        self.logger.close()
+
         if self.cfg.val_report_score == "cum":
             return sum(self.state.scores)
-
-        self.logger.close()
 
         return self.state.max_score
 
