@@ -6,11 +6,13 @@ import numpy as np
 from acados_template import AcadosModel, AcadosOcp
 from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
 
+
 ParamInterface = Literal["global", "stagewise"]
+CostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 
 
 def create_cartpole_params(param_interface: ParamInterface) -> list[Parameter]:
-    """Returns a CartPoleParams instance with default parameter values."""
+    """Returns a list of parameters used in cartpole."""
     return [
         # Dynamics parameters
         Parameter("M", np.array([1.0])),  # mass of the cart [kg]
@@ -20,10 +22,10 @@ def create_cartpole_params(param_interface: ParamInterface) -> list[Parameter]:
         # Cost matrix factorization parameters
         Parameter(
             "q_diag_sqrt", np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))
-        ),  # cost on state deviations
+        ),  # cost on state residuals
         Parameter(
             "r_diag_sqrt", np.sqrt(np.array([2e-1]))
-        ),  # cost on control input deviations
+        ),  # cost on control input residuals
         # Reference parameters
         Parameter("xref0", np.array([0.0]), fix=False),  # reference position
         Parameter(
@@ -99,14 +101,8 @@ def define_cost_matrix(
     q_diag = param_manager.get("q_diag_sqrt")
     r_diag = param_manager.get("r_diag_sqrt")
 
-    if isinstance(q_diag, np.ndarray) and isinstance(r_diag, np.ndarray):
-        W = np.diag(np.concatenate([q_diag, r_diag]))
-        W = W @ W.T
-    else:
-        # TODO (Jasper): Check whether we can even vertcat the diagonal elementst
-        #               if numpy array
-        W = ca.diag(ca.vertcat(q_diag, r_diag))
-        W = W @ W.T
+    W = ca.diag(ca.vertcat(q_diag, r_diag))
+    W = W @ W.T
 
     return W
 
@@ -150,7 +146,7 @@ def define_cost_expr_ext_cost_e(
 
 def export_parametric_ocp(
     param_manager: AcadosParamManager,
-    cost_type: str = "NONLINEAR_LS",
+    cost_type: CostType = "NONLINEAR_LS",
     exact_hess_dyn: bool = True,
     name: str = "cartpole",
     Fmax: float = 80.0,
@@ -192,8 +188,6 @@ def export_parametric_ocp(
         )  # type:ignore
 
         ocp.solver_options.hessian_approx = "EXACT"
-        ocp.solver_options.exact_hess_cost = True
-        ocp.solver_options.exact_hess_constr = True
     elif cost_type == "NONLINEAR_LS":
         ocp.cost.cost_type = "NONLINEAR_LS"
         ocp.cost.cost_type_e = "NONLINEAR_LS"
