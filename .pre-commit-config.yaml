@@ -9,5 +9,7 @@ repos:
     # Run the linter.
     - id: ruff
       args: [ --fix ]
+      alias: ruff linter
     # Run the formatter.
     - id: ruff-format
+      alias: ruff formatter
