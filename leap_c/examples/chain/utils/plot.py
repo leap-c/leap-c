@@ -128,7 +128,7 @@ def plot_chain_position_traj(simX, yPosWall=None):
         plt.subplot(M + 1, 3, 3 * i + 2)
         plt.ylabel("y")
         plt.plot(simX[:, 3 * i + 1])
-        if not yPosWall == None:
+        if yPosWall is not None:
             plt.plot(yPosWall * np.ones((N,)))
         plt.grid(True)
 
@@ -199,7 +199,7 @@ def plot_chain_position(x, xPosFirstMass):
     pos_y = pos[1::3]
     pos_z = pos[2::3]
 
-    fig = plt.figure()
+    _ = plt.figure()
     plt.subplot(3, 1, 1)
     plt.plot(pos_x)
     plt.title("x position")

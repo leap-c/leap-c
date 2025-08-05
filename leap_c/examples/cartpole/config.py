@@ -11,7 +11,7 @@ class CartPoleParams:
     M: Parameter  # mass of the cart [kg]
     m: Parameter  # mass of the ball [kg]
     g: Parameter  # gravity constant [m/s^2]
-    l: Parameter  # length of the rod [m]
+    l: Parameter  # length of the rod [m] # noqa
 
     # Cost matrix factorization parameters
     q_diag_sqrt: Parameter
