@@ -6,7 +6,12 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from leap_c.examples.cartpole.acados_ocp import create_cartpole_params, export_parametric_ocp, ParamInterface
+from leap_c.examples.cartpole.acados_ocp import (
+    create_cartpole_params,
+    export_parametric_ocp,
+    ParamInterface,
+    CostType,
+)
 from leap_c.ocp.acados.parameters import Parameter
 from leap_c.controller import ParameterizedController
 from leap_c.ocp.acados.torch import AcadosDiffMpc
@@ -19,30 +24,31 @@ class CartPoleControllerCfg:
 
     Attributes:
         N_horizon: The number of steps in the MPC horizon.
-            The MPC will have N+1 nodes (the nodes 0...N-1 and the terminal node N).
-        T_horizon: The length (meaning time) of the MPC horizon.
-            One step in the horizon will equal T_horizon/N_horizon simulation time.
+            The MPC will have N+1 nodes (the nodes 0...N-1 and the terminal
+            node N).
+        T_horizon: The duration of the MPC horizon. One step during planning
+            will equal T_horizon/N_horizon simulation time.
         Fmax: The maximum force that can be applied to the cart.
         cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
-        param_interface: Specifies how parameters are handled. "global" means they are the same across all stages,
-            while "stagewise" (not shown in the default) would allow them to vary.
+        param_interface: Determines the exposed paramete interface of the
+            controller.
     """
 
     N_horizon: int = 5
     T_horizon: float = 0.25
     Fmax: float = 80
-    cost_type: Literal["EXTERNAL", "NONLINEAR_LS"] = "NONLINEAR_LS"
+    cost_type: CostType = "NONLINEAR_LS"
     param_interface: ParamInterface = "global"
 
 
 class CartPoleController(ParameterizedController):
-    """acados based CartPoleController."""
+    """Acados based CartPoleController."""
 
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,
-        cfg: CartPoleControllerCfg,
+        cfg: CartPoleControllerCfg | None = None,
         params: list[Parameter] | None = None,
         export_directory: Path | None = None,
     ):
@@ -58,23 +64,24 @@ class CartPoleController(ParameterizedController):
                 `acados` solver code will be exported.
         """
         super().__init__()
-
-        self.cfg = cfg
-        self.params = (
-            create_cartpole_params(cfg.param_interface) if params is None else params
+        self.cfg = CartPoleControllerCfg() if cfg is None else cfg
+        params = (
+            create_cartpole_params(self.cfg.param_interface)
+            if params is None
+            else params
         )
 
         self.param_manager = AcadosParamManager(
-            params=self.params, N_horizon=N_horizon  # type:ignore
+            params=params, N_horizon=self.cfg.N_horizon
         )
 
         self.ocp = export_parametric_ocp(
             param_manager=self.param_manager,
-            cost_type=cfg.cost_type,
+            cost_type=self.cfg.cost_type,
             name="cartpole",
-            N_horizon=cfg.N_horizon,
-            T_horizon=cfg.T_horizon,
-            Fmax=cfg.Fmax,
+            N_horizon=self.cfg.N_horizon,
+            T_horizon=self.cfg.T_horizon,
+            Fmax=self.cfg.Fmax,
         )
 
         self.diff_mpc = AcadosDiffMpc(self.ocp, export_directory=export_directory)
