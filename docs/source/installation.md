@@ -86,3 +86,22 @@ To run the tests, use:
 ```bash
 pytest tests -vv -s
 ```
+
+## Linting and Formatting
+
+Only relevant if you want to contribute to the repository.
+For keeping our code style and our diffs consistent we use the [Ruff](https://docs.astral.sh/ruff/) linter and formatter (so far we use the standard settings).
+
+To make this as easy as possible we also provide a [pre-commit](https://pre-commit.com/) config for running the linter and formatter automatically at every commit. For enabling pre-commit follow these steps:
+
+1. Install pre-commit using pip (already done if you installed the additional "[dev]" dependencies of leap-c).
+```bash
+pip install pre-commit
+```
+
+2. In the leap-c root directory run
+```bash
+pre-commit install
+```
+
+Done! Now every commit will automatically be linted and formatted.
