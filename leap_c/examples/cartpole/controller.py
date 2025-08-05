@@ -1,21 +1,22 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 import gymnasium as gym
 import numpy as np
 import torch
 
+from leap_c.controller import ParameterizedController
 from leap_c.examples.cartpole.acados_ocp import (
+    CostType,
+    ParamInterface,
     create_cartpole_params,
     export_parametric_ocp,
-    ParamInterface,
-    CostType,
 )
-from leap_c.ocp.acados.parameters import Parameter
-from leap_c.controller import ParameterizedController
-from leap_c.ocp.acados.torch import AcadosDiffMpc
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
+from leap_c.ocp.acados.parameters import Parameter
+from leap_c.ocp.acados.parameters import AcadosParamManager
+from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 @dataclass(kw_only=True)

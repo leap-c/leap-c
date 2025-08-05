@@ -1,11 +1,9 @@
 """Module for running experiments."""
-
 import datetime
 from pathlib import Path
 
 import leap_c
 
-# import leap_c.examples  # noqa: F401
 from leap_c.trainer import Trainer
 from leap_c.utils.cfg import cfg_as_python
 from leap_c.utils.git import log_git_hash_and_diff
