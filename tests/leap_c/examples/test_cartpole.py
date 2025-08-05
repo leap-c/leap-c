@@ -123,7 +123,7 @@ def test_closed_loop_rendering(
     cwd = os.getcwd()
     savefile_dir_path = os.path.join(cwd, "test_closed_loop_pendulum_on_cart")
 
-    default_param = cartpole_controller.default_param
+    default_param = cartpole_controller.default_param(obs)
     default_param = torch.as_tensor(default_param, dtype=torch.float32).unsqueeze(0)
 
     ctx = None

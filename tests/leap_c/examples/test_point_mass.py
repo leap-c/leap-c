@@ -21,7 +21,7 @@ def test_run_closed_loop(
     """
 
     env = PointMassEnv()
-    env.reset()
+    obs, _ = env.reset()
 
     # overwrite initial state closely over the goal
     goal_pos = env.goal.pos
@@ -36,7 +36,7 @@ def test_run_closed_loop(
     param.xref = Parameter(**kw)
     controller = PointMassController(params=param)
 
-    default_param = controller.default_param
+    default_param = controller.default_param(obs)
     default_param = torch.as_tensor(default_param, dtype=torch.float32).unsqueeze(0)
     ctx = None
 
