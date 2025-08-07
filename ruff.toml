@@ -1,0 +1,6 @@
+exclude = [".venv"]
+
+[lint]
+ignore = [
+  "E741",
+]
