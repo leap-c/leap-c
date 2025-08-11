@@ -49,9 +49,7 @@ class TrainerConfig:
     val_num_render_rollouts: int = 1
     val_render_mode: str | None = "rgb_array"  # rgb_array or human
     val_render_deterministic: bool = True
-    val_report_score: Literal["cum", "final", "best"] = (
-        "cum"
-    )
+    val_report_score: Literal["cum", "final", "best"] = "cum"
 
     # checkpointing configuration
     ckpt_modus: Literal["best", "last", "all", "none"] = "best"
