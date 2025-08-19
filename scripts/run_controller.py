@@ -70,14 +70,14 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
         return action, ctx, {}
 
 
-def create_cfg() -> RunControllerConfig:
+def create_cfg(env: str, controller: str, seed: int) -> RunControllerConfig:
     """Return the default configuration for running controller experiments."""
     cfg = RunControllerConfig()
-    cfg.env = "cartpole"
-    cfg.controller = "cartpole"
+    cfg.env = env
+    cfg.controller = controller if controller is not None else env
 
     # ---- Section: cfg.trainer ----
-    cfg.trainer.seed = 0
+    cfg.trainer.seed = seed
     cfg.trainer.train_steps = 1  # No training
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 1  # Validate immediately
@@ -146,10 +146,7 @@ if __name__ == "__main__":
         seed=args.seed, tags=["controller", args.env, args.controller]
     )
 
-    cfg = create_cfg()
-    cfg.trainer.seed = args.seed
-    cfg.env = args.env
-    cfg.controller = args.controller if args.controller else args.env
+    cfg = create_cfg(args.env, args.controller, args.seed)
 
     if args.reuse_code and args.reuse_code_dir is None:
         reuse_code_dir = default_controller_code_path() if args.reuse_code else None

@@ -18,18 +18,18 @@ class RunSacZopConfig:
     env: str = "cartpole"
     controller: str = "cartpole"
     trainer: SacTrainerConfig = field(default_factory=SacTrainerConfig)
-    extractor: ExtractorName = "identity"  # for hvac use "scaling"
+    extractor: ExtractorName = "identity"
 
 
-def create_cfg() -> RunSacZopConfig:
+def create_cfg(env: str, controller: str, seed: int) -> RunSacZopConfig:
     # ---- Configuration ----
     cfg = RunSacZopConfig()
-    cfg.env = "cartpole"
-    cfg.controller = "cartpole"
-    cfg.extractor = "identity"  # for hvac use "scaling"
+    cfg.env = env
+    cfg.controller = controller if controller is not None else env
+    cfg.extractor = "identity" if env != "hvac" else "scaling"
 
     # ---- Section: cfg.trainer ----
-    cfg.trainer.seed = 0
+    cfg.trainer.seed = seed
     cfg.trainer.train_steps = 1000000
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 10000

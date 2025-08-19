@@ -16,18 +16,18 @@ class RunSacConfig:
 
     env: str = "cartpole"
     trainer: SacTrainerConfig = field(default_factory=SacTrainerConfig)
-    extractor: ExtractorName = "identity"  # for hvac use "scaling"
+    extractor: ExtractorName = "identity"
 
 
-def create_cfg() -> RunSacConfig:
+def create_cfg(env: str, seed: int) -> RunSacConfig:
     """Return the default configuration for running SAC experiments."""
     # ---- Configuration ----
     cfg = RunSacConfig()
-    cfg.env = "cartpole"
-    cfg.extractor = "identity"  # for hvac use "scaling"
+    cfg.env = env
+    cfg.extractor = "identity" if env != "hvac" else "scaling"
 
     # ---- Section: cfg.trainer ----
-    cfg.trainer.seed = 0
+    cfg.trainer.seed = seed
     cfg.trainer.train_steps = 1000000
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 10000
@@ -99,8 +99,5 @@ if __name__ == "__main__":
 
     output_path = default_output_path(seed=args.seed, tags=["sac", args.env])
 
-    cfg = create_cfg()
-    cfg.trainer.seed = args.seed
-    cfg.env = args.env
-
+    cfg = create_cfg(args.env, args.seed)
     run_sac(cfg, output_path, args.device)

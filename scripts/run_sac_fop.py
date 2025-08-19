@@ -17,18 +17,18 @@ class RunSacFopConfig:
     env: str = "cartpole"
     controller: str = "cartpole"
     trainer: SacFopTrainerConfig = field(default_factory=SacFopTrainerConfig)
-    extractor: ExtractorName = "identity"  # for hvac use "scaling"
+    extractor: ExtractorName = "identity"
 
 
-def create_cfg() -> RunSacFopConfig:
+def create_cfg(env: str, controller: str, seed: int) -> RunSacFopConfig:
     # ---- Configuration ----
     cfg = RunSacFopConfig()
-    cfg.env = "cartpole"
-    cfg.controller = "cartpole"
-    cfg.extractor = "identity"  # for hvac use "scaling"
+    cfg.env = env
+    cfg.controller = controller if controller is not None else env
+    cfg.extractor = "identity" if env != "hvac" else "scaling"
 
     # ---- Section: cfg.trainer ----
-    cfg.trainer.seed = 0
+    cfg.trainer.seed = seed
     cfg.trainer.train_steps = 1000000
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 10000
@@ -114,10 +114,7 @@ if __name__ == "__main__":
     parser.add_argument("--reuse_code_dir", type=Path, default=None)
     args = parser.parse_args()
 
-    cfg = create_cfg()
-    cfg.controller = args.controller if args.controller else args.env
-    cfg.env = args.env
-    cfg.trainer.seed = args.seed
+    cfg = create_cfg(args.env, args.controller, args.seed)
 
     if args.output_path is None:
         output_path = default_output_path(
