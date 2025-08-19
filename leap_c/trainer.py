@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Generic, Iterator, Literal, TypeVar, List
+from typing import Any, Generic, Iterator, Literal, TypeVar, List, get_args
 
 import numpy as np
 import torch
@@ -16,6 +16,7 @@ from leap_c.torch.utils.seed import set_seed
 
 
 TrainerConfigType = TypeVar("TrainerConfigType", bound="TrainerConfig")
+ValReportScoreOptions = Literal["cum", "final", "best"]
 
 
 @dataclass(kw_only=True)
@@ -31,7 +32,7 @@ class TrainerConfig:
         val_deterministic: If True, the policy will act deterministically during validation.
         val_render_mode: The mode in which the episodes will be rendered.
         val_render_deterministic: If True, the episodes will be rendered deterministically (e.g., no exploration).
-        val_report_score: Whether to report the cummulative score or the final evaluation score.
+        val_report_score: Whether to report the cummulative score, the final evaluation score or the best evaluation score.
         ckpt_modus: How to save the model, which can be "best", "last", "all" or "none".
     """
 
@@ -49,9 +50,7 @@ class TrainerConfig:
     val_num_render_rollouts: int = 1
     val_render_mode: str | None = "rgb_array"  # rgb_array or human
     val_render_deterministic: bool = True
-    val_report_score: Literal["cum", "final"] = (
-        "cum"  # "cum" for cumulative score, "final" for final score
-    )
+    val_report_score: ValReportScoreOptions = "cum"
 
     # checkpointing configuration
     ckpt_modus: Literal["best", "last", "all", "none"] = "best"
@@ -195,9 +194,9 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
     def run(self) -> float:
         """Call this function in your script to start the training loop."""
-        if self.cfg.val_report_score not in ["cum", "final"]:
+        if self.cfg.val_report_score not in get_args(ValReportScoreOptions):
             raise RuntimeError(
-                f"report_score is {self.cfg.val_report_score} but can be 'cum' or 'final'"
+                f"report_score is '{self.cfg.val_report_score}' but has to be one of {get_args(ValReportScoreOptions)}"
             )
 
         self.to(self.device)
@@ -229,10 +228,13 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
         self.logger.close()
 
-        if self.cfg.val_report_score == "cum":
-            return sum(self.state.scores)
-
-        return self.state.max_score
+        match self.cfg.val_report_score:
+            case "cum":
+                return sum(self.state.scores)
+            case "final":
+                return self.state.scores[-1]
+            case "best":
+                return self.state.max_score
 
     def validate(self) -> float:
         """Do a deterministic validation run of the policy and
