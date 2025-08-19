@@ -28,7 +28,7 @@ def create_cfg(env: str, seed: int) -> RunSacConfig:
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = seed
-    cfg.trainer.train_steps = 1000000
+    cfg.trainer.train_steps = 1000000 if env == "pointmass" else 200000
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 10000
     cfg.trainer.val_num_rollouts = 20
