@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Generic, Iterator, Literal, TypeVar, List
+from typing import Any, Generic, Iterator, Literal, TypeVar, List, get_args
 
 import numpy as np
 import torch
@@ -16,6 +16,7 @@ from leap_c.torch.utils.seed import set_seed
 
 
 TrainerConfigType = TypeVar("TrainerConfigType", bound="TrainerConfig")
+ValReportScoreOptions = Literal["cum", "final", "best"]
 
 
 @dataclass(kw_only=True)
@@ -49,7 +50,7 @@ class TrainerConfig:
     val_num_render_rollouts: int = 1
     val_render_mode: str | None = "rgb_array"  # rgb_array or human
     val_render_deterministic: bool = True
-    val_report_score: Literal["cum", "final", "best"] = "cum"
+    val_report_score: ValReportScoreOptions = "cum"
 
     # checkpointing configuration
     ckpt_modus: Literal["best", "last", "all", "none"] = "best"
@@ -193,10 +194,9 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
     def run(self) -> float:
         """Call this function in your script to start the training loop."""
-        val_report_score_options = ["cum", "final", "best"]
-        if self.cfg.val_report_score not in val_report_score_options:
+        if self.cfg.val_report_score not in get_args(ValReportScoreOptions):
             raise RuntimeError(
-                f"report_score is '{self.cfg.val_report_score}' but has to be one of {val_report_score_options}"
+                f"report_score is '{self.cfg.val_report_score}' but has to be one of {get_args(ValReportScoreOptions)}"
             )
 
         self.to(self.device)
