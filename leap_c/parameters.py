@@ -199,6 +199,16 @@ class ParameterManager:
 
         return batch_parameter_values
 
+    def learnable_params_default(self) -> np.ndarray:
+        """
+        Return the default values for all learnable parameters.
+
+        Returns:
+            np.ndarray: Flattened array of default values for learnable parameters,
+                       in the same order as learnable_array.
+        """
+        return self.learnable_array.copy()
+
     def learnable_params_lower_bound(self) -> np.ndarray:
         """
         Return the lower bounds for all learnable parameters.
