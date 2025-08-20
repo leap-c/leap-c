@@ -103,11 +103,11 @@ class ParameterManager:
         for key, val in overwrite.items():
             if key not in self.learnable_params:
                 raise KeyError(f"Parameter '{key}' is not learnable or not found.")
-            
+
             param_info = self.learnable_params[key]
             start_idx = param_info["start_idx"]
             end_idx = param_info["end_idx"]
-            
+
             # Reshape the input values to match the parameter size
             val_reshaped = val.reshape(batch_size, -1)
             if val_reshaped.shape[1] != (end_idx - start_idx):
@@ -115,7 +115,7 @@ class ParameterManager:
                     f"Shape mismatch for parameter '{key}': expected "
                     f"{end_idx - start_idx} values, got {val_reshaped.shape[1]}"
                 )
-            
+
             batch_parameter_values[:, start_idx:end_idx] = val_reshaped
 
         expected_shape = (batch_size, len(self.learnable_array))
@@ -125,3 +125,45 @@ class ParameterManager:
         )
 
         return batch_parameter_values
+
+    def learnable_params_lower_bound(self) -> np.ndarray:
+        """
+        Return the lower bounds for all learnable parameters.
+
+        Returns:
+            np.ndarray: Flattened array of lower bounds for learnable parameters,
+                       in the same order as learnable_array.
+        """
+        lower_bounds = []
+
+        for name, param in self.parameters.items():
+            if param.interface == "learnable":
+                if param.lower_bound is not None:
+                    lower_bounds.append(param.lower_bound.flatten())
+                else:
+                    # Use -infinity for unbounded parameters
+                    param_size = param.default.size
+                    lower_bounds.append(np.full(param_size, -np.inf))
+
+        return np.concatenate(lower_bounds) if lower_bounds else np.array([])
+
+    def learnable_params_upper_bound(self) -> np.ndarray:
+        """
+        Return the upper bounds for all learnable parameters.
+
+        Returns:
+            np.ndarray: Flattened array of upper bounds for learnable parameters,
+                       in the same order as learnable_array.
+        """
+        upper_bounds = []
+
+        for name, param in self.parameters.items():
+            if param.interface == "learnable":
+                if param.upper_bound is not None:
+                    upper_bounds.append(param.upper_bound.flatten())
+                else:
+                    # Use +infinity for unbounded parameters
+                    param_size = param.default.size
+                    upper_bounds.append(np.full(param_size, np.inf))
+
+        return np.concatenate(upper_bounds) if upper_bounds else np.array([])

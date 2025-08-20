@@ -89,11 +89,11 @@ def test_parameter_manager_matrix_support():
 
     manager = ParameterManager(params)
     assert len(manager.parameters) == 2
-    
+
     # Test that learnable matrix is handled correctly
     assert "learnable_matrix" in manager.learnable_params
     assert manager.learnable_params["learnable_matrix"]["shape"] == (2, 2)
-    
+
     # Should be flattened to [5.0, 6.0, 7.0, 8.0] in learnable_array
     expected_array = np.array([5.0, 6.0, 7.0, 8.0])
     np.testing.assert_array_equal(manager.learnable_array, expected_array)
@@ -335,18 +335,16 @@ def test_combine_parameter_values_complex_scenario():
 def test_combine_parameter_values_with_matrices():
     """Test combine_parameter_values with matrix parameters."""
     params = [
+        Parameter(name="scalar", default=np.array([1.0]), interface="learnable"),
         Parameter(
-            name="scalar", default=np.array([1.0]), interface="learnable"
+            name="matrix",
+            default=np.array([[2.0, 3.0], [4.0, 5.0]]),
+            interface="learnable",
         ),
         Parameter(
-            name="matrix", 
-            default=np.array([[2.0, 3.0], [4.0, 5.0]]), 
-            interface="learnable"
-        ),
-        Parameter(
-            name="fixed_matrix", 
-            default=np.array([[99.0, 98.0], [97.0, 96.0]]), 
-            interface="fix"
+            name="fixed_matrix",
+            default=np.array([[99.0, 98.0], [97.0, 96.0]]),
+            interface="fix",
         ),
     ]
 
@@ -355,23 +353,27 @@ def test_combine_parameter_values_with_matrices():
     # Test default values - matrix should be flattened
     expected_default = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     np.testing.assert_array_equal(manager.learnable_array, expected_default)
-    
+
     # Test shape tracking
     assert manager.learnable_params["scalar"]["shape"] == (1,)
     assert manager.learnable_params["matrix"]["shape"] == (2, 2)
 
     # Test with matrix overwrite
-    overwrite_matrix = np.array([
-        [[10.0, 20.0], [30.0, 40.0]],  # batch 1: 2x2 matrix
-        [[50.0, 60.0], [70.0, 80.0]]   # batch 2: 2x2 matrix
-    ])
-    
+    overwrite_matrix = np.array(
+        [
+            [[10.0, 20.0], [30.0, 40.0]],  # batch 1: 2x2 matrix
+            [[50.0, 60.0], [70.0, 80.0]],  # batch 2: 2x2 matrix
+        ]
+    )
+
     result = manager.combine_parameter_values(matrix=overwrite_matrix)
-    
-    expected = np.array([
-        [1.0, 10.0, 20.0, 30.0, 40.0],  # scalar default, matrix overwritten
-        [1.0, 50.0, 60.0, 70.0, 80.0]
-    ])
+
+    expected = np.array(
+        [
+            [1.0, 10.0, 20.0, 30.0, 40.0],  # scalar default, matrix overwritten
+            [1.0, 50.0, 60.0, 70.0, 80.0],
+        ]
+    )
     np.testing.assert_array_equal(result, expected)
     assert result.shape == (2, 5)
 
@@ -381,16 +383,26 @@ def test_combine_parameter_values_mixed_dimensions():
     params = [
         Parameter(name="scalar", default=np.array([1.0]), interface="learnable"),
         Parameter(name="vector", default=np.array([2.0, 3.0]), interface="learnable"),
-        Parameter(name="matrix", default=np.array([[4.0, 5.0], [6.0, 7.0]]), interface="learnable"),
-        Parameter(name="tensor", default=np.array([[[8.0, 9.0], [10.0, 11.0]]]), interface="learnable"),
+        Parameter(
+            name="matrix",
+            default=np.array([[4.0, 5.0], [6.0, 7.0]]),
+            interface="learnable",
+        ),
+        Parameter(
+            name="tensor",
+            default=np.array([[[8.0, 9.0], [10.0, 11.0]]]),
+            interface="learnable",
+        ),
     ]
 
     manager = ParameterManager(params)
 
     # Test that all parameters are correctly flattened
-    expected_default = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0])
+    expected_default = np.array(
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0]
+    )
     np.testing.assert_array_equal(manager.learnable_array, expected_default)
-    
+
     # Test shape tracking
     assert manager.learnable_params["scalar"]["shape"] == (1,)
     assert manager.learnable_params["vector"]["shape"] == (2,)
@@ -400,16 +412,203 @@ def test_combine_parameter_values_mixed_dimensions():
     # Test overwriting different dimension parameters
     overwrite_matrix = np.array([[[100.0, 200.0], [300.0, 400.0]]])
     overwrite_tensor = np.array([[[[800.0, 900.0], [1000.0, 1100.0]]]])
-    
+
     result = manager.combine_parameter_values(
-        matrix=overwrite_matrix, 
-        tensor=overwrite_tensor
+        matrix=overwrite_matrix, tensor=overwrite_tensor
     )
-    
-    expected = np.array([[
-        1.0, 2.0, 3.0,  # scalar and vector defaults
-        100.0, 200.0, 300.0, 400.0,  # matrix overwritten
-        800.0, 900.0, 1000.0, 1100.0  # tensor overwritten
-    ]])
+
+    expected = np.array(
+        [
+            [
+                1.0,
+                2.0,
+                3.0,  # scalar and vector defaults
+                100.0,
+                200.0,
+                300.0,
+                400.0,  # matrix overwritten
+                800.0,
+                900.0,
+                1000.0,
+                1100.0,  # tensor overwritten
+            ]
+        ]
+    )
     np.testing.assert_array_equal(result, expected)
     assert result.shape == (1, 11)
+
+
+def test_learnable_params_lower_bound():
+    """Test learnable_params_lower_bound method with various parameter types."""
+    params = [
+        # Unbounded parameter (lower_bound=None)
+        Parameter(name="unbounded", default=np.array([1.0]), interface="learnable"),
+        # Bounded parameter with lower_bound
+        Parameter(
+            name="bounded",
+            default=np.array([2.0, 3.0]),
+            lower_bound=np.array([-1.0, -2.0]),
+            interface="learnable",
+        ),
+        # Fixed parameter (should not appear in bounds)
+        Parameter(
+            name="fixed",
+            default=np.array([4.0]),
+            lower_bound=np.array([0.0]),
+            interface="fix",
+        ),
+        # Matrix parameter with bounds
+        Parameter(
+            name="matrix",
+            default=np.array([[5.0, 6.0], [7.0, 8.0]]),
+            lower_bound=np.array([[0.0, 1.0], [2.0, 3.0]]),
+            interface="learnable",
+        ),
+    ]
+
+    manager = ParameterManager(params)
+    bounds = manager.learnable_params_lower_bound()
+
+    # Expected: [-inf, -1.0, -2.0, 0.0, 1.0, 2.0, 3.0]
+    # unbounded uses -inf, bounded uses specified values, matrix is flattened
+    expected = np.array([-np.inf, -1.0, -2.0, 0.0, 1.0, 2.0, 3.0])
+    np.testing.assert_array_equal(bounds, expected)
+
+
+def test_learnable_params_upper_bound():
+    """Test learnable_params_upper_bound method with various parameter types."""
+    params = [
+        # Unbounded parameter (upper_bound=None)
+        Parameter(name="unbounded", default=np.array([1.0]), interface="learnable"),
+        # Bounded parameter with upper_bound
+        Parameter(
+            name="bounded",
+            default=np.array([2.0, 3.0]),
+            upper_bound=np.array([10.0, 20.0]),
+            interface="learnable",
+        ),
+        # Fixed parameter (should not appear in bounds)
+        Parameter(
+            name="fixed",
+            default=np.array([4.0]),
+            upper_bound=np.array([100.0]),
+            interface="fix",
+        ),
+        # Matrix parameter with bounds
+        Parameter(
+            name="matrix",
+            default=np.array([[5.0, 6.0], [7.0, 8.0]]),
+            upper_bound=np.array([[50.0, 60.0], [70.0, 80.0]]),
+            interface="learnable",
+        ),
+    ]
+
+    manager = ParameterManager(params)
+    bounds = manager.learnable_params_upper_bound()
+
+    # Expected: [+inf, 10.0, 20.0, 50.0, 60.0, 70.0, 80.0]
+    # unbounded uses +inf, bounded uses specified values, matrix is flattened
+    expected = np.array([np.inf, 10.0, 20.0, 50.0, 60.0, 70.0, 80.0])
+    np.testing.assert_array_equal(bounds, expected)
+
+
+def test_learnable_params_bounds_no_learnable():
+    """Test bounds methods when no parameters are learnable."""
+    params = [
+        Parameter(name="fixed1", default=np.array([1.0]), interface="fix"),
+        Parameter(name="fixed2", default=np.array([2.0]), interface="non-learnable"),
+    ]
+
+    manager = ParameterManager(params)
+
+    lower_bounds = manager.learnable_params_lower_bound()
+    upper_bounds = manager.learnable_params_upper_bound()
+
+    # Should return empty arrays
+    assert lower_bounds.size == 0
+    assert upper_bounds.size == 0
+    np.testing.assert_array_equal(lower_bounds, np.array([]))
+    np.testing.assert_array_equal(upper_bounds, np.array([]))
+
+
+def test_learnable_params_bounds_consistency():
+    """Test that bounds methods return arrays consistent with learnable_array order."""
+    params = [
+        Parameter(
+            name="param_c",
+            default=np.array([3.0]),
+            lower_bound=np.array([-3.0]),
+            upper_bound=np.array([30.0]),
+            interface="learnable",
+        ),
+        Parameter(
+            name="param_a",
+            default=np.array([1.0, 2.0]),
+            lower_bound=np.array([-1.0, -2.0]),
+            upper_bound=np.array([10.0, 20.0]),
+            interface="learnable",
+        ),
+        Parameter(name="fixed", default=np.array([99.0]), interface="fix"),
+        Parameter(
+            name="param_b",
+            default=np.array([4.0, 5.0, 6.0]),
+            interface="learnable",  # No bounds specified
+        ),
+    ]
+
+    manager = ParameterManager(params)
+
+    # Check learnable_array order: param_c, param_a, param_b (order they were added)
+    expected_values = np.array([3.0, 1.0, 2.0, 4.0, 5.0, 6.0])
+    np.testing.assert_array_equal(manager.learnable_array, expected_values)
+
+    # Check lower bounds: param_c, param_a, param_b (unbounded = -inf)
+    expected_lower = np.array([-3.0, -1.0, -2.0, -np.inf, -np.inf, -np.inf])
+    lower_bounds = manager.learnable_params_lower_bound()
+    np.testing.assert_array_equal(lower_bounds, expected_lower)
+
+    # Check upper bounds: param_c, param_a, param_b (unbounded = +inf)
+    expected_upper = np.array([30.0, 10.0, 20.0, np.inf, np.inf, np.inf])
+    upper_bounds = manager.learnable_params_upper_bound()
+    np.testing.assert_array_equal(upper_bounds, expected_upper)
+
+
+def test_learnable_params_bounds_mixed_bounded_unbounded():
+    """Test bounds methods with mixed bounded and unbounded parameters."""
+    params = [
+        # Partially bounded (only lower bound)
+        Parameter(
+            name="lower_only",
+            default=np.array([1.0, 2.0]),
+            lower_bound=np.array([0.0, -1.0]),
+            interface="learnable",
+        ),
+        # Partially bounded (only upper bound)
+        Parameter(
+            name="upper_only",
+            default=np.array([3.0]),
+            upper_bound=np.array([100.0]),
+            interface="learnable",
+        ),
+        # Fully bounded
+        Parameter(
+            name="fully_bounded",
+            default=np.array([4.0, 5.0]),
+            lower_bound=np.array([-10.0, -20.0]),
+            upper_bound=np.array([10.0, 20.0]),
+            interface="learnable",
+        ),
+        # Unbounded
+        Parameter(name="unbounded", default=np.array([6.0]), interface="learnable"),
+    ]
+
+    manager = ParameterManager(params)
+
+    lower_bounds = manager.learnable_params_lower_bound()
+    upper_bounds = manager.learnable_params_upper_bound()
+
+    expected_lower = np.array([0.0, -1.0, -np.inf, -10.0, -20.0, -np.inf])
+    np.testing.assert_array_equal(lower_bounds, expected_lower)
+
+    expected_upper = np.array([np.inf, np.inf, 100.0, 10.0, 20.0, np.inf])
+    np.testing.assert_array_equal(upper_bounds, expected_upper)
