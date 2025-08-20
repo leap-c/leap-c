@@ -79,7 +79,9 @@ class ParameterManager:
                 current_index += param_size
 
         self.non_learnable_array = (
-            np.concatenate(non_learnable_arrays) if non_learnable_arrays else np.array([])
+            np.concatenate(non_learnable_arrays)
+            if non_learnable_arrays
+            else np.array([])
         )
 
     def get(self, name: str) -> Parameter:
@@ -88,7 +90,7 @@ class ParameterManager:
             raise KeyError(f"Parameter '{name}' not found.")
         return self.parameters[name]
 
-    def combine_parameter_values(
+    def combine_learnable_parameter_values(
         self,
         batch_size: int | None = None,
         **overwrite: np.ndarray,
@@ -177,11 +179,11 @@ class ParameterManager:
         for key, val in overwrite.items():
             if key not in self.non_learnable_params:
                 raise KeyError(f"Parameter '{key}' is not non-learnable or not found.")
-            
+
             param_info = self.non_learnable_params[key]
             start_idx = param_info["start_idx"]
             end_idx = param_info["end_idx"]
-            
+
             # Reshape the input values to match the parameter size
             val_reshaped = val.reshape(batch_size, -1)
             if val_reshaped.shape[1] != (end_idx - start_idx):
@@ -189,7 +191,7 @@ class ParameterManager:
                     f"Shape mismatch for parameter '{key}': expected "
                     f"{end_idx - start_idx} values, got {val_reshaped.shape[1]}"
                 )
-            
+
             batch_parameter_values[:, start_idx:end_idx] = val_reshaped
 
         expected_shape = (batch_size, len(self.non_learnable_array))

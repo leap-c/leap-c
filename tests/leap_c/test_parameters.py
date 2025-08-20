@@ -146,8 +146,8 @@ def test_parameter_manager_learnable_array_order():
     assert manager.learnable_params["d"]["end_idx"] == 4
 
 
-def test_combine_parameter_values_default_only():
-    """Test combine_parameter_values with default values only."""
+def test_combine_learnable_parameter_values_default_only():
+    """Test combine_learnable_parameter_values with default values only."""
     params = [
         Parameter(name="a", default=np.array([1.0]), interface="learnable"),
         Parameter(name="b", default=np.array([2.0, 3.0]), interface="learnable"),
@@ -157,20 +157,20 @@ def test_combine_parameter_values_default_only():
     manager = ParameterManager(params)
 
     # Test with default batch_size=1
-    result = manager.combine_parameter_values()
+    result = manager.combine_learnable_parameter_values()
     expected = np.array([[1.0, 2.0, 3.0]])  # Only learnable params
     np.testing.assert_array_equal(result, expected)
     assert result.shape == (1, 3)
 
     # Test with specific batch_size
-    result = manager.combine_parameter_values(batch_size=2)
+    result = manager.combine_learnable_parameter_values(batch_size=2)
     expected = np.array([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]])
     np.testing.assert_array_equal(result, expected)
     assert result.shape == (2, 3)
 
 
-def test_combine_parameter_values_with_overwrites():
-    """Test combine_parameter_values with parameter overwrites."""
+def test_combine_learnable_parameter_values_with_overwrites():
+    """Test combine_learnable_parameter_values with parameter overwrites."""
     params = [
         Parameter(name="scalar", default=np.array([1.0]), interface="learnable"),
         Parameter(name="vector", default=np.array([2.0, 3.0]), interface="learnable"),
@@ -181,7 +181,7 @@ def test_combine_parameter_values_with_overwrites():
 
     # Test overwriting scalar parameter
     overwrite_scalar = np.array([[10.0], [20.0]])
-    result = manager.combine_parameter_values(scalar=overwrite_scalar)
+    result = manager.combine_learnable_parameter_values(scalar=overwrite_scalar)
 
     expected = np.array(
         [
@@ -194,7 +194,7 @@ def test_combine_parameter_values_with_overwrites():
 
     # Test overwriting vector parameter
     overwrite_vector = np.array([[100.0, 200.0], [300.0, 400.0]])
-    result = manager.combine_parameter_values(vector=overwrite_vector)
+    result = manager.combine_learnable_parameter_values(vector=overwrite_vector)
 
     expected = np.array(
         [
@@ -206,7 +206,7 @@ def test_combine_parameter_values_with_overwrites():
     assert result.shape == (2, 3)
 
     # Test overwriting both parameters
-    result = manager.combine_parameter_values(
+    result = manager.combine_learnable_parameter_values(
         scalar=overwrite_scalar, vector=overwrite_vector
     )
 
@@ -220,7 +220,7 @@ def test_combine_parameter_values_with_overwrites():
     assert result.shape == (2, 3)
 
 
-def test_combine_parameter_values_batch_size_inference():
+def test_combine_learnable_parameter_values_batch_size_inference():
     """Test that batch_size is correctly inferred from overwrite parameters."""
     params = [
         Parameter(name="param", default=np.array([1.0]), interface="learnable"),
@@ -230,15 +230,15 @@ def test_combine_parameter_values_batch_size_inference():
 
     # Batch size should be inferred from overwrite parameter
     overwrite_param = np.array([[10.0], [20.0], [30.0]])  # batch_size=3
-    result = manager.combine_parameter_values(param=overwrite_param)
+    result = manager.combine_learnable_parameter_values(param=overwrite_param)
 
     expected = np.array([[10.0], [20.0], [30.0]])
     np.testing.assert_array_equal(result, expected)
     assert result.shape == (3, 1)
 
 
-def test_combine_parameter_values_no_learnable_params():
-    """Test combine_parameter_values when no parameters are learnable."""
+def test_combine_learnable_parameter_values_no_learnable_params():
+    """Test combine_learnable_parameter_values when no parameters are learnable."""
     params = [
         Parameter(name="fixed1", default=np.array([1.0]), interface="fix"),
         Parameter(name="fixed2", default=np.array([2.0]), interface="non-learnable"),
@@ -247,14 +247,14 @@ def test_combine_parameter_values_no_learnable_params():
     manager = ParameterManager(params)
 
     # Should return empty array with correct batch dimension
-    result = manager.combine_parameter_values(batch_size=2)
+    result = manager.combine_learnable_parameter_values(batch_size=2)
     expected = np.empty((2, 0))
     np.testing.assert_array_equal(result, expected)
     assert result.shape == (2, 0)
 
 
-def test_combine_parameter_values_error_cases():
-    """Test error cases for combine_parameter_values."""
+def test_combine_learnable_parameter_values_error_cases():
+    """Test error cases for combine_learnable_parameter_values."""
     params = [
         Parameter(
             name="learnable", default=np.array([1.0, 2.0]), interface="learnable"
@@ -266,21 +266,21 @@ def test_combine_parameter_values_error_cases():
 
     # Test overwriting non-learnable parameter
     with pytest.raises(KeyError, match="Parameter 'fixed' is not learnable"):
-        manager.combine_parameter_values(fixed=np.array([[99.0]]))
+        manager.combine_learnable_parameter_values(fixed=np.array([[99.0]]))
 
     # Test overwriting non-existent parameter
     with pytest.raises(KeyError, match="Parameter 'nonexistent' is not learnable"):
-        manager.combine_parameter_values(nonexistent=np.array([[1.0]]))
+        manager.combine_learnable_parameter_values(nonexistent=np.array([[1.0]]))
 
     # Test shape mismatch
     with pytest.raises(ValueError, match="Shape mismatch for parameter 'learnable'"):
         # learnable param expects 2 values, but providing 3
         wrong_shape = np.array([[1.0, 2.0, 3.0]])
-        manager.combine_parameter_values(learnable=wrong_shape)
+        manager.combine_learnable_parameter_values(learnable=wrong_shape)
 
 
-def test_combine_parameter_values_preserves_defaults():
-    """Test that combine_parameter_values doesn't modify the original learnable_array."""
+def test_combine_learnable_parameter_values_preserves_defaults():
+    """Test that combine_learnable_parameter_values doesn't modify the original learnable_array."""
     params = [
         Parameter(name="param", default=np.array([1.0, 2.0]), interface="learnable"),
     ]
@@ -290,7 +290,7 @@ def test_combine_parameter_values_preserves_defaults():
 
     # Perform operation with overwrite
     overwrite = np.array([[10.0, 20.0]])
-    result = manager.combine_parameter_values(param=overwrite)
+    result = manager.combine_learnable_parameter_values(param=overwrite)
 
     # Original learnable_array should remain unchanged
     np.testing.assert_array_equal(manager.learnable_array, original_learnable_array)
@@ -300,8 +300,8 @@ def test_combine_parameter_values_preserves_defaults():
     np.testing.assert_array_equal(result, expected)
 
 
-def test_combine_parameter_values_complex_scenario():
-    """Test combine_parameter_values with a complex mix of parameters."""
+def test_combine_learnable_parameter_values_complex_scenario():
+    """Test combine_learnable_parameter_values with a complex mix of parameters."""
     params = [
         Parameter(name="a", default=np.array([1.0]), interface="learnable"),
         Parameter(name="b", default=np.array([2.0, 3.0]), interface="fix"),
@@ -319,7 +319,7 @@ def test_combine_parameter_values_complex_scenario():
     overwrite_a = np.array([[100.0], [200.0], [300.0]])
     overwrite_e = np.array([[800.0, 900.0], [801.0, 901.0], [802.0, 902.0]])
 
-    result = manager.combine_parameter_values(a=overwrite_a, e=overwrite_e)
+    result = manager.combine_learnable_parameter_values(a=overwrite_a, e=overwrite_e)
 
     expected = np.array(
         [
@@ -332,8 +332,8 @@ def test_combine_parameter_values_complex_scenario():
     assert result.shape == (3, 6)
 
 
-def test_combine_parameter_values_with_matrices():
-    """Test combine_parameter_values with matrix parameters."""
+def test_combine_learnable_parameter_values_with_matrices():
+    """Test combine_learnable_parameter_values with matrix parameters."""
     params = [
         Parameter(name="scalar", default=np.array([1.0]), interface="learnable"),
         Parameter(
@@ -366,7 +366,7 @@ def test_combine_parameter_values_with_matrices():
         ]
     )
 
-    result = manager.combine_parameter_values(matrix=overwrite_matrix)
+    result = manager.combine_learnable_parameter_values(matrix=overwrite_matrix)
 
     expected = np.array(
         [
@@ -378,8 +378,8 @@ def test_combine_parameter_values_with_matrices():
     assert result.shape == (2, 5)
 
 
-def test_combine_parameter_values_mixed_dimensions():
-    """Test combine_parameter_values with parameters of various dimensions."""
+def test_combine_learnable_parameter_values_mixed_dimensions():
+    """Test combine_learnable_parameter_values with parameters of various dimensions."""
     params = [
         Parameter(name="scalar", default=np.array([1.0]), interface="learnable"),
         Parameter(name="vector", default=np.array([2.0, 3.0]), interface="learnable"),
@@ -413,7 +413,7 @@ def test_combine_parameter_values_mixed_dimensions():
     overwrite_matrix = np.array([[[100.0, 200.0], [300.0, 400.0]]])
     overwrite_tensor = np.array([[[[800.0, 900.0], [1000.0, 1100.0]]]])
 
-    result = manager.combine_parameter_values(
+    result = manager.combine_learnable_parameter_values(
         matrix=overwrite_matrix, tensor=overwrite_tensor
     )
 
@@ -627,7 +627,9 @@ def test_parameter_manager_non_learnable_params():
         # Scalar parameters
         Parameter(name="scalar_fix", default=np.array([1.0]), interface="fix"),
         Parameter(
-            name="scalar_non_learnable", default=np.array([2.0]), interface="non-learnable"
+            name="scalar_non_learnable",
+            default=np.array([2.0]),
+            interface="non-learnable",
         ),
         Parameter(
             name="scalar_learnable",
@@ -670,16 +672,16 @@ def test_parameter_manager_non_learnable_params():
 
     # Test flattened non-learnable array
     expected_non_learnable_array = np.array([2.0, 4.0, 5.0, 6.0])
-    np.testing.assert_array_equal(manager.non_learnable_array, expected_non_learnable_array)
+    np.testing.assert_array_equal(
+        manager.non_learnable_array, expected_non_learnable_array
+    )
 
 
 def test_parameter_manager_no_non_learnable_params():
     """Test ParameterManager when no parameters are non-learnable."""
     params = [
         Parameter(name="param1", default=np.array([1.0]), interface="fix"),
-        Parameter(
-            name="param2", default=np.array([2.0, 3.0]), interface="learnable"
-        ),
+        Parameter(name="param2", default=np.array([2.0, 3.0]), interface="learnable"),
     ]
 
     manager = ParameterManager(params)
@@ -706,11 +708,11 @@ def test_parameter_manager_non_learnable_matrix_support():
 
     manager = ParameterManager(params)
     assert len(manager.parameters) == 2
-    
+
     # Test that non-learnable matrix is handled correctly
     assert "non_learnable_matrix" in manager.non_learnable_params
     assert manager.non_learnable_params["non_learnable_matrix"]["shape"] == (2, 2)
-    
+
     # Should be flattened to [5.0, 6.0, 7.0, 8.0] in non_learnable_array
     expected_array = np.array([5.0, 6.0, 7.0, 8.0])
     np.testing.assert_array_equal(manager.non_learnable_array, expected_array)
@@ -769,7 +771,9 @@ def test_combine_non_learnable_parameter_values_with_overwrites():
     """Test combine_non_learnable_parameter_values with parameter overwrites."""
     params = [
         Parameter(name="scalar", default=np.array([1.0]), interface="non-learnable"),
-        Parameter(name="vector", default=np.array([2.0, 3.0]), interface="non-learnable"),
+        Parameter(
+            name="vector", default=np.array([2.0, 3.0]), interface="non-learnable"
+        ),
         Parameter(name="fixed", default=np.array([99.0]), interface="fix"),
     ]
 
@@ -853,7 +857,9 @@ def test_combine_non_learnable_parameter_values_error_cases():
     """Test error cases for combine_non_learnable_parameter_values."""
     params = [
         Parameter(
-            name="non_learnable", default=np.array([1.0, 2.0]), interface="non-learnable"
+            name="non_learnable",
+            default=np.array([1.0, 2.0]),
+            interface="non-learnable",
         ),
         Parameter(name="fixed", default=np.array([3.0]), interface="fix"),
     ]
@@ -869,7 +875,9 @@ def test_combine_non_learnable_parameter_values_error_cases():
         manager.combine_non_learnable_parameter_values(nonexistent=np.array([[1.0]]))
 
     # Test shape mismatch
-    with pytest.raises(ValueError, match="Shape mismatch for parameter 'non_learnable'"):
+    with pytest.raises(
+        ValueError, match="Shape mismatch for parameter 'non_learnable'"
+    ):
         # non_learnable param expects 2 values, but providing 3
         wrong_shape = np.array([[1.0, 2.0, 3.0]])
         manager.combine_non_learnable_parameter_values(non_learnable=wrong_shape)
@@ -878,7 +886,9 @@ def test_combine_non_learnable_parameter_values_error_cases():
 def test_combine_non_learnable_parameter_values_preserves_defaults():
     """Test that combine_non_learnable_parameter_values doesn't modify the original non_learnable_array."""
     params = [
-        Parameter(name="param", default=np.array([1.0, 2.0]), interface="non-learnable"),
+        Parameter(
+            name="param", default=np.array([1.0, 2.0]), interface="non-learnable"
+        ),
     ]
 
     manager = ParameterManager(params)
@@ -889,7 +899,9 @@ def test_combine_non_learnable_parameter_values_preserves_defaults():
     result = manager.combine_non_learnable_parameter_values(param=overwrite)
 
     # Original non_learnable_array should remain unchanged
-    np.testing.assert_array_equal(manager.non_learnable_array, original_non_learnable_array)
+    np.testing.assert_array_equal(
+        manager.non_learnable_array, original_non_learnable_array
+    )
 
     # Result should have the overwritten values
     expected = np.array([[10.0, 20.0]])
@@ -901,7 +913,9 @@ def test_combine_non_learnable_parameter_values_complex_scenario():
     params = [
         Parameter(name="a", default=np.array([1.0]), interface="non-learnable"),
         Parameter(name="b", default=np.array([2.0, 3.0]), interface="fix"),
-        Parameter(name="c", default=np.array([4.0, 5.0, 6.0]), interface="non-learnable"),
+        Parameter(
+            name="c", default=np.array([4.0, 5.0, 6.0]), interface="non-learnable"
+        ),
         Parameter(name="d", default=np.array([7.0]), interface="learnable"),
         Parameter(name="e", default=np.array([8.0, 9.0]), interface="non-learnable"),
     ]
@@ -915,7 +929,9 @@ def test_combine_non_learnable_parameter_values_complex_scenario():
     overwrite_a = np.array([[100.0], [200.0], [300.0]])
     overwrite_e = np.array([[800.0, 900.0], [801.0, 901.0], [802.0, 902.0]])
 
-    result = manager.combine_non_learnable_parameter_values(a=overwrite_a, e=overwrite_e)
+    result = manager.combine_non_learnable_parameter_values(
+        a=overwrite_a, e=overwrite_e
+    )
 
     expected = np.array(
         [
@@ -931,18 +947,16 @@ def test_combine_non_learnable_parameter_values_complex_scenario():
 def test_combine_non_learnable_parameter_values_with_matrices():
     """Test combine_non_learnable_parameter_values with matrix parameters."""
     params = [
+        Parameter(name="scalar", default=np.array([1.0]), interface="non-learnable"),
         Parameter(
-            name="scalar", default=np.array([1.0]), interface="non-learnable"
+            name="matrix",
+            default=np.array([[2.0, 3.0], [4.0, 5.0]]),
+            interface="non-learnable",
         ),
         Parameter(
-            name="matrix", 
-            default=np.array([[2.0, 3.0], [4.0, 5.0]]), 
-            interface="non-learnable"
-        ),
-        Parameter(
-            name="fixed_matrix", 
-            default=np.array([[99.0, 98.0], [97.0, 96.0]]), 
-            interface="fix"
+            name="fixed_matrix",
+            default=np.array([[99.0, 98.0], [97.0, 96.0]]),
+            interface="fix",
         ),
     ]
 
@@ -951,23 +965,27 @@ def test_combine_non_learnable_parameter_values_with_matrices():
     # Test default values - matrix should be flattened
     expected_default = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
     np.testing.assert_array_equal(manager.non_learnable_array, expected_default)
-    
+
     # Test shape tracking
     assert manager.non_learnable_params["scalar"]["shape"] == (1,)
     assert manager.non_learnable_params["matrix"]["shape"] == (2, 2)
 
     # Test with matrix overwrite
-    overwrite_matrix = np.array([
-        [[10.0, 20.0], [30.0, 40.0]],  # batch 1: 2x2 matrix
-        [[50.0, 60.0], [70.0, 80.0]]   # batch 2: 2x2 matrix
-    ])
-    
+    overwrite_matrix = np.array(
+        [
+            [[10.0, 20.0], [30.0, 40.0]],  # batch 1: 2x2 matrix
+            [[50.0, 60.0], [70.0, 80.0]],  # batch 2: 2x2 matrix
+        ]
+    )
+
     result = manager.combine_non_learnable_parameter_values(matrix=overwrite_matrix)
-    
-    expected = np.array([
-        [1.0, 10.0, 20.0, 30.0, 40.0],  # scalar default, matrix overwritten
-        [1.0, 50.0, 60.0, 70.0, 80.0]
-    ])
+
+    expected = np.array(
+        [
+            [1.0, 10.0, 20.0, 30.0, 40.0],  # scalar default, matrix overwritten
+            [1.0, 50.0, 60.0, 70.0, 80.0],
+        ]
+    )
     np.testing.assert_array_equal(result, expected)
     assert result.shape == (2, 5)
 
@@ -976,17 +994,29 @@ def test_combine_non_learnable_parameter_values_mixed_dimensions():
     """Test combine_non_learnable_parameter_values with parameters of various dimensions."""
     params = [
         Parameter(name="scalar", default=np.array([1.0]), interface="non-learnable"),
-        Parameter(name="vector", default=np.array([2.0, 3.0]), interface="non-learnable"),
-        Parameter(name="matrix", default=np.array([[4.0, 5.0], [6.0, 7.0]]), interface="non-learnable"),
-        Parameter(name="tensor", default=np.array([[[8.0, 9.0], [10.0, 11.0]]]), interface="non-learnable"),
+        Parameter(
+            name="vector", default=np.array([2.0, 3.0]), interface="non-learnable"
+        ),
+        Parameter(
+            name="matrix",
+            default=np.array([[4.0, 5.0], [6.0, 7.0]]),
+            interface="non-learnable",
+        ),
+        Parameter(
+            name="tensor",
+            default=np.array([[[8.0, 9.0], [10.0, 11.0]]]),
+            interface="non-learnable",
+        ),
     ]
 
     manager = ParameterManager(params)
 
     # Test that all parameters are correctly flattened
-    expected_default = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0])
+    expected_default = np.array(
+        [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0]
+    )
     np.testing.assert_array_equal(manager.non_learnable_array, expected_default)
-    
+
     # Test shape tracking
     assert manager.non_learnable_params["scalar"]["shape"] == (1,)
     assert manager.non_learnable_params["vector"]["shape"] == (2,)
@@ -996,16 +1026,27 @@ def test_combine_non_learnable_parameter_values_mixed_dimensions():
     # Test overwriting different dimension parameters
     overwrite_matrix = np.array([[[100.0, 200.0], [300.0, 400.0]]])
     overwrite_tensor = np.array([[[[800.0, 900.0], [1000.0, 1100.0]]]])
-    
+
     result = manager.combine_non_learnable_parameter_values(
-        matrix=overwrite_matrix, 
-        tensor=overwrite_tensor
+        matrix=overwrite_matrix, tensor=overwrite_tensor
     )
-    
-    expected = np.array([[
-        1.0, 2.0, 3.0,  # scalar and vector defaults
-        100.0, 200.0, 300.0, 400.0,  # matrix overwritten
-        800.0, 900.0, 1000.0, 1100.0  # tensor overwritten
-    ]])
+
+    expected = np.array(
+        [
+            [
+                1.0,
+                2.0,
+                3.0,  # scalar and vector defaults
+                100.0,
+                200.0,
+                300.0,
+                400.0,  # matrix overwritten
+                800.0,
+                900.0,
+                1000.0,
+                1100.0,  # tensor overwritten
+            ]
+        ]
+    )
     np.testing.assert_array_equal(result, expected)
     assert result.shape == (1, 11)
