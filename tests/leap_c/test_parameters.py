@@ -469,7 +469,6 @@ def test_learnable_params_lower_bound():
     manager = ParameterManager(params)
     bounds = manager.learnable_params_lower_bound()
 
-    # Expected: [-inf, -1.0, -2.0, 0.0, 1.0, 2.0, 3.0]
     # unbounded uses -inf, bounded uses specified values, matrix is flattened
     expected = np.array([-np.inf, -1.0, -2.0, 0.0, 1.0, 2.0, 3.0])
     np.testing.assert_array_equal(bounds, expected)
@@ -506,7 +505,6 @@ def test_learnable_params_upper_bound():
     manager = ParameterManager(params)
     bounds = manager.learnable_params_upper_bound()
 
-    # Expected: [+inf, 10.0, 20.0, 50.0, 60.0, 70.0, 80.0]
     # unbounded uses +inf, bounded uses specified values, matrix is flattened
     expected = np.array([np.inf, 10.0, 20.0, 50.0, 60.0, 70.0, 80.0])
     np.testing.assert_array_equal(bounds, expected)
@@ -535,22 +533,26 @@ def test_learnable_params_bounds_consistency():
     """Test that bounds methods return arrays consistent with learnable_array order."""
     params = [
         Parameter(
-            name="param_c",
+            name="c",
             default=np.array([3.0]),
             lower_bound=np.array([-3.0]),
             upper_bound=np.array([30.0]),
             interface="learnable",
         ),
         Parameter(
-            name="param_a",
+            name="a",
             default=np.array([1.0, 2.0]),
             lower_bound=np.array([-1.0, -2.0]),
             upper_bound=np.array([10.0, 20.0]),
             interface="learnable",
         ),
-        Parameter(name="fixed", default=np.array([99.0]), interface="fix"),
         Parameter(
-            name="param_b",
+            name="fixed",
+            default=np.array([99.0]),
+            interface="fix",
+        ),
+        Parameter(
+            name="b",
             default=np.array([4.0, 5.0, 6.0]),
             interface="learnable",  # No bounds specified
         ),
@@ -558,16 +560,16 @@ def test_learnable_params_bounds_consistency():
 
     manager = ParameterManager(params)
 
-    # Check learnable_array order: param_c, param_a, param_b (order they were added)
+    # Check learnable_array order: c, a, b (order they were added)
     expected_values = np.array([3.0, 1.0, 2.0, 4.0, 5.0, 6.0])
     np.testing.assert_array_equal(manager.learnable_array, expected_values)
 
-    # Check lower bounds: param_c, param_a, param_b (unbounded = -inf)
+    # Check lower bounds: c, a, b (unbounded = -inf)
     expected_lower = np.array([-3.0, -1.0, -2.0, -np.inf, -np.inf, -np.inf])
     lower_bounds = manager.learnable_params_lower_bound()
     np.testing.assert_array_equal(lower_bounds, expected_lower)
 
-    # Check upper bounds: param_c, param_a, param_b (unbounded = +inf)
+    # Check upper bounds: c, a, b (unbounded = +inf)
     expected_upper = np.array([30.0, 10.0, 20.0, np.inf, np.inf, np.inf])
     upper_bounds = manager.learnable_params_upper_bound()
     np.testing.assert_array_equal(upper_bounds, expected_upper)
@@ -599,7 +601,11 @@ def test_learnable_params_bounds_mixed_bounded_unbounded():
             interface="learnable",
         ),
         # Unbounded
-        Parameter(name="unbounded", default=np.array([6.0]), interface="learnable"),
+        Parameter(
+            name="unbounded",
+            default=np.array([6.0]),
+            interface="learnable",
+        ),
     ]
 
     manager = ParameterManager(params)
