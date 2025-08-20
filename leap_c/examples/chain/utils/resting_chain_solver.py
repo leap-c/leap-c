@@ -5,8 +5,6 @@ import numpy as np
 from casadi import vertcat
 from casadi.tools import struct_symSX, entry
 
-from leap_c.examples.chain.config import ChainParams
-
 
 def _define_param_struct(n_mass: int) -> struct_symSX:
     return struct_symSX(
@@ -62,7 +60,7 @@ class RestingChainSolver:
         self,
         n_mass: int,
         f_expl: Callable,
-        params: ChainParams,
+        params,
     ):
         self.n_mass = n_mass
         self.f_expl = f_expl

@@ -7,11 +7,11 @@ from acados_template import AcadosModel, AcadosOcp
 from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
 
 
-ParamInterface = Literal["global", "stagewise"]
-CostType = Literal["EXTERNAL", "NONLINEAR_LS"]
+CartPoleAcadosParamInterface = Literal["global", "stagewise"]
+CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 
 
-def create_cartpole_params(param_interface: ParamInterface) -> list[Parameter]:
+def create_cartpole_params(param_interface: CartPoleAcadosParamInterface) -> list[Parameter]:
     """Returns a list of parameters used in cartpole."""
     return [
         # Dynamics parameters
@@ -146,7 +146,7 @@ def define_cost_expr_ext_cost_e(
 
 def export_parametric_ocp(
     param_manager: AcadosParamManager,
-    cost_type: CostType = "NONLINEAR_LS",
+    cost_type: CartPoleAcadosCostType = "NONLINEAR_LS",
     exact_hess_dyn: bool = True,
     name: str = "cartpole",
     Fmax: float = 80.0,

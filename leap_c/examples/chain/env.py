@@ -1,3 +1,4 @@
+from dataclasses import dataclass
 from typing import Any
 
 import gymnasium as gym
@@ -6,7 +7,6 @@ import numpy as np
 from gymnasium import spaces
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
-from leap_c.examples.chain.config import ChainParams, make_default_chain_params
 from leap_c.examples.chain.utils.dynamics import (
     create_discrete_numpy_dynamics,
     get_f_expl_expr,
@@ -15,55 +15,86 @@ from leap_c.examples.chain.utils.ellipsoid import Ellipsoid
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
 
 
+@dataclass(kw_only=True)
+class ChainEnvConfig:
+    """Configuration for the Chain environment."""
+
+    n_mass: int = 5  # number of masses in the chain
+    dt: float = 0.05  # simulation time step [s]
+    max_time: float = 10.0  # maximum simulation time [s]
+    vmax: float = 1.0  # maximum velocity of the last mass [m/s]
+
+
 class ChainEnv(gym.Env):
+    """
+    An environment of a chain of masses. The first mass is fixed at a given point,
+    and the last mass can be controlled by setting its velocity. The goal is to
+    move the last mass to a target position.
+
+    Observation Space:
+    ------------------
+
+    The observation is of shape `(6 * n_mass - 9,)` representing the state of the
+    system. It consists of the 3D positions of the `n_mass - 1` free masses and
+    the 3D velocities of the first `n_mass - 2` free masses.
+
+    The state is structured as `[p_2, ..., p_{n_mass}, v_2, ..., v_{n_mass-1}]`, where `p_i` is the
+    position of the i-th mass and `v_i` is its velocity.
+
+    Action Space:
+    -------------
+
+    The action is a `ndarray` with shape `(3,)` which can take values in the range `(-vmax, vmax)`.
+    It represents the velocity of the second mass (the first free mass).
+
+    Reward:
+    -------
+
+    The reward is designed to encourage the agent to move the last mass to the target position
+    while minimizing velocity. It is calculated as:
+    `r = 10 * (r_dist + r_vel)`
+    where:
+    - `r_dist` is the negative L1 norm of the distance between the last mass and the target position.
+    - `r_vel` is the negative L2 norm of the velocities of the masses, scaled by -0.1.
+    """
+
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
     def __init__(
         self,
         render_mode: str | None = None,
-        params: ChainParams | None = None,
-        n_mass: int = 5,
-        pos_last_mass_ref: np.ndarray | None = None,
+        cfg: ChainEnvConfig | None = None,
     ):
         super().__init__()
-        # Create default chain params
-        if params is None:
-            params = make_default_chain_params(n_mass)
+        self.cfg = ChainEnvConfig() if cfg is None else cfg
 
-        if pos_last_mass_ref is None:
-            pos_last_mass_ref = params.fix_point.value + np.array(
-                [0.033 * (n_mass - 1), 0.0, 0.0]
-            )
+        self.fix_point = np.zeros(3)
 
-        self.n_mass = n_mass
+        pos_last_mass_ref = self.fix_point + np.array(
+            [0.033 * (self.cfg.n_mass - 1), 0.0, 0.0]
+        )
+
+        self.init_phi_range = np.array([np.pi / 6, np.pi / 3])
+        self.init_theta_range = np.array([-np.pi / 4, np.pi / 4])
 
         # Extract parameter values from chain_params
         self.dyn_param_dict = {
-            "L": params.L.value,
-            "D": params.D.value,
-            "C": params.C.value,
-            "m": params.m.value,
-            "w": params.w.value,
+            "L": np.repeat([0.033, 0.033, 0.033], self.cfg.n_mass - 1),
+            "D": np.repeat([1.0, 1.0, 1.0], self.cfg.n_mass - 1),
+            "C": np.repeat([0.1, 0.1, 0.1], self.cfg.n_mass - 1),
+            "m": np.repeat([0.033], self.cfg.n_mass - 1),
+            "w": np.repeat([0.0, 0.0, 0.0], self.cfg.n_mass - 2),
         }
 
-        # Use ranges from chain_params
-        self.phi_range = tuple(params.phi_range.value)
-        self.theta_range = tuple(params.theta_range.value)
+        self.nx_pos = 3 * (self.cfg.n_mass - 1)
+        self.nx_vel = 3 * (self.cfg.n_mass - 2)
 
-        self.nx_pos = 3 * (n_mass - 1)
-        self.nx_vel = 3 * (n_mass - 2)
-
-        # Set default values
-        self.fix_point = np.array([0.0, 0.0, 0.0])
         self.pos_last_ref = pos_last_mass_ref
-        self.dt = 0.05  # Default time step
-        self.max_time = 10.0  # Default maximum simulation time
-        vmax = 1.0  # Default maximum action value
 
         # Compute observation space
-        pos_max = np.array(self.dyn_param_dict["L"]) * (n_mass - 1)
+        pos_max = np.array(self.dyn_param_dict["L"]) * (self.cfg.n_mass - 1)
         pos_min = -pos_max
-        vel_max = np.array([2.0, 2.0, 2.0] * (n_mass - 2))
+        vel_max = np.array([2.0, 2.0, 2.0] * (self.cfg.n_mass - 2))
         vel_min = -vel_max
         self.observation_space = spaces.Box(
             low=np.concatenate([pos_min, vel_min], dtype=np.float32),
@@ -71,20 +102,21 @@ class ChainEnv(gym.Env):
         )
 
         self.action_space = spaces.Box(
-            low=np.array([-vmax, -vmax, -vmax], dtype=np.float32),
-            high=np.array([vmax, vmax, vmax], dtype=np.float32),
+            low=np.array([-self.cfg.vmax, -self.cfg.vmax, -self.cfg.vmax], dtype=np.float32),
+            high=np.array([self.cfg.vmax, self.cfg.vmax, self.cfg.vmax], dtype=np.float32),
         )
 
         self.render_mode = render_mode
         self.trajectory = []
 
         # Create the discrete dynamics function
-        self.discrete_dynamics = create_discrete_numpy_dynamics(n_mass, self.dt)
+        self.discrete_dynamics = create_discrete_numpy_dynamics(
+            self.cfg.n_mass, self.cfg.dt
+        )
 
         self.resting_chain_solver = RestingChainSolver(
-            n_mass=n_mass,
+            n_mass=self.cfg.n_mass,
             f_expl=get_f_expl_expr,
-            params=params,
         )
 
         self.x_ref, self.u_ref = self.resting_chain_solver(p_last=self.pos_last_ref)
@@ -124,7 +156,7 @@ class ChainEnv(gym.Env):
         term = False
 
         self.time += self.dt
-        trunc = self.time > self.max_time
+        trunc = self.time > self.cfg.max_time
 
         info = {}
         if trunc:
@@ -154,10 +186,12 @@ class ChainEnv(gym.Env):
         return self.state.copy(), {}
 
     def _init_state_and_action(self):
-        phi = self.np_random.uniform(low=self.phi_range[0], high=self.phi_range[1])  # type:ignore
+        phi = self.np_random.uniform(
+            low=self.init_phi_range[0], high=self.init_phi_range[1]
+        )
         theta = self.np_random.uniform(
-            low=self.theta_range[0], high=self.theta_range[1]
-        )  # type:ignore
+            low=self.init_theta_range[0], high=self.init_theta_range[1]
+        )
         p_last = self.ellipsoid.spherical_to_cartesian(phi=phi, theta=theta)
         x_ss, u_ss = self.resting_chain_solver(p_last=p_last)
 

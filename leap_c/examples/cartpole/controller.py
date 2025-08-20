@@ -8,14 +8,13 @@ import torch
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.cartpole.acados_ocp import (
-    CostType,
-    ParamInterface,
+    CartPoleAcadosCostType,
+    CartPoleAcadosParamInterface,
     create_cartpole_params,
     export_parametric_ocp,
 )
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
-from leap_c.ocp.acados.parameters import Parameter
-from leap_c.ocp.acados.parameters import AcadosParamManager
+from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
@@ -38,8 +37,8 @@ class CartPoleControllerCfg:
     N_horizon: int = 5
     T_horizon: float = 0.25
     Fmax: float = 80
-    cost_type: CostType = "NONLINEAR_LS"
-    param_interface: ParamInterface = "global"
+    cost_type: CartPoleAcadosCostType = "NONLINEAR_LS"
+    param_interface: CartPoleAcadosParamInterface = "global"
 
 
 class CartPoleController(ParameterizedController):
