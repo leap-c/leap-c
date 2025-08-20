@@ -72,19 +72,31 @@ def test_parameter_manager_no_learnable_params():
     assert manager.learnable_array.size == 0
 
 
-# TODO: Extend ParameterManager to handle matrices and test. Can remove this test when implemented.
-def test_parameter_manager_matrix_raises_error():
-    """Test that matrix parameters (ndim > 1) raise ValueError."""
+def test_parameter_manager_matrix_support():
+    """Test that matrix parameters (ndim > 1) are now supported."""
     params = [
         Parameter(
             name="matrix_param",
             default=np.array([[1.0, 2.0], [3.0, 4.0]]),  # 2D matrix
             interface="fix",
         ),
+        Parameter(
+            name="learnable_matrix",
+            default=np.array([[5.0, 6.0], [7.0, 8.0]]),  # 2D learnable matrix
+            interface="learnable",
+        ),
     ]
 
-    with pytest.raises(ValueError, match="more than one dimension"):
-        ParameterManager(params)
+    manager = ParameterManager(params)
+    assert len(manager.parameters) == 2
+    
+    # Test that learnable matrix is handled correctly
+    assert "learnable_matrix" in manager.learnable_params
+    assert manager.learnable_params["learnable_matrix"]["shape"] == (2, 2)
+    
+    # Should be flattened to [5.0, 6.0, 7.0, 8.0] in learnable_array
+    expected_array = np.array([5.0, 6.0, 7.0, 8.0])
+    np.testing.assert_array_equal(manager.learnable_array, expected_array)
 
 
 def test_parameter_manager_get_method():
@@ -318,3 +330,86 @@ def test_combine_parameter_values_complex_scenario():
     )
     np.testing.assert_array_equal(result, expected)
     assert result.shape == (3, 6)
+
+
+def test_combine_parameter_values_with_matrices():
+    """Test combine_parameter_values with matrix parameters."""
+    params = [
+        Parameter(
+            name="scalar", default=np.array([1.0]), interface="learnable"
+        ),
+        Parameter(
+            name="matrix", 
+            default=np.array([[2.0, 3.0], [4.0, 5.0]]), 
+            interface="learnable"
+        ),
+        Parameter(
+            name="fixed_matrix", 
+            default=np.array([[99.0, 98.0], [97.0, 96.0]]), 
+            interface="fix"
+        ),
+    ]
+
+    manager = ParameterManager(params)
+
+    # Test default values - matrix should be flattened
+    expected_default = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+    np.testing.assert_array_equal(manager.learnable_array, expected_default)
+    
+    # Test shape tracking
+    assert manager.learnable_params["scalar"]["shape"] == (1,)
+    assert manager.learnable_params["matrix"]["shape"] == (2, 2)
+
+    # Test with matrix overwrite
+    overwrite_matrix = np.array([
+        [[10.0, 20.0], [30.0, 40.0]],  # batch 1: 2x2 matrix
+        [[50.0, 60.0], [70.0, 80.0]]   # batch 2: 2x2 matrix
+    ])
+    
+    result = manager.combine_parameter_values(matrix=overwrite_matrix)
+    
+    expected = np.array([
+        [1.0, 10.0, 20.0, 30.0, 40.0],  # scalar default, matrix overwritten
+        [1.0, 50.0, 60.0, 70.0, 80.0]
+    ])
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (2, 5)
+
+
+def test_combine_parameter_values_mixed_dimensions():
+    """Test combine_parameter_values with parameters of various dimensions."""
+    params = [
+        Parameter(name="scalar", default=np.array([1.0]), interface="learnable"),
+        Parameter(name="vector", default=np.array([2.0, 3.0]), interface="learnable"),
+        Parameter(name="matrix", default=np.array([[4.0, 5.0], [6.0, 7.0]]), interface="learnable"),
+        Parameter(name="tensor", default=np.array([[[8.0, 9.0], [10.0, 11.0]]]), interface="learnable"),
+    ]
+
+    manager = ParameterManager(params)
+
+    # Test that all parameters are correctly flattened
+    expected_default = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0])
+    np.testing.assert_array_equal(manager.learnable_array, expected_default)
+    
+    # Test shape tracking
+    assert manager.learnable_params["scalar"]["shape"] == (1,)
+    assert manager.learnable_params["vector"]["shape"] == (2,)
+    assert manager.learnable_params["matrix"]["shape"] == (2, 2)
+    assert manager.learnable_params["tensor"]["shape"] == (1, 2, 2)
+
+    # Test overwriting different dimension parameters
+    overwrite_matrix = np.array([[[100.0, 200.0], [300.0, 400.0]]])
+    overwrite_tensor = np.array([[[[800.0, 900.0], [1000.0, 1100.0]]]])
+    
+    result = manager.combine_parameter_values(
+        matrix=overwrite_matrix, 
+        tensor=overwrite_tensor
+    )
+    
+    expected = np.array([[
+        1.0, 2.0, 3.0,  # scalar and vector defaults
+        100.0, 200.0, 300.0, 400.0,  # matrix overwritten
+        800.0, 900.0, 1000.0, 1100.0  # tensor overwritten
+    ]])
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (1, 11)

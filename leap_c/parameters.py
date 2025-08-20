@@ -42,13 +42,7 @@ class ParameterManager:
     ) -> None:
         self.parameters = {param.name: param for param in params}
 
-        # Check that no parameter has more than one dimension.
-        for key, value in self.parameters.items():
-            if value.default.ndim > 1:
-                raise ValueError(
-                    f"Parameter '{key}' has more than one dimension, "
-                    "which is not supported. Use a single-dimensional array."
-                )
+        # All parameter dimensions are now supported (scalars, vectors, matrices, tensors)
 
         # Build map for learnable parameters and create flattened array
         self.learnable_params = {}
