@@ -1,0 +1,320 @@
+import numpy as np
+import pytest
+from leap_c.parameters import Parameter, ParameterManager
+
+
+def test_parameter_manager_learnable_params():
+    """Test ParameterManager with various parameter types and learnable functionality."""
+    # Create test parameters with different shapes and interfaces
+    params = [
+        # Scalar parameters
+        Parameter(name="scalar_fix", default=np.array([1.0]), interface="fix"),
+        Parameter(
+            name="scalar_learnable", default=np.array([2.0]), interface="learnable"
+        ),
+        Parameter(
+            name="scalar_non_learnable",
+            default=np.array([3.0]),
+            interface="non-learnable",
+        ),
+        # Vector parameters
+        Parameter(
+            name="vector_learnable",
+            default=np.array([4.0, 5.0, 6.0]),
+            interface="learnable",
+        ),
+        Parameter(name="vector_fix", default=np.array([7.0, 8.0]), interface="fix"),
+    ]
+
+    # Initialize ParameterManager
+    manager = ParameterManager(params)
+
+    # Test that parameters are stored correctly
+    assert len(manager.parameters) == 5
+    assert "scalar_fix" in manager.parameters
+    assert "scalar_learnable" in manager.parameters
+    assert "vector_learnable" in manager.parameters
+
+    # Test learnable parameter mapping
+    expected_learnable_params = ["scalar_learnable", "vector_learnable"]
+    assert len(manager.learnable_params) == len(expected_learnable_params)
+
+    for param_name in expected_learnable_params:
+        assert param_name in manager.learnable_params
+
+    # Test learnable parameter indices and shapes
+    assert manager.learnable_params["scalar_learnable"]["start_idx"] == 0
+    assert manager.learnable_params["scalar_learnable"]["end_idx"] == 1
+    assert manager.learnable_params["scalar_learnable"]["shape"] == (1,)
+
+    assert manager.learnable_params["vector_learnable"]["start_idx"] == 1
+    assert manager.learnable_params["vector_learnable"]["end_idx"] == 4
+    assert manager.learnable_params["vector_learnable"]["shape"] == (3,)
+
+    # Test flattened learnable array
+    expected_learnable_array = np.array([2.0, 4.0, 5.0, 6.0])
+    np.testing.assert_array_equal(manager.learnable_array, expected_learnable_array)
+
+
+def test_parameter_manager_no_learnable_params():
+    """Test ParameterManager when no parameters are learnable."""
+    params = [
+        Parameter(name="param1", default=np.array([1.0]), interface="fix"),
+        Parameter(
+            name="param2", default=np.array([2.0, 3.0]), interface="non-learnable"
+        ),
+    ]
+
+    manager = ParameterManager(params)
+
+    # Should have empty learnable structures
+    assert len(manager.learnable_params) == 0
+    assert manager.learnable_array.size == 0
+
+
+# TODO: Extend ParameterManager to handle matrices and test. Can remove this test when implemented.
+def test_parameter_manager_matrix_raises_error():
+    """Test that matrix parameters (ndim > 1) raise ValueError."""
+    params = [
+        Parameter(
+            name="matrix_param",
+            default=np.array([[1.0, 2.0], [3.0, 4.0]]),  # 2D matrix
+            interface="fix",
+        ),
+    ]
+
+    with pytest.raises(ValueError, match="more than one dimension"):
+        ParameterManager(params)
+
+
+def test_parameter_manager_get_method():
+    """Test the get method for retrieving parameters."""
+    params = [
+        Parameter(
+            name="test_param", default=np.array([1.0, 2.0]), interface="learnable"
+        ),
+    ]
+
+    manager = ParameterManager(params)
+
+    # Test successful retrieval
+    retrieved_param = manager.get("test_param")
+    assert retrieved_param.name == "test_param"
+    np.testing.assert_array_equal(retrieved_param.default, np.array([1.0, 2.0]))
+    assert retrieved_param.interface == "learnable"
+
+    # Test retrieval of non-existent parameter
+    with pytest.raises(KeyError, match="Parameter 'nonexistent' not found"):
+        manager.get("nonexistent")
+
+
+def test_parameter_manager_learnable_array_order():
+    """Test that learnable parameters are ordered correctly in the flattened array."""
+    params = [
+        Parameter(name="c", default=np.array([3.0]), interface="learnable"),
+        Parameter(name="a", default=np.array([1.0, 2.0]), interface="learnable"),
+        Parameter(name="b", default=np.array([4.0, 5.0, 6.0]), interface="fix"),
+        Parameter(name="d", default=np.array([7.0]), interface="learnable"),
+    ]
+
+    manager = ParameterManager(params)
+
+    # Should only include learnable parameters in order they were added
+    # c: [3.0] -> indices 0:1
+    # a: [1.0, 2.0] -> indices 1:3
+    # d: [7.0] -> indices 3:4
+    expected_array = np.array([3.0, 1.0, 2.0, 7.0])
+    np.testing.assert_array_equal(manager.learnable_array, expected_array)
+
+    assert manager.learnable_params["c"]["start_idx"] == 0
+    assert manager.learnable_params["c"]["end_idx"] == 1
+    assert manager.learnable_params["a"]["start_idx"] == 1
+    assert manager.learnable_params["a"]["end_idx"] == 3
+    assert manager.learnable_params["d"]["start_idx"] == 3
+    assert manager.learnable_params["d"]["end_idx"] == 4
+
+
+def test_combine_parameter_values_default_only():
+    """Test combine_parameter_values with default values only."""
+    params = [
+        Parameter(name="a", default=np.array([1.0]), interface="learnable"),
+        Parameter(name="b", default=np.array([2.0, 3.0]), interface="learnable"),
+        Parameter(name="c", default=np.array([4.0]), interface="fix"),
+    ]
+
+    manager = ParameterManager(params)
+
+    # Test with default batch_size=1
+    result = manager.combine_parameter_values()
+    expected = np.array([[1.0, 2.0, 3.0]])  # Only learnable params
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (1, 3)
+
+    # Test with specific batch_size
+    result = manager.combine_parameter_values(batch_size=2)
+    expected = np.array([[1.0, 2.0, 3.0], [1.0, 2.0, 3.0]])
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (2, 3)
+
+
+def test_combine_parameter_values_with_overwrites():
+    """Test combine_parameter_values with parameter overwrites."""
+    params = [
+        Parameter(name="scalar", default=np.array([1.0]), interface="learnable"),
+        Parameter(name="vector", default=np.array([2.0, 3.0]), interface="learnable"),
+        Parameter(name="fixed", default=np.array([99.0]), interface="fix"),
+    ]
+
+    manager = ParameterManager(params)
+
+    # Test overwriting scalar parameter
+    overwrite_scalar = np.array([[10.0], [20.0]])
+    result = manager.combine_parameter_values(scalar=overwrite_scalar)
+
+    expected = np.array(
+        [
+            [10.0, 2.0, 3.0],  # scalar overwritten, vector default
+            [20.0, 2.0, 3.0],
+        ]
+    )
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (2, 3)
+
+    # Test overwriting vector parameter
+    overwrite_vector = np.array([[100.0, 200.0], [300.0, 400.0]])
+    result = manager.combine_parameter_values(vector=overwrite_vector)
+
+    expected = np.array(
+        [
+            [1.0, 100.0, 200.0],  # scalar default, vector overwritten
+            [1.0, 300.0, 400.0],
+        ]
+    )
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (2, 3)
+
+    # Test overwriting both parameters
+    result = manager.combine_parameter_values(
+        scalar=overwrite_scalar, vector=overwrite_vector
+    )
+
+    expected = np.array(
+        [
+            [10.0, 100.0, 200.0],  # both overwritten
+            [20.0, 300.0, 400.0],
+        ]
+    )
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (2, 3)
+
+
+def test_combine_parameter_values_batch_size_inference():
+    """Test that batch_size is correctly inferred from overwrite parameters."""
+    params = [
+        Parameter(name="param", default=np.array([1.0]), interface="learnable"),
+    ]
+
+    manager = ParameterManager(params)
+
+    # Batch size should be inferred from overwrite parameter
+    overwrite_param = np.array([[10.0], [20.0], [30.0]])  # batch_size=3
+    result = manager.combine_parameter_values(param=overwrite_param)
+
+    expected = np.array([[10.0], [20.0], [30.0]])
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (3, 1)
+
+
+def test_combine_parameter_values_no_learnable_params():
+    """Test combine_parameter_values when no parameters are learnable."""
+    params = [
+        Parameter(name="fixed1", default=np.array([1.0]), interface="fix"),
+        Parameter(name="fixed2", default=np.array([2.0]), interface="non-learnable"),
+    ]
+
+    manager = ParameterManager(params)
+
+    # Should return empty array with correct batch dimension
+    result = manager.combine_parameter_values(batch_size=2)
+    expected = np.empty((2, 0))
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (2, 0)
+
+
+def test_combine_parameter_values_error_cases():
+    """Test error cases for combine_parameter_values."""
+    params = [
+        Parameter(
+            name="learnable", default=np.array([1.0, 2.0]), interface="learnable"
+        ),
+        Parameter(name="fixed", default=np.array([3.0]), interface="fix"),
+    ]
+
+    manager = ParameterManager(params)
+
+    # Test overwriting non-learnable parameter
+    with pytest.raises(KeyError, match="Parameter 'fixed' is not learnable"):
+        manager.combine_parameter_values(fixed=np.array([[99.0]]))
+
+    # Test overwriting non-existent parameter
+    with pytest.raises(KeyError, match="Parameter 'nonexistent' is not learnable"):
+        manager.combine_parameter_values(nonexistent=np.array([[1.0]]))
+
+    # Test shape mismatch
+    with pytest.raises(ValueError, match="Shape mismatch for parameter 'learnable'"):
+        # learnable param expects 2 values, but providing 3
+        wrong_shape = np.array([[1.0, 2.0, 3.0]])
+        manager.combine_parameter_values(learnable=wrong_shape)
+
+
+def test_combine_parameter_values_preserves_defaults():
+    """Test that combine_parameter_values doesn't modify the original learnable_array."""
+    params = [
+        Parameter(name="param", default=np.array([1.0, 2.0]), interface="learnable"),
+    ]
+
+    manager = ParameterManager(params)
+    original_learnable_array = manager.learnable_array.copy()
+
+    # Perform operation with overwrite
+    overwrite = np.array([[10.0, 20.0]])
+    result = manager.combine_parameter_values(param=overwrite)
+
+    # Original learnable_array should remain unchanged
+    np.testing.assert_array_equal(manager.learnable_array, original_learnable_array)
+
+    # Result should have the overwritten values
+    expected = np.array([[10.0, 20.0]])
+    np.testing.assert_array_equal(result, expected)
+
+
+def test_combine_parameter_values_complex_scenario():
+    """Test combine_parameter_values with a complex mix of parameters."""
+    params = [
+        Parameter(name="a", default=np.array([1.0]), interface="learnable"),
+        Parameter(name="b", default=np.array([2.0, 3.0]), interface="fix"),
+        Parameter(name="c", default=np.array([4.0, 5.0, 6.0]), interface="learnable"),
+        Parameter(name="d", default=np.array([7.0]), interface="non-learnable"),
+        Parameter(name="e", default=np.array([8.0, 9.0]), interface="learnable"),
+    ]
+
+    manager = ParameterManager(params)
+
+    expected_default = np.array([1.0, 4.0, 5.0, 6.0, 8.0, 9.0])
+    np.testing.assert_array_equal(manager.learnable_array, expected_default)
+
+    # Test with partial overwrites
+    overwrite_a = np.array([[100.0], [200.0], [300.0]])
+    overwrite_e = np.array([[800.0, 900.0], [801.0, 901.0], [802.0, 902.0]])
+
+    result = manager.combine_parameter_values(a=overwrite_a, e=overwrite_e)
+
+    expected = np.array(
+        [
+            [100.0, 4.0, 5.0, 6.0, 800.0, 900.0],  # a and e overwritten
+            [200.0, 4.0, 5.0, 6.0, 801.0, 901.0],  # c keeps defaults
+            [300.0, 4.0, 5.0, 6.0, 802.0, 902.0],
+        ]
+    )
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (3, 6)
