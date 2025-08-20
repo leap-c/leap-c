@@ -204,8 +204,7 @@ class ParameterManager:
         Return the default values for all learnable parameters.
 
         Returns:
-            np.ndarray: Flattened array of default values for learnable parameters,
-                       in the same order as learnable_array.
+            np.ndarray: Flattened array of default values for learnable parameters.
         """
         return self.learnable_array.copy()
 
