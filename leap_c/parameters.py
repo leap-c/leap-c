@@ -13,15 +13,12 @@ class Parameter(NamedTuple):
     Attributes:
         name: The name identifier for the parameter.
         value: The parameter's numerical value(s).
-        lower_bound: Lower bounds for the parameter values.
+        lower_bound: Lower bounds for the parameter values. Only used for learnable.
             Defaults to None (unbounded).
-        upper_bound: Upper bounds for the parameter values.
+        upper_bound: Upper bounds for the parameter values. Only used for learnable.
             Defaults to None (unbounded).
         interface: The interface type for the parameter.
             Can be "fix", "learnable", or "non-learnable". Defaults to "fix".
-
-    Note:
-        TODO: Check about infinity bounds implementation in lower_bound and upper_bound.
     """
 
     name: str
