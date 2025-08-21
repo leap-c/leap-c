@@ -32,27 +32,30 @@ class ParameterManager:
     """Manager for parameters."""
 
     parameters: dict[str, Parameter] = {}
+    # TODO: Check if type hint is correct
+    learnable_parameters: dict[str, dict[str, int | np.ndarray]] = {}
+    non_learnable_parameters: dict[str, dict[str, int | np.ndarray]] = {}
 
     def __init__(
         self,
-        params: list[Parameter],
+        parameters: list[Parameter],
     ) -> None:
-        self.parameters = {param.name: param for param in params}
+        self.parameters = {param.name: param for param in parameters}
 
         # Build map for learnable parameters and create flattened array
-        self.learnable_params = {}
+        self.learnable_parameters = {}
         learnable_arrays = []
         current_index = 0
 
-        for name, param in self.parameters.items():
-            if param.interface == "learnable":
-                param_size = param.default.size
-                self.learnable_params[name] = {
+        for name, parameter in self.parameters.items():
+            if parameter.interface == "learnable":
+                param_size = parameter.default.size
+                self.learnable_parameters[name] = {
                     "start_idx": current_index,
                     "end_idx": current_index + param_size,
-                    "shape": param.default.shape,
+                    "shape": parameter.default.shape,
                 }
-                learnable_arrays.append(param.default.flatten())
+                learnable_arrays.append(parameter.default.flatten())
                 current_index += param_size
 
         self.learnable_array = (
@@ -60,19 +63,19 @@ class ParameterManager:
         )
 
         # Build map for non-learnable parameters and create flattened array
-        self.non_learnable_params = {}
+        self.non_learnable_parameters = {}
         non_learnable_arrays = []
         current_index = 0
 
-        for name, param in self.parameters.items():
-            if param.interface == "non-learnable":
-                param_size = param.default.size
-                self.non_learnable_params[name] = {
+        for name, parameter in self.parameters.items():
+            if parameter.interface == "non-learnable":
+                param_size = parameter.default.size
+                self.non_learnable_parameters[name] = {
                     "start_idx": current_index,
                     "end_idx": current_index + param_size,
-                    "shape": param.default.shape,
+                    "shape": parameter.default.shape,
                 }
-                non_learnable_arrays.append(param.default.flatten())
+                non_learnable_arrays.append(parameter.default.flatten())
                 current_index += param_size
 
         self.non_learnable_array = (
@@ -118,10 +121,10 @@ class ParameterManager:
 
         # Overwrite the values in the batch for specified parameters
         for key, val in overwrite.items():
-            if key not in self.learnable_params:
+            if key not in self.learnable_parameters:
                 raise KeyError(f"Parameter '{key}' is not learnable or not found.")
 
-            param_info = self.learnable_params[key]
+            param_info = self.learnable_parameters[key]
             start_idx = param_info["start_idx"]
             end_idx = param_info["end_idx"]
 
@@ -174,10 +177,10 @@ class ParameterManager:
 
         # Overwrite the values in the batch for specified parameters
         for key, val in overwrite.items():
-            if key not in self.non_learnable_params:
+            if key not in self.non_learnable_parameters:
                 raise KeyError(f"Parameter '{key}' is not non-learnable or not found.")
 
-            param_info = self.non_learnable_params[key]
+            param_info = self.non_learnable_parameters[key]
             start_idx = param_info["start_idx"]
             end_idx = param_info["end_idx"]
 

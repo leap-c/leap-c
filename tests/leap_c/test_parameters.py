@@ -37,19 +37,19 @@ def test_parameter_manager_learnable_params():
 
     # Test learnable parameter mapping
     expected_learnable_params = ["scalar_learnable", "vector_learnable"]
-    assert len(manager.learnable_params) == len(expected_learnable_params)
+    assert len(manager.learnable_parameters) == len(expected_learnable_params)
 
     for param_name in expected_learnable_params:
-        assert param_name in manager.learnable_params
+        assert param_name in manager.learnable_parameters
 
     # Test learnable parameter indices and shapes
-    assert manager.learnable_params["scalar_learnable"]["start_idx"] == 0
-    assert manager.learnable_params["scalar_learnable"]["end_idx"] == 1
-    assert manager.learnable_params["scalar_learnable"]["shape"] == (1,)
+    assert manager.learnable_parameters["scalar_learnable"]["start_idx"] == 0
+    assert manager.learnable_parameters["scalar_learnable"]["end_idx"] == 1
+    assert manager.learnable_parameters["scalar_learnable"]["shape"] == (1,)
 
-    assert manager.learnable_params["vector_learnable"]["start_idx"] == 1
-    assert manager.learnable_params["vector_learnable"]["end_idx"] == 4
-    assert manager.learnable_params["vector_learnable"]["shape"] == (3,)
+    assert manager.learnable_parameters["vector_learnable"]["start_idx"] == 1
+    assert manager.learnable_parameters["vector_learnable"]["end_idx"] == 4
+    assert manager.learnable_parameters["vector_learnable"]["shape"] == (3,)
 
     # Test flattened learnable array
     expected_learnable_array = np.array([2.0, 4.0, 5.0, 6.0])
@@ -68,7 +68,7 @@ def test_parameter_manager_no_learnable_params():
     manager = ParameterManager(params)
 
     # Should have empty learnable structures
-    assert len(manager.learnable_params) == 0
+    assert len(manager.learnable_parameters) == 0
     assert manager.learnable_array.size == 0
 
 
@@ -91,8 +91,8 @@ def test_parameter_manager_matrix_support():
     assert len(manager.parameters) == 2
 
     # Test that learnable matrix is handled correctly
-    assert "learnable_matrix" in manager.learnable_params
-    assert manager.learnable_params["learnable_matrix"]["shape"] == (2, 2)
+    assert "learnable_matrix" in manager.learnable_parameters
+    assert manager.learnable_parameters["learnable_matrix"]["shape"] == (2, 2)
 
     # Should be flattened to [5.0, 6.0, 7.0, 8.0] in learnable_array
     expected_array = np.array([5.0, 6.0, 7.0, 8.0])
@@ -138,12 +138,12 @@ def test_parameter_manager_learnable_array_order():
     expected_array = np.array([3.0, 1.0, 2.0, 7.0])
     np.testing.assert_array_equal(manager.learnable_array, expected_array)
 
-    assert manager.learnable_params["c"]["start_idx"] == 0
-    assert manager.learnable_params["c"]["end_idx"] == 1
-    assert manager.learnable_params["a"]["start_idx"] == 1
-    assert manager.learnable_params["a"]["end_idx"] == 3
-    assert manager.learnable_params["d"]["start_idx"] == 3
-    assert manager.learnable_params["d"]["end_idx"] == 4
+    assert manager.learnable_parameters["c"]["start_idx"] == 0
+    assert manager.learnable_parameters["c"]["end_idx"] == 1
+    assert manager.learnable_parameters["a"]["start_idx"] == 1
+    assert manager.learnable_parameters["a"]["end_idx"] == 3
+    assert manager.learnable_parameters["d"]["start_idx"] == 3
+    assert manager.learnable_parameters["d"]["end_idx"] == 4
 
 
 def test_combine_learnable_parameter_values_default_only():
@@ -355,8 +355,8 @@ def test_combine_learnable_parameter_values_with_matrices():
     np.testing.assert_array_equal(manager.learnable_array, expected_default)
 
     # Test shape tracking
-    assert manager.learnable_params["scalar"]["shape"] == (1,)
-    assert manager.learnable_params["matrix"]["shape"] == (2, 2)
+    assert manager.learnable_parameters["scalar"]["shape"] == (1,)
+    assert manager.learnable_parameters["matrix"]["shape"] == (2, 2)
 
     # Test with matrix overwrite
     overwrite_matrix = np.array(
@@ -404,10 +404,10 @@ def test_combine_learnable_parameter_values_mixed_dimensions():
     np.testing.assert_array_equal(manager.learnable_array, expected_default)
 
     # Test shape tracking
-    assert manager.learnable_params["scalar"]["shape"] == (1,)
-    assert manager.learnable_params["vector"]["shape"] == (2,)
-    assert manager.learnable_params["matrix"]["shape"] == (2, 2)
-    assert manager.learnable_params["tensor"]["shape"] == (1, 2, 2)
+    assert manager.learnable_parameters["scalar"]["shape"] == (1,)
+    assert manager.learnable_parameters["vector"]["shape"] == (2,)
+    assert manager.learnable_parameters["matrix"]["shape"] == (2, 2)
+    assert manager.learnable_parameters["tensor"]["shape"] == (1, 2, 2)
 
     # Test overwriting different dimension parameters
     overwrite_matrix = np.array([[[100.0, 200.0], [300.0, 400.0]]])
@@ -656,19 +656,19 @@ def test_parameter_manager_non_learnable_params():
 
     # Test non-learnable parameter mapping
     expected_non_learnable_params = ["scalar_non_learnable", "vector_non_learnable"]
-    assert len(manager.non_learnable_params) == len(expected_non_learnable_params)
+    assert len(manager.non_learnable_parameters) == len(expected_non_learnable_params)
 
     for param_name in expected_non_learnable_params:
-        assert param_name in manager.non_learnable_params
+        assert param_name in manager.non_learnable_parameters
 
     # Test non-learnable parameter indices and shapes
-    assert manager.non_learnable_params["scalar_non_learnable"]["start_idx"] == 0
-    assert manager.non_learnable_params["scalar_non_learnable"]["end_idx"] == 1
-    assert manager.non_learnable_params["scalar_non_learnable"]["shape"] == (1,)
+    assert manager.non_learnable_parameters["scalar_non_learnable"]["start_idx"] == 0
+    assert manager.non_learnable_parameters["scalar_non_learnable"]["end_idx"] == 1
+    assert manager.non_learnable_parameters["scalar_non_learnable"]["shape"] == (1,)
 
-    assert manager.non_learnable_params["vector_non_learnable"]["start_idx"] == 1
-    assert manager.non_learnable_params["vector_non_learnable"]["end_idx"] == 4
-    assert manager.non_learnable_params["vector_non_learnable"]["shape"] == (3,)
+    assert manager.non_learnable_parameters["vector_non_learnable"]["start_idx"] == 1
+    assert manager.non_learnable_parameters["vector_non_learnable"]["end_idx"] == 4
+    assert manager.non_learnable_parameters["vector_non_learnable"]["shape"] == (3,)
 
     # Test flattened non-learnable array
     expected_non_learnable_array = np.array([2.0, 4.0, 5.0, 6.0])
@@ -687,7 +687,7 @@ def test_parameter_manager_no_non_learnable_params():
     manager = ParameterManager(params)
 
     # Should have empty non-learnable structures
-    assert len(manager.non_learnable_params) == 0
+    assert len(manager.non_learnable_parameters) == 0
     assert manager.non_learnable_array.size == 0
 
 
@@ -710,8 +710,8 @@ def test_parameter_manager_non_learnable_matrix_support():
     assert len(manager.parameters) == 2
 
     # Test that non-learnable matrix is handled correctly
-    assert "non_learnable_matrix" in manager.non_learnable_params
-    assert manager.non_learnable_params["non_learnable_matrix"]["shape"] == (2, 2)
+    assert "non_learnable_matrix" in manager.non_learnable_parameters
+    assert manager.non_learnable_parameters["non_learnable_matrix"]["shape"] == (2, 2)
 
     # Should be flattened to [5.0, 6.0, 7.0, 8.0] in non_learnable_array
     expected_array = np.array([5.0, 6.0, 7.0, 8.0])
@@ -736,12 +736,12 @@ def test_parameter_manager_non_learnable_array_order():
     expected_array = np.array([3.0, 1.0, 2.0, 7.0])
     np.testing.assert_array_equal(manager.non_learnable_array, expected_array)
 
-    assert manager.non_learnable_params["c"]["start_idx"] == 0
-    assert manager.non_learnable_params["c"]["end_idx"] == 1
-    assert manager.non_learnable_params["a"]["start_idx"] == 1
-    assert manager.non_learnable_params["a"]["end_idx"] == 3
-    assert manager.non_learnable_params["d"]["start_idx"] == 3
-    assert manager.non_learnable_params["d"]["end_idx"] == 4
+    assert manager.non_learnable_parameters["c"]["start_idx"] == 0
+    assert manager.non_learnable_parameters["c"]["end_idx"] == 1
+    assert manager.non_learnable_parameters["a"]["start_idx"] == 1
+    assert manager.non_learnable_parameters["a"]["end_idx"] == 3
+    assert manager.non_learnable_parameters["d"]["start_idx"] == 3
+    assert manager.non_learnable_parameters["d"]["end_idx"] == 4
 
 
 def test_combine_non_learnable_parameter_values_default_only():
@@ -967,8 +967,8 @@ def test_combine_non_learnable_parameter_values_with_matrices():
     np.testing.assert_array_equal(manager.non_learnable_array, expected_default)
 
     # Test shape tracking
-    assert manager.non_learnable_params["scalar"]["shape"] == (1,)
-    assert manager.non_learnable_params["matrix"]["shape"] == (2, 2)
+    assert manager.non_learnable_parameters["scalar"]["shape"] == (1,)
+    assert manager.non_learnable_parameters["matrix"]["shape"] == (2, 2)
 
     # Test with matrix overwrite
     overwrite_matrix = np.array(
@@ -1018,10 +1018,10 @@ def test_combine_non_learnable_parameter_values_mixed_dimensions():
     np.testing.assert_array_equal(manager.non_learnable_array, expected_default)
 
     # Test shape tracking
-    assert manager.non_learnable_params["scalar"]["shape"] == (1,)
-    assert manager.non_learnable_params["vector"]["shape"] == (2,)
-    assert manager.non_learnable_params["matrix"]["shape"] == (2, 2)
-    assert manager.non_learnable_params["tensor"]["shape"] == (1, 2, 2)
+    assert manager.non_learnable_parameters["scalar"]["shape"] == (1,)
+    assert manager.non_learnable_parameters["vector"]["shape"] == (2,)
+    assert manager.non_learnable_parameters["matrix"]["shape"] == (2, 2)
+    assert manager.non_learnable_parameters["tensor"]["shape"] == (1, 2, 2)
 
     # Test overwriting different dimension parameters
     overwrite_matrix = np.array([[[100.0, 200.0], [300.0, 400.0]]])
