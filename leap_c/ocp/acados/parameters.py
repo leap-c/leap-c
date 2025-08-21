@@ -48,7 +48,6 @@ class AcadosParamManager:
     learnable_parameter_values: struct | None = None
     non_learnable_parameters: struct_symSX | None = None
     non_learnable_parameters_default: list[struct] | None = None
-    need_indicator: bool = False
 
     def __init__(
         self,
