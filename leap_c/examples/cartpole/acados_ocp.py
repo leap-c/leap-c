@@ -4,6 +4,7 @@ import casadi as ca
 import numpy as np
 
 from acados_template import AcadosModel, AcadosOcp
+from leap_c.examples.utils.casadi import integrate_rk4
 from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
 
 
@@ -11,7 +12,9 @@ CartPoleAcadosParamInterface = Literal["global", "stagewise"]
 CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 
 
-def create_cartpole_params(param_interface: CartPoleAcadosParamInterface) -> list[Parameter]:
+def create_cartpole_params(
+    param_interface: CartPoleAcadosParamInterface,
+) -> list[Parameter]:
     """Returns a list of parameters used in cartpole."""
     return [
         # Dynamics parameters
@@ -75,79 +78,9 @@ def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParamManager) ->
     return f_expl  # type:ignore
 
 
-def define_disc_dyn_expr(
-    model: AcadosModel, param_manager: AcadosParamManager, dt: float
-) -> ca.SX:
-    f_expl = define_f_expl_expr(model, param_manager)
-
-    x = model.x
-    u = model.u
-
-    # discrete dynamics via RK4
-    p = ca.vertcat(param_manager.p.cat, param_manager.p_global.cat)
-
-    ode = ca.Function("ode", [x, u, p], [f_expl])
-    k1 = ode(x, u, p)
-    k2 = ode(x + dt / 2 * k1, u, p)  # type:ignore
-    k3 = ode(x + dt / 2 * k2, u, p)  # type:ignore
-    k4 = ode(x + dt * k3, u, p)  # type:ignore
-
-    return x + dt / 6 * (k1 + 2 * k2 + 2 * k3 + k4)  # type:ignore
-
-
-def define_cost_matrix(
-    model: AcadosModel, param_manager: AcadosParamManager
-) -> ca.SX | np.ndarray:
-    q_diag = param_manager.get("q_diag_sqrt")
-    r_diag = param_manager.get("r_diag_sqrt")
-
-    W = ca.diag(ca.vertcat(q_diag, r_diag))
-    W = W @ W.T
-
-    return W
-
-
-def define_yref(param_manager: AcadosParamManager):
-    xref0 = param_manager.get("xref0")
-    xref1 = param_manager.get("xref1")
-    xref2 = param_manager.get("xref2")
-    xref3 = param_manager.get("xref3")
-    xref = ca.vertcat(xref0, xref1, xref2, xref3)  # type:ignore
-    uref = param_manager.get("uref")
-
-    yref = ca.vertcat(xref, uref)  # type:ignore
-
-    if isinstance(yref, ca.DM):
-        yref = yref.full()
-
-    return yref
-
-
-def define_cost_expr_ext_cost(
-    ocp: AcadosOcp, param_manager: AcadosParamManager
-) -> ca.SX:
-    yref = define_yref(param_manager)
-    W = define_cost_matrix(ocp.model, param_manager)
-    y = ca.vertcat(ocp.model.x, ocp.model.u)  # type:ignore
-    return 0.5 * (y - yref).T @ W @ (y - yref)
-
-
-def define_cost_expr_ext_cost_e(
-    ocp: AcadosOcp, param_manager: AcadosParamManager
-) -> ca.SX:
-    yref = define_yref(param_manager)
-    yref_e = yref[: ocp.dims.nx]  # type:ignore
-
-    W = define_cost_matrix(ocp.model, param_manager)
-    W_e = W[: ocp.dims.nx, : ocp.dims.nx]  # type:ignore
-    y_e = ocp.model.x
-    return 0.5 * (y_e - yref_e).T @ W_e @ (y_e - yref_e)
-
-
 def export_parametric_ocp(
     param_manager: AcadosParamManager,
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS",
-    exact_hess_dyn: bool = True,
     name: str = "cartpole",
     Fmax: float = 80.0,
     N_horizon: int = 50,
@@ -168,41 +101,60 @@ def export_parametric_ocp(
     ocp.dims.nx = 4
     ocp.dims.nu = 1
 
-    ocp.model.x = ca.SX.sym("x", ocp.dims.nx)  # type:ignore
-    ocp.model.u = ca.SX.sym("u", ocp.dims.nu)  # type:ignore
+    ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
+    ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
-    ocp.model.disc_dyn_expr = define_disc_dyn_expr(
-        model=ocp.model, param_manager=param_manager, dt=dt
-    )  # type:ignore
+    p = ca.vertcat(param_manager.p.cat, param_manager.p_global.cat)  # type:ignore
+    f_expl = define_f_expl_expr(ocp.model, param_manager)
+    ocp.model.disc_dyn_expr = integrate_rk4(
+        f_expl=f_expl,
+        x=ocp.model.x,
+        u=ocp.model.u,
+        p=p,
+        dt=dt,
+    )
 
     ######## Cost ########
+    xref = ca.vertcat(*[param_manager.get(f"xref{i}") for i in range(4)])
+    uref = param_manager.get("uref")
+    yref = ca.vertcat(xref, uref)  # type:ignore
+    if isinstance(yref, ca.DM):
+        yref = yref.full()
+    yref_e = yref[: ocp.dims.nx]
+    y = ca.vertcat(ocp.model.x, ocp.model.u)
+    y_e = ocp.model.x
+
+    q_diag_sqrt = param_manager.get("q_diag_sqrt")
+    r_diag_sqrt = param_manager.get("r_diag_sqrt")
+    W_sqrt = ca.diag(ca.vertcat(q_diag_sqrt, r_diag_sqrt))
+    W = W_sqrt @ W_sqrt.T
+    W_e = W[: ocp.dims.nx, : ocp.dims.nx]
+
     if cost_type == "EXTERNAL":
         ocp.cost.cost_type = cost_type
-        ocp.model.cost_expr_ext_cost = define_cost_expr_ext_cost(
-            ocp, param_manager
-        )  # type:ignore
+        ocp.model.cost_expr_ext_cost = 0.5 * (y - yref).T @ W @ (y - yref)
 
         ocp.cost.cost_type_e = cost_type
-        ocp.model.cost_expr_ext_cost_e = define_cost_expr_ext_cost_e(
-            ocp, param_manager
-        )  # type:ignore
+        ocp.model.cost_expr_ext_cost_e = 0.5 * (y_e - yref_e).T @ W_e @ (y_e - yref_e)
 
         ocp.solver_options.hessian_approx = "EXACT"
     elif cost_type == "NONLINEAR_LS":
         ocp.cost.cost_type = "NONLINEAR_LS"
         ocp.cost.cost_type_e = "NONLINEAR_LS"
 
-        ocp.cost.W = define_cost_matrix(ocp.model, param_manager=param_manager)
-        ocp.cost.yref = define_yref(param_manager=param_manager)
-        ocp.model.cost_y_expr = ca.vertcat(ocp.model.x, ocp.model.u)
+        ocp.cost.W = W
+        ocp.cost.yref = yref
+        ocp.model.cost_y_expr = y
 
-        ocp.cost.W_e = ocp.cost.W[: ocp.dims.nx, : ocp.dims.nx]  # type:ignore
-        ocp.cost.yref_e = ocp.cost.yref[: ocp.dims.nx]  # type:ignore
-        ocp.model.cost_y_expr_e = ocp.model.cost_y_expr[: ocp.dims.nx]  # type:ignore
+        ocp.cost.W_e = W_e
+        ocp.cost.yref_e = yref_e
+        ocp.model.cost_y_expr_e = y_e
 
         ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
     else:
-        raise ValueError(f"Cost type {cost_type} not supported.")
+        raise ValueError(
+            f"Cost type {cost_type} not supported. Use 'EXTERNAL' or 'NONLINEAR_LS'."
+        )
 
     ######## Constraints ########
     ocp.constraints.idxbx_0 = np.array([0, 1, 2, 3])
@@ -231,7 +183,6 @@ def export_parametric_ocp(
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
 
-    ocp.solver_options.exact_hess_dyn = exact_hess_dyn
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
 

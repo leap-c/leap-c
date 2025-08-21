@@ -1,4 +1,4 @@
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -10,11 +10,10 @@ from leap_c.controller import ParameterizedController
 from leap_c.examples.chain.acados_ocp import (
     export_parametric_ocp,
     ChainInitializer,
-    ChainParams,
-    make_default_chain_params,
+    create_chain_params,
 )
 from leap_c.examples.chain.acados_ocp import ChainAcadosParamInterface
-from leap_c.examples.chain.utils.dynamics import get_f_expl_expr
+from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
 from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx, AcadosDiffMpcCtx
@@ -63,27 +62,42 @@ class ChainController(ParameterizedController):
         super().__init__()
         self.cfg = ChainControllerCfg() if cfg is None else cfg
         params = (
-            create_chain_params(self.cfg.param_interface) if params is None else params
+            create_chain_params(self.cfg.param_interface, self.cfg.n_mass)
+            if params is None
+            else params
         )
-
-        # find resting reference position
-        pos_last_mass_ref = params.fix_point.value + np.array(
-            [0.033 * (self.cfg.n_mass - 1), 0, 0]
-        )
-
-        resting_chain_solver = RestingChainSolver(
-            n_mass=self.cfg.n_mass, f_expl=get_f_expl_expr, params=params
-        )
-        x_ref, u_ref = resting_chain_solver(p_last=pos_last_mass_ref)
 
         self.param_manager = AcadosParamManager(
-            params=asdict(params).values(),
+            params=params,
             N_horizon=self.cfg.N_horizon,  # type:ignore
         )
+
+        fix_point = np.zeros(3)
+
+        # find resting reference position
+        pos_last_mass_ref = fix_point + np.array([0.033 * (self.cfg.n_mass - 1), 0, 0])
+
+        dyn_param_dict = {
+            "L": np.repeat([0.033, 0.033, 0.033], self.cfg.n_mass - 1),
+            "D": np.repeat([1.0, 1.0, 1.0], self.cfg.n_mass - 1),
+            "C": np.repeat([0.1, 0.1, 0.1], self.cfg.n_mass - 1),
+            "m": np.repeat([0.033], self.cfg.n_mass - 1),
+            "w": np.repeat([0.0, 0.0, 0.0], self.cfg.n_mass - 2),
+        }
+
+        resting_chain_solver = RestingChainSolver(
+            n_mass=self.cfg.n_mass,
+            f_expl=define_f_expl_expr,
+            **dyn_param_dict,
+            fix_point=fix_point,
+        )
+
+        x_ref, u_ref = resting_chain_solver(p_last=pos_last_mass_ref)
 
         self.ocp = export_parametric_ocp(
             param_manager=self.param_manager,
             x_ref=x_ref,
+            fix_point=fix_point,
             N_horizon=self.cfg.N_horizon,
             tf=self.cfg.T_horizon,
             n_mass=self.cfg.n_mass,

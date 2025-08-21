@@ -20,7 +20,7 @@ def _define_param_struct(n_mass: int) -> struct_symSX:
     )
 
 
-def _define_nlp_solver(n_mass: int, f_expl: Callable) -> Callable:
+def _define_nlp_solver(n_mass: int, f_expl: Callable):
     x = struct_symSX(
         [
             entry("pos", shape=(3, 1), repeat=n_mass - 1),
@@ -33,6 +33,7 @@ def _define_nlp_solver(n_mass: int, f_expl: Callable) -> Callable:
     u = ca.SX.sym("u", 3, 1)
 
     p = _define_param_struct(n_mass=n_mass)
+
     # decision variables
     w = vertcat(*[x.cat, xdot, u])
 
@@ -43,7 +44,7 @@ def _define_nlp_solver(n_mass: int, f_expl: Callable) -> Callable:
                 x=x,
                 u=u,
                 p={key: vertcat(*p[key]) for key in ["m", "D", "L", "C", "w"]},
-                x0=p["fix_point"],
+                fix_point=p["fix_point"],
             ),
             x["pos", -1] - p["p_last"],
             u,
@@ -52,7 +53,9 @@ def _define_nlp_solver(n_mass: int, f_expl: Callable) -> Callable:
 
     nlp = {"x": w, "f": 0, "g": g, "p": p.cat}
 
-    return ca.nlpsol("solver", "ipopt", nlp), x(0), p(0)
+    opts = {"print_time": False, "ipopt": {"print_level": 0}}
+
+    return ca.nlpsol("solver", "ipopt", nlp, opts), x(0), p(0)
 
 
 class RestingChainSolver:
@@ -60,20 +63,25 @@ class RestingChainSolver:
         self,
         n_mass: int,
         f_expl: Callable,
-        params,
+        fix_point: np.ndarray,
+        m: np.ndarray,
+        D: np.ndarray,
+        C: np.ndarray,
+        L: np.ndarray,
+        **kw,
     ):
         self.n_mass = n_mass
         self.f_expl = f_expl
         self.nlp_solver, x0, p0 = _define_nlp_solver(n_mass=n_mass, f_expl=f_expl)
 
-        p0["fix_point"] = params.fix_point.value  # Anchor point of the chain.
+        p0["fix_point"] = fix_point  # Anchor point of the chain.
 
         # Extract parameter values from ChainParams
         for i_mass in range(n_mass - 1):
-            p0["m", i_mass] = params.m.value[i_mass]
-            p0["D", i_mass] = params.D.value[3 * i_mass : 3 * (i_mass + 1)]
-            p0["C", i_mass] = params.C.value[3 * i_mass : 3 * (i_mass + 1)]
-            p0["L", i_mass] = params.L.value[3 * i_mass : 3 * (i_mass + 1)]
+            p0["m", i_mass] = m[i_mass]
+            p0["D", i_mass] = D[3 * i_mass : 3 * (i_mass + 1)]
+            p0["C", i_mass] = C[3 * i_mass : 3 * (i_mass + 1)]
+            p0["L", i_mass] = L[3 * i_mass : 3 * (i_mass + 1)]
 
         for i_pos in range(len(x0["pos"])):
             x0["pos", i_pos] = x0["pos", 0] + p0["L", i_pos] * (i_pos + 1)

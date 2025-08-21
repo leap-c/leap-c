@@ -42,7 +42,7 @@ class CartPoleControllerCfg:
 
 
 class CartPoleController(ParameterizedController):
-    """Acados based CartPoleController."""
+    """acados-based controller for CartPole"""
 
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 

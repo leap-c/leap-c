@@ -7,9 +7,9 @@ import numpy as np
 from gymnasium import spaces
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
-from leap_c.examples.chain.utils.dynamics import (
+from leap_c.examples.chain.dynamics import (
+    define_f_expl_expr,
     create_discrete_numpy_dynamics,
-    get_f_expl_expr,
 )
 from leap_c.examples.chain.utils.ellipsoid import Ellipsoid
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
@@ -54,8 +54,8 @@ class ChainEnv(gym.Env):
     while minimizing velocity. It is calculated as:
     `r = 10 * (r_dist + r_vel)`
     where:
-    - `r_dist` is the negative L1 norm of the distance between the last mass and the target position.
-    - `r_vel` is the negative L2 norm of the velocities of the masses, scaled by -0.1.
+    - `r_dist` is the negative l1 norm of the distance between the last mass and the target position.
+    - `r_vel` is the negative l2 norm of the velocities of the masses, scaled by -0.1.
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
@@ -77,7 +77,6 @@ class ChainEnv(gym.Env):
         self.init_phi_range = np.array([np.pi / 6, np.pi / 3])
         self.init_theta_range = np.array([-np.pi / 4, np.pi / 4])
 
-        # Extract parameter values from chain_params
         self.dyn_param_dict = {
             "L": np.repeat([0.033, 0.033, 0.033], self.cfg.n_mass - 1),
             "D": np.repeat([1.0, 1.0, 1.0], self.cfg.n_mass - 1),
@@ -102,28 +101,33 @@ class ChainEnv(gym.Env):
         )
 
         self.action_space = spaces.Box(
-            low=np.array([-self.cfg.vmax, -self.cfg.vmax, -self.cfg.vmax], dtype=np.float32),
-            high=np.array([self.cfg.vmax, self.cfg.vmax, self.cfg.vmax], dtype=np.float32),
+            low=np.array(
+                [-self.cfg.vmax, -self.cfg.vmax, -self.cfg.vmax], dtype=np.float32
+            ),
+            high=np.array(
+                [self.cfg.vmax, self.cfg.vmax, self.cfg.vmax], dtype=np.float32
+            ),
         )
 
         self.render_mode = render_mode
         self.trajectory = []
 
-        # Create the discrete dynamics function
         self.discrete_dynamics = create_discrete_numpy_dynamics(
             self.cfg.n_mass, self.cfg.dt
         )
 
         self.resting_chain_solver = RestingChainSolver(
             n_mass=self.cfg.n_mass,
-            f_expl=get_f_expl_expr,
+            f_expl=define_f_expl_expr,
+            fix_point=self.fix_point,
+            **self.dyn_param_dict,
         )
 
         self.x_ref, self.u_ref = self.resting_chain_solver(p_last=self.pos_last_ref)
 
         self.ellipsoid = Ellipsoid(
             center=self.fix_point,
-            radii=np.sum(params.L.value.reshape(-1, 3), axis=0),
+            radii=np.sum(self.dyn_param_dict["L"].reshape(-1, 3), axis=0),
         )
 
         self._set_canvas()
@@ -137,9 +141,8 @@ class ChainEnv(gym.Env):
         self.state = self.discrete_dynamics(
             x=self.state,
             u=self.action,
-            p=self.dyn_param_dict,
-            fix_point=self.fix_point,
-        )
+            **self.dyn_param_dict,
+        )["x_next"].full()[:, 0]
 
         o = self.state.copy()
 
@@ -155,7 +158,7 @@ class ChainEnv(gym.Env):
         )
         term = False
 
-        self.time += self.dt
+        self.time += self.cfg.dt
         trunc = self.time > self.cfg.max_time
 
         info = {}
@@ -216,8 +219,8 @@ class ChainEnv(gym.Env):
         for k, ax_k in enumerate(ax):
             ax_k.plot(ref_pos[:, k], "ro--")
             ax_k.grid()
-            ax_k.set_xticks(range(self.n_mass + 1))
-            ax_k.set_xlim(0, self.n_mass + 1)
+            ax_k.set_xticks(range(self.cfg.n_mass + 1))
+            ax_k.set_xlim(0, self.cfg.n_mass + 1)
             ax_k.set_ylim(low_ylim[k], high_ylim[k])
             ax_k.set_ylabel(labels[k])
             self.lines.append(

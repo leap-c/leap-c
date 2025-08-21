@@ -6,7 +6,8 @@ import numpy as np
 from casadi.tools import struct_symSX, entry
 
 from acados_template import AcadosOcp, AcadosOcpFlattenedIterate
-from leap_c.examples.chain.utils.dynamics import get_f_expl_expr, rk4_integrator_casadi
+from leap_c.examples.chain.dynamics import define_f_expl_expr
+from leap_c.examples.utils.casadi import integrate_rk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
 from leap_c.ocp.acados.initializer import (
@@ -19,8 +20,8 @@ ChainAcadosParamInterface = Literal["global", "stagewise"]
 
 
 def create_chain_params(
-    param_interface: Literal["global", "stagewise"] = "global",
-    n_mass: int = 3,
+    param_interface: ChainAcadosParamInterface = "global",
+    n_mass: int = 5,
 ) -> list[Parameter]:
     """Returns a list of parameters used in the chain ocp.
 
@@ -28,14 +29,13 @@ def create_chain_params(
         param_interface: Whether parameters should be global or stagewise
         n_mass: Number of masses in the chain
     """
-    # Calculate dimensions for cost matrices
-    q_sqrt_diag = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
-    r_sqrt_diag = 1e-1 * np.ones(3)
+    q_diag_sqrt = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
+    r_diag_sqrt = 1e-1 * np.ones(3)
 
     is_stagewise = True if param_interface == "stagewise" else False
 
     return [
-        # Dynamics parameters
+        # dynamics parameters
         Parameter(
             "L", np.repeat([0.033, 0.033, 0.033], n_mass - 1)
         ),  # rest length of spring [m]
@@ -49,21 +49,21 @@ def create_chain_params(
         Parameter(
             "w", np.repeat([0.0, 0.0, 0.0], n_mass - 2)
         ),  # disturbance on intermediate balls [N]
-        # Cost parameters
+        # cost parameters
         Parameter(
-            "q_sqrt_diag",
-            q_sqrt_diag,
-            lower_bound=0.5 * q_sqrt_diag,
-            upper_bound=1.5 * q_sqrt_diag,
+            "q_diag_sqrt",
+            q_diag_sqrt,
+            lower_bound=0.5 * q_diag_sqrt,
+            upper_bound=1.5 * q_diag_sqrt,
             differentiable=True,
             stagewise=is_stagewise,
             fix=False,
         ),
         Parameter(
-            "r_sqrt_diag",
-            r_sqrt_diag,
-            lower_bound=0.5 * r_sqrt_diag,
-            upper_bound=1.5 * r_sqrt_diag,
+            "r_diag_sqrt",
+            r_diag_sqrt,
+            lower_bound=0.5 * r_diag_sqrt,
+            upper_bound=1.5 * r_diag_sqrt,
             differentiable=True,
             stagewise=is_stagewise,
             fix=False,
@@ -74,6 +74,7 @@ def create_chain_params(
 def export_parametric_ocp(
     param_manager: AcadosParamManager,
     x_ref: np.ndarray,
+    fix_point: np.ndarray,
     name: str = "chain",
     N_horizon: int = 30,  # noqa: N803
     tf: float = 6.0,
@@ -114,18 +115,25 @@ def export_parametric_ocp(
     p_cat_sym = ca.vertcat(
         *[v for v in dyn_param_dict.values() if not isinstance(v, np.ndarray)]
     )
-    f_expl = get_f_expl_expr(
-        x=x, u=u, p=dyn_param_dict, x0=param_manager.get("fix_point")  # type:ignore
+    f_expl = define_f_expl_expr(
+        x=x,
+        u=u,
+        p=dyn_param_dict,
+        fix_point=fix_point,
     )
-    ocp.model.disc_dyn_expr = rk4_integrator_casadi(
-        f_expl, x.cat, u, p_cat_sym, tf / N_horizon  # type:ignore
+    ocp.model.disc_dyn_expr = integrate_rk4(
+        f_expl,
+        x.cat,
+        u,
+        p_cat_sym,
+        tf / N_horizon,  # type:ignore
     )
 
     ######## Cost ########
-    q_sqrt_diag = param_manager.get("q_sqrt_diag")
-    r_sqrt_diag = param_manager.get("r_sqrt_diag")
-    Q = ca.diag(q_sqrt_diag) @ ca.diag(q_sqrt_diag).T
-    R = ca.diag(r_sqrt_diag) @ ca.diag(r_sqrt_diag).T
+    q_diag_sqrt = param_manager.get("q_diag_sqrt")
+    r_diag_sqrt = param_manager.get("r_diag_sqrt")
+    Q = ca.diag(q_diag_sqrt**2)
+    R = ca.diag(r_diag_sqrt**2)
     x_res = ocp.model.x.cat - x_ref
     u = ocp.model.u
 
@@ -135,7 +143,7 @@ def export_parametric_ocp(
     ocp.model.cost_expr_ext_cost_e = 0.5 * (x_res.T @ Q @ x_res)
 
     ######## Constraints ########
-    umax = 1 * np.ones((nu,))
+    umax = np.ones((nu,))
     ocp.constraints.lbu = -umax
     ocp.constraints.ubu = umax
     ocp.constraints.idxbu = np.array(range(nu))
