@@ -64,67 +64,37 @@ class AcadosParamManager:
             "learnable": [],
             "non-learnable": [],
         }
+
+        def _add_parameter_entries(
+            name: str, parameter: Parameter, interface_type: str
+        ):
+            nonlocal need_indicator
+            if parameter.vary_stages:
+                need_indicator = True
+                # Clip vary_stages to the horizon
+                vary_stages = [
+                    stage for stage in parameter.vary_stages if stage <= self.N_horizon
+                ]
+                starts = [0] + vary_stages
+                ends = np.array(vary_stages + [self.N_horizon + 1]) - 1
+                for start, end in zip(starts, ends):
+                    # Build symbolic expressions for each stage
+                    # following the template {name}_{first_stage}_{last_stage}
+                    # e.g. price_0_10, price_11_20, etc.
+                    entries[interface_type].append(
+                        entry(
+                            f"{name}_{start}_{end}",
+                            shape=parameter.value.shape,
+                        )
+                    )
+            else:
+                entries[interface_type].append(entry(name, shape=parameter.value.shape))
+
         for name, parameter in self.parameters.items():
             if parameter.interface == "learnable":
-                if parameter.vary_stages:
-                    need_indicator = True
-                    # Clip vary_stages to the horizon
-                    vary_stages = [
-                        stage
-                        for stage in parameter.vary_stages
-                        if stage <= self.N_horizon
-                    ]
-                    starts = [0] + vary_stages
-                    ends = np.array(vary_stages + [self.N_horizon + 1]) - 1
-                    for start, end in zip(starts, ends):
-                        # Build symbolic expressions for each stage
-                        # following the template {name}_{first_stage}_{last_stage}
-                        # e.g. price_0_10, price_11_20, etc.
-                        entries["learnable"].append(
-                            entry(
-                                f"{name}_{start}_{end}",
-                                shape=parameter.value.shape,
-                            )
-                        )
-
-                else:
-                    entries["learnable"].append(
-                        entry(name, shape=parameter.value.shape)
-                    )
-                # TODO: Build symbols manually to accomodate different vary_stages.
+                _add_parameter_entries(name, parameter, "learnable")
             if parameter.interface == "non-learnable":
-                # Non-learnable parameter, build symbolic expressions for each stage.
-                # Will enter through p into acados_ocp, which is for each stage anyway.
-                # Current implementation can be reused here.
-                if parameter.vary_stages:
-                    need_indicator = True
-                    # Clip vary_stages to the horizon
-                    vary_stages = [
-                        stage
-                        for stage in parameter.vary_stages
-                        if stage <= self.N_horizon
-                    ]
-                    starts = [0] + vary_stages
-                    ends = np.array(vary_stages + [self.N_horizon + 1]) - 1
-                    for start, end in zip(starts, ends):
-                        # Build symbolic expressions for each stage
-                        # following the template {name}_{first_stage}_{last_stage}
-                        # e.g. price_0_10, price_11_20, etc.
-                        entries["non-learnable"].append(
-                            entry(
-                                f"{name}_{start}_{end}",
-                                shape=parameter.value.shape,
-                            )
-                        )
-
-                else:
-                    entries["non-learnable"].append(
-                        entry(name, shape=parameter.value.shape)
-                    )
-
-            if parameter.interface == "fix":
-                # For fixed parameters, we do not need symbolic expressions. Do nothing.
-                pass
+                _add_parameter_entries(name, parameter, "non-learnable")
 
         if need_indicator:
             entries["non-learnable"].append(
@@ -138,41 +108,48 @@ class AcadosParamManager:
         self.learnable_parameters_default = self.learnable_parameters(0)
         self.learnable_parameters_lb = self.learnable_parameters(0)
         self.learnable_parameters_ub = self.learnable_parameters(0)
-
-        # Fill in the bounds by iterating over the keys
-        for key in self.learnable_parameters.keys():
-            # Extract the original parameter name from the template {name}_{start}_{end}
-            if "_" in key and key.count("_") >= 2:
-                # Split from the right to handle names that contain underscores
-                parts = key.rsplit("_", 2)
-                name = parts[0]
-            else:
-                # For parameters without stage variations
-                name = key
-
-            if name in self.parameters:
-                param = self.parameters[name]
-                self.learnable_parameters_default[key] = param.value
-                if param.lower_bound is not None:
-                    self.learnable_parameters_lb[key] = param.lower_bound
-                if param.upper_bound is not None:
-                    self.learnable_parameters_ub[key] = param.upper_bound
-
-        # Fill in the bounds by iterating over the keys
         self.non_learnable_parameters_default = self.non_learnable_parameters(0)
-        for key in self.non_learnable_parameters.keys():
-            # Extract the original parameter name from the template {name}_{start}_{end}
+
+        def _extract_parameter_name(key: str) -> str:
+            """Extract the original parameter name from the template {name}_{start}_{end}."""
             if "_" in key and key.count("_") >= 2:
                 # Split from the right to handle names that contain underscores
                 parts = key.rsplit("_", 2)
-                name = parts[0]
+                return parts[0]
             else:
                 # For parameters without stage variations
-                name = key
+                return key
 
-            if name in self.parameters:
-                param = self.parameters[name]
-                self.non_learnable_parameters_default[key] = param.value
+        def _fill_parameter_values(struct_dict, keys, include_bounds: bool = False):
+            """Fill parameter values and optionally bounds for a parameter structure."""
+            for key in keys:
+                name = _extract_parameter_name(key)
+                if name in self.parameters:
+                    param = self.parameters[name]
+                    struct_dict["default"][key] = param.value
+                    if include_bounds:
+                        if param.lower_bound is not None:
+                            struct_dict["lb"][key] = param.lower_bound
+                        if param.upper_bound is not None:
+                            struct_dict["ub"][key] = param.upper_bound
+
+        # Fill in the values for learnable parameters (with bounds)
+        _fill_parameter_values(
+            {
+                "default": self.learnable_parameters_default,
+                "lb": self.learnable_parameters_lb,
+                "ub": self.learnable_parameters_ub,
+            },
+            self.learnable_parameters.keys(),
+            include_bounds=True,
+        )
+
+        # Fill in the values for non-learnable parameters (no bounds)
+        _fill_parameter_values(
+            {"default": self.non_learnable_parameters_default},
+            self.non_learnable_parameters.keys(),
+            include_bounds=False,
+        )
 
     # This is for non_learnable_parameters.
     # TODO: Modify name after PR from example cleanup
