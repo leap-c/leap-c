@@ -45,17 +45,17 @@ class AcadosParamManager:
     """Manager for acados parameters."""
 
     parameters: dict[str, Parameter] = {}
-    p_global: struct_symSX | None = None
-    p_global_values: struct | None = None
-    p: struct_symSX | None = None
-    parameter_values: list[struct] | None = None
+    learnable_parameters: struct_symSX | None = None
+    learnable_parameter_values: struct | None = None
+    non_learnable_parameters: struct_symSX | None = None
+    non_learnable_parameter_values: list[struct] | None = None
 
     def __init__(
         self,
-        params: list[Parameter],
+        parameters: list[Parameter],
         N_horizon: int,
     ) -> None:
-        self.parameters = {param.name: param for param in params}
+        self.parameters = {param.name: param for param in parameters}
 
         # Check that no parameter has more than one dimension.
         for key, value in self.parameters.items():
@@ -80,17 +80,17 @@ class AcadosParamManager:
 
         self.N_horizon = N_horizon
 
-        self._build_p()
-        self._build_p_global()
-        self._build_p_global_bounds()
+        self._build_non_learnable_parameters()
+        self._build_learnable_parameters()
+        self._build_learnable_parameter_bounds()
 
-    def _build_p(self) -> None:
+    def _build_non_learnable_parameters(self) -> None:
         # Create symbolic structures for parameters
         entries = []
-        for key, value in self._get_nondifferentiable_parameters().items():
+        for key, value in self._get_non_learnable_parameters().items():
             entries.append(entry(key, shape=value.shape))
 
-        for key, value in self._get_nondifferentiable_stagewise_parameters().items():
+        for key, value in self._get_non_learnable_stagewise_parameters().items():
             entries.append(entry(key, shape=value.shape, repeat=self.N_horizon + 1))
 
         # if (
@@ -103,22 +103,22 @@ class AcadosParamManager:
         #  to set the indicator, even if there are no stagewise parameters.
         entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
 
-        self.p = struct_symSX(entries)
+        self.non_learnable_parameters = struct_symSX(entries)
 
         # Initialize parameter values for each stage
-        parameter_values = self.p(0)
+        parameter_values = self.non_learnable_parameters(0)
 
         # for stage in range(self.N_horizon):
-        for key, value in self._get_nondifferentiable_parameters().items():
+        for key, value in self._get_non_learnable_parameters().items():
             parameter_values[key] = value
 
-        for key, value in self._get_nondifferentiable_stagewise_parameters().items():
+        for key, value in self._get_non_learnable_stagewise_parameters().items():
             for stage in range(self.N_horizon + 1):
                 parameter_values[key, stage] = value
 
-        self.parameter_values = parameter_values
+        self.non_learnable_parameter_values = parameter_values
 
-    def _build_p_global(self) -> None:
+    def _build_learnable_parameters(self) -> None:
         # Create symbolic structure for global parameters
         entries = []
         for key, value in self._get_differentiable_global_parameters().items():
@@ -127,23 +127,23 @@ class AcadosParamManager:
         for key, value in self._get_differentiable_stagewise_parameters().items():
             entries.append(entry(key, shape=value.shape, repeat=self.N_horizon + 1))
 
-        self.p_global = struct_symSX(entries)
+        self.learnable_parameters = struct_symSX(entries)
 
         # Initialize global parameter values
-        self.p_global_values = self.p_global(0)
+        self.learnable_parameter_values = self.learnable_parameters(0)
 
         for key, value in self._get_differentiable_global_parameters().items():
-            self.p_global_values[key] = value
+            self.learnable_parameter_values[key] = value
 
         for key, value in self._get_differentiable_stagewise_parameters().items():
             for stage in range(self.N_horizon + 1):
-                self.p_global_values[key, stage] = value
+                self.learnable_parameter_values[key, stage] = value
 
-    def _build_p_global_bounds(self) -> None:
+    def _build_learnable_parameter_bounds(self) -> None:
         # Build bounds for p_global parameters
-        lb = self.p_global(0)
-        ub = self.p_global(0)
-        for key in self.p_global.keys():
+        lb = self.learnable_parameters(0)
+        ub = self.learnable_parameters(0)
+        for key in self.learnable_parameters.keys():
             if self.parameters[key].stagewise:
                 for stage in range(self.N_horizon + 1):
                     if self.parameters[key].lower_bound is None:
@@ -204,7 +204,7 @@ class AcadosParamManager:
             if value.differentiable and value.stagewise
         }
 
-    def _get_nondifferentiable_stagewise_parameters(
+    def _get_non_learnable_stagewise_parameters(
         self,
     ) -> dict[str, np.ndarray]:
         """Get all differentiable stage-wise parameters."""
@@ -214,7 +214,7 @@ class AcadosParamManager:
             if not value.differentiable and value.stagewise
         }
 
-    def _get_nondifferentiable_parameters(
+    def _get_non_learnable_parameters(
         self,
     ) -> dict[str, np.ndarray]:
         """Get all nondifferentiable parameters."""
@@ -250,7 +250,7 @@ class AcadosParamManager:
 
         # Create a batch of parameter values
         batch_parameter_values = np.tile(
-            self.parameter_values.cat.full().reshape(1, -1),
+            self.non_learnable_parameter_values.cat.full().reshape(1, -1),
             (batch_size, self.N_horizon + 1, 1),
         )
 
@@ -270,11 +270,15 @@ class AcadosParamManager:
         # see https://numpy.org/doc/2.1/reference/generated/numpy.isfortran.html
         # and reshape if needed or raise an error.
         for key, val in overwrite.items():
-            batch_parameter_values[:, :, self.p.f[key]] = val.reshape(
-                batch_size, self.N_horizon + 1, -1
+            batch_parameter_values[:, :, self.non_learnable_parameters.f[key]] = (
+                val.reshape(batch_size, self.N_horizon + 1, -1)
             )
 
-        expected_shape = (batch_size, self.N_horizon + 1, self.p.cat.shape[0])
+        expected_shape = (
+            batch_size,
+            self.N_horizon + 1,
+            self.non_learnable_parameters.cat.shape[0],
+        )
         assert batch_parameter_values.shape == expected_shape, (
             f"batch_parameter_values should have shape {expected_shape}, "
             f"got {batch_parameter_values.shape}."
@@ -284,7 +288,7 @@ class AcadosParamManager:
 
     def get_p_global_bounds(self) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
         """Get the lower bound for p_global parameters."""
-        if self.p_global is None:
+        if self.learnable_parameters is None:
             return None, None
 
         return self.lb, self.ub
@@ -301,47 +305,51 @@ class AcadosParamManager:
         if field in self._get_differentiable_stagewise_parameters():
             return sum(
                 [
-                    self.p["indicator"][stage_] * self.p_global[field, stage_]
+                    self.non_learnable_parameters["indicator"][stage_]
+                    * self.learnable_parameters[field, stage_]
                     for stage_ in range(self.N_horizon + 1)
                 ]
             )
 
-        if field in self._get_nondifferentiable_stagewise_parameters():
+        if field in self._get_non_learnable_stagewise_parameters():
             return sum(
                 [
-                    self.p["indicator"][stage_] * self.p[field, stage_]
+                    self.non_learnable_parameters["indicator"][stage_]
+                    * self.non_learnable_parameters[field, stage_]
                     for stage_ in range(self.N_horizon + 1)
                 ]
             )
 
-        if field in self.p_global.keys():
+        if field in self.learnable_parameters.keys():
             if stage is not None:
-                return self.p_global[field, stage]
-            return self.p_global[field]
+                return self.learnable_parameters[field, stage]
+            return self.learnable_parameters[field]
 
-        if field in self.p.keys():
+        if field in self.non_learnable_parameters.keys():
             if stage is not None and field == "indicator":
-                return self.p[field][stage]
-            return self.p[field]
+                return self.non_learnable_parameters[field][stage]
+            return self.non_learnable_parameters[field]
 
-        available_fields = list(self.p_global.keys()) + list(self.p.keys())
+        available_fields = list(self.learnable_parameters.keys()) + list(
+            self.non_learnable_parameters.keys()
+        )
         error_message = f"Unknown field: {field}. Available fields: {available_fields}"
         raise ValueError(error_message)
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Assign the parameters to the OCP model."""
-        if self.p_global is not None:
-            ocp.model.p_global = self.p_global.cat
+        if self.learnable_parameters is not None:
+            ocp.model.p_global = self.learnable_parameters.cat
             ocp.p_global_values = (
-                self.p_global_values.cat.full().flatten()
-                if self.p_global_values
+                self.learnable_parameter_values.cat.full().flatten()
+                if self.learnable_parameter_values
                 else np.array([])
             )
 
-        if self.p is not None:
-            ocp.model.p = self.p.cat
+        if self.non_learnable_parameters is not None:
+            ocp.model.p = self.non_learnable_parameters.cat
             ocp.parameter_values = (
-                self.parameter_values.cat.full().flatten()
-                if self.parameter_values
+                self.non_learnable_parameter_values.cat.full().flatten()
+                if self.non_learnable_parameter_values
                 else np.array([])
             )

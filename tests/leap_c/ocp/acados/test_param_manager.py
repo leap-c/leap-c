@@ -29,13 +29,13 @@ def test_param_manager_combine_parameter_values(
     N_horizon = acados_test_ocp_with_stagewise_varying_params.solver_options.N_horizon
 
     acados_param_manager = AcadosParamManager(
-        params=nominal_stagewise_params,
+        parameters=nominal_stagewise_params,
         N_horizon=N_horizon,
     )
 
     keys = [
         key
-        for key in list(acados_param_manager.parameter_values.keys())
+        for key in list(acados_param_manager.non_learnable_parameter_values.keys())
         if not key.startswith("indicator")
     ]
 
@@ -49,7 +49,7 @@ def test_param_manager_combine_parameter_values(
             size=(
                 batch_size,
                 N_horizon + 1,
-                acados_param_manager.parameter_values[key].shape[0],
+                acados_param_manager.non_learnable_parameter_values[key].shape[0],
             )
         )
 
@@ -58,7 +58,7 @@ def test_param_manager_combine_parameter_values(
     assert res.shape == (
         batch_size,
         N_horizon + 1,
-        acados_param_manager.parameter_values.cat.shape[0],
+        acados_param_manager.non_learnable_parameter_values.cat.shape[0],
     ), "The shape of the combined parameter values does not match the expected shape."
 
 
@@ -85,7 +85,7 @@ def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
 
     # Create a parameter manager for the stagewise varying parameters.
     parameter_manager = AcadosParamManager(
-        params=nominal_stagewise_params,
+        parameters=nominal_stagewise_params,
         N_horizon=N_horizon,
     )
     p_stagewise = parameter_manager.combine_parameter_values()
@@ -129,11 +129,11 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
 
     ocp = diff_mpc_with_stagewise_varying_params.diff_mpc_fun.ocp
     pm = AcadosParamManager(
-        params=nominal_stagewise_params,
+        parameters=nominal_stagewise_params,
         N_horizon=ocp.solver_options.N_horizon,
     )
 
-    p_global_values = pm.p_global_values
+    p_global_values = pm.learnable_parameter_values
     p_stagewise = pm.combine_parameter_values()
 
     xref_0 = rng.random(size=4)

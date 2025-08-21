@@ -224,7 +224,7 @@ def acados_test_ocp_no_p_global(
     )
 
     param_manager = AcadosParamManager(
-        params=params, N_horizon=ocp.solver_options.N_horizon
+        parameters=params, N_horizon=ocp.solver_options.N_horizon
     )
 
     ocp.model.name = name
@@ -259,16 +259,16 @@ def acados_test_ocp_no_p_global(
     )
     ocp.cost.yref_0 = np.concatenate(
         [
-            param_manager.parameter_values["xref"].full().flatten(),
-            param_manager.parameter_values["uref"].full().flatten(),
+            param_manager.non_learnable_parameter_values["xref"].full().flatten(),
+            param_manager.non_learnable_parameter_values["uref"].full().flatten(),
         ]
     )
 
     ocp.cost.W_0 = np.diag(
         np.concatenate(
             [
-                param_manager.parameter_values["q_diag"].full().flatten(),
-                param_manager.parameter_values["r_diag"].full().flatten(),
+                param_manager.non_learnable_parameter_values["q_diag"].full().flatten(),
+                param_manager.non_learnable_parameter_values["r_diag"].full().flatten(),
             ]
         )
     )
@@ -286,8 +286,12 @@ def acados_test_ocp_no_p_global(
     # Terminal cost
     ocp.cost.cost_type_e = "NONLINEAR_LS"
     ocp.model.cost_y_expr_e = ocp.model.x
-    ocp.cost.yref_e = param_manager.parameter_values["xref_e"].full().flatten()
-    ocp.cost.W_e = np.diag(param_manager.parameter_values["q_diag_e"].full().flatten())
+    ocp.cost.yref_e = (
+        param_manager.non_learnable_parameter_values["xref_e"].full().flatten()
+    )
+    ocp.cost.W_e = np.diag(
+        param_manager.non_learnable_parameter_values["q_diag_e"].full().flatten()
+    )
     ocp.cost.W_e = ocp.cost.W_e @ ocp.cost.W_e.T
 
     ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
@@ -411,7 +415,7 @@ def acados_test_ocp(
     ocp.solver_options = ocp_options
 
     param_manager = AcadosParamManager(
-        params=nominal_params, N_horizon=ocp.solver_options.N_horizon
+        parameters=nominal_params, N_horizon=ocp.solver_options.N_horizon
     )
     param_manager.assign_to_ocp(ocp)
 
@@ -488,7 +492,7 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp.solver_options = ocp_options
 
     param_manager = AcadosParamManager(
-        params=nominal_stagewise_params, N_horizon=ocp.solver_options.N_horizon
+        parameters=nominal_stagewise_params, N_horizon=ocp.solver_options.N_horizon
     )
     param_manager.assign_to_ocp(ocp)
 
@@ -528,7 +532,7 @@ def diff_mpc_with_stagewise_varying_params(
     )
 
     acados_param_manager = AcadosParamManager(
-        params=nominal_stagewise_params,
+        parameters=nominal_stagewise_params,
         N_horizon=acados_test_ocp_with_stagewise_varying_params.solver_options.N_horizon,
     )
 
