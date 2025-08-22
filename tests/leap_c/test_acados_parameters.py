@@ -205,7 +205,11 @@ def test_parameter_bounds_learnable():
     """Test parameter bounds for learnable parameters."""
     params = [
         # Unbounded parameter
-        Parameter(name="unbounded", value=np.array([1.0]), interface="learnable"),
+        Parameter(
+            name="unbounded",
+            value=np.array([1.0]),
+            interface="learnable",
+        ),
         # Parameter with only lower bound
         Parameter(
             name="lower_bounded",
@@ -228,6 +232,20 @@ def test_parameter_bounds_learnable():
             upper_bound=np.array([10.0, 20.0]),
             interface="learnable",
         ),
+        # Matrix with only lower bounds
+        Parameter(
+            name="matrix_lower_bounded",
+            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            lower_bound=np.array([[0.0, 0.0], [0.0, 0.0]]),
+            interface="learnable",
+        ),
+        # Matrix with only upper bounds
+        Parameter(
+            name="matrix_upper_bounded",
+            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            upper_bound=np.array([[10.0, 20.0], [30.0, 40.0]]),
+            interface="learnable",
+        ),
         # Matrix with bounds
         Parameter(
             name="matrix_bounded",
@@ -245,8 +263,14 @@ def test_parameter_bounds_learnable():
     np.testing.assert_array_equal(
         manager.learnable_parameters_lb["lower_bounded"], np.array([[0.0]])
     )
+    np.testing.assert_array_equal(
+        manager.learnable_parameters_ub["lower_bounded"], np.array([[+np.inf]])
+    )
 
     # upper_bounded should have upper bound set
+    np.testing.assert_array_equal(
+        manager.learnable_parameters_lb["upper_bounded"], np.array([[-np.inf]])
+    )
     np.testing.assert_array_equal(
         manager.learnable_parameters_ub["upper_bounded"], np.array([[10.0]])
     )
@@ -257,6 +281,18 @@ def test_parameter_bounds_learnable():
     )
     np.testing.assert_array_equal(
         manager.learnable_parameters_ub["fully_bounded"], np.array([[10.0], [20.0]])
+    )
+
+    # matrix_lower_bounded should have matrix bounds set (preserves matrix shape)
+    np.testing.assert_array_equal(
+        manager.learnable_parameters_ub["matrix_lower_bounded"],
+        np.array([[np.inf, np.inf], [np.inf, np.inf]]),
+    )
+
+    # matrix_upper_bounded should have matrix bounds set (preserves matrix shape)
+    np.testing.assert_array_equal(
+        manager.learnable_parameters_lb["matrix_upper_bounded"],
+        np.array([[-np.inf, -np.inf], [-np.inf, -np.inf]]),
     )
 
     # matrix_bounded should have matrix bounds set (preserves matrix shape)
