@@ -688,3 +688,129 @@ def test_combine_parameter_values():
     expected = np.ones((2, 6, 1))
     result = manager.combine_parameter_values(batch_size=2)
     np.testing.assert_array_equal(result, expected)
+
+
+def test_combine_parameter_values_complex():
+    """Test combine_parameter_values with mixed parameter types, interfaces, and vary_stages."""
+    params = [
+        # Scalar parameters
+        Parameter(name="scalar_fix", value=np.array([2.0]), interface="fix"),
+        Parameter(
+            name="scalar_learnable", value=np.array([3.0]), interface="learnable"
+        ),
+        Parameter(
+            name="scalar_non_learnable",
+            value=np.array([4.0]),
+            interface="non-learnable",
+        ),
+        Parameter(
+            name="scalar_staged",
+            value=np.array([5.0]),
+            interface="learnable",
+            vary_stages=[2, 6],
+        ),
+        # Vector parameters
+        Parameter(name="vector_fix", value=np.array([1.0, 2.0]), interface="fix"),
+        Parameter(
+            name="vector_learnable",
+            value=np.array([6.0, 7.0]),
+            interface="learnable",
+        ),
+        Parameter(
+            name="vector_non_learnable",
+            value=np.array([8.0, 9.0]),
+            interface="non-learnable",
+        ),
+        Parameter(
+            name="vector_staged",
+            value=np.array([10.0, 11.0]),
+            interface="learnable",
+            vary_stages=[3],
+        ),
+        # Matrix parameters
+        Parameter(
+            name="matrix_fix",
+            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            interface="fix",
+        ),
+        Parameter(
+            name="matrix_learnable",
+            value=np.array([[12.0, 13.0], [14.0, 15.0]]),
+            interface="learnable",
+        ),
+        Parameter(
+            name="matrix_non_learnable",
+            value=np.array([[16.0, 17.0], [18.0, 19.0]]),
+            interface="non-learnable",
+        ),
+        Parameter(
+            name="matrix_staged",
+            value=np.array([[20.0, 21.0], [22.0, 23.0]]),
+            interface="learnable",
+            vary_stages=[1, 4, 7],
+        ),
+    ]
+
+    manager = AcadosParamManager(params, N_horizon=8)
+
+    # Test with batch_size=3
+    batch_size = 3
+    result = manager.combine_parameter_values(batch_size=batch_size)
+
+    # Verify result shape: (batch_size, N_horizon + 1, total_non_learnable_params)
+    # Non-learnable params: scalar_non_learnable(1) + vector_non_learnable(2) + matrix_non_learnable(4) + indicator(9) = 16
+    expected_shape = (batch_size, manager.N_horizon + 1, 16)
+    assert result.shape == expected_shape
+
+    # Verify that the values are correctly replicated across batches and stages
+    # All non-learnable parameters should have the same values across all batches
+    for batch_idx in range(batch_size):
+        for stage_idx in range(manager.N_horizon + 1):
+            # Check scalar_non_learnable (first element)
+            assert result[batch_idx, stage_idx, 0] == 4.0
+
+            # Check vector_non_learnable (next 2 elements)
+            assert result[batch_idx, stage_idx, 1] == 8.0
+            assert result[batch_idx, stage_idx, 2] == 9.0
+
+            # Check matrix_non_learnable (next 4 elements)
+            # Matrix is flattened in column-major (Fortran) order by CasADi
+            expected_matrix_flat = np.array(
+                [16.0, 18.0, 17.0, 19.0]
+            )  # [[16,17],[18,19]] -> [16,18,17,19]
+            np.testing.assert_array_equal(
+                result[batch_idx, stage_idx, 3:7], expected_matrix_flat
+            )
+
+            # Check indicator values (last 9 elements for N_horizon=8)
+            # indicator[stage_idx] should be 1.0, others should be 0.0
+            expected_indicator = np.zeros(9)
+            expected_indicator[stage_idx] = 1.0
+            np.testing.assert_array_equal(
+                result[batch_idx, stage_idx, 7:], expected_indicator
+            )
+
+    rng = np.random.default_rng(42)
+
+    # Build random overwrites
+    vector_non_learnable = rng.random(
+        size=(
+            batch_size,
+            manager.N_horizon + 1,
+            manager.non_learnable_parameters_default["vector_non_learnable"].shape[0],
+        )
+    )
+
+    matrix_non_learnable = rng.random(
+        size=(
+            batch_size,
+            manager.N_horizon + 1,
+            manager.non_learnable_parameters_default["matrix_non_learnable"].shape[0],
+            manager.non_learnable_parameters_default["matrix_non_learnable"].shape[1],
+        )
+    )
+
+    result = manager.combine_parameter_values(
+        matrix_non_learnable=matrix_non_learnable,
+        vector_non_learnable=vector_non_learnable,
+    )
