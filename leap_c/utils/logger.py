@@ -1,7 +1,7 @@
 import bisect
 from collections import defaultdict
 from collections.abc import Generator
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -155,13 +155,13 @@ class Logger:
         # init wandb
         if cfg.wandb_logger:
             if not cfg.wandb_init_kwargs.get("dir", False):  # type:ignore
-                wandbdir = self.output_path / "wandb"
-                wandbdir.mkdir(exist_ok=True)
-                cfg.wandb_init_kwargs["dir"] = str(wandbdir)
-            wandb.init(
-                config=asdict(cfg),
-                **cfg.wandb_init_kwargs,
-            )
+                cfg.wandb_init_kwargs["dir"] = str(self.output_path)
+            wandb.init(**cfg.wandb_init_kwargs)
+
+            # define different steps for training and validation to avoid out of order logging that happens due to the
+            # group tracker in the training logs
+            wandb.define_metric("train/*", step_metric="train/step")
+            wandb.define_metric("val/*", step_metric="val/step")
 
         # tensorboard
         if cfg.tensorboard_logger:
@@ -221,8 +221,10 @@ class Logger:
         for report_timestamp, report_stats in report_loop:
             if self.cfg.wandb_logger:
                 wandb.log(
-                    {f"{group}/{k}": v for k, v in report_stats.items()},
-                    step=report_timestamp,
+                    {
+                        f"{group}/step": report_timestamp,
+                        **{f"{group}/{k}": v for k, v in report_stats.items()},
+                    }
                 )
 
             if self.cfg.tensorboard_logger:

@@ -1,7 +1,7 @@
 """Main script to run experiments."""
 
 from argparse import ArgumentParser
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from leap_c.examples import create_env, create_controller
@@ -125,6 +125,7 @@ if __name__ == "__main__":
     cfg = create_cfg(args.env, args.controller, args.seed)
 
     if args.use_wandb:
+        config_dict = asdict(cfg)
         cfg.trainer.log.wandb_logger = True
         cfg.trainer.log.wandb_init_kwargs = {
             "entity": args.wandb_entity,
@@ -132,6 +133,7 @@ if __name__ == "__main__":
             "name": default_name(
                 args.seed, tags=["sac_fop", args.env, args.controller]
             ),
+            "config": config_dict,
         }
 
     if args.output_path is None:

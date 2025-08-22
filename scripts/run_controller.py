@@ -1,7 +1,7 @@
 """Main script to run controller with default parameters."""
 
 from argparse import ArgumentParser
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
 import numpy as np
@@ -157,6 +157,7 @@ if __name__ == "__main__":
     cfg = create_cfg(args.env, args.controller, args.seed)
 
     if args.use_wandb:
+        config_dict = asdict(cfg)
         cfg.trainer.log.wandb_logger = True
         cfg.trainer.log.wandb_init_kwargs = {
             "entity": args.wandb_entity,
@@ -164,6 +165,7 @@ if __name__ == "__main__":
             "name": default_name(
                 args.seed, tags=["controller", args.env, args.controller]
             ),
+            "config": config_dict,
         }
 
     if args.reuse_code and args.reuse_code_dir is None:

@@ -13,8 +13,9 @@ from leap_c.utils.git import log_git_hash_and_diff
 
 def default_name(seed: int, tags: list[str] | None = None) -> str:
     """Generate a default name for the run based on the seed and optional tags."""
-    tag_str = "".join([f"_{v}" for v in tags]) if tags else ""
-    return f"seed_{seed}{tag_str}"
+    tags = tags or []
+    tags.extend(["seed", seed])
+    return "_".join([str(v) for v in tags])
 
 
 def default_output_path(seed: int, tags: list[str] | None = None) -> Path:
