@@ -259,16 +259,20 @@ def acados_test_ocp_no_p_global(
     )
     ocp.cost.yref_0 = np.concatenate(
         [
-            param_manager.non_learnable_parameter_values["xref"].full().flatten(),
-            param_manager.non_learnable_parameter_values["uref"].full().flatten(),
+            param_manager.non_learnable_parameters_default["xref"].full().flatten(),
+            param_manager.non_learnable_parameters_default["uref"].full().flatten(),
         ]
     )
 
     ocp.cost.W_0 = np.diag(
         np.concatenate(
             [
-                param_manager.non_learnable_parameter_values["q_diag"].full().flatten(),
-                param_manager.non_learnable_parameter_values["r_diag"].full().flatten(),
+                param_manager.non_learnable_parameters_default["q_diag"]
+                .full()
+                .flatten(),
+                param_manager.non_learnable_parameters_default["r_diag"]
+                .full()
+                .flatten(),
             ]
         )
     )
@@ -287,10 +291,10 @@ def acados_test_ocp_no_p_global(
     ocp.cost.cost_type_e = "NONLINEAR_LS"
     ocp.model.cost_y_expr_e = ocp.model.x
     ocp.cost.yref_e = (
-        param_manager.non_learnable_parameter_values["xref_e"].full().flatten()
+        param_manager.non_learnable_parameters_default["xref_e"].full().flatten()
     )
     ocp.cost.W_e = np.diag(
-        param_manager.non_learnable_parameter_values["q_diag_e"].full().flatten()
+        param_manager.non_learnable_parameters_default["q_diag_e"].full().flatten()
     )
     ocp.cost.W_e = ocp.cost.W_e @ ocp.cost.W_e.T
 
