@@ -1,4 +1,5 @@
 from typing import NamedTuple, Literal
+import warnings
 
 import casadi as ca
 import numpy as np

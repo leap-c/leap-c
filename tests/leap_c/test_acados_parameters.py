@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
+import casadi as ca
 
 
 def test_acados_param_manager_basic_initialization():
@@ -503,8 +504,11 @@ def test_get_method_learnable_parameters():
 
     # Should return the symbolic variable
     result = manager.get("learnable_param")
-    # Can't easily test symbolic variables, but should not raise an error
-    assert result is not None
+
+    # Check that result has type ca.SX and shape (1,1) and that its name is "learnable_param"
+    assert isinstance(result, ca.SX)
+    assert result.shape == (1, 1)
+    assert result.str() == "learnable_param"
 
 
 def test_get_method_non_learnable_parameters():
@@ -519,8 +523,11 @@ def test_get_method_non_learnable_parameters():
 
     # Should return the symbolic variable
     result = manager.get("non_learnable_param")
-    # Can't easily test symbolic variables, but should not raise an error
-    assert result is not None
+
+    # Check that result has type ca.SX and shape (1,1) and that its name is "learnable_param"
+    assert isinstance(result, ca.SX)
+    assert result.shape == (1, 1)
+    assert result.str() == "non_learnable_param"
 
 
 def test_get_method_vary_stages():
