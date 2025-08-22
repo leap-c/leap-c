@@ -49,7 +49,8 @@ class AcadosParamManager:
     learnable_parameters: struct_symSX | None = None
     learnable_parameter_values: struct | None = None
     non_learnable_parameters: struct_symSX | None = None
-    non_learnable_parameter_values: list[struct] | None = None
+    non_learnable_parameters_default: list[struct] | None = None
+    need_indicator: bool = False
 
     def __init__(
         self,
@@ -89,18 +90,15 @@ class AcadosParamManager:
 
         self.N_horizon = N_horizon
 
-        need_indicator = False
         entries = {
             "learnable": [],
             "non-learnable": [],
         }
 
-        def _add_parameter_entries(
-            name: str, parameter: Parameter, interface_type: str
-        ):
-            nonlocal need_indicator
+        def _add_learnable_parameter_entries(name: str, parameter: Parameter):
+            interface_type = "learnable"
             if parameter.vary_stages:
-                need_indicator = True
+                self.need_indicator = True
                 # Clip vary_stages to the horizon
                 vary_stages = [
                     stage for stage in parameter.vary_stages if stage <= self.N_horizon
@@ -120,13 +118,20 @@ class AcadosParamManager:
             else:
                 entries[interface_type].append(entry(name, shape=parameter.value.shape))
 
+        def _add_non_learnable_parameter_entries(name: str, parameter: Parameter):
+            interface_type = "non-learnable"
+            # Non-learnable parameters are by construction for each stage
+            entries[interface_type].append(
+                entry(name, shape=parameter.value.shape, repeat=self.N_horizon + 1)
+            )
+
         for name, parameter in self.parameters.items():
             if parameter.interface == "learnable":
-                _add_parameter_entries(name, parameter, "learnable")
+                _add_learnable_parameter_entries(name, parameter)
             if parameter.interface == "non-learnable":
-                _add_parameter_entries(name, parameter, "non-learnable")
+                _add_non_learnable_parameter_entries(name, parameter)
 
-        if need_indicator:
+        if self.need_indicator:
             entries["non-learnable"].append(
                 entry("indicator", shape=(self.N_horizon + 1,))
             )
@@ -138,7 +143,6 @@ class AcadosParamManager:
         self.learnable_parameters_default = self.learnable_parameters(0)
         self.learnable_parameters_lb = self.learnable_parameters(0)
         self.learnable_parameters_ub = self.learnable_parameters(0)
-        self.non_learnable_parameters_default = self.non_learnable_parameters(0)
 
         def _extract_parameter_name(key: str) -> str:
             """Extract the original parameter name from the template {name}_{start}_{end}."""
@@ -150,7 +154,7 @@ class AcadosParamManager:
                 # For parameters without stage variations
                 return key
 
-        def _fill_parameter_values(struct_dict, keys, include_bounds: bool = False):
+        def _fill_learnable_parameter_values(struct_dict, keys):
             """Fill parameter values and optionally bounds for a parameter structure."""
             for key in keys:
                 # First check if the key exists directly in parameters (no staging)
@@ -163,33 +167,33 @@ class AcadosParamManager:
                 if name in self.parameters:
                     param = self.parameters[name]
                     struct_dict["default"][key] = param.value
-                    if include_bounds:
-                        if param.lower_bound is not None:
-                            struct_dict["lb"][key] = param.lower_bound
-                        else:
-                            struct_dict["lb"][key] = -np.inf
-                        if param.upper_bound is not None:
-                            struct_dict["ub"][key] = param.upper_bound
-                        else:
-                            struct_dict["ub"][key] = np.inf
+                    if param.lower_bound is not None:
+                        struct_dict["lb"][key] = param.lower_bound
+                    else:
+                        struct_dict["lb"][key] = -np.inf
+                    if param.upper_bound is not None:
+                        struct_dict["ub"][key] = param.upper_bound
+                    else:
+                        struct_dict["ub"][key] = np.inf
 
         # Fill in the values for learnable parameters (with bounds)
-        _fill_parameter_values(
+        _fill_learnable_parameter_values(
             {
                 "default": self.learnable_parameters_default,
                 "lb": self.learnable_parameters_lb,
                 "ub": self.learnable_parameters_ub,
             },
             self.learnable_parameters.keys(),
-            include_bounds=True,
         )
 
-        # Fill in the values for non-learnable parameters (no bounds)
-        _fill_parameter_values(
-            {"default": self.non_learnable_parameters_default},
-            self.non_learnable_parameters.keys(),
-            include_bounds=False,
-        )
+        # Fill the values for the non-learnable parameters. Indicators are set at combine_parameter_values.
+        self.non_learnable_parameters_default = self.non_learnable_parameters(0)
+        for key in self.parameters.keys():
+            if self.parameters[key].interface == "non-learnable":
+                for stage in range(self.N_horizon + 1):
+                    self.non_learnable_parameters_default[key, stage] = self.parameters[
+                        key
+                    ].value
 
     # This is for non_learnable_parameters.
     # TODO: Modify name after PR from example cleanup
@@ -219,15 +223,16 @@ class AcadosParamManager:
 
         # Create a batch of parameter values
         batch_parameter_values = np.tile(
-            self.non_learnable_parameter_values.cat.full().reshape(1, -1),
+            self.non_learnable_parameters_default.cat.full().reshape(1, -1),
             (batch_size, self.N_horizon + 1, 1),
         )
 
         # Set indicator for each stage
-        batch_parameter_values[:, :, -(self.N_horizon + 1) :] = np.tile(
-            np.eye(self.N_horizon + 1),
-            (batch_size, 1, 1),
-        )
+        if self.need_indicator:
+            batch_parameter_values[:, :, -(self.N_horizon + 1) :] = np.tile(
+                np.eye(self.N_horizon + 1),
+                (batch_size, 1, 1),
+            )
 
         # Overwrite the values in the batch
         # TODO: Make sure indexing is consistent.
@@ -283,7 +288,7 @@ class AcadosParamManager:
             return self.parameters[field].value
 
         if (
-            self.parameters[field].interface in ["learnable", "non-learnable"]
+            self.parameters[field].interface == "learnable"
             and self.parameters[field].vary_stages
         ):
             starts = [0] + self.parameters[field].vary_stages
@@ -310,7 +315,7 @@ class AcadosParamManager:
             return self.non_learnable_parameters[field][stage]
 
         if self.parameters[field].interface == "non-learnable":
-            return self.non_learnable_parameters[field]
+            return self.non_learnable_parameters[field, stage]
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Assign the parameters to the OCP model."""
@@ -325,7 +330,7 @@ class AcadosParamManager:
         if self.non_learnable_parameters is not None:
             ocp.model.p = self.non_learnable_parameters.cat
             ocp.parameter_values = (
-                self.non_learnable_parameter_values.cat.full().flatten()
-                if self.non_learnable_parameter_values
+                self.non_learnable_parameters_default.cat.full().flatten()
+                if self.non_learnable_parameters_default
                 else np.array([])
             )
