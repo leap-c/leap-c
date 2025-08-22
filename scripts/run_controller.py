@@ -9,7 +9,12 @@ import gymnasium as gym
 
 from leap_c.examples import create_env, create_controller
 from leap_c.torch.rl.buffer import ReplayBuffer
-from leap_c.run import default_controller_code_path, default_output_path, init_run
+from leap_c.run import (
+    default_controller_code_path,
+    default_name,
+    default_output_path,
+    init_run,
+)
 from leap_c.trainer import Trainer, TrainerConfig
 from leap_c.controller import ParameterizedController
 
@@ -140,6 +145,9 @@ if __name__ == "__main__":
         help="Reuse compiled code. The first time this is run, it will compile the code.",
     )
     parser.add_argument("--reuse_code_dir", type=Path, default=None)
+    parser.add_argument("--use-wandb", action="store_true")
+    parser.add_argument("--wandb-entity", type=str, default=None)
+    parser.add_argument("--wandb-project", type=str, default="leap-c")
     args = parser.parse_args()
 
     output_path = default_output_path(
@@ -147,6 +155,16 @@ if __name__ == "__main__":
     )
 
     cfg = create_cfg(args.env, args.controller, args.seed)
+
+    if args.use_wandb:
+        cfg.trainer.log.wandb_logger = True
+        cfg.trainer.log.wandb_init_kwargs = {
+            "entity": args.wandb_entity,
+            "project": args.wandb_project,
+            "name": default_name(
+                args.seed, tags=["controller", args.env, args.controller]
+            ),
+        }
 
     if args.reuse_code and args.reuse_code_dir is None:
         reuse_code_dir = default_controller_code_path() if args.reuse_code else None

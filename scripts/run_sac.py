@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from leap_c.run import init_run, default_output_path
+from leap_c.run import default_name, init_run, default_output_path
 from leap_c.examples import create_env
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
@@ -95,9 +95,21 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
+    parser.add_argument("--use-wandb", action="store_true")
+    parser.add_argument("--wandb-entity", type=str, default=None)
+    parser.add_argument("--wandb-project", type=str, default="leap-c")
     args = parser.parse_args()
 
     output_path = default_output_path(seed=args.seed, tags=["sac", args.env])
 
     cfg = create_cfg(args.env, args.seed)
+
+    if args.use_wandb:
+        cfg.trainer.log.wandb_logger = True
+        cfg.trainer.log.wandb_init_kwargs = {
+            "entity": args.wandb_entity,
+            "project": args.wandb_project,
+            "name": default_name(args.seed, tags=["sac", args.env]),
+        }
+
     run_sac(cfg, output_path, args.device)

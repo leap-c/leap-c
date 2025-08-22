@@ -5,7 +5,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from leap_c.examples import create_controller, create_env
-from leap_c.run import default_controller_code_path, default_output_path, init_run
+from leap_c.run import (
+    default_controller_code_path,
+    default_name,
+    default_output_path,
+    init_run,
+)
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac import SacTrainerConfig
 from leap_c.torch.rl.sac_zop import SacZopTrainer
@@ -111,12 +116,22 @@ if __name__ == "__main__":
         help="Reuse compiled code. The first time this is run, it will compile the code.",
     )
     parser.add_argument("--reuse_code_dir", type=Path, default=None)
+    parser.add_argument("--use-wandb", action="store_true")
+    parser.add_argument("--wandb-entity", type=str, default=None)
+    parser.add_argument("--wandb-project", type=str, default="leap-c")
     args = parser.parse_args()
 
-    cfg = create_cfg()
-    cfg.controller = args.controller if args.controller else args.env
-    cfg.env = args.env
-    cfg.trainer.seed = args.seed
+    cfg = create_cfg(args.env, args.controller, args.seed)
+
+    if args.use_wandb:
+        cfg.trainer.log.wandb_logger = True
+        cfg.trainer.log.wandb_init_kwargs = {
+            "entity": args.wandb_entity,
+            "project": args.wandb_project,
+            "name": default_name(
+                args.seed, tags=["sac_zop", args.env, args.controller]
+            ),
+        }
 
     if args.output_path is None:
         output_path = default_output_path(

@@ -1,7 +1,7 @@
 import bisect
 from collections import defaultdict
 from collections.abc import Generator
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -158,7 +158,10 @@ class Logger:
                 wandbdir = self.output_path / "wandb"
                 wandbdir.mkdir(exist_ok=True)
                 cfg.wandb_init_kwargs["dir"] = str(wandbdir)
-            wandb.init(**cfg.wandb_init_kwargs)
+            wandb.init(
+                config=asdict(cfg),
+                **cfg.wandb_init_kwargs,
+            )
 
         # tensorboard
         if cfg.tensorboard_logger:

@@ -11,14 +11,18 @@ from leap_c.utils.cfg import cfg_as_python
 from leap_c.utils.git import log_git_hash_and_diff
 
 
+def default_name(seed: int, tags: list[str] | None = None) -> str:
+    """Generate a default name for the run based on the seed and optional tags."""
+    tag_str = "".join([f"_{v}" for v in tags]) if tags else ""
+    return f"seed_{seed}{tag_str}"
+
+
 def default_output_path(seed: int, tags: list[str] | None = None) -> Path:
     now = datetime.datetime.now()
     date = now.strftime("%Y_%m_%d")
     time = now.strftime("%H_%M_%S")
 
-    tag_str = "".join([f"_{v}" for v in tags]) if tags else ""
-
-    return Path(f"output/{date}/{time}{tag_str}_seed_{seed}")
+    return Path(f"output/{date}/{time}_{default_name(seed, tags)}")
 
 
 def default_controller_code_path():
