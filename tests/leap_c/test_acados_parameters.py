@@ -558,7 +558,8 @@ def test_empty_parameter_list():
     """Test AcadosParamManager with empty parameter list."""
     params = []
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    with pytest.warns(UserWarning, match="Empty parameter list provided to AcadosParamManager"):
+        manager = AcadosParamManager(params, N_horizon=5)
 
     assert len(manager.parameters) == 0
     assert len(manager.learnable_parameters.keys()) == 0

@@ -55,6 +55,14 @@ class AcadosParamManager:
         parameters: list[Parameter],
         N_horizon: int,
     ) -> None:
+        if not parameters:
+            warnings.warn(
+                "Empty parameter list provided to AcadosParamManager. "
+                "Consider adding parameters for building a parametric AcadosOcp.",
+                UserWarning,
+                stacklevel=2,
+            )
+
         self.parameters = {param.name: param for param in parameters}
 
         self.N_horizon = N_horizon
