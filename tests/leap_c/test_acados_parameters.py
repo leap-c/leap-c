@@ -454,6 +454,7 @@ def test_mixed_parameter_types_and_interfaces():
         assert key in non_learnable_keys
 
 
+# TODO: Rename this test after we rename to def get_learnable_parameter_bounds
 def test_get_p_global_bounds():
     """Test get_p_global_bounds method."""
     params = [
@@ -472,8 +473,8 @@ def test_get_p_global_bounds():
     lb, ub = manager.get_p_global_bounds()
 
     # Should return flattened arrays with shape (n_params, 1) from CasADi
-    expected_lb = np.array([[0.0], [-1.0], [0.0]])  # unbounded gets default 0
-    expected_ub = np.array([[10.0], [20.0], [0.0]])  # unbounded gets default 0
+    expected_lb = np.array([[0.0], [-1.0], [-np.inf]])  # unbounded gets default -inf
+    expected_ub = np.array([[10.0], [20.0], [+np.inf]])  # unbounded gets default +inf
 
     np.testing.assert_array_equal(lb, expected_lb)
     np.testing.assert_array_equal(ub, expected_ub)
