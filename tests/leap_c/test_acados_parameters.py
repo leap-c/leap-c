@@ -538,8 +538,16 @@ def test_get_method_vary_stages():
 
     # Should return a combination of staged parameters
     result = manager.get("staged_param")
-    # Can't easily test symbolic expression combinations, but should not raise an error
-    assert result is not None
+
+    # Check that result has type ca.SX and shape (1,1)
+    assert isinstance(result, ca.SX)
+    assert result.shape == (1, 1)
+
+    # TODO: This test might be fragile. Use a casadi.Function to validate the expression.
+    assert (
+        result.str()
+        == "((((indicator_0+indicator_1)+indicator_2)*staged_param_0_2)+(((indicator_3+indicator_4)+indicator_5)*staged_param_3_5))"
+    )
 
 
 def test_get_method_unknown_field():
