@@ -123,7 +123,10 @@ class AcadosParamManager:
         def _fill_parameter_values(struct_dict, keys, include_bounds: bool = False):
             """Fill parameter values and optionally bounds for a parameter structure."""
             for key in keys:
-                name = _extract_parameter_name(key)
+                if self.parameters[key].vary_stages:
+                    name = _extract_parameter_name(key)
+                else:
+                    name = key
                 if name in self.parameters:
                     param = self.parameters[name]
                     struct_dict["default"][key] = param.value
