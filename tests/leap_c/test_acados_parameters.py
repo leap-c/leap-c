@@ -573,7 +573,9 @@ def test_empty_parameter_list():
     """Test AcadosParamManager with empty parameter list."""
     params = []
 
-    with pytest.warns(UserWarning, match="Empty parameter list provided to AcadosParamManager"):
+    with pytest.warns(
+        UserWarning, match="Empty parameter list provided to AcadosParamManager"
+    ):
         manager = AcadosParamManager(params, N_horizon=5)
 
     assert len(manager.parameters) == 0
@@ -582,7 +584,7 @@ def test_empty_parameter_list():
 
 
 def test_parameter_name_with_underscores():
-    """Test parameters with underscores in their names (potential conflict with template)."""
+    """Test parameters with underscores in their names (potential conflict with template for stages: {name}_{start}_{end})."""
     params = [
         Parameter(
             name="param_with_underscores",
@@ -611,8 +613,8 @@ def test_parameter_name_with_underscores():
 
 def test_large_dimension_parameters():
     """Test that CasADi limitation with >2D arrays is handled gracefully."""
-    # CasADi only supports up to 2D arrays, so we test with 2D matrix instead
-    params = [
+    # CasADi only supports up to 2D arrays, test that 2D arrays are accepted and work as expected.
+    params_2d = [
         Parameter(
             name="matrix_param",
             value=np.array([[1.0, 2.0], [3.0, 4.0]]),
@@ -622,7 +624,7 @@ def test_large_dimension_parameters():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParamManager(params_2d, N_horizon=5)
 
     # Should handle 2D arrays correctly (flattened in CasADi)
     assert "matrix_param" in manager.learnable_parameters.keys()
@@ -641,6 +643,55 @@ def test_large_dimension_parameters():
     np.testing.assert_array_equal(
         manager.learnable_parameters_ub["matrix_param"], expected_ub
     )
+
+    # Test that 3D arrays raise an error
+    params_3d = [
+        Parameter(
+            name="tensor_param",
+            value=np.array([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
+            interface="learnable",
+        ),
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="Parameter 'tensor_param' has 3 dimensions.*CasADi only supports arrays up to 2 dimensions",
+    ):
+        AcadosParamManager(params_3d, N_horizon=5)
+
+    # Test that 3D lower bounds raise an error
+    params_3d_bounds = [
+        Parameter(
+            name="tensor_bounds_param",
+            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            lower_bound=np.array([[[0.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 0.0]]]),
+            interface="learnable",
+        ),
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="Parameter 'tensor_bounds_param' lower_bound has 3 dimensions.*CasADi only supports arrays up to 2 dimensions",
+    ):
+        AcadosParamManager(params_3d_bounds, N_horizon=5)
+
+    # Test that 3D upper bounds raise an error
+    params_3d_upper_bounds = [
+        Parameter(
+            name="tensor_upper_bounds_param",
+            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            upper_bound=np.array(
+                [[[10.0, 10.0], [10.0, 10.0]], [[10.0, 10.0], [10.0, 10.0]]]
+            ),
+            interface="learnable",
+        ),
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="Parameter 'tensor_upper_bounds_param' upper_bound has 3 dimensions.*CasADi only supports arrays up to 2 dimensions",
+    ):
+        AcadosParamManager(params_3d_upper_bounds, N_horizon=5)
 
 
 def test_zero_horizon():

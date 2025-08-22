@@ -64,6 +64,27 @@ class AcadosParamManager:
                 stacklevel=2,
             )
 
+        # Validate parameter dimensions before storing
+        for param in parameters:
+            if param.value.ndim > 2:
+                raise ValueError(
+                    f"Parameter '{param.name}' has {param.value.ndim} dimensions, "
+                    f"but CasADi only supports arrays up to 2 dimensions. "
+                    f"Parameter shape: {param.value.shape}"
+                )
+            if param.lower_bound is not None and param.lower_bound.ndim > 2:
+                raise ValueError(
+                    f"Parameter '{param.name}' lower_bound has {param.lower_bound.ndim} dimensions, "
+                    f"but CasADi only supports arrays up to 2 dimensions. "
+                    f"Lower bound shape: {param.lower_bound.shape}"
+                )
+            if param.upper_bound is not None and param.upper_bound.ndim > 2:
+                raise ValueError(
+                    f"Parameter '{param.name}' upper_bound has {param.upper_bound.ndim} dimensions, "
+                    f"but CasADi only supports arrays up to 2 dimensions. "
+                    f"Upper bound shape: {param.upper_bound.shape}"
+                )
+
         self.parameters = {param.name: param for param in parameters}
 
         self.N_horizon = N_horizon
