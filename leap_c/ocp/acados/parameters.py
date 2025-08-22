@@ -29,8 +29,6 @@ class Parameter(NamedTuple):
         stagewise: Flag indicating if the parameter varies across
             optimization stages. Defaults to False.
 
-    Note:
-        TODO: Check about infinity bounds implementation in lower_bound and upper_bound.
     """
 
     name: str
