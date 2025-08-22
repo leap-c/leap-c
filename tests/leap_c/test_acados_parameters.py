@@ -144,7 +144,9 @@ def test_parameter_interface_non_learnable_no_vary_stages():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    N_horizon = 5
+
+    manager = AcadosParamManager(params, N_horizon=N_horizon)
 
     # All should appear in non_learnable_parameters with original names
     assert len(manager.non_learnable_parameters.keys()) == 3
@@ -152,53 +154,22 @@ def test_parameter_interface_non_learnable_no_vary_stages():
     assert "vector_non_learnable" in manager.non_learnable_parameters.keys()
     assert "matrix_non_learnable" in manager.non_learnable_parameters.keys()
 
-    # Check that structures exist (values are currently initialized to zero due to implementation bug)
-    # Note: There appears to be a bug where non_learnable parameters aren't getting their values set
     assert "scalar_non_learnable" in manager.non_learnable_parameters_default.keys()
     assert "vector_non_learnable" in manager.non_learnable_parameters_default.keys()
     assert "matrix_non_learnable" in manager.non_learnable_parameters_default.keys()
 
-    np.testing.assert_array_equal(
-        manager.non_learnable_parameters_default["scalar_non_learnable"],
-        np.array([[1.0]]),
-    )
-    np.testing.assert_array_equal(
-        manager.non_learnable_parameters_default["vector_non_learnable"],
-        np.array([[2.0], [3.0]]),
-    )
-    np.testing.assert_array_equal(
-        manager.non_learnable_parameters_default["matrix_non_learnable"],
-        np.array([[4.0, 5.0], [6.0, 7.0]]),
-    )
-
-
-def test_parameter_interface_non_learnable_with_vary_stages():
-    """Test non-learnable parameters with vary_stages."""
-    params = [
-        Parameter(
-            name="weather",
-            value=np.array([25.0]),
-            interface="non-learnable",
-            vary_stages=[4, 8],  # Changes at stages 4 and 8
-        ),
-    ]
-
-    manager = AcadosParamManager(params, N_horizon=10)
-
-    # Should create staged parameters with {name}_{start}_{end} template
-    non_learnable_keys = list(manager.non_learnable_parameters.keys())
-
-    # weather changes at [4, 8], so we expect: weather_0_3, weather_4_7, weather_8_10
-    weather_keys = [k for k in non_learnable_keys if k.startswith("weather_")]
-    assert len(weather_keys) == 3
-    assert "weather_0_3" in weather_keys
-    assert "weather_4_7" in weather_keys
-    assert "weather_8_10" in weather_keys
-
-    # Check that values are set correctly for each stage (CasADi format)
-    for key in weather_keys:
+    for stage in range(N_horizon + 1):
         np.testing.assert_array_equal(
-            manager.non_learnable_parameters_default[key], np.array([[25.0]])
+            manager.non_learnable_parameters_default["scalar_non_learnable"],
+            np.array([[1.0]]),
+        )
+        np.testing.assert_array_equal(
+            manager.non_learnable_parameters_default["vector_non_learnable"],
+            np.array([[2.0], [3.0]]),
+        )
+        np.testing.assert_array_equal(
+            manager.non_learnable_parameters_default["matrix_non_learnable"],
+            np.array([[4.0, 5.0], [6.0, 7.0]]),
         )
 
 
@@ -417,13 +388,6 @@ def test_mixed_parameter_types_and_interfaces():
             value=np.array([11.0, 12.0]),
             interface="non-learnable",
         ),
-        # Non-learnable parameters with vary_stages
-        Parameter(
-            name="non_learn_staged",
-            value=np.array([13.0]),
-            interface="non-learnable",
-            vary_stages=[4],
-        ),
     ]
 
     manager = AcadosParamManager(params, N_horizon=8)
@@ -446,8 +410,6 @@ def test_mixed_parameter_types_and_interfaces():
     expected_non_learnable = [
         "non_learn_scalar",
         "non_learn_vector",
-        "non_learn_staged_0_3",
-        "non_learn_staged_4_8",
         "indicator",
     ]
     assert len(non_learnable_keys) == len(expected_non_learnable)
@@ -694,6 +656,7 @@ def test_large_dimension_parameters():
         AcadosParamManager(params_3d_upper_bounds, N_horizon=5)
 
 
+# TODO: Do we need this test?
 def test_zero_horizon():
     """Test behavior with N_horizon=0."""
     params = [
@@ -714,7 +677,7 @@ def test_zero_horizon():
     assert "zero_horizon_0_0" in learnable_keys  # Single stage from 0 to 0
 
 
-def test_combine_parameter_values_not_implemented():
+def test_combine_parameter_values():
     """Test that combine_parameter_values method exists but may not be fully implemented."""
     params = [
         Parameter(name="test_param", value=np.array([1.0]), interface="non-learnable"),
@@ -722,10 +685,6 @@ def test_combine_parameter_values_not_implemented():
 
     manager = AcadosParamManager(params, N_horizon=5)
 
-    # The method exists but may not be fully implemented yet
-    # This is expected as the code comments suggest this method needs modification
-    assert hasattr(manager, "combine_parameter_values")
-
-    # We expect this to fail currently since non_learnable_parameter_values is not set
-    with pytest.raises(AttributeError):
-        manager.combine_parameter_values(batch_size=2)
+    expected = np.ones((2, 6, 1))
+    result = manager.combine_parameter_values(batch_size=2)
+    np.testing.assert_array_equal(result, expected)

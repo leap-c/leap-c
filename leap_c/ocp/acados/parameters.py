@@ -121,9 +121,7 @@ class AcadosParamManager:
         def _add_non_learnable_parameter_entries(name: str, parameter: Parameter):
             interface_type = "non-learnable"
             # Non-learnable parameters are by construction for each stage
-            entries[interface_type].append(
-                entry(name, shape=parameter.value.shape, repeat=self.N_horizon + 1)
-            )
+            entries[interface_type].append(entry(name, shape=parameter.value.shape))
 
         for name, parameter in self.parameters.items():
             if parameter.interface == "learnable":
@@ -190,10 +188,7 @@ class AcadosParamManager:
         self.non_learnable_parameters_default = self.non_learnable_parameters(0)
         for key in self.parameters.keys():
             if self.parameters[key].interface == "non-learnable":
-                for stage in range(self.N_horizon + 1):
-                    self.non_learnable_parameters_default[key, stage] = self.parameters[
-                        key
-                    ].value
+                self.non_learnable_parameters_default[key] = self.parameters[key].value
 
     # This is for non_learnable_parameters.
     # TODO: Modify name after PR from example cleanup
@@ -315,7 +310,11 @@ class AcadosParamManager:
             return self.non_learnable_parameters[field][stage]
 
         if self.parameters[field].interface == "non-learnable":
-            return self.non_learnable_parameters[field, stage]
+            return (
+                self.non_learnable_parameters[field, stage]
+                if stage is not None
+                else self.non_learnable_parameters[field]
+            )
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Assign the parameters to the OCP model."""

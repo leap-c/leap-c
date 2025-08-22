@@ -35,7 +35,7 @@ def test_param_manager_combine_parameter_values(
 
     keys = [
         key
-        for key in list(acados_param_manager.non_learnable_parameter_values.keys())
+        for key in list(acados_param_manager.non_learnable_parameters_default.keys())
         if not key.startswith("indicator")
     ]
 
@@ -49,7 +49,7 @@ def test_param_manager_combine_parameter_values(
             size=(
                 batch_size,
                 N_horizon + 1,
-                acados_param_manager.non_learnable_parameter_values[key].shape[0],
+                acados_param_manager.non_learnable_parameters_default[key].shape[0],
             )
         )
 
@@ -58,7 +58,7 @@ def test_param_manager_combine_parameter_values(
     assert res.shape == (
         batch_size,
         N_horizon + 1,
-        acados_param_manager.non_learnable_parameter_values.cat.shape[0],
+        acados_param_manager.non_learnable_parameters_default.cat.shape[0],
     ), "The shape of the combined parameter values does not match the expected shape."
 
 
