@@ -129,16 +129,19 @@ class AcadosParamManager:
                 else:
                     # Try to extract the original parameter name from staged key
                     name = _extract_parameter_name(key)
-                else:
-                    name = key
+
                 if name in self.parameters:
                     param = self.parameters[name]
                     struct_dict["default"][key] = param.value
                     if include_bounds:
                         if param.lower_bound is not None:
                             struct_dict["lb"][key] = param.lower_bound
+                        else:
+                            struct_dict["lb"][key] = -np.inf
                         if param.upper_bound is not None:
                             struct_dict["ub"][key] = param.upper_bound
+                        else:
+                            struct_dict["ub"][key] = np.inf
 
         # Fill in the values for learnable parameters (with bounds)
         _fill_parameter_values(
