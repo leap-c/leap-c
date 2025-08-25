@@ -56,7 +56,7 @@ class HvacController(ParameterizedController):
         self.stagewise = stagewise
 
         self.param_manager = AcadosParamManager(
-            params=params or make_default_hvac_params(stagewise),
+            parameters=params or make_default_hvac_params(stagewise),
             N_horizon=N_horizon,
         )
 
@@ -141,7 +141,7 @@ class HvacController(ParameterizedController):
 
     def default_param(self, obs) -> np.ndarray | None:
         if self.stagewise:
-            param = self.param_manager.p_global_values(0)
+            param = self.param_manager.learnable_parameter_values(0)
 
             N_horizon = self.ocp.solver_options.N_horizon
             Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
@@ -159,7 +159,7 @@ class HvacController(ParameterizedController):
                 )  # weight on acceleration of heater power
             return param.cat.full().flatten()
 
-        return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
+        return self.param_manager.learnable_parameter_values.cat.full().flatten()  # type:ignore
 
 
 def export_parametric_ocp(

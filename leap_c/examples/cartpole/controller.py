@@ -55,7 +55,7 @@ class CartPoleController(ParameterizedController):
         tuple_params = tuple(asdict(self.params).values())
 
         self.param_manager = AcadosParamManager(
-            params=tuple_params,
+            parameters=tuple_params,
             N_horizon=N_horizon,  # type:ignore
         )
 
@@ -91,7 +91,7 @@ class CartPoleController(ParameterizedController):
         return gym.spaces.Box(low=low, high=high, dtype=np.float64)  # type:ignore
 
     def default_param(self, obs) -> np.ndarray:
-        return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
+        return self.param_manager.learnable_parameter_values.cat.full().flatten()  # type:ignore
 
 
 def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParamManager) -> ca.SX:
@@ -135,7 +135,10 @@ def define_disc_dyn_expr(
     u = model.u
 
     # discrete dynamics via RK4
-    p = ca.vertcat(param_manager.p.cat, param_manager.p_global.cat)
+    p = ca.vertcat(
+        param_manager.non_learnable_parameters.cat,
+        param_manager.learnable_parameters.cat,
+    )
 
     ode = ca.Function("ode", [x, u, p], [f_expl])
     k1 = ode(x, u, p)

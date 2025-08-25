@@ -58,7 +58,7 @@ class ChainController(ParameterizedController):
         x_ref, u_ref = resting_chain_solver(p_last=pos_last_mass_ref)
 
         self.param_manager = AcadosParamManager(
-            params=asdict(params).values(),
+            parameters=asdict(params).values(),
             N_horizon=N_horizon,  # type:ignore
         )
 
@@ -96,7 +96,7 @@ class ChainController(ParameterizedController):
         return gym.spaces.Box(low=low, high=high, dtype=np.float64)  # type:ignore
 
     def default_param(self, obs) -> np.ndarray:
-        return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
+        return self.param_manager.learnable_parameter_values.cat.full().flatten()  # type:ignore
 
 
 def export_parametric_ocp(

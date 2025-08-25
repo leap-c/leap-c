@@ -39,7 +39,7 @@ class PointMassController(ParameterizedController):
         tuple_params = tuple(asdict(self.params).values())
 
         self.param_manager = AcadosParamManager(
-            params=tuple_params,
+            parameters=tuple_params,
             N_horizon=N_horizon,  # type: ignore
         )
 
@@ -68,7 +68,7 @@ class PointMassController(ParameterizedController):
         return gym.spaces.Box(low=low, high=high, dtype=np.float64)  # type:ignore
 
     def default_param(self, obs) -> np.ndarray:
-        return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
+        return self.param_manager.learnable_parameter_values.cat.full().flatten()  # type:ignore
 
 
 def _create_diag_matrix(
