@@ -19,7 +19,7 @@ from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 @dataclass(kw_only=True)
-class CartPoleControllerCfg:
+class CartPoleControllerConfig:
     """Configuration for the CartPole controller.
 
     Attributes:
@@ -48,7 +48,7 @@ class CartPoleController(ParameterizedController):
 
     def __init__(
         self,
-        cfg: CartPoleControllerCfg | None = None,
+        cfg: CartPoleControllerConfig | None = None,
         params: list[Parameter] | None = None,
         export_directory: Path | None = None,
     ):
@@ -64,7 +64,7 @@ class CartPoleController(ParameterizedController):
                 `acados` solver code will be exported.
         """
         super().__init__()
-        self.cfg = CartPoleControllerCfg() if cfg is None else cfg
+        self.cfg = CartPoleControllerConfig() if cfg is None else cfg
         params = (
             create_cartpole_params(self.cfg.param_interface)
             if params is None

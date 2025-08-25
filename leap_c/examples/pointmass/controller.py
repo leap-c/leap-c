@@ -18,7 +18,7 @@ from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 @dataclass(kw_only=True)
-class PointMassControllerCfg:
+class PointMassControllerConfig:
     """Configuration for the PointMass controller.
 
     Attributes:
@@ -41,7 +41,7 @@ class PointMassController(ParameterizedController):
 
     def __init__(
         self,
-        cfg: PointMassControllerCfg | None = None,
+        cfg: PointMassControllerConfig | None = None,
         params: list[Parameter] | None = None,
         export_directory: Path | None = None,
     ):
@@ -53,7 +53,7 @@ class PointMassController(ParameterizedController):
             export_directory: Optional directory for generated acados solver code.
         """
         super().__init__()
-        self.cfg = PointMassControllerCfg() if cfg is None else cfg
+        self.cfg = PointMassControllerConfig() if cfg is None else cfg
         params = (
             create_pointmass_params(self.cfg.param_interface)
             if params is None

@@ -26,8 +26,9 @@ class ChainEnvConfig:
 
 
 class ChainEnv(gym.Env):
-    """
-    An environment of a chain of masses. The first mass is fixed at a given point,
+    """An environment of a chain of masses.
+
+    The first mass is fixed at a given point,
     and the last mass can be controlled by setting its velocity. The goal is to
     move the last mass to a target position.
 

@@ -21,7 +21,7 @@ from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 @dataclass(kw_only=True)
-class ChainControllerCfg:
+class ChainControllerConfig:
     """Configuration for the Chain controller.
 
     Attributes:
@@ -46,7 +46,7 @@ class ChainController(ParameterizedController):
 
     def __init__(
         self,
-        cfg: ChainControllerCfg | None = None,
+        cfg: ChainControllerConfig | None = None,
         params: list[Parameter] | None = None,
         export_directory: Path | None = None,
     ):
@@ -60,7 +60,7 @@ class ChainController(ParameterizedController):
             export_directory: Directory to export the Acados OCP files.
         """
         super().__init__()
-        self.cfg = ChainControllerCfg() if cfg is None else cfg
+        self.cfg = ChainControllerConfig() if cfg is None else cfg
         params = (
             create_chain_params(self.cfg.param_interface, self.cfg.n_mass)
             if params is None
@@ -77,13 +77,7 @@ class ChainController(ParameterizedController):
         # find resting reference position
         pos_last_mass_ref = fix_point + np.array([0.033 * (self.cfg.n_mass - 1), 0, 0])
 
-        dyn_param_dict = {
-            "L": np.repeat([0.033, 0.033, 0.033], self.cfg.n_mass - 1),
-            "D": np.repeat([1.0, 1.0, 1.0], self.cfg.n_mass - 1),
-            "C": np.repeat([0.1, 0.1, 0.1], self.cfg.n_mass - 1),
-            "m": np.repeat([0.033], self.cfg.n_mass - 1),
-            "w": np.repeat([0.0, 0.0, 0.0], self.cfg.n_mass - 2),
-        }
+        dyn_param_dict = {k: self.param_manager.parameters[k].value for k in "LDCmw"}
 
         resting_chain_solver = RestingChainSolver(
             n_mass=self.cfg.n_mass,

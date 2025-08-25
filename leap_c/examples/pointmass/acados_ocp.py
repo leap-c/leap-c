@@ -12,12 +12,16 @@ PointMassAcadosParamInterface = Literal["global", "stagewise"]
 
 def create_pointmass_params(
     param_interface: PointMassAcadosParamInterface,
+    x_ref_value: np.ndarray | None = None,
 ) -> list[Parameter]:
     """Returns a list of parameters used in pointmass."""
     is_stagewise = True if param_interface == "stagewise" else False
 
     q_diag_sqrt = np.array([1.0, 1.0, 1.0, 1.0])
     r_diag_sqrt = np.array([0.1, 0.1])
+
+    if x_ref_value is None:
+        x_ref_value = np.array([0.0, 0.0, 0.0, 0.0])
 
     return [
         # mass and friction parameters
@@ -46,7 +50,7 @@ def create_pointmass_params(
         # reference parameters
         Parameter(
             "x_ref",
-            np.array([0.0, 0.0, 0.0, 0.0]),
+            x_ref_value,
             lower_bound=np.array([0.0, 0.0, -20, -20]),
             upper_bound=np.array([4.0, 1.0, 20, 20]),
             fix=False,
