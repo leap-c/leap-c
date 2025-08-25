@@ -9,13 +9,17 @@ import torch
 from acados_template import AcadosOcpSolver
 from gymnasium.utils.save_video import save_video
 
-from leap_c.examples.cartpole.controller import CartPoleController
+from leap_c.examples.cartpole.controller import (
+    CartPoleController,
+    CartPoleControllerConfig,
+)
 from leap_c.examples.cartpole.env import CartPoleEnv
 
 
 @pytest.fixture(scope="module", params=["EXTERNAL", "NONLINEAR_LS"])
 def cartpole_controller(request):
-    return CartPoleController(cost_type=request.param)
+    cfg = CartPoleControllerConfig(cost_type=request.param)
+    return CartPoleController(cfg)
 
 
 def plot_cart_pole_solution(
@@ -71,7 +75,7 @@ def test_env_terminates():
                 break
         assert term
         assert not trunc
-        assert state[0] < -env.x_threshold or state[0] > env.x_threshold
+        assert state[0] < -env.cfg.x_threshold or state[0] > env.cfg.x_threshold
 
 
 def test_env_truncates():

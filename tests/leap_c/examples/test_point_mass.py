@@ -1,10 +1,9 @@
 import numpy as np
 import torch
 
-from leap_c.ocp.acados.parameters import Parameter
 from leap_c.examples.pointmass.controller import PointMassController
 from leap_c.examples.pointmass.env import PointMassEnv
-from leap_c.examples.pointmass.config import make_default_pointmass_params
+from leap_c.examples.pointmass.acados_ocp import create_pointmass_params
 
 
 def test_run_closed_loop(
@@ -12,7 +11,6 @@ def test_run_closed_loop(
 ) -> None:
     """
     Test the closed-loop performance of a learnable point mass MPC.
-
 
     Asserts:
     - The final position of the point mass is close to the origin.
@@ -30,10 +28,7 @@ def test_run_closed_loop(
     env.state[:2] = start_pos
 
     # replace the default reference with the goal position
-    param = make_default_pointmass_params()
-    old_xref_param = param.xref
-    kw = {**old_xref_param._asdict(), "value": goal_x_ref}
-    param.xref = Parameter(**kw)
+    param = create_pointmass_params("global", x_ref_value=goal_x_ref)
     controller = PointMassController(params=param)
 
     default_param = controller.default_param(obs)
