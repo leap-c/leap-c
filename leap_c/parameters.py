@@ -1,5 +1,6 @@
 from typing import NamedTuple, Literal
 import numpy as np
+import gymnasium as gym
 
 
 class Parameter(NamedTuple):
@@ -90,6 +91,7 @@ class ParameterManager:
             raise KeyError(f"Parameter '{name}' not found.")
         return self.parameters[name]
 
+    # (dirk) TODO: Can we remove this?
     def combine_learnable_parameter_values(
         self,
         batch_size: int | None = None,
@@ -146,6 +148,7 @@ class ParameterManager:
 
         return batch_parameter_values
 
+    # (dirk) TODO: Can we remove this?
     def combine_non_learnable_parameter_values(
         self,
         batch_size: int | None = None,
@@ -155,8 +158,7 @@ class ParameterManager:
         Combine all non-learnable parameters into a single numpy array.
 
         Args:
-            batch_size: The batch size for the parameters.
-            Not needed if overwrite is provided.
+            batch_size: The batch size for the parameters. Not needed if overwrite is provided.
             **overwrite: Overwrite values for specific parameters.
                 values need to be np.ndarray with shape (batch_size, ...).
 
@@ -252,3 +254,7 @@ class ParameterManager:
                     upper_bounds.append(np.full(param_size, np.inf))
 
         return np.concatenate(upper_bounds) if upper_bounds else np.array([])
+
+    # TODO Implement
+    def get_gym_space(self) -> gym.Space:
+        pass
