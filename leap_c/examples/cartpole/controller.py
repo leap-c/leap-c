@@ -34,9 +34,13 @@ class CartPoleControllerConfig:
             controller.
     """
 
-    N_horizon: int = 5
-    T_horizon: float = 0.25
-    Fmax: float = 80
+    N_horizon: int = 5  # number of steps in the horizon
+    T_horizon: float = 0.25  # duration of the horizon [s]
+    Fmax: float = 80.0  # maximum force that can be applied to the cart [N]
+    x_threshold: float = (
+        2.4  # maximum absolute position of the cart before termination [m]
+    )
+
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS"
     param_interface: CartPoleAcadosParamInterface = "global"
 
@@ -82,6 +86,7 @@ class CartPoleController(ParameterizedController):
             N_horizon=self.cfg.N_horizon,
             T_horizon=self.cfg.T_horizon,
             Fmax=self.cfg.Fmax,
+            x_threshold=self.cfg.x_threshold,
         )
 
         self.diff_mpc = AcadosDiffMpc(self.ocp, export_directory=export_directory)

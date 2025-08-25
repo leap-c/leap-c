@@ -83,6 +83,7 @@ def export_parametric_ocp(
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS",
     name: str = "cartpole",
     Fmax: float = 80.0,
+    x_threshold: float = 2.4,
     N_horizon: int = 50,
     T_horizon: float = 2.0,
 ) -> AcadosOcp:
@@ -164,10 +165,10 @@ def export_parametric_ocp(
     ocp.constraints.ubu = np.array([+Fmax])
     ocp.constraints.idxbu = np.array([0])
 
-    ocp.constraints.lbx = np.array([-2.4])
+    ocp.constraints.lbx = np.array([-x_threshold])
     ocp.constraints.ubx = -ocp.constraints.lbx
     ocp.constraints.idxbx = np.array([0])
-    ocp.constraints.lbx_e = np.array([-2.4])
+    ocp.constraints.lbx_e = np.array([-x_threshold])
     ocp.constraints.ubx_e = -ocp.constraints.lbx_e
     ocp.constraints.idxbx_e = np.array([0])
 
