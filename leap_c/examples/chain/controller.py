@@ -75,8 +75,8 @@ class ChainController(ParameterizedController):
         fix_point = np.zeros(3)
 
         # find resting reference position
-        length = np.sum(self.param_manager.parameters["L"].value)
-        pos_last_mass_ref = fix_point + np.array([length, 0, 0])
+        length = self.param_manager.parameters["L"].value[0]
+        pos_last_mass_ref = fix_point + np.array([length * (cfg.n_mass - 1), 0, 0])
 
         dyn_param_dict = {k: self.param_manager.parameters[k].value for k in "LDCmw"}
 
@@ -94,7 +94,7 @@ class ChainController(ParameterizedController):
             x_ref=x_ref,
             fix_point=fix_point,
             N_horizon=self.cfg.N_horizon,
-            tf=self.cfg.T_horizon,
+            T_horizon=self.cfg.T_horizon,
             n_mass=self.cfg.n_mass,
         )
 

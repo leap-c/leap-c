@@ -7,7 +7,7 @@ from casadi.tools import struct_symSX, entry
 
 from acados_template import AcadosOcp, AcadosOcpFlattenedIterate
 from leap_c.examples.chain.dynamics import define_f_expl_expr
-from leap_c.examples.utils.casadi import integrate_rk4
+from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
 from leap_c.ocp.acados.initializer import (
@@ -77,13 +77,13 @@ def export_parametric_ocp(
     fix_point: np.ndarray,
     name: str = "chain",
     N_horizon: int = 30,  # noqa: N803
-    tf: float = 6.0,
+    T_horizon: float = 6.0,
     n_mass: int = 5,
 ) -> AcadosOcp:
     ocp = AcadosOcp()
 
     ocp.solver_options.N_horizon = N_horizon
-    ocp.solver_options.tf = tf
+    ocp.solver_options.tf = T_horizon
 
     param_manager.assign_to_ocp(ocp)
 
@@ -121,12 +121,12 @@ def export_parametric_ocp(
         p=dyn_param_dict,
         fix_point=fix_point,
     )
-    ocp.model.disc_dyn_expr = integrate_rk4(
+    ocp.model.disc_dyn_expr = integrate_erk4(
         f_expl,
         x.cat,
         u,
         p_cat_sym,
-        tf / N_horizon,  # type:ignore
+        T_horizon / N_horizon,  # type:ignore
     )
 
     ######## Cost ########
@@ -147,13 +147,13 @@ def export_parametric_ocp(
     ocp.constraints.lbu = -umax
     ocp.constraints.ubu = umax
     ocp.constraints.idxbu = np.array(range(nu))
+    # load dummy initial state, will be overwritten before solving
     ocp.constraints.x0 = x_ref.reshape((nx,))
 
     ######## Solver configuration ########
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
-    ocp.solver_options.exact_hess_dyn = True
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
     ocp.solver_options.qp_tol = 1e-7

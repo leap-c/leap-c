@@ -9,7 +9,7 @@ from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 from leap_c.examples.chain.dynamics import (
     define_f_expl_expr,
-    create_discrete_numpy_dynamics,
+    create_discrete_casadi_dynamics,
 )
 from leap_c.examples.chain.utils.ellipsoid import Ellipsoid
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
@@ -71,20 +71,21 @@ class ChainEnv(gym.Env):
 
         self.fix_point = np.zeros(3)
 
-        pos_last_mass_ref = self.fix_point + np.array(
-            [0.033 * (self.cfg.n_mass - 1), 0.0, 0.0]
-        )
-
         self.init_phi_range = np.array([np.pi / 6, np.pi / 3])
         self.init_theta_range = np.array([-np.pi / 4, np.pi / 4])
 
+        length = 0.033
         self.dyn_param_dict = {
-            "L": np.repeat([0.033, 0.033, 0.033], self.cfg.n_mass - 1),
+            "L": np.repeat([length, length, length], self.cfg.n_mass - 1),
             "D": np.repeat([1.0, 1.0, 1.0], self.cfg.n_mass - 1),
             "C": np.repeat([0.1, 0.1, 0.1], self.cfg.n_mass - 1),
             "m": np.repeat([0.033], self.cfg.n_mass - 1),
             "w": np.repeat([0.0, 0.0, 0.0], self.cfg.n_mass - 2),
         }
+
+        pos_last_mass_ref = self.fix_point + np.array(
+            [length * (self.cfg.n_mass - 1), 0.0, 0.0]
+        )
 
         self.nx_pos = 3 * (self.cfg.n_mass - 1)
         self.nx_vel = 3 * (self.cfg.n_mass - 2)
@@ -94,7 +95,9 @@ class ChainEnv(gym.Env):
         # Compute observation space
         pos_max = np.array(self.dyn_param_dict["L"]) * (self.cfg.n_mass - 1)
         pos_min = -pos_max
-        vel_max = np.array([2.0, 2.0, 2.0] * (self.cfg.n_mass - 2))
+        vel_max = np.array(
+            [self.cfg.vmax, self.cfg.vmax, self.cfg.vmax] * (self.cfg.n_mass - 2)
+        )
         vel_min = -vel_max
         self.observation_space = spaces.Box(
             low=np.concatenate([pos_min, vel_min], dtype=np.float32),
@@ -113,7 +116,7 @@ class ChainEnv(gym.Env):
         self.render_mode = render_mode
         self.trajectory = []
 
-        self.discrete_dynamics = create_discrete_numpy_dynamics(
+        self.discrete_dynamics = create_discrete_casadi_dynamics(
             self.cfg.n_mass, self.cfg.dt
         )
 

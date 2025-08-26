@@ -26,11 +26,11 @@ class CartPoleControllerConfig:
         N_horizon: The number of steps in the MPC horizon.
             The MPC will have N+1 nodes (the nodes 0...N-1 and the terminal
             node N).
-        T_horizon: The duration of the MPC horizon. One step during planning
-            will equal T_horizon/N_horizon simulation time.
+        T_horizon: The simulation time between two MPC nodes will equal
+            T_horizon/N_horizon simulation time.
         Fmax: The maximum force that can be applied to the cart.
         cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
-        param_interface: Determines the exposed paramete interface of the
+        param_interface: Determines the exposed parameter interface of the
             controller.
     """
 

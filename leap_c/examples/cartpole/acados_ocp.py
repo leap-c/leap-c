@@ -4,7 +4,7 @@ import casadi as ca
 import numpy as np
 
 from acados_template import AcadosModel, AcadosOcp
-from leap_c.examples.utils.casadi import integrate_rk4
+from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
 
 
@@ -107,7 +107,7 @@ def export_parametric_ocp(
 
     p = ca.vertcat(param_manager.p.cat, param_manager.p_global.cat)  # type:ignore
     f_expl = define_f_expl_expr(ocp.model, param_manager)
-    ocp.model.disc_dyn_expr = integrate_rk4(
+    ocp.model.disc_dyn_expr = integrate_erk4(
         f_expl=f_expl,
         x=ocp.model.x,
         u=ocp.model.u,

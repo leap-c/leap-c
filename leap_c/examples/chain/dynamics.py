@@ -5,7 +5,7 @@ from casadi import SX, norm_2, vertcat
 from casadi.tools import struct_symSX, entry
 import numpy as np
 
-from ..utils.casadi import integrate_rk4
+from ..utils.casadi import integrate_erk4
 
 
 def define_f_expl_expr(
@@ -92,7 +92,7 @@ def define_f_expl_expr(
     return vertcat(xvel, u, f)
 
 
-def create_discrete_numpy_dynamics(n_mass: int, dt: float) -> ca.Function:
+def create_discrete_casadi_dynamics(n_mass: int, dt: float) -> ca.Function:
     """Create a discrete dynamics function for the chain system.
 
     Args:
@@ -122,7 +122,7 @@ def create_discrete_numpy_dynamics(n_mass: int, dt: float) -> ca.Function:
 
     p_cat = ca.vertcat(*p.values())
 
-    disc_dyn_expr = integrate_rk4(
+    disc_dyn_expr = integrate_erk4(
         f_expl,
         x.cat,
         u,

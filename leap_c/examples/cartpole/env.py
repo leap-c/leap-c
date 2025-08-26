@@ -8,7 +8,7 @@ from gymnasium.envs.classic_control import utils as gym_utils
 
 
 @dataclass(kw_only=True)
-class CartPoleConfig:
+class CartPoleEnvConfig:
     """Configuration for the CartPole environment."""
 
     gravity: float = 9.81  # gravity [m/s^2]
@@ -70,9 +70,9 @@ class CartPoleEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
     def __init__(
-        self, render_mode: str | None = None, cfg: CartPoleConfig | None = None
+        self, render_mode: str | None = None, cfg: CartPoleEnvConfig | None = None
     ):
-        self.cfg = CartPoleConfig() if cfg is None else cfg
+        self.cfg = CartPoleEnvConfig() if cfg is None else cfg
 
         def f_explicit(
             x,
@@ -165,7 +165,7 @@ class CartPoleEnv(gym.Env):
         term = False
         trunc = False
         info = {}
-        if -self.cfg.x_threshold < self.x[0] < self.cfg.x_threshold:
+        if not -self.cfg.x_threshold <= self.x[0] <= self.cfg.x_threshold:
             term = True  # Just terminating should be enough punishment when reward is positive
             info = {"task": {"violation": True, "success": False}}
         if self.t > self.cfg.max_time:

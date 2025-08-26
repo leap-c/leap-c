@@ -1,8 +1,8 @@
 import casadi as ca
 
 
-def integrate_rk4(f_expl: ca.SX, x: ca.SX, u: ca.SX, p: ca.SX, dt: float) -> ca.SX:
-    """Integrate dynamics using the RK4 method.
+def integrate_erk4(f_expl: ca.SX, x: ca.SX, u: ca.SX, p: ca.SX, dt: float) -> ca.SX:
+    """Integrate dynamics using the explicit RK4 method.
 
     Args:
         f_expl: The explicit dynamics function.
