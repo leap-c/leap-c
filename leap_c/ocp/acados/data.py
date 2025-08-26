@@ -67,13 +67,13 @@ def collate_acados_flattened_batch_iterate_fn(
     collate_fn_map: dict = None,
 ) -> AcadosOcpFlattenedBatchIterate:
     return AcadosOcpFlattenedBatchIterate(
-        x=np.concat([x.x for x in batch], axis=0),
-        u=np.concat([x.u for x in batch], axis=0),
-        z=np.concat([x.z for x in batch], axis=0),
-        sl=np.concat([x.sl for x in batch], axis=0),
-        su=np.concat([x.su for x in batch], axis=0),
-        pi=np.concat([x.pi for x in batch], axis=0),
-        lam=np.concat([x.lam for x in batch], axis=0),
+        x=np.concatenate([x.x for x in batch], axis=0),
+        u=np.concatenate([x.u for x in batch], axis=0),
+        z=np.concatenate([x.z for x in batch], axis=0),
+        sl=np.concatenate([x.sl for x in batch], axis=0),
+        su=np.concatenate([x.su for x in batch], axis=0),
+        pi=np.concatenate([x.pi for x in batch], axis=0),
+        lam=np.concatenate([x.lam for x in batch], axis=0),
         N_batch=sum([x.N_batch for x in batch]),
     )
 

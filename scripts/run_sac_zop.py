@@ -97,7 +97,7 @@ def run_sac_zop(
         controller=create_controller(cfg.controller, reuse_code_dir),
         extractor_cls=cfg.extractor,
     )
-    init_run(trainer, cfg, trainer_output_path)
+    init_run(trainer, cfg, output_path)
 
     return trainer.run()
 

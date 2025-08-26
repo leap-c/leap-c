@@ -98,7 +98,7 @@ def run_sac_fop(
         cfg=cfg.trainer,
         extractor_cls=cfg.extractor,
     )
-    init_run(trainer, cfg, trainer_output_path)
+    init_run(trainer, cfg, output_path)
 
     return trainer.run()
 
