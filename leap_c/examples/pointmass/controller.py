@@ -78,7 +78,8 @@ class PointMassController(ParameterizedController):
         p_stagewise = self.param_manager.combine_parameter_values(
             batch_size=obs.shape[0]
         )
-        # remove wind field from observation
+        # remove wind field from observation, this is only observed by
+        # the network, not used in the MPC
         x0 = obs[:, :4]
         ctx, u0, x, u, value = self.diff_mpc(
             x0, p_global=param, p_stagewise=p_stagewise, ctx=ctx

@@ -165,7 +165,7 @@ class CartPoleEnv(gym.Env):
         term = False
         trunc = False
         info = {}
-        if self.x[0] > self.cfg.x_threshold or self.x[0] < -self.cfg.x_threshold:
+        if -self.cfg.x_threshold < self.x[0] < self.cfg.x_threshold:
             term = True  # Just terminating should be enough punishment when reward is positive
             info = {"task": {"violation": True, "success": False}}
         if self.t > self.cfg.max_time:
