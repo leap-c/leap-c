@@ -158,10 +158,7 @@ class Logger:
                 cfg.wandb_init_kwargs["dir"] = str(self.output_path)
             wandb.init(**cfg.wandb_init_kwargs)
 
-            # define different steps for training and validation to avoid out of order logging that happens due to the
-            # group tracker in the training logs
-            wandb.define_metric("train/*", step_metric="train/step")
-            wandb.define_metric("val/*", step_metric="val/step")
+        self.defined_metrics = {}
 
         # tensorboard
         if cfg.tensorboard_logger:
@@ -193,6 +190,10 @@ class Logger:
         """
         if verbose and not self.cfg.verbose:
             return
+
+        if self.cfg.wandb_logger and not self.defined_metrics.get(group, False):
+            wandb.define_metric(f"{group}/*", f"{group}/step")
+            self.defined_metrics[group] = True
 
         # split numpy arrays
         for key, value in list(stats.items()):
