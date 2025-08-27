@@ -2,15 +2,14 @@ import numpy as np
 import pytest
 import torch
 
-import leap_c.examples  # noqa: F401
-import leap_c.torch.rl  # noqa: F401
-from leap_c.examples.chain.env import ChainEnv
-from leap_c.examples.chain.controller import ChainController
+from leap_c.examples.chain.env import ChainEnv, ChainEnvConfig
+from leap_c.examples.chain.controller import ChainController, ChainControllerConfig
 
 
 @pytest.fixture(scope="module")
 def chain_controller():
-    return ChainController(n_mass=3)
+    cfg = ChainControllerConfig(n_mass=3)
+    return ChainController(cfg)
 
 
 def test_chain_policy_evaluation_works(chain_controller: ChainController):
@@ -29,7 +28,8 @@ def test_chain_policy_evaluation_works(chain_controller: ChainController):
 
 
 def test_chain_env_mpc_closed_loop(chain_controller: ChainController):
-    env = ChainEnv(n_mass=3)
+    cfg = ChainEnvConfig(n_mass=3)
+    env = ChainEnv(cfg=cfg)
 
     obs, _ = env.reset()
 

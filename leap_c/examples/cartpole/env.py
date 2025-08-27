@@ -1,9 +1,26 @@
+from dataclasses import dataclass
+from typing import Optional
+
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
-
 from gymnasium.envs.classic_control import utils as gym_utils
-from typing import Optional
+
+
+@dataclass(kw_only=True)
+class CartPoleEnvConfig:
+    """Configuration for the CartPole environment."""
+
+    gravity: float = 9.81  # gravity [m/s^2]
+    masscart: float = 1.0  # mass of the cart [kg]
+    masspole: float = 0.1  # mass of the pole [kg]
+    length: float = 0.8  # half-length of the pole [m]
+    Fmax: float = 80.0  # maximum force that can be applied to the cart [N]
+    dt: float = 0.05  # simulation time step [s]
+    max_time: float = 10.0  # maximum simulation time [s]
+    x_threshold: float = (
+        2.4  # maximum absolute position of the cart before termination [m]
+    )
 
 
 class CartPoleEnv(gym.Env):
@@ -53,25 +70,17 @@ class CartPoleEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
     def __init__(
-        self,
-        render_mode: str | None = None,
+        self, render_mode: str | None = None, cfg: CartPoleEnvConfig | None = None
     ):
-        self.gravity = 9.81
-        self.masscart = 1.0
-        self.masspole = 0.1
-        self.length = 0.8
-        self.Fmax = 80.0
-        self.dt = 0.05
-        self.max_time = 10.0
-        self.x_threshold = 2.4
+        self.cfg = CartPoleEnvConfig() if cfg is None else cfg
 
         def f_explicit(
             x,
             u,
-            g=self.gravity,
-            M=self.masscart,
-            m=self.masspole,
-            l=self.length,  # noqa E741
+            g=self.cfg.gravity,
+            M=self.cfg.masscart,
+            m=self.cfg.masspole,
+            l=self.cfg.length,  # noqa E741
         ):
             _, theta, dx, dtheta = x
             F = u.item()
@@ -108,7 +117,7 @@ class CartPoleEnv(gym.Env):
 
         high = np.array(
             [
-                self.x_threshold * 2,
+                self.cfg.x_threshold * 2,
                 2 * np.pi,
                 10,
                 10,
@@ -116,7 +125,7 @@ class CartPoleEnv(gym.Env):
             dtype=np.float32,
         )
 
-        self.action_space = spaces.Box(-self.Fmax, self.Fmax, dtype=np.float32)
+        self.action_space = spaces.Box(-self.cfg.Fmax, self.cfg.Fmax, dtype=np.float32)
         self.observation_space = spaces.Box(-high, high, dtype=np.float32)
 
         self.reset_needed = True
@@ -141,9 +150,9 @@ class CartPoleEnv(gym.Env):
         """Execute the dynamics of the pendulum on cart."""
         if self.reset_needed:
             raise Exception("Call reset before using the step method.")
-        self.x = self.integrator(self.x, action, self.dt)
+        self.x = self.integrator(self.x, action, self.cfg.dt)
         self.x_trajectory.append(self.x)  # type: ignore
-        self.t += self.dt
+        self.t += self.cfg.dt
         theta = self.x[1]
         if theta > 2 * np.pi:
             theta = theta % 2 * np.pi
@@ -156,10 +165,10 @@ class CartPoleEnv(gym.Env):
         term = False
         trunc = False
         info = {}
-        if self.x[0] > self.x_threshold or self.x[0] < -self.x_threshold:
+        if not -self.cfg.x_threshold <= self.x[0] <= self.cfg.x_threshold:
             term = True  # Just terminating should be enough punishment when reward is positive
             info = {"task": {"violation": True, "success": False}}
-        if self.t > self.max_time:
+        if self.t > self.cfg.max_time:
             # check if the pole is upright in the last 10 steps
             if len(self.x_trajectory) >= 10:
                 success = all(
@@ -209,7 +218,9 @@ class CartPoleEnv(gym.Env):
         self.pole_end_trajectory = []
         for x in state_trajectory:
             self.pos_trajectory.append(x[0])
-            self.pole_end_trajectory.append(self.calc_pole_end(x[0], x[1], self.length))
+            self.pole_end_trajectory.append(
+                self.calc_pole_end(x[0], x[1], self.cfg.length)
+            )
 
     def calc_pole_end(
         self, x_coord: float, theta: float, length: float
@@ -235,11 +246,11 @@ class CartPoleEnv(gym.Env):
         if self.x is None:
             return None
 
-        world_width = 2 * self.x_threshold
+        world_width = 2 * self.cfg.x_threshold
         center = (int(self.screen_width / 2), int(self.screen_height / 2))
         scale = self.screen_width / world_width
         polewidth = 10.0
-        polelen = scale * self.length
+        polelen = scale * self.cfg.length
         cartwidth = 50.0
         cartheight = 30.0
         axleoffset = cartheight / 4.0
