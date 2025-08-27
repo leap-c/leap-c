@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import gymnasium as gym
@@ -15,7 +15,7 @@ from leap_c.examples.chain.utils.ellipsoid import Ellipsoid
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
 
 
-@dataclass(kw_only=True)
+@dataclass
 class ChainEnvConfig:
     """Configuration for the Chain environment."""
 
@@ -23,6 +23,27 @@ class ChainEnvConfig:
     dt: float = 0.05  # simulation time step [s]
     max_time: float = 10.0  # maximum simulation time [s]
     vmax: float = 1.0  # maximum velocity of the last mass [m/s]
+
+    # dynamics parameters (dependent defaults)
+    L: list[float] = field(default_factory=list)  # rest length of spring [m]
+    D: list[float] = field(default_factory=list)  # spring stiffness [N/m]
+    C: list[float] = field(default_factory=list)  # damping coefficient [Ns/m]
+    m: list[float] = field(default_factory=list)  # mass of the balls [kg]
+    w: list[float] = field(
+        default_factory=list
+    )  # disturbance on intermediate balls [N]
+
+    def __post_init__(self):
+        if not self.L:
+            self.L = [0.033, 0.033, 0.033] * (self.n_mass - 1)
+        if not self.D:
+            self.D = [1.0, 1.0, 1.0] * (self.n_mass - 1)
+        if not self.C:
+            self.C = [0.1, 0.1, 0.1] * (self.n_mass - 1)
+        if not self.m:
+            self.m = [0.033] * (self.n_mass - 1)
+        if not self.w:
+            self.w = [0.0, 0.0, 0.0] * (self.n_mass - 2)
 
 
 class ChainEnv(gym.Env):
@@ -74,15 +95,7 @@ class ChainEnv(gym.Env):
         self.init_phi_range = np.array([np.pi / 6, np.pi / 3])
         self.init_theta_range = np.array([-np.pi / 4, np.pi / 4])
 
-        length = 0.033
-        self.dyn_param_dict = {
-            "L": np.repeat([length, length, length], self.cfg.n_mass - 1),
-            "D": np.repeat([1.0, 1.0, 1.0], self.cfg.n_mass - 1),
-            "C": np.repeat([0.1, 0.1, 0.1], self.cfg.n_mass - 1),
-            "m": np.repeat([0.033], self.cfg.n_mass - 1),
-            "w": np.repeat([0.0, 0.0, 0.0], self.cfg.n_mass - 2),
-        }
-
+        length = self.cfg.L[0]
         pos_last_mass_ref = self.fix_point + np.array(
             [length * (self.cfg.n_mass - 1), 0.0, 0.0]
         )
@@ -93,7 +106,7 @@ class ChainEnv(gym.Env):
         self.pos_last_ref = pos_last_mass_ref
 
         # Compute observation space
-        pos_max = np.array(self.dyn_param_dict["L"]) * (self.cfg.n_mass - 1)
+        pos_max = np.array(self.cfg.L) * (self.cfg.n_mass - 1)
         pos_min = -pos_max
         vel_max = np.array(
             [self.cfg.vmax, self.cfg.vmax, self.cfg.vmax] * (self.cfg.n_mass - 2)
@@ -115,6 +128,14 @@ class ChainEnv(gym.Env):
 
         self.render_mode = render_mode
         self.trajectory = []
+
+        self.dyn_param_dict = {
+            "L": np.array(self.cfg.L),
+            "D": np.array(self.cfg.D),
+            "C": np.array(self.cfg.C),
+            "m": np.array(self.cfg.m),
+            "w": np.array(self.cfg.w),
+        }
 
         self.discrete_dynamics = create_discrete_casadi_dynamics(
             self.cfg.n_mass, self.cfg.dt
