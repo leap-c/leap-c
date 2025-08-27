@@ -150,13 +150,6 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
-    if args.output_path is None:
-        trainer_output_path = default_output_path(
-            seed=args.seed, tags=["sac_fop", args.env, args.controller]
-        )
-    else:
-        trainer_output_path = args.output_path
-
     if args.reuse_code and args.reuse_code_dir is None:
         reuse_code_dir = default_controller_code_path() if args.reuse_code else None
     elif args.reuse_code_dir is not None:
@@ -166,7 +159,7 @@ if __name__ == "__main__":
 
     run_sac_fop(
         cfg=cfg,
-        output_path=trainer_output_path,
+        output_path=output_path,
         device=args.device,
         reuse_code_dir=reuse_code_dir,
     )

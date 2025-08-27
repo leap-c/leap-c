@@ -100,7 +100,10 @@ if __name__ == "__main__":
     parser.add_argument("--wandb-project", type=str, default="leap-c")
     args = parser.parse_args()
 
-    output_path = default_output_path(seed=args.seed, tags=["sac", args.env])
+    if args.output_path is None:
+        output_path = default_output_path(seed=args.seed, tags=["sac", args.env])
+    else:
+        output_path = args.output_path
 
     cfg = create_cfg(args.env, args.seed)
 
