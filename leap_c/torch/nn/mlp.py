@@ -54,7 +54,7 @@ class MlpConfig:
     weight_init: WeightInit | None = "orthogonal"  # If None, no init will be used
 
 
-class MLP(nn.Module):
+class Mlp(nn.Module):
     """A base class for a multi-layer perceptron (MLP) with a configurable number of
     layers and activation functions.
 

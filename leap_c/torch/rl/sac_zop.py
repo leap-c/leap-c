@@ -13,7 +13,7 @@ import torch.nn as nn
 from leap_c.controller import ParameterizedController
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
 from leap_c.torch.nn.gaussian import SquashedGaussian
-from leap_c.torch.nn.mlp import MLP, MlpConfig
+from leap_c.torch.nn.mlp import Mlp, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.utils import soft_target_update
 from leap_c.torch.rl.sac import SacTrainerConfig, SacCritic
@@ -43,7 +43,7 @@ class MpcSacActor(nn.Module):
 
         self.extractor = extractor_cls(observation_space)
         self.controller = controller
-        self.mlp = MLP(
+        self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
             output_sizes=(param_space.shape[0], param_space.shape[0]),  # type:ignore
             mlp_cfg=mlp_cfg,

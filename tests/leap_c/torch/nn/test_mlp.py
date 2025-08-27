@@ -1,11 +1,11 @@
 import torch
 
-from leap_c.torch.nn.mlp import MlpConfig, MLP
+from leap_c.torch.nn.mlp import MlpConfig, Mlp
 
 
 def test_const_param_mlp():
     cfg = MlpConfig(hidden_dims=None)
-    mlp = MLP(input_sizes=3, output_sizes=2, mlp_cfg=cfg)
+    mlp = Mlp(input_sizes=3, output_sizes=2, mlp_cfg=cfg)
 
     assert mlp.mlp is None
     assert mlp.param is not None

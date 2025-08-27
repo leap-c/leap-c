@@ -10,7 +10,7 @@ import torch.nn as nn
 
 from leap_c.torch.nn.extractor import ExtractorName, Extractor, get_extractor_cls
 from leap_c.torch.nn.gaussian import SquashedGaussian
-from leap_c.torch.nn.mlp import MLP, MlpConfig
+from leap_c.torch.nn.mlp import Mlp, MlpConfig
 from leap_c.torch.nn.scale import min_max_scaling
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.utils import soft_target_update
@@ -78,7 +78,7 @@ class SacCritic(nn.Module):
         )
         self.mlp = nn.ModuleList(
             [
-                MLP(
+                Mlp(
                     input_sizes=[qe.output_size, action_dim],  # type: ignore
                     output_sizes=1,
                     mlp_cfg=mlp_cfg,
@@ -106,7 +106,7 @@ class SacActor(nn.Module):
         action_dim = action_space.shape[0]  # type: ignore
 
         self.extractor = extractor_cls(observation_space)
-        self.mlp = MLP(
+        self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
             output_sizes=(action_dim, action_dim),  # type: ignore
             mlp_cfg=mlp_cfg,
