@@ -5,7 +5,6 @@ import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
-from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 
 from leap_c.examples.chain.dynamics import (
     define_f_expl_expr,
@@ -13,6 +12,7 @@ from leap_c.examples.chain.dynamics import (
 )
 from leap_c.examples.chain.utils.ellipsoid import Ellipsoid
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
+from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 
 
 @dataclass
@@ -46,7 +46,7 @@ class ChainEnvConfig:
             self.w = [0.0, 0.0, 0.0] * (self.n_mass - 2)
 
 
-class ChainEnv(gym.Env):
+class ChainEnv(MatplotlibRenderEnv, gym.Env):
     """An environment of a chain of masses.
 
     The first mass is fixed at a given point,
@@ -87,7 +87,7 @@ class ChainEnv(gym.Env):
         render_mode: str | None = None,
         cfg: ChainEnvConfig | None = None,
     ):
-        super().__init__()
+        super().__init__(render_mode=render_mode)
         self.cfg = ChainEnvConfig() if cfg is None else cfg
 
         self.fix_point = np.zeros(3)
@@ -126,7 +126,6 @@ class ChainEnv(gym.Env):
             ),
         )
 
-        self.render_mode = render_mode
         self.trajectory = []
 
         self.dyn_param_dict = {
@@ -154,8 +153,6 @@ class ChainEnv(gym.Env):
             center=self.fix_point,
             radii=np.sum(self.dyn_param_dict["L"].reshape(-1, 3), axis=0),
         )
-
-        self._set_canvas()
 
     def step(self, action: np.ndarray) -> tuple[Any, float, bool, bool, dict]:
         u = action
@@ -205,11 +202,6 @@ class ChainEnv(gym.Env):
         self.state, self.action = self._init_state_and_action()
         self.time = 0.0
         self.trajectory = []
-        plt.close("all")
-        self.canvas = None
-        self.line = None
-
-        self._set_canvas()
 
         return self.state.copy(), {}
 
@@ -225,9 +217,9 @@ class ChainEnv(gym.Env):
 
         return x_ss, u_ss
 
-    def _set_canvas(self):
-        plt.figure()
-        ax = [plt.subplot(3, 1, i) for i in range(1, 4)]
+    def _render_setup(self):
+        """One-time setup for the rendering."""
+        self._fig, self._ax = plt.subplots(3, 1, figsize=(8, 10))
 
         # Plot reference
         ref_pos = np.vstack([self.fix_point, self.x_ref[: self.nx_pos].reshape(-1, 3)])
@@ -241,31 +233,22 @@ class ChainEnv(gym.Env):
 
         labels = ["x", "y", "z"]
         self.lines = []
-        for k, ax_k in enumerate(ax):
-            ax_k.plot(ref_pos[:, k], "ro--")
+        for k, ax_k in enumerate(self._ax):
+            ax_k.plot(ref_pos[:, k], "ro--", label="Reference")
             ax_k.grid()
             ax_k.set_xticks(range(self.cfg.n_mass + 1))
             ax_k.set_xlim(0, self.cfg.n_mass + 1)
             ax_k.set_ylim(low_ylim[k], high_ylim[k])
             ax_k.set_ylabel(labels[k])
             self.lines.append(
-                ax_k.plot(range(ref_pos[:, k].shape[0]), ref_pos[:, k], ".-")[0]
+                ax_k.plot(
+                    range(ref_pos[:, k].shape[0]), ref_pos[:, k], ".-", label="Current"
+                )[0]
             )
+            ax_k.legend()
 
-        self.canvas = FigureCanvas(plt.gcf())
-
-    def render(self):
-        if self.render_mode is None:
-            return None
-
-        if self.render_mode in ["rgb_array", "human"]:
-            pos = np.vstack([self.fix_point, self.state[: self.nx_pos].reshape(-1, 3)])
-            for k, line in enumerate(self.lines):
-                line.set_ydata(pos[:, k])
-
-            # Convert the plot to an RGB string
-            s, (width, height) = self.canvas.print_to_buffer()
-            # Convert the RGB string to a NumPy array
-            return np.frombuffer(s, np.uint8).reshape((height, width, 4))[:, :, :3]
-        else:
-            raise ValueError(f"Unsupported render mode: {self.render_mode}")
+    def _render_frame(self):
+        """Update the plot with the current environment state."""
+        pos = np.vstack([self.fix_point, self.state[: self.nx_pos].reshape(-1, 3)])
+        for k, line in enumerate(self.lines):
+            line.set_ydata(pos[:, k])
