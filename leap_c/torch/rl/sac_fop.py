@@ -14,7 +14,7 @@ import torch.nn as nn
 from leap_c.controller import ParameterizedController
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
 from leap_c.torch.nn.gaussian import SquashedGaussian, BoundedTransform
-from leap_c.torch.nn.mlp import MLP, MlpConfig
+from leap_c.torch.nn.mlp import Mlp, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.sac import SacTrainerConfig, SacCritic
 from leap_c.torch.rl.utils import soft_target_update
@@ -61,7 +61,7 @@ class FopActor(nn.Module):
         self.controller = controller
         self.extractor = extractor
         param_dim = controller.param_space.shape[0]
-        self.mlp = MLP(
+        self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
             output_sizes=(param_dim, param_dim),  # type:ignore
             mlp_cfg=mlp_cfg,
@@ -114,7 +114,7 @@ class FoaActor(nn.Module):
         self.extractor = extractor
         param_dim = controller.param_space.shape[0]  # type:ignore
         action_dim = env.action_space.shape[0]  # type:ignore
-        self.mlp = MLP(
+        self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
             output_sizes=(param_dim, action_dim),  # type:ignore
             mlp_cfg=mlp_cfg,
