@@ -1,10 +1,10 @@
 """Main script to run experiments."""
 
 from argparse import ArgumentParser
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from leap_c.run import init_run, default_output_path
+from leap_c.run import default_name, init_run, default_output_path
 from leap_c.examples import create_env
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
@@ -16,19 +16,19 @@ class RunSacConfig:
 
     env: str = "cartpole"
     trainer: SacTrainerConfig = field(default_factory=SacTrainerConfig)
-    extractor: ExtractorName = "identity"  # for hvac use "scaling"
+    extractor: ExtractorName = "identity"
 
 
-def create_cfg() -> RunSacConfig:
+def create_cfg(env: str, seed: int) -> RunSacConfig:
     """Return the default configuration for running SAC experiments."""
     # ---- Configuration ----
     cfg = RunSacConfig()
-    cfg.env = "cartpole"
-    cfg.extractor = "identity"  # for hvac use "scaling"
+    cfg.env = env
+    cfg.extractor = "identity" if env != "hvac" else "scaling"
 
     # ---- Section: cfg.trainer ----
-    cfg.trainer.seed = 0
-    cfg.trainer.train_steps = 1000000
+    cfg.trainer.seed = seed
+    cfg.trainer.train_steps = 1000000 if env == "pointmass" else 200000
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 10000
     cfg.trainer.val_num_rollouts = 20
@@ -95,12 +95,26 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
+    parser.add_argument("--use-wandb", action="store_true")
+    parser.add_argument("--wandb-entity", type=str, default=None)
+    parser.add_argument("--wandb-project", type=str, default="leap-c")
     args = parser.parse_args()
 
-    output_path = default_output_path(seed=args.seed, tags=["sac", args.env])
+    if args.output_path is None:
+        output_path = default_output_path(seed=args.seed, tags=["sac", args.env])
+    else:
+        output_path = args.output_path
 
-    cfg = create_cfg()
-    cfg.trainer.seed = args.seed
-    cfg.env = args.env
+    cfg = create_cfg(args.env, args.seed)
+
+    if args.use_wandb:
+        config_dict = asdict(cfg)
+        cfg.trainer.log.wandb_logger = True
+        cfg.trainer.log.wandb_init_kwargs = {
+            "entity": args.wandb_entity,
+            "project": args.wandb_project,
+            "name": default_name(args.seed, tags=["sac", args.env]),
+            "config": config_dict,
+        }
 
     run_sac(cfg, output_path, args.device)

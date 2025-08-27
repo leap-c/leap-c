@@ -155,10 +155,10 @@ class Logger:
         # init wandb
         if cfg.wandb_logger:
             if not cfg.wandb_init_kwargs.get("dir", False):  # type:ignore
-                wandbdir = self.output_path / "wandb"
-                wandbdir.mkdir(exist_ok=True)
-                cfg.wandb_init_kwargs["dir"] = str(wandbdir)
+                cfg.wandb_init_kwargs["dir"] = str(self.output_path)
             wandb.init(**cfg.wandb_init_kwargs)
+
+        self.defined_metrics = {}
 
         # tensorboard
         if cfg.tensorboard_logger:
@@ -191,6 +191,10 @@ class Logger:
         if verbose and not self.cfg.verbose:
             return
 
+        if self.cfg.wandb_logger and not self.defined_metrics.get(group, False):
+            wandb.define_metric(f"{group}/*", f"{group}/step")
+            self.defined_metrics[group] = True
+
         # split numpy arrays
         for key, value in list(stats.items()):
             if not isinstance(value, np.ndarray):
@@ -218,8 +222,10 @@ class Logger:
         for report_timestamp, report_stats in report_loop:
             if self.cfg.wandb_logger:
                 wandb.log(
-                    {f"{group}/{k}": v for k, v in report_stats.items()},
-                    step=report_timestamp,
+                    {
+                        f"{group}/step": report_timestamp,
+                        **{f"{group}/{k}": v for k, v in report_stats.items()},
+                    }
                 )
 
             if self.cfg.tensorboard_logger:

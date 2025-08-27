@@ -1,11 +1,16 @@
 """Main script to run experiments."""
 
 from argparse import ArgumentParser
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from leap_c.examples import create_env, create_controller
-from leap_c.run import default_controller_code_path, default_output_path, init_run
+from leap_c.run import (
+    default_controller_code_path,
+    default_name,
+    default_output_path,
+    init_run,
+)
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
 
@@ -17,19 +22,19 @@ class RunSacFopConfig:
     env: str = "cartpole"
     controller: str = "cartpole"
     trainer: SacFopTrainerConfig = field(default_factory=SacFopTrainerConfig)
-    extractor: ExtractorName = "identity"  # for hvac use "scaling"
+    extractor: ExtractorName = "identity"
 
 
-def create_cfg() -> RunSacFopConfig:
+def create_cfg(env: str, controller: str, seed: int) -> RunSacFopConfig:
     # ---- Configuration ----
     cfg = RunSacFopConfig()
-    cfg.env = "cartpole"
-    cfg.controller = "cartpole"
-    cfg.extractor = "identity"  # for hvac use "scaling"
+    cfg.env = env
+    cfg.controller = controller if controller is not None else env
+    cfg.extractor = "identity" if env != "hvac" else "scaling"
 
     # ---- Section: cfg.trainer ----
-    cfg.trainer.seed = 0
-    cfg.trainer.train_steps = 1000000
+    cfg.trainer.seed = seed
+    cfg.trainer.train_steps = 1000000 if env == "pointmass" else 200000
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 10000
     cfg.trainer.val_num_rollouts = 20
@@ -93,7 +98,7 @@ def run_sac_fop(
         cfg=cfg.trainer,
         extractor_cls=cfg.extractor,
     )
-    init_run(trainer, cfg, trainer_output_path)
+    init_run(trainer, cfg, output_path)
 
     return trainer.run()
 
@@ -112,12 +117,24 @@ if __name__ == "__main__":
         help="Reuse compiled code. The first time this is run, it will compile the code.",
     )
     parser.add_argument("--reuse_code_dir", type=Path, default=None)
+    parser.add_argument("--use-wandb", action="store_true")
+    parser.add_argument("--wandb-entity", type=str, default=None)
+    parser.add_argument("--wandb-project", type=str, default="leap-c")
     args = parser.parse_args()
 
-    cfg = create_cfg()
-    cfg.controller = args.controller if args.controller else args.env
-    cfg.env = args.env
-    cfg.trainer.seed = args.seed
+    cfg = create_cfg(args.env, args.controller, args.seed)
+
+    if args.use_wandb:
+        config_dict = asdict(cfg)
+        cfg.trainer.log.wandb_logger = True
+        cfg.trainer.log.wandb_init_kwargs = {
+            "entity": args.wandb_entity,
+            "project": args.wandb_project,
+            "name": default_name(
+                args.seed, tags=["sac_fop", args.env, args.controller]
+            ),
+            "config": config_dict,
+        }
 
     if args.output_path is None:
         output_path = default_output_path(
@@ -133,13 +150,6 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
-    if args.output_path is None:
-        trainer_output_path = default_output_path(
-            seed=args.seed, tags=["sac_fop", args.env, args.controller]
-        )
-    else:
-        trainer_output_path = args.output_path
-
     if args.reuse_code and args.reuse_code_dir is None:
         reuse_code_dir = default_controller_code_path() if args.reuse_code else None
     elif args.reuse_code_dir is not None:
@@ -149,7 +159,7 @@ if __name__ == "__main__":
 
     run_sac_fop(
         cfg=cfg,
-        output_path=trainer_output_path,
+        output_path=output_path,
         device=args.device,
         reuse_code_dir=reuse_code_dir,
     )
