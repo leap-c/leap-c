@@ -120,6 +120,7 @@ class AcadosParamManager:
             # Non-learnable parameters are by construction for each stage
             entries[interface_type].append(entry(name, shape=parameter.value.shape))
 
+        self.need_indicator = False
         for name, parameter in self.parameters.items():
             if parameter.interface == "learnable":
                 _add_learnable_parameter_entries(name, parameter)
