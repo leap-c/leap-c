@@ -131,6 +131,7 @@ def create_forward_backward_batch_solvers(
         sensitivity_ocp.solver_options.exact_hess_cost = True
         sensitivity_ocp.solver_options.exact_hess_dyn = True
         sensitivity_ocp.solver_options.fixed_hess = 0
+        sensitivity_ocp.solver_options.levenberg_marquardt = 0.0
         sensitivity_ocp.solver_options.with_solution_sens_wrt_params = True
         sensitivity_ocp.solver_options.with_value_sens_wrt_params = True
 
