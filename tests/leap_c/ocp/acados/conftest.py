@@ -20,108 +20,65 @@ def nominal_params() -> tuple[Parameter, ...]:
             value=np.array([1.0]),
             lower_bound=np.array([0.5]),
             upper_bound=np.array([1.5]),
-            differentiable=False,
-            stagewise=False,
-            fix=False,
+            interface="non-learnable",
         ),
         Parameter(
             name="cx",
             value=np.array([0.1]),
             lower_bound=np.array([0.05]),
             upper_bound=np.array([0.15]),
-            differentiable=False,
-            stagewise=False,
-            fix=False,
+            interface="non-learnable",
         ),
         Parameter(
             name="cy",
             value=np.array([0.1]),
             lower_bound=np.array([0.05]),
             upper_bound=np.array([0.15]),
-            differentiable=False,
-            stagewise=False,
-            fix=False,
+            interface="non-learnable",
         ),
         Parameter(
             name="q_diag",
             value=np.array([1.0, 1.0, 1.0, 1.0]),
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
-            differentiable=True,
-            stagewise=False,
-            fix=False,
+            interface="learnable",
         ),
         Parameter(
             name="r_diag",
             value=np.array([0.1, 0.1]),
             lower_bound=np.array([0.05, 0.05]),
             upper_bound=np.array([0.15, 0.15]),
-            differentiable=True,
-            stagewise=False,
-            fix=False,
+            interface="learnable",
         ),
         Parameter(
             name="q_diag_e",
             value=np.array([1.0, 1.0, 1.0, 1.0]),
             lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
             upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
-            differentiable=True,
-            stagewise=False,
-            fix=False,
+            interface="learnable",
         ),
         Parameter(
             name="xref",
             value=np.array([0.0, 0.0, 0.0, 0.0]),
             lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
-            differentiable=True,
-            stagewise=False,
-            fix=False,
+            interface="learnable",
         ),
         Parameter(
             name="uref",
             value=np.array([0.0, 0.0]),
             lower_bound=np.array([-1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0]),
-            differentiable=True,
-            stagewise=False,
-            fix=False,
+            interface="learnable",
         ),
         Parameter(
             name="xref_e",
             value=np.array([0.0, 0.0, 0.0, 0.0]),
             lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
             upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
-            differentiable=True,
-            stagewise=False,
-            fix=False,
+            interface="learnable",
         ),
     )
-
-
-@pytest.fixture(scope="session")
-def nominal_stagewise_params(
-    nominal_params: tuple[Parameter, ...],
-) -> tuple[Parameter, ...]:
-    """Copy nominal_params and modify specific parameters to be stagewise."""
-    # Override specific fields for stage-wise parameters
-    stagewise_overrides = {
-        "q_diag": {"stagewise": True},
-        "xref": {"stagewise": True},
-        "uref": {"stagewise": True},
-    }
-
-    modified_params = []
-    for param in nominal_params:
-        if param.name in stagewise_overrides:
-            # Create new parameter with overridden fields
-            kwargs = param._asdict()
-            kwargs.update(stagewise_overrides[param.name])
-            modified_params.append(Parameter(**kwargs))
-        else:
-            modified_params.append(param)
-
-    return tuple(modified_params)
 
 
 def get_A_disc(
@@ -192,6 +149,35 @@ def ocp_options(request: pytest.FixtureRequest) -> AcadosOcpOptions:
 
 
 @pytest.fixture(scope="session")
+def nominal_stagewise_params(
+    nominal_params: tuple[Parameter, ...],
+    ocp_options: AcadosOcpOptions,
+) -> tuple[Parameter, ...]:
+    """Copy nominal_params and modify specific parameters to be stagewise."""
+
+    N_horizon = ocp_options.N_horizon
+    # Override specific fields for stage-wise parameters
+    # Taking a large range of stages. Will be clipped by horizon length later.
+    stagewise_overrides = {
+        "q_diag": {"vary_stages": [i for i in range(1, N_horizon + 1)]},
+        "xref": {"vary_stages": [i for i in range(1, N_horizon + 1)]},
+        "uref": {"vary_stages": [i for i in range(1, N_horizon)]},
+    }
+
+    modified_params = []
+    for param in nominal_params:
+        if param.name in stagewise_overrides:
+            # Create new parameter with overridden fields
+            kwargs = param._asdict()
+            kwargs.update(stagewise_overrides[param.name])
+            modified_params.append(Parameter(**kwargs))
+        else:
+            modified_params.append(param)
+
+    return tuple(modified_params)
+
+
+@pytest.fixture(scope="session")
 def acados_test_ocp_no_p_global(
     ocp_options: AcadosOcpOptions,
     nominal_params: tuple[Parameter, ...],
@@ -216,9 +202,7 @@ def acados_test_ocp_no_p_global(
             value=param.value,
             lower_bound=param.lower_bound,
             upper_bound=param.upper_bound,
-            fix=True,
-            differentiable=False,
-            stagewise=False,
+            interface="fix",
         )
         for param in nominal_params
     )

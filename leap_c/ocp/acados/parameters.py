@@ -45,7 +45,7 @@ class AcadosParamManager:
 
     parameters: dict[str, Parameter] = {}
     learnable_parameters: struct_symSX | None = None
-    learnable_parameter_values: struct | None = None
+    learnable_parameters_default: struct | None = None
     non_learnable_parameters: struct_symSX | None = None
     non_learnable_parameters_default: list[struct] | None = None
 
@@ -319,8 +319,8 @@ class AcadosParamManager:
         if self.learnable_parameters is not None:
             ocp.model.p_global = self.learnable_parameters.cat
             ocp.p_global_values = (
-                self.learnable_parameter_values.cat.full().flatten()
-                if self.learnable_parameter_values
+                self.learnable_parameters_default.cat.full().flatten()
+                if self.learnable_parameters_default
                 else np.array([])
             )
 

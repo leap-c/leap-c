@@ -133,7 +133,7 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
         N_horizon=ocp.solver_options.N_horizon,
     )
 
-    p_global_values = pm.learnable_parameter_values
+    p_global_values = pm.learnable_parameters_default
     p_stagewise = pm.combine_parameter_values()
 
     xref_0 = rng.random(size=4)
