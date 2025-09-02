@@ -23,13 +23,12 @@ class Parameter(NamedTuple):
             Defaults to None (unbounded).
         upper_bound: Upper bounds for the parameter values.
             Defaults to None (unbounded).
-        fix: Flag indicating if this is a fixed value rather than a
-            settable parameter. Defaults to True.
-        differentiable: Flag indicating if the parameter should be
-            treated as differentiable in optimization. Defaults to False.
-        stagewise: Flag indicating if the parameter varies across
-            optimization stages. Defaults to False.
-
+        interface: Parameter interface type. Either "fix" (fixed values), 
+            "learnable" (optimizable parameters), or "non-learnable" 
+            (non-optimizable but changeable). Defaults to "fix".
+        vary_stages: List of stages after which the parameter varies. 
+            Only used for "learnable" interface. If None, parameter 
+            remains constant across all stages. Defaults to None.
     """
 
     name: str
