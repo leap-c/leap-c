@@ -686,7 +686,7 @@ def test_combine_parameter_values():
     manager = AcadosParamManager(params, N_horizon=5)
 
     expected = np.ones((2, 6, 1))
-    result = manager.combine_parameter_values(batch_size=2)
+    result = manager.combine_non_learnable_parameter_values(batch_size=2)
     np.testing.assert_array_equal(result, expected)
 
 
@@ -755,7 +755,7 @@ def test_combine_parameter_values_complex():
 
     # Test with batch_size=3
     batch_size = 3
-    result = manager.combine_parameter_values(batch_size=batch_size)
+    result = manager.combine_non_learnable_parameter_values(batch_size=batch_size)
 
     # Verify result shape: (batch_size, N_horizon + 1, total_non_learnable_params)
     # Non-learnable params: scalar_non_learnable(1) + vector_non_learnable(2) + matrix_non_learnable(4) + indicator(9) = 16
@@ -810,7 +810,7 @@ def test_combine_parameter_values_complex():
         )
     )
 
-    result = manager.combine_parameter_values(
+    result = manager.combine_non_learnable_parameter_values(
         matrix_non_learnable=matrix_non_learnable,
         vector_non_learnable=vector_non_learnable,
     )

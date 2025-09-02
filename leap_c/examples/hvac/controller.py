@@ -111,7 +111,7 @@ class HvacController(ParameterizedController):
 
         lb, ub = set_temperature_limits(quarter_hours=quarter_hours)
 
-        p_stagewise = self.param_manager.combine_parameter_values(
+        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             lb_Ti=lb.reshape(batch_size, -1, 1),
             ub_Ti=ub.reshape(batch_size, -1, 1),
         )

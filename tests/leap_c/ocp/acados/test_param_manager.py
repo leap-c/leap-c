@@ -53,7 +53,7 @@ def test_param_manager_combine_parameter_values(
             )
         )
 
-    res = acados_param_manager.combine_parameter_values(**overwrite)
+    res = acados_param_manager.combine_non_learnable_parameter_values(**overwrite)
 
     assert res.shape == (
         batch_size,
@@ -88,7 +88,7 @@ def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
         parameters=nominal_stagewise_params,
         N_horizon=N_horizon,
     )
-    p_stagewise = parameter_manager.combine_parameter_values()
+    p_stagewise = parameter_manager.combine_non_learnable_parameter_values()
 
     x0 = np.array([1.0, 1.0, 0.0, 0.0])
 
@@ -134,7 +134,7 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     )
 
     p_global_values = pm.learnable_parameters_default
-    p_stagewise = pm.combine_parameter_values()
+    p_stagewise = pm.combine_non_learnable_parameter_values()
 
     xref_0 = rng.random(size=4)
     uref_0 = rng.random(size=2)

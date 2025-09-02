@@ -517,7 +517,7 @@ def diff_mpc_with_stagewise_varying_params(
     )
 
     # Get the default parameter values for each stage
-    parameter_values = acados_param_manager.combine_parameter_values()
+    parameter_values = acados_param_manager.combine_non_learnable_parameter_values()
 
     for ocp_solver in chain(
         diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers,

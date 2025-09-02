@@ -188,9 +188,7 @@ class AcadosParamManager:
             if self.parameters[key].interface == "non-learnable":
                 self.non_learnable_parameters_default[key] = self.parameters[key].value
 
-    # This is for non_learnable_parameters.
-    # TODO: Modify name after PR from example cleanup
-    def combine_parameter_values(
+    def combine_non_learnable_parameter_values(
         self,
         batch_size: int | None = None,
         **overwrite: np.ndarray,
@@ -253,8 +251,6 @@ class AcadosParamManager:
 
         return batch_parameter_values
 
-    # This is for learnable_parameters.
-    # TODO: Modify name after PR from example cleanup
     def get_learnable_parameters_bounds(
         self,
     ) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
@@ -262,7 +258,6 @@ class AcadosParamManager:
         if self.learnable_parameters is None:
             return None, None
 
-        # return self.lb, self.ub
         return (
             self.learnable_parameters_lb.cat.full(),
             self.learnable_parameters_ub.cat.full(),

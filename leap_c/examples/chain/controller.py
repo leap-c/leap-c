@@ -113,7 +113,7 @@ class ChainController(ParameterizedController):
         )
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        p_stagewise = self.param_manager.combine_parameter_values(
+        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )
         ctx, u0, x, u, value = self.diff_mpc(

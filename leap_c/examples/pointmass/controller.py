@@ -78,7 +78,7 @@ class PointMassController(ParameterizedController):
         self.diff_mpc = AcadosDiffMpc(self.ocp, export_directory=export_directory)
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        p_stagewise = self.param_manager.combine_parameter_values(
+        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )
         # remove wind field from observation, this is only observed by
