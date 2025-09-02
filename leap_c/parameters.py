@@ -14,7 +14,7 @@ class Parameter(NamedTuple):
     Attributes:
         name: The name identifier for the parameter.
         value: The parameter's numerical value(s).
-        bounds: A gym.spaces.Box defining the valid range for the parameter values.
+        space: A gym.spaces.Space defining the valid parameter space.
             Only used for learnable parameters. Defaults to None (unbounded).
         interface: The interface type for the parameter.
             Can be "fix", "learnable", or "non-learnable". Defaults to "fix".
@@ -22,7 +22,7 @@ class Parameter(NamedTuple):
 
     name: str
     default: np.ndarray
-    space: gym.spaces.Box | None = None
+    space: gym.spaces.Space | None = None
     interface: Literal["fix", "learnable", "non-learnable"] = "fix"
 
 
