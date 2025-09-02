@@ -83,6 +83,11 @@ class AcadosParameterManager:
                     f"but CasADi only supports arrays up to 2 dimensions. "
                     f"Upper bound shape: {param.upper_bound.shape}"
                 )
+            if param.vary_stages and param.vary_stages[-1] > N_horizon:
+                raise ValueError(
+                    f"Parameter '{param.name}' has vary_stages {param.vary_stages} "
+                    f"which exceed the horizon length {N_horizon}."
+                )
 
         self.parameters = {param.name: param for param in parameters}
 
@@ -98,9 +103,7 @@ class AcadosParameterManager:
             if parameter.vary_stages:
                 self.need_indicator = True
                 # Clip vary_stages to the horizon
-                vary_stages = [
-                    stage for stage in parameter.vary_stages if stage <= self.N_horizon
-                ]
+                vary_stages = parameter.vary_stages
                 starts = [0] + vary_stages
                 ends = np.array(vary_stages + [self.N_horizon + 1]) - 1
                 for start, end in zip(starts, ends):
