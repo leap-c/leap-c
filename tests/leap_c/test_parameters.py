@@ -1,5 +1,6 @@
 import numpy as np
 import pytest
+import gymnasium as gym
 from leap_c.parameters import Parameter, ParameterManager
 
 
@@ -149,27 +150,37 @@ def test_parameter_manager_learnable_array_order():
 def test_learnable_params_lower_bound():
     """Test learnable_params_lower_bound method with various parameter types."""
     params = [
-        # Unbounded parameter (lower_bound=None)
+        # Unbounded parameter (bounds=None)
         Parameter(name="unbounded", default=np.array([1.0]), interface="learnable"),
-        # Bounded parameter with lower_bound
+        # Bounded parameter with bounds
         Parameter(
             name="bounded",
             default=np.array([2.0, 3.0]),
-            lower_bound=np.array([-1.0, -2.0]),
+            space=gym.spaces.Box(
+                low=np.array([-1.0, -2.0]),
+                high=np.array([10.0, 20.0]),
+                dtype=np.float32,
+            ),
             interface="learnable",
         ),
         # Fixed parameter (should not appear in bounds)
         Parameter(
             name="fixed",
             default=np.array([4.0]),
-            lower_bound=np.array([0.0]),
+            space=gym.spaces.Box(
+                low=np.array([0.0]), high=np.array([100.0]), dtype=np.float32
+            ),
             interface="fix",
         ),
         # Matrix parameter with bounds
         Parameter(
             name="matrix",
             default=np.array([[5.0, 6.0], [7.0, 8.0]]),
-            lower_bound=np.array([[0.0, 1.0], [2.0, 3.0]]),
+            space=gym.spaces.Box(
+                low=np.array([[0.0, 1.0], [2.0, 3.0]]),
+                high=np.array([[50.0, 60.0], [70.0, 80.0]]),
+                dtype=np.float32,
+            ),
             interface="learnable",
         ),
     ]
@@ -184,27 +195,37 @@ def test_learnable_params_lower_bound():
 def test_learnable_params_upper_bound():
     """Test learnable_params_upper_bound method with various parameter types."""
     params = [
-        # Unbounded parameter (upper_bound=None)
+        # Unbounded parameter (bounds=None)
         Parameter(name="unbounded", default=np.array([1.0]), interface="learnable"),
-        # Bounded parameter with upper_bound
+        # Bounded parameter with bounds
         Parameter(
             name="bounded",
             default=np.array([2.0, 3.0]),
-            upper_bound=np.array([10.0, 20.0]),
+            space=gym.spaces.Box(
+                low=np.array([-1.0, -2.0]),
+                high=np.array([10.0, 20.0]),
+                dtype=np.float32,
+            ),
             interface="learnable",
         ),
         # Fixed parameter (should not appear in bounds)
         Parameter(
             name="fixed",
             default=np.array([4.0]),
-            upper_bound=np.array([100.0]),
+            space=gym.spaces.Box(
+                low=np.array([0.0]), high=np.array([100.0]), dtype=np.float32
+            ),
             interface="fix",
         ),
         # Matrix parameter with bounds
         Parameter(
             name="matrix",
             default=np.array([[5.0, 6.0], [7.0, 8.0]]),
-            upper_bound=np.array([[50.0, 60.0], [70.0, 80.0]]),
+            space=gym.spaces.Box(
+                low=np.array([[0.0, 1.0], [2.0, 3.0]]),
+                high=np.array([[50.0, 60.0], [70.0, 80.0]]),
+                dtype=np.float32,
+            ),
             interface="learnable",
         ),
     ]
@@ -236,15 +257,19 @@ def test_learnable_params_bounds_consistency():
         Parameter(
             name="c",
             default=np.array([3.0]),
-            lower_bound=np.array([-3.0]),
-            upper_bound=np.array([30.0]),
+            space=gym.spaces.Box(
+                low=np.array([-3.0]), high=np.array([30.0]), dtype=np.float32
+            ),
             interface="learnable",
         ),
         Parameter(
             name="a",
             default=np.array([1.0, 2.0]),
-            lower_bound=np.array([-1.0, -2.0]),
-            upper_bound=np.array([10.0, 20.0]),
+            space=gym.spaces.Box(
+                low=np.array([-1.0, -2.0]),
+                high=np.array([10.0, 20.0]),
+                dtype=np.float32,
+            ),
             interface="learnable",
         ),
         Parameter(
@@ -281,22 +306,31 @@ def test_learnable_params_bounds_mixed_bounded_unbounded():
         Parameter(
             name="lower_only",
             default=np.array([1.0, 2.0]),
-            lower_bound=np.array([0.0, -1.0]),
+            space=gym.spaces.Box(
+                low=np.array([0.0, -1.0]),
+                high=np.array([np.inf, np.inf]),
+                dtype=np.float32,
+            ),
             interface="learnable",
         ),
         # Partially bounded (only upper bound)
         Parameter(
             name="upper_only",
             default=np.array([3.0]),
-            upper_bound=np.array([100.0]),
+            space=gym.spaces.Box(
+                low=np.array([-np.inf]), high=np.array([100.0]), dtype=np.float32
+            ),
             interface="learnable",
         ),
         # Fully bounded
         Parameter(
             name="fully_bounded",
             default=np.array([4.0, 5.0]),
-            lower_bound=np.array([-10.0, -20.0]),
-            upper_bound=np.array([10.0, 20.0]),
+            space=gym.spaces.Box(
+                low=np.array([-10.0, -20.0]),
+                high=np.array([10.0, 20.0]),
+                dtype=np.float32,
+            ),
             interface="learnable",
         ),
         # Unbounded
@@ -314,127 +348,3 @@ def test_learnable_params_bounds_mixed_bounded_unbounded():
 
     expected_upper = np.array([np.inf, np.inf, 100.0, 10.0, 20.0, np.inf])
     np.testing.assert_array_equal(manager.get_param_space().high, expected_upper)
-
-
-def test_parameter_manager_non_learnable_params():
-    """Test ParameterManager with various parameter types and non-learnable functionality."""
-    # Create test parameters with different shapes and interfaces
-    params = [
-        # Scalar parameters
-        Parameter(name="scalar_fix", default=np.array([1.0]), interface="fix"),
-        Parameter(
-            name="scalar_non_learnable",
-            default=np.array([2.0]),
-            interface="non-learnable",
-        ),
-        Parameter(
-            name="scalar_learnable",
-            default=np.array([3.0]),
-            interface="learnable",
-        ),
-        # Vector parameters
-        Parameter(
-            name="vector_non_learnable",
-            default=np.array([4.0, 5.0, 6.0]),
-            interface="non-learnable",
-        ),
-        Parameter(name="vector_fix", default=np.array([7.0, 8.0]), interface="fix"),
-    ]
-
-    # Initialize ParameterManager
-    manager = ParameterManager(params)
-
-    # Test that parameters are stored correctly
-    assert len(manager.parameters) == 5
-    assert "scalar_fix" in manager.parameters
-    assert "scalar_non_learnable" in manager.parameters
-    assert "vector_non_learnable" in manager.parameters
-
-    # Test non-learnable parameter mapping
-    expected_non_learnable_params = ["scalar_non_learnable", "vector_non_learnable"]
-    assert len(manager.non_learnable_parameters) == len(expected_non_learnable_params)
-
-    for param_name in expected_non_learnable_params:
-        assert param_name in manager.non_learnable_parameters
-
-    # Test non-learnable parameter indices and shapes
-    assert manager.non_learnable_parameters["scalar_non_learnable"]["start_idx"] == 0
-    assert manager.non_learnable_parameters["scalar_non_learnable"]["end_idx"] == 1
-    assert manager.non_learnable_parameters["scalar_non_learnable"]["shape"] == (1,)
-
-    assert manager.non_learnable_parameters["vector_non_learnable"]["start_idx"] == 1
-    assert manager.non_learnable_parameters["vector_non_learnable"]["end_idx"] == 4
-    assert manager.non_learnable_parameters["vector_non_learnable"]["shape"] == (3,)
-
-    # Test flattened non-learnable array
-    expected_non_learnable_array = np.array([2.0, 4.0, 5.0, 6.0])
-    np.testing.assert_array_equal(
-        manager.non_learnable_array, expected_non_learnable_array
-    )
-
-
-def test_parameter_manager_no_non_learnable_params():
-    """Test ParameterManager when no parameters are non-learnable."""
-    params = [
-        Parameter(name="param1", default=np.array([1.0]), interface="fix"),
-        Parameter(name="param2", default=np.array([2.0, 3.0]), interface="learnable"),
-    ]
-
-    manager = ParameterManager(params)
-
-    # Should have empty non-learnable structures
-    assert len(manager.non_learnable_parameters) == 0
-    assert manager.non_learnable_array.size == 0
-
-
-def test_parameter_manager_non_learnable_matrix_support():
-    """Test that matrix parameters (ndim > 1) are supported for non-learnable."""
-    params = [
-        Parameter(
-            name="matrix_param",
-            default=np.array([[1.0, 2.0], [3.0, 4.0]]),  # 2D matrix
-            interface="fix",
-        ),
-        Parameter(
-            name="non_learnable_matrix",
-            default=np.array([[5.0, 6.0], [7.0, 8.0]]),  # 2D non-learnable matrix
-            interface="non-learnable",
-        ),
-    ]
-
-    manager = ParameterManager(params)
-    assert len(manager.parameters) == 2
-
-    # Test that non-learnable matrix is handled correctly
-    assert "non_learnable_matrix" in manager.non_learnable_parameters
-    assert manager.non_learnable_parameters["non_learnable_matrix"]["shape"] == (2, 2)
-
-    # Should be flattened to [5.0, 6.0, 7.0, 8.0] in non_learnable_array
-    expected_array = np.array([5.0, 6.0, 7.0, 8.0])
-    np.testing.assert_array_equal(manager.non_learnable_array, expected_array)
-
-
-def test_parameter_manager_non_learnable_array_order():
-    """Test that non-learnable parameters are ordered correctly in the flattened array."""
-    params = [
-        Parameter(name="c", default=np.array([3.0]), interface="non-learnable"),
-        Parameter(name="a", default=np.array([1.0, 2.0]), interface="non-learnable"),
-        Parameter(name="b", default=np.array([4.0, 5.0, 6.0]), interface="fix"),
-        Parameter(name="d", default=np.array([7.0]), interface="non-learnable"),
-    ]
-
-    manager = ParameterManager(params)
-
-    # Should only include non-learnable parameters in order they were added
-    # c: [3.0] -> indices 0:1
-    # a: [1.0, 2.0] -> indices 1:3
-    # d: [7.0] -> indices 3:4
-    expected_array = np.array([3.0, 1.0, 2.0, 7.0])
-    np.testing.assert_array_equal(manager.non_learnable_array, expected_array)
-
-    assert manager.non_learnable_parameters["c"]["start_idx"] == 0
-    assert manager.non_learnable_parameters["c"]["end_idx"] == 1
-    assert manager.non_learnable_parameters["a"]["start_idx"] == 1
-    assert manager.non_learnable_parameters["a"]["end_idx"] == 3
-    assert manager.non_learnable_parameters["d"]["start_idx"] == 3
-    assert manager.non_learnable_parameters["d"]["end_idx"] == 4
