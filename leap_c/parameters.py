@@ -32,10 +32,9 @@ class Parameter(NamedTuple):
 class ParameterManager:
     """Manager for parameters."""
 
-    parameters: dict[str, Parameter] = {}
-    # TODO: Check if type hint is correct
-    learnable_parameters: dict[str, dict[str, int | np.ndarray]] = {}
-    non_learnable_parameters: dict[str, dict[str, int | np.ndarray]] = {}
+    parameters: dict[str, Parameter]
+    learnable_parameters: dict[str, dict[str, int | np.ndarray]]
+    non_learnable_parameters: dict[str, dict[str, int | np.ndarray]]
 
     def __init__(
         self,
