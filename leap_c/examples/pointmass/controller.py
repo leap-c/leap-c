@@ -94,8 +94,7 @@ class PointMassController(ParameterizedController):
 
     @property
     def param_space(self) -> gym.Space:
-        low, high = self.param_manager.get_learnable_parameters_bounds()
-        return gym.spaces.Box(low=low, high=high, dtype=np.float32)  # type:ignore
+        return self.param_manager.get_param_space()
 
     def default_param(self, obs) -> np.ndarray:
         return self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore

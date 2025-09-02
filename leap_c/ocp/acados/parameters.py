@@ -5,6 +5,7 @@ import casadi as ca
 import numpy as np
 from acados_template import AcadosOcp
 from casadi.tools import entry, struct, struct_symSX
+import gymnasium as gym
 
 
 class Parameter(NamedTuple):
@@ -251,16 +252,12 @@ class AcadosParameterManager:
 
         return batch_parameter_values
 
-    def get_learnable_parameters_bounds(
-        self,
-    ) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
-        """Get the bounds for learnable parameters."""
-        if self.learnable_parameters is None:
-            return None, None
-
-        return (
-            self.learnable_parameters_lb.cat.full(),
-            self.learnable_parameters_ub.cat.full(),
+    def get_param_space(self, dtype: np.dtype = np.float32) -> gym.Space:
+        """Get the Gym space for the parameters."""
+        return gym.spaces.Box(
+            low=self.learnable_parameters_lb.cat.full(),
+            high=self.learnable_parameters_ub.cat.full(),
+            dtype=dtype,
         )
 
     def get(
