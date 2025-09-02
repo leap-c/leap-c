@@ -1,5 +1,5 @@
 import bisect
-from collections import defaultdict
+from collections import defaultdict, deque
 from collections.abc import Generator
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -53,8 +53,8 @@ class GroupWindowTracker:
         self._interval = interval
         self._window_size = window_size
 
-        self._timestamps: dict = defaultdict(list)
-        self._statistics: dict = defaultdict(list)
+        self._statistics: dict[str, deque[tuple[int, float]]] = defaultdict(deque)
+        self._running_sums: dict[str, float] = defaultdict(float)
 
     def update(
         self, timestamp: int, stats: dict[str, float]
@@ -77,44 +77,46 @@ class GroupWindowTracker:
         """
         prev_timestamp = -1
         for key, value in stats.items():
-            self._timestamps[key].append(timestamp)
-            self._statistics[key].append(value)
-
-            if len(self._timestamps[key]) > 1:
-                prev_t = self._timestamps[key][-2]
+            key_statistics = self._statistics[key]
+            key_statistics.append((timestamp, value))
+            self._running_sums[key] += value
+            if len(key_statistics) > 1:
+                prev_t, _ = key_statistics[-2]
                 prev_timestamp = max(prev_timestamp, prev_t)
 
         if prev_timestamp == -1:
-            return None
+            return
 
         interval_idx = (timestamp + 1) // self._interval
         interval_idx_prev = (prev_timestamp + 1) // self._interval
 
         if interval_idx == interval_idx_prev:
-            return None
+            return
 
         def clean_until(t: int) -> None:
-            for key in self._statistics.keys():
-                while self._timestamps[key] and self._timestamps[key][0] <= t:
-                    del self._timestamps[key][0]
-                    del self._statistics[key][0]
+            for key in self._statistics:
+                key_statistics = self._statistics[key]
+                key_sum = self._running_sums[key]
+                while key_statistics and key_statistics[0][0] <= t:
+                    _, value = key_statistics.popleft()
+                    key_sum -= value
+                self._running_sums[key] = key_sum
 
         report_stamp = (interval_idx_prev + 1) * self._interval - 1
         while report_stamp <= timestamp:
             stats = {}
 
             clean_until(report_stamp - self._window_size)
-            for key in self._statistics.keys():
+            for key in self._statistics:
+                key_statistics = self._statistics[key]
                 border_idx = bisect.bisect_right(
-                    self._timestamps[key],
-                    report_stamp,
+                    key_statistics, report_stamp, key=lambda x: x[0]
                 )
                 if border_idx == 0:
-                    stats[key] = np.nan
+                    stats[key] = float("nan")
                 else:
-                    stats[key] = np.mean(
-                        self._statistics[key][: border_idx + 1],
-                    ).item()
+                    length = min(border_idx + 1, len(key_statistics))
+                    stats[key] = self._running_sums[key] / length
 
             yield report_stamp, stats
             report_stamp += self._interval
