@@ -108,7 +108,7 @@ class CartPoleController(ParameterizedController):
 
     @property
     def param_space(self) -> gym.Space:
-        low, high = self.param_manager.get_p_global_bounds()
+        low, high = self.param_manager.get_learnable_parameters_bounds()
         return gym.spaces.Box(low=low, high=high, dtype=np.float32)  # type:ignore
 
     def default_param(self, obs) -> np.ndarray:

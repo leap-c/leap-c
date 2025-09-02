@@ -433,7 +433,7 @@ def test_get_p_global_bounds():
 
     manager = AcadosParamManager(params, N_horizon=5)
 
-    lb, ub = manager.get_p_global_bounds()
+    lb, ub = manager.get_learnable_parameters_bounds()
 
     # Should return flattened arrays with shape (n_params, 1) from CasADi
     expected_lb = np.array([[0.0], [-1.0], [-np.inf]])  # unbounded gets default -inf

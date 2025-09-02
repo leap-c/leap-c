@@ -255,8 +255,10 @@ class AcadosParamManager:
 
     # This is for learnable_parameters.
     # TODO: Modify name after PR from example cleanup
-    def get_p_global_bounds(self) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
-        """Get the lower bound for p_global parameters."""
+    def get_learnable_parameters_bounds(
+        self,
+    ) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
+        """Get the bounds for learnable parameters."""
         if self.learnable_parameters is None:
             return None, None
 

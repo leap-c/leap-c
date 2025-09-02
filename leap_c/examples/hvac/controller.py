@@ -136,7 +136,7 @@ class HvacController(ParameterizedController):
 
     @property
     def param_space(self) -> gym.Space:
-        lb, ub = self.param_manager.get_p_global_bounds()
+        lb, ub = self.param_manager.get_learnable_parameters_bounds()
         return gym.spaces.Box(low=lb, high=ub, dtype=np.float64)
 
     def default_param(self, obs) -> np.ndarray | None:
