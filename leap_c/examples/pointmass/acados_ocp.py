@@ -13,9 +13,9 @@ PointMassAcadosParamInterface = Literal["global", "stagewise"]
 def create_pointmass_params(
     param_interface: PointMassAcadosParamInterface,
     x_ref_value: np.ndarray | None = None,
+    N_horizon: int = 20,
 ) -> list[Parameter]:
     """Returns a list of parameters used in pointmass."""
-    is_stagewise = True if param_interface == "stagewise" else False
 
     q_diag_sqrt = np.array([1.0, 1.0, 1.0, 1.0])
     r_diag_sqrt = np.array([0.1, 0.1])
@@ -34,18 +34,20 @@ def create_pointmass_params(
             q_diag_sqrt,
             lower_bound=0.5 * q_diag_sqrt,
             upper_bound=1.5 * q_diag_sqrt,
-            differentiable=True,
-            stagewise=is_stagewise,
-            fix=False,
+            interface="learnable",
+            vary_stages=[i for i in range(N_horizon + 1)]
+            if param_interface == "stagewise"
+            else [],
         ),  # state cost
         Parameter(
             "r_diag_sqrt",
             r_diag_sqrt,
             lower_bound=0.5 * r_diag_sqrt,
             upper_bound=1.5 * r_diag_sqrt,
-            fix=False,
-            differentiable=True,
-            stagewise=is_stagewise,
+            interface="learnable",
+            vary_stages=[i for i in range(N_horizon)]
+            if param_interface == "stagewise"
+            else [],
         ),  # control cost
         # reference parameters
         Parameter(
@@ -53,18 +55,20 @@ def create_pointmass_params(
             x_ref_value,
             lower_bound=np.array([0.0, 0.0, -20, -20]),
             upper_bound=np.array([4.0, 1.0, 20, 20]),
-            fix=False,
-            differentiable=True,
-            stagewise=is_stagewise,
+            interface="learnable",
+            vary_stages=[i for i in range(N_horizon + 1)]
+            if param_interface == "stagewise"
+            else [],
         ),  # x reference
         Parameter(
             "u_ref",
             np.array([0.0, 0.0]),
             lower_bound=np.array([-10.0, -10.0]),
             upper_bound=np.array([10.0, 10.0]),
-            fix=False,
-            differentiable=True,
-            stagewise=is_stagewise,
+            interface="learnable",
+            vary_stages=[i for i in range(N_horizon)]
+            if param_interface == "stagewise"
+            else [],
         ),  # u reference
     ]
 

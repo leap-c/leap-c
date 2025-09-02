@@ -62,13 +62,17 @@ class ChainController(ParameterizedController):
         super().__init__()
         self.cfg = ChainControllerConfig() if cfg is None else cfg
         params = (
-            create_chain_params(self.cfg.param_interface, self.cfg.n_mass)
+            create_chain_params(
+                self.cfg.param_interface,
+                self.cfg.n_mass,
+                N_horizon=self.cfg.N_horizon,
+            )
             if params is None
             else params
         )
 
         self.param_manager = AcadosParamManager(
-            params=params,
+            parameters=params,
             N_horizon=self.cfg.N_horizon,  # type:ignore
         )
 
@@ -126,4 +130,4 @@ class ChainController(ParameterizedController):
         return gym.spaces.Box(low=low, high=high, dtype=np.float64)  # type:ignore
 
     def default_param(self, obs) -> np.ndarray:
-        return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
+        return self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore

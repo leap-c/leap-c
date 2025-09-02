@@ -14,6 +14,7 @@ CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 
 def create_cartpole_params(
     param_interface: CartPoleAcadosParamInterface,
+    N_horizon: int = 50,
 ) -> list[Parameter]:
     """Returns a list of parameters used in cartpole."""
     return [
@@ -30,19 +31,36 @@ def create_cartpole_params(
             "r_diag_sqrt", np.sqrt(np.array([2e-1]))
         ),  # cost on control input residuals
         # Reference parameters
-        Parameter("xref0", np.array([0.0]), fix=False),  # reference position
+        Parameter(
+            "xref0",
+            np.array([0.0]),
+            interface="non-learnable",
+        ),  # reference position
         Parameter(
             "xref1",
             np.array([0.0]),
             lower_bound=np.array([-2.0 * np.pi]),
             upper_bound=np.array([2.0 * np.pi]),
-            differentiable=True,
-            stagewise=True if param_interface == "stagewise" else False,
-            fix=False,
+            interface="learnable",
+            vary_stages=[i for i in range(N_horizon + 1)]
+            if param_interface == "stagewise"
+            else [],
         ),  # reference theta
-        Parameter("xref2", np.array([0.0]), fix=False),  # reference v
-        Parameter("xref3", np.array([0.0]), fix=False),  # reference thetadot
-        Parameter("uref", np.array([0.0]), fix=False),  # reference u
+        Parameter(
+            "xref2",
+            np.array([0.0]),
+            interface="non-learnable",
+        ),  # reference v
+        Parameter(
+            "xref3",
+            np.array([0.0]),
+            interface="non-learnable",
+        ),  # reference thetadot
+        Parameter(
+            "uref",
+            np.array([0.0]),
+            interface="non-learnable",
+        ),  # reference u
     ]
 
 
@@ -105,7 +123,10 @@ def export_parametric_ocp(
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
-    p = ca.vertcat(param_manager.p.cat, param_manager.p_global.cat)  # type:ignore
+    p = ca.vertcat(
+        param_manager.non_learnable_parameters.cat,
+        param_manager.learnable_parameters.cat,
+    )  # type:ignore
     f_expl = define_f_expl_expr(ocp.model, param_manager)
     ocp.model.disc_dyn_expr = integrate_erk4(
         f_expl=f_expl,

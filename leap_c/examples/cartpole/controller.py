@@ -70,13 +70,16 @@ class CartPoleController(ParameterizedController):
         super().__init__()
         self.cfg = CartPoleControllerConfig() if cfg is None else cfg
         params = (
-            create_cartpole_params(self.cfg.param_interface)
+            create_cartpole_params(
+                param_interface=self.cfg.param_interface,
+                N_horizon=self.cfg.N_horizon,
+            )
             if params is None
             else params
         )
 
         self.param_manager = AcadosParamManager(
-            params=params, N_horizon=self.cfg.N_horizon
+            parameters=params, N_horizon=self.cfg.N_horizon
         )
 
         self.ocp = export_parametric_ocp(
@@ -109,4 +112,4 @@ class CartPoleController(ParameterizedController):
         return gym.spaces.Box(low=low, high=high, dtype=np.float32)  # type:ignore
 
     def default_param(self, obs) -> np.ndarray:
-        return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
+        return self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore

@@ -22,6 +22,7 @@ ChainAcadosParamInterface = Literal["global", "stagewise"]
 def create_chain_params(
     param_interface: ChainAcadosParamInterface = "global",
     n_mass: int = 5,
+    N_horizon: int = 30,
 ) -> list[Parameter]:
     """Returns a list of parameters used in the chain ocp.
 
@@ -31,8 +32,6 @@ def create_chain_params(
     """
     q_diag_sqrt = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
     r_diag_sqrt = 1e-1 * np.ones(3)
-
-    is_stagewise = True if param_interface == "stagewise" else False
 
     return [
         # dynamics parameters
@@ -55,18 +54,20 @@ def create_chain_params(
             q_diag_sqrt,
             lower_bound=0.5 * q_diag_sqrt,
             upper_bound=1.5 * q_diag_sqrt,
-            differentiable=True,
-            stagewise=is_stagewise,
-            fix=False,
+            interface="learnable",
+            vary_stages=[i for i in range(N_horizon + 1)]
+            if param_interface == "stagewise"
+            else [],
         ),
         Parameter(
             "r_diag_sqrt",
             r_diag_sqrt,
             lower_bound=0.5 * r_diag_sqrt,
             upper_bound=1.5 * r_diag_sqrt,
-            differentiable=True,
-            stagewise=is_stagewise,
-            fix=False,
+            interface="learnable",
+            vary_stages=[i for i in range(N_horizon)]
+            if param_interface == "stagewise"
+            else [],
         ),
     ]
 
