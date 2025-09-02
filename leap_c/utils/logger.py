@@ -7,8 +7,6 @@ from typing import Any
 
 import numpy as np
 import pandas as pd
-import wandb
-from torch.utils.tensorboard import SummaryWriter
 
 
 @dataclass(kw_only=True)
@@ -156,6 +154,8 @@ class Logger:
 
         # init wandb
         if cfg.wandb_logger:
+            import wandb
+
             if not cfg.wandb_init_kwargs.get("dir", False):  # type:ignore
                 wandbdir = self.output_path / "wandb"
                 wandbdir.mkdir(exist_ok=True)
@@ -164,6 +164,8 @@ class Logger:
 
         # tensorboard
         if cfg.tensorboard_logger:
+            from torch.utils.tensorboard import SummaryWriter
+
             self.writer = SummaryWriter(self.output_path)
 
     def __call__(
@@ -219,6 +221,8 @@ class Logger:
 
         for report_timestamp, report_stats in report_loop:
             if self.cfg.wandb_logger:
+                import wandb
+
                 wandb.log(
                     {f"{group}/{k}": v for k, v in report_stats.items()},
                     step=report_timestamp,
@@ -249,4 +253,6 @@ class Logger:
             self.writer.close()
 
         if self.cfg.wandb_logger:
+            import wandb
+
             wandb.finish()
