@@ -15,7 +15,7 @@ from .util import transcribe_discrete_state_space
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.hvac.config import make_default_hvac_params
-from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
+from leap_c.ocp.acados.parameters import AcadosParameterManager, Parameter
 from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
 
@@ -55,7 +55,7 @@ class HvacController(ParameterizedController):
 
         self.stagewise = stagewise
 
-        self.param_manager = AcadosParamManager(
+        self.param_manager = AcadosParameterManager(
             parameters=params or make_default_hvac_params(stagewise),
             N_horizon=N_horizon,
         )
@@ -163,7 +163,7 @@ class HvacController(ParameterizedController):
 
 
 def export_parametric_ocp(
-    param_manager: AcadosParamManager,
+    param_manager: AcadosParameterManager,
     N_horizon: int,
     name: str = "hvac",
     x0: np.ndarray | None = None,

@@ -6,7 +6,7 @@ import pytest
 from acados_template import AcadosOcp, AcadosOcpOptions
 
 from leap_c.ocp.acados.parameters import (
-    AcadosParamManager,
+    AcadosParameterManager,
     Parameter,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpc
@@ -207,7 +207,7 @@ def acados_test_ocp_no_p_global(
         for param in nominal_params
     )
 
-    param_manager = AcadosParamManager(
+    param_manager = AcadosParameterManager(
         parameters=params, N_horizon=ocp.solver_options.N_horizon
     )
 
@@ -297,7 +297,7 @@ def acados_test_ocp_no_p_global(
     return ocp
 
 
-def define_external_cost(ocp: AcadosOcp, param_manager: AcadosParamManager):
+def define_external_cost(ocp: AcadosOcp, param_manager: AcadosParameterManager):
     y = ca.vertcat(
         ocp.model.x,
         ocp.model.u,
@@ -346,7 +346,9 @@ def define_external_cost(ocp: AcadosOcp, param_manager: AcadosParamManager):
     )
 
 
-def define_discrete_dynamics(ocp: AcadosOcp, param_manager: AcadosParamManager) -> None:
+def define_discrete_dynamics(
+    ocp: AcadosOcp, param_manager: AcadosParameterManager
+) -> None:
     kwargs = {
         "m": param_manager.get(field="m"),
         "cx": param_manager.get(field="cx"),
@@ -358,7 +360,7 @@ def define_discrete_dynamics(ocp: AcadosOcp, param_manager: AcadosParamManager) 
     )
 
 
-def define_constraints(ocp: AcadosOcp, param_manager: AcadosParamManager) -> None:
+def define_constraints(ocp: AcadosOcp, param_manager: AcadosParameterManager) -> None:
     """Define constraints for the OCP."""
     ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
 
@@ -394,7 +396,7 @@ def acados_test_ocp(
 
     ocp.solver_options = ocp_options
 
-    param_manager = AcadosParamManager(
+    param_manager = AcadosParameterManager(
         parameters=nominal_params, N_horizon=ocp.solver_options.N_horizon
     )
     param_manager.assign_to_ocp(ocp)
@@ -471,7 +473,7 @@ def acados_test_ocp_with_stagewise_varying_params(
 
     ocp.solver_options = ocp_options
 
-    param_manager = AcadosParamManager(
+    param_manager = AcadosParameterManager(
         parameters=nominal_stagewise_params, N_horizon=ocp.solver_options.N_horizon
     )
     param_manager.assign_to_ocp(ocp)
@@ -511,7 +513,7 @@ def diff_mpc_with_stagewise_varying_params(
         discount_factor=None,
     )
 
-    acados_param_manager = AcadosParamManager(
+    acados_param_manager = AcadosParameterManager(
         parameters=nominal_stagewise_params,
         N_horizon=acados_test_ocp_with_stagewise_varying_params.solver_options.N_horizon,
     )

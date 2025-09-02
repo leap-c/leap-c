@@ -14,7 +14,7 @@ from leap_c.examples.cartpole.acados_ocp import (
     export_parametric_ocp,
 )
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
-from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
+from leap_c.ocp.acados.parameters import AcadosParameterManager, Parameter
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
@@ -78,7 +78,7 @@ class CartPoleController(ParameterizedController):
             else params
         )
 
-        self.param_manager = AcadosParamManager(
+        self.param_manager = AcadosParameterManager(
             parameters=params, N_horizon=self.cfg.N_horizon
         )
 

@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
+from leap_c.ocp.acados.parameters import Parameter, AcadosParameterManager
 import casadi as ca
 
 
@@ -11,7 +11,7 @@ def test_acados_param_manager_basic_initialization():
         Parameter(name="vector", value=np.array([2.0, 3.0]), interface="learnable"),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=10)
+    manager = AcadosParameterManager(params, N_horizon=10)
 
     assert len(manager.parameters) == 2
     assert "scalar" in manager.parameters
@@ -29,7 +29,7 @@ def test_parameter_interface_fix():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     # Fixed parameters should not appear in learnable or non-learnable structures
     assert len(manager.learnable_parameters.keys()) == 0
@@ -52,7 +52,7 @@ def test_parameter_interface_learnable_no_vary_stages():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     # All should appear in learnable_parameters with original names
     assert len(manager.learnable_parameters.keys()) == 3
@@ -91,7 +91,7 @@ def test_parameter_interface_learnable_with_vary_stages():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=10)
+    manager = AcadosParameterManager(params, N_horizon=10)
 
     # Should create staged parameters with {name}_{start}_{end} template
     learnable_keys = list(manager.learnable_parameters.keys())
@@ -146,7 +146,7 @@ def test_parameter_interface_non_learnable_no_vary_stages():
 
     N_horizon = 5
 
-    manager = AcadosParamManager(params, N_horizon=N_horizon)
+    manager = AcadosParameterManager(params, N_horizon=N_horizon)
 
     # All should appear in non_learnable_parameters with original names
     assert len(manager.non_learnable_parameters.keys()) == 3
@@ -228,7 +228,7 @@ def test_parameter_bounds_learnable():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     # Test that bounds are set correctly for each parameter (CasADi format)
     # lower_bounded should have lower bound set
@@ -291,7 +291,7 @@ def test_parameter_bounds_learnable_with_vary_stages():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     # Should have bounds set for both staged parameters
     assert "bounded_staged_0_2" in manager.learnable_parameters_lb.keys()
@@ -322,7 +322,7 @@ def test_vary_stages_clipping_to_horizon():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=10)
+    manager = AcadosParameterManager(params, N_horizon=10)
 
     # Should only create parameters up to N_horizon
     learnable_keys = [
@@ -349,8 +349,8 @@ def test_indicator_creation():
         ),
     ]
 
-    manager_no_vary = AcadosParamManager(params_no_vary, N_horizon=5)
-    manager_with_vary = AcadosParamManager(params_with_vary, N_horizon=5)
+    manager_no_vary = AcadosParameterManager(params_no_vary, N_horizon=5)
+    manager_with_vary = AcadosParameterManager(params_with_vary, N_horizon=5)
 
     # No vary_stages should not have indicator
     assert "indicator" not in manager_no_vary.non_learnable_parameters.keys()
@@ -390,7 +390,7 @@ def test_mixed_parameter_types_and_interfaces():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=8)
+    manager = AcadosParameterManager(params, N_horizon=8)
 
     # Check learnable parameters
     learnable_keys = list(manager.learnable_parameters.keys())
@@ -431,7 +431,7 @@ def test_get_p_global_bounds():
         Parameter(name="unbounded", value=np.array([3.0]), interface="learnable"),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     lb, ub = manager.get_learnable_parameters_bounds()
 
@@ -449,7 +449,7 @@ def test_get_method_fix_parameters():
         Parameter(name="fixed_param", value=np.array([42.0]), interface="fix"),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     # Should return the parameter value directly
     result = manager.get("fixed_param")
@@ -462,7 +462,7 @@ def test_get_method_learnable_parameters():
         Parameter(name="learnable_param", value=np.array([1.0]), interface="learnable"),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     # Should return the symbolic variable
     result = manager.get("learnable_param")
@@ -481,7 +481,7 @@ def test_get_method_non_learnable_parameters():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     # Should return the symbolic variable
     result = manager.get("non_learnable_param")
@@ -503,7 +503,7 @@ def test_get_method_vary_stages():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     # Should return a combination of staged parameters
     result = manager.get("staged_param")
@@ -525,7 +525,7 @@ def test_get_method_unknown_field():
         Parameter(name="existing_param", value=np.array([1.0]), interface="fix"),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     with pytest.raises(ValueError, match="Unknown field: nonexistent"):
         manager.get("nonexistent")
@@ -538,7 +538,7 @@ def test_empty_parameter_list():
     with pytest.warns(
         UserWarning, match="Empty parameter list provided to AcadosParamManager"
     ):
-        manager = AcadosParamManager(params, N_horizon=5)
+        manager = AcadosParameterManager(params, N_horizon=5)
 
     assert len(manager.parameters) == 0
     assert len(manager.learnable_parameters.keys()) == 0
@@ -556,7 +556,7 @@ def test_parameter_name_with_underscores():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     # Should properly handle names with underscores
     learnable_keys = list(manager.learnable_parameters.keys())
@@ -586,7 +586,7 @@ def test_large_dimension_parameters():
         ),
     ]
 
-    manager = AcadosParamManager(params_2d, N_horizon=5)
+    manager = AcadosParameterManager(params_2d, N_horizon=5)
 
     # Should handle 2D arrays correctly (flattened in CasADi)
     assert "matrix_param" in manager.learnable_parameters.keys()
@@ -619,7 +619,7 @@ def test_large_dimension_parameters():
         ValueError,
         match="Parameter 'tensor_param' has 3 dimensions.*CasADi only supports arrays up to 2 dimensions",
     ):
-        AcadosParamManager(params_3d, N_horizon=5)
+        AcadosParameterManager(params_3d, N_horizon=5)
 
     # Test that 3D lower bounds raise an error
     params_3d_bounds = [
@@ -635,7 +635,7 @@ def test_large_dimension_parameters():
         ValueError,
         match="Parameter 'tensor_bounds_param' lower_bound has 3 dimensions.*CasADi only supports arrays up to 2 dimensions",
     ):
-        AcadosParamManager(params_3d_bounds, N_horizon=5)
+        AcadosParameterManager(params_3d_bounds, N_horizon=5)
 
     # Test that 3D upper bounds raise an error
     params_3d_upper_bounds = [
@@ -653,7 +653,7 @@ def test_large_dimension_parameters():
         ValueError,
         match="Parameter 'tensor_upper_bounds_param' upper_bound has 3 dimensions.*CasADi only supports arrays up to 2 dimensions",
     ):
-        AcadosParamManager(params_3d_upper_bounds, N_horizon=5)
+        AcadosParameterManager(params_3d_upper_bounds, N_horizon=5)
 
 
 # TODO: Do we need this test?
@@ -668,7 +668,7 @@ def test_zero_horizon():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=0)
+    manager = AcadosParameterManager(params, N_horizon=0)
 
     # vary_stages beyond horizon should be filtered out
     # With N_horizon=0, only stage 0 exists, so no vary_stages should apply
@@ -683,7 +683,7 @@ def test_combine_parameter_values():
         Parameter(name="test_param", value=np.array([1.0]), interface="non-learnable"),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=5)
 
     expected = np.ones((2, 6, 1))
     result = manager.combine_non_learnable_parameter_values(batch_size=2)
@@ -751,7 +751,7 @@ def test_combine_parameter_values_complex():
         ),
     ]
 
-    manager = AcadosParamManager(params, N_horizon=8)
+    manager = AcadosParameterManager(params, N_horizon=8)
 
     # Test with batch_size=3
     batch_size = 3

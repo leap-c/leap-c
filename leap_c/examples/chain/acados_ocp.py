@@ -9,7 +9,7 @@ from acados_template import AcadosOcp, AcadosOcpFlattenedIterate
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
-from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
+from leap_c.ocp.acados.parameters import Parameter, AcadosParameterManager
 from leap_c.ocp.acados.initializer import (
     AcadosDiffMpcInitializer,
     create_zero_iterate_from_ocp,
@@ -73,7 +73,7 @@ def create_chain_params(
 
 
 def export_parametric_ocp(
-    param_manager: AcadosParamManager,
+    param_manager: AcadosParameterManager,
     x_ref: np.ndarray,
     fix_point: np.ndarray,
     name: str = "chain",

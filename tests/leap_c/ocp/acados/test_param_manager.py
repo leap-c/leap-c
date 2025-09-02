@@ -2,7 +2,7 @@ import numpy as np
 import torch
 from acados_template import AcadosOcp, AcadosOcpSolver
 
-from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
+from leap_c.ocp.acados.parameters import AcadosParameterManager, Parameter
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
@@ -28,7 +28,7 @@ def test_param_manager_combine_parameter_values(
     """
     N_horizon = acados_test_ocp_with_stagewise_varying_params.solver_options.N_horizon
 
-    acados_param_manager = AcadosParamManager(
+    acados_param_manager = AcadosParameterManager(
         parameters=nominal_stagewise_params,
         N_horizon=N_horizon,
     )
@@ -84,7 +84,7 @@ def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
     )
 
     # Create a parameter manager for the stagewise varying parameters.
-    parameter_manager = AcadosParamManager(
+    parameter_manager = AcadosParameterManager(
         parameters=nominal_stagewise_params,
         N_horizon=N_horizon,
     )
@@ -128,7 +128,7 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     global_solver = AcadosOcpSolver(acados_test_ocp_no_p_global)
 
     ocp = diff_mpc_with_stagewise_varying_params.diff_mpc_fun.ocp
-    pm = AcadosParamManager(
+    pm = AcadosParameterManager(
         parameters=nominal_stagewise_params,
         N_horizon=ocp.solver_options.N_horizon,
     )

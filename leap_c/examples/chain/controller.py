@@ -15,7 +15,7 @@ from leap_c.examples.chain.acados_ocp import (
 from leap_c.examples.chain.acados_ocp import ChainAcadosParamInterface
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
-from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
+from leap_c.ocp.acados.parameters import AcadosParameterManager, Parameter
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx, AcadosDiffMpcCtx
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
@@ -71,7 +71,7 @@ class ChainController(ParameterizedController):
             else params
         )
 
-        self.param_manager = AcadosParamManager(
+        self.param_manager = AcadosParameterManager(
             parameters=params,
             N_horizon=self.cfg.N_horizon,  # type:ignore
         )

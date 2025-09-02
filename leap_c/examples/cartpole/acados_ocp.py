@@ -5,7 +5,7 @@ import numpy as np
 
 from acados_template import AcadosModel, AcadosOcp
 from leap_c.examples.utils.casadi import integrate_erk4
-from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
+from leap_c.ocp.acados.parameters import Parameter, AcadosParameterManager
 
 
 CartPoleAcadosParamInterface = Literal["global", "stagewise"]
@@ -64,7 +64,9 @@ def create_cartpole_params(
     ]
 
 
-def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParamManager) -> ca.SX:
+def define_f_expl_expr(
+    model: AcadosModel, param_manager: AcadosParameterManager
+) -> ca.SX:
     M = param_manager.get("M")
     m = param_manager.get("m")
     g = param_manager.get("g")
@@ -97,7 +99,7 @@ def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParamManager) ->
 
 
 def export_parametric_ocp(
-    param_manager: AcadosParamManager,
+    param_manager: AcadosParameterManager,
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS",
     name: str = "cartpole",
     Fmax: float = 80.0,

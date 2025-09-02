@@ -40,7 +40,7 @@ class Parameter(NamedTuple):
     vary_stages: list[int] = []
 
 
-class AcadosParamManager:
+class AcadosParameterManager:
     """Manager for acados parameters."""
 
     parameters: dict[str, Parameter] = {}

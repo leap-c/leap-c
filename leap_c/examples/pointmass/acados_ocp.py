@@ -4,7 +4,7 @@ import casadi as ca
 import numpy as np
 
 from acados_template import AcadosOcp
-from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
+from leap_c.ocp.acados.parameters import Parameter, AcadosParameterManager
 
 
 PointMassAcadosParamInterface = Literal["global", "stagewise"]
@@ -75,7 +75,7 @@ def create_pointmass_params(
 
 def define_disc_dyn_expr(
     ocp: AcadosOcp,
-    param_manager: AcadosParamManager,
+    param_manager: AcadosParameterManager,
 ) -> ca.SX:
     x = ocp.model.x
     u = ocp.model.u
@@ -102,7 +102,7 @@ def define_disc_dyn_expr(
 
 
 def export_parametric_ocp(
-    param_manager: AcadosParamManager,
+    param_manager: AcadosParameterManager,
     name: str = "pointmass",
     Fmax: float = 10.0,
     N_horizon: int = 20,
