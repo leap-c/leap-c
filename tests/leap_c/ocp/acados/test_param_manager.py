@@ -140,8 +140,8 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     uref_0 = rng.random(size=2)
     yref_0 = np.concatenate((xref_0, uref_0))
 
-    p_global_values["xref", 0] = xref_0
-    p_global_values["uref", 0] = uref_0
+    p_global_values["xref_0_0"] = xref_0
+    p_global_values["uref_0_0"] = uref_0
 
     global_solver.cost_set(stage_=0, field_="yref", value_=yref_0)
 

@@ -157,10 +157,10 @@ def nominal_stagewise_params(
 
     N_horizon = ocp_options.N_horizon
     # Override specific fields for stage-wise parameters
-    # Taking a large range of stages. Will be clipped by horizon length later.
+    # q_diag_e and xref_e are their own parameters, only adding fields up to N_horizon - 1.
     stagewise_overrides = {
-        "q_diag": {"vary_stages": [i for i in range(1, N_horizon + 1)]},
-        "xref": {"vary_stages": [i for i in range(1, N_horizon + 1)]},
+        "q_diag": {"vary_stages": [i for i in range(1, N_horizon)]},
+        "xref": {"vary_stages": [i for i in range(1, N_horizon)]},
         "uref": {"vary_stages": [i for i in range(1, N_horizon)]},
     }
 
@@ -243,20 +243,16 @@ def acados_test_ocp_no_p_global(
     )
     ocp.cost.yref_0 = np.concatenate(
         [
-            param_manager.non_learnable_parameters_default["xref"].full().flatten(),
-            param_manager.non_learnable_parameters_default["uref"].full().flatten(),
+            param_manager.parameters["xref"].value,
+            param_manager.parameters["uref"].value,
         ]
     )
 
     ocp.cost.W_0 = np.diag(
         np.concatenate(
             [
-                param_manager.non_learnable_parameters_default["q_diag"]
-                .full()
-                .flatten(),
-                param_manager.non_learnable_parameters_default["r_diag"]
-                .full()
-                .flatten(),
+                param_manager.parameters["q_diag"].value,
+                param_manager.parameters["r_diag"].value,
             ]
         )
     )
@@ -274,12 +270,8 @@ def acados_test_ocp_no_p_global(
     # Terminal cost
     ocp.cost.cost_type_e = "NONLINEAR_LS"
     ocp.model.cost_y_expr_e = ocp.model.x
-    ocp.cost.yref_e = (
-        param_manager.non_learnable_parameters_default["xref_e"].full().flatten()
-    )
-    ocp.cost.W_e = np.diag(
-        param_manager.non_learnable_parameters_default["q_diag_e"].full().flatten()
-    )
+    ocp.cost.yref_e = param_manager.parameters["xref_e"].value
+    ocp.cost.W_e = np.diag(param_manager.parameters["q_diag_e"].value)
     ocp.cost.W_e = ocp.cost.W_e @ ocp.cost.W_e.T
 
     ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
