@@ -675,7 +675,7 @@ def test_large_dimension_parameters():
 
 def test_combine_parameter_values():
     """Test combining non-learnable parameter values across multiple batches and time stages.
-    
+
     Verifies that AcadosParameterManager.combine_non_learnable_parameter_values()
     correctly combines parameter values into a (batch_size, N_horizon+1, param_dim) array.
     """
@@ -830,16 +830,17 @@ def test_combine_parameter_values_complex():
 
             # vector_non_learnable should use the random overwrite values
             np.testing.assert_array_equal(
-                result[batch_idx, stage_idx, 1:3], 
-                vector_non_learnable[batch_idx, stage_idx, :]
+                result[batch_idx, stage_idx, 1:3],
+                vector_non_learnable[batch_idx, stage_idx, :],
             )
 
             # matrix_non_learnable should use the random overwrite values (flattened)
             # Note: overwrite values use C-order flattening, unlike default values which use F-order
-            expected_matrix_flat = matrix_non_learnable[batch_idx, stage_idx, :, :].flatten(order='C')
+            expected_matrix_flat = matrix_non_learnable[
+                batch_idx, stage_idx, :, :
+            ].flatten(order="C")
             np.testing.assert_array_equal(
-                result[batch_idx, stage_idx, 3:7], 
-                expected_matrix_flat
+                result[batch_idx, stage_idx, 3:7], expected_matrix_flat
             )
 
             # indicator values should remain unchanged
@@ -910,16 +911,16 @@ def test_param_manager_combine_parameter_values(
     for key in keys:
         param_dim = acados_param_manager.non_learnable_parameters_default[key].shape[0]
         param_end_idx = param_start_idx + param_dim
-        
+
         # Check that the overwritten values match exactly
         for batch_idx in range(batch_size):
             for stage_idx in range(N_horizon + 1):
                 np.testing.assert_array_equal(
                     res[batch_idx, stage_idx, param_start_idx:param_end_idx],
                     overwrite[key][batch_idx, stage_idx, :],
-                    err_msg=f"Mismatch in parameter '{key}' at batch {batch_idx}, stage {stage_idx}"
+                    err_msg=f"Mismatch in parameter '{key}' at batch {batch_idx}, stage {stage_idx}",
                 )
-        
+
         param_start_idx = param_end_idx
 
     # Verify that indicator values are correctly set (they should be at the end)
@@ -931,7 +932,7 @@ def test_param_manager_combine_parameter_values(
             np.testing.assert_array_equal(
                 res[batch_idx, stage_idx, indicator_start_idx:],
                 expected_indicator,
-                err_msg=f"Mismatch in indicator values at batch {batch_idx}, stage {stage_idx}"
+                err_msg=f"Mismatch in indicator values at batch {batch_idx}, stage {stage_idx}",
             )
 
 
