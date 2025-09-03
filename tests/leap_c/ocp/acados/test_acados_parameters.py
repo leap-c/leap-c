@@ -674,7 +674,11 @@ def test_large_dimension_parameters():
 
 
 def test_combine_parameter_values():
-    """Test that combine_parameter_values method exists but may not be fully implemented."""
+    """Test combining non-learnable parameter values across multiple batches and time stages.
+    
+    Verifies that AcadosParameterManager.combine_non_learnable_parameter_values()
+    correctly combines parameter values into a (batch_size, N_horizon+1, param_dim) array.
+    """
     params = [
         AcadosParameter(
             name="test_param", default=np.array([1.0]), interface="non-learnable"
