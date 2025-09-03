@@ -40,9 +40,9 @@ def create_cartpole_params(
         AcadosParameter(
             "xref1",
             default=np.array([0.0]),
-            space=gym.spaces.Box(low=np.array([-2.0 * np.pi]), high=np.array([2.0 * np.pi])),
+            space=gym.spaces.Box(low=np.array([-2.0 * np.pi]), high=np.array([2.0 * np.pi]), dtype=np.float64),
             interface="learnable",
-            vary_stages=[i for i in range(N_horizon + 1)]
+            vary_stages=list(range(N_horizon + 1))
             if param_interface == "stagewise"
             else [],
         ),  # reference theta

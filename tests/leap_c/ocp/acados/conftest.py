@@ -160,9 +160,9 @@ def nominal_stagewise_params(
     # Override specific fields for stage-wise parameters
     # q_diag_e and xref_e are their own parameters, only adding fields up to N_horizon - 1.
     stagewise_overrides = {
-        "q_diag": {"vary_stages": [i for i in range(1, N_horizon)]},
-        "xref": {"vary_stages": [i for i in range(1, N_horizon)]},
-        "uref": {"vary_stages": [i for i in range(1, N_horizon)]},
+        "q_diag": {"vary_stages": list(range(1, N_horizon))},
+        "xref": {"vary_stages": list(range(1, N_horizon))},
+        "uref": {"vary_stages": list(range(1, N_horizon))},
     }
 
     modified_params = []

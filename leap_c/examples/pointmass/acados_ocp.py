@@ -33,18 +33,18 @@ def create_pointmass_params(
         AcadosParameter(
             "q_diag_sqrt",
             default=q_diag_sqrt,
-            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt),
+            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64),
             interface="learnable",
-            vary_stages=[i for i in range(N_horizon + 1)]
+            vary_stages=list(range(N_horizon + 1))
             if param_interface == "stagewise"
             else [],
         ),  # state cost
         AcadosParameter(
             "r_diag_sqrt",
             default=r_diag_sqrt,
-            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt),
+            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64),
             interface="learnable",
-            vary_stages=[i for i in range(N_horizon)]
+            vary_stages=list(range(N_horizon))
             if param_interface == "stagewise"
             else [],
         ),  # control cost
@@ -52,18 +52,18 @@ def create_pointmass_params(
         AcadosParameter(
             "x_ref",
             default=x_ref_value,
-            space=gym.spaces.Box(low=np.array([0.0, 0.0, -20, -20]), high=np.array([4.0, 1.0, 20, 20])),
+            space=gym.spaces.Box(low=np.array([0.0, 0.0, -20, -20]), high=np.array([4.0, 1.0, 20, 20]), dtype=np.float64),
             interface="learnable",
-            vary_stages=[i for i in range(N_horizon + 1)]
+            vary_stages=list(range(N_horizon + 1))
             if param_interface == "stagewise"
             else [],
         ),  # x reference
         AcadosParameter(
             "u_ref",
             default=np.array([0.0, 0.0]),
-            space=gym.spaces.Box(low=np.array([-10.0, -10.0]), high=np.array([10.0, 10.0])),
+            space=gym.spaces.Box(low=np.array([-10.0, -10.0]), high=np.array([10.0, 10.0]), dtype=np.float64),
             interface="learnable",
-            vary_stages=[i for i in range(N_horizon)]
+            vary_stages=list(range(N_horizon))
             if param_interface == "stagewise"
             else [],
         ),  # u reference

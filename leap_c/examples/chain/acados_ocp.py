@@ -53,18 +53,18 @@ def create_chain_params(
         AcadosParameter(
             "q_diag_sqrt",
             default=q_diag_sqrt,
-            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt),
+            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64),
             interface="learnable",
-            vary_stages=[i for i in range(N_horizon + 1)]
+            vary_stages=list(range(N_horizon + 1))
             if param_interface == "stagewise"
             else [],
         ),
         AcadosParameter(
             "r_diag_sqrt",
             default=r_diag_sqrt,
-            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt),
+            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64),
             interface="learnable",
-            vary_stages=[i for i in range(N_horizon)]
+            vary_stages=list(range(N_horizon))
             if param_interface == "stagewise"
             else [],
         ),
