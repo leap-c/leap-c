@@ -819,6 +819,35 @@ def test_combine_parameter_values_complex():
         vector_non_learnable=vector_non_learnable,
     )
 
+    # Verify the result shape remains the same
+    assert result.shape == expected_shape
+
+    # Verify that the overwritten parameters are correctly incorporated
+    for batch_idx in range(batch_size):
+        for stage_idx in range(manager.N_horizon + 1):
+            # scalar_non_learnable should still be the default value (not overwritten)
+            assert result[batch_idx, stage_idx, 0] == 4.0
+
+            # vector_non_learnable should use the random overwrite values
+            np.testing.assert_array_equal(
+                result[batch_idx, stage_idx, 1:3], 
+                vector_non_learnable[batch_idx, stage_idx, :]
+            )
+
+            # matrix_non_learnable should use the random overwrite values (flattened)
+            expected_matrix_flat = matrix_non_learnable[batch_idx, stage_idx, :, :].flatten(order='F')
+            np.testing.assert_array_equal(
+                result[batch_idx, stage_idx, 3:7], 
+                expected_matrix_flat
+            )
+
+            # indicator values should remain unchanged
+            expected_indicator = np.zeros(9)
+            expected_indicator[stage_idx] = 1.0
+            np.testing.assert_array_equal(
+                result[batch_idx, stage_idx, 7:], expected_indicator
+            )
+
 
 def test_param_manager_combine_parameter_values(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
