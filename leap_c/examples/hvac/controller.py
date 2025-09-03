@@ -56,7 +56,11 @@ class HvacController(ParameterizedController):
         self.stagewise = stagewise
 
         self.param_manager = AcadosParameterManager(
-            parameters=params or make_default_hvac_params(stagewise),
+            parameters=params
+            or make_default_hvac_params(
+                stagewise=stagewise,
+                N_horizon=N_horizon,
+            ),
             N_horizon=N_horizon,
         )
 
