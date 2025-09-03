@@ -2,6 +2,7 @@ from typing import Literal
 
 import casadi as ca
 import numpy as np
+import gymnasium as gym
 
 from acados_template import AcadosModel, AcadosOcp
 from leap_c.examples.utils.casadi import integrate_erk4
@@ -19,28 +20,27 @@ def create_cartpole_params(
     """Returns a list of parameters used in cartpole."""
     return [
         # Dynamics parameters
-        AcadosParameter("M", np.array([1.0])),  # mass of the cart [kg]
-        AcadosParameter("m", np.array([0.1])),  # mass of the ball [kg]
-        AcadosParameter("g", np.array([9.81])),  # gravity constant [m/s^2]
-        AcadosParameter("l", np.array([0.8])),  # length of the rod [m]
+        AcadosParameter("M", default=np.array([1.0])),  # mass of the cart [kg]
+        AcadosParameter("m", default=np.array([0.1])),  # mass of the ball [kg]
+        AcadosParameter("g", default=np.array([9.81])),  # gravity constant [m/s^2]
+        AcadosParameter("l", default=np.array([0.8])),  # length of the rod [m]
         # Cost matrix factorization parameters
         AcadosParameter(
-            "q_diag_sqrt", np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))
+            "q_diag_sqrt", default=np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))
         ),  # cost on state residuals
         AcadosParameter(
-            "r_diag_sqrt", np.sqrt(np.array([2e-1]))
+            "r_diag_sqrt", default=np.sqrt(np.array([2e-1]))
         ),  # cost on control input residuals
         # Reference parameters
         AcadosParameter(
             "xref0",
-            np.array([0.0]),
+            default=np.array([0.0]),
             interface="non-learnable",
         ),  # reference position
         AcadosParameter(
             "xref1",
-            np.array([0.0]),
-            lower_bound=np.array([-2.0 * np.pi]),
-            upper_bound=np.array([2.0 * np.pi]),
+            default=np.array([0.0]),
+            space=gym.spaces.Box(low=np.array([-2.0 * np.pi]), high=np.array([2.0 * np.pi])),
             interface="learnable",
             vary_stages=[i for i in range(N_horizon + 1)]
             if param_interface == "stagewise"
@@ -48,17 +48,17 @@ def create_cartpole_params(
         ),  # reference theta
         AcadosParameter(
             "xref2",
-            np.array([0.0]),
+            default=np.array([0.0]),
             interface="non-learnable",
         ),  # reference v
         AcadosParameter(
             "xref3",
-            np.array([0.0]),
+            default=np.array([0.0]),
             interface="non-learnable",
         ),  # reference thetadot
         AcadosParameter(
             "uref",
-            np.array([0.0]),
+            default=np.array([0.0]),
             interface="non-learnable",
         ),  # reference u
     ]

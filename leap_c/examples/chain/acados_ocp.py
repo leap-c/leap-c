@@ -3,6 +3,7 @@ from typing import OrderedDict, Literal
 
 import casadi as ca
 import numpy as np
+import gymnasium as gym
 from casadi.tools import struct_symSX, entry
 
 from acados_template import AcadosOcp, AcadosOcpFlattenedIterate
@@ -36,24 +37,23 @@ def create_chain_params(
     return [
         # dynamics parameters
         AcadosParameter(
-            "L", np.repeat([0.033, 0.033, 0.033], n_mass - 1)
+            "L", default=np.repeat([0.033, 0.033, 0.033], n_mass - 1)
         ),  # rest length of spring [m]
         AcadosParameter(
-            "D", np.repeat([1.0, 1.0, 1.0], n_mass - 1)
+            "D", default=np.repeat([1.0, 1.0, 1.0], n_mass - 1)
         ),  # spring stiffness [N/m]
         AcadosParameter(
-            "C", np.repeat([0.1, 0.1, 0.1], n_mass - 1)
+            "C", default=np.repeat([0.1, 0.1, 0.1], n_mass - 1)
         ),  # damping coefficient [Ns/m]
-        AcadosParameter("m", np.repeat([0.033], n_mass - 1)),  # mass of the balls [kg]
+        AcadosParameter("m", default=np.repeat([0.033], n_mass - 1)),  # mass of the balls [kg]
         AcadosParameter(
-            "w", np.repeat([0.0, 0.0, 0.0], n_mass - 2)
+            "w", default=np.repeat([0.0, 0.0, 0.0], n_mass - 2)
         ),  # disturbance on intermediate balls [N]
         # cost parameters
         AcadosParameter(
             "q_diag_sqrt",
-            q_diag_sqrt,
-            lower_bound=0.5 * q_diag_sqrt,
-            upper_bound=1.5 * q_diag_sqrt,
+            default=q_diag_sqrt,
+            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt),
             interface="learnable",
             vary_stages=[i for i in range(N_horizon + 1)]
             if param_interface == "stagewise"
@@ -61,9 +61,8 @@ def create_chain_params(
         ),
         AcadosParameter(
             "r_diag_sqrt",
-            r_diag_sqrt,
-            lower_bound=0.5 * r_diag_sqrt,
-            upper_bound=1.5 * r_diag_sqrt,
+            default=r_diag_sqrt,
+            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt),
             interface="learnable",
             vary_stages=[i for i in range(N_horizon)]
             if param_interface == "stagewise"

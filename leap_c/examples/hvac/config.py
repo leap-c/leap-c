@@ -1,6 +1,7 @@
 from dataclasses import asdict, dataclass
 
 import numpy as np
+import gymnasium as gym
 from scipy.constants import convert_temperature
 
 from leap_c.ocp.acados.parameters import AcadosParameter
@@ -86,12 +87,9 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[AcadosParameter, 
     params = [
         AcadosParameter(
             name=k,
-            value=np.array([v]),
-            lower_bound=0.95 * np.array([v]),
-            upper_bound=1.05 * np.array([v]),
-            fix=True,
-            differentiable=False,
-            stagewise=False,
+            default=np.array([v]),
+            space=gym.spaces.Box(low=0.95 * np.array([v]), high=1.05 * np.array([v])),
+            interface="fix",
         )
         for k, v in hydronic_params.items()
         if k
@@ -111,30 +109,27 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[AcadosParameter, 
         [
             AcadosParameter(
                 name="Ta",  # Ambient temperature in Kelvin
-                value=np.array([convert_temperature(20.0, "celsius", "kelvin")]),
-                lower_bound=np.array([convert_temperature(-20.0, "celsius", "kelvin")]),
-                upper_bound=np.array([convert_temperature(40.0, "celsius", "kelvin")]),
-                fix=False,
-                differentiable=True,
-                stagewise=stagewise,
+                default=np.array([convert_temperature(20.0, "celsius", "kelvin")]),
+                space=gym.spaces.Box(
+                    low=np.array([convert_temperature(-20.0, "celsius", "kelvin")]),
+                    high=np.array([convert_temperature(40.0, "celsius", "kelvin")])
+                ),
+                interface="learnable",
+                vary_stages=list(range(48)) if stagewise else [],
             ),
             AcadosParameter(
                 name="Phi_s",
-                value=np.array([200.0]),  # Solar radiation in W/m²
-                lower_bound=np.array([0.0]),
-                upper_bound=np.array([400.0]),
-                fix=False,
-                differentiable=True,
-                stagewise=stagewise,
+                default=np.array([200.0]),  # Solar radiation in W/m²
+                space=gym.spaces.Box(low=np.array([0.0]), high=np.array([400.0])),
+                interface="learnable",
+                vary_stages=list(range(48)) if stagewise else [],
             ),
             AcadosParameter(
                 name="price",
-                value=np.array([0.15]),  # Electricity price in €/kWh
-                lower_bound=np.array([0.00]),
-                upper_bound=np.array([0.30]),
-                fix=False,
-                differentiable=True,
-                stagewise=stagewise,
+                default=np.array([0.15]),  # Electricity price in €/kWh
+                space=gym.spaces.Box(low=np.array([0.00]), high=np.array([0.30])),
+                interface="learnable",
+                vary_stages=list(range(48)) if stagewise else [],
             ),
         ]
     )
@@ -144,30 +139,33 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[AcadosParameter, 
         [
             AcadosParameter(
                 name="lb_Ti",
-                value=np.array([convert_temperature(17.0, "celsius", "kelvin")]),
-                lower_bound=np.array([convert_temperature(15.0, "celsius", "kelvin")]),
-                upper_bound=np.array([convert_temperature(19.0, "celsius", "kelvin")]),
-                fix=False,
-                differentiable=False,
-                stagewise=stagewise,
+                default=np.array([convert_temperature(17.0, "celsius", "kelvin")]),
+                space=gym.spaces.Box(
+                    low=np.array([convert_temperature(15.0, "celsius", "kelvin")]),
+                    high=np.array([convert_temperature(19.0, "celsius", "kelvin")])
+                ),
+                interface="non-learnable",
+                vary_stages=list(range(48)) if stagewise else [],
             ),
             AcadosParameter(
                 name="ub_Ti",
-                value=np.array([convert_temperature(23.0, "celsius", "kelvin")]),
-                lower_bound=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
-                upper_bound=np.array([convert_temperature(25.0, "celsius", "kelvin")]),
-                fix=False,
-                differentiable=False,
-                stagewise=stagewise,
+                default=np.array([convert_temperature(23.0, "celsius", "kelvin")]),
+                space=gym.spaces.Box(
+                    low=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
+                    high=np.array([convert_temperature(25.0, "celsius", "kelvin")])
+                ),
+                interface="non-learnable",
+                vary_stages=list(range(48)) if stagewise else [],
             ),
             AcadosParameter(
                 name="ref_Ti",
-                value=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
-                lower_bound=np.array([convert_temperature(10.0, "celsius", "kelvin")]),
-                upper_bound=np.array([convert_temperature(30.0, "celsius", "kelvin")]),
-                fix=False,
-                differentiable=True,
-                stagewise=stagewise,
+                default=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
+                space=gym.spaces.Box(
+                    low=np.array([convert_temperature(10.0, "celsius", "kelvin")]),
+                    high=np.array([convert_temperature(30.0, "celsius", "kelvin")])
+                ),
+                interface="learnable",
+                vary_stages=list(range(48)) if stagewise else [],
             ),
         ]
     )
@@ -176,30 +174,24 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[AcadosParameter, 
         [
             AcadosParameter(
                 name="q_Ti",
-                value=np.array([0.001]),  # weight on rate of change of heater power
-                lower_bound=np.array([0.0001]),
-                upper_bound=np.array([0.001]),
-                fix=False,
-                differentiable=True,
-                stagewise=stagewise,
+                default=np.array([0.001]),  # weight on rate of change of heater power
+                space=gym.spaces.Box(low=np.array([0.0001]), high=np.array([0.001])),
+                interface="learnable",
+                vary_stages=list(range(48)) if stagewise else [],
             ),
             AcadosParameter(
                 name="q_dqh",
-                value=np.array([1.0]),  # weight on rate of change of heater power
-                lower_bound=np.array([0.5]),
-                upper_bound=np.array([1.5]),
-                fix=False,
-                differentiable=True,
-                stagewise=stagewise,
+                default=np.array([1.0]),  # weight on rate of change of heater power
+                space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5])),
+                interface="learnable",
+                vary_stages=list(range(48)) if stagewise else [],
             ),
             AcadosParameter(
                 name="q_ddqh",
-                value=np.array([1.0]),  # weight for acceleration of heater power
-                lower_bound=np.array([0.5]),
-                upper_bound=np.array([1.5]),
-                fix=False,
-                differentiable=True,
-                stagewise=stagewise,
+                default=np.array([1.0]),  # weight for acceleration of heater power
+                space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5])),
+                interface="learnable",
+                vary_stages=list(range(48)) if stagewise else [],
             ),
         ]
     )
