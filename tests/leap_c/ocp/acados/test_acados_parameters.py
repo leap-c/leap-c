@@ -436,7 +436,7 @@ def test_mixed_parameter_types_and_interfaces():
 
 
 def test_get_param_space():
-    """Test get_p_global_bounds method."""
+    """Test get_param_space method."""
     params = [
         AcadosParameter(
             name="bounded",
