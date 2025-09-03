@@ -129,7 +129,6 @@ def test_parameter_interface_learnable_with_vary_stages():
             manager.learnable_parameters_default[key], np.array([[10.0]])
         )
 
-    # TODO: The given value has shape (2,), but casadi.DM is (2,1). Fix this? Also in following tests.
     for key in demand_keys:
         np.testing.assert_array_equal(
             manager.learnable_parameters_default[key], np.array([[5.0], [6.0]])
