@@ -322,7 +322,7 @@ class AcadosParameterManager:
             return gym.spaces.utils.flatten_space(tuple_space)
 
     def get(self, field: str) -> ca.SX | ca.MX | np.ndarray:
-        """Get the variable for a given field at a specific stage."""
+        """Get the variable for a given field."""
         if field not in self.parameters:
             raise ValueError(
                 f"Unknown field: {field}. Available fields: {list(self.parameters.keys())}"
@@ -335,7 +335,9 @@ class AcadosParameterManager:
             self.parameters[field].interface == "learnable"
             and self.parameters[field].vary_stages
         ):
-            starts = [0] + self.parameters[field].vary_stages
+            starts = (
+                [0] if 0 not in self.parameters[field].vary_stages else []
+            ) + self.parameters[field].vary_stages
             ends = (
                 np.array(self.parameters[field].vary_stages + [self.N_horizon + 1]) - 1
             )
