@@ -435,8 +435,7 @@ def test_mixed_parameter_types_and_interfaces():
         assert key in non_learnable_keys
 
 
-# TODO: Rename this test after we rename to def get_learnable_parameter_bounds
-def test_get_p_global_bounds():
+def test_get_param_space():
     """Test get_p_global_bounds method."""
     params = [
         AcadosParameter(
