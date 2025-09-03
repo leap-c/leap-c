@@ -2,9 +2,10 @@ from typing import Literal
 
 import casadi as ca
 import numpy as np
+import gymnasium as gym
 
 from acados_template import AcadosOcp
-from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 
 PointMassAcadosParamInterface = Literal["global", "stagewise"]
@@ -13,9 +14,9 @@ PointMassAcadosParamInterface = Literal["global", "stagewise"]
 def create_pointmass_params(
     param_interface: PointMassAcadosParamInterface,
     x_ref_value: np.ndarray | None = None,
-) -> list[Parameter]:
+    N_horizon: int = 20,
+) -> list[AcadosParameter]:
     """Returns a list of parameters used in pointmass."""
-    is_stagewise = True if param_interface == "stagewise" else False
 
     q_diag_sqrt = np.array([1.0, 1.0, 1.0, 1.0])
     r_diag_sqrt = np.array([0.1, 0.1])
@@ -25,53 +26,53 @@ def create_pointmass_params(
 
     return [
         # mass and friction parameters
-        Parameter("m", np.array([1.0])),  # mass [kg]
-        Parameter("cx", np.array([0.1])),  # x friction coefficient
-        Parameter("cy", np.array([0.1])),  # y friction coefficient
+        AcadosParameter("m", default=np.array([1.0])),  # mass [kg]
+        AcadosParameter("cx", default=np.array([0.1])),  # x friction coefficient
+        AcadosParameter("cy", default=np.array([0.1])),  # y friction coefficient
         # cost function parameters
-        Parameter(
+        AcadosParameter(
             "q_diag_sqrt",
-            q_diag_sqrt,
-            lower_bound=0.5 * q_diag_sqrt,
-            upper_bound=1.5 * q_diag_sqrt,
-            differentiable=True,
-            stagewise=is_stagewise,
-            fix=False,
+            default=q_diag_sqrt,
+            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64),
+            interface="learnable",
+            vary_stages=list(range(N_horizon + 1))
+            if param_interface == "stagewise"
+            else [],
         ),  # state cost
-        Parameter(
+        AcadosParameter(
             "r_diag_sqrt",
-            r_diag_sqrt,
-            lower_bound=0.5 * r_diag_sqrt,
-            upper_bound=1.5 * r_diag_sqrt,
-            fix=False,
-            differentiable=True,
-            stagewise=is_stagewise,
+            default=r_diag_sqrt,
+            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64),
+            interface="learnable",
+            vary_stages=list(range(N_horizon))
+            if param_interface == "stagewise"
+            else [],
         ),  # control cost
         # reference parameters
-        Parameter(
+        AcadosParameter(
             "x_ref",
-            x_ref_value,
-            lower_bound=np.array([0.0, 0.0, -20, -20]),
-            upper_bound=np.array([4.0, 1.0, 20, 20]),
-            fix=False,
-            differentiable=True,
-            stagewise=is_stagewise,
+            default=x_ref_value,
+            space=gym.spaces.Box(low=np.array([0.0, 0.0, -20, -20]), high=np.array([4.0, 1.0, 20, 20]), dtype=np.float64),
+            interface="learnable",
+            vary_stages=list(range(N_horizon + 1))
+            if param_interface == "stagewise"
+            else [],
         ),  # x reference
-        Parameter(
+        AcadosParameter(
             "u_ref",
-            np.array([0.0, 0.0]),
-            lower_bound=np.array([-10.0, -10.0]),
-            upper_bound=np.array([10.0, 10.0]),
-            fix=False,
-            differentiable=True,
-            stagewise=is_stagewise,
+            default=np.array([0.0, 0.0]),
+            space=gym.spaces.Box(low=np.array([-10.0, -10.0]), high=np.array([10.0, 10.0]), dtype=np.float64),
+            interface="learnable",
+            vary_stages=list(range(N_horizon))
+            if param_interface == "stagewise"
+            else [],
         ),  # u reference
     ]
 
 
 def define_disc_dyn_expr(
     ocp: AcadosOcp,
-    param_manager: AcadosParamManager,
+    param_manager: AcadosParameterManager,
 ) -> ca.SX:
     x = ocp.model.x
     u = ocp.model.u
@@ -98,7 +99,7 @@ def define_disc_dyn_expr(
 
 
 def export_parametric_ocp(
-    param_manager: AcadosParamManager,
+    param_manager: AcadosParameterManager,
     name: str = "pointmass",
     Fmax: float = 10.0,
     N_horizon: int = 20,

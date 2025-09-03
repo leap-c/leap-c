@@ -1,230 +1,231 @@
-from typing import NamedTuple
+from typing import NamedTuple, Literal
+import warnings
 
 import casadi as ca
 import numpy as np
 from acados_template import AcadosOcp
 from casadi.tools import entry, struct, struct_symSX
+import gymnasium as gym
+from leap_c.parameters import Parameter as BaseParameter
 
 
-class Parameter(NamedTuple):
+class AcadosParameter(NamedTuple):
     """
-    High-level parameter class for flexible optimization parameter configuration.
+    High-level parameter class for flexible optimization parameter configuration with acados extensions.
 
-    This class provides a user-friendly interface for defining parameter sets without
+    This class extends the base Parameter functionality with acados-specific features like vary_stages.
+    It provides a user-friendly interface for defining parameter sets without
     requiring knowledge of internal CasADi tools or acados interface details. It supports
     configurable properties for bounds, differentiability, and parameter behavior.
 
     Attributes:
         name: The name identifier for the parameter.
-        value: The parameter's numerical value(s).
-        lower_bound: Lower bounds for the parameter values.
-            Defaults to None (unbounded).
-        upper_bound: Upper bounds for the parameter values.
-            Defaults to None (unbounded).
-        fix: Flag indicating if this is a fixed value rather than a
-            settable parameter. Defaults to True.
-        differentiable: Flag indicating if the parameter should be
-            treated as differentiable in optimization. Defaults to False.
-        stagewise: Flag indicating if the parameter varies across
-            optimization stages. Defaults to False.
-
-    Note:
-        TODO: Check about infinity bounds implementation in lower_bound and upper_bound.
+        default: The parameter's default numerical value(s).
+        space: A gym.spaces.Space defining the valid parameter space.
+            Only used for learnable parameters. Defaults to None (unbounded).
+        interface: Parameter interface type. Either "fix" (fixed values),
+            "learnable" (optimizable parameters), or "non-learnable"
+            (non-optimizable but changeable). Defaults to "fix".
+        vary_stages: List of stages after which the parameter varies.
+            Only used for "learnable" interface. If None, parameter
+            remains constant across all stages. Defaults to None.
     """
 
+    # Fields from base Parameter class
     name: str
-    value: np.ndarray
-    lower_bound: np.ndarray | None = None
-    upper_bound: np.ndarray | None = None
-    fix: bool = True
-    differentiable: bool = False
-    stagewise: bool = False
+    default: np.ndarray
+    space: gym.spaces.Space | None = None
+    interface: Literal["fix", "learnable", "non-learnable"] = "fix"
+    # Additional acados-specific field
+    vary_stages: list[int] = []
+
+    @classmethod
+    def from_base_parameter(
+        cls, base_param: BaseParameter, vary_stages: list[int] = None
+    ):
+        """Create an acados Parameter from a base Parameter."""
+        return cls(
+            name=base_param.name,
+            default=base_param.default,
+            space=base_param.space,
+            interface=base_param.interface,
+            vary_stages=vary_stages or [],
+        )
+
+    def to_base_parameter(self) -> BaseParameter:
+        """Convert to base Parameter (loses vary_stages information)."""
+        return BaseParameter(
+            name=self.name,
+            default=self.default,
+            space=self.space,
+            interface=self.interface,
+        )
 
 
-class AcadosParamManager:
+class AcadosParameterManager:
     """Manager for acados parameters."""
 
-    parameters: dict[str, Parameter] = {}
-    p_global: struct_symSX | None = None
-    p_global_values: struct | None = None
-    p: struct_symSX | None = None
-    parameter_values: list[struct] | None = None
+    parameters: dict[str, AcadosParameter] = {}
+    learnable_parameters: struct_symSX | None = None
+    learnable_parameters_default: struct | None = None
+    non_learnable_parameters: struct_symSX | None = None
+    non_learnable_parameters_default: list[struct] | None = None
 
     def __init__(
         self,
-        params: list[Parameter],
+        parameters: list[AcadosParameter],
         N_horizon: int,
     ) -> None:
-        self.parameters = {param.name: param for param in params}
+        if not parameters:
+            warnings.warn(
+                "Empty parameter list provided to AcadosParamManager. "
+                "Consider adding parameters for building a parametric AcadosOcp.",
+                UserWarning,
+                stacklevel=2,
+            )
 
-        # Check that no parameter has more than one dimension.
-        for key, value in self.parameters.items():
-            if value.value.ndim > 1:
+        # Validate parameter dimensions before storing
+        for param in parameters:
+            if param.default.ndim > 2:
                 raise ValueError(
-                    f"Parameter '{key}' has more than one dimension, "
-                    "which is not supported. Use a single-dimensional array."
+                    f"Parameter '{param.name}' has {param.default.ndim} dimensions, "
+                    f"but CasADi only supports arrays up to 2 dimensions. "
+                    f"Parameter shape: {param.default.shape}"
+                )
+            if (
+                param.space is not None
+                and hasattr(param.space, "low")
+                and param.space.low.ndim > 2
+            ):
+                raise ValueError(
+                    f"Parameter '{param.name}' space.low has {param.space.low.ndim} dimensions, "
+                    f"but CasADi only supports arrays up to 2 dimensions. "
+                    f"Lower bound shape: {param.space.low.shape}"
+                )
+            if (
+                param.space is not None
+                and hasattr(param.space, "high")
+                and param.space.high.ndim > 2
+            ):
+                raise ValueError(
+                    f"Parameter '{param.name}' space.high has {param.space.high.ndim} dimensions, "
+                    f"but CasADi only supports arrays up to 2 dimensions. "
+                    f"Upper bound shape: {param.space.high.shape}"
+                )
+            if param.vary_stages and param.vary_stages[-1] > N_horizon:
+                raise ValueError(
+                    f"Parameter '{param.name}' has vary_stages {param.vary_stages} "
+                    f"which exceed the horizon length {N_horizon}."
                 )
 
-        # Check tha no parameter has None as lower_bound or upper_bound.
-        # for key, value in self.parameters.items():
-        #     if value.fix:
-        #         continue
-        #     if value.lower_bound is None:
-        #         raise ValueError(
-        #             f"Parameter '{key}' has no lower bound. This is not supported."
-        #         )
-        #     if value.upper_bound is None:
-        #         raise ValueError(
-        #             f"Parameter '{key}' has no upper bound. This is not supported."
-        #         )
+        self.parameters = {param.name: param for param in parameters}
 
         self.N_horizon = N_horizon
 
-        self._build_p()
-        self._build_p_global()
-        self._build_p_global_bounds()
+        entries = {
+            "learnable": [],
+            "non-learnable": [],
+        }
 
-    def _build_p(self) -> None:
-        # Create symbolic structures for parameters
-        entries = []
-        for key, value in self._get_nondifferentiable_parameters().items():
-            entries.append(entry(key, shape=value.shape))
-
-        for key, value in self._get_nondifferentiable_stagewise_parameters().items():
-            entries.append(entry(key, shape=value.shape, repeat=self.N_horizon + 1))
-
-        # if (
-        #     self._get_differentiable_stagewise_parameters()
-        #     or self._get_nondifferentiable_stagewise_parameters()
-        # ):
-        #     entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
-        #    # Add indicator for stagewise parameters
-        # TODO (Jasper): Fix this, currently in the overwrite function we always try
-        #  to set the indicator, even if there are no stagewise parameters.
-        entries.append(entry("indicator", shape=(self.N_horizon + 1,)))
-
-        self.p = struct_symSX(entries)
-
-        # Initialize parameter values for each stage
-        parameter_values = self.p(0)
-
-        # for stage in range(self.N_horizon):
-        for key, value in self._get_nondifferentiable_parameters().items():
-            parameter_values[key] = value
-
-        for key, value in self._get_nondifferentiable_stagewise_parameters().items():
-            for stage in range(self.N_horizon + 1):
-                parameter_values[key, stage] = value
-
-        self.parameter_values = parameter_values
-
-    def _build_p_global(self) -> None:
-        # Create symbolic structure for global parameters
-        entries = []
-        for key, value in self._get_differentiable_global_parameters().items():
-            entries.append(entry(key, shape=value.shape))
-
-        for key, value in self._get_differentiable_stagewise_parameters().items():
-            entries.append(entry(key, shape=value.shape, repeat=self.N_horizon + 1))
-
-        self.p_global = struct_symSX(entries)
-
-        # Initialize global parameter values
-        self.p_global_values = self.p_global(0)
-
-        for key, value in self._get_differentiable_global_parameters().items():
-            self.p_global_values[key] = value
-
-        for key, value in self._get_differentiable_stagewise_parameters().items():
-            for stage in range(self.N_horizon + 1):
-                self.p_global_values[key, stage] = value
-
-    def _build_p_global_bounds(self) -> None:
-        # Build bounds for p_global parameters
-        lb = self.p_global(0)
-        ub = self.p_global(0)
-        for key in self.p_global.keys():
-            if self.parameters[key].stagewise:
-                for stage in range(self.N_horizon + 1):
-                    if self.parameters[key].lower_bound is None:
-                        # TODO: Needs test if this is correct.
-                        # lb[key, stage] = -ca.inf
-                        raise ValueError(
-                            f"Lower bound for stagewise parameter '{key}' is None. "
-                            "This is not supported."
+        def _add_learnable_parameter_entries(name: str, parameter: AcadosParameter):
+            interface_type = "learnable"
+            if parameter.vary_stages:
+                self.need_indicator = True
+                # Clip vary_stages to the horizon
+                vary_stages = parameter.vary_stages
+                starts = [0] + vary_stages
+                ends = np.array(vary_stages + [self.N_horizon + 1]) - 1
+                for start, end in zip(starts, ends):
+                    # Build symbolic expressions for each stage
+                    # following the template {name}_{first_stage}_{last_stage}
+                    # e.g. price_0_10, price_11_20, etc.
+                    entries[interface_type].append(
+                        entry(
+                            f"{name}_{start}_{end}",
+                            shape=parameter.default.shape,
                         )
-                    else:
-                        lb[key, stage] = self.parameters[key].lower_bound
-
-                    if self.parameters[key].upper_bound is None:
-                        # TODO: Needs test if this is correct.
-                        # ub[key, stage] = ca.inf
-                        raise ValueError(
-                            f"Upper bound for stagewise parameter '{key}' is None. "
-                            "This is not supported."
-                        )
-                    else:
-                        ub[key, stage] = self.parameters[key].upper_bound
+                    )
             else:
-                if self.parameters[key].lower_bound is None:
-                    raise ValueError(
-                        f"Lower bound for global parameter '{key}' is None. "
-                        "This is not supported."
-                    )
+                entries[interface_type].append(
+                    entry(name, shape=parameter.default.shape)
+                )
+
+        def _add_non_learnable_parameter_entries(name: str, parameter: AcadosParameter):
+            interface_type = "non-learnable"
+            # Non-learnable parameters are by construction for each stage
+            entries[interface_type].append(entry(name, shape=parameter.default.shape))
+
+        self.need_indicator = False
+        for name, parameter in self.parameters.items():
+            if parameter.interface == "learnable":
+                _add_learnable_parameter_entries(name, parameter)
+            if parameter.interface == "non-learnable":
+                _add_non_learnable_parameter_entries(name, parameter)
+
+        if self.need_indicator:
+            entries["non-learnable"].append(
+                entry("indicator", shape=(self.N_horizon + 1,))
+            )
+
+        self.learnable_parameters = struct_symSX(entries["learnable"])
+        self.non_learnable_parameters = struct_symSX(entries["non-learnable"])
+
+        # Now build the lower and upper bound
+        self.learnable_parameters_default = self.learnable_parameters(0)
+        self.learnable_parameters_lb = self.learnable_parameters(0)
+        self.learnable_parameters_ub = self.learnable_parameters(0)
+
+        def _extract_parameter_name(key: str) -> str:
+            """Extract the original parameter name from the template {name}_{start}_{end}."""
+            if "_" in key and key.count("_") >= 2:
+                # Split from the right to handle names that contain underscores
+                parts = key.rsplit("_", 2)
+                return parts[0]
+            else:
+                # For parameters without stage variations
+                return key
+
+        def _fill_learnable_parameter_values(struct_dict, keys):
+            """Fill parameter values and optionally bounds for a parameter structure."""
+            for key in keys:
+                # First check if the key exists directly in parameters (no staging)
+                if key in self.parameters:
+                    name = key
                 else:
-                    lb[key] = self.parameters[key].lower_bound
-                if self.parameters[key].upper_bound is None:
-                    raise ValueError(
-                        f"Upper bound for global parameter '{key}' is None. "
-                        "This is not supported."
-                    )
-                else:
-                    ub[key] = self.parameters[key].upper_bound
+                    # Try to extract the original parameter name from staged key
+                    name = _extract_parameter_name(key)
 
-        self.lb = lb.cat.full().flatten()
-        self.ub = ub.cat.full().flatten()
+                if name in self.parameters:
+                    param = self.parameters[name]
+                    struct_dict["default"][key] = param.default
+                    if param.space is not None and hasattr(param.space, "low"):
+                        struct_dict["lb"][key] = param.space.low
+                    else:
+                        struct_dict["lb"][key] = -np.inf
+                    if param.space is not None and hasattr(param.space, "high"):
+                        struct_dict["ub"][key] = param.space.high
+                    else:
+                        struct_dict["ub"][key] = np.inf
 
-    def _get_differentiable_global_parameters(
-        self,
-    ) -> dict[str, np.ndarray]:
-        """Get all differentiable global parameters."""
-        return {
-            key: value.value
-            for key, value in self.parameters.items()
-            if value.differentiable and not value.stagewise
-        }
+        # Fill in the values for learnable parameters (with bounds)
+        _fill_learnable_parameter_values(
+            {
+                "default": self.learnable_parameters_default,
+                "lb": self.learnable_parameters_lb,
+                "ub": self.learnable_parameters_ub,
+            },
+            self.learnable_parameters.keys(),
+        )
 
-    def _get_differentiable_stagewise_parameters(
-        self,
-    ) -> dict[str, np.ndarray]:
-        """Get all differentiable stage-wise parameters."""
-        return {
-            key: value.value
-            for key, value in self.parameters.items()
-            if value.differentiable and value.stagewise
-        }
+        # Fill the values for the non-learnable parameters. Indicators are set at combine_parameter_values.
+        self.non_learnable_parameters_default = self.non_learnable_parameters(0)
+        for key in self.parameters.keys():
+            if self.parameters[key].interface == "non-learnable":
+                self.non_learnable_parameters_default[key] = self.parameters[
+                    key
+                ].default
 
-    def _get_nondifferentiable_stagewise_parameters(
-        self,
-    ) -> dict[str, np.ndarray]:
-        """Get all differentiable stage-wise parameters."""
-        return {
-            key: value.value
-            for key, value in self.parameters.items()
-            if not value.differentiable and value.stagewise
-        }
-
-    def _get_nondifferentiable_parameters(
-        self,
-    ) -> dict[str, np.ndarray]:
-        """Get all nondifferentiable parameters."""
-        return {
-            key: value.value
-            for key, value in self.parameters.items()
-            if not value.differentiable and not value.stagewise
-        }
-
-    def combine_parameter_values(
+    def combine_non_learnable_parameter_values(
         self,
         batch_size: int | None = None,
         **overwrite: np.ndarray,
@@ -250,15 +251,16 @@ class AcadosParamManager:
 
         # Create a batch of parameter values
         batch_parameter_values = np.tile(
-            self.parameter_values.cat.full().reshape(1, -1),
+            self.non_learnable_parameters_default.cat.full().reshape(1, -1),
             (batch_size, self.N_horizon + 1, 1),
         )
 
         # Set indicator for each stage
-        batch_parameter_values[:, :, -(self.N_horizon + 1) :] = np.tile(
-            np.eye(self.N_horizon + 1),
-            (batch_size, 1, 1),
-        )
+        if self.need_indicator:
+            batch_parameter_values[:, :, -(self.N_horizon + 1) :] = np.tile(
+                np.eye(self.N_horizon + 1),
+                (batch_size, 1, 1),
+            )
 
         # Overwrite the values in the batch
         # TODO: Make sure indexing is consistent.
@@ -270,11 +272,15 @@ class AcadosParamManager:
         # see https://numpy.org/doc/2.1/reference/generated/numpy.isfortran.html
         # and reshape if needed or raise an error.
         for key, val in overwrite.items():
-            batch_parameter_values[:, :, self.p.f[key]] = val.reshape(
-                batch_size, self.N_horizon + 1, -1
+            batch_parameter_values[:, :, self.non_learnable_parameters.f[key]] = (
+                val.reshape(batch_size, self.N_horizon + 1, -1)
             )
 
-        expected_shape = (batch_size, self.N_horizon + 1, self.p.cat.shape[0])
+        expected_shape = (
+            batch_size,
+            self.N_horizon + 1,
+            self.non_learnable_parameters.cat.shape[0],
+        )
         assert batch_parameter_values.shape == expected_shape, (
             f"batch_parameter_values should have shape {expected_shape}, "
             f"got {batch_parameter_values.shape}."
@@ -282,66 +288,92 @@ class AcadosParamManager:
 
         return batch_parameter_values
 
-    def get_p_global_bounds(self) -> tuple[np.ndarray, np.ndarray] | tuple[None, None]:
-        """Get the lower bound for p_global parameters."""
-        if self.p_global is None:
-            return None, None
+    def get_param_space(self, dtype: np.dtype = np.float32) -> gym.Space:
+        """Get the Gym space for the parameters."""
+        learnable_spaces = []
 
-        return self.lb, self.ub
+        for name, param in self.parameters.items():
+            if param.interface == "learnable":
+                if param.space is not None:
+                    learnable_spaces.append(param.space)
+                else:
+                    # Create unbounded space for parameters without bounds
+                    param_shape = param.default.shape
+                    unbounded_space = gym.spaces.Box(
+                        low=-np.inf,
+                        high=np.inf,
+                        shape=param_shape,
+                        dtype=dtype,
+                    )
+                    learnable_spaces.append(unbounded_space)
 
-    def get(
-        self,
-        field: str,
-        stage: int | None = None,
-    ) -> ca.SX | ca.MX | np.ndarray:
-        """Get the variable for a given field at a specific stage."""
-        if field in self.parameters and self.parameters[field].fix:
-            return self.parameters[field].value
+        if not learnable_spaces:
+            # No learnable parameters - return empty box space
+            return gym.spaces.Box(low=np.array([]), high=np.array([]), dtype=dtype)
+        elif len(learnable_spaces) == 1:
+            # Single space - flatten it to ensure consistent return type
+            space = learnable_spaces[0]
+            return gym.spaces.Box(
+                low=space.low.flatten(), high=space.high.flatten(), dtype=space.dtype
+            )
+        else:
+            # Multiple spaces
+            tuple_space = gym.spaces.Tuple(learnable_spaces)
+            return gym.spaces.utils.flatten_space(tuple_space)
 
-        if field in self._get_differentiable_stagewise_parameters():
-            return sum(
-                [
-                    self.p["indicator"][stage_] * self.p_global[field, stage_]
-                    for stage_ in range(self.N_horizon + 1)
-                ]
+    def get(self, field: str) -> ca.SX | ca.MX | np.ndarray:
+        """Get the variable for a given field."""
+        if field not in self.parameters:
+            raise ValueError(
+                f"Unknown field: {field}. Available fields: {list(self.parameters.keys())}"
             )
 
-        if field in self._get_nondifferentiable_stagewise_parameters():
-            return sum(
-                [
-                    self.p["indicator"][stage_] * self.p[field, stage_]
-                    for stage_ in range(self.N_horizon + 1)
-                ]
+        if self.parameters[field].interface == "fix":
+            return self.parameters[field].default
+
+        if (
+            self.parameters[field].interface == "learnable"
+            and self.parameters[field].vary_stages
+        ):
+            starts = (
+                [0] if 0 not in self.parameters[field].vary_stages else []
+            ) + self.parameters[field].vary_stages
+            ends = (
+                np.array(self.parameters[field].vary_stages + [self.N_horizon + 1]) - 1
             )
+            indicators = []
+            variables = []
+            for start, end in zip(starts, ends):
+                indicators.append(
+                    ca.sum(self.non_learnable_parameters["indicator"][start : end + 1])
+                )
+                variables.append(self.learnable_parameters[f"{field}_{start}_{end}"])
 
-        if field in self.p_global.keys():
-            if stage is not None:
-                return self.p_global[field, stage]
-            return self.p_global[field]
+            terms = []
+            for indicator, variable in zip(indicators, variables):
+                terms.append(indicator * variable)
+            return sum(terms)
 
-        if field in self.p.keys():
-            if stage is not None and field == "indicator":
-                return self.p[field][stage]
-            return self.p[field]
+        if self.parameters[field].interface == "learnable":
+            return self.learnable_parameters[field]
 
-        available_fields = list(self.p_global.keys()) + list(self.p.keys())
-        error_message = f"Unknown field: {field}. Available fields: {available_fields}"
-        raise ValueError(error_message)
+        if self.parameters[field].interface == "non-learnable":
+            return self.non_learnable_parameters[field]
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Assign the parameters to the OCP model."""
-        if self.p_global is not None:
-            ocp.model.p_global = self.p_global.cat
+        if self.learnable_parameters is not None:
+            ocp.model.p_global = self.learnable_parameters.cat
             ocp.p_global_values = (
-                self.p_global_values.cat.full().flatten()
-                if self.p_global_values
+                self.learnable_parameters_default.cat.full().flatten()
+                if self.learnable_parameters_default
                 else np.array([])
             )
 
-        if self.p is not None:
-            ocp.model.p = self.p.cat
+        if self.non_learnable_parameters is not None:
+            ocp.model.p = self.non_learnable_parameters.cat
             ocp.parameter_values = (
-                self.parameter_values.cat.full().flatten()
-                if self.parameter_values
+                self.non_learnable_parameters_default.cat.full().flatten()
+                if self.non_learnable_parameters_default
                 else np.array([])
             )

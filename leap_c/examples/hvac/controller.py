@@ -15,7 +15,7 @@ from .util import transcribe_discrete_state_space
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.hvac.config import make_default_hvac_params
-from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
+from leap_c.ocp.acados.parameters import AcadosParameterManager, AcadosParameter
 from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
 
@@ -45,7 +45,7 @@ class HvacController(ParameterizedController):
 
     def __init__(
         self,
-        params: tuple[Parameter, ...] | None = None,
+        params: tuple[AcadosParameter, ...] | None = None,
         stagewise: bool = False,
         N_horizon: int = 96,  # 24 hours in 15 minutes time steps
         diff_mpc_kwargs: dict[str, Any] | None = None,
@@ -55,8 +55,12 @@ class HvacController(ParameterizedController):
 
         self.stagewise = stagewise
 
-        self.param_manager = AcadosParamManager(
-            params=params or make_default_hvac_params(stagewise),
+        self.param_manager = AcadosParameterManager(
+            parameters=params
+            or make_default_hvac_params(
+                stagewise=stagewise,
+                N_horizon=N_horizon,
+            ),
             N_horizon=N_horizon,
         )
 
@@ -111,7 +115,7 @@ class HvacController(ParameterizedController):
 
         lb, ub = set_temperature_limits(quarter_hours=quarter_hours)
 
-        p_stagewise = self.param_manager.combine_parameter_values(
+        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             lb_Ti=lb.reshape(batch_size, -1, 1),
             ub_Ti=ub.reshape(batch_size, -1, 1),
         )
@@ -136,12 +140,11 @@ class HvacController(ParameterizedController):
 
     @property
     def param_space(self) -> gym.Space:
-        lb, ub = self.param_manager.get_p_global_bounds()
-        return gym.spaces.Box(low=lb, high=ub, dtype=np.float64)
+        return self.param_manager.get_param_space(dtype=np.float64)
 
     def default_param(self, obs) -> np.ndarray | None:
         if self.stagewise:
-            param = self.param_manager.p_global_values(0)
+            param = self.param_manager.learnable_parameters_default(0)
 
             N_horizon = self.ocp.solver_options.N_horizon
             Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
@@ -159,11 +162,11 @@ class HvacController(ParameterizedController):
                 )  # weight on acceleration of heater power
             return param.cat.full().flatten()
 
-        return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
+        return self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore
 
 
 def export_parametric_ocp(
-    param_manager: AcadosParamManager,
+    param_manager: AcadosParameterManager,
     N_horizon: int,
     name: str = "hvac",
     x0: np.ndarray | None = None,

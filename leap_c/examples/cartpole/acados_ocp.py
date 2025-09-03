@@ -2,10 +2,11 @@ from typing import Literal
 
 import casadi as ca
 import numpy as np
+import gymnasium as gym
 
 from acados_template import AcadosModel, AcadosOcp
 from leap_c.examples.utils.casadi import integrate_erk4
-from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 
 CartPoleAcadosParamInterface = Literal["global", "stagewise"]
@@ -14,39 +15,58 @@ CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 
 def create_cartpole_params(
     param_interface: CartPoleAcadosParamInterface,
-) -> list[Parameter]:
+    N_horizon: int = 50,
+) -> list[AcadosParameter]:
     """Returns a list of parameters used in cartpole."""
     return [
         # Dynamics parameters
-        Parameter("M", np.array([1.0])),  # mass of the cart [kg]
-        Parameter("m", np.array([0.1])),  # mass of the ball [kg]
-        Parameter("g", np.array([9.81])),  # gravity constant [m/s^2]
-        Parameter("l", np.array([0.8])),  # length of the rod [m]
+        AcadosParameter("M", default=np.array([1.0])),  # mass of the cart [kg]
+        AcadosParameter("m", default=np.array([0.1])),  # mass of the ball [kg]
+        AcadosParameter("g", default=np.array([9.81])),  # gravity constant [m/s^2]
+        AcadosParameter("l", default=np.array([0.8])),  # length of the rod [m]
         # Cost matrix factorization parameters
-        Parameter(
-            "q_diag_sqrt", np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))
+        AcadosParameter(
+            "q_diag_sqrt", default=np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))
         ),  # cost on state residuals
-        Parameter(
-            "r_diag_sqrt", np.sqrt(np.array([2e-1]))
+        AcadosParameter(
+            "r_diag_sqrt", default=np.sqrt(np.array([2e-1]))
         ),  # cost on control input residuals
         # Reference parameters
-        Parameter("xref0", np.array([0.0]), fix=False),  # reference position
-        Parameter(
+        AcadosParameter(
+            "xref0",
+            default=np.array([0.0]),
+            interface="non-learnable",
+        ),  # reference position
+        AcadosParameter(
             "xref1",
-            np.array([0.0]),
-            lower_bound=np.array([-2.0 * np.pi]),
-            upper_bound=np.array([2.0 * np.pi]),
-            differentiable=True,
-            stagewise=True if param_interface == "stagewise" else False,
-            fix=False,
+            default=np.array([0.0]),
+            space=gym.spaces.Box(low=np.array([-2.0 * np.pi]), high=np.array([2.0 * np.pi]), dtype=np.float64),
+            interface="learnable",
+            vary_stages=list(range(N_horizon + 1))
+            if param_interface == "stagewise"
+            else [],
         ),  # reference theta
-        Parameter("xref2", np.array([0.0]), fix=False),  # reference v
-        Parameter("xref3", np.array([0.0]), fix=False),  # reference thetadot
-        Parameter("uref", np.array([0.0]), fix=False),  # reference u
+        AcadosParameter(
+            "xref2",
+            default=np.array([0.0]),
+            interface="non-learnable",
+        ),  # reference v
+        AcadosParameter(
+            "xref3",
+            default=np.array([0.0]),
+            interface="non-learnable",
+        ),  # reference thetadot
+        AcadosParameter(
+            "uref",
+            default=np.array([0.0]),
+            interface="non-learnable",
+        ),  # reference u
     ]
 
 
-def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParamManager) -> ca.SX:
+def define_f_expl_expr(
+    model: AcadosModel, param_manager: AcadosParameterManager
+) -> ca.SX:
     M = param_manager.get("M")
     m = param_manager.get("m")
     g = param_manager.get("g")
@@ -79,7 +99,7 @@ def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParamManager) ->
 
 
 def export_parametric_ocp(
-    param_manager: AcadosParamManager,
+    param_manager: AcadosParameterManager,
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS",
     name: str = "cartpole",
     Fmax: float = 80.0,
@@ -105,7 +125,10 @@ def export_parametric_ocp(
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
-    p = ca.vertcat(param_manager.p.cat, param_manager.p_global.cat)  # type:ignore
+    p = ca.vertcat(
+        param_manager.non_learnable_parameters.cat,
+        param_manager.learnable_parameters.cat,
+    )  # type:ignore
     f_expl = define_f_expl_expr(ocp.model, param_manager)
     ocp.model.disc_dyn_expr = integrate_erk4(
         f_expl=f_expl,

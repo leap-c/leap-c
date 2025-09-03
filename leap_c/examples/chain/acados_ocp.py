@@ -3,13 +3,14 @@ from typing import OrderedDict, Literal
 
 import casadi as ca
 import numpy as np
+import gymnasium as gym
 from casadi.tools import struct_symSX, entry
 
 from acados_template import AcadosOcp, AcadosOcpFlattenedIterate
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
-from leap_c.ocp.acados.parameters import Parameter, AcadosParamManager
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.initializer import (
     AcadosDiffMpcInitializer,
     create_zero_iterate_from_ocp,
@@ -22,7 +23,8 @@ ChainAcadosParamInterface = Literal["global", "stagewise"]
 def create_chain_params(
     param_interface: ChainAcadosParamInterface = "global",
     n_mass: int = 5,
-) -> list[Parameter]:
+    N_horizon: int = 30,
+) -> list[AcadosParameter]:
     """Returns a list of parameters used in the chain ocp.
 
     Args:
@@ -32,47 +34,45 @@ def create_chain_params(
     q_diag_sqrt = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
     r_diag_sqrt = 1e-1 * np.ones(3)
 
-    is_stagewise = True if param_interface == "stagewise" else False
-
     return [
         # dynamics parameters
-        Parameter(
-            "L", np.repeat([0.033, 0.033, 0.033], n_mass - 1)
+        AcadosParameter(
+            "L", default=np.repeat([0.033, 0.033, 0.033], n_mass - 1)
         ),  # rest length of spring [m]
-        Parameter(
-            "D", np.repeat([1.0, 1.0, 1.0], n_mass - 1)
+        AcadosParameter(
+            "D", default=np.repeat([1.0, 1.0, 1.0], n_mass - 1)
         ),  # spring stiffness [N/m]
-        Parameter(
-            "C", np.repeat([0.1, 0.1, 0.1], n_mass - 1)
+        AcadosParameter(
+            "C", default=np.repeat([0.1, 0.1, 0.1], n_mass - 1)
         ),  # damping coefficient [Ns/m]
-        Parameter("m", np.repeat([0.033], n_mass - 1)),  # mass of the balls [kg]
-        Parameter(
-            "w", np.repeat([0.0, 0.0, 0.0], n_mass - 2)
+        AcadosParameter("m", default=np.repeat([0.033], n_mass - 1)),  # mass of the balls [kg]
+        AcadosParameter(
+            "w", default=np.repeat([0.0, 0.0, 0.0], n_mass - 2)
         ),  # disturbance on intermediate balls [N]
         # cost parameters
-        Parameter(
+        AcadosParameter(
             "q_diag_sqrt",
-            q_diag_sqrt,
-            lower_bound=0.5 * q_diag_sqrt,
-            upper_bound=1.5 * q_diag_sqrt,
-            differentiable=True,
-            stagewise=is_stagewise,
-            fix=False,
+            default=q_diag_sqrt,
+            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64),
+            interface="learnable",
+            vary_stages=list(range(N_horizon + 1))
+            if param_interface == "stagewise"
+            else [],
         ),
-        Parameter(
+        AcadosParameter(
             "r_diag_sqrt",
-            r_diag_sqrt,
-            lower_bound=0.5 * r_diag_sqrt,
-            upper_bound=1.5 * r_diag_sqrt,
-            differentiable=True,
-            stagewise=is_stagewise,
-            fix=False,
+            default=r_diag_sqrt,
+            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64),
+            interface="learnable",
+            vary_stages=list(range(N_horizon))
+            if param_interface == "stagewise"
+            else [],
         ),
     ]
 
 
 def export_parametric_ocp(
-    param_manager: AcadosParamManager,
+    param_manager: AcadosParameterManager,
     x_ref: np.ndarray,
     fix_point: np.ndarray,
     name: str = "chain",

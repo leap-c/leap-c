@@ -15,7 +15,7 @@ from leap_c.examples.chain.acados_ocp import (
 from leap_c.examples.chain.acados_ocp import ChainAcadosParamInterface
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
-from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
+from leap_c.ocp.acados.parameters import AcadosParameterManager, AcadosParameter
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx, AcadosDiffMpcCtx
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
@@ -47,7 +47,7 @@ class ChainController(ParameterizedController):
     def __init__(
         self,
         cfg: ChainControllerConfig | None = None,
-        params: list[Parameter] | None = None,
+        params: list[AcadosParameter] | None = None,
         export_directory: Path | None = None,
     ):
         """Initializes the ChainController.
@@ -62,25 +62,29 @@ class ChainController(ParameterizedController):
         super().__init__()
         self.cfg = ChainControllerConfig() if cfg is None else cfg
         params = (
-            create_chain_params(self.cfg.param_interface, self.cfg.n_mass)
+            create_chain_params(
+                self.cfg.param_interface,
+                self.cfg.n_mass,
+                N_horizon=self.cfg.N_horizon,
+            )
             if params is None
             else params
         )
 
-        self.param_manager = AcadosParamManager(
-            params=params,
+        self.param_manager = AcadosParameterManager(
+            parameters=params,
             N_horizon=self.cfg.N_horizon,  # type:ignore
         )
 
         fix_point = np.zeros(3)
 
         # find resting reference position
-        rest_length = self.param_manager.parameters["L"].value[0]
+        rest_length = self.param_manager.parameters["L"].default[0]
         pos_last_mass_ref = fix_point + np.array(
             [rest_length * (self.cfg.n_mass - 1), 0, 0]
         )
 
-        dyn_param_dict = {k: self.param_manager.parameters[k].value for k in "LDCmw"}
+        dyn_param_dict = {k: self.param_manager.parameters[k].default for k in "LDCmw"}
 
         resting_chain_solver = RestingChainSolver(
             n_mass=self.cfg.n_mass,
@@ -109,7 +113,7 @@ class ChainController(ParameterizedController):
         )
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        p_stagewise = self.param_manager.combine_parameter_values(
+        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )
         ctx, u0, x, u, value = self.diff_mpc(
@@ -122,8 +126,7 @@ class ChainController(ParameterizedController):
 
     @property
     def param_space(self) -> gym.Space:
-        low, high = self.param_manager.get_p_global_bounds()
-        return gym.spaces.Box(low=low, high=high, dtype=np.float64)  # type:ignore
+        return self.param_manager.get_param_space(dtype=np.float64)
 
     def default_param(self, obs) -> np.ndarray:
-        return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
+        return self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore

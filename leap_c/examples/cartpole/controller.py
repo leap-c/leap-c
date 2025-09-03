@@ -14,7 +14,7 @@ from leap_c.examples.cartpole.acados_ocp import (
     export_parametric_ocp,
 )
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
-from leap_c.ocp.acados.parameters import AcadosParamManager, Parameter
+from leap_c.ocp.acados.parameters import AcadosParameterManager, AcadosParameter
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
@@ -53,7 +53,7 @@ class CartPoleController(ParameterizedController):
     def __init__(
         self,
         cfg: CartPoleControllerConfig | None = None,
-        params: list[Parameter] | None = None,
+        params: list[AcadosParameter] | None = None,
         export_directory: Path | None = None,
     ):
         """Initializes the CartPoleController.
@@ -70,13 +70,16 @@ class CartPoleController(ParameterizedController):
         super().__init__()
         self.cfg = CartPoleControllerConfig() if cfg is None else cfg
         params = (
-            create_cartpole_params(self.cfg.param_interface)
+            create_cartpole_params(
+                param_interface=self.cfg.param_interface,
+                N_horizon=self.cfg.N_horizon,
+            )
             if params is None
             else params
         )
 
-        self.param_manager = AcadosParamManager(
-            params=params, N_horizon=self.cfg.N_horizon
+        self.param_manager = AcadosParameterManager(
+            parameters=params, N_horizon=self.cfg.N_horizon
         )
 
         self.ocp = export_parametric_ocp(
@@ -92,7 +95,7 @@ class CartPoleController(ParameterizedController):
         self.diff_mpc = AcadosDiffMpc(self.ocp, export_directory=export_directory)
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        p_stagewise = self.param_manager.combine_parameter_values(
+        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )
         ctx, u0, x, u, value = self.diff_mpc(
@@ -105,8 +108,7 @@ class CartPoleController(ParameterizedController):
 
     @property
     def param_space(self) -> gym.Space:
-        low, high = self.param_manager.get_p_global_bounds()
-        return gym.spaces.Box(low=low, high=high, dtype=np.float32)  # type:ignore
+        return self.param_manager.get_param_space(dtype=np.float32)
 
     def default_param(self, obs) -> np.ndarray:
-        return self.param_manager.p_global_values.cat.full().flatten()  # type:ignore
+        return self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore
