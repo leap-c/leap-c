@@ -835,7 +835,8 @@ def test_combine_parameter_values_complex():
             )
 
             # matrix_non_learnable should use the random overwrite values (flattened)
-            expected_matrix_flat = matrix_non_learnable[batch_idx, stage_idx, :, :].flatten(order='F')
+            # Note: overwrite values use C-order flattening, unlike default values which use F-order
+            expected_matrix_flat = matrix_non_learnable[batch_idx, stage_idx, :, :].flatten(order='C')
             np.testing.assert_array_equal(
                 result[batch_idx, stage_idx, 3:7], 
                 expected_matrix_flat
@@ -903,6 +904,35 @@ def test_param_manager_combine_parameter_values(
         N_horizon + 1,
         acados_param_manager.non_learnable_parameters_default.cat.shape[0],
     ), "The shape of the combined parameter values does not match the expected shape."
+
+    # Verify that the overwritten parameter values are correctly incorporated
+    param_start_idx = 0
+    for key in keys:
+        param_dim = acados_param_manager.non_learnable_parameters_default[key].shape[0]
+        param_end_idx = param_start_idx + param_dim
+        
+        # Check that the overwritten values match exactly
+        for batch_idx in range(batch_size):
+            for stage_idx in range(N_horizon + 1):
+                np.testing.assert_array_equal(
+                    res[batch_idx, stage_idx, param_start_idx:param_end_idx],
+                    overwrite[key][batch_idx, stage_idx, :],
+                    err_msg=f"Mismatch in parameter '{key}' at batch {batch_idx}, stage {stage_idx}"
+                )
+        
+        param_start_idx = param_end_idx
+
+    # Verify that indicator values are correctly set (they should be at the end)
+    indicator_start_idx = param_start_idx
+    for batch_idx in range(batch_size):
+        for stage_idx in range(N_horizon + 1):
+            expected_indicator = np.zeros(N_horizon + 1)
+            expected_indicator[stage_idx] = 1.0
+            np.testing.assert_array_equal(
+                res[batch_idx, stage_idx, indicator_start_idx:],
+                expected_indicator,
+                err_msg=f"Mismatch in indicator values at batch {batch_idx}, stage {stage_idx}"
+            )
 
 
 def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
