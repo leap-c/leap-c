@@ -6,44 +6,66 @@ import numpy as np
 from acados_template import AcadosOcp
 from casadi.tools import entry, struct, struct_symSX
 import gymnasium as gym
+from leap_c.parameters import Parameter as BaseParameter
 
 
-class Parameter(NamedTuple):
+class AcadosParameter(NamedTuple):
     """
-    High-level parameter class for flexible optimization parameter configuration.
+    High-level parameter class for flexible optimization parameter configuration with acados extensions.
 
-    This class provides a user-friendly interface for defining parameter sets without
+    This class extends the base Parameter functionality with acados-specific features like vary_stages.
+    It provides a user-friendly interface for defining parameter sets without
     requiring knowledge of internal CasADi tools or acados interface details. It supports
     configurable properties for bounds, differentiability, and parameter behavior.
 
     Attributes:
         name: The name identifier for the parameter.
-        value: The parameter's numerical value(s).
-        lower_bound: Lower bounds for the parameter values.
-            Defaults to None (unbounded).
-        upper_bound: Upper bounds for the parameter values.
-            Defaults to None (unbounded).
-        interface: Parameter interface type. Either "fix" (fixed values), 
-            "learnable" (optimizable parameters), or "non-learnable" 
+        default: The parameter's default numerical value(s).
+        space: A gym.spaces.Space defining the valid parameter space.
+            Only used for learnable parameters. Defaults to None (unbounded).
+        interface: Parameter interface type. Either "fix" (fixed values),
+            "learnable" (optimizable parameters), or "non-learnable"
             (non-optimizable but changeable). Defaults to "fix".
-        vary_stages: List of stages after which the parameter varies. 
-            Only used for "learnable" interface. If None, parameter 
+        vary_stages: List of stages after which the parameter varies.
+            Only used for "learnable" interface. If None, parameter
             remains constant across all stages. Defaults to None.
     """
 
+    # Fields from base Parameter class
     name: str
-    value: np.ndarray
-    lower_bound: np.ndarray | None = None
-    upper_bound: np.ndarray | None = None
+    default: np.ndarray
+    space: gym.spaces.Space | None = None
     interface: Literal["fix", "learnable", "non-learnable"] = "fix"
-    # Indicates the stages after which the parameter varies. Only used for "learnable".
+    # Additional acados-specific field
     vary_stages: list[int] = []
+
+    @classmethod
+    def from_base_parameter(
+        cls, base_param: BaseParameter, vary_stages: list[int] = None
+    ):
+        """Create an acados Parameter from a base Parameter."""
+        return cls(
+            name=base_param.name,
+            default=base_param.default,
+            space=base_param.space,
+            interface=base_param.interface,
+            vary_stages=vary_stages or [],
+        )
+
+    def to_base_parameter(self) -> BaseParameter:
+        """Convert to base Parameter (loses vary_stages information)."""
+        return BaseParameter(
+            name=self.name,
+            default=self.default,
+            space=self.space,
+            interface=self.interface,
+        )
 
 
 class AcadosParameterManager:
     """Manager for acados parameters."""
 
-    parameters: dict[str, Parameter] = {}
+    parameters: dict[str, AcadosParameter] = {}
     learnable_parameters: struct_symSX | None = None
     learnable_parameters_default: struct | None = None
     non_learnable_parameters: struct_symSX | None = None
@@ -51,7 +73,7 @@ class AcadosParameterManager:
 
     def __init__(
         self,
-        parameters: list[Parameter],
+        parameters: list[AcadosParameter],
         N_horizon: int,
     ) -> None:
         if not parameters:
@@ -64,23 +86,31 @@ class AcadosParameterManager:
 
         # Validate parameter dimensions before storing
         for param in parameters:
-            if param.value.ndim > 2:
+            if param.default.ndim > 2:
                 raise ValueError(
-                    f"Parameter '{param.name}' has {param.value.ndim} dimensions, "
+                    f"Parameter '{param.name}' has {param.default.ndim} dimensions, "
                     f"but CasADi only supports arrays up to 2 dimensions. "
-                    f"Parameter shape: {param.value.shape}"
+                    f"Parameter shape: {param.default.shape}"
                 )
-            if param.lower_bound is not None and param.lower_bound.ndim > 2:
+            if (
+                param.space is not None
+                and hasattr(param.space, "low")
+                and param.space.low.ndim > 2
+            ):
                 raise ValueError(
-                    f"Parameter '{param.name}' lower_bound has {param.lower_bound.ndim} dimensions, "
+                    f"Parameter '{param.name}' space.low has {param.space.low.ndim} dimensions, "
                     f"but CasADi only supports arrays up to 2 dimensions. "
-                    f"Lower bound shape: {param.lower_bound.shape}"
+                    f"Lower bound shape: {param.space.low.shape}"
                 )
-            if param.upper_bound is not None and param.upper_bound.ndim > 2:
+            if (
+                param.space is not None
+                and hasattr(param.space, "high")
+                and param.space.high.ndim > 2
+            ):
                 raise ValueError(
-                    f"Parameter '{param.name}' upper_bound has {param.upper_bound.ndim} dimensions, "
+                    f"Parameter '{param.name}' space.high has {param.space.high.ndim} dimensions, "
                     f"but CasADi only supports arrays up to 2 dimensions. "
-                    f"Upper bound shape: {param.upper_bound.shape}"
+                    f"Upper bound shape: {param.space.high.shape}"
                 )
             if param.vary_stages and param.vary_stages[-1] > N_horizon:
                 raise ValueError(
@@ -97,7 +127,7 @@ class AcadosParameterManager:
             "non-learnable": [],
         }
 
-        def _add_learnable_parameter_entries(name: str, parameter: Parameter):
+        def _add_learnable_parameter_entries(name: str, parameter: AcadosParameter):
             interface_type = "learnable"
             if parameter.vary_stages:
                 self.need_indicator = True
@@ -112,16 +142,18 @@ class AcadosParameterManager:
                     entries[interface_type].append(
                         entry(
                             f"{name}_{start}_{end}",
-                            shape=parameter.value.shape,
+                            shape=parameter.default.shape,
                         )
                     )
             else:
-                entries[interface_type].append(entry(name, shape=parameter.value.shape))
+                entries[interface_type].append(
+                    entry(name, shape=parameter.default.shape)
+                )
 
-        def _add_non_learnable_parameter_entries(name: str, parameter: Parameter):
+        def _add_non_learnable_parameter_entries(name: str, parameter: AcadosParameter):
             interface_type = "non-learnable"
             # Non-learnable parameters are by construction for each stage
-            entries[interface_type].append(entry(name, shape=parameter.value.shape))
+            entries[interface_type].append(entry(name, shape=parameter.default.shape))
 
         self.need_indicator = False
         for name, parameter in self.parameters.items():
@@ -165,13 +197,13 @@ class AcadosParameterManager:
 
                 if name in self.parameters:
                     param = self.parameters[name]
-                    struct_dict["default"][key] = param.value
-                    if param.lower_bound is not None:
-                        struct_dict["lb"][key] = param.lower_bound
+                    struct_dict["default"][key] = param.default
+                    if param.space is not None and hasattr(param.space, "low"):
+                        struct_dict["lb"][key] = param.space.low
                     else:
                         struct_dict["lb"][key] = -np.inf
-                    if param.upper_bound is not None:
-                        struct_dict["ub"][key] = param.upper_bound
+                    if param.space is not None and hasattr(param.space, "high"):
+                        struct_dict["ub"][key] = param.space.high
                     else:
                         struct_dict["ub"][key] = np.inf
 
@@ -189,7 +221,9 @@ class AcadosParameterManager:
         self.non_learnable_parameters_default = self.non_learnable_parameters(0)
         for key in self.parameters.keys():
             if self.parameters[key].interface == "non-learnable":
-                self.non_learnable_parameters_default[key] = self.parameters[key].value
+                self.non_learnable_parameters_default[key] = self.parameters[
+                    key
+                ].default
 
     def combine_non_learnable_parameter_values(
         self,
@@ -256,11 +290,36 @@ class AcadosParameterManager:
 
     def get_param_space(self, dtype: np.dtype = np.float32) -> gym.Space:
         """Get the Gym space for the parameters."""
-        return gym.spaces.Box(
-            low=self.learnable_parameters_lb.cat.full(),
-            high=self.learnable_parameters_ub.cat.full(),
-            dtype=dtype,
-        )
+        learnable_spaces = []
+
+        for name, param in self.parameters.items():
+            if param.interface == "learnable":
+                if param.space is not None:
+                    learnable_spaces.append(param.space)
+                else:
+                    # Create unbounded space for parameters without bounds
+                    param_shape = param.default.shape
+                    unbounded_space = gym.spaces.Box(
+                        low=-np.inf,
+                        high=np.inf,
+                        shape=param_shape,
+                        dtype=dtype,
+                    )
+                    learnable_spaces.append(unbounded_space)
+
+        if not learnable_spaces:
+            # No learnable parameters - return empty box space
+            return gym.spaces.Box(low=np.array([]), high=np.array([]), dtype=dtype)
+        elif len(learnable_spaces) == 1:
+            # Single space - flatten it to ensure consistent return type
+            space = learnable_spaces[0]
+            return gym.spaces.Box(
+                low=space.low.flatten(), high=space.high.flatten(), dtype=space.dtype
+            )
+        else:
+            # Multiple spaces
+            tuple_space = gym.spaces.Tuple(learnable_spaces)
+            return gym.spaces.utils.flatten_space(tuple_space)
 
     def get(
         self,
@@ -274,7 +333,7 @@ class AcadosParameterManager:
             )
 
         if self.parameters[field].interface == "fix":
-            return self.parameters[field].value
+            return self.parameters[field].default
 
         if (
             self.parameters[field].interface == "learnable"

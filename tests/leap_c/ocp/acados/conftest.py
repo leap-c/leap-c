@@ -3,79 +3,80 @@ from itertools import chain
 import casadi as ca
 import numpy as np
 import pytest
+import gymnasium as gym
 from acados_template import AcadosOcp, AcadosOcpOptions
 
 from leap_c.ocp.acados.parameters import (
     AcadosParameterManager,
-    Parameter,
+    AcadosParameter,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 @pytest.fixture(scope="session")
-def nominal_params() -> tuple[Parameter, ...]:
+def nominal_params() -> tuple[AcadosParameter, ...]:
     return (
-        Parameter(
+        AcadosParameter(
             name="m",
-            value=np.array([1.0]),
-            lower_bound=np.array([0.5]),
-            upper_bound=np.array([1.5]),
+            default=np.array([1.0]),
             interface="non-learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="cx",
-            value=np.array([0.1]),
-            lower_bound=np.array([0.05]),
-            upper_bound=np.array([0.15]),
+            default=np.array([0.1]),
             interface="non-learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="cy",
-            value=np.array([0.1]),
-            lower_bound=np.array([0.05]),
-            upper_bound=np.array([0.15]),
+            default=np.array([0.1]),
             interface="non-learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="q_diag",
-            value=np.array([1.0, 1.0, 1.0, 1.0]),
-            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
-            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
+            default=np.array([1.0, 1.0, 1.0, 1.0]),
+            space=gym.spaces.Box(
+                low=np.array([0.5, 0.5, 0.5, 0.5]), high=np.array([1.5, 1.5, 1.5, 1.5])
+            ),
             interface="learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="r_diag",
-            value=np.array([0.1, 0.1]),
-            lower_bound=np.array([0.05, 0.05]),
-            upper_bound=np.array([0.15, 0.15]),
+            default=np.array([0.1, 0.1]),
+            space=gym.spaces.Box(
+                low=np.array([0.05, 0.05]), high=np.array([0.15, 0.15])
+            ),
             interface="learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="q_diag_e",
-            value=np.array([1.0, 1.0, 1.0, 1.0]),
-            lower_bound=np.array([0.5, 0.5, 0.5, 0.5]),
-            upper_bound=np.array([1.5, 1.5, 1.5, 1.5]),
+            default=np.array([1.0, 1.0, 1.0, 1.0]),
+            space=gym.spaces.Box(
+                low=np.array([0.5, 0.5, 0.5, 0.5]), high=np.array([1.5, 1.5, 1.5, 1.5])
+            ),
             interface="learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="xref",
-            value=np.array([0.0, 0.0, 0.0, 0.0]),
-            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
-            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
+            default=np.array([0.0, 0.0, 0.0, 0.0]),
+            space=gym.spaces.Box(
+                low=np.array([-1.0, -1.0, -1.0, -1.0]),
+                high=np.array([1.0, 1.0, 1.0, 1.0]),
+            ),
             interface="learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="uref",
-            value=np.array([0.0, 0.0]),
-            lower_bound=np.array([-1.0, -1.0]),
-            upper_bound=np.array([1.0, 1.0]),
+            default=np.array([0.0, 0.0]),
+            space=gym.spaces.Box(low=np.array([-1.0, -1.0]), high=np.array([1.0, 1.0])),
             interface="learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="xref_e",
-            value=np.array([0.0, 0.0, 0.0, 0.0]),
-            lower_bound=np.array([-1.0, -1.0, -1.0, -1.0]),
-            upper_bound=np.array([1.0, 1.0, 1.0, 1.0]),
+            default=np.array([0.0, 0.0, 0.0, 0.0]),
+            space=gym.spaces.Box(
+                low=np.array([-1.0, -1.0, -1.0, -1.0]),
+                high=np.array([1.0, 1.0, 1.0, 1.0]),
+            ),
             interface="learnable",
         ),
     )
@@ -150,9 +151,9 @@ def ocp_options(request: pytest.FixtureRequest) -> AcadosOcpOptions:
 
 @pytest.fixture(scope="session")
 def nominal_stagewise_params(
-    nominal_params: tuple[Parameter, ...],
+    nominal_params: tuple[AcadosParameter, ...],
     ocp_options: AcadosOcpOptions,
-) -> tuple[Parameter, ...]:
+) -> tuple[AcadosParameter, ...]:
     """Copy nominal_params and modify specific parameters to be stagewise."""
 
     N_horizon = ocp_options.N_horizon
@@ -170,7 +171,7 @@ def nominal_stagewise_params(
             # Create new parameter with overridden fields
             kwargs = param._asdict()
             kwargs.update(stagewise_overrides[param.name])
-            modified_params.append(Parameter(**kwargs))
+            modified_params.append(AcadosParameter(**kwargs))
         else:
             modified_params.append(param)
 
@@ -180,7 +181,7 @@ def nominal_stagewise_params(
 @pytest.fixture(scope="session")
 def acados_test_ocp_no_p_global(
     ocp_options: AcadosOcpOptions,
-    nominal_params: tuple[Parameter, ...],
+    nominal_params: tuple[AcadosParameter, ...],
 ) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp"
@@ -197,11 +198,10 @@ def acados_test_ocp_no_p_global(
 
     # Make a copy of the nominal parameters where differentiable and stagewise is set to False everywhere
     params = tuple(
-        Parameter(
+        AcadosParameter(
             name=param.name,
-            value=param.value,
-            lower_bound=param.lower_bound,
-            upper_bound=param.upper_bound,
+            default=param.default,
+            space=param.space,
             interface="fix",
         )
         for param in nominal_params
@@ -243,16 +243,16 @@ def acados_test_ocp_no_p_global(
     )
     ocp.cost.yref_0 = np.concatenate(
         [
-            param_manager.parameters["xref"].value,
-            param_manager.parameters["uref"].value,
+            param_manager.parameters["xref"].default,
+            param_manager.parameters["uref"].default,
         ]
     )
 
     ocp.cost.W_0 = np.diag(
         np.concatenate(
             [
-                param_manager.parameters["q_diag"].value,
-                param_manager.parameters["r_diag"].value,
+                param_manager.parameters["q_diag"].default,
+                param_manager.parameters["r_diag"].default,
             ]
         )
     )
@@ -270,8 +270,8 @@ def acados_test_ocp_no_p_global(
     # Terminal cost
     ocp.cost.cost_type_e = "NONLINEAR_LS"
     ocp.model.cost_y_expr_e = ocp.model.x
-    ocp.cost.yref_e = param_manager.parameters["xref_e"].value
-    ocp.cost.W_e = np.diag(param_manager.parameters["q_diag_e"].value)
+    ocp.cost.yref_e = param_manager.parameters["xref_e"].default
+    ocp.cost.W_e = np.diag(param_manager.parameters["q_diag_e"].default)
     ocp.cost.W_e = ocp.cost.W_e @ ocp.cost.W_e.T
 
     ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
@@ -386,7 +386,7 @@ def define_constraints(ocp: AcadosOcp, param_manager: AcadosParameterManager) ->
 @pytest.fixture(scope="session", params=["external", "nonlinear_ls"])
 def acados_test_ocp(
     ocp_options: AcadosOcpOptions,
-    nominal_params: tuple[Parameter, ...],
+    nominal_params: tuple[AcadosParameter, ...],
     request: pytest.FixtureRequest,
 ) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
@@ -464,7 +464,7 @@ def acados_test_ocp(
 @pytest.fixture(scope="session")
 def acados_test_ocp_with_stagewise_varying_params(
     ocp_options: AcadosOcpOptions,
-    nominal_stagewise_params: tuple[Parameter, ...],
+    nominal_stagewise_params: tuple[AcadosParameter, ...],
 ) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp_with_stagewise_varying_params"
@@ -503,7 +503,7 @@ def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpc:
 @pytest.fixture(scope="session")
 def diff_mpc_with_stagewise_varying_params(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
-    nominal_stagewise_params: tuple[Parameter, ...],
+    nominal_stagewise_params: tuple[AcadosParameter, ...],
     print_level: int = 0,
 ) -> AcadosDiffMpc:
     diff_mpc = AcadosDiffMpc(

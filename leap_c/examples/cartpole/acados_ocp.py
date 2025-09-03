@@ -5,7 +5,7 @@ import numpy as np
 
 from acados_template import AcadosModel, AcadosOcp
 from leap_c.examples.utils.casadi import integrate_erk4
-from leap_c.ocp.acados.parameters import Parameter, AcadosParameterManager
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 
 CartPoleAcadosParamInterface = Literal["global", "stagewise"]
@@ -15,28 +15,28 @@ CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 def create_cartpole_params(
     param_interface: CartPoleAcadosParamInterface,
     N_horizon: int = 50,
-) -> list[Parameter]:
+) -> list[AcadosParameter]:
     """Returns a list of parameters used in cartpole."""
     return [
         # Dynamics parameters
-        Parameter("M", np.array([1.0])),  # mass of the cart [kg]
-        Parameter("m", np.array([0.1])),  # mass of the ball [kg]
-        Parameter("g", np.array([9.81])),  # gravity constant [m/s^2]
-        Parameter("l", np.array([0.8])),  # length of the rod [m]
+        AcadosParameter("M", np.array([1.0])),  # mass of the cart [kg]
+        AcadosParameter("m", np.array([0.1])),  # mass of the ball [kg]
+        AcadosParameter("g", np.array([9.81])),  # gravity constant [m/s^2]
+        AcadosParameter("l", np.array([0.8])),  # length of the rod [m]
         # Cost matrix factorization parameters
-        Parameter(
+        AcadosParameter(
             "q_diag_sqrt", np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))
         ),  # cost on state residuals
-        Parameter(
+        AcadosParameter(
             "r_diag_sqrt", np.sqrt(np.array([2e-1]))
         ),  # cost on control input residuals
         # Reference parameters
-        Parameter(
+        AcadosParameter(
             "xref0",
             np.array([0.0]),
             interface="non-learnable",
         ),  # reference position
-        Parameter(
+        AcadosParameter(
             "xref1",
             np.array([0.0]),
             lower_bound=np.array([-2.0 * np.pi]),
@@ -46,17 +46,17 @@ def create_cartpole_params(
             if param_interface == "stagewise"
             else [],
         ),  # reference theta
-        Parameter(
+        AcadosParameter(
             "xref2",
             np.array([0.0]),
             interface="non-learnable",
         ),  # reference v
-        Parameter(
+        AcadosParameter(
             "xref3",
             np.array([0.0]),
             interface="non-learnable",
         ),  # reference thetadot
-        Parameter(
+        AcadosParameter(
             "uref",
             np.array([0.0]),
             interface="non-learnable",

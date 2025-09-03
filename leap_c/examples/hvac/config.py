@@ -3,7 +3,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 from scipy.constants import convert_temperature
 
-from leap_c.ocp.acados.parameters import Parameter
+from leap_c.ocp.acados.parameters import AcadosParameter
 
 
 @dataclass
@@ -78,13 +78,13 @@ class BestestHydronicHeatpumpParameters(BestestParameters):
     eta: float = 0.98
 
 
-def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
+def make_default_hvac_params(stagewise: bool = False) -> tuple[AcadosParameter, ...]:
     """Return a tuple of default parameters for the hvac problem."""
     hydronic_params = BestestHydronicParameters().to_dict()
 
     # NOTE: Only include parameters that are relevant for the parametric OCP.
     params = [
-        Parameter(
+        AcadosParameter(
             name=k,
             value=np.array([v]),
             lower_bound=0.95 * np.array([v]),
@@ -109,7 +109,7 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
 
     params.extend(
         [
-            Parameter(
+            AcadosParameter(
                 name="Ta",  # Ambient temperature in Kelvin
                 value=np.array([convert_temperature(20.0, "celsius", "kelvin")]),
                 lower_bound=np.array([convert_temperature(-20.0, "celsius", "kelvin")]),
@@ -118,7 +118,7 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
                 differentiable=True,
                 stagewise=stagewise,
             ),
-            Parameter(
+            AcadosParameter(
                 name="Phi_s",
                 value=np.array([200.0]),  # Solar radiation in W/m²
                 lower_bound=np.array([0.0]),
@@ -127,7 +127,7 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
                 differentiable=True,
                 stagewise=stagewise,
             ),
-            Parameter(
+            AcadosParameter(
                 name="price",
                 value=np.array([0.15]),  # Electricity price in €/kWh
                 lower_bound=np.array([0.00]),
@@ -142,7 +142,7 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
     # Comfort constraints for indoor temperature
     params.extend(
         [
-            Parameter(
+            AcadosParameter(
                 name="lb_Ti",
                 value=np.array([convert_temperature(17.0, "celsius", "kelvin")]),
                 lower_bound=np.array([convert_temperature(15.0, "celsius", "kelvin")]),
@@ -151,7 +151,7 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
                 differentiable=False,
                 stagewise=stagewise,
             ),
-            Parameter(
+            AcadosParameter(
                 name="ub_Ti",
                 value=np.array([convert_temperature(23.0, "celsius", "kelvin")]),
                 lower_bound=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
@@ -160,7 +160,7 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
                 differentiable=False,
                 stagewise=stagewise,
             ),
-            Parameter(
+            AcadosParameter(
                 name="ref_Ti",
                 value=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
                 lower_bound=np.array([convert_temperature(10.0, "celsius", "kelvin")]),
@@ -174,7 +174,7 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
 
     params.extend(
         [
-            Parameter(
+            AcadosParameter(
                 name="q_Ti",
                 value=np.array([0.001]),  # weight on rate of change of heater power
                 lower_bound=np.array([0.0001]),
@@ -183,7 +183,7 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
                 differentiable=True,
                 stagewise=stagewise,
             ),
-            Parameter(
+            AcadosParameter(
                 name="q_dqh",
                 value=np.array([1.0]),  # weight on rate of change of heater power
                 lower_bound=np.array([0.5]),
@@ -192,7 +192,7 @@ def make_default_hvac_params(stagewise: bool = False) -> tuple[Parameter, ...]:
                 differentiable=True,
                 stagewise=stagewise,
             ),
-            Parameter(
+            AcadosParameter(
                 name="q_ddqh",
                 value=np.array([1.0]),  # weight for acceleration of heater power
                 lower_bound=np.array([0.5]),

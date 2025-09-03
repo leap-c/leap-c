@@ -4,7 +4,7 @@ import casadi as ca
 import numpy as np
 
 from acados_template import AcadosOcp
-from leap_c.ocp.acados.parameters import Parameter, AcadosParameterManager
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 
 PointMassAcadosParamInterface = Literal["global", "stagewise"]
@@ -14,7 +14,7 @@ def create_pointmass_params(
     param_interface: PointMassAcadosParamInterface,
     x_ref_value: np.ndarray | None = None,
     N_horizon: int = 20,
-) -> list[Parameter]:
+) -> list[AcadosParameter]:
     """Returns a list of parameters used in pointmass."""
 
     q_diag_sqrt = np.array([1.0, 1.0, 1.0, 1.0])
@@ -25,11 +25,11 @@ def create_pointmass_params(
 
     return [
         # mass and friction parameters
-        Parameter("m", np.array([1.0])),  # mass [kg]
-        Parameter("cx", np.array([0.1])),  # x friction coefficient
-        Parameter("cy", np.array([0.1])),  # y friction coefficient
+        AcadosParameter("m", np.array([1.0])),  # mass [kg]
+        AcadosParameter("cx", np.array([0.1])),  # x friction coefficient
+        AcadosParameter("cy", np.array([0.1])),  # y friction coefficient
         # cost function parameters
-        Parameter(
+        AcadosParameter(
             "q_diag_sqrt",
             q_diag_sqrt,
             lower_bound=0.5 * q_diag_sqrt,
@@ -39,7 +39,7 @@ def create_pointmass_params(
             if param_interface == "stagewise"
             else [],
         ),  # state cost
-        Parameter(
+        AcadosParameter(
             "r_diag_sqrt",
             r_diag_sqrt,
             lower_bound=0.5 * r_diag_sqrt,
@@ -50,7 +50,7 @@ def create_pointmass_params(
             else [],
         ),  # control cost
         # reference parameters
-        Parameter(
+        AcadosParameter(
             "x_ref",
             x_ref_value,
             lower_bound=np.array([0.0, 0.0, -20, -20]),
@@ -60,7 +60,7 @@ def create_pointmass_params(
             if param_interface == "stagewise"
             else [],
         ),  # x reference
-        Parameter(
+        AcadosParameter(
             "u_ref",
             np.array([0.0, 0.0]),
             lower_bound=np.array([-10.0, -10.0]),

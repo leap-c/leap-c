@@ -15,7 +15,7 @@ from .util import transcribe_discrete_state_space
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.hvac.config import make_default_hvac_params
-from leap_c.ocp.acados.parameters import AcadosParameterManager, Parameter
+from leap_c.ocp.acados.parameters import AcadosParameterManager, AcadosParameter
 from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
 
@@ -45,7 +45,7 @@ class HvacController(ParameterizedController):
 
     def __init__(
         self,
-        params: tuple[Parameter, ...] | None = None,
+        params: tuple[AcadosParameter, ...] | None = None,
         stagewise: bool = False,
         N_horizon: int = 96,  # 24 hours in 15 minutes time steps
         diff_mpc_kwargs: dict[str, Any] | None = None,

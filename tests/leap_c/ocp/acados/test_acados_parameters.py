@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
-from leap_c.ocp.acados.parameters import Parameter, AcadosParameterManager
+import gymnasium as gym
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 import casadi as ca
 
 import torch
@@ -12,8 +13,10 @@ from leap_c.ocp.acados.torch import AcadosDiffMpc
 def test_acados_param_manager_basic_initialization():
     """Test basic initialization of AcadosParamManager."""
     params = [
-        Parameter(name="scalar", value=np.array([1.0]), interface="fix"),
-        Parameter(name="vector", value=np.array([2.0, 3.0]), interface="learnable"),
+        AcadosParameter(name="scalar", default=np.array([1.0]), interface="fix"),
+        AcadosParameter(
+            name="vector", default=np.array([2.0, 3.0]), interface="learnable"
+        ),
     ]
 
     manager = AcadosParameterManager(params, N_horizon=10)
@@ -27,10 +30,14 @@ def test_acados_param_manager_basic_initialization():
 def test_parameter_interface_fix():
     """Test fixed parameters (interface='fix')."""
     params = [
-        Parameter(name="scalar_fix", value=np.array([1.0]), interface="fix"),
-        Parameter(name="vector_fix", value=np.array([2.0, 3.0]), interface="fix"),
-        Parameter(
-            name="matrix_fix", value=np.array([[4.0, 5.0], [6.0, 7.0]]), interface="fix"
+        AcadosParameter(name="scalar_fix", default=np.array([1.0]), interface="fix"),
+        AcadosParameter(
+            name="vector_fix", default=np.array([2.0, 3.0]), interface="fix"
+        ),
+        AcadosParameter(
+            name="matrix_fix",
+            default=np.array([[4.0, 5.0], [6.0, 7.0]]),
+            interface="fix",
         ),
     ]
 
@@ -44,15 +51,15 @@ def test_parameter_interface_fix():
 def test_parameter_interface_learnable_no_vary_stages():
     """Test learnable parameters without vary_stages."""
     params = [
-        Parameter(
-            name="scalar_learnable", value=np.array([1.0]), interface="learnable"
+        AcadosParameter(
+            name="scalar_learnable", default=np.array([1.0]), interface="learnable"
         ),
-        Parameter(
-            name="vector_learnable", value=np.array([2.0, 3.0]), interface="learnable"
+        AcadosParameter(
+            name="vector_learnable", default=np.array([2.0, 3.0]), interface="learnable"
         ),
-        Parameter(
+        AcadosParameter(
             name="matrix_learnable",
-            value=np.array([[4.0, 5.0], [6.0, 7.0]]),
+            default=np.array([[4.0, 5.0], [6.0, 7.0]]),
             interface="learnable",
         ),
     ]
@@ -82,15 +89,15 @@ def test_parameter_interface_learnable_no_vary_stages():
 def test_parameter_interface_learnable_with_vary_stages():
     """Test learnable parameters with vary_stages."""
     params = [
-        Parameter(
+        AcadosParameter(
             name="price",
-            value=np.array([10.0]),
+            default=np.array([10.0]),
             interface="learnable",
             vary_stages=[3, 7],  # Changes at stages 3 and 7
         ),
-        Parameter(
+        AcadosParameter(
             name="demand",
-            value=np.array([5.0, 6.0]),
+            default=np.array([5.0, 6.0]),
             interface="learnable",
             vary_stages=[2, 5, 8],  # Changes at stages 2, 5, and 8
         ),
@@ -132,19 +139,19 @@ def test_parameter_interface_learnable_with_vary_stages():
 def test_parameter_interface_non_learnable_no_vary_stages():
     """Test non-learnable parameters without vary_stages."""
     params = [
-        Parameter(
+        AcadosParameter(
             name="scalar_non_learnable",
-            value=np.array([1.0]),
+            default=np.array([1.0]),
             interface="non-learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="vector_non_learnable",
-            value=np.array([2.0, 3.0]),
+            default=np.array([2.0, 3.0]),
             interface="non-learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="matrix_non_learnable",
-            value=np.array([[4.0, 5.0], [6.0, 7.0]]),
+            default=np.array([[4.0, 5.0], [6.0, 7.0]]),
             interface="non-learnable",
         ),
     ]
@@ -182,53 +189,62 @@ def test_parameter_bounds_learnable():
     """Test parameter bounds for learnable parameters."""
     params = [
         # Unbounded parameter
-        Parameter(
+        AcadosParameter(
             name="unbounded",
-            value=np.array([1.0]),
+            default=np.array([1.0]),
             interface="learnable",
         ),
-        # Parameter with only lower bound
-        Parameter(
+        # Parameter with bounds
+        AcadosParameter(
             name="lower_bounded",
-            value=np.array([2.0]),
-            lower_bound=np.array([0.0]),
+            default=np.array([2.0]),
+            space=gym.spaces.Box(low=np.array([0.0]), high=np.array([np.inf])),
             interface="learnable",
         ),
-        # Parameter with only upper bound
-        Parameter(
+        # Parameter with upper bound only
+        AcadosParameter(
             name="upper_bounded",
-            value=np.array([3.0]),
-            upper_bound=np.array([10.0]),
+            default=np.array([3.0]),
+            space=gym.spaces.Box(low=np.array([-np.inf]), high=np.array([10.0])),
             interface="learnable",
         ),
         # Fully bounded parameter
-        Parameter(
+        AcadosParameter(
             name="fully_bounded",
-            value=np.array([4.0, 5.0]),
-            lower_bound=np.array([-1.0, -2.0]),
-            upper_bound=np.array([10.0, 20.0]),
+            default=np.array([4.0, 5.0]),
+            space=gym.spaces.Box(
+                low=np.array([-1.0, -2.0]), high=np.array([10.0, 20.0])
+            ),
             interface="learnable",
         ),
-        # Matrix with only lower bounds
-        Parameter(
+        # Matrix with lower bounds
+        AcadosParameter(
             name="matrix_lower_bounded",
-            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
-            lower_bound=np.array([[0.0, 0.0], [0.0, 0.0]]),
+            default=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            space=gym.spaces.Box(
+                low=np.array([[0.0, 0.0], [0.0, 0.0]]),
+                high=np.array([[np.inf, np.inf], [np.inf, np.inf]]),
+            ),
             interface="learnable",
         ),
-        # Matrix with only upper bounds
-        Parameter(
+        # Matrix with upper bounds
+        AcadosParameter(
             name="matrix_upper_bounded",
-            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
-            upper_bound=np.array([[10.0, 20.0], [30.0, 40.0]]),
+            default=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            space=gym.spaces.Box(
+                low=np.array([[-np.inf, -np.inf], [-np.inf, -np.inf]]),
+                high=np.array([[10.0, 20.0], [30.0, 40.0]]),
+            ),
             interface="learnable",
         ),
         # Matrix with bounds
-        Parameter(
+        AcadosParameter(
             name="matrix_bounded",
-            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
-            lower_bound=np.array([[0.0, 0.0], [0.0, 0.0]]),
-            upper_bound=np.array([[10.0, 20.0], [30.0, 40.0]]),
+            default=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            space=gym.spaces.Box(
+                low=np.array([[0.0, 0.0], [0.0, 0.0]]),
+                high=np.array([[10.0, 20.0], [30.0, 40.0]]),
+            ),
             interface="learnable",
         ),
     ]
@@ -286,11 +302,10 @@ def test_parameter_bounds_learnable():
 def test_parameter_bounds_learnable_with_vary_stages():
     """Test parameter bounds for learnable parameters with vary_stages."""
     params = [
-        Parameter(
+        AcadosParameter(
             name="bounded_staged",
-            value=np.array([5.0]),
-            lower_bound=np.array([0.0]),
-            upper_bound=np.array([10.0]),
+            default=np.array([5.0]),
+            space=gym.spaces.Box(low=np.array([0.0]), high=np.array([10.0])),
             interface="learnable",
             vary_stages=[3],  # Changes at stage 3
         ),
@@ -319,9 +334,9 @@ def test_parameter_bounds_learnable_with_vary_stages():
 def test_vary_stages_exceed_horizon_error():
     """Test that ValueError is raised when vary_stages exceed N_horizon."""
     params = [
-        Parameter(
+        AcadosParameter(
             name="exceed_horizon",
-            value=np.array([1.0]),
+            default=np.array([1.0]),
             interface="learnable",
             vary_stages=[5, 15, 20],  # 15 and 20 exceed N_horizon=10
         ),
@@ -337,13 +352,13 @@ def test_vary_stages_exceed_horizon_error():
 def test_indicator_creation():
     """Test that indicator is created when vary_stages are used."""
     params_no_vary = [
-        Parameter(name="no_vary", value=np.array([1.0]), interface="learnable"),
+        AcadosParameter(name="no_vary", default=np.array([1.0]), interface="learnable"),
     ]
 
     params_with_vary = [
-        Parameter(
+        AcadosParameter(
             name="with_vary",
-            value=np.array([1.0]),
+            default=np.array([1.0]),
             interface="learnable",
             vary_stages=[3],
         ),
@@ -363,29 +378,33 @@ def test_mixed_parameter_types_and_interfaces():
     """Test complex scenario with mixed parameter types and interfaces."""
     params = [
         # Fixed parameters
-        Parameter(name="fix_scalar", value=np.array([1.0]), interface="fix"),
-        Parameter(
-            name="fix_matrix", value=np.array([[2.0, 3.0], [4.0, 5.0]]), interface="fix"
+        AcadosParameter(name="fix_scalar", default=np.array([1.0]), interface="fix"),
+        AcadosParameter(
+            name="fix_matrix",
+            default=np.array([[2.0, 3.0], [4.0, 5.0]]),
+            interface="fix",
         ),
         # Learnable parameters without vary_stages
-        Parameter(name="learn_scalar", value=np.array([6.0]), interface="learnable"),
-        Parameter(
-            name="learn_vector", value=np.array([7.0, 8.0]), interface="learnable"
+        AcadosParameter(
+            name="learn_scalar", default=np.array([6.0]), interface="learnable"
+        ),
+        AcadosParameter(
+            name="learn_vector", default=np.array([7.0, 8.0]), interface="learnable"
         ),
         # Learnable parameters with vary_stages
-        Parameter(
+        AcadosParameter(
             name="learn_staged",
-            value=np.array([9.0]),
+            default=np.array([9.0]),
             interface="learnable",
             vary_stages=[2, 6],
         ),
         # Non-learnable parameters without vary_stages
-        Parameter(
-            name="non_learn_scalar", value=np.array([10.0]), interface="non-learnable"
+        AcadosParameter(
+            name="non_learn_scalar", default=np.array([10.0]), interface="non-learnable"
         ),
-        Parameter(
+        AcadosParameter(
             name="non_learn_vector",
-            value=np.array([11.0, 12.0]),
+            default=np.array([11.0, 12.0]),
             interface="non-learnable",
         ),
     ]
@@ -421,21 +440,28 @@ def test_mixed_parameter_types_and_interfaces():
 def test_get_p_global_bounds():
     """Test get_p_global_bounds method."""
     params = [
-        Parameter(
+        AcadosParameter(
             name="bounded",
-            value=np.array([1.0, 2.0]),
-            lower_bound=np.array([0.0, -1.0]),
-            upper_bound=np.array([10.0, 20.0]),
+            default=np.array([1.0, 2.0]),
+            space=gym.spaces.Box(
+                low=np.array([0.0, -1.0]), high=np.array([10.0, 20.0])
+            ),
             interface="learnable",
         ),
-        Parameter(name="unbounded", value=np.array([3.0]), interface="learnable"),
+        AcadosParameter(
+            name="unbounded", default=np.array([3.0]), interface="learnable"
+        ),
     ]
 
     manager = AcadosParameterManager(params, N_horizon=5)
 
-    # Should return flattened arrays with shape (n_params, 1) from CasADi
-    expected_lb = np.array([[0.0], [-1.0], [-np.inf]])  # unbounded gets default -inf
-    expected_ub = np.array([[10.0], [20.0], [+np.inf]])  # unbounded gets default +inf
+    # Should return flattened arrays
+    expected_lb = np.array(
+        [0.0, -1.0, -np.inf], dtype=np.float32
+    )  # unbounded gets default -inf
+    expected_ub = np.array(
+        [10.0, 20.0, +np.inf], dtype=np.float32
+    )  # unbounded gets default +inf
 
     np.testing.assert_array_equal(manager.get_param_space().low, expected_lb)
     np.testing.assert_array_equal(manager.get_param_space().high, expected_ub)
@@ -444,7 +470,7 @@ def test_get_p_global_bounds():
 def test_get_method_fix_parameters():
     """Test get method for fixed parameters."""
     params = [
-        Parameter(name="fixed_param", value=np.array([42.0]), interface="fix"),
+        AcadosParameter(name="fixed_param", default=np.array([42.0]), interface="fix"),
     ]
 
     manager = AcadosParameterManager(params, N_horizon=5)
@@ -457,7 +483,9 @@ def test_get_method_fix_parameters():
 def test_get_method_learnable_parameters():
     """Test get method for learnable parameters."""
     params = [
-        Parameter(name="learnable_param", value=np.array([1.0]), interface="learnable"),
+        AcadosParameter(
+            name="learnable_param", default=np.array([1.0]), interface="learnable"
+        ),
     ]
 
     manager = AcadosParameterManager(params, N_horizon=5)
@@ -474,8 +502,10 @@ def test_get_method_learnable_parameters():
 def test_get_method_non_learnable_parameters():
     """Test get method for non-learnable parameters."""
     params = [
-        Parameter(
-            name="non_learnable_param", value=np.array([1.0]), interface="non-learnable"
+        AcadosParameter(
+            name="non_learnable_param",
+            default=np.array([1.0]),
+            interface="non-learnable",
         ),
     ]
 
@@ -493,9 +523,9 @@ def test_get_method_non_learnable_parameters():
 def test_get_method_vary_stages():
     """Test get method for parameters with vary_stages."""
     params = [
-        Parameter(
+        AcadosParameter(
             name="staged_param",
-            value=np.array([1.0]),
+            default=np.array([1.0]),
             interface="learnable",
             vary_stages=[3],
         ),
@@ -520,7 +550,9 @@ def test_get_method_vary_stages():
 def test_get_method_unknown_field():
     """Test get method with unknown field name."""
     params = [
-        Parameter(name="existing_param", value=np.array([1.0]), interface="fix"),
+        AcadosParameter(
+            name="existing_param", default=np.array([1.0]), interface="fix"
+        ),
     ]
 
     manager = AcadosParameterManager(params, N_horizon=5)
@@ -546,9 +578,9 @@ def test_empty_parameter_list():
 def test_parameter_name_with_underscores():
     """Test parameters with underscores in their names (potential conflict with template for stages: {name}_{start}_{end})."""
     params = [
-        Parameter(
+        AcadosParameter(
             name="param_with_underscores",
-            value=np.array([1.0]),
+            default=np.array([1.0]),
             interface="learnable",
             vary_stages=[3],
         ),
@@ -575,12 +607,14 @@ def test_large_dimension_parameters():
     """Test that CasADi limitation with >2D arrays is handled gracefully."""
     # CasADi only supports up to 2D arrays, test that 2D arrays are accepted and work as expected.
     params_2d = [
-        Parameter(
+        AcadosParameter(
             name="matrix_param",
-            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            default=np.array([[1.0, 2.0], [3.0, 4.0]]),
             interface="learnable",
-            lower_bound=np.array([[0.0, 0.0], [0.0, 0.0]]),
-            upper_bound=np.array([[10.0, 10.0], [10.0, 10.0]]),
+            space=gym.spaces.Box(
+                low=np.array([[0.0, 0.0], [0.0, 0.0]]),
+                high=np.array([[10.0, 10.0], [10.0, 10.0]]),
+            ),
         ),
     ]
 
@@ -606,9 +640,9 @@ def test_large_dimension_parameters():
 
     # Test that 3D arrays raise an error
     params_3d = [
-        Parameter(
+        AcadosParameter(
             name="tensor_param",
-            value=np.array([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
+            default=np.array([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
             interface="learnable",
         ),
     ]
@@ -619,29 +653,16 @@ def test_large_dimension_parameters():
     ):
         AcadosParameterManager(params_3d, N_horizon=5)
 
-    # Test that 3D lower bounds raise an error
+    # Test that 3D space bounds raise an error
     params_3d_bounds = [
-        Parameter(
+        AcadosParameter(
             name="tensor_bounds_param",
-            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
-            lower_bound=np.array([[[0.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 0.0]]]),
-            interface="learnable",
-        ),
-    ]
-
-    with pytest.raises(
-        ValueError,
-        match="Parameter 'tensor_bounds_param' lower_bound has 3 dimensions.*CasADi only supports arrays up to 2 dimensions",
-    ):
-        AcadosParameterManager(params_3d_bounds, N_horizon=5)
-
-    # Test that 3D upper bounds raise an error
-    params_3d_upper_bounds = [
-        Parameter(
-            name="tensor_upper_bounds_param",
-            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
-            upper_bound=np.array(
-                [[[10.0, 10.0], [10.0, 10.0]], [[10.0, 10.0], [10.0, 10.0]]]
+            default=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            space=gym.spaces.Box(
+                low=np.array([[[0.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 0.0]]]),
+                high=np.array(
+                    [[[10.0, 10.0], [10.0, 10.0]], [[10.0, 10.0], [10.0, 10.0]]]
+                ),
             ),
             interface="learnable",
         ),
@@ -649,15 +670,17 @@ def test_large_dimension_parameters():
 
     with pytest.raises(
         ValueError,
-        match="Parameter 'tensor_upper_bounds_param' upper_bound has 3 dimensions.*CasADi only supports arrays up to 2 dimensions",
+        match="Parameter 'tensor_bounds_param' space.low has 3 dimensions.*CasADi only supports arrays up to 2 dimensions",
     ):
-        AcadosParameterManager(params_3d_upper_bounds, N_horizon=5)
+        AcadosParameterManager(params_3d_bounds, N_horizon=5)
 
 
 def test_combine_parameter_values():
     """Test that combine_parameter_values method exists but may not be fully implemented."""
     params = [
-        Parameter(name="test_param", value=np.array([1.0]), interface="non-learnable"),
+        AcadosParameter(
+            name="test_param", default=np.array([1.0]), interface="non-learnable"
+        ),
     ]
 
     manager = AcadosParameterManager(params, N_horizon=5)
@@ -671,58 +694,60 @@ def test_combine_parameter_values_complex():
     """Test combine_parameter_values with mixed parameter types, interfaces, and vary_stages."""
     params = [
         # Scalar parameters
-        Parameter(name="scalar_fix", value=np.array([2.0]), interface="fix"),
-        Parameter(
-            name="scalar_learnable", value=np.array([3.0]), interface="learnable"
+        AcadosParameter(name="scalar_fix", default=np.array([2.0]), interface="fix"),
+        AcadosParameter(
+            name="scalar_learnable", default=np.array([3.0]), interface="learnable"
         ),
-        Parameter(
+        AcadosParameter(
             name="scalar_non_learnable",
-            value=np.array([4.0]),
+            default=np.array([4.0]),
             interface="non-learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="scalar_staged",
-            value=np.array([5.0]),
+            default=np.array([5.0]),
             interface="learnable",
             vary_stages=[2, 6],
         ),
         # Vector parameters
-        Parameter(name="vector_fix", value=np.array([1.0, 2.0]), interface="fix"),
-        Parameter(
+        AcadosParameter(
+            name="vector_fix", default=np.array([1.0, 2.0]), interface="fix"
+        ),
+        AcadosParameter(
             name="vector_learnable",
-            value=np.array([6.0, 7.0]),
+            default=np.array([6.0, 7.0]),
             interface="learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="vector_non_learnable",
-            value=np.array([8.0, 9.0]),
+            default=np.array([8.0, 9.0]),
             interface="non-learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="vector_staged",
-            value=np.array([10.0, 11.0]),
+            default=np.array([10.0, 11.0]),
             interface="learnable",
             vary_stages=[3],
         ),
         # Matrix parameters
-        Parameter(
+        AcadosParameter(
             name="matrix_fix",
-            value=np.array([[1.0, 2.0], [3.0, 4.0]]),
+            default=np.array([[1.0, 2.0], [3.0, 4.0]]),
             interface="fix",
         ),
-        Parameter(
+        AcadosParameter(
             name="matrix_learnable",
-            value=np.array([[12.0, 13.0], [14.0, 15.0]]),
+            default=np.array([[12.0, 13.0], [14.0, 15.0]]),
             interface="learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="matrix_non_learnable",
-            value=np.array([[16.0, 17.0], [18.0, 19.0]]),
+            default=np.array([[16.0, 17.0], [18.0, 19.0]]),
             interface="non-learnable",
         ),
-        Parameter(
+        AcadosParameter(
             name="matrix_staged",
-            value=np.array([[20.0, 21.0], [22.0, 23.0]]),
+            default=np.array([[20.0, 21.0], [22.0, 23.0]]),
             interface="learnable",
             vary_stages=[1, 4, 7],
         ),
@@ -795,7 +820,7 @@ def test_combine_parameter_values_complex():
 
 def test_param_manager_combine_parameter_values(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
-    nominal_stagewise_params: tuple[Parameter, ...],
+    nominal_stagewise_params: tuple[AcadosParameter, ...],
     rng: np.random.Generator,
 ) -> None:
     """
@@ -852,7 +877,7 @@ def test_param_manager_combine_parameter_values(
 def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
     diff_mpc: AcadosDiffMpc,
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
-    nominal_stagewise_params: tuple[Parameter, ...],
+    nominal_stagewise_params: tuple[AcadosParameter, ...],
 ) -> None:
     """
     Test that the diff_mpc with stagewise varying parameters is equivalent to the
@@ -902,7 +927,7 @@ def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
 
 
 def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
-    nominal_stagewise_params: tuple[Parameter, ...],
+    nominal_stagewise_params: tuple[AcadosParameter, ...],
     acados_test_ocp_no_p_global: AcadosOcp,
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
     diff_mpc: AcadosDiffMpc,

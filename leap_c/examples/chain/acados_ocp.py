@@ -9,7 +9,7 @@ from acados_template import AcadosOcp, AcadosOcpFlattenedIterate
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
-from leap_c.ocp.acados.parameters import Parameter, AcadosParameterManager
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.initializer import (
     AcadosDiffMpcInitializer,
     create_zero_iterate_from_ocp,
@@ -23,7 +23,7 @@ def create_chain_params(
     param_interface: ChainAcadosParamInterface = "global",
     n_mass: int = 5,
     N_horizon: int = 30,
-) -> list[Parameter]:
+) -> list[AcadosParameter]:
     """Returns a list of parameters used in the chain ocp.
 
     Args:
@@ -35,21 +35,21 @@ def create_chain_params(
 
     return [
         # dynamics parameters
-        Parameter(
+        AcadosParameter(
             "L", np.repeat([0.033, 0.033, 0.033], n_mass - 1)
         ),  # rest length of spring [m]
-        Parameter(
+        AcadosParameter(
             "D", np.repeat([1.0, 1.0, 1.0], n_mass - 1)
         ),  # spring stiffness [N/m]
-        Parameter(
+        AcadosParameter(
             "C", np.repeat([0.1, 0.1, 0.1], n_mass - 1)
         ),  # damping coefficient [Ns/m]
-        Parameter("m", np.repeat([0.033], n_mass - 1)),  # mass of the balls [kg]
-        Parameter(
+        AcadosParameter("m", np.repeat([0.033], n_mass - 1)),  # mass of the balls [kg]
+        AcadosParameter(
             "w", np.repeat([0.0, 0.0, 0.0], n_mass - 2)
         ),  # disturbance on intermediate balls [N]
         # cost parameters
-        Parameter(
+        AcadosParameter(
             "q_diag_sqrt",
             q_diag_sqrt,
             lower_bound=0.5 * q_diag_sqrt,
@@ -59,7 +59,7 @@ def create_chain_params(
             if param_interface == "stagewise"
             else [],
         ),
-        Parameter(
+        AcadosParameter(
             "r_diag_sqrt",
             r_diag_sqrt,
             lower_bound=0.5 * r_diag_sqrt,
