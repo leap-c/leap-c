@@ -1,4 +1,4 @@
-exclude = [".venv"]
+exclude = [".venv", "external"]
 
 [lint]
 ignore = [

@@ -45,7 +45,9 @@ def create_chain_params(
         AcadosParameter(
             "C", default=np.repeat([0.1, 0.1, 0.1], n_mass - 1)
         ),  # damping coefficient [Ns/m]
-        AcadosParameter("m", default=np.repeat([0.033], n_mass - 1)),  # mass of the balls [kg]
+        AcadosParameter(
+            "m", default=np.repeat([0.033], n_mass - 1)
+        ),  # mass of the balls [kg]
         AcadosParameter(
             "w", default=np.repeat([0.0, 0.0, 0.0], n_mass - 2)
         ),  # disturbance on intermediate balls [N]
@@ -53,7 +55,9 @@ def create_chain_params(
         AcadosParameter(
             "q_diag_sqrt",
             default=q_diag_sqrt,
-            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64),
+            space=gym.spaces.Box(
+                low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64
+            ),
             interface="learnable",
             vary_stages=list(range(N_horizon + 1))
             if param_interface == "stagewise"
@@ -62,7 +66,9 @@ def create_chain_params(
         AcadosParameter(
             "r_diag_sqrt",
             default=r_diag_sqrt,
-            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64),
+            space=gym.spaces.Box(
+                low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64
+            ),
             interface="learnable",
             vary_stages=list(range(N_horizon))
             if param_interface == "stagewise"
