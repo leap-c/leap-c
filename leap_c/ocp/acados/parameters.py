@@ -321,11 +321,7 @@ class AcadosParameterManager:
             tuple_space = gym.spaces.Tuple(learnable_spaces)
             return gym.spaces.utils.flatten_space(tuple_space)
 
-    def get(
-        self,
-        field: str,
-        stage: int | None = None,
-    ) -> ca.SX | ca.MX | np.ndarray:
+    def get(self, field: str) -> ca.SX | ca.MX | np.ndarray:
         """Get the variable for a given field at a specific stage."""
         if field not in self.parameters:
             raise ValueError(
@@ -359,15 +355,8 @@ class AcadosParameterManager:
         if self.parameters[field].interface == "learnable":
             return self.learnable_parameters[field]
 
-        if stage is not None and field == "indicator":
-            return self.non_learnable_parameters[field][stage]
-
         if self.parameters[field].interface == "non-learnable":
-            return (
-                self.non_learnable_parameters[field, stage]
-                if stage is not None
-                else self.non_learnable_parameters[field]
-            )
+            return self.non_learnable_parameters[field]
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Assign the parameters to the OCP model."""
