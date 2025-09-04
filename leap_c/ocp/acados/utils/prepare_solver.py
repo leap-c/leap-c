@@ -73,7 +73,9 @@ def prepare_batch_solver(
         for idx, stage in product(range(batch_size), range(N + 1)):
             param = p_stagewise[idx, stage, :].astype(np.float64)
             solver = batch_solver.ocp_solvers[idx]
-            solver.set_params_sparse(stage, param, p_stagewise_sparse_idx)
+            solver.set_params_sparse(
+                stage, p_stagewise_sparse_idx[idx, stage, :], param
+            )
 
     # initial conditions
     for idx, solver in enumerate(active_solvers):

@@ -11,6 +11,15 @@ class AcadosOcpSolverInput(NamedTuple):
     """Input for an Acados solver.
 
     Can be a batch of inputs, or a single input.
+
+    Attributes:
+        x0: Initial state, shape (nx,) or (batch_size, nx)
+        u0: Initial guess for control input, shape (nu,) or (batch_size, nu), optional
+        p_global: Global parameters, shape (np_global,) or (batch_size, np_global), optional
+        p_stagewise: Stage-wise parameters, shape (N_horizon, np_stagewise) or (
+            batch_size, N_horizon, np_stagewise), optional
+        p_stagewise_sparse_idx: Indices for sparse setting of stage-wise parameters,
+            shape (N_horizon, nindices) or (batch_size, N_horizon, nindices), optional
     """
 
     x0: np.ndarray
