@@ -17,7 +17,7 @@ def create_cartpole_params(
     param_interface: CartPoleAcadosParamInterface,
     N_horizon: int = 50,
 ) -> list[AcadosParameter]:
-    """Returns a list of parameters used in cartpole."""
+    """Returns a list of parameters used in the cartpole controller."""
     return [
         # Dynamics parameters
         AcadosParameter("M", default=np.array([1.0])),  # mass of the cart [kg]
@@ -27,10 +27,10 @@ def create_cartpole_params(
         # Cost matrix factorization parameters
         AcadosParameter(
             "q_diag_sqrt", default=np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))
-        ),  # cost on state residuals
+        ),  # cost weights of state residuals
         AcadosParameter(
             "r_diag_sqrt", default=np.sqrt(np.array([2e-1]))
-        ),  # cost on control input residuals
+        ),  # cost weights of control input residuals
         # Reference parameters
         AcadosParameter(
             "xref0",

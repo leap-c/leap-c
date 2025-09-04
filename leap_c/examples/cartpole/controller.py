@@ -27,26 +27,40 @@ class CartPoleControllerConfig:
             The MPC will have N+1 nodes (the nodes 0...N-1 and the terminal
             node N).
         T_horizon: The simulation time between two MPC nodes will equal
-            T_horizon/N_horizon simulation time.
-        Fmax: The maximum force that can be applied to the cart.
+            T_horizon/N_horizon [s] simulation time.
+        Fmax: Bounds of the box constraints on the maximum force that can be applied to the cart [N] (hard constraint)
+        x_threshold: Bounds of the box constraints of the maximum absolute position of the cart [m] (soft/slacked constraint)
         cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
-        param_interface: Determines the exposed parameter interface of the
-            controller.
+            The former uses an exact Hessian in the optimization, while the latter uses a Gauss-Newton Hessian approximation.
+        param_interface: Determines the exposed parameter interface of the controller.
+            "global" means that learnable parameters are the same for all stages of the horizon,
+            while "stagewise" means that learnable parameters can vary between stages.
     """
 
-    N_horizon: int = 5  # number of steps in the horizon
-    T_horizon: float = 0.25  # duration of the horizon [s]
-    Fmax: float = 80.0  # maximum force that can be applied to the cart [N]
-    x_threshold: float = (
-        2.4  # maximum absolute position of the cart before termination [m]
-    )
+    N_horizon: int = 5
+    T_horizon: float = 0.25
+    Fmax: float = 80.0
+    x_threshold: float = 2.4
 
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS"
     param_interface: CartPoleAcadosParamInterface = "global"
 
 
 class CartPoleController(ParameterizedController):
-    """acados-based controller for CartPole"""
+    """acados-based controller for CartPole, aka inverted pendulum.
+    The cost function takes a weighted least-squares form,
+    and the dynamics correspond to the simulated ODE of the standard CartPole environment (using RK4).
+    The inequality constraints are box constraints on the action and on the cart position.
+
+    For more information, please refer to the config and the parameter description.
+
+    Attributes:
+        cfg: A configuration object containing high-level settings for the MPC problem, such as horizon length and maximum force.
+        param_manager: An AcadosParameterManager for managing the parameters of the OCP.
+        ocp: The acados OCP object representing the optimal control problem.
+        diff_mpc: An object wrapping the acados ocp solver for differentiable MPC solving.
+        collate_fn_map: A mapping for collating AcadosDiffMpcCtx objects in batches.
+    """
 
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
@@ -60,7 +74,7 @@ class CartPoleController(ParameterizedController):
 
         Args:
             cfg: A configuration object containing high-level settings for the
-                MPC problem, such as horizon length and maximum force.
+                MPC problem, such as horizon length and maximum force. If not provided, a default config is used.
             params: An optional list of `Parameter` objects to define the
                 OCP. If not provided, default parameters for the cart-pole
                 system will be created based on the `cfg.param_interface`.
