@@ -60,9 +60,6 @@ class AcadosDiffMpcInitializer(ABC):
             A list of `AcadosOcpFlattenedIterate` objects, one for each OCP in
             the batch.
         """
-        if not solver_input.is_batched():
-            raise ValueError("Batch sample requires a batched input.")
-
         iterates = [
             self.single_iterate(solver_input.get_sample(i))
             for i in range(solver_input.batch_size)
