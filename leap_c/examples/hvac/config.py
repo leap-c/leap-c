@@ -61,24 +61,6 @@ class BestestHydronicParameters(BestestParameters):
     eta: float = 0.98
 
 
-@dataclass
-class BestestHydronicHeatpumpParameters(BestestParameters):
-    """Heat pump system parameters for a hydronic heating system."""
-
-    gAw: float = 40.344131392192  # noqa: N815
-    Ch: float = 10447262.2318648
-    Ci: float = 14827137.0377258
-    Ce: float = 50508258.9032192
-    e11: float = -30.0936560706053
-    sigmai: float = -23.3175423490014
-    sigmah: float = -19.5274067368137
-    sigmae: float = -5.07591222090641
-    Rea: float = 0.00163027389197229
-    Rhi: float = 0.000437603769897038
-    Rie: float = 0.000855786902577802
-    eta: float = 0.98
-
-
 def make_default_hvac_params(
     stagewise: bool = False, N_horizon: int = 48
 ) -> tuple[AcadosParameter, ...]:
