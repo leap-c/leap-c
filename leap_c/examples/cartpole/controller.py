@@ -31,10 +31,7 @@ class CartPoleControllerConfig:
         Fmax: Bounds of the box constraints on the maximum force that can be applied to the cart [N] (hard constraint)
         x_threshold: Bounds of the box constraints of the maximum absolute position of the cart [m] (soft/slacked constraint)
         cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
-            The former uses an exact Hessian in the optimization, while the latter uses a Gauss-Newton Hessian approximation.
         param_interface: Determines the exposed parameter interface of the controller.
-            "global" means that learnable parameters are the same for all stages of the horizon,
-            while "stagewise" means that learnable parameters can vary between stages.
     """
 
     N_horizon: int = 5
@@ -47,16 +44,14 @@ class CartPoleControllerConfig:
 
 
 class CartPoleController(ParameterizedController):
-    """acados-based controller for CartPole, aka inverted pendulum.
+    """Acados-based controller for CartPole, aka inverted pendulum.
     The cost function takes a weighted least-squares form,
     and the dynamics correspond to the simulated ODE of the standard CartPole environment (using RK4).
     The inequality constraints are box constraints on the action and on the cart position.
 
-    For more information, please refer to the config and the parameter description.
-
     Attributes:
-        cfg: A configuration object containing high-level settings for the MPC problem, such as horizon length and maximum force.
-        param_manager: An AcadosParameterManager for managing the parameters of the OCP.
+        cfg: A configuration object containing high-level settings for the MPC problem, such as horizon length.
+        param_manager: For managing the parameters of the OCP.
         ocp: The acados OCP object representing the optimal control problem.
         diff_mpc: An object wrapping the acados ocp solver for differentiable MPC solving.
         collate_fn_map: A mapping for collating AcadosDiffMpcCtx objects in batches.
@@ -75,9 +70,9 @@ class CartPoleController(ParameterizedController):
         Args:
             cfg: A configuration object containing high-level settings for the
                 MPC problem, such as horizon length and maximum force. If not provided, a default config is used.
-            params: An optional list of `Parameter` objects to define the
-                OCP. If not provided, default parameters for the cart-pole
-                system will be created based on the `cfg.param_interface`.
+            params: An optional list of parameters to define the
+                OCP. If not provided, default parameters for the CartPole
+                system will be created based on the cfg.
             export_directory: An optional directory path where the generated
                 `acados` solver code will be exported.
         """

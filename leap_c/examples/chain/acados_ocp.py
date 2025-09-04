@@ -18,6 +18,10 @@ from leap_c.ocp.acados.initializer import (
 
 
 ChainAcadosParamInterface = Literal["global", "stagewise"]
+"""Determines the exposed parameter interface of the controller.
+"global" means that learnable parameters are the same for all stages of the horizon,
+while "stagewise" means that learnable parameters can vary between stages.
+"""
 
 
 def create_chain_params(
@@ -25,11 +29,12 @@ def create_chain_params(
     n_mass: int = 5,
     N_horizon: int = 30,
 ) -> list[AcadosParameter]:
-    """Returns a list of parameters used in the chain ocp.
+    """Returns a list of parameters used in the chain controller.
 
     Args:
-        param_interface: Whether parameters should be global or stagewise
-        n_mass: Number of masses in the chain
+        param_interface: Determines the exposed parameter interface of the controller.
+        n_mass: Number of masses in the chain.
+        N_horizon: The number of steps in the MPC horizon.
     """
     q_diag_sqrt = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
     r_diag_sqrt = 1e-1 * np.ones(3)
@@ -47,13 +52,13 @@ def create_chain_params(
         ),  # damping coefficient [Ns/m]
         AcadosParameter(
             "m", default=np.repeat([0.033], n_mass - 1)
-        ),  # mass of the balls [kg]
+        ),  # mass of each of the masses [kg]
         AcadosParameter(
             "w", default=np.repeat([0.0, 0.0, 0.0], n_mass - 2)
-        ),  # disturbance on intermediate balls [N]
+        ),  # disturbance on intermediate masses [N]
         # cost parameters
         AcadosParameter(
-            "q_diag_sqrt",
+            "q_diag_sqrt",  # cost weights of state residuals
             default=q_diag_sqrt,
             space=gym.spaces.Box(
                 low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64
@@ -64,7 +69,7 @@ def create_chain_params(
             else [],
         ),
         AcadosParameter(
-            "r_diag_sqrt",
+            "r_diag_sqrt",  # cost weights of action residuals
             default=r_diag_sqrt,
             space=gym.spaces.Box(
                 low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64
@@ -172,6 +177,9 @@ def export_parametric_ocp(
 
 
 class ChainInitializer(AcadosDiffMpcInitializer):
+    """Initializes the state variables in the iterate of the controller with the reference state
+    and all other variables in the iterate with zeros."""
+
     def __init__(self, ocp: AcadosOcp, x_ref: np.ndarray):
         iterate = create_zero_iterate_from_ocp(ocp).flatten()
         iterate.x = np.tile(x_ref, ocp.solver_options.N_horizon + 1)  # type:ignore

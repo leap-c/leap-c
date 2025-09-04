@@ -10,14 +10,26 @@ from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 
 CartPoleAcadosParamInterface = Literal["global", "stagewise"]
+"""Determines the exposed parameter interface of the controller.
+"global" means that learnable parameters are the same for all stages of the horizon,
+while "stagewise" means that learnable parameters can vary between stages.
+"""
 CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
+"""The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS". Both model the same cost function, but
+the former uses an exact Hessian in the optimization, while the latter uses a Gauss-Newton Hessian approximation.
+"""
 
 
 def create_cartpole_params(
     param_interface: CartPoleAcadosParamInterface,
     N_horizon: int = 50,
 ) -> list[AcadosParameter]:
-    """Returns a list of parameters used in the cartpole controller."""
+    """Returns a list of parameters used in the cartpole controller.
+
+    Args:
+        param_interface: Determines the exposed parameter interface of the controller.
+        N_horizon: The number of steps in the MPC horizon.
+    """
     return [
         # Dynamics parameters
         AcadosParameter("M", default=np.array([1.0])),  # mass of the cart [kg]

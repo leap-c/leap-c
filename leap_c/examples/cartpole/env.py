@@ -14,10 +14,10 @@ class CartPoleEnvConfig:
     gravity: float = 9.81  # gravity [m/s^2]
     masscart: float = 1.0  # mass of the cart [kg]
     masspole: float = 0.1  # mass of the pole [kg]
-    length: float = 0.8  # half-length of the pole [m]
+    length: float = 0.8  # length of the pole [m]
     Fmax: float = 80.0  # maximum force that can be applied to the cart [N]
     dt: float = 0.05  # simulation time step [s]
-    max_time: float = 10.0  # maximum simulation time [s]
+    max_time: float = 10.0  # maximum simulation time until truncation [s]
     x_threshold: float = (
         2.4  # maximum absolute position of the cart before termination [m]
     )

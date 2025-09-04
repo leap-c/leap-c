@@ -47,18 +47,25 @@ class ChainEnvConfig:
 
 
 class ChainEnv(MatplotlibRenderEnv, gym.Env):
-    """An environment of a chain of masses.
-
+    """An environment of a chain of masses, connected by "springs".
     The first mass is fixed at a given point,
-    and the last mass can be controlled by setting its velocity. The goal is to
-    move the last mass to a target position.
+    and the last mass can be controlled by setting its velocity.
+    The goal is to move the chain to a target position while minimizing mass velocity.
+
+    The system corresponds to the example in
+    L. Wirsching, H. G. Bock, and M. Diehl, “Fast nmpc of a chain of masses
+    connected by springs,” in 2006 IEEE Conference on Computer Aided Control
+    System Design, 2006 IEEE International Conference on Control Applications,
+    2006 IEEE International Symposium on Intelligent Control, pp. 591–596, IEEE,
+    2006.
+    NOTE: An additoinal damping term has been added to the dynamics.
 
     Observation Space:
     ------------------
 
     The observation is of shape `(6 * n_mass - 9,)` representing the state of the
     system. It consists of the 3D positions of the `n_mass - 1` free masses and
-    the 3D velocities of the first `n_mass - 2` free masses.
+    the 3D velocities of the `n_mass - 2` masses (the free masses, except the last mass, whose velocity is being controlled).
 
     The state is structured as `[p_2, ..., p_{n_mass}, v_2, ..., v_{n_mass-1}]`, where `p_i` is the
     position of the i-th mass and `v_i` is its velocity.
@@ -67,7 +74,7 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
     -------------
 
     The action is a `ndarray` with shape `(3,)` which can take values in the range `(-vmax, vmax)`.
-    It represents the velocity of the second mass (the first free mass).
+    It represents the velocity of the last mass.
 
     Reward:
     -------
@@ -77,7 +84,23 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
     `r = 10 * (r_dist + r_vel)`
     where:
     - `r_dist` is the negative l1 norm of the distance between the last mass and the target position.
-    - `r_vel` is the negative l2 norm of the velocities of the masses, scaled by -0.1.
+    - `r_vel` is the negative l2 norm of the velocities of the masses, scaled by 0.1.
+
+    Attributes:
+        cfg: Configuration for the environment.
+        fix_point: Fixed point where the first mass is anchored.
+        pos_last_ref: Target state for the chain.
+        nx_pos: Number of position states in the observation.
+        nx_vel: Number of velocity states in the observation.
+        observation_space: The observation space of the environment.
+        action_space: The action space of the environment.
+        trajectory: List to store the trajectory of states during an episode.
+        dyn_param_dict: Dictionary of dynamics parameters.
+        discrete_dynamics: Function to compute the next state given the current state and action.
+        resting_chain_solver: Solver to compute the target resting state of the chain.
+        init_phi_range: Sampling range of initial azimuthal angles for the last mass.
+        init_theta_range: Sampling range of initial polar angles for the last mass.
+        ellipsoid: Ellipsoid class for translating the sampled initial spherical coordinates into the initial cartesian coordinates.
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
