@@ -31,8 +31,7 @@ MAGNITUDE_SOLAR_RADIATION = 200
 
 
 class StochasticThreeStateRcEnv(gym.Env):
-    """
-    Simulator for a three-state RC thermal model with exact discretization of Gaussian noise.
+    """Simulator for a three-state RC thermal model with exact discretization of Gaussian noise.
 
     This environment uses the matrix exponential approach to exactly discretize both the
     deterministic dynamics and the stochastic noise terms.
@@ -494,16 +493,6 @@ class StochasticThreeStateRcEnv(gym.Env):
         self,
         action: np.ndarray,
     ) -> tuple[np.ndarray, float, bool, bool, dict]:
-        """
-        Perform a simulation step with exact discrete-time dynamics including noise.
-
-        Args:
-            action: Control input (heat input to radiator)
-            time: Current time in seconds since the start of the simulation
-
-        Returns:
-            next_state: Next state after applying control input and noise
-        """
         # Get exogenous inputs
         exog = np.array(
             [
@@ -544,7 +533,6 @@ class StochasticThreeStateRcEnv(gym.Env):
     def reset(
         self, state_0: np.ndarray | None = None, seed=None, options=None
     ) -> tuple[np.ndarray, dict]:
-        """Reset the model state to initial values."""
         super().reset(seed=seed)
 
         if state_0 is None:

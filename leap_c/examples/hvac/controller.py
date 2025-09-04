@@ -23,6 +23,8 @@ from .util import set_temperature_limits
 
 
 class HvacControllerCtx(NamedTuple):
+    """An extension of the AcadosDiffMpcCtx to also store the heater states."""
+
     diff_mpc_ctx: AcadosDiffMpcCtx
     qh: torch.Tensor
     dqh: torch.Tensor
@@ -41,6 +43,35 @@ class HvacControllerCtx(NamedTuple):
 
 
 class HvacController(ParameterizedController):
+    """acados-based controller for the HVAC system.
+    The cost function takes the form of
+        0.25 * price * qh
+        + q_Ti * (ref_Ti - ocp.model.x[0]) ** 2
+        + q_dqh * (dqh) ** 2
+        + q_ddqh * (ddqh) ** 2,
+    i.e., a linear price term combined with weighted quadratic penalties on the room temperature residuals,
+    the rate of change of the heating power, and the acceleration of the heating power.
+
+    The dynamics correspond partly to the dynamics also found in the environment.
+    The differences are:
+    - The dynamics here do not include the noise.
+    - In case the ambient temperature, the solar radiation and the prices are not learned,
+    they are set to a default value, instead of the data being used.
+    - The action "qh" from the environment is part of the state here. To make setting of the radiator heating power smoother,
+    a double integrator is added to the dynamics (hence, the action in this controller is ddqh, the acceleration of the
+    heating power).
+
+    The inequality constraints are box constraints on the room temperature (comfort bounds, soft/slacked),
+    and the heating power qh (hard).
+
+    Attributes:
+        param_manager: For managing the parameters of the OCP.
+        ocp: The AcadosOcp object representing the optimal control problem.
+        diff_mpc: The AcadosDiffMpc object for solving the OCP and computing sensitivities.
+        stagewise: Whether to use stage-wise parameters.
+        collate_fn_map: A mapping for collating contexts in batch processing.
+    """
+
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
@@ -115,6 +146,7 @@ class HvacController(ParameterizedController):
 
         lb, ub = set_temperature_limits(quarter_hours=quarter_hours)
 
+        # NOTE: In case we want to pass the data of exogenous influences to the controller, we can do it here
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             lb_Ti=lb.reshape(batch_size, -1, 1),
             ub_Ti=ub.reshape(batch_size, -1, 1),
