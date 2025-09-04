@@ -45,7 +45,8 @@ class CartPoleControllerConfig:
 
 class CartPoleController(ParameterizedController):
     """Acados-based controller for CartPole, aka inverted pendulum.
-    The cost function takes a weighted least-squares form,
+    The state and action correspond to the observation and action of the CartPole environment.
+    The cost function takes the form of a weighted least-squares cost on the full state and action,
     and the dynamics correspond to the simulated ODE of the standard CartPole environment (using RK4).
     The inequality constraints are box constraints on the action and on the cart position.
 

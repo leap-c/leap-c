@@ -21,6 +21,9 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env):
         - _render_frame(): For updating the plot on each render call.
 
     The environment must also have a `render_mode` attribute.
+
+    Attributes:
+        render_mode: The mode for rendering the environment.
     """
 
     metadata = {"render_modes": ["human", "rgb_array"]}

@@ -44,6 +44,11 @@ class HvacControllerCtx(NamedTuple):
 
 class HvacController(ParameterizedController):
     """acados-based controller for the HVAC system.
+    The first part of the state corresponds to the first part of the observation of the StochasticThreeStateRcEnv environment,
+    i.e., the indoor temperature Ti, the radiator temperature Th, and the envelope temperature Te.
+    Appended to this state are the action "qh" from the environment (the heating power of the radiator),
+    and its derivative "dqh". Hence, the action of this controller is "ddqh", the acceleration of the heating power.
+
     The cost function takes the form of
         0.25 * price * qh
         + q_Ti * (ref_Ti - ocp.model.x[0]) ** 2

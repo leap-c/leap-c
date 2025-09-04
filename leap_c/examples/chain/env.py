@@ -21,7 +21,9 @@ class ChainEnvConfig:
 
     n_mass: int = 5  # number of masses in the chain
     dt: float = 0.05  # simulation time step [s]
-    max_time: float = 10.0  # maximum simulation time [s]
+    max_time: float = (
+        10.0  # maximum simulation time after which the episode is truncated [s]
+    )
     vmax: float = 1.0  # maximum velocity of the last mass [m/s]
 
     # dynamics parameters (dependent defaults)
@@ -86,6 +88,17 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
     - `r_dist` is the negative l1 norm of the distance between the last mass and the target position.
     - `r_vel` is the negative l2 norm of the velocities of the masses, scaled by 0.1.
 
+    Termination and truncation:
+    ---------------------------
+    The system never terminates, but the episode is truncated after `max_time` seconds simulation time.
+
+    Info:
+    -----
+    The info dictionary contains:
+    - "task": {"violation": bool, "success": bool}
+      - violation: Always False.
+      - success: True if goal reached
+
     Attributes:
         cfg: Configuration for the environment.
         fix_point: Fixed point where the first mass is anchored.
@@ -110,6 +123,11 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
         render_mode: str | None = None,
         cfg: ChainEnvConfig | None = None,
     ):
+        """
+        Args:
+            render_mode: The mode to render with. Supported modes are: human, rgb_array, None.
+            cfg: Configuration for the environment. If None, default configuration is used.
+        """
         super().__init__(render_mode=render_mode)
         self.cfg = ChainEnvConfig() if cfg is None else cfg
 

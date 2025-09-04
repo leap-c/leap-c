@@ -49,7 +49,7 @@ class PointMassEnv(MatplotlibRenderEnv):
     Action Space:
     -------------
     The action is a `ndarray` with shape `(2,)` and dtype `np.float32` representing the force applied in x and y directions.
-    Each component is bounded by [-Fmax, Fmax].
+    Each component is bounded by [-Fmax, Fmax] which will be enforced by clipping the input action in each step.
 
     Reward:
     -------
@@ -61,7 +61,7 @@ class PointMassEnv(MatplotlibRenderEnv):
     Termination:
     ------------
     The episode terminates if:
-    - The agent leaves the allowed state space (out of bounds)
+    - The agent leaves the allowed state space (out of bounds, also including velocity limits)
     - The agent reaches the goal region
 
     Truncation:
@@ -74,6 +74,25 @@ class PointMassEnv(MatplotlibRenderEnv):
     - "task": {"violation": bool, "success": bool}
       - violation: True if out of bounds
       - success: True if goal reached
+
+    Attributes:
+        cfg: Configuration object for the environment.
+        state_low: Lower bounds for the Pointmass position and velocity.
+        state_high: Upper bounds for the Pointmass position and velocity.
+        observation_space: The observation space of the environment.
+        action_space: The action space of the environment.
+        A: State transition matrix for the point mass dynamics.
+        B: Control input matrix for the point mass dynamics.
+        start: The starting position will be sampled in this Circle.
+        goal: The goal is reached if the pointmass enters this Circle.
+        wind_field: WindField object representing the wind disturbances.
+        state: Current state of the environment (position and velocity).
+        action: Last action taken (used in rendering).
+        time: Elapsed time in the current episode.
+        trajectory: List of states visited during the episode (used in rendering).
+        trajectory_plot: object representing the trajectory in the rendering.
+        agent_plot: object representing the agent in the rendering.
+        action_arrow_patch: object representing the action arrow in the rendering.
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
@@ -83,6 +102,11 @@ class PointMassEnv(MatplotlibRenderEnv):
         render_mode: str | None = None,
         cfg: PointMassEnvConfig | None = None,
     ):
+        """
+        Args:
+            render_mode: The mode to render with. Supported modes are: human, rgb_array, None.
+            cfg: Configuration for the environment. If None, default configuration is used.
+        """
         super().__init__(render_mode=render_mode)
 
         self.cfg = PointMassEnvConfig() if cfg is None else cfg
@@ -94,19 +118,18 @@ class PointMassEnv(MatplotlibRenderEnv):
         self.state_high = np.array(
             [4, 1.0, self.cfg.max_v, self.cfg.max_v], dtype=np.float32
         )
-        self.wind_low = np.array(
+        wind_low = np.array(
             [-self.cfg.max_wind_force, -self.cfg.max_wind_force], dtype=np.float32
         )
-        self.wind_high = np.array(
+        wind_high = np.array(
             [self.cfg.max_wind_force, self.cfg.max_wind_force], dtype=np.float32
         )
-        self.obs_high = np.concatenate([self.state_high, self.wind_high])
-        self.obs_low = np.concatenate([self.state_low, self.wind_low])
+        obs_high = np.concatenate([self.state_high, wind_high])
+        obs_low = np.concatenate([self.state_low, wind_low])
         self.action_low = np.array([-self.cfg.Fmax, -self.cfg.Fmax], dtype=np.float32)
         self.action_high = np.array([self.cfg.Fmax, self.cfg.Fmax], dtype=np.float32)
-        self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
+        self.observation_space = spaces.Box(low=obs_low, high=obs_high)
         self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
-        self.render_mode = render_mode
 
         # env logic
         self.A, self.B = define_transition_matrices(

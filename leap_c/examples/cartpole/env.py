@@ -36,14 +36,14 @@ class CartPoleEnv(gym.Env):
 
     | Num | Observation           | Min                 | Max               |
     |-----|-----------------------|---------------------|-------------------|
-    | 0   | Cart Position         | -4.8                | 4.8               |
+    | 0   | Cart Position         | -2*x_threshold      | 2*x_threshold     |
     | 1   | Pole Angle (theta)    | -2pi                | 2pi               |
     | 2   | Cart Velocity         | -Inf                | Inf               |
     | 3   | Pole Angular Velocity | -Inf                | Inf               |
 
     NOTE: Like in the original CartPole environment, the range above for the cart position denotes
     the possible range of the cart's center of mass in the observation space,
-    but the episode terminates if it leaves the interval (-2.4, 2.4) already.
+    but the episode terminates if it leaves the interval (-x_threshold, x_threshold) already.
     NOTE: The pole angle is actually bounded between -2pi and 2pi by always adding/subtracting
     (in the negative / in the positive case) the highest multiple of 2pi
     until the pole angle is within the bounds again.
@@ -64,6 +64,22 @@ class CartPoleEnv(gym.Env):
     Since this is an environment for the swingup task, the agent achieves maximum reward when the pole
     is upright (theta = 0) and minimum reward when the pole is hanging down (theta = pi or theta = -pi).
     In particular, the reward is symmetric around 0 and bounded between 0 and 0.1 in each step.
+
+
+    Terminates:
+    -----------
+    If the cart position is outside of the x_threshold interval (-x_threshold, x_threshold).
+
+    Truncates:
+    ----------
+    After max_time seconds of simulation time.
+
+    Info:
+    -----
+    The info dictionary contains:
+    - "task": {"violation": bool, "success": bool}
+      - violation: True if out of bounds
+      - success: True if the pole was upright in the last 10 steps.
 
     Attributes:
         cfg: Configuration for the environment.
