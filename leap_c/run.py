@@ -4,7 +4,6 @@ import datetime
 from pathlib import Path
 
 import leap_c
-
 from leap_c.trainer import Trainer
 from leap_c.utils.cfg import cfg_as_python
 from leap_c.utils.git import log_git_hash_and_diff

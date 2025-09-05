@@ -1,14 +1,14 @@
 from itertools import chain
 
 import casadi as ca
+import gymnasium as gym
 import numpy as np
 import pytest
-import gymnasium as gym
 from acados_template import AcadosOcp, AcadosOcpOptions
 
 from leap_c.ocp.acados.parameters import (
-    AcadosParameterManager,
     AcadosParameter,
+    AcadosParameterManager,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 

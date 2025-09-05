@@ -1,9 +1,9 @@
 """Chain dynamics functions."""
 
 import casadi as ca
-from casadi import SX, norm_2, vertcat
-from casadi.tools import struct_symSX, entry
 import numpy as np
+from casadi import SX, norm_2, vertcat
+from casadi.tools import entry, struct_symSX
 
 from ..utils.casadi import integrate_erk4
 

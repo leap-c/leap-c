@@ -14,7 +14,7 @@ from leap_c.examples.cartpole.acados_ocp import (
     export_parametric_ocp,
 )
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
-from leap_c.ocp.acados.parameters import AcadosParameterManager, AcadosParameter
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 

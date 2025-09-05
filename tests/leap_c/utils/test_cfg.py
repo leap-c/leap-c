@@ -1,5 +1,6 @@
 import textwrap
 from dataclasses import dataclass, field
+
 from leap_c.utils.cfg import cfg_as_python
 
 

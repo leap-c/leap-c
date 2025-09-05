@@ -1,13 +1,12 @@
 from typing import Literal
 
 import casadi as ca
-import numpy as np
 import gymnasium as gym
-
+import numpy as np
 from acados_template import AcadosModel, AcadosOcp
+
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
-
 
 CartPoleAcadosParamInterface = Literal["global", "stagewise"]
 CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
