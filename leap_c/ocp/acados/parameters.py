@@ -1,4 +1,5 @@
-from typing import NamedTuple, Literal
+from dataclasses import dataclass, field
+from typing import Literal
 import warnings
 
 import casadi as ca
@@ -9,7 +10,8 @@ import gymnasium as gym
 from leap_c.parameters import Parameter as BaseParameter
 
 
-class AcadosParameter(NamedTuple):
+@dataclass
+class AcadosParameter:
     """
     High-level parameter class for flexible optimization parameter configuration with acados extensions.
 
@@ -37,7 +39,7 @@ class AcadosParameter(NamedTuple):
     space: gym.spaces.Space | None = None
     interface: Literal["fix", "learnable", "non-learnable"] = "fix"
     # Additional acados-specific field
-    vary_stages: list[int] = []
+    vary_stages: list[int] = field(default_factory=list)
 
     @classmethod
     def from_base_parameter(
@@ -65,11 +67,11 @@ class AcadosParameter(NamedTuple):
 class AcadosParameterManager:
     """Manager for acados parameters."""
 
-    parameters: dict[str, AcadosParameter] = {}
-    learnable_parameters: struct_symSX | None = None
-    learnable_parameters_default: struct | None = None
-    non_learnable_parameters: struct_symSX | None = None
-    non_learnable_parameters_default: list[struct] | None = None
+    parameters: dict[str, AcadosParameter]
+    learnable_parameters: struct_symSX
+    learnable_parameters_default: struct
+    non_learnable_parameters: struct_symSX
+    non_learnable_parameters_default: list[struct]
 
     def __init__(
         self,
