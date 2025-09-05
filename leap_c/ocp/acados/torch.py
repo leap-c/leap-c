@@ -9,6 +9,8 @@ import torch.nn as nn
 
 from leap_c.autograd.torch import create_autograd_function
 from leap_c.ocp.acados.diff_mpc import (
+    N_BATCH_MAX,
+    NUM_THREADS_BATCH_SOLVER,
     AcadosDiffMpcCtx,
     AcadosDiffMpcFunction,
     AcadosDiffMpcSensitivityOptions,
@@ -37,7 +39,10 @@ class AcadosDiffMpc(nn.Module):
         sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
-    ):
+        *,
+        n_batch_max: int = N_BATCH_MAX,
+        num_threads_batch_solver: int = NUM_THREADS_BATCH_SOLVER,
+    ) -> None:
         """
         Initializes the AcadosDiffMpc module.
 
@@ -52,6 +57,9 @@ class AcadosDiffMpc(nn.Module):
                 scaling is used, i.e., dt for intermediate stages and 1 for the
                 terminal stage.
             export_directory: Directory to export the generated code.
+            n_batch_max: Maximum batch size supported by the batch OCP solver.
+            num_threads_batch_solver: Number of parallel threads to use for the batch
+                OCP solver.
         """
         super().__init__()
 
@@ -63,6 +71,8 @@ class AcadosDiffMpc(nn.Module):
             sensitivity_ocp=sensitivity_ocp,
             discount_factor=discount_factor,
             export_directory=export_directory,
+            n_batch_max=n_batch_max,
+            num_threads_batch_solver=num_threads_batch_solver,
         )
         self.autograd_fun = create_autograd_function(self.diff_mpc_fun)
 

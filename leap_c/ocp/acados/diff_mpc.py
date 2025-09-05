@@ -93,6 +93,9 @@ class AcadosDiffMpcFunction(DiffFunction):
         sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
+        *,
+        n_batch_max: int = N_BATCH_MAX,
+        num_threads_batch_solver: int = NUM_THREADS_BATCH_SOLVER,
     ) -> None:
         self.ocp = ocp
         self.forward_batch_solver, self.backward_batch_solver = (
@@ -101,8 +104,8 @@ class AcadosDiffMpcFunction(DiffFunction):
                 sensitivity_ocp=sensitivity_ocp,
                 discount_factor=discount_factor,
                 export_directory=export_directory,
-                n_batch_max=N_BATCH_MAX,
-                num_threads=NUM_THREADS_BATCH_SOLVER,
+                n_batch_max=n_batch_max,
+                num_threads=num_threads_batch_solver,
             )
         )
 
