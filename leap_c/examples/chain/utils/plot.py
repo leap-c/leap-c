@@ -1,5 +1,6 @@
 import numpy as np
-from matplotlib import pyplot as plt, animation
+from matplotlib import animation
+from matplotlib import pyplot as plt
 
 
 def sample_from_ellipsoid_surface(w, Z):

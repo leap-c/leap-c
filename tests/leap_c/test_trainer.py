@@ -1,8 +1,8 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
 from leap_c.examples.cartpole.env import CartPoleEnv
+from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
 
 
 def test_trainer_checkpointing():

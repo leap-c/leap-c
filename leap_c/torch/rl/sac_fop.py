@@ -3,7 +3,7 @@ layer for the policy network."""
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, NamedTuple, Literal, Type
+from typing import Any, Iterator, Literal, NamedTuple, Type
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -13,13 +13,13 @@ import torch.nn as nn
 
 from leap_c.controller import ParameterizedController
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
-from leap_c.torch.nn.gaussian import SquashedGaussian, BoundedTransform
+from leap_c.torch.nn.gaussian import BoundedTransform, SquashedGaussian
 from leap_c.torch.nn.mlp import Mlp, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
-from leap_c.torch.rl.sac import SacTrainerConfig, SacCritic
+from leap_c.torch.rl.sac import SacCritic, SacTrainerConfig
 from leap_c.torch.rl.utils import soft_target_update
 from leap_c.trainer import Trainer
-from leap_c.utils.gym import wrap_env, seed_env
+from leap_c.utils.gym import seed_env, wrap_env
 
 
 @dataclass(kw_only=True)

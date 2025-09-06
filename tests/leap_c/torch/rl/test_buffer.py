@@ -7,10 +7,11 @@ from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
 )
+
 from leap_c.ocp.acados.data import (
     AcadosOcpSolverInput,
-    collate_acados_ocp_solver_input,
     collate_acados_flattened_iterate_fn,
+    collate_acados_ocp_solver_input,
 )
 from leap_c.torch.rl.buffer import ReplayBuffer
 

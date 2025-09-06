@@ -3,13 +3,13 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
+import numpy as np
 from acados_template.acados_ocp import AcadosOcp
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
     AcadosOcpIterate,
 )
-import numpy as np
 
 from leap_c.ocp.acados.data import (
     AcadosOcpSolverInput,

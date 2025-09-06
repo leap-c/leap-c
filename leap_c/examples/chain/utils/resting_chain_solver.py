@@ -3,7 +3,7 @@ from typing import Callable
 import casadi as ca
 import numpy as np
 from casadi import vertcat
-from casadi.tools import struct_symSX, entry
+from casadi.tools import entry, struct_symSX
 
 
 def _define_param_struct(n_mass: int) -> struct_symSX:

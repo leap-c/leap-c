@@ -2,15 +2,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, List, Literal
 
-from matplotlib import patches
 import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
+from matplotlib import patches
 from matplotlib.axes import Axes
 from matplotlib.patches import FancyArrowPatch
 
 from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
-
 
 DifficultyLevel = Literal["easy", "hard"]
 

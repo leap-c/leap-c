@@ -1,7 +1,7 @@
-from typing import List, Callable
+from typing import Callable, List
 
 import gymnasium as gym
-from gymnasium.core import ObsType, ActType
+from gymnasium.core import ActType, ObsType
 from gymnasium.wrappers import OrderEnforcing, RecordEpisodeStatistics
 
 WrapperType = Callable[[gym.Env[ObsType, ActType]], gym.Env[ObsType, ActType]]

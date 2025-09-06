@@ -2,12 +2,12 @@
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Callable, Optional, Any, Generator
+from timeit import default_timer
+from typing import Any, Callable, Generator, Optional
 
 import torch
 from gymnasium import Env
 from gymnasium.wrappers import RecordVideo
-from timeit import default_timer
 
 
 def episode_rollout(

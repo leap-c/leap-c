@@ -5,7 +5,6 @@ from typing import Callable, Literal
 import torch
 import torch.nn as nn
 
-
 Activation = Literal["relu", "tanh", "sigmoid", "leaky_relu"]
 WeightInit = Literal["orthogonal"]
 

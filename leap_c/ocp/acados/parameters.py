@@ -1,12 +1,13 @@
+import warnings
 from dataclasses import dataclass, field
 from typing import Literal
-import warnings
 
 import casadi as ca
+import gymnasium as gym
 import numpy as np
 from acados_template import AcadosOcp
 from casadi.tools import entry, struct, struct_symSX
-import gymnasium as gym
+
 from leap_c.parameters import Parameter as BaseParameter
 
 

@@ -1,19 +1,18 @@
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Generic, Iterator, Literal, TypeVar, List, get_args
+from typing import Any, Generic, Iterator, List, Literal, TypeVar, get_args
 
+import gymnasium as gym
 import numpy as np
 import torch
-import gymnasium as gym
 from torch import nn
 from yaml import safe_dump
 
+from leap_c.torch.utils.seed import set_seed
+from leap_c.utils.gym import WrapperType, seed_env, wrap_env
 from leap_c.utils.logger import Logger, LoggerConfig
 from leap_c.utils.rollout import episode_rollout
-from leap_c.utils.gym import wrap_env, WrapperType, seed_env
-from leap_c.torch.utils.seed import set_seed
-
 
 TrainerConfigType = TypeVar("TrainerConfigType", bound="TrainerConfig")
 ValReportScoreOptions = Literal["cum", "final", "best"]

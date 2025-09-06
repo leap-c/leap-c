@@ -1,6 +1,7 @@
-from typing import NamedTuple, Literal
-import numpy as np
+from typing import Literal, NamedTuple
+
 import gymnasium as gym
+import numpy as np
 
 
 class Parameter(NamedTuple):

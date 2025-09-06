@@ -1,12 +1,12 @@
 import time
 
+import numpy as np
 from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
-import numpy as np
 
+from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver
-from leap_c.ocp.acados.data import AcadosOcpSolverInput
 
 
 def solve_with_retry(

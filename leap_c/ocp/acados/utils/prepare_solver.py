@@ -1,13 +1,12 @@
 from itertools import product
 
+import casadi as ca
+import numpy as np
 from acados_template import AcadosOcp
 from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
-import casadi as ca
-import numpy as np
 
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
-
 
 # TODO (Jasper): The caching could be improved as soon as we save the whole
 #    capsule in the context of the implicit function. Currently, this caching

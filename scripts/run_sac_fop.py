@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from leap_c.examples import create_env, create_controller
+from leap_c.examples import create_controller, create_env
 from leap_c.run import default_controller_code_path, default_output_path, init_run
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig

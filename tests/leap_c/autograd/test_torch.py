@@ -1,5 +1,6 @@
-import torch
 from types import SimpleNamespace
+
+import torch
 
 from leap_c.autograd.function import DiffFunction
 from leap_c.autograd.torch import create_autograd_function

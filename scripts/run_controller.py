@@ -4,14 +4,15 @@ from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
-import numpy as np
-import gymnasium as gym
 
-from leap_c.examples import create_env, create_controller
-from leap_c.torch.rl.buffer import ReplayBuffer
-from leap_c.run import default_controller_code_path, default_output_path, init_run
-from leap_c.trainer import Trainer, TrainerConfig
+import gymnasium as gym
+import numpy as np
+
 from leap_c.controller import ParameterizedController
+from leap_c.examples import create_controller, create_env
+from leap_c.run import default_controller_code_path, default_output_path, init_run
+from leap_c.torch.rl.buffer import ReplayBuffer
+from leap_c.trainer import Trainer, TrainerConfig
 
 
 @dataclass

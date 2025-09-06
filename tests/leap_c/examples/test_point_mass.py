@@ -1,9 +1,9 @@
 import numpy as np
 import torch
 
+from leap_c.examples.pointmass.acados_ocp import create_pointmass_params
 from leap_c.examples.pointmass.controller import PointMassController
 from leap_c.examples.pointmass.env import PointMassEnv
-from leap_c.examples.pointmass.acados_ocp import create_pointmass_params
 
 
 def test_run_closed_loop(

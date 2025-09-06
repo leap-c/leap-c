@@ -22,7 +22,6 @@ from leap_c.ocp.acados.utils.create_solver import create_forward_backward_batch_
 from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
 from leap_c.ocp.acados.utils.solve import solve_with_retry
 
-
 N_BATCH_MAX = 256
 NUM_THREADS_BATCH_SOLVER = 4
 

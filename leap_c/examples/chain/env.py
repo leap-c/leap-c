@@ -7,8 +7,8 @@ import numpy as np
 from gymnasium import spaces
 
 from leap_c.examples.chain.dynamics import (
-    define_f_expl_expr,
     create_discrete_casadi_dynamics,
+    define_f_expl_expr,
 )
 from leap_c.examples.chain.utils.ellipsoid import Ellipsoid
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver

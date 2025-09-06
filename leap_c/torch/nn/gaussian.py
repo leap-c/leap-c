@@ -1,9 +1,9 @@
 """Provides a simple Gaussian layer that allows policies to respect action bounds."""
 
-from gymnasium import spaces
 import numpy as np
 import torch
 import torch.nn as nn
+from gymnasium import spaces
 
 
 class BoundedTransform(nn.Module):

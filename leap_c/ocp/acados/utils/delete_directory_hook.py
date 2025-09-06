@@ -1,6 +1,5 @@
 import atexit
 import shutil
-
 from pathlib import Path
 
 

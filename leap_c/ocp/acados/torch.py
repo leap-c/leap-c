@@ -2,10 +2,10 @@
 
 from pathlib import Path
 
-from acados_template import AcadosOcp
 import numpy as np
 import torch
 import torch.nn as nn
+from acados_template import AcadosOcp
 
 from leap_c.autograd.torch import create_autograd_function
 from leap_c.ocp.acados.diff_mpc import (

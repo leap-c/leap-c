@@ -1,6 +1,7 @@
+import gymnasium as gym
 import numpy as np
 import pytest
-import gymnasium as gym
+
 from leap_c.parameters import Parameter, ParameterManager
 
 
