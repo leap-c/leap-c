@@ -1,5 +1,6 @@
-from itertools import chain
 from dataclasses import asdict
+from itertools import chain
+
 import casadi as ca
 import gymnasium as gym
 import numpy as np
