@@ -1,5 +1,5 @@
 from itertools import chain
-
+from dataclasses import asdict
 import casadi as ca
 import gymnasium as gym
 import numpy as np
@@ -169,7 +169,7 @@ def nominal_stagewise_params(
     for param in nominal_params:
         if param.name in stagewise_overrides:
             # Create new parameter with overridden fields
-            kwargs = param._asdict()
+            kwargs = asdict(param)
             kwargs.update(stagewise_overrides[param.name])
             modified_params.append(AcadosParameter(**kwargs))
         else:
