@@ -204,17 +204,22 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         train_loop_iter = self.train_loop()
 
         # initial policy validation
-        val_score = self.validate()
+        self.eval()
+        with torch.inference_mode():
+            val_score = self.validate()
         self.state.scores.append(val_score)
         self.state.max_score = val_score
 
         while self.state.step < self.cfg.train_steps:
             # train
+            self.train()
             self.state.step += next(train_loop_iter)
 
             # validate
             if self.state.step // self.cfg.val_interval > len(self.state.scores) - 1:
-                val_score = self.validate()
+                self.eval()
+                with torch.inference_mode():
+                    val_score = self.validate()
                 self.state.scores.append(val_score)
 
                 if val_score > self.state.max_score:
@@ -237,8 +242,18 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
                 return self.state.max_score
 
     def validate(self) -> float:
-        """Do a deterministic validation run of the policy and
-        return the mean of the cumulative reward over all validation episodes."""
+        """Do a deterministic validation run of the policy and return the mean of the
+        cumulative reward over all validation episodes.
+
+        Returns:
+            The mean return over all validation episodes.
+
+        Note:
+            This method neither sets the trainer to eval mode nor disables gradient
+            computations. It is the caller's responsibility to do so via
+            `trainer.eval()` as well as `torch.no_grad` or `torch.inference_mode`
+            context managers.
+        """
 
         def create_policy_fn():
             policy_state = None
