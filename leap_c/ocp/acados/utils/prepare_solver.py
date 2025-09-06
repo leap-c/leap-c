@@ -22,6 +22,9 @@ def prepare_batch_solver(
     ocp_iterate: AcadosOcpFlattenedBatchIterate,
     solver_input: AcadosOcpSolverInput,
 ):
+    """Prepare the batch solver such that it can now solve the problem instance given by solver_input,
+    starting from the given ocp_iterate. Also caches the last call, such that repeated calls
+    to this do not incur unnecessary cost by preparing a batch solver multiple times with the same inputs."""
     # caching to improve performance
     if batch_solver in _PREPARE_CACHE:
         cached_ocp_iterate, cached_solver_input = _PREPARE_CACHE[batch_solver]
@@ -73,7 +76,9 @@ def prepare_batch_solver(
         for idx, stage in product(range(batch_size), range(N + 1)):
             param = p_stagewise[idx, stage, :].astype(np.float64)
             solver = batch_solver.ocp_solvers[idx]
-            solver.set_params_sparse(stage, param, p_stagewise_sparse_idx)
+            solver.set_params_sparse(
+                stage, p_stagewise_sparse_idx[idx, stage, :], param
+            )
 
     # initial conditions
     for idx, solver in enumerate(active_solvers):
@@ -95,6 +100,9 @@ def prepare_batch_solver_for_backward(
     ocp_iterate: AcadosOcpFlattenedBatchIterate,
     solver_input: AcadosOcpSolverInput,
 ):
+    """Prepare the backward batch solver such that the sensitivities can be retrieved.
+    Also caches the last call, such that repeated calls
+    to this do not incur unnecessary cost by preparing a batch solver multiple times with the same inputs."""
     if batch_solver in _PREPARE_BACKWARD_CACHE:
         cached_ocp_iterate, cached_solver_input = _PREPARE_BACKWARD_CACHE[batch_solver]
         if cached_ocp_iterate is ocp_iterate and cached_solver_input is solver_input:
@@ -106,7 +114,6 @@ def prepare_batch_solver_for_backward(
 
 
 def _is_param_legal(model_p) -> bool:
-    # TODO (Leonard): Do we need this function?
     if model_p is None:
         return False
     elif isinstance(model_p, ca.SX):

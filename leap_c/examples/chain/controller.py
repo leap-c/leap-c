@@ -42,6 +42,20 @@ class ChainControllerConfig:
 
 
 class ChainController(ParameterizedController):
+    """Acados-based controller for the hanging chain system.
+    The state and action correspond to the observation and action of the Chain environment.
+    The cost function takes the form of a weighted least-squares cost on the full state and action
+    and the dynamics correspond to the simulated ODE also found in the Chain environment (using RK4).
+    The inequality constraints are box constraints on the action.
+
+    Attributes:
+        cfg: A configuration object containing high-level settings for the MPC problem, such as horizon length.
+        param_manager: For managing the parameters of the OCP.
+        ocp: The acados OCP object representing the optimal control problem.
+        diff_mpc: An object wrapping the acados ocp solver for differentiable MPC solving.
+        collate_fn_map: A mapping for collating AcadosDiffMpcCtx objects in batches.
+    """
+
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
@@ -53,11 +67,12 @@ class ChainController(ParameterizedController):
         """Initializes the ChainController.
 
         Args:
-            cfg: A configuration object containing high-level settings for the
-                MPC problem, such as horizon length and number of masses.
-            params: An optional list of `Parameter` objects to define the
-                parameters of the controller.
-            export_directory: Directory to export the Acados OCP files.
+            cfg: cfg: A configuration object containing high-level settings for the
+                MPC problem, such as horizon length and maximum force. If not provided, a default config is used.
+            params: An optional list of parameters to define the
+                OCP. If not provided, default parameters for the Chain
+                system will be created based on the cfg.
+            export_directory: Directory to export the acados OCP files.
         """
         super().__init__()
         self.cfg = ChainControllerConfig() if cfg is None else cfg

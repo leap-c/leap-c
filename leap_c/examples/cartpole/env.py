@@ -14,10 +14,10 @@ class CartPoleEnvConfig:
     gravity: float = 9.81  # gravity [m/s^2]
     masscart: float = 1.0  # mass of the cart [kg]
     masspole: float = 0.1  # mass of the pole [kg]
-    length: float = 0.8  # half-length of the pole [m]
+    length: float = 0.8  # length of the pole [m]
     Fmax: float = 80.0  # maximum force that can be applied to the cart [N]
     dt: float = 0.05  # simulation time step [s]
-    max_time: float = 10.0  # maximum simulation time [s]
+    max_time: float = 10.0  # maximum simulation time until truncation [s]
     x_threshold: float = (
         2.4  # maximum absolute position of the cart before termination [m]
     )
@@ -36,14 +36,14 @@ class CartPoleEnv(gym.Env):
 
     | Num | Observation           | Min                 | Max               |
     |-----|-----------------------|---------------------|-------------------|
-    | 0   | Cart Position         | -4.8                | 4.8               |
+    | 0   | Cart Position         | -2*x_threshold      | 2*x_threshold     |
     | 1   | Pole Angle (theta)    | -2pi                | 2pi               |
     | 2   | Cart Velocity         | -Inf                | Inf               |
     | 3   | Pole Angular Velocity | -Inf                | Inf               |
 
     NOTE: Like in the original CartPole environment, the range above for the cart position denotes
     the possible range of the cart's center of mass in the observation space,
-    but the episode terminates if it leaves the interval (-2.4, 2.4) already.
+    but the episode terminates if it leaves the interval (-x_threshold, x_threshold) already.
     NOTE: The pole angle is actually bounded between -2pi and 2pi by always adding/subtracting
     (in the negative / in the positive case) the highest multiple of 2pi
     until the pole angle is within the bounds again.
@@ -63,8 +63,40 @@ class CartPoleEnv(gym.Env):
     -------
     Since this is an environment for the swingup task, the agent achieves maximum reward when the pole
     is upright (theta = 0) and minimum reward when the pole is hanging down (theta = pi or theta = -pi).
-    More precisely, the reward in a step is bounded between 0 and 0.1, given by
-    r = abs(pi - (abs(theta))) / (10 * pi)
+    In particular, the reward is symmetric around 0 and bounded between 0 and 0.1 in each step.
+
+
+    Terminates:
+    -----------
+    If the cart position is outside of the x_threshold interval (-x_threshold, x_threshold).
+
+    Truncates:
+    ----------
+    After max_time seconds of simulation time.
+
+    Info:
+    -----
+    The info dictionary contains:
+    - "task": {"violation": bool, "success": bool}
+      - violation: True if out of bounds
+      - success: True if the pole was upright in the last 10 steps.
+
+    Attributes:
+        cfg: Configuration for the environment.
+        reset_needed: A flag indicating whether the environment needs to be reset before the next step.
+        t: The current time in the episode (since the last reset).
+        x: The current state of the system.
+        integrator: A function that performs one integration step of the system dynamics.
+        x_trajectory: A list of states representing the states of the episode so far.
+        action_space: The action space of the environment.
+        observation_space: The observation space of the environment.
+        render_mode: The mode to render with. Supported modes are: human, rgb_array, None.
+        pos_trajectory: A list of cart positions representing a planned trajectory (e.g., from the controller). Only used for rendering.
+        pole_end_trajectory: A list of pole end positions representing a planned trajectory of the pole end (e.g., from the controller). Only used for rendering.
+        screen_width: The width of the rendering screen.
+        screen_height: The height of the rendering screen.
+        window: The pygame window used for rendering.
+        clock: The pygame clock used for rendering.
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
@@ -72,6 +104,11 @@ class CartPoleEnv(gym.Env):
     def __init__(
         self, render_mode: str | None = None, cfg: CartPoleEnvConfig | None = None
     ):
+        """
+        Args:
+            render_mode: The mode to render with. Supported modes are: human, rgb_array, None.
+            cfg: Configuration for the environment. If None, default configuration is used.
+        """
         self.cfg = CartPoleEnvConfig() if cfg is None else cfg
 
         def f_explicit(
@@ -131,6 +168,7 @@ class CartPoleEnv(gym.Env):
         self.reset_needed = True
         self.t = 0
         self.x = None
+        self.x_trajectory = None
 
         # For rendering
         if not (render_mode is None or render_mode in self.metadata["render_modes"]):
@@ -140,14 +178,12 @@ class CartPoleEnv(gym.Env):
         self.render_mode = render_mode
         self.pos_trajectory = None
         self.pole_end_trajectory = None
-        self.x_trajectory = None
         self.screen_width = 600
         self.screen_height = 400
         self.window = None
         self.clock = None
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict]:
-        """Execute the dynamics of the pendulum on cart."""
         if self.reset_needed:
             raise Exception("Call reset before using the step method.")
         self.x = self.integrator(self.x, action, self.cfg.dt)
@@ -362,6 +398,10 @@ class CartPoleEnv(gym.Env):
 
 
 class CartPoleBalanceEnv(CartPoleEnv):
+    """The same as the CartPoleEnv, but instead of swinging up, the pole starts in an upwards, slightly disbalanced,
+    position and the agent should learn to balance the pole.
+    """
+
     def init_state(self, options: Optional[dict] = None) -> np.ndarray:
         low, high = gym_utils.maybe_parse_reset_bounds(
             options,

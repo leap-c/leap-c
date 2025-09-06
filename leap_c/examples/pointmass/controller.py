@@ -35,7 +35,20 @@ class PointMassControllerConfig:
 
 
 class PointMassController(ParameterizedController):
-    """acados-based controller for PointMass"""
+    """Acados-based controller for the PointMass system.
+    The state corresponds to the observation of the PointMass environment, without the wind force.
+    The cost function takes a weighted least-squares form,
+    and the dynamics correspond to the ones in the environment, but without the wind force.
+    The inequality constraints are box constraints on the action (hard)
+    and on the position of the ball, the latter representing the bounds of the world (soft/slacked).
+
+    Attributes:
+        cfg: A configuration object containing high-level settings for the MPC problem, such as horizon length.
+        param_manager: For managing the parameters of the OCP.
+        ocp: The acados OCP object representing the optimal control problem.
+        diff_mpc: An object wrapping the acados ocp solver for differentiable MPC solving.
+        collate_fn_map: A mapping for collating AcadosDiffMpcCtx objects in batches.
+    """
 
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
@@ -48,8 +61,11 @@ class PointMassController(ParameterizedController):
         """Initializes the PointMassController.
 
         Args:
-            cfg: Configuration object for the MPC problem.
-            params: Optional list of `Parameter` objects for the OCP.
+            cfg: A configuration object containing high-level settings for the
+                MPC problem, such as horizon length and maximum force. If not provided, a default config is used.
+            params: An optional list of parameters to define the
+                OCP. If not provided, default parameters for the PointMass
+                system will be created based on the cfg.
             export_directory: Optional directory for generated acados solver code.
         """
         super().__init__()
