@@ -8,17 +8,18 @@ import numpy as np
 
 
 class AcadosOcpSolverInput(NamedTuple):
-    """Input for an Acados solver.
+    """Input for an Acados solver representing a batch of concrete problem instances that should be solved.
 
     Attributes:
         x0: Initial state, shape (batch_size, nx)
         u0: Initial control input, shape (batch_size, nu), optional.
             If provided, the initial control input will be constrained to this.
         p_global: Global parameters, shape (batch_size, np_global), optional.
-            If not provided, the default values set in the ocp will be used.
+            If not provided, the default values set in the acados ocp object will be used.
         p_stagewise: Stage-wise parameters, shape (batch_size, N_horizon + 1, np_stagewise),
             or (batch_size, N_horizon + 1, len(p_stagewise_sparse_idx), if p_stagewise_sparse_idx is provided, optional.
-            If not provided, the default values set in the ocp will be used. Has to be provided if p_stagewise_sparse_idx is provided.
+            If not provided, the default values set in the acados ocp object will be used.
+            Has to be provided if p_stagewise_sparse_idx is provided.
         p_stagewise_sparse_idx: If provided, the indices determine which elements of the total stagewise parameter in the
             solver should be overwritten by the provided p_stagewise values,
             shape (batch_size, N_horizon + 1, nindices), optional.

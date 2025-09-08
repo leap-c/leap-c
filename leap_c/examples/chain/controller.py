@@ -50,8 +50,8 @@ class ChainController(ParameterizedController):
 
     Attributes:
         cfg: A configuration object containing high-level settings for the MPC problem, such as horizon length.
-        param_manager: For managing the parameters of the OCP.
-        ocp: The acados OCP object representing the optimal control problem.
+        ocp: The acados ocp object representing the optimal control problem structure.
+        param_manager: For managing the parameters of the ocp.
         diff_mpc: An object wrapping the acados ocp solver for differentiable MPC solving.
         collate_fn_map: A mapping for collating AcadosDiffMpcCtx objects in batches.
     """
@@ -70,9 +70,9 @@ class ChainController(ParameterizedController):
             cfg: cfg: A configuration object containing high-level settings for the
                 MPC problem, such as horizon length and maximum force. If not provided, a default config is used.
             params: An optional list of parameters to define the
-                OCP. If not provided, default parameters for the Chain
+                ocp object. If not provided, default parameters for the Chain
                 system will be created based on the cfg.
-            export_directory: Directory to export the acados OCP files.
+            export_directory: Directory to export the acados ocp files.
         """
         super().__init__()
         self.cfg = ChainControllerConfig() if cfg is None else cfg

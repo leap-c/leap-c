@@ -15,7 +15,7 @@ def solve_with_retry(
     ocp_iterate: AcadosOcpFlattenedBatchIterate | None,
     solver_input: AcadosOcpSolverInput,
 ) -> tuple[np.ndarray, dict[str, float]]:
-    """Solve a batch of ocps, and retries in case of failure.
+    """Solve a batch of problem instances, and retry in case of failure.
 
     This function prepares the batch solver by loading the iterate, setting
     the initial conditions, and configuring the global and stage-wise

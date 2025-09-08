@@ -104,7 +104,7 @@ class AcadosDiffMpcFunction(DiffFunction):
     """Differentiable MPC function based on acados.
 
     Attributes:
-        ocp: The acados OCP object defining the optimal control problem.
+        ocp: The acados ocp object defining the optimal control problem structure.
         forward_batch_solver: The acados batch solver used for the forward pass.
         backward_batch_solver: The acados batch solver used for the backward pass.
         initializer: The initializer used to provide initial guesses for the solver,
@@ -120,12 +120,12 @@ class AcadosDiffMpcFunction(DiffFunction):
         export_directory: Path | None = None,
     ) -> None:
         """
-        Parameters:
-            ocp: The acados OCP object defining the optimal control problem.
+        Args:
+            ocp: The acados ocp object defining the optimal control problem structure.
             initializer: The initializer used to provide initial guesses for the solver,
                 if none are provided explicitly or on a retry. Uses a zero iterate by default.
-            sensitivity_ocp: An optional acados OCP object defining a sensitivity problem. If none provided,
-                the sensitivity ocp will be derived from the given "normal" ocp.
+            sensitivity_ocp: An optional acados ocp object for obtaining the sensitivities. If none provided,
+                the sensitivity ocp will be derived from the given "normal" `ocp`.
             discount_factor: An optional discount factor for the sensitivity problem. If none provided,
                 the default acados weighting will be used, i.e., 1/N_horizon on the stage cost and 1 on the terminal cost.
             export_directory: An optional directory to which the generated C code will be exported. If none provided,
@@ -158,15 +158,15 @@ class AcadosDiffMpcFunction(DiffFunction):
         p_stagewise_sparse_idx: np.ndarray | None = None,
     ) -> tuple[AcadosDiffMpcCtx, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
-        Perform the forward pass by solving the OCP.
+        Perform the forward pass by solving the problem instances.
 
         Args:
-            ctx: An `AcadosDiffMpcCtx` object for storing context. Defaults to `None`.
+            ctx: An object for storing context. Defaults to `None`.
             x0: Initial states with shape `(B, x_dim)`.
             u0: Initial actions with shape `(B, u_dim)`. Defaults to `None`.
             p_global: Acados global parameters shared across all stages (i.e., learnable parameters),
-                shape `(B, p_global_dim)`. If none provided, the default values set in the ocp are used.
-            p_stagewise: Stagewise parameters. If none provided, the default values set in the ocp are used.
+                shape `(B, p_global_dim)`. If none provided, the default values set in the acados ocp object are used.
+            p_stagewise: Stagewise parameters. If none provided, the default values set in the acados ocp object are used.
                 If p_stagewise_sparse_idx is provided, this also has to be provided.
                 If `p_stagewise_sparse_idx` is `None`, shape is
                 `(B, N+1, p_stagewise_dim)`.
@@ -221,7 +221,7 @@ class AcadosDiffMpcFunction(DiffFunction):
         Perform the backward pass via implicit differentiation.
 
         Args:
-            ctx: The `AcadosDiffMpcCtx` object from the forward pass.
+            ctx: The ctx object from the forward pass.
             u0_grad: Gradient with respect to the control solution of the first stage.
             x_grad: Gradient with respect to the whole state trajectory solution.
             u_grad: Gradient with respect to the whole control trajectory solution.

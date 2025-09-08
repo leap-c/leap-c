@@ -91,7 +91,7 @@ def create_batch_solver(
 
 def create_forward_backward_batch_solvers(
     ocp: AcadosOcp,
-    sensitivity_ocp: AcadosOcp | None = None,  # type:ignore
+    sensitivity_ocp: AcadosOcp | None = None,
     export_directory: str | Path | None = None,
     discount_factor: float | None = None,
     n_batch_max: int = 256,
