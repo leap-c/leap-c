@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from acados_template.acados_ocp import AcadosOcp
 import gymnasium as gym
 import numpy as np
 import torch
@@ -43,12 +44,18 @@ class PointMassController(ParameterizedController):
     and on the position of the ball, the latter representing the bounds of the world (soft/slacked).
 
     Attributes:
-        cfg: A configuration object containing high-level settings for the MPC problem, such as horizon length.
+        cfg: A configuration object containing high-level settings for the MPC problem,
+            such as horizon length.
         ocp: The acados ocp object representing the optimal control problem structure.
         param_manager: For managing the parameters of the ocp.
         diff_mpc: An object wrapping the acados ocp solver for differentiable MPC solving.
         collate_fn_map: A mapping for collating AcadosDiffMpcCtx objects in batches.
     """
+
+    cfg: PointMassControllerConfig
+    ocp: AcadosOcp
+    param_manager: AcadosParameterManager
+    diff_mpc: AcadosDiffMpc
 
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
@@ -62,7 +69,8 @@ class PointMassController(ParameterizedController):
 
         Args:
             cfg: A configuration object containing high-level settings for the
-                MPC problem, such as horizon length and maximum force. If not provided, a default config is used.
+                MPC problem, such as horizon length and maximum force.
+                If not provided, a default config is used.
             params: An optional list of parameters to define the
                 ocp object. If not provided, default parameters for the PointMass
                 system will be created based on the cfg.
@@ -79,9 +87,7 @@ class PointMassController(ParameterizedController):
             else params
         )
 
-        self.param_manager = AcadosParameterManager(
-            parameters=params, N_horizon=self.cfg.N_horizon
-        )
+        self.param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
 
         self.ocp = export_parametric_ocp(
             param_manager=self.param_manager,
@@ -100,9 +106,7 @@ class PointMassController(ParameterizedController):
         # remove wind field from observation, this is only observed by
         # the network, not used in the MPC
         x0 = obs[:, :4]
-        ctx, u0, x, u, value = self.diff_mpc(
-            x0, p_global=param, p_stagewise=p_stagewise, ctx=ctx
-        )
+        ctx, u0, x, u, value = self.diff_mpc(x0, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
