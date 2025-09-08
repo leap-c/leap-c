@@ -12,12 +12,16 @@ class AcadosOcpSolverInput(NamedTuple):
 
     Attributes:
         x0: Initial state, shape (batch_size, nx)
-        u0: Initial control input shape (batch_size, nu), optional
-        p_global: Global parameters, shape (batch_size, np_global), optional
-        p_stagewise: Stage-wise parameters, shape (batch_size, N_horizon, np_stagewise), optional
+        u0: Initial control input, shape (batch_size, nu), optional.
+            If provided, the initial control input will be constrained to this.
+        p_global: Global parameters, shape (batch_size, np_global), optional.
+            If not provided, the default values set in the ocp will be used.
+        p_stagewise: Stage-wise parameters, shape (batch_size, N_horizon + 1, np_stagewise),
+            or (batch_size, N_horizon + 1, len(p_stagewise_sparse_idx), if p_stagewise_sparse_idx is provided, optional.
+            If not provided, the default values set in the ocp will be used. Has to be provided if p_stagewise_sparse_idx is provided.
         p_stagewise_sparse_idx: If provided, the indices determine which elements of the total stagewise parameter in the
             solver should be overwritten by the provided p_stagewise values,
-            shape (batch_size, N_horizon, nindices), optional
+            shape (batch_size, N_horizon + 1, nindices), optional.
     """
 
     x0: np.ndarray

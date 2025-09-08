@@ -28,8 +28,7 @@ def create_batch_solver(
         export_directory: Directory to export the generated code. If None, a
             temporary directory is created and the directory is cleaned afterwards.
         discount_factor: Discount factor. If None, acados default cost
-            scaling is used, i.e. dt for intermediate stages, 1 for
-            terminal stage.
+            scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
         n_batch_max: Maximum batch size.
         num_threads: Number of threads used in the batch solver.
     """
@@ -107,7 +106,7 @@ def create_forward_backward_batch_solvers(
         ocp: Acados optimal control problem formulation for the forward solver.
         sensitivity_ocp: Acados optimal control problem formulation for the backward solver.
             If None, this will be derived from the given `ocp`.
-        export_directory: Directory to export generated code.
+        export_directory: Directory to export generated code. If none, a unique temporary directory is created.
         discount_factor: Discount factor for the solver. If not provided, acados default weighting is used
         (i.e., 1/N_horizon for intermediate stages, 1 for terminal stage).
         n_batch_max: Maximum batch size.
@@ -132,7 +131,7 @@ def create_forward_backward_batch_solvers(
         return forward_batch_solver, forward_batch_solver
 
     if sensitivity_ocp is None:
-        # NOTE: Better use the ocp from an already compiled solver to hopefully avoid problems with deepcopy
+        # NOTE: Use the ocp from an already compiled solver to hopefully avoid problems with deepcopy
         sensitivity_ocp = deepcopy(forward_batch_solver.ocp_solvers[0].acados_ocp)  # type:ignore
         make_ocp_sensitivity_compatible(sensitivity_ocp)  # type:ignore
 

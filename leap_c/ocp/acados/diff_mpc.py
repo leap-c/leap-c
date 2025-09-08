@@ -31,10 +31,25 @@ NUM_THREADS_BATCH_SOLVER = 4
 class AcadosDiffMpcCtx:
     """Context for differentiable MPC with acados.
 
-    This context holds the results of the forward pass, including the solution
-    iterate, solver status, log, and solver input. This information is needed
+    This context holds the results of the forward pass. This information is needed
     for the backward pass and to calculate the sensitivities. It also contains
     fields for caching the sensitivity calculations.
+
+    Attributes:
+        iterate: The solution iterate from the forward pass. Can be used for, e.g., initializing the next solve.
+        status: The status of the solver after the forward pass. 0 indicates success, non-zero values indicate various errors.
+        log: Statistics from the forward solve containing information like success rates and timings.
+        solver_input: The input used for the forward pass.
+        needs_input_grad: A list of booleans indicating which inputs require gradients.
+        du0_dp_global: Sensitivity of the control solution of the initial stage
+            with respect to acados global parameters (i.e., learnable parameters).
+        du0_dx0: Sensitivity of the control solution of the initial stage with respect to the initial state.
+        dvalue_du0: Sensitivity of the objective value solution with respect to the control input of the first stage.
+            Only available if said control was provided.
+        dvalue_dx0: Sensitivity of the objective value solution solution with respect to the initial state.
+        dx_dp_global: Sensitivity of the whole state trajectory solution with respect to acados global parameters (i.e., learnable parameters).
+        du_dp_global: Sensitivity of the whole control trajectory solution with respect to acados global parameters (i.e., learnable parameters).
+        dvalue_dp_global: Sensitivity of the objective value solution with respect to acados global.
     """
 
     iterate: AcadosOcpFlattenedBatchIterate
@@ -81,10 +96,20 @@ AcadosDiffMpcSensitivityOptions = Literal[
     "dvalue_du0",
     "dvalue_dx0",
 ]
+"""For an explanation, please refer to the corresponding fields in `AcadosDiffMpcCtx`.
+"""
 
 
 class AcadosDiffMpcFunction(DiffFunction):
-    """Differentiable MPC based on acados."""
+    """Differentiable MPC function based on acados.
+
+    Attributes:
+        ocp: The acados OCP object defining the optimal control problem.
+        forward_batch_solver: The acados batch solver used for the forward pass.
+        backward_batch_solver: The acados batch solver used for the backward pass.
+        initializer: The initializer used to provide initial guesses for the solver,
+            if none are provided explicitly or on a retry. Uses a zero iterate by default.
+    """
 
     def __init__(
         self,
@@ -94,6 +119,18 @@ class AcadosDiffMpcFunction(DiffFunction):
         discount_factor: float | None = None,
         export_directory: Path | None = None,
     ) -> None:
+        """
+        Parameters:
+            ocp: The acados OCP object defining the optimal control problem.
+            initializer: The initializer used to provide initial guesses for the solver,
+                if none are provided explicitly or on a retry. Uses a zero iterate by default.
+            sensitivity_ocp: An optional acados OCP object defining a sensitivity problem. If none provided,
+                the sensitivity ocp will be derived from the given "normal" ocp.
+            discount_factor: An optional discount factor for the sensitivity problem. If none provided,
+                the default acados weighting will be used, i.e., 1/N_horizon on the stage cost and 1 on the terminal cost.
+            export_directory: An optional directory to which the generated C code will be exported. If none provided,
+                a unique temporary directory will be created used.
+        """
         self.ocp = ocp
         self.forward_batch_solver, self.backward_batch_solver = (
             create_forward_backward_batch_solvers(
@@ -127,9 +164,10 @@ class AcadosDiffMpcFunction(DiffFunction):
             ctx: An `AcadosDiffMpcCtx` object for storing context. Defaults to `None`.
             x0: Initial states with shape `(B, x_dim)`.
             u0: Initial actions with shape `(B, u_dim)`. Defaults to `None`.
-            p_global: Global parameters shared across all stages,
-                shape `(B, p_global_dim)`. Defaults to `None`.
-            p_stagewise: Stagewise parameters.
+            p_global: Acados global parameters shared across all stages (i.e., learnable parameters),
+                shape `(B, p_global_dim)`. If none provided, the default values set in the ocp are used.
+            p_stagewise: Stagewise parameters. If none provided, the default values set in the ocp are used.
+                If p_stagewise_sparse_idx is provided, this also has to be provided.
                 If `p_stagewise_sparse_idx` is `None`, shape is
                 `(B, N+1, p_stagewise_dim)`.
                 If `p_stagewise_sparse_idx` is provided, shape is
@@ -184,10 +222,10 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         Args:
             ctx: The `AcadosDiffMpcCtx` object from the forward pass.
-            p_global_grad: Gradient with respect to `p_global`.
-            p_stagewise_idx_grad: Gradient with respect to
-                `p_stagewise_sparse_idx`.
-            p_stagewise_grad: Gradient with respect to `p_stagewise`.
+            u0_grad: Gradient with respect to the control solution of the first stage.
+            x_grad: Gradient with respect to the whole state trajectory solution.
+            u_grad: Gradient with respect to the whole control trajectory solution.
+            value_grad: Gradient with respect to the objective value solution.
         """
         if ctx.needs_input_grad is None:
             return None, None, None, None, None
