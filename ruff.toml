@@ -1,6 +1,10 @@
+line-length=100
 exclude = [".venv", "external"]
 
 [lint]
 ignore = [
   "E741",
 ]
+extend-select=["E501", 
+               "NPY",
+               ]
