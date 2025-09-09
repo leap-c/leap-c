@@ -28,8 +28,15 @@ class ReplayBuffer(nn.Module):
         buffer: A deque that stores the transitions.
         device: The device to which all sampled tensors will be cast.
         collate_fn_map: The collate function map that informs the buffer how to form batches.
-        tensor_dtype: The data type to which the tensors in the observation will be cast.
+            For more information, please refer to the official pytorch documentation, e.g.,
+            https://docs.pytorch.org/docs/stable/data.html#torch.utils.data.default_collate .
+        tensor_dtype: The data type to which the tensors will be cast.
     """
+
+    buffer: collections.deque
+    device: str
+    collate_fn_map: dict[Union[tuple, tuple[type, ...]], Callable]
+    tensor_dtype: torch.dtype
 
     def __init__(
         self,
@@ -43,11 +50,12 @@ class ReplayBuffer(nn.Module):
 
         Args:
             buffer_limit: The maximum number of transitions that can be stored in the buffer.
-                If the buffer is full, the oldest transitions
-                are discarded when putting in a new one.
+                If the buffer is full, the oldest transition
+                is discarded when putting in a new one.
             device: The device to which all sampled tensors will be cast.
+            tensor_dtype: The data type to which the sampled tensors will be cast.
             collate_fn_map: The collate function map that informs the buffer how to form batches.
-            tensor_dtype: The data type to which the tensors in the observation will be cast.
+                If given, extends the default collate function map of PyTorch.
         """
         super().__init__()
         self.buffer = collections.deque(maxlen=buffer_limit)
@@ -64,16 +72,14 @@ class ReplayBuffer(nn.Module):
 
         Args:
             data: The data to put into the buffer.
-                It should be collatable according to the custom_collate function.
+                It should be collatable according to the `collate` function.
         """
         self.buffer.append(data)
 
     def sample(self, n: int) -> Any:
         """
         Sample a mini-batch from the replay buffer,
-        collate the mini-batch according to self.custom_collate_map
-        and cast all tensors in the collated mini-batch (must be a pytree structure)
-        to the device and dtype of the buffer.
+        and collate it according to the ``collate`` function.
 
         Args:
             n: The number of samples to draw.
@@ -82,7 +88,8 @@ class ReplayBuffer(nn.Module):
         return self.collate(mini_batch)
 
     def collate(self, batch: Any) -> Any:
-        """Collate a batch of data according to the collate function map.
+        """Collate a batch of data according to the collate function map,
+        and move and cast all tensors in the collated batch (must be a pytree structure)
 
         Args:
             batch: The batch of data to collate.
