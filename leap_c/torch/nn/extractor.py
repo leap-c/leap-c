@@ -1,6 +1,6 @@
 """This module contains classes for feature extraction from observations.
 
-We provide an abstraction to allow algorithms to be aplied to different
+We provide an abstraction to allow algorithms to be applied to different
 types of observations and using different neural network architectures.
 """
 

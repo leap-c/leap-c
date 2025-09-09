@@ -110,6 +110,8 @@ def create_zero_iterate_from_ocp(ocp: AcadosOcp) -> AcadosOcpIterate:
 
 
 class ZeroDiffMpcInitializer(AcadosDiffMpcInitializer):
+    """An initializer that always returns an iterate with all values set to zero."""
+
     def __init__(self, ocp: AcadosOcp) -> None:
         self.zero_iterate = create_zero_iterate_from_ocp(ocp).flatten()
 

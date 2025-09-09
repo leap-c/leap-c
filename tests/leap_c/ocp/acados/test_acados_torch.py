@@ -257,7 +257,7 @@ def test_closed_loop(
         for step in range(100):
             # Need first dimension to be batch size
             x0 = np.array(x[-1].reshape(n_batch, nx))  # type: ignore
-            ctx, u0, _, _, _ = diff_mpc_k.forward(x0=x0, p_global=p_global)  # type: ignore
+            ctx, u0, _, _, _ = diff_mpc_k.forward(x0=x0, p_learnable=p_global)  # type: ignore
             assert ctx.status == 0, f"Did not converge to a solution in step {step}"
             u.append(u0)
             x.append(diff_mpc_k.diff_mpc_fun.forward_batch_solver.ocp_solvers[0].get(1, "x"))
@@ -615,7 +615,7 @@ def test_backward(
         """Create test function for du0/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, p_learnable=p_global)
 
         return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
 
@@ -623,7 +623,7 @@ def test_backward(
         """Create test function for dV/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, p_learnable=p_global)
 
         return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
@@ -633,7 +633,7 @@ def test_backward(
         """Create test function for dQ/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, u0=u0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, u0=u0, p_learnable=p_global)
 
         return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
@@ -643,7 +643,7 @@ def test_backward(
         """Create test function for dQ/du0 gradient."""
 
         def forward_func(u0):
-            return diff_mpc.forward(x0=x0, u0=u0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, u0=u0, p_learnable=p_global)
 
         return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
@@ -651,7 +651,7 @@ def test_backward(
         """Create test function for dx/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, p_learnable=p_global)
 
         return _create_backward_test_function(forward_func, lambda result: result[2])  # x
 
@@ -659,7 +659,7 @@ def test_backward(
         """Create test function for du/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, p_learnable=p_global)
 
         return _create_backward_test_function(forward_func, lambda result: result[3])  # u
 
@@ -667,7 +667,7 @@ def test_backward(
         """Create test function for dfakeu/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, p_learnable=p_global)
 
         return _create_backward_test_function(
             forward_func,

@@ -137,6 +137,10 @@ class AcadosDiffMpcFunction(DiffFunction):
                 1/N_horizon on the stage cost and 1 on the terminal cost.
             export_directory: An optional directory to which the generated C code will be exported.
                 If none provided, a unique temporary directory will be created used.
+            n_batch_max: Maximum batch size supported by the batch OCP solver. If
+                `None`, the default value is used.
+            num_threads_batch_solver: Number of parallel threads to use for the batch
+                OCP solver. If `None`, the default value is used.
         """
         self.ocp = ocp
         self.forward_batch_solver, self.backward_batch_solver = (
@@ -170,7 +174,8 @@ class AcadosDiffMpcFunction(DiffFunction):
         Perform the forward pass by solving the problem instances.
 
         Args:
-            ctx: An object for storing context. Defaults to `None`.
+            ctx: A context object for the forward pass. If provided,
+                it will be used to warmstart the solve (e.g., by using the saved iterate).
             x0: Initial states with shape `(B, x_dim)`.
             u0: Initial actions with shape `(B, u_dim)`. Defaults to `None`.
             p_global: Acados global parameters shared across all stages
@@ -324,9 +329,7 @@ class AcadosDiffMpcFunction(DiffFunction):
         self, ctx: AcadosDiffMpcCtx, field_name: AcadosDiffMpcSensitivityOptions
     ) -> np.ndarray:
         """
-        Calculate a specific sensitivity field for a context.
-
-        The `sensitivity` method retrieves a specific sensitivity field from the
+        Retrieves a specific sensitivity field from the
         context object, or recalculates it if not already present.
 
         Args:

@@ -1,6 +1,6 @@
 import warnings
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 import casadi as ca
 import gymnasium as gym
@@ -70,6 +70,8 @@ class AcadosParameter:
 class AcadosParameterManager:
     """Manager class for handling acados parameters according to their specifications
     (e.g., interface).
+    In particular, this handles stage-varying learnable parameters,
+    which is not available out-of-the-box in acados.
 
     Attributes:
         parameters: Dictionary of parameter names to AcadosParameter instances.
@@ -245,13 +247,15 @@ class AcadosParameterManager:
         **overwrite: np.ndarray,
     ) -> np.ndarray:
         """
-        Combine all parameters into a single numpy array.
+        Combine all non-learnable parameters and provided overwrites into a single numpy array.
 
         Args:
             batch_size: The batch size for the parameters.
-            Not needed if overwrite is provided.
+                Not needed if overwrite is provided.
             **overwrite: Overwrite values for specific parameters.
-                values need to be np.ndarray with shape (batch_size, N_horizon, ...).
+                The keys should correspond to the parameter names to overwrite.
+                The values need to be np.ndarray with shape (batch_size, N_horizon, pdim),
+                where pdim is the number of dimensions of the parameter to overwrite.
 
         Returns:
             np.ndarray: shape (batch_size, N_horizon, np). with np being the number of
@@ -300,8 +304,16 @@ class AcadosParameterManager:
 
         return batch_parameter_values
 
-    def get_param_space(self, dtype: np.dtype = np.float32) -> gym.Space:
-        """Get the Gym space for the parameters."""
+    def get_param_space(
+        self, dtype: type[np.floating[Any]] | type[np.integer[Any]] = np.float32
+    ) -> gym.Space:
+        """Return the combined Gym space for the learnable parameters.
+        If the parameters do not provide a space themselves, an unbounded
+        Box space with type `dtype` will be filled in for them.
+
+        Args:
+            dtype: The desired data type for the filled-in spaces.
+        """
         learnable_spaces = []
 
         for name, param in self.parameters.items():
@@ -330,42 +342,53 @@ class AcadosParameterManager:
             tuple_space = gym.spaces.Tuple(learnable_spaces)
             return gym.spaces.utils.flatten_space(tuple_space)
 
-    def get(self, field: str) -> ca.SX | ca.MX | np.ndarray:
-        """Get the variable for a given field."""
-        if field not in self.parameters:
+    def get(self, name: str) -> ca.SX | ca.MX | np.ndarray:
+        """Get the variable of a given name.
+
+        Args:
+            name: The name of the parameter to retrieve.
+
+        Returns:
+            A casadi variable for the parameter, or its default value if fixed.
+        """
+        if name not in self.parameters:
             raise ValueError(
-                f"Unknown field: {field}. Available fields: {list(self.parameters.keys())}"
+                f"Unknown field: {name}. Available fields: {list(self.parameters.keys())}"
             )
 
-        if self.parameters[field].interface == "fix":
-            return self.parameters[field].default
+        if self.parameters[name].interface == "fix":
+            return self.parameters[name].default
 
-        if self.parameters[field].interface == "learnable" and self.parameters[field].vary_stages:
-            starts = ([0] if 0 not in self.parameters[field].vary_stages else []) + self.parameters[
-                field
+        if self.parameters[name].interface == "learnable" and self.parameters[name].vary_stages:
+            starts = ([0] if 0 not in self.parameters[name].vary_stages else []) + self.parameters[
+                name
             ].vary_stages
-            ends = np.array(self.parameters[field].vary_stages + [self.N_horizon + 1]) - 1
+            ends = np.array(self.parameters[name].vary_stages + [self.N_horizon + 1]) - 1
             indicators = []
             variables = []
             for start, end in zip(starts, ends):
                 indicators.append(
                     ca.sum(self.non_learnable_parameters["indicator"][start : end + 1])
                 )
-                variables.append(self.learnable_parameters[f"{field}_{start}_{end}"])
+                variables.append(self.learnable_parameters[f"{name}_{start}_{end}"])
 
             terms = []
             for indicator, variable in zip(indicators, variables):
                 terms.append(indicator * variable)
             return sum(terms)
 
-        if self.parameters[field].interface == "learnable":
-            return self.learnable_parameters[field]
+        if self.parameters[name].interface == "learnable":
+            return self.learnable_parameters[name]
 
-        if self.parameters[field].interface == "non-learnable":
-            return self.non_learnable_parameters[field]
+        if self.parameters[name].interface == "non-learnable":
+            return self.non_learnable_parameters[name]
+        else:
+            raise ValueError(
+                f"Unknown interface type for field '{name}': {self.parameters[name].interface}"
+            )
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
-        """Assign the parameters to the OCP model."""
+        """Assign the parameters to the acados ocp object."""
         if self.learnable_parameters is not None:
             ocp.model.p_global = self.learnable_parameters.cat
             ocp.p_global_values = (
