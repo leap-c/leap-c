@@ -43,9 +43,7 @@ def nominal_params() -> tuple[AcadosParameter, ...]:
         AcadosParameter(
             name="r_diag",
             default=np.array([0.1, 0.1]),
-            space=gym.spaces.Box(
-                low=np.array([0.05, 0.05]), high=np.array([0.15, 0.15])
-            ),
+            space=gym.spaces.Box(low=np.array([0.05, 0.05]), high=np.array([0.15, 0.15])),
             interface="learnable",
         ),
         AcadosParameter(
@@ -197,7 +195,8 @@ def acados_test_ocp_no_p_global(
     ocp.solver_options.tf = ocp_options.tf
     ocp.solver_options.N_horizon = ocp_options.N_horizon
 
-    # Make a copy of the nominal parameters where differentiable and stagewise is set to False everywhere
+    # Make a copy of the nominal parameters where differentiable
+    # and stagewise is set to False everywhere
     params = tuple(
         AcadosParameter(
             name=param.name,
@@ -347,9 +346,7 @@ def define_external_cost(ocp: AcadosOcp, param_manager: AcadosParameterManager):
     )
 
 
-def define_discrete_dynamics(
-    ocp: AcadosOcp, param_manager: AcadosParameterManager
-) -> None:
+def define_discrete_dynamics(ocp: AcadosOcp, param_manager: AcadosParameterManager) -> None:
     kwargs = {
         "m": param_manager.get(field="m"),
         "cx": param_manager.get(field="cx"),
@@ -531,9 +528,7 @@ def diff_mpc_with_stagewise_varying_params(
                 ocp_solver.set(stage, "p", parameter_values[batch, stage, :])
 
                 if print_level > 0:
-                    print(
-                        f"stage: {stage}; p: {ocp_solver.get(stage_=stage, field_='p')}"
-                    )
+                    print(f"stage: {stage}; p: {ocp_solver.get(stage_=stage, field_='p')}")
 
     return diff_mpc
 

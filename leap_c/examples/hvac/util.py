@@ -23,9 +23,7 @@ class ComfortBounds:
         assert len(self.T_lower) == len(self.T_upper), (
             "Lower and upper bounds must have same length"
         )
-        assert np.all(self.T_lower <= self.T_upper), (
-            "Lower bounds must be <= upper bounds"
-        )
+        assert np.all(self.T_lower <= self.T_upper), "Lower bounds must be <= upper bounds"
 
 
 @dataclass
@@ -77,11 +75,13 @@ def load_price_data(csv_path: str | Path) -> pd.DataFrame:
         price_data[col] = np.maximum(0, price_data[col])
 
     print(
-        f"Loaded price data: {len(price_data)} records from {price_data.index[0]} to {price_data.index[-1]}"
+        f"Loaded price data: {len(price_data)} records from "
+        f"{price_data.index[0]} to {price_data.index[-1]}"
     )
     print(f"Price regions: {', '.join(price_data.columns)}")
     print(
-        f"Price range across all regions: {price_data.min().min():.5f} to {price_data.max().max():.5f}"
+        "Price range across all regions: "
+        f"{price_data.min().min():.5f} to {price_data.max().max():.5f}"
     )
 
     return price_data
@@ -116,9 +116,7 @@ def create_price_profile_from_spot_sprices(
     # Check if region exists in the data
     if region not in price_df.columns:
         available_regions = ", ".join(price_df.columns)
-        raise ValueError(
-            f"Region '{region}' not found. Available regions: {available_regions}"
-        )
+        raise ValueError(f"Region '{region}' not found. Available regions: {available_regions}")
 
     # Extract price values using zero-order hold
     prices = []
@@ -139,9 +137,7 @@ def create_price_profile_from_spot_sprices(
                 first_time = price_df.index[0]
                 price_value = price_df.loc[first_time, region]
                 prices.append(price_value)
-                print(
-                    f"Warning: Using first available price for time {t} (before data start)"
-                )
+                print(f"Warning: Using first available price for time {t} (before data start)")
             else:
                 raise ValueError("No price data available")
 
@@ -190,13 +186,16 @@ def load_weather_data(csv_path: str | Path) -> pd.DataFrame:
     weather_data.set_index("TimeStamp", inplace=True)
 
     print(
-        f"Loaded weather data: {len(weather_data)} records from {weather_data.index[0]} to {weather_data.index[-1]}"
+        f"Loaded weather data: {len(weather_data)} records from "
+        "{weather_data.index[0]} to {weather_data.index[-1]}"
     )
     print(
-        f"Temperature range: {weather_data['Tout'].min():.1f}°C to {weather_data['Tout'].max():.1f}°C"
+        f"Temperature range: {weather_data['Tout'].min():.1f}°C "
+        "to {weather_data['Tout'].max():.1f}°C"
     )
     print(
-        f"Solar radiation range: {weather_data['SolGlob'].min():.1f} to {weather_data['SolGlob'].max():.1f} W/m²"
+        f"Solar radiation range: {weather_data['SolGlob'].min():.1f} "
+        "to {weather_data['SolGlob'].max():.1f} W/m²"
     )
 
     return weather_data
@@ -266,9 +265,7 @@ def create_disturbance_from_weather(
                         )
 
                         T_outdoor.append(T_interp)
-                        solar_radiation.append(
-                            max(0, sol_interp)
-                        )  # Ensure non-negative
+                        solar_radiation.append(max(0, sol_interp))  # Ensure non-negative
                 else:
                     # Extrapolate from nearest point
                     if before_mask.any():
@@ -280,9 +277,7 @@ def create_disturbance_from_weather(
                     solar_radiation.append(weather_df.loc[nearest_idx, "SolGlob"])
 
             except Exception:
-                print(
-                    f"Warning: Could not interpolate weather data at {t}, using nearest value"
-                )
+                print(f"Warning: Could not interpolate weather data at {t}, using nearest value")
                 # Use nearest available data
                 nearest_idx = weather_df.index[np.argmin(np.abs(weather_df.index - t))]
                 T_outdoor.append(weather_df.loc[nearest_idx, "Tout_K"])
@@ -333,12 +328,8 @@ def create_realistic_comfort_bounds(
             T_upper.append(convert_temperature(day_temp_range[1], "celsius", "kelvin"))
         else:
             # Night time - more relaxed bounds
-            T_lower.append(
-                convert_temperature(night_temp_range[0], "celsius", "kelvin")
-            )
-            T_upper.append(
-                convert_temperature(night_temp_range[1], "celsius", "kelvin")
-            )
+            T_lower.append(convert_temperature(night_temp_range[0], "celsius", "kelvin"))
+            T_upper.append(convert_temperature(night_temp_range[1], "celsius", "kelvin"))
 
     return ComfortBounds(T_lower=np.array(T_lower), T_upper=np.array(T_upper))
 
@@ -352,13 +343,9 @@ def create_constant_disturbance(
     )
 
 
-def create_constant_comfort_bounds(
-    N: int, T_lower: float, T_upper: float
-) -> ComfortBounds:
+def create_constant_comfort_bounds(N: int, T_lower: float, T_upper: float) -> ComfortBounds:
     """Create constant comfort bounds."""
-    return ComfortBounds(
-        T_lower=np.full(N + 1, T_lower), T_upper=np.full(N + 1, T_upper)
-    )
+    return ComfortBounds(T_lower=np.full(N + 1, T_lower), T_upper=np.full(N + 1, T_upper))
 
 
 def create_time_of_use_energy_costs(
@@ -434,38 +421,24 @@ def plot_ocp_results(
     N = len(solution["controls"])
     time_hours_states = np.arange(N + 1) * dt / 3600  # For states (N+1 points)
     time_hours_controls = np.arange(N) * dt / 3600  # For controls (N points)
-    time_hours_disturbance = (
-        np.arange(min(len(disturbance_profile.T_outdoor), N)) * dt / 3600
-    )
+    time_hours_disturbance = np.arange(min(len(disturbance_profile.T_outdoor), N)) * dt / 3600
 
     # Create figure with subplots
     fig, axes = plt.subplots(4, 1, figsize=figsize, sharex=True)
-    fig.suptitle(
-        "Thermal Building Control - OCP Solution", fontsize=16, fontweight="bold"
-    )
+    fig.suptitle("Thermal Building Control - OCP Solution", fontsize=16, fontweight="bold")
 
     # Subplot 1: Thermal States
     ax0 = axes[0]
 
     # Convert temperatures to Celsius for plotting
-    Ti_celsius = convert_temperature(
-        solution["indoor_temperatures"], "kelvin", "celsius"
-    )
-    Th_celsius = convert_temperature(
-        solution["radiator_temperatures"], "kelvin", "celsius"
-    )
-    Te_celsius = convert_temperature(
-        solution["envelope_temperatures"], "kelvin", "celsius"
-    )
+    Ti_celsius = convert_temperature(solution["indoor_temperatures"], "kelvin", "celsius")
+    Th_celsius = convert_temperature(solution["radiator_temperatures"], "kelvin", "celsius")
+    Te_celsius = convert_temperature(solution["envelope_temperatures"], "kelvin", "celsius")
 
     if comfort_bounds is not None:
         # Plot comfort bounds
-        T_lower_celsius = convert_temperature(
-            comfort_bounds.T_lower[: N + 1], "kelvin", "celsius"
-        )
-        T_upper_celsius = convert_temperature(
-            comfort_bounds.T_upper[: N + 1], "kelvin", "celsius"
-        )
+        T_lower_celsius = convert_temperature(comfort_bounds.T_lower[: N + 1], "kelvin", "celsius")
+        T_upper_celsius = convert_temperature(comfort_bounds.T_upper[: N + 1], "kelvin", "celsius")
 
         ax0.fill_between(
             time_hours_states,
@@ -477,17 +450,11 @@ def plot_ocp_results(
         )
 
         # Plot comfort bounds as dashed lines
-        ax0.step(
-            time_hours_states, T_lower_celsius, "g--", alpha=0.7, label="Lower bound"
-        )
-        ax0.step(
-            time_hours_states, T_upper_celsius, "g--", alpha=0.7, label="Upper bound"
-        )
+        ax0.step(time_hours_states, T_lower_celsius, "g--", alpha=0.7, label="Lower bound")
+        ax0.step(time_hours_states, T_upper_celsius, "g--", alpha=0.7, label="Upper bound")
 
     # Plot state trajectories
-    ax0.step(
-        time_hours_states, Ti_celsius, "b-", linewidth=2, label="Indoor temp. (Ti)"
-    )
+    ax0.step(time_hours_states, Ti_celsius, "b-", linewidth=2, label="Indoor temp. (Ti)")
     ax0.step(
         time_hours_states,
         Te_celsius,
@@ -503,9 +470,7 @@ def plot_ocp_results(
 
     # Subplot 1: Heater Temperature
     ax1 = axes[1]
-    ax1.step(
-        time_hours_states, Th_celsius, "b-", linewidth=2, label="Radiator temp. (Th)"
-    )
+    ax1.step(time_hours_states, Th_celsius, "b-", linewidth=2, label="Radiator temp. (Th)")
     ax1.set_ylabel("Temperature [°C]", fontsize=12)
     ax1.grid(visible=True, alpha=0.3)
     ax1.set_title("Heater Temperature", fontsize=14, fontweight="bold")
@@ -589,9 +554,7 @@ def plot_ocp_results(
 
     # Add summary statistics as text
     total_energy_kWh = solution["controls"].sum() * dt / 3600 / 1000  # Convert to kWh
-    max_comfort_violation = max(
-        solution["slack_lower"].max(), solution["slack_upper"].max()
-    )
+    max_comfort_violation = max(solution["slack_lower"].max(), solution["slack_upper"].max())
 
     stats_text = (
         f"Total Energy: {total_energy_kWh:.1f} kWh | "
@@ -779,9 +742,7 @@ def transcribe_discrete_state_space(
 
         # Discretize the continuous-time state-space representation
         Ad = ca.expm(Ac * dt)  # Discrete-time state matrix
-        Bd = ca.mtimes(
-            ca.mtimes(ca.inv(Ac), (Ad - ca.SX.eye(3))), Bc
-        )  # Discrete-time input matrix
+        Bd = ca.mtimes(ca.mtimes(ca.inv(Ac), (Ad - ca.SX.eye(3))), Bc)  # Discrete-time input matrix
         Ed = ca.mtimes(
             ca.mtimes(ca.inv(Ac), (Ad - ca.SX.eye(3))), Ec
         )  # Discrete-time disturbance matrix
@@ -846,12 +807,8 @@ def merge_price_weather_data(
     pd.DataFrame
         Merged dataframe
     """
-    print(
-        f"Price data time range: {price_data.index.min()} to {price_data.index.max()}"
-    )
-    print(
-        f"Weather data time range: {weather_data.index.min()} to {weather_data.index.max()}"
-    )
+    print(f"Price data time range: {price_data.index.min()} to {price_data.index.max()}")
+    print(f"Weather data time range: {weather_data.index.min()} to {weather_data.index.max()}")
     print(f"Price data shape: {price_data.shape}")
     print(f"Weather data shape: {weather_data.shape}")
 
@@ -886,9 +843,7 @@ def merge_price_weather_data(
 
         class MergeTypeError(ValueError):
             def __init__(self) -> None:
-                super().__init__(
-                    "merge_type must be one of: 'inner', 'outer', 'left', 'right'"
-                )
+                super().__init__("merge_type must be one of: 'inner', 'outer', 'left', 'right'")
 
         raise MergeTypeError
 

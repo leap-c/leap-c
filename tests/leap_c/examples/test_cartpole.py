@@ -46,9 +46,7 @@ def plot_cart_pole_solution(
 
 
 def test_solution(cartpole_controller: CartPoleController):
-    ocp_solver = (
-        cartpole_controller.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
-    )
+    ocp_solver = cartpole_controller.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
     ocp_solver.solve_for_x0(np.array([0.0, np.pi, 0.0, 0.0]))
 
     if ocp_solver.status != 0:
@@ -58,11 +56,13 @@ def test_solution(cartpole_controller: CartPoleController):
 
 
 def test_env_terminates():
-    """Test if the environment terminates correctly when applying minimum and maximum control inputs.
+    """Test if the environment terminates correctly when applying minimum
+    and maximum control inputs.
 
-    This test ensures that the environment terminates properly when applying either minimum or maximum control
-    inputs continuously. It checks both termination conditions and verifies that the episode ends with a termination
-    rather than a truncation.
+    This test ensures that the environment terminates properly
+    when applying either minimum or maximum control
+    inputs continuously. It checks both termination conditions
+    and verifies that the episode ends with a termination rather than a truncation.
     """
 
     env = CartPoleEnv()
@@ -79,11 +79,13 @@ def test_env_terminates():
 
 
 def test_env_truncates():
-    """Test if the environment truncates correctly when applying minimum and maximum control inputs.
+    """Test if the environment truncates correctly when applying minimum
+    and maximum control inputs.
 
-    This test ensures that the environment truncates properly when doing nothing (i.e. it cannot come from termination).
+    This test ensures that the environment truncates properly when doing nothing
+    (i.e. it cannot come from termination).
     It checks both termination conditions and verifies that the episode ends with a truncation
-    rather than a truncation.
+    rather than a termination.
     """
 
     env = CartPoleEnv()
