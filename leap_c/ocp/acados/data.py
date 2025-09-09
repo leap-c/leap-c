@@ -1,10 +1,10 @@
 from typing import NamedTuple, Sequence
 
+import numpy as np
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
 )
-import numpy as np
 
 
 class AcadosOcpSolverInput(NamedTuple):

@@ -4,8 +4,8 @@ from typing import Any, Callable, Optional, Union
 
 import torch
 import torch.nn as nn
-from torch.utils.data._utils.collate import collate, default_collate_fn_map
 from torch.utils._pytree import tree_map_only
+from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 
 def pytree_tensor_to(pytree: Any, device: str, tensor_dtype: torch.dtype) -> Any:

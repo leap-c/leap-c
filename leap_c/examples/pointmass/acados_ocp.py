@@ -1,12 +1,11 @@
 from typing import Literal
 
 import casadi as ca
-import numpy as np
 import gymnasium as gym
-
+import numpy as np
 from acados_template import AcadosOcp
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 PointMassAcadosParamInterface = Literal["global", "stagewise"]
 

@@ -1,7 +1,7 @@
 from dataclasses import asdict, dataclass
 
-import numpy as np
 import gymnasium as gym
+import numpy as np
 from scipy.constants import convert_temperature
 
 from leap_c.ocp.acados.parameters import AcadosParameter

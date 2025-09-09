@@ -8,15 +8,15 @@ import torch
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.chain.acados_ocp import (
-    export_parametric_ocp,
+    ChainAcadosParamInterface,
     ChainInitializer,
     create_chain_params,
+    export_parametric_ocp,
 )
-from leap_c.examples.chain.acados_ocp import ChainAcadosParamInterface
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
-from leap_c.ocp.acados.parameters import AcadosParameterManager, AcadosParameter
-from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx, AcadosDiffMpcCtx
+from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
