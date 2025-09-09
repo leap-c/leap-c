@@ -49,9 +49,7 @@ def create_controller(
         reuse_code_base_dir: Directory to reuse code base from.
     """
     if controller_name not in CONTROLLER_REGISTRY:
-        raise ValueError(
-            f"Controller '{controller_name}' is not registered or does not exist."
-        )
+        raise ValueError(f"Controller '{controller_name}' is not registered or does not exist.")
 
     controller_class = CONTROLLER_REGISTRY[controller_name]
 

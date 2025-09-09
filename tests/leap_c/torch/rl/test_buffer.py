@@ -81,15 +81,9 @@ def test_sample_collation_and_dtype_and_device():
     buffer.put(data_one)
     buffer.put(data_two)
     batch = buffer.sample(2)
-    torch.testing.assert_close(
-        batch[0], torch.tensor([1, 1], device=device, dtype=dtype)
-    )
-    torch.testing.assert_close(
-        batch[1], torch.tensor([[2], [2]], device=device, dtype=dtype)
-    )
-    torch.testing.assert_close(
-        batch[2], torch.tensor([[3], [3]], device=device, dtype=dtype)
-    )
+    torch.testing.assert_close(batch[0], torch.tensor([1, 1], device=device, dtype=dtype))
+    torch.testing.assert_close(batch[1], torch.tensor([[2], [2]], device=device, dtype=dtype))
+    torch.testing.assert_close(batch[2], torch.tensor([[3], [3]], device=device, dtype=dtype))
 
     test_param = AcadosOcpSolverInput(
         x0=np.array([[1, 2, 3], [1, 2, 3]], dtype=np.float32),
@@ -110,9 +104,7 @@ def test_sample_collation_and_dtype_and_device():
     torch.testing.assert_close(
         batch[4].a, torch.tensor([[1, 2, 3], [1, 2, 3]], device=device, dtype=dtype)
     )
-    torch.testing.assert_close(
-        batch[4].b, torch.tensor([1.0, 1.0], device=device, dtype=dtype)
-    )
+    torch.testing.assert_close(batch[4].b, torch.tensor([1.0, 1.0], device=device, dtype=dtype))
     assert isinstance(batch[5], AcadosOcpFlattenedBatchIterate)
     for i, field in enumerate(fields(AcadosOcpFlattenedBatchIterate)):
         if field.name == "N_batch":
@@ -176,27 +168,19 @@ def test_sample_order_consistency():
     def sample_is_consistent(sample_idx):
         if np.array_equal(batch[0].p_global[sample_idx], np.array([1, 1, 1])):
             assert np.array_equal(batch[0].p_stagewise[sample_idx], np.ones((2, 2)))
-            assert np.array_equal(
-                batch[0].p_stagewise_sparse_idx[sample_idx], np.ones((2, 2))
-            )
+            assert np.array_equal(batch[0].p_stagewise_sparse_idx[sample_idx], np.ones((2, 2)))
             for field in fields(AcadosOcpFlattenedIterate):
                 if field.name == "N_batch":
                     continue
-                assert np.array_equal(
-                    getattr(batch[1], field.name)[sample_idx], np.ones(1)
-                )
+                assert np.array_equal(getattr(batch[1], field.name)[sample_idx], np.ones(1))
 
         elif np.array_equal(batch[0].p_global[sample_idx], np.array([0, 0, 0])):
             assert np.array_equal(batch[0].p_stagewise[sample_idx], np.zeros((2, 2)))
-            assert np.array_equal(
-                batch[0].p_stagewise_sparse_idx[sample_idx], np.zeros((2, 2))
-            )
+            assert np.array_equal(batch[0].p_stagewise_sparse_idx[sample_idx], np.zeros((2, 2)))
             for field in fields(AcadosOcpFlattenedIterate):
                 if field.name == "N_batch":
                     continue
-                assert np.array_equal(
-                    getattr(batch[1], field.name)[sample_idx], np.zeros(1)
-                )
+                assert np.array_equal(getattr(batch[1], field.name)[sample_idx], np.zeros(1))
         else:
             assert False
 

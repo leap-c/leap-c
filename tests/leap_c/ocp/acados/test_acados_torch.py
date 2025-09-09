@@ -26,9 +26,7 @@ def test_initialization_with_stagewise_varying_params(
 
 
 def test_initialization(diff_mpc: AcadosDiffMpc) -> None:
-    assert diff_mpc is not None, (
-        "AcadosDiffMpc should not be None after initialization."
-    )
+    assert diff_mpc is not None, "AcadosDiffMpc should not be None after initialization."
 
 
 def test_file_management(diff_mpc: AcadosDiffMpc, tol: float = 1e-5) -> None:
@@ -77,9 +75,7 @@ def test_file_management(diff_mpc: AcadosDiffMpc, tol: float = 1e-5) -> None:
     AcadosDiffMpc(
         ocp=diff_mpc.ocp,
         initializer=diff_mpc.diff_mpc_fun.initializer,
-        sensitivity_ocp=diff_mpc.diff_mpc_fun.backward_batch_solver.ocp_solvers[
-            0
-        ].acados_ocp,  # type: ignore
+        sensitivity_ocp=diff_mpc.diff_mpc_fun.backward_batch_solver.ocp_solvers[0].acados_ocp,  # type: ignore
         export_directory=export_directory,
     )
 
@@ -194,9 +190,7 @@ def test_backup_functionality(diff_mpc: AcadosDiffMpc) -> None:
     solutions = []
     solutions.append(diff_mpc(x0=x0, u0=u0))
 
-    assert np.all(solutions[-1][0].status == 0), (
-        "Solver did not converge for all samples."
-    )
+    assert np.all(solutions[-1][0].status == 0), "Solver did not converge for all samples."
 
     # Set the iterate to NaN for all fields
     # This simulates a scenario where the iterate is corrupted
@@ -212,9 +206,7 @@ def test_backup_functionality(diff_mpc: AcadosDiffMpc) -> None:
     # Test that the backup function can restore the iterate
     solutions.append(diff_mpc(x0=x0, u0=u0, ctx=ctx))
 
-    assert np.all(solutions[-1][0].status == 0), (
-        "Solver did not converge for all samples."
-    )
+    assert np.all(solutions[-1][0].status == 0), "Solver did not converge for all samples."
 
     for i, field_name in enumerate(["u0", "x", "u", "Q value"], start=1):
         np.testing.assert_allclose(
@@ -260,9 +252,7 @@ def test_closed_loop(
         # Need first dimension of inputs to be batch size
         n_batch = 1
 
-        p_global = diff_mpc_k.ocp.p_global_values.reshape(
-            n_batch, diff_mpc_k.ocp.dims.np_global
-        )
+        p_global = diff_mpc_k.ocp.p_global_values.reshape(n_batch, diff_mpc_k.ocp.dims.np_global)
 
         for step in range(100):
             # Need first dimension to be batch size
@@ -270,9 +260,7 @@ def test_closed_loop(
             ctx, u0, _, _, _ = diff_mpc_k.forward(x0=x0, p_global=p_global)  # type: ignore
             assert ctx.status == 0, f"Did not converge to a solution in step {step}"
             u.append(u0)
-            x.append(
-                diff_mpc_k.diff_mpc_fun.forward_batch_solver.ocp_solvers[0].get(1, "x")
-            )
+            x.append(diff_mpc_k.diff_mpc_fun.forward_batch_solver.ocp_solvers[0].get(1, "x"))
 
         x = np.array(x)
         u = np.array(u).reshape(100, 2)
@@ -398,14 +386,10 @@ def test_forward(
         ctx, u0, x, u, value = diff_mpc(**forward_kwargs)
 
         # Validate solver status
-        assert np.all(ctx.status == 0), (
-            f"Forward method failed with status {ctx.status}"
-        )
+        assert np.all(ctx.status == 0), f"Forward method failed with status {ctx.status}"
 
         # Validate output types
-        assert isinstance(ctx, AcadosDiffMpcCtx), (
-            "ctx should be an instance of AcadosDiffMpcCtx"
-        )
+        assert isinstance(ctx, AcadosDiffMpcCtx), "ctx should be an instance of AcadosDiffMpcCtx"
         assert isinstance(u0, torch.Tensor), "u0 should be a torch.Tensor"
         assert isinstance(x, torch.Tensor), "x should be a torch.Tensor"
         assert isinstance(u, torch.Tensor), "u should be a torch.Tensor"
@@ -596,9 +580,7 @@ def test_backward(
             ctx = result[0]
 
             # Validate solver status
-            assert np.all(ctx.status == 0), (
-                f"Forward method failed with status {ctx.status}"
-            )
+            assert np.all(ctx.status == 0), f"Forward method failed with status {ctx.status}"
             output = output_selector(result)
             return output, torch.tensor(ctx.status, dtype=torch.float64)
 
@@ -611,9 +593,7 @@ def test_backward(
         def forward_func(x0):
             return diff_mpc.forward(x0=x0)
 
-        return _create_backward_test_function(
-            forward_func, lambda result: result[1]
-        )  # u0
+        return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
 
     def _create_dVdx0_test(diff_mpc: AcadosDiffMpc) -> Callable:
         """Create test function for dV/dx0 gradient."""
@@ -621,9 +601,7 @@ def test_backward(
         def forward_func(x0):
             return diff_mpc.forward(x0=x0)
 
-        return _create_backward_test_function(
-            forward_func, lambda result: result[4]
-        )  # value
+        return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
     def _create_dQdx0_test(diff_mpc: AcadosDiffMpc, u0: torch.Tensor) -> Callable:
         """Create test function for dQ/dx0 gradient."""
@@ -631,21 +609,15 @@ def test_backward(
         def forward_func(x0):
             return diff_mpc.forward(x0=x0, u0=u0)
 
-        return _create_backward_test_function(
-            forward_func, lambda result: result[4]
-        )  # value
+        return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
-    def _create_du0dp_global_test(
-        diff_mpc: AcadosDiffMpc, x0: torch.Tensor
-    ) -> Callable:
+    def _create_du0dp_global_test(diff_mpc: AcadosDiffMpc, x0: torch.Tensor) -> Callable:
         """Create test function for du0/dp_global gradient."""
 
         def forward_func(p_global):
             return diff_mpc.forward(x0=x0, p_global=p_global)
 
-        return _create_backward_test_function(
-            forward_func, lambda result: result[1]
-        )  # u0
+        return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
 
     def _create_dVdp_global_test(diff_mpc: AcadosDiffMpc, x0: torch.Tensor) -> Callable:
         """Create test function for dV/dp_global gradient."""
@@ -653,9 +625,7 @@ def test_backward(
         def forward_func(p_global):
             return diff_mpc.forward(x0=x0, p_global=p_global)
 
-        return _create_backward_test_function(
-            forward_func, lambda result: result[4]
-        )  # value
+        return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
     def _create_dQdp_global_test(
         diff_mpc: AcadosDiffMpc, x0: torch.Tensor, u0: torch.Tensor
@@ -665,9 +635,7 @@ def test_backward(
         def forward_func(p_global):
             return diff_mpc.forward(x0=x0, u0=u0, p_global=p_global)
 
-        return _create_backward_test_function(
-            forward_func, lambda result: result[4]
-        )  # value
+        return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
     def _create_dQdu0_test(
         diff_mpc: AcadosDiffMpc, x0: torch.Tensor, p_global: torch.Tensor
@@ -677,9 +645,7 @@ def test_backward(
         def forward_func(u0):
             return diff_mpc.forward(x0=x0, u0=u0, p_global=p_global)
 
-        return _create_backward_test_function(
-            forward_func, lambda result: result[4]
-        )  # value
+        return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
     def _create_dxdp_global_test(diff_mpc: AcadosDiffMpc, x0: torch.Tensor) -> Callable:
         """Create test function for dx/dp_global gradient."""
@@ -687,9 +653,7 @@ def test_backward(
         def forward_func(p_global):
             return diff_mpc.forward(x0=x0, p_global=p_global)
 
-        return _create_backward_test_function(
-            forward_func, lambda result: result[2]
-        )  # x
+        return _create_backward_test_function(forward_func, lambda result: result[2])  # x
 
     def _create_dudp_global_test(diff_mpc: AcadosDiffMpc, x0: torch.Tensor) -> Callable:
         """Create test function for du/dp_global gradient."""
@@ -697,13 +661,9 @@ def test_backward(
         def forward_func(p_global):
             return diff_mpc.forward(x0=x0, p_global=p_global)
 
-        return _create_backward_test_function(
-            forward_func, lambda result: result[3]
-        )  # u
+        return _create_backward_test_function(forward_func, lambda result: result[3])  # u
 
-    def _create_dhvacudp_global_test(
-        diff_mpc: AcadosDiffMpc, x0: torch.Tensor
-    ) -> Callable:
+    def _create_dhvacudp_global_test(diff_mpc: AcadosDiffMpc, x0: torch.Tensor) -> Callable:
         """Create test function for dfakeu/dp_global gradient."""
 
         def forward_func(p_global):

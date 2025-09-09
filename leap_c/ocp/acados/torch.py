@@ -113,9 +113,7 @@ class AcadosDiffMpc(nn.Module):
 
         return ctx, u0, x, u, value
 
-    def sensitivity(
-        self, ctx, field_name: AcadosDiffMpcSensitivityOptions
-    ) -> np.ndarray:
+    def sensitivity(self, ctx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
         """
         Compute the sensitivity of the implicit function with respect to a field.
 

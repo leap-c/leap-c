@@ -60,9 +60,7 @@ class MpcSacActor(nn.Module):
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
-        param, log_prob, gauss_stats = self.squashed_gaussian(
-            mean, log_std, deterministic
-        )
+        param, log_prob, gauss_stats = self.squashed_gaussian(mean, log_std, deterministic)
 
         if only_param:
             return SacZopActorOutput(param, log_prob, gauss_stats)
@@ -144,9 +142,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
         self.entropy_norm = param_dim / action_dim
         if cfg.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)  # type: ignore
-            self.target_entropy = (
-                -action_dim if cfg.target_entropy is None else cfg.target_entropy
-            )
+            self.target_entropy = -action_dim if cfg.target_entropy is None else cfg.target_entropy
         else:
             self.alpha_optim = None
             self.target_entropy = None
@@ -171,19 +167,13 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
-            self.report_stats(
-                "train_trajectory", {"action": action, "param": param}, verbose=True
-            )
+            self.report_stats("train_trajectory", {"action": action, "param": param}, verbose=True)
             self.report_stats("train_policy_rollout", pi_output.stats, verbose=True)
 
-            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
-                action
-            )
+            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
 
             if "episode" in info or "task" in info:
-                self.report_stats(
-                    "train", {**info.get("episode", {}), **info.get("task", {})}
-                )
+                self.report_stats("train", {**info.get("episode", {}), **info.get("task", {})})
 
             self.buffer.put(
                 (
@@ -224,9 +214,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
                     pi_o_prime = self.pi(o_prime, None, only_param=True)
-                    q_target = torch.cat(
-                        self.q_target(o_prime, pi_o_prime.param), dim=1
-                    )
+                    q_target = torch.cat(self.q_target(o_prime, pi_o_prime.param), dim=1)
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
                     # add entropy

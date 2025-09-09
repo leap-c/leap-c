@@ -51,9 +51,7 @@ def define_f_expl_expr(
 
         F = ca.SX.zeros(3, 1)
         for j in range(F.shape[0]):
-            F[j] = (
-                p["D"][i + j] / p["m"][i] * (1 - p["L"][i + j] / norm_2(dist)) * dist[j]
-            )
+            F[j] = p["D"][i + j] / p["m"][i] * (1 - p["L"][i + j] / norm_2(dist)) * dist[j]
 
         # mass on the right
         if i < n_link - 1:

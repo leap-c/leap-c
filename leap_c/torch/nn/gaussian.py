@@ -120,9 +120,7 @@ class SquashedGaussian(nn.Module):
             # reparameterization trick
             y = mean + std * torch.randn_like(mean)
 
-        log_prob = (
-            -0.5 * ((y - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)
-        )
+        log_prob = -0.5 * ((y - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)
 
         y = torch.tanh(y)
 

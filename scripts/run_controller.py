@@ -110,9 +110,7 @@ def run_controller(
 ) -> float:
     trainer = ControllerTrainer(
         val_env=create_env(cfg.env, render_mode="rgb_array"),
-        controller=create_controller(
-            cfg.controller, reuse_code_base_dir=reuse_code_dir
-        ),
+        controller=create_controller(cfg.controller, reuse_code_base_dir=reuse_code_dir),
         output_path=output_path,
         device=device,
         cfg=cfg.trainer,

@@ -73,9 +73,7 @@ class SacCritic(nn.Module):
 
         action_dim = action_space.shape[0]  # type: ignore
 
-        self.extractor = nn.ModuleList(
-            extractor_cls(observation_space) for _ in range(num_critics)
-        )
+        self.extractor = nn.ModuleList(extractor_cls(observation_space) for _ in range(num_critics))
         self.mlp = nn.ModuleList(
             [
                 Mlp(
@@ -168,9 +166,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.lr_q)
 
-        self.pi = SacActor(
-            extractor_cls, action_space, observation_space, cfg.actor_mlp
-        )  # type: ignore
+        self.pi = SacActor(extractor_cls, action_space, observation_space, cfg.actor_mlp)  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(cfg.init_alpha).log())  # type: ignore
@@ -178,9 +174,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         if self.cfg.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)  # type: ignore
             action_dim = np.prod(self.train_env.action_space.shape)  # type: ignore
-            self.target_entropy = (
-                -action_dim if cfg.target_entropy is None else cfg.target_entropy
-            )
+            self.target_entropy = -action_dim if cfg.target_entropy is None else cfg.target_entropy
         else:
             self.alpha_optim = None
             self.target_entropy = None
@@ -199,14 +193,10 @@ class SacTrainer(Trainer[SacTrainerConfig]):
             self.report_stats("train_trajectory", {"action": action}, verbose=True)
             self.report_stats("train_policy_rollout", stats, verbose=True)  # type: ignore
 
-            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
-                action
-            )
+            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
 
             if "episode" in info or "task" in info:
-                self.report_stats(
-                    "train", {**info.get("episode", {}), **info.get("task", {})}
-                )
+                self.report_stats("train", {**info.get("episode", {}), **info.get("task", {})})
 
             # TODO (Jasper): Add is_truncated to buffer.
             self.buffer.put((obs, action, reward, obs_prime, is_terminated))  # type: ignore
@@ -241,9 +231,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
                     # add entropy
-                    q_target = (
-                        q_target - alpha * log_p_prime * self.cfg.entropy_reward_bonus
-                    )
+                    q_target = q_target - alpha * log_p_prime * self.cfg.entropy_reward_bonus
 
                     target = r[:, None] + self.cfg.gamma * (1 - te[:, None]) * q_target
 

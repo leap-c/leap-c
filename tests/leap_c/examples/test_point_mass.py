@@ -47,6 +47,4 @@ def test_run_closed_loop(
     assert np.linalg.norm(obs[:2] - goal_pos) < 0.2, (
         "Final position is not close to the goal"
     )  # Check that the final position is close to the goal
-    assert (
-        np.linalg.norm(obs[2:4]) < 0.1
-    )  # Check that the final velocity is close to zero
+    assert np.linalg.norm(obs[2:4]) < 0.1  # Check that the final velocity is close to zero

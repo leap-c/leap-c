@@ -84,9 +84,7 @@ class FopActor(nn.Module):
             j = torch.from_numpy(j).to(param.device)  # type:ignore
             jtj = j @ j.transpose(1, 2)
             correction = (
-                torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device))
-                .sqrt()
-                .log()
+                torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device)).sqrt().log()
             )
             log_prob -= correction.unsqueeze(1)
 
@@ -221,9 +219,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         self.entropy_norm = param_dim / action_dim
         if cfg.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)  # type: ignore
-            self.target_entropy = (
-                -action_dim if cfg.target_entropy is None else cfg.target_entropy
-            )
+            self.target_entropy = -action_dim if cfg.target_entropy is None else cfg.target_entropy
         else:
             self.alpha_optim = None
             self.target_entropy = None
@@ -253,19 +249,13 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
-            self.report_stats(
-                "train_trajectory", {"param": param, "action": action}, verbose=True
-            )
+            self.report_stats("train_trajectory", {"param": param, "action": action}, verbose=True)
             self.report_stats("train_policy_rollout", pi_output.stats, verbose=True)  # type: ignore
 
-            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
-                action
-            )
+            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
 
             if "episode" in info or "task" in info:
-                self.report_stats(
-                    "train", {**info.get("episode", {}), **info.get("task", {})}
-                )
+                self.report_stats("train", {**info.get("episode", {}), **info.get("task", {})})
 
             self.buffer.put(
                 (
@@ -322,9 +312,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    q_target = torch.cat(
-                        self.q_target(o_prime, pi_o_prime.action), dim=1
-                    )
+                    q_target = torch.cat(self.q_target(o_prime, pi_o_prime.action), dim=1)
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
                     # add entropy
