@@ -38,15 +38,21 @@ def episode_rollout(
         keys "score", "length", "terminated", and "truncated" and a dictionary of
         policy statistics.
     """
-    if render_human and video_folder is not None:
-        raise ValueError("render_human and video_path can not be set at the same time.")
-    if video_folder is not None and name_prefix is None:
-        raise ValueError("name_prefix must be set if video_path is set.")
+    if (
+        render_episodes > 0
+        and env.render_mode not in (None, "human", "ansi")
+        and video_folder is not None
+    ):
+        if render_human:
+            raise ValueError(
+                "`render_human` and `video_folder` can not be set at the same time."
+            )
+        if name_prefix is None:
+            raise ValueError("`name_prefix` must be set if `video_folder` is set.")
 
-    def render_trigger(episode_id):
-        return episode_id < render_episodes
+        def render_trigger(episode_id):
+            return episode_id < render_episodes
 
-    if video_folder is not None:
         env = RecordVideo(
             env, video_folder, name_prefix=name_prefix, episode_trigger=render_trigger
         )
