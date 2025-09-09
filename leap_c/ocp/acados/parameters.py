@@ -1,15 +1,18 @@
-from typing import NamedTuple, Literal, Optional
 import warnings
+from dataclasses import dataclass, field
+from typing import Literal
 
 import casadi as ca
+import gymnasium as gym
 import numpy as np
 from acados_template import AcadosOcp
 from casadi.tools import entry, struct, struct_symSX
-import gymnasium as gym
+
 from leap_c.parameters import Parameter as BaseParameter
 
 
-class AcadosParameter(NamedTuple):
+@dataclass
+class AcadosParameter:
     """
     High-level parameter class for flexible optimization parameter configuration with acados
     extensions. It provides an interface for defining parameter sets without
@@ -41,12 +44,10 @@ class AcadosParameter(NamedTuple):
     space: gym.spaces.Space | None = None
     interface: Literal["fix", "learnable", "non-learnable"] = "fix"
     # Additional acados-specific field
-    vary_stages: list[int] = []
+    vary_stages: list[int] = field(default_factory=list)
 
     @classmethod
-    def from_base_parameter(
-        cls, base_param: BaseParameter, vary_stages: Optional[list[int]] = None
-    ):
+    def from_base_parameter(cls, base_param: BaseParameter, vary_stages: list[int] | None = None):
         """Create an acados Parameter from a base Parameter."""
         return cls(
             name=base_param.name,

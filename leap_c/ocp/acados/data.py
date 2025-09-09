@@ -1,14 +1,15 @@
-from typing import NamedTuple, Sequence, Optional
+from typing import NamedTuple, Sequence
 
+import numpy as np
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
 )
-import numpy as np
 
 
 class AcadosOcpSolverInput(NamedTuple):
-    """Input for an Acados solver representing a batch of concrete problem instances that should be solved.
+    """Input for an Acados solver representing a batch of concrete problem instances
+    that should be solved.
 
     Attributes:
         x0: Initial state, shape (batch_size, nx)
@@ -17,11 +18,13 @@ class AcadosOcpSolverInput(NamedTuple):
         p_global: Global parameters, shape (batch_size, np_global), optional.
             If not provided, the default values set in the acados ocp object will be used.
         p_stagewise: Stage-wise parameters, shape (batch_size, N_horizon + 1, np_stagewise),
-            or (batch_size, N_horizon + 1, len(p_stagewise_sparse_idx), if p_stagewise_sparse_idx is provided, optional.
+            or (batch_size, N_horizon + 1, len(p_stagewise_sparse_idx),
+            if p_stagewise_sparse_idx is provided, optional.
             If not provided, the default values set in the acados ocp object will be used.
             Has to be provided if p_stagewise_sparse_idx is provided.
-        p_stagewise_sparse_idx: If provided, the indices determine which elements of the total stagewise parameter in the
-            solver should be overwritten by the provided p_stagewise values,
+        p_stagewise_sparse_idx: If provided, the indices determine which elements of the
+            total stagewise parameter in the solver should be overwritten
+            by the provided p_stagewise values,
             shape (batch_size, N_horizon + 1, nindices), optional.
     """
 
@@ -53,7 +56,7 @@ class AcadosOcpSolverInput(NamedTuple):
 
 def collate_acados_flattened_iterate_fn(
     batch: Sequence[AcadosOcpFlattenedIterate],
-    collate_fn_map: Optional[dict] = None,
+    collate_fn_map: dict | None = None,
 ) -> AcadosOcpFlattenedBatchIterate:
     return AcadosOcpFlattenedBatchIterate(
         x=np.stack([x.x for x in batch], axis=0),
@@ -69,7 +72,7 @@ def collate_acados_flattened_iterate_fn(
 
 def collate_acados_flattened_batch_iterate_fn(
     batch: Sequence[AcadosOcpFlattenedBatchIterate],
-    collate_fn_map: Optional[dict] = None,
+    collate_fn_map: dict | None = None,
 ) -> AcadosOcpFlattenedBatchIterate:
     return AcadosOcpFlattenedBatchIterate(
         x=np.concat([x.x for x in batch], axis=0),
@@ -94,7 +97,7 @@ def _stack_safe(attr, batch):
 
 def collate_acados_ocp_solver_input(
     batch: Sequence[AcadosOcpSolverInput],
-    collate_fn_map: Optional[dict] = None,
+    collate_fn_map: dict | None = None,
 ) -> AcadosOcpSolverInput:
     """Collates a batch of AcadosOcpSolverInput objects into a single object."""
 

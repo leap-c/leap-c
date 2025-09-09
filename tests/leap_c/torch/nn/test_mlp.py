@@ -1,6 +1,6 @@
 import torch
 
-from leap_c.torch.nn.mlp import MlpConfig, Mlp
+from leap_c.torch.nn.mlp import Mlp, MlpConfig
 
 
 def test_const_param_mlp():

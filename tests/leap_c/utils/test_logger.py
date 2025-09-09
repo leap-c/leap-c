@@ -1,5 +1,6 @@
-from leap_c.utils.logger import GroupWindowTracker
 import numpy as np
+
+from leap_c.utils.logger import GroupWindowTracker
 
 
 def test_group_window_tracker_single_value():

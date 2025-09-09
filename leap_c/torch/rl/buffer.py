@@ -1,11 +1,11 @@
 import collections
 import random
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Union
 
 import torch
 import torch.nn as nn
-from torch.utils.data._utils.collate import collate, default_collate_fn_map
 from torch.utils._pytree import tree_map_only
+from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 
 def pytree_tensor_to(pytree: Any, device: str, tensor_dtype: torch.dtype) -> Any:
@@ -36,14 +36,15 @@ class ReplayBuffer(nn.Module):
         buffer_limit: int,
         device: str,
         tensor_dtype: torch.dtype = torch.float32,
-        collate_fn_map: Optional[dict[Union[tuple, tuple[type, ...]], Callable]] = None,
+        collate_fn_map: dict[Union[tuple, tuple[type, ...]], Callable] | None = None,
     ):
         """
         Initialize the replay buffer.
 
         Args:
             buffer_limit: The maximum number of transitions that can be stored in the buffer.
-                If the buffer is full, the oldest transitions are discarded when putting in a new one.
+                If the buffer is full, the oldest transitions
+                are discarded when putting in a new one.
             device: The device to which all sampled tensors will be cast.
             collate_fn_map: The collate function map that informs the buffer how to form batches.
             tensor_dtype: The data type to which the tensors in the observation will be cast.

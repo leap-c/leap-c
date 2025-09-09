@@ -1,12 +1,11 @@
 from typing import Literal
 
 import casadi as ca
-import numpy as np
 import gymnasium as gym
-
+import numpy as np
 from acados_template import AcadosOcp
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 PointMassAcadosParamInterface = Literal["global", "stagewise"]
 """Determines the exposed parameter interface of the controller.
@@ -43,24 +42,16 @@ def create_pointmass_params(
         AcadosParameter(
             "q_diag_sqrt",  # weight for state residuals
             default=q_diag_sqrt,
-            space=gym.spaces.Box(
-                low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64
-            ),
+            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64),
             interface="learnable",
-            vary_stages=list(range(N_horizon + 1))
-            if param_interface == "stagewise"
-            else [],
+            vary_stages=list(range(N_horizon + 1)) if param_interface == "stagewise" else [],
         ),
         AcadosParameter(
             "r_diag_sqrt",  # weight for control residuals
             default=r_diag_sqrt,
-            space=gym.spaces.Box(
-                low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64
-            ),
+            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64),
             interface="learnable",
-            vary_stages=list(range(N_horizon))
-            if param_interface == "stagewise"
-            else [],
+            vary_stages=list(range(N_horizon)) if param_interface == "stagewise" else [],
         ),
         AcadosParameter(
             "x_ref",
@@ -71,9 +62,7 @@ def create_pointmass_params(
                 dtype=np.float64,
             ),
             interface="learnable",
-            vary_stages=list(range(N_horizon + 1))
-            if param_interface == "stagewise"
-            else [],
+            vary_stages=list(range(N_horizon + 1)) if param_interface == "stagewise" else [],
         ),  # state reference
         AcadosParameter(
             "u_ref",
@@ -84,9 +73,7 @@ def create_pointmass_params(
                 dtype=np.float64,
             ),
             interface="learnable",
-            vary_stages=list(range(N_horizon))
-            if param_interface == "stagewise"
-            else [],
+            vary_stages=list(range(N_horizon)) if param_interface == "stagewise" else [],
         ),  # action reference
     ]
 

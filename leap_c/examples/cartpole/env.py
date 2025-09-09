@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable, Any
+from typing import Any, Callable
 
 import gymnasium as gym
 import numpy as np

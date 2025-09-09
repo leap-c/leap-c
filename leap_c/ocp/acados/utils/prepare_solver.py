@@ -1,13 +1,12 @@
 from itertools import product
 
+import casadi as ca
+import numpy as np
 from acados_template import AcadosOcp
 from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
-import casadi as ca
-import numpy as np
 
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
-
 
 # TODO (Jasper): The caching could be improved as soon as we save the whole
 #    capsule in the context of the implicit function. Currently, this caching
@@ -22,9 +21,10 @@ def prepare_batch_solver(
     ocp_iterate: AcadosOcpFlattenedBatchIterate,
     solver_input: AcadosOcpSolverInput,
 ):
-    """Prepare the batch solver such that it can now solve the problem instance given by solver_input,
-    starting from the given ocp_iterate. Also caches the last call, such that repeated calls
-    to this do not incur unnecessary cost by preparing a batch solver multiple times with the same inputs."""
+    """Prepare the batch solver such that it can now solve the problem
+    instance given by solver_input, starting from the given ocp_iterate.
+    Also caches the last call, such that repeated calls to this do not incur unnecessary
+    cost by preparing a batch solver multiple times with the same inputs."""
     # caching to improve performance
     if batch_solver in _PREPARE_CACHE:
         cached_ocp_iterate, cached_solver_input = _PREPARE_CACHE[batch_solver]
@@ -58,11 +58,7 @@ def prepare_batch_solver(
             solver.set_p_global_and_precompute_dependencies(param)
 
     # set p_stagewise
-    if (
-        p_stagewise is None
-        and _is_param_legal(ocp.model.p)
-        and p_stagewise_sparse_idx is None
-    ):
+    if p_stagewise is None and _is_param_legal(ocp.model.p) and p_stagewise_sparse_idx is None:
         # if p_stagewise is None and default exist, load default p
         param_default = np.tile(ocp.parameter_values, (batch_size, N + 1))
         param = param_default.reshape(batch_size, -1).astype(np.float64)
@@ -76,9 +72,7 @@ def prepare_batch_solver(
         for idx, stage in product(range(batch_size), range(N + 1)):
             param = p_stagewise[idx, stage, :].astype(np.float64)
             solver = batch_solver.ocp_solvers[idx]
-            solver.set_params_sparse(
-                stage, p_stagewise_sparse_idx[idx, stage, :], param
-            )
+            solver.set_params_sparse(stage, p_stagewise_sparse_idx[idx, stage, :], param)
 
     # initial conditions
     for idx, solver in enumerate(active_solvers):
@@ -102,7 +96,8 @@ def prepare_batch_solver_for_backward(
 ):
     """Prepare the backward batch solver such that the sensitivities can be retrieved.
     Also caches the last call, such that repeated calls
-    to this do not incur unnecessary cost by preparing a batch solver multiple times with the same inputs."""
+    to this do not incur unnecessary cost by preparing a batch solver multiple times
+    with the same inputs."""
     if batch_solver in _PREPARE_BACKWARD_CACHE:
         cached_ocp_iterate, cached_solver_input = _PREPARE_BACKWARD_CACHE[batch_solver]
         if cached_ocp_iterate is ocp_iterate and cached_solver_input is solver_input:

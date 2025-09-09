@@ -4,8 +4,8 @@ from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from leap_c.run import init_run, default_output_path
 from leap_c.examples import create_env
+from leap_c.run import default_output_path, init_run
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
 

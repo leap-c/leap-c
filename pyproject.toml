@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "leap-c"
 version = "2024.0.0"
-dependencies = ["gymnasium", "scipy", "numpy", "pandas", "ruff"]
+dependencies = ["gymnasium", "scipy", "numpy", "pandas"]
 
 requires-python = ">=3.11"
 authors = [{ name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" }]
@@ -27,12 +27,11 @@ classifiers = [
 test = ["pytest", "pygame", "moviepy", "wandb", "tensorboard", "gymnasium[mujoco]", "numpy-quaternion", "matplotlib", "PyQt5"]
 rendering = ["pygame", "moviepy"]
 docs = ["sphinx", "sphinx_rtd_theme", "myst-parser"]
-dev = ["leap_c[rendering]", "leap_c[docs]", "leap_c[test]", "pre-commit"]
+dev = ["leap_c[rendering]", "leap_c[docs]", "leap_c[test]", "pre-commit", "ruff"]
 wandb = ["wandb"]
 
 [tool.setuptools]
 packages = ["leap_c"]
-
 
 [project.urls]
 Repository = "https://github.com/leap-c/leap-c"
@@ -40,3 +39,15 @@ Repository = "https://github.com/leap-c/leap-c"
 
 [tool.pytest.ini_options]
 testpaths = "tests"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+extend-exclude = ["external"]
+
+[tool.ruff.lint]
+ignore = ["E741"]
+extend-select = ["I",
+                 "NPY",
+                 "UP045",
+                 "E501"]

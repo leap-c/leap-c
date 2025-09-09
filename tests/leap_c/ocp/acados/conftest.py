@@ -1,14 +1,15 @@
+from dataclasses import asdict
 from itertools import chain
 
 import casadi as ca
+import gymnasium as gym
 import numpy as np
 import pytest
-import gymnasium as gym
 from acados_template import AcadosOcp, AcadosOcpOptions
 
 from leap_c.ocp.acados.parameters import (
-    AcadosParameterManager,
     AcadosParameter,
+    AcadosParameterManager,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
@@ -169,7 +170,7 @@ def nominal_stagewise_params(
     for param in nominal_params:
         if param.name in stagewise_overrides:
             # Create new parameter with overridden fields
-            kwargs = param._asdict()
+            kwargs = asdict(param)
             kwargs.update(stagewise_overrides[param.name])
             modified_params.append(AcadosParameter(**kwargs))
         else:

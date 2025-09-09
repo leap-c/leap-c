@@ -1,21 +1,20 @@
 from copy import deepcopy
-from typing import OrderedDict, Literal
+from typing import Literal, OrderedDict
 
 import casadi as ca
-import numpy as np
 import gymnasium as gym
-from casadi.tools import struct_symSX, entry
-
+import numpy as np
 from acados_template import AcadosOcp, AcadosOcpFlattenedIterate
+from casadi.tools import entry, struct_symSX
+
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.initializer import (
     AcadosDiffMpcInitializer,
     create_zero_iterate_from_ocp,
 )
-
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 ChainAcadosParamInterface = Literal["global", "stagewise"]
 """Determines the exposed parameter interface of the controller.
@@ -60,24 +59,16 @@ def create_chain_params(
         AcadosParameter(
             "q_diag_sqrt",  # cost weights of state residuals
             default=q_diag_sqrt,
-            space=gym.spaces.Box(
-                low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64
-            ),
+            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64),
             interface="learnable",
-            vary_stages=list(range(N_horizon + 1))
-            if param_interface == "stagewise"
-            else [],
+            vary_stages=list(range(N_horizon + 1)) if param_interface == "stagewise" else [],
         ),
         AcadosParameter(
             "r_diag_sqrt",  # cost weights of action residuals
             default=r_diag_sqrt,
-            space=gym.spaces.Box(
-                low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64
-            ),
+            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64),
             interface="learnable",
-            vary_stages=list(range(N_horizon))
-            if param_interface == "stagewise"
-            else [],
+            vary_stages=list(range(N_horizon)) if param_interface == "stagewise" else [],
         ),
     ]
 
@@ -123,9 +114,7 @@ def export_parametric_ocp(
         ]
     )
 
-    p_cat_sym = ca.vertcat(
-        *[v for v in dyn_param_dict.values() if not isinstance(v, np.ndarray)]
-    )
+    p_cat_sym = ca.vertcat(*[v for v in dyn_param_dict.values() if not isinstance(v, np.ndarray)])
     f_expl = define_f_expl_expr(
         x=x,
         u=u,
@@ -185,7 +174,5 @@ class ChainInitializer(AcadosDiffMpcInitializer):
         iterate.x = np.tile(x_ref, ocp.solver_options.N_horizon + 1)  # type:ignore
         self.default_iterate = iterate
 
-    def single_iterate(
-        self, solver_input: AcadosOcpSolverInput
-    ) -> AcadosOcpFlattenedIterate:
+    def single_iterate(self, solver_input: AcadosOcpSolverInput) -> AcadosOcpFlattenedIterate:
         return deepcopy(self.default_iterate)

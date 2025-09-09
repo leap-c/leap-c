@@ -2,10 +2,10 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from acados_template.acados_ocp import AcadosOcp
 import gymnasium as gym
 import numpy as np
 import torch
+from acados_template.acados_ocp import AcadosOcp
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.pointmass.acados_ocp import (
@@ -14,7 +14,7 @@ from leap_c.examples.pointmass.acados_ocp import (
     export_parametric_ocp,
 )
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
-from leap_c.ocp.acados.parameters import AcadosParameterManager, AcadosParameter
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 

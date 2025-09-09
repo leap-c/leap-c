@@ -6,20 +6,21 @@ import gymnasium as gym
 import numpy as np
 import pandas as pd
 import scipy
-from .config import (
-    BestestHydronicParameters,
-    BestestParameters,
-)
 from gymnasium import spaces
 from scipy.constants import convert_temperature
 
 from leap_c.examples.hvac.util import (
     load_price_data,
     load_weather_data,
+    merge_price_weather_data,
+    set_temperature_limits,
     transcribe_continuous_state_space,
     transcribe_discrete_state_space,
-    set_temperature_limits,
-    merge_price_weather_data,
+)
+
+from .config import (
+    BestestHydronicParameters,
+    BestestParameters,
 )
 
 # Constants
@@ -100,9 +101,9 @@ class StochasticThreeStateRcEnv(gym.Env):
         self.data["Ta"] = self.data["Ta"].astype(np.float32)
         self.data["solar"] = self.data["solar"].astype(np.float32)
         self.data["time"] = self.data.index.to_numpy(dtype="datetime64[m]")
-        self.data["quarter_hour"] = (
-            self.data.index.hour * 4 + self.data.index.minute // 15
-        ) % (24 * 4)
+        self.data["quarter_hour"] = (self.data.index.hour * 4 + self.data.index.minute // 15) % (
+            24 * 4
+        )
         self.data["day"] = self.data["time"].dt.dayofyear % 366
 
         print("env N_forecast: ", self.N_forecast)
@@ -129,8 +130,7 @@ class StochasticThreeStateRcEnv(gym.Env):
                 convert_temperature(500.0, "celsius", "kelvin"),  # Radiator temperature
                 convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
             ]
-            + [convert_temperature(40.0, "celsius", "kelvin")]
-            * N_forecast  # Ambient temperatures
+            + [convert_temperature(40.0, "celsius", "kelvin")] * N_forecast  # Ambient temperatures
             + [MAGNITUDE_SOLAR_RADIATION] * N_forecast  # Solar radiation
             + [self.price_data_max] * N_forecast,  # Prices
             dtype=np.float32,
@@ -142,9 +142,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
 
         # Store parameters
-        self.params = (
-            params if params is not None else BestestHydronicParameters().to_dict()
-        )
+        self.params = params if params is not None else BestestHydronicParameters().to_dict()
 
         self.step_size = step_size
         self.enable_noise = enable_noise
@@ -202,9 +200,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         quarter_hour = self.data["quarter_hour"].iloc[self.idx]
         day_of_year = self.data["day"].iloc[self.idx]
 
-        price_forecast = (
-            self.data["price"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
-        )
+        price_forecast = self.data["price"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
 
         # Step the temperature and solar forecasting errors via the AR1 models
         uncertainty_level = "high"  # TODO: Make this configurable
@@ -282,9 +278,7 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         return Ad, Bd, Ed, Qd
 
-    def _compute_noise_covariance(
-        self, Ac: np.ndarray, Sigma: np.ndarray, dt: float
-    ) -> np.ndarray:
+    def _compute_noise_covariance(self, Ac: np.ndarray, Sigma: np.ndarray, dt: float) -> np.ndarray:
         """
         TODO: Check if this is correct. See, e.g., Farrell, J. Sec 4.7.2
         Compute the exact discrete-time noise covariance matrix using matrix exponential.
@@ -431,7 +425,8 @@ class StochasticThreeStateRcEnv(gym.Env):
         self, hp: int, F0: float, K0: float, F: float, K: float, mu: float
     ) -> np.ndarray:
         """
-        Generates an error for the temperature forecast with an AR model with normal distribution in the hp points of the predictions horizon.
+        Generates an error for the temperature forecast with an AR model with
+        normal distribution in the hp points of the predictions horizon.
 
         Parameters
         ----------
@@ -466,7 +461,8 @@ class StochasticThreeStateRcEnv(gym.Env):
         self, hp: int, ag0: float, bg0: float, phi: float, ag: float, bg: float
     ) -> np.ndarray:
         """
-        Generates an error for the solar forecast based on the specified parameters using an AR model with Laplace distribution in the hp points of the predictions horizon.
+        Generates an error for the solar forecast based on the specified parameters
+        using an AR model with Laplace distribution in the hp points of the predictions horizon.
 
         Parameters
         ----------
@@ -544,9 +540,7 @@ class StochasticThreeStateRcEnv(gym.Env):
         else:
             min_start_idx = 0
             max_start_idx = len(self.data) - self.N_forecast - self.max_steps + 1
-            self.idx = self.np_random.integers(
-                low=min_start_idx, high=max_start_idx + 1
-            )
+            self.idx = self.np_random.integers(low=min_start_idx, high=max_start_idx + 1)
 
         self.step_cnter = 0
 

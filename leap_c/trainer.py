@@ -1,19 +1,18 @@
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Generic, Iterator, Literal, TypeVar, List, get_args
+from typing import Any, Generic, Iterator, List, Literal, TypeVar, get_args
 
+import gymnasium as gym
 import numpy as np
 import torch
-import gymnasium as gym
 from torch import nn
 from yaml import safe_dump
 
+from leap_c.torch.utils.seed import set_seed
+from leap_c.utils.gym import WrapperType, seed_env, wrap_env
 from leap_c.utils.logger import Logger, LoggerConfig
 from leap_c.utils.rollout import episode_rollout
-from leap_c.utils.gym import wrap_env, WrapperType, seed_env
-from leap_c.torch.utils.seed import set_seed
-
 
 TrainerConfigType = TypeVar("TrainerConfigType", bound="TrainerConfig")
 ValReportScoreOptions = Literal["cum", "final", "best"]
@@ -31,8 +30,10 @@ class TrainerConfig:
         val_num_rollouts: The number of rollouts during validation.
         val_deterministic: If True, the policy will act deterministically during validation.
         val_render_mode: The mode in which the episodes will be rendered.
-        val_render_deterministic: If True, the episodes will be rendered deterministically (e.g., no exploration).
-        val_report_score: Whether to report the cummulative score, the final evaluation score or the best evaluation score.
+        val_render_deterministic: If True, the episodes will be rendered deterministically
+            (e.g., no exploration).
+        val_report_score: Whether to report the cummulative score,
+            the final evaluation score or the best evaluation score.
         ckpt_modus: How to save the model, which can be "best", "last", "all" or "none".
     """
 
@@ -114,9 +115,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
-        self.eval_env = seed_env(
-            wrap_env(eval_env, wrappers=wrappers), seed=self.cfg.seed
-        )
+        self.eval_env = seed_env(wrap_env(eval_env, wrappers=wrappers), seed=self.cfg.seed)
 
         # trainer state
         self.state = TrainerState()
@@ -196,7 +195,8 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         """Call this function in your script to start the training loop."""
         if self.cfg.val_report_score not in get_args(ValReportScoreOptions):
             raise RuntimeError(
-                f"report_score is '{self.cfg.val_report_score}' but has to be one of {get_args(ValReportScoreOptions)}"
+                f"report_score is '{self.cfg.val_report_score}'"
+                + f"but has to be one of {get_args(ValReportScoreOptions)}"
             )
 
         self.to(self.device)
@@ -204,17 +204,22 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         train_loop_iter = self.train_loop()
 
         # initial policy validation
-        val_score = self.validate()
+        self.eval()
+        with torch.inference_mode():
+            val_score = self.validate()
         self.state.scores.append(val_score)
         self.state.max_score = val_score
 
         while self.state.step < self.cfg.train_steps:
             # train
+            self.train()
             self.state.step += next(train_loop_iter)
 
             # validate
             if self.state.step // self.cfg.val_interval > len(self.state.scores) - 1:
-                val_score = self.validate()
+                self.eval()
+                with torch.inference_mode():
+                    val_score = self.validate()
                 self.state.scores.append(val_score)
 
                 if val_score > self.state.max_score:
@@ -237,8 +242,18 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
                 return self.state.max_score
 
     def validate(self) -> float:
-        """Do a deterministic validation run of the policy and
-        return the mean of the cumulative reward over all validation episodes."""
+        """Do a deterministic validation run of the policy and return the mean of the
+        cumulative reward over all validation episodes.
+
+        Returns:
+            The mean return over all validation episodes.
+
+        Note:
+            This method neither sets the trainer to eval mode nor disables gradient
+            computations. It is the caller's responsibility to do so via
+            `trainer.eval()` as well as `torch.no_grad` or `torch.inference_mode`
+            context managers.
+        """
 
         def create_policy_fn():
             policy_state = None
@@ -273,8 +288,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
             parts_policy.append(p)
 
         stats_rollout = {
-            key: float(np.mean([p[key] for p in parts_rollout]))
-            for key in parts_rollout[0]
+            key: float(np.mean([p[key] for p in parts_rollout])) for key in parts_rollout[0]
         }
         self.report_stats("val", stats_rollout, with_smoothing=False)  # type:ignore
 
@@ -305,9 +319,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         basedir = Path(basedir)
         (basedir / "ckpts").mkdir(exist_ok=True)
 
-        all_but_singleton = (
-            True if self.cfg.ckpt_modus == "all" and singleton else False
-        )
+        all_but_singleton = True if self.cfg.ckpt_modus == "all" and singleton else False
 
         if self.cfg.ckpt_modus == "best":
             return basedir / "ckpts" / f"best_{name}.{suffix}"
@@ -361,8 +373,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
         if self.optimizers:
             state_dict = {
-                f"optimizer_{i}": opt.state_dict()
-                for i, opt in enumerate(self.optimizers)
+                f"optimizer_{i}": opt.state_dict() for i, opt in enumerate(self.optimizers)
             }
             torch.save(state_dict, self._ckpt_path("optimizers", "ckpt", path))
 

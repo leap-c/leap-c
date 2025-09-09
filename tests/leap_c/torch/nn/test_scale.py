@@ -1,8 +1,7 @@
-from gymnasium.spaces import Box
 import numpy as np
 import pytest
 import torch
-
+from gymnasium.spaces import Box
 
 from leap_c.torch.nn.scale import min_max_scaling
 

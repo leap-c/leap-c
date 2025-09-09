@@ -1,6 +1,7 @@
-from typing import NamedTuple, Literal
-import numpy as np
+from typing import Literal, NamedTuple
+
 import gymnasium as gym
+import numpy as np
 
 
 class Parameter(NamedTuple):
@@ -79,7 +80,8 @@ class ParameterManager:
         Return a Gymnasium Box space for the learnable parameters.
 
         Returns:
-            gym.spaces.Box: Flattened Box space with lower and upper bounds for learnable parameters.
+            gym.spaces.Box: Flattened Box space with lower
+                and upper bounds for learnable parameters.
         """
 
         learnable_spaces = []

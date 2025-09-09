@@ -2,12 +2,12 @@
 
 from collections import defaultdict
 from pathlib import Path
-from typing import Callable, Optional, Any, Generator
+from timeit import default_timer
+from typing import Any, Callable, Generator
 
 import torch
 from gymnasium import Env
 from gymnasium.wrappers import RecordVideo
-from timeit import default_timer
 
 
 def episode_rollout(
@@ -16,8 +16,8 @@ def episode_rollout(
     episodes: int = 1,
     render_episodes: int = 0,
     render_human: bool = False,
-    video_folder: Optional[str | Path] = None,
-    name_prefix: Optional[str] = None,
+    video_folder: str | Path | None = None,
+    name_prefix: str | None = None,
 ) -> Generator[tuple[dict[str, bool | Any], defaultdict[Any, list]], Any, None]:
     """Rollout an episode and returns the cumulative reward.
 
@@ -85,9 +85,7 @@ def episode_rollout(
 
                 o = o_prime
 
-            assert "episode" in info, (
-                "The environment did not return episode information."
-            )
+            assert "episode" in info, "The environment did not return episode information."
             rollout_stats = {
                 "score": info["episode"]["r"],
                 "length": info["episode"]["l"],

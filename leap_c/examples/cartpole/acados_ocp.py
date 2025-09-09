@@ -1,13 +1,12 @@
 from typing import Literal
 
 import casadi as ca
-import numpy as np
 import gymnasium as gym
-
+import numpy as np
 from acados_template import AcadosModel, AcadosOcp
+
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
-
 
 CartPoleAcadosParamInterface = Literal["global", "stagewise"]
 """Determines the exposed parameter interface of the controller.
@@ -15,8 +14,9 @@ CartPoleAcadosParamInterface = Literal["global", "stagewise"]
 while "stagewise" means that learnable parameters can vary between stages.
 """
 CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
-"""The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS". Both model the same cost function, but
-the former uses an exact Hessian in the optimization, while the latter uses a Gauss-Newton Hessian approximation.
+"""The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS". Both model the same cost function, 
+but the former uses an exact Hessian in the optimization, while the latter uses a 
+Gauss-Newton Hessian approximation.
 """
 
 
@@ -58,9 +58,7 @@ def create_cartpole_params(
                 dtype=np.float64,
             ),
             interface="learnable",
-            vary_stages=list(range(N_horizon + 1))
-            if param_interface == "stagewise"
-            else [],
+            vary_stages=list(range(N_horizon + 1)) if param_interface == "stagewise" else [],
         ),  # reference theta
         AcadosParameter(
             "xref2",
@@ -80,9 +78,7 @@ def create_cartpole_params(
     ]
 
 
-def define_f_expl_expr(
-    model: AcadosModel, param_manager: AcadosParameterManager
-) -> ca.SX:
+def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParameterManager) -> ca.SX:
     M = param_manager.get("M")
     m = param_manager.get("m")
     g = param_manager.get("g")
@@ -101,13 +97,8 @@ def define_f_expl_expr(
     f_expl = ca.vertcat(
         v,
         dtheta,
-        (-m * l * sin_theta * dtheta * dtheta + m * g * cos_theta * sin_theta + F)
-        / denominator,
-        (
-            -m * l * cos_theta * sin_theta * dtheta * dtheta
-            + F * cos_theta
-            + (M + m) * g * sin_theta
-        )
+        (-m * l * sin_theta * dtheta * dtheta + m * g * cos_theta * sin_theta + F) / denominator,
+        (-m * l * cos_theta * sin_theta * dtheta * dtheta + F * cos_theta + (M + m) * g * sin_theta)
         / (l * denominator),
     )
 
@@ -192,9 +183,7 @@ def export_parametric_ocp(
 
         ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
     else:
-        raise ValueError(
-            f"Cost type {cost_type} not supported. Use 'EXTERNAL' or 'NONLINEAR_LS'."
-        )
+        raise ValueError(f"Cost type {cost_type} not supported. Use 'EXTERNAL' or 'NONLINEAR_LS'.")
 
     ######## Constraints ########
     ocp.constraints.idxbx_0 = np.array([0, 1, 2, 3])

@@ -3,13 +3,13 @@
 from abc import ABC, abstractmethod
 from copy import deepcopy
 
+import numpy as np
 from acados_template.acados_ocp import AcadosOcp
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
     AcadosOcpIterate,
 )
-import numpy as np
 
 from leap_c.ocp.acados.data import (
     AcadosOcpSolverInput,
@@ -27,9 +27,7 @@ class AcadosDiffMpcInitializer(ABC):
     """
 
     @abstractmethod
-    def single_iterate(
-        self, solver_input: AcadosOcpSolverInput
-    ) -> AcadosOcpFlattenedIterate:
+    def single_iterate(self, solver_input: AcadosOcpSolverInput) -> AcadosOcpFlattenedIterate:
         """Abstract method to generate an initial iterate for a single problem instance.
 
         Subclasses must implement this method to provide a specific
@@ -44,9 +42,7 @@ class AcadosDiffMpcInitializer(ABC):
         """
         ...
 
-    def batch_iterate(
-        self, solver_input: AcadosOcpSolverInput
-    ) -> AcadosOcpFlattenedBatchIterate:
+    def batch_iterate(self, solver_input: AcadosOcpSolverInput) -> AcadosOcpFlattenedBatchIterate:
         """Generates a batch of initial iterates for a batch of problem instances.
 
         This method uses the `single_sample` method to generate an initial
@@ -61,8 +57,7 @@ class AcadosDiffMpcInitializer(ABC):
             the input batch.
         """
         iterates = [
-            self.single_iterate(solver_input.get_sample(i))
-            for i in range(solver_input.batch_size)
+            self.single_iterate(solver_input.get_sample(i)) for i in range(solver_input.batch_size)
         ]
 
         return collate_acados_flattened_iterate_fn(iterates)

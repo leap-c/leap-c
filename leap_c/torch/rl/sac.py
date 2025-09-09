@@ -8,14 +8,14 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.torch.nn.extractor import ExtractorName, Extractor, get_extractor_cls
+from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
 from leap_c.torch.nn.gaussian import SquashedGaussian
 from leap_c.torch.nn.mlp import Mlp, MlpConfig
 from leap_c.torch.nn.scale import min_max_scaling
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.utils import soft_target_update
 from leap_c.trainer import Trainer, TrainerConfig
-from leap_c.utils.gym import wrap_env, seed_env
+from leap_c.utils.gym import seed_env, wrap_env
 
 
 @dataclass(kw_only=True)

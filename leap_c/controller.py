@@ -2,7 +2,7 @@
 controllers in PyTorch."""
 
 from abc import abstractmethod
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Union
 
 import gymnasium as gym
 import numpy as np
@@ -15,7 +15,7 @@ class ParameterizedController(nn.Module):
 
     # should be provided in cases the controller comes with specific collate
     # functions for different data types. This is an advanced feature!
-    collate_fn_map: Optional[dict[Union[type, tuple[type, ...]], Callable]] = None
+    collate_fn_map: dict[Union[type, tuple[type, ...]], Callable] | None = None
 
     @abstractmethod
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
