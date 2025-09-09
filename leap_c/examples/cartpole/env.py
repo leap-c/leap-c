@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable, Optional, Any
+from typing import Callable, Any
 
 import gymnasium as gym
 import numpy as np
@@ -243,7 +243,7 @@ class CartPoleEnv(gym.Env):
         self.pole_end_trajectory = None
         return self.x, {}
 
-    def init_state(self, options: Optional[dict] = None) -> np.ndarray:
+    def init_state(self, options: dict | None) -> np.ndarray:
         return np.array([0.0, np.pi, 0.0, 0.0], dtype=np.float32)
 
     def include_this_state_trajectory_to_rendering(self, state_trajectory: np.ndarray):
@@ -399,7 +399,7 @@ class CartPoleBalanceEnv(CartPoleEnv):
     slightly disbalanced, position and the agent should learn to balance the pole.
     """
 
-    def init_state(self, options: Optional[dict] = None) -> np.ndarray:
+    def init_state(self, options: dict | None) -> np.ndarray:
         low, high = gym_utils.maybe_parse_reset_bounds(
             options,
             -0.05,
