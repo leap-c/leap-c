@@ -32,9 +32,8 @@ class SacFopTrainerConfig(SacTrainerConfig):
             if "action", the noise is added to the predicted actions (after the controller).
         entropy_correction: Whether to use the entropy correction term for the log-probability.
             When using parameter noise, the computed log-probability does not account for the
-            transformation through the controller.
-            The entropy correction adds a correction term based on
-            the Jacobian of the action with respect to the parameters.
+            transformation through the controller. The entropy correction adds a correction term
+            based on the Jacobian of the action with respect to the parameters.
     """
 
     noise: Literal["param", "action"] = "param"
