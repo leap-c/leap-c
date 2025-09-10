@@ -59,10 +59,10 @@ class Mlp(nn.Module):
 
     Attributes:
         activation: The activation function to use in the hidden layers.
-        mlp: The multi-layer perceptron model. Is None if no hidden layers were required
-            (i.e., a simple parameter tensor `param` is used).
-        param: A parameter tensor of the output size. Is None if hidden layers were required
-            (i.e., `mlp` is used).
+        mlp: The multi-layer perceptron model. Is None if no hidden layers were set in the config,
+            and a parameter tensor is used instead.
+        param: A parameter tensor of the output size. Is None if hidden layers were set
+            in the config.
     """
 
     activation: nn.Module
