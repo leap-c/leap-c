@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "leap-c"
 version = "2024.0.0"
-dependencies = ["gymnasium", "scipy", "numpy", "pandas"]
+dependencies = ["gymnasium", "scipy", "numpy", "pandas", "PyYAML"]
 
 requires-python = ">=3.11"
 authors = [{ name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" }]

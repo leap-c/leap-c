@@ -3,22 +3,23 @@
 from collections import defaultdict
 from pathlib import Path
 from timeit import default_timer
-from typing import Any, Callable, Generator
+from typing import Callable, Generator
 
 import torch
 from gymnasium import Env
 from gymnasium.wrappers import RecordVideo
+from numpy import ndarray
 
 
 def episode_rollout(
-    policy: Callable,
+    policy: Callable[[ndarray], tuple[ndarray, dict[str, float] | None]],
     env: Env,
     episodes: int = 1,
     render_episodes: int = 0,
     render_human: bool = False,
     video_folder: str | Path | None = None,
     name_prefix: str | None = None,
-) -> Generator[tuple[dict[str, bool | Any], defaultdict[Any, list]], Any, None]:
+) -> Generator[tuple[dict[str, float | bool | list], dict[str, list]]]:
     """Rollout an episode and returns the cumulative reward.
 
     Args:
@@ -34,29 +35,34 @@ def episode_rollout(
         name_prefix (Optional[str]): The prefix for the video file names. Must be set if
             video_folder is set.
 
-    Returns:
-        A dictionary containing the information about the rollout, i.e., the keys
+    Yields:
+        The first dictionary containing the information about the rollout,
+        at least containing the keys
         "score": The cumulative reward of the episode,
         "length": The length of the episode,
         "terminated": Whether it terminated,
-        "truncated", Whether it truncated,
-        "inference_time": The average inference time of the policy per step,
-        as well as any statistics returned by the policy.
+        "truncated": Whether it truncated,
+        "inference_time": The average inference time of the policy per step.
+        The second dictionary containing statistics returned by the policy.
     """
-    if render_human and video_folder is not None:
-        raise ValueError("render_human and video_path can not be set at the same time.")
-    if video_folder is not None and name_prefix is None:
-        raise ValueError("name_prefix must be set if video_path is set.")
+    if (
+        render_episodes > 0
+        and env.render_mode not in (None, "human", "ansi")
+        and video_folder is not None
+    ):
+        if render_human:
+            raise ValueError("`render_human` and `video_folder` can not be set at the same time.")
+        if name_prefix is None:
+            raise ValueError("`name_prefix` must be set if `video_folder` is set.")
 
-    def render_trigger(episode_id):
-        return episode_id < render_episodes
+        def render_trigger(episode_id: int) -> bool:
+            return episode_id < render_episodes
 
-    if video_folder is not None:
         env = RecordVideo(
             env, video_folder, name_prefix=name_prefix, episode_trigger=render_trigger
         )
 
-    with torch.no_grad():
+    with torch.inference_mode():
         for episode in range(episodes):
             policy_stats = defaultdict(list)
             episode_stats = defaultdict(list)
@@ -79,7 +85,7 @@ def episode_rollout(
                 if isinstance(a, torch.Tensor):
                     a = a.cpu().numpy()
 
-                o_prime, r, terminated, truncated, info = env.step(a)
+                o_prime, _, terminated, truncated, info = env.step(a)
 
                 if "task" in info:
                     for key, value in info["task"].items():
