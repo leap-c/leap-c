@@ -4,7 +4,6 @@ from typing import Any, Callable
 
 import gymnasium as gym
 import numpy as np
-import torch
 from acados_template.acados_ocp import AcadosOcp
 
 from leap_c.controller import ParameterizedController
@@ -134,7 +133,7 @@ class ChainController(ParameterizedController):
             export_directory=export_directory,
         )
 
-    def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
+    def forward(self, obs, param, ctx=None) -> tuple[Any, np.ndarray]:
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )

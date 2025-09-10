@@ -25,16 +25,21 @@ class TrainerConfig:
     Args:
         seed: The seed for the training.
         train_steps: The number of steps in the training loop.
-        train_start: The number of training steps before training starts.
-        val_interval: The interval at which validation episodes will be run.
-        val_num_rollouts: The number of rollouts during validation.
+        train_start: The number of training steps before training starts
+            (e.g., to collect some data first).
+        val_freq: The frequency (in steps) at which validation episodes will be run.
+        val_num_rollouts: The number of episode rollouts during validation.
         val_deterministic: If True, the policy will act deterministically during validation.
         val_render_mode: The mode in which the episodes will be rendered.
-        val_render_deterministic: If True, the episodes will be rendered deterministically
-            (e.g., no exploration).
         val_report_score: Whether to report the cummulative score,
-            the final evaluation score or the best evaluation score.
-        ckpt_modus: How to save the model, which can be "best", "last", "all" or "none".
+            the final evaluation score or the best evaluation score of the validation rollouts.
+        ckpt_modus: Models are potentially saved after each validation.
+            This controls which of the models to save.
+            "best": only the best model according to the validation score is saved.
+            "last": only the model of the last validation is saved.
+            "all": The models of every validation are saved.
+            "none": No models are saved.
+        log: The configuration for the logger.
     """
 
     # reproducibility
@@ -45,12 +50,11 @@ class TrainerConfig:
     train_start: int = 0
 
     # validation configuration
-    val_interval: int = 10000
+    val_freq: int = 10000
     val_num_rollouts: int = 10
     val_deterministic: bool = True
     val_num_render_rollouts: int = 1
     val_render_mode: str | None = "rgb_array"  # rgb_array or human
-    val_render_deterministic: bool = True
     val_report_score: ValReportScoreOptions = "cum"
 
     # checkpointing configuration
@@ -66,7 +70,7 @@ class TrainerState:
 
     Attributes:
         step: The current step of the training loop.
-        timestamps: A dictionary containing the timestamps of the statistics.
+        scores: A list containing the scores of the validation episodes.
         max_score: The maximum score of the validation episodes.
     """
 
@@ -84,11 +88,18 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
     Attributes:
         cfg: The configuration for the trainer.
         output_path: The path to the output directory.
-        eval_env: The evaluation environment.
+        eval_env: The evaluation/validation environment.
         state: The state of the trainer.
         device: The device on which the trainer is running.
-        optimizers: The optimizers of the trainer.
+        logger: The logger for the trainer.
     """
+
+    cfg: TrainerConfigType
+    output_path: Path
+    eval_env: gym.Env
+    state: TrainerState
+    device: str
+    logger: Logger
 
     def __init__(
         self,
@@ -102,9 +113,10 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
         Args:
             cfg: The configuration for the trainer.
-            eval_env: The evaluation environment.
+            eval_env: The evaluation/validation environment.
             output_path: The path to the output directory.
-            device: The device on which the trainer is running
+            device: The device on which the trainer is running.
+            wrappers: Optional list of wrappers to apply to the environment.
         """
         super().__init__()
 
@@ -136,8 +148,8 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
         For simplicity, we use an Iterator here, to make the training loop as simple as
         possible. To make your own code compatible use the yield statement to return the
-        number of steps your train loop did. If yield not always returns 1, the val-
-        idation might be performed not exactly at the specified interval.
+        number of steps your train loop did. If yield does not always return 1, the validation
+        might be performed not exactly at the specified interval.
 
         Returns:
            The number of steps the training loop did.
@@ -155,8 +167,9 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         Args:
             obs (Any): The observation for which the action should be determined.
             deterministic (bool): If True, the action is drawn deterministically.
-            state: The state of the policy. If the policy is recurrent or includes
-                an MPC planner. Note, that at the start of an episode, the state
+            state: The state of the policy. Useful, if, e.g., the policy is recurrent or includes
+                an MPC planner which might want to pass warmstarting information.
+                Note, that at the start of an episode, the state
                 assumed to be None.
 
         Returns:
@@ -166,7 +179,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
-        """If provided optimizers are also checkpointed."""
+        """If provided, optimizers are also checkpointed."""
         return []
 
     def report_stats(
@@ -216,7 +229,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
             self.state.step += next(train_loop_iter)
 
             # validate
-            if self.state.step // self.cfg.val_interval > len(self.state.scores) - 1:
+            if self.state.step // self.cfg.val_freq > len(self.state.scores) - 1:
                 self.eval()
                 with torch.inference_mode():
                     val_score = self.validate()

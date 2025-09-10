@@ -6,19 +6,24 @@ from typing import Any, Callable, Union
 
 import gymnasium as gym
 import numpy as np
-import torch
 import torch.nn as nn
 
 
 class ParameterizedController(nn.Module):
-    """Abstract base class for differentiable parameterized controllers."""
+    """Abstract base class for differentiable parameterized controllers.
 
-    # should be provided in cases the controller comes with specific collate
-    # functions for different data types. This is an advanced feature!
+    Attributes:
+        collate_fn_map: Optional mapping from data types to custom collate
+            functions for batching. Should be provided in cases the controller needs
+            specific collate functions, usually for custom data types. For more
+            information, please refer to, e.g.,
+            https://docs.pytorch.org/docs/stable/data.html#torch.utils.data.default_collate
+    """
+
     collate_fn_map: dict[Union[type, tuple[type, ...]], Callable] | None = None
 
     @abstractmethod
-    def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
+    def forward(self, obs, param, ctx=None) -> tuple[Any, np.ndarray]:
         """Computes action from observation, parameters and internal context.
 
         Args:

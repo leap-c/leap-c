@@ -32,7 +32,7 @@ def create_cfg() -> RunSacZopConfig:
     cfg.trainer.seed = 0
     cfg.trainer.train_steps = 1000000
     cfg.trainer.train_start = 0
-    cfg.trainer.val_interval = 10000
+    cfg.trainer.val_freq = 10000
     cfg.trainer.val_num_rollouts = 20
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 1
