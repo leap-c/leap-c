@@ -1,10 +1,10 @@
-"""Main script to run experiments."""
+"""Main script to run SAC-FOP experiments."""
 
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from leap_c.examples import create_controller, create_env
+from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_output_path, init_run
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
@@ -12,10 +12,17 @@ from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
 
 @dataclass
 class RunSacFopConfig:
-    """Configuration for running SAC-FOP experiments."""
+    """Configuration for running SAC-FOP experiments.
 
-    env: str = "cartpole"
-    controller: str = "cartpole"
+    Attributes:
+        env: The environment name.
+        controller: The controller name.
+        trainer: The trainer configuration.
+        extractor: The feature extractor to use.
+    """
+
+    env: ExampleEnvName = "cartpole"
+    controller: ExampleControllerName = "cartpole"
     trainer: SacFopTrainerConfig = field(default_factory=SacFopTrainerConfig)
     extractor: ExtractorName = "identity"  # for hvac use "scaling"
 
@@ -36,7 +43,6 @@ def create_cfg() -> RunSacFopConfig:
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
-    cfg.trainer.val_render_deterministic = True
     cfg.trainer.val_report_score = "cum"
     cfg.trainer.ckpt_modus = "best"
     cfg.trainer.batch_size = 64
@@ -84,6 +90,14 @@ def run_sac_fop(
     device: str = "cuda",
     reuse_code_dir: Path | None = None,
 ) -> float:
+    """
+    Args:
+        cfg: The configuration for running the controller.
+        output_path: The path to save outputs to.
+            If it already exists, the run will continue from the last checkpoint.
+        device: The device to use.
+        reuse_code_dir: The directory to reuse compiled code from, if any.
+    """
     trainer = SacFopTrainer(
         val_env=create_env(cfg.env, render_mode="rgb_array"),
         train_env=create_env(cfg.env),
@@ -93,7 +107,7 @@ def run_sac_fop(
         cfg=cfg.trainer,
         extractor_cls=cfg.extractor,
     )
-    init_run(trainer, cfg, trainer_output_path)
+    init_run(trainer, cfg, output_path)
 
     return trainer.run()
 
