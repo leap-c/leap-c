@@ -191,7 +191,7 @@ def load_weather_data(csv_path: str | Path) -> pd.DataFrame:
     )
     print(
         f"Temperature range: {weather_data['Tout'].min():.1f}°C "
-        "to {weather_data['Tout'].max():.1f}°C"
+        f"to {weather_data['Tout'].max():.1f}°C"
     )
     print(
         f"Solar radiation range: {weather_data['SolGlob'].min():.1f} "
