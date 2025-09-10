@@ -1,10 +1,10 @@
-"""Main script to run experiments."""
+"""Main script to run SAC-ZOP experiments."""
 
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from leap_c.examples import create_controller, create_env
+from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_output_path, init_run
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac import SacTrainerConfig
@@ -15,8 +15,8 @@ from leap_c.torch.rl.sac_zop import SacZopTrainer
 class RunSacZopConfig:
     """Configuration for running SAC-ZOP experiments."""
 
-    env: str = "cartpole"
-    controller: str = "cartpole"
+    env: ExampleEnvName = "cartpole"
+    controller: ExampleControllerName = "cartpole"
     trainer: SacTrainerConfig = field(default_factory=SacTrainerConfig)
     extractor: ExtractorName = "identity"  # for hvac use "scaling"
 
@@ -32,12 +32,11 @@ def create_cfg() -> RunSacZopConfig:
     cfg.trainer.seed = 0
     cfg.trainer.train_steps = 1000000
     cfg.trainer.train_start = 0
-    cfg.trainer.val_interval = 10000
+    cfg.trainer.val_freq = 10000
     cfg.trainer.val_num_rollouts = 20
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 1
     cfg.trainer.val_render_mode = "rgb_array"
-    cfg.trainer.val_render_deterministic = True
     cfg.trainer.val_report_score = "cum"
     cfg.trainer.ckpt_modus = "best"
     cfg.trainer.batch_size = 64
@@ -83,6 +82,14 @@ def run_sac_zop(
     device: str = "cuda",
     reuse_code_dir: Path | None = None,
 ) -> float:
+    """
+    Args:
+        cfg: The configuration for running the controller.
+        output_path: The path to save outputs to.
+            If it already exists, the run will continue from the last checkpoint.
+        device: The device to use.
+        reuse_code_dir: The directory to reuse compiled code from, if any.
+    """
     trainer = SacZopTrainer(
         cfg=cfg.trainer,
         val_env=create_env(cfg.env, render_mode="rgb_array"),
@@ -92,7 +99,7 @@ def run_sac_zop(
         controller=create_controller(cfg.controller, reuse_code_dir),
         extractor_cls=cfg.extractor,
     )
-    init_run(trainer, cfg, trainer_output_path)
+    init_run(trainer, cfg, output_path)
 
     return trainer.run()
 

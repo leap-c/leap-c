@@ -47,6 +47,7 @@ class BestestParameters:
 class BestestHydronicParameters(BestestParameters):
     """Standard hydronic system parameters."""
 
+    # TODO: Wth do these mean?
     gAw: float = 10.1265729225269  # noqa: N815
     Ch: float = 4015.39425109821
     Ci: float = 1914908.30860716
@@ -61,28 +62,10 @@ class BestestHydronicParameters(BestestParameters):
     eta: float = 0.98
 
 
-@dataclass
-class BestestHydronicHeatpumpParameters(BestestParameters):
-    """Heat pump system parameters for a hydronic heating system."""
-
-    gAw: float = 40.344131392192  # noqa: N815
-    Ch: float = 10447262.2318648
-    Ci: float = 14827137.0377258
-    Ce: float = 50508258.9032192
-    e11: float = -30.0936560706053
-    sigmai: float = -23.3175423490014
-    sigmah: float = -19.5274067368137
-    sigmae: float = -5.07591222090641
-    Rea: float = 0.00163027389197229
-    Rhi: float = 0.000437603769897038
-    Rie: float = 0.000855786902577802
-    eta: float = 0.98
-
-
 def make_default_hvac_params(
     stagewise: bool = False, N_horizon: int = 48
 ) -> tuple[AcadosParameter, ...]:
-    """Return a tuple of default parameters for the hvac problem."""
+    """Return a tuple of default parameters for the hvac controller."""
     hydronic_params = BestestHydronicParameters().to_dict()
 
     # NOTE: Only include parameters that are relevant for the parametric OCP.
@@ -125,18 +108,14 @@ def make_default_hvac_params(
             AcadosParameter(
                 name="Phi_s",
                 default=np.array([200.0]),  # Solar radiation in W/m²
-                space=gym.spaces.Box(
-                    low=np.array([0.0]), high=np.array([400.0]), dtype=np.float64
-                ),
+                space=gym.spaces.Box(low=np.array([0.0]), high=np.array([400.0]), dtype=np.float64),
                 interface="learnable",
                 vary_stages=list(range(N_horizon)) if stagewise else [],
             ),
             AcadosParameter(
                 name="price",
                 default=np.array([0.15]),  # Electricity price in €/kWh
-                space=gym.spaces.Box(
-                    low=np.array([0.00]), high=np.array([0.30]), dtype=np.float64
-                ),
+                space=gym.spaces.Box(low=np.array([0.00]), high=np.array([0.30]), dtype=np.float64),
                 interface="learnable",
                 vary_stages=list(range(N_horizon)) if stagewise else [],
             ),
@@ -147,7 +126,7 @@ def make_default_hvac_params(
     params.extend(
         [
             AcadosParameter(
-                name="lb_Ti",
+                name="lb_Ti",  # Lower bound on indoor temperature in Kelvin
                 default=np.array([convert_temperature(17.0, "celsius", "kelvin")]),
                 space=gym.spaces.Box(
                     low=np.array([convert_temperature(15.0, "celsius", "kelvin")]),
@@ -158,7 +137,7 @@ def make_default_hvac_params(
                 vary_stages=list(range(N_horizon)) if stagewise else [],
             ),
             AcadosParameter(
-                name="ub_Ti",
+                name="ub_Ti",  # Upper bound on indoor temperature in Kelvin
                 default=np.array([convert_temperature(23.0, "celsius", "kelvin")]),
                 space=gym.spaces.Box(
                     low=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
@@ -169,7 +148,7 @@ def make_default_hvac_params(
                 vary_stages=list(range(N_horizon)) if stagewise else [],
             ),
             AcadosParameter(
-                name="ref_Ti",
+                name="ref_Ti",  # Reference indoor temperature in Kelvin
                 default=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
                 space=gym.spaces.Box(
                     low=np.array([convert_temperature(10.0, "celsius", "kelvin")]),
@@ -186,7 +165,7 @@ def make_default_hvac_params(
         [
             AcadosParameter(
                 name="q_Ti",
-                default=np.array([0.001]),  # weight on rate of change of heater power
+                default=np.array([0.001]),  # weight for indoor temperature residuals
                 space=gym.spaces.Box(
                     low=np.array([0.0001]), high=np.array([0.001]), dtype=np.float64
                 ),
@@ -195,19 +174,15 @@ def make_default_hvac_params(
             ),
             AcadosParameter(
                 name="q_dqh",
-                default=np.array([1.0]),  # weight on rate of change of heater power
-                space=gym.spaces.Box(
-                    low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64
-                ),
+                default=np.array([1.0]),  # weight for residuals of rate of change of heater power
+                space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64),
                 interface="learnable",
                 vary_stages=list(range(N_horizon)) if stagewise else [],
             ),
             AcadosParameter(
                 name="q_ddqh",
-                default=np.array([1.0]),  # weight for acceleration of heater power
-                space=gym.spaces.Box(
-                    low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64
-                ),
+                default=np.array([1.0]),  # weight for residuals of acceleration of heater power
+                space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64),
                 interface="learnable",
                 vary_stages=list(range(N_horizon)) if stagewise else [],
             ),

@@ -8,6 +8,10 @@ from acados_template import AcadosOcp
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 PointMassAcadosParamInterface = Literal["global", "stagewise"]
+"""Determines the exposed parameter interface of the controller.
+"global" means that learnable parameters are the same for all stages of the horizon,
+while "stagewise" means that learnable parameters can vary between stages.
+"""
 
 
 def create_pointmass_params(
@@ -15,7 +19,13 @@ def create_pointmass_params(
     x_ref_value: np.ndarray | None = None,
     N_horizon: int = 20,
 ) -> list[AcadosParameter]:
-    """Returns a list of parameters used in pointmass."""
+    """Returns a list of parameters used in the pointmass controller.
+
+    Args:
+        param_interface: Determines the exposed parameter interface of the controller.
+        x_ref_value: The value for the reference state.
+        N_horizon: The number of steps in the MPC horizon.
+    """
 
     q_diag_sqrt = np.array([1.0, 1.0, 1.0, 1.0])
     r_diag_sqrt = np.array([0.1, 0.1])
@@ -30,28 +40,19 @@ def create_pointmass_params(
         AcadosParameter("cy", default=np.array([0.1])),  # y friction coefficient
         # cost function parameters
         AcadosParameter(
-            "q_diag_sqrt",
+            "q_diag_sqrt",  # weight for state residuals
             default=q_diag_sqrt,
-            space=gym.spaces.Box(
-                low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64
-            ),
+            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64),
             interface="learnable",
-            vary_stages=list(range(N_horizon + 1))
-            if param_interface == "stagewise"
-            else [],
-        ),  # state cost
+            vary_stages=list(range(N_horizon + 1)) if param_interface == "stagewise" else [],
+        ),
         AcadosParameter(
-            "r_diag_sqrt",
+            "r_diag_sqrt",  # weight for control residuals
             default=r_diag_sqrt,
-            space=gym.spaces.Box(
-                low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64
-            ),
+            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64),
             interface="learnable",
-            vary_stages=list(range(N_horizon))
-            if param_interface == "stagewise"
-            else [],
-        ),  # control cost
-        # reference parameters
+            vary_stages=list(range(N_horizon)) if param_interface == "stagewise" else [],
+        ),
         AcadosParameter(
             "x_ref",
             default=x_ref_value,
@@ -61,10 +62,8 @@ def create_pointmass_params(
                 dtype=np.float64,
             ),
             interface="learnable",
-            vary_stages=list(range(N_horizon + 1))
-            if param_interface == "stagewise"
-            else [],
-        ),  # x reference
+            vary_stages=list(range(N_horizon + 1)) if param_interface == "stagewise" else [],
+        ),  # state reference
         AcadosParameter(
             "u_ref",
             default=np.array([0.0, 0.0]),
@@ -74,10 +73,8 @@ def create_pointmass_params(
                 dtype=np.float64,
             ),
             interface="learnable",
-            vary_stages=list(range(N_horizon))
-            if param_interface == "stagewise"
-            else [],
-        ),  # u reference
+            vary_stages=list(range(N_horizon)) if param_interface == "stagewise" else [],
+        ),  # action reference
     ]
 
 

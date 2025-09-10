@@ -16,12 +16,13 @@ class LoggerConfig:
 
     Args:
         verbose: If True, the logger will collect also verbose statistics.
-        interval: The interval at which statistics will be logged.
-        window: The moving window size for the statistics.
+        interval: The interval at which statistics will be logged (in steps).
+        window: The moving window size for the statistics (in steps).
         csv_logger: If True, the statistics will be logged to a CSV file.
         tensorboard_logger: If True, the statistics will be logged to TensorBoard.
         wandb_logger: If True, the statistics will be logged to Weights & Biases.
-        wandb_init_kwargs: The kwargs to pass to wandb.init. If "dir" is not specified, it is set to output path / "wandb".
+        wandb_init_kwargs: The kwargs to pass to wandb.init. If "dir" is not specified,
+            it is set to output path / "wandb".
     """
 
     verbose: bool = False
@@ -107,9 +108,7 @@ class GroupWindowTracker:
             clean_until(report_stamp - self._window_size)
             for key in self._statistics:
                 key_statistics = self._statistics[key]
-                border_idx = bisect.bisect_right(
-                    key_statistics, report_stamp, key=lambda x: x[0]
-                )
+                border_idx = bisect.bisect_right(key_statistics, report_stamp, key=lambda x: x[0])
                 if border_idx == 0:
                     stats[key] = float("nan")
                 else:
@@ -137,6 +136,11 @@ class Logger:
         writer: The TensorBoard writer.
     """
 
+    cfg: LoggerConfig
+    output_path: Path
+    group_trackers: dict[str, GroupWindowTracker]
+    writer: Any  # TensorBoard SummaryWriter
+
     def __init__(self, cfg: LoggerConfig, output_path: str | Path) -> None:
         """
         Initialize the logger.
@@ -148,9 +152,7 @@ class Logger:
         self.cfg = cfg
         self.output_path = Path(output_path)
 
-        self.group_trackers = defaultdict(
-            lambda: GroupWindowTracker(cfg.interval, cfg.window)
-        )
+        self.group_trackers = defaultdict(lambda: GroupWindowTracker(cfg.interval, cfg.window))
 
         # init wandb
         if cfg.wandb_logger:

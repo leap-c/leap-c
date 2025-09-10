@@ -9,14 +9,27 @@ from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 CartPoleAcadosParamInterface = Literal["global", "stagewise"]
+"""Determines the exposed parameter interface of the controller.
+"global" means that learnable parameters are the same for all stages of the horizon,
+while "stagewise" means that learnable parameters can vary between stages.
+"""
 CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
+"""The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS". Both model the same cost function, 
+but the former uses an exact Hessian in the optimization, while the latter uses a 
+Gauss-Newton Hessian approximation.
+"""
 
 
 def create_cartpole_params(
     param_interface: CartPoleAcadosParamInterface,
     N_horizon: int = 50,
 ) -> list[AcadosParameter]:
-    """Returns a list of parameters used in cartpole."""
+    """Returns a list of parameters used in the cartpole controller.
+
+    Args:
+        param_interface: Determines the exposed parameter interface of the controller.
+        N_horizon: The number of steps in the MPC horizon.
+    """
     return [
         # Dynamics parameters
         AcadosParameter("M", default=np.array([1.0])),  # mass of the cart [kg]
@@ -26,10 +39,10 @@ def create_cartpole_params(
         # Cost matrix factorization parameters
         AcadosParameter(
             "q_diag_sqrt", default=np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))
-        ),  # cost on state residuals
+        ),  # cost weights of state residuals
         AcadosParameter(
             "r_diag_sqrt", default=np.sqrt(np.array([2e-1]))
-        ),  # cost on control input residuals
+        ),  # cost weights of control input residuals
         # Reference parameters
         AcadosParameter(
             "xref0",
@@ -45,9 +58,7 @@ def create_cartpole_params(
                 dtype=np.float64,
             ),
             interface="learnable",
-            vary_stages=list(range(N_horizon + 1))
-            if param_interface == "stagewise"
-            else [],
+            vary_stages=list(range(N_horizon + 1)) if param_interface == "stagewise" else [],
         ),  # reference theta
         AcadosParameter(
             "xref2",
@@ -67,9 +78,7 @@ def create_cartpole_params(
     ]
 
 
-def define_f_expl_expr(
-    model: AcadosModel, param_manager: AcadosParameterManager
-) -> ca.SX:
+def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParameterManager) -> ca.SX:
     M = param_manager.get("M")
     m = param_manager.get("m")
     g = param_manager.get("g")
@@ -88,13 +97,8 @@ def define_f_expl_expr(
     f_expl = ca.vertcat(
         v,
         dtheta,
-        (-m * l * sin_theta * dtheta * dtheta + m * g * cos_theta * sin_theta + F)
-        / denominator,
-        (
-            -m * l * cos_theta * sin_theta * dtheta * dtheta
-            + F * cos_theta
-            + (M + m) * g * sin_theta
-        )
+        (-m * l * sin_theta * dtheta * dtheta + m * g * cos_theta * sin_theta + F) / denominator,
+        (-m * l * cos_theta * sin_theta * dtheta * dtheta + F * cos_theta + (M + m) * g * sin_theta)
         / (l * denominator),
     )
 
@@ -179,9 +183,7 @@ def export_parametric_ocp(
 
         ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
     else:
-        raise ValueError(
-            f"Cost type {cost_type} not supported. Use 'EXTERNAL' or 'NONLINEAR_LS'."
-        )
+        raise ValueError(f"Cost type {cost_type} not supported. Use 'EXTERNAL' or 'NONLINEAR_LS'.")
 
     ######## Constraints ########
     ocp.constraints.idxbx_0 = np.array([0, 1, 2, 3])

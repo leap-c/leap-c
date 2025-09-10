@@ -393,10 +393,9 @@ def animate_chain_position_3D(simX, xPosFirstMass, Ts=0.1):
     zlim = get_plot_lims(pos_z)
 
     fig = plt.figure()
-    plt.subplot(
-        111, projection="3d", autoscale_on=False, xlim=xlim, ylim=ylim, zlim=zlim
-    )
-    # ax = fig.add_subplot(111, projection="3d", autoscale_on=False, xlim=xlim, ylim=ylim, zlim=zlim)
+    plt.subplot(111, projection="3d", autoscale_on=False, xlim=xlim, ylim=ylim, zlim=zlim)
+    # ax = fig.add_subplot(111, projection="3d", autoscale_on=False,
+    #   xlim=xlim, ylim=ylim, zlim=zlim)
     plt.xlabel("x")
     plt.ylabel("y")
     plt.gca().set_zlabel("z")

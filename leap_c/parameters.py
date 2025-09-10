@@ -80,7 +80,8 @@ class ParameterManager:
         Return a Gymnasium Box space for the learnable parameters.
 
         Returns:
-            gym.spaces.Box: Flattened Box space with lower and upper bounds for learnable parameters.
+            gym.spaces.Box: Flattened Box space with lower
+                and upper bounds for learnable parameters.
         """
 
         learnable_spaces = []

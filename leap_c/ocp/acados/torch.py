@@ -18,17 +18,23 @@ from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 
 class AcadosDiffMpc(nn.Module):
     """
-    Acados differentiable MPC interface for PyTorch.
+    PyTorch module for differentiable MPC based on acados.
 
     This module wraps acados solvers to enable their use in differentiable
     machine learning pipelines. It provides an autograd compatible forward
-    method and supports sensitivity computation with respect to various inputs.
+    method and supports sensitivity computation with respect to various inputs
+    (see `AcadosDiffMpcCtx`).
+
 
     Attributes:
         ocp: The acados optimal control problem.
         diff_mpc_fun: The differentiable MPC function wrapper for acados.
-        autograd_fun: A PyTorch autograd function created from the MPC function.
+        autograd_fun: A PyTorch autograd function created from `diff_mpc_fun`.
     """
+
+    ocp: AcadosOcp
+    diff_mpc_fun: AcadosDiffMpcFunction
+    autograd_fun: type[torch.autograd.Function]
 
     def __init__(
         self,
@@ -45,20 +51,20 @@ class AcadosDiffMpc(nn.Module):
         Initializes the AcadosDiffMpc module.
 
         Args:
-            ocp: Optimal control problem formulation used for solving the OCP.
-            initializer: Initializer for the OCP solver. If None, solvers
-                are initialized with zeros.
-            sensitivity_ocp: The optimal control problem formulation to use
-                for sensitivities. If None, the sensitivity problem is derived
-                from the `ocp` object.
-            discount_factor: Discount factor. If None, acados default cost
-                scaling is used, i.e., dt for intermediate stages and 1 for the
-                terminal stage.
-            export_directory: Directory to export the generated code.
-            n_batch_max: Maximum batch size supported by the batch OCP solver. If
+            ocp: The acados ocp object defining the optimal control problem structure.
+            initializer: The initializer used to provide initial guesses for the solver,
+                if none are provided explicitly or on a retry. Uses a zero iterate by default.
+            sensitivity_ocp: An optional acados ocp object for obtaining the sensitivities.
+                If none provided, the sensitivity ocp will be derived from the given "normal" `ocp`.
+            discount_factor: An optional discount factor for the sensitivity problem.
+                If none provided, the default acados weighting will be used, i.e.,
+                1/N_horizon on the stage cost and 1 on the terminal cost.
+            export_directory: An optional directory to which the generated C code will be exported.
+                If none provided, a unique temporary directory will be created used.
+            n_batch_max: Maximum batch size supported by the batch ocp solver. If
                 `None`, the default value is used.
             num_threads_batch_solver: Number of parallel threads to use for the batch
-                OCP solver. If `None`, the default value is used.
+                ocp solver. If `None`, the default value is used.
         """
         super().__init__()
 
@@ -85,7 +91,7 @@ class AcadosDiffMpc(nn.Module):
         ctx: AcadosDiffMpcCtx | None = None,
     ):
         """
-        Performs the forward pass.
+        Performs the forward pass by solving the provided problem instances.
 
         In the background, PyTorch builds a computational graph that can be
         used for backpropagation. The context `ctx` is used to store
@@ -93,18 +99,31 @@ class AcadosDiffMpc(nn.Module):
         for subsequent calls and to compute specific sensitivities.
 
         Args:
-            x0: Initial state.
-            u0: Initial control input.
-            p_global: Global parameters.
-            p_stagewise: Stagewise parameters.
-            p_stagewise_sparse_idx: Sparse index for stagewise parameters.
-            ctx: The context for the forward pass. If None, a new context is created.
+            ctx: An object for storing context. If provided,
+                it will be used to warmstart the solve (e.g., by using the saved iterate).
+                Defaults to `None`.
+            x0: Initial states with shape `(B, x_dim)`.
+            u0: Initial actions with shape `(B, u_dim)`. Defaults to `None`.
+            p_global: Learnable parameters, i.e., allowing backpropagation,
+                shape `(B, p_global_dim)`. Correspond to learnable acados parameters.
+                If none provided, the default values set in the acados ocp object are used.
+            p_stagewise: Acados stagewise parameters, i.e., not allowing backpropagation,
+                shape `(B, N_horizon+1, p_stagewise_dim)`.
+                Correspond to "non-learnable" acados parameters.
+                If none provided, the default values set in the acados ocp object are used.
+                If p_stagewise_sparse_idx is provided, this also has to be provided.
+                If `p_stagewise_sparse_idx` is `None`, shape is
+                `(B, N_horizon+1, p_stagewise_dim)`.
+                If `p_stagewise_sparse_idx` is provided, shape is
+                `(B, N_horizon+1, len(p_stagewise_sparse_idx))`.
+            p_stagewise_sparse_idx: Indices for sparsely setting stagewise
+                parameters. Shape is `(B, N_horizon+1, n_p_stagewise_sparse_idx)`.
 
         Returns:
-            ctx: The updated context after solving the OCP.
-            u0: Initial control input.
-            x: The computed state trajectory.
-            u: The computed control trajectory.
+            ctx: A new context object from solving the problems.
+            u0: Solution of initial control input.
+            x: The solution of the whole state trajectory.
+            u: The solution of the whole control trajectory.
             value: The cost value of the computed trajectory.
         """
         ctx, u0, x, u, value = self.autograd_fun.apply(
@@ -113,17 +132,13 @@ class AcadosDiffMpc(nn.Module):
 
         return ctx, u0, x, u, value
 
-    def sensitivity(
-        self, ctx, field_name: AcadosDiffMpcSensitivityOptions
-    ) -> np.ndarray:
+    def sensitivity(self, ctx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
         """
-        Compute the sensitivity of the implicit function with respect to a field.
+        Retrieves a specific sensitivity field from the
+        context object, or recalculates it if not already present.
 
         Args:
-            ctx: Context from the forward pass.
-            field_name: The field to compute the sensitivity for.
-
-        Returns:
-            The sensitivity of the implicit function with respect to the specified field.
+            ctx: The ctx object generated by the forward pass.
+            field_name: The name of the sensitivity field to retrieve.
         """
         return self.diff_mpc_fun.sensitivity(ctx, field_name)

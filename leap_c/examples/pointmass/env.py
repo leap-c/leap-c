@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, List, Literal
+from typing import Any, Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
 from matplotlib import patches
 from matplotlib.axes import Axes
+from matplotlib.lines import Line2D
 from matplotlib.patches import FancyArrowPatch
 
 from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
@@ -47,12 +48,15 @@ class PointMassEnv(MatplotlibRenderEnv):
 
     Action Space:
     -------------
-    The action is a `ndarray` with shape `(2,)` and dtype `np.float32` representing the force applied in x and y directions.
-    Each component is bounded by [-Fmax, Fmax].
+    The action is a `ndarray` with shape `(2,)` and dtype `np.float32`
+    representing the force applied in x and y directions.
+    Each component is bounded by [-Fmax, Fmax] which will be enforced by
+    clipping the input action in each step.
 
     Reward:
     -------
-    The agent receives a small reward for progressing towards the goal in the x-direction and a large bonus for reaching the goal quickly.
+    The agent receives a small reward for progressing towards the goal in the x-direction
+    and a large bonus for reaching the goal quickly.
     - Distance reward: r_dist = 1 - abs(x - goal_x) / (x_max - x_min)
     - Goal reward: r_goal = 60 * (1 - 0.5 * t / max_time) if goal reached, else 0
     - Total reward: r = 0.1 * r_dist + r_goal
@@ -60,7 +64,7 @@ class PointMassEnv(MatplotlibRenderEnv):
     Termination:
     ------------
     The episode terminates if:
-    - The agent leaves the allowed state space (out of bounds)
+    - The agent leaves the allowed state space (out of bounds, also including velocity limits)
     - The agent reaches the goal region
 
     Truncation:
@@ -73,7 +77,43 @@ class PointMassEnv(MatplotlibRenderEnv):
     - "task": {"violation": bool, "success": bool}
       - violation: True if out of bounds
       - success: True if goal reached
+
+    Attributes:
+        cfg: Configuration object for the environment.
+        state_low: Lower bounds for the Pointmass position and velocity.
+        state_high: Upper bounds for the Pointmass position and velocity.
+        observation_space: The observation space of the environment.
+        action_space: The action space of the environment.
+        A: State transition matrix for the point mass dynamics.
+        B: Control input matrix for the point mass dynamics.
+        start: The starting position will be sampled in this Circle.
+        goal: The goal is reached if the pointmass enters this Circle.
+        wind_field: WindField object representing the wind disturbances.
+        state: Current state of the environment (position and velocity).
+        action: Last action taken (used in rendering).
+        time: Elapsed time in the current episode.
+        trajectory: List of states visited during the episode (used in rendering).
+        trajectory_plot: object representing the trajectory in the rendering.
+        agent_plot: object representing the agent in the rendering.
+        action_arrow_patch: object representing the action arrow in the rendering.
     """
+
+    cfg: PointMassEnvConfig
+    state_low: np.ndarray
+    state_high: np.ndarray
+    observation_space: spaces.Box
+    action_space: spaces.Box
+    A: np.ndarray
+    B: np.ndarray
+    start: "Circle"
+    goal: "Circle"
+    wind_field: "WindField"
+    state: np.ndarray | None
+    action: np.ndarray | None
+    time: float
+    trajectory_plot: Line2D | None
+    agent_plot: Line2D | None
+    action_arrow_patch: FancyArrowPatch | None
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
@@ -82,30 +122,26 @@ class PointMassEnv(MatplotlibRenderEnv):
         render_mode: str | None = None,
         cfg: PointMassEnvConfig | None = None,
     ):
+        """
+        Args:
+            render_mode: The mode to render with. Supported modes are: human, rgb_array, None.
+            cfg: Configuration for the environment. If None, default configuration is used.
+        """
         super().__init__(render_mode=render_mode)
 
         self.cfg = PointMassEnvConfig() if cfg is None else cfg
 
         # gymnasium setup
-        self.state_low = np.array(
-            [0.0, 0.0, -self.cfg.max_v, -self.cfg.max_v], dtype=np.float32
-        )
-        self.state_high = np.array(
-            [4, 1.0, self.cfg.max_v, self.cfg.max_v], dtype=np.float32
-        )
-        self.wind_low = np.array(
-            [-self.cfg.max_wind_force, -self.cfg.max_wind_force], dtype=np.float32
-        )
-        self.wind_high = np.array(
-            [self.cfg.max_wind_force, self.cfg.max_wind_force], dtype=np.float32
-        )
-        self.obs_high = np.concatenate([self.state_high, self.wind_high])
-        self.obs_low = np.concatenate([self.state_low, self.wind_low])
+        self.state_low = np.array([0.0, 0.0, -self.cfg.max_v, -self.cfg.max_v], dtype=np.float32)
+        self.state_high = np.array([4, 1.0, self.cfg.max_v, self.cfg.max_v], dtype=np.float32)
+        wind_low = np.array([-self.cfg.max_wind_force, -self.cfg.max_wind_force], dtype=np.float32)
+        wind_high = np.array([self.cfg.max_wind_force, self.cfg.max_wind_force], dtype=np.float32)
+        obs_high = np.concatenate([self.state_high, wind_high])
+        obs_low = np.concatenate([self.state_low, wind_low])
         self.action_low = np.array([-self.cfg.Fmax, -self.cfg.Fmax], dtype=np.float32)
         self.action_high = np.array([self.cfg.Fmax, self.cfg.Fmax], dtype=np.float32)
-        self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
+        self.observation_space = spaces.Box(low=obs_low, high=obs_high)
         self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
-        self.render_mode = render_mode
 
         # env logic
         self.A, self.B = define_transition_matrices(
@@ -118,15 +154,15 @@ class PointMassEnv(MatplotlibRenderEnv):
         )
 
         # env state
-        self.state: np.ndarray | None = None
-        self.action: np.ndarray | None = None
-        self.time: float = 0.0
+        self.state = None
+        self.action = None
+        self.time = 0.0
 
         # plotting attributes (initialize to None)
         self.trajectory_plot = None
         self.agent_plot = None
         self.action_arrow_patch = None
-        self.trajectory: List[np.ndarray] = []
+        self.trajectory = []
 
     def step(self, action: np.ndarray) -> tuple[Any, float, bool, bool, dict]:
         if self.state is None:
@@ -143,9 +179,7 @@ class PointMassEnv(MatplotlibRenderEnv):
         self.trajectory.append(self.state.copy())  # type: ignore
 
         # termination and truncation
-        out_of_bounds = (self.state_high < self.state).any() or (
-            self.state_low > self.state
-        ).any()
+        out_of_bounds = (self.state_high < self.state).any() or (self.state_low > self.state).any()
         reached_goal = self.state[:2] in self.goal  # type: ignore
         term = out_of_bounds or reached_goal
         trunc = self.time >= self.cfg.max_time
@@ -157,16 +191,12 @@ class PointMassEnv(MatplotlibRenderEnv):
         # reward
         dist_to_goal_x = np.abs(self.state[0] - self.goal.pos[0])
         r_dist = 1 - dist_to_goal_x / (self.state_high[0] - self.state_low[0])
-        r_goal = (
-            60 * (1.0 - 0.5 * self.time / self.cfg.max_time) if reached_goal else 0.0
-        )
+        r_goal = 60 * (1.0 - 0.5 * self.time / self.cfg.max_time) if reached_goal else 0.0
         r = 0.1 * r_dist + r_goal
 
         return self._observation(), float(r), bool(term), bool(trunc), info
 
-    def reset(
-        self, *, seed: int | None = None, options: dict | None = None
-    ) -> tuple[Any, dict]:
+    def reset(self, *, seed: int | None = None, options: dict | None = None) -> tuple[Any, dict]:
         super().reset(seed=seed)
         self.time = 0.0
         self.state = self._init_state(options=options)
@@ -225,9 +255,7 @@ class PointMassEnv(MatplotlibRenderEnv):
             zorder=3,
             label="Start ($\odot$)",
         )
-        self._ax.plot(
-            [], [], "ko", marker=r"$\odot$", markersize=10, label="Start", zorder=3
-        )
+        self._ax.plot([], [], "ko", marker=r"$\odot$", markersize=10, label="Start", zorder=3)
         self._ax.text(
             self.goal.pos[0] + 0.02,  # x-coordinate from self.goal.pos
             self.goal.pos[1],  # y-coordinate from self.goal.pos
@@ -239,9 +267,7 @@ class PointMassEnv(MatplotlibRenderEnv):
             zorder=3,  # Ensure it's drawn prominently
             label="Goal ($\otimes$)",  # Optional: Update label for legend
         )
-        self._ax.plot(
-            [], [], "ko", marker=r"$\otimes$", markersize=10, label="Goal", zorder=3
-        )
+        self._ax.plot([], [], "ko", marker=r"$\otimes$", markersize=10, label="Goal", zorder=3)
 
         if self.wind_field:
             self.wind_field.plot_wind_field(

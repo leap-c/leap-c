@@ -28,8 +28,7 @@ def create_batch_solver(
         export_directory: Directory to export the generated code. If None, a
             temporary directory is created and the directory is cleaned afterwards.
         discount_factor: Discount factor. If None, acados default cost
-            scaling is used, i.e. dt for intermediate stages, 1 for
-            terminal stage.
+            scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
         n_batch_max: Maximum batch size.
         num_threads: Number of threads used in the batch solver.
     """
@@ -38,17 +37,13 @@ def create_batch_solver(
     # translate cost terms to external to allow
     # implicit differentiation for a p_global parameter.
     if ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
-        ocp.translate_initial_cost_term_to_external(
-            cost_hessian=ocp.solver_options.hessian_approx
-        )
+        ocp.translate_initial_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
     if ocp.cost.cost_type not in ["EXTERNAL"]:
         ocp.translate_intermediate_cost_term_to_external(
             cost_hessian=ocp.solver_options.hessian_approx
         )
     if ocp.cost.cost_type_e not in ["EXTERNAL"]:
-        ocp.translate_terminal_cost_term_to_external(
-            cost_hessian=ocp.solver_options.hessian_approx
-        )
+        ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
 
     # TODO (Leonard): Check whether we still need this.
     _turn_on_warmstart(ocp)
@@ -92,12 +87,29 @@ def create_batch_solver(
 
 def create_forward_backward_batch_solvers(
     ocp: AcadosOcp,
-    sensitivity_ocp: AcadosOcp | None = None,  # type:ignore
+    sensitivity_ocp: AcadosOcp | None = None,
     export_directory: str | Path | None = None,
     discount_factor: float | None = None,
     n_batch_max: int = 256,
     num_threads: int = 4,
 ):
+    """Create a batch solver for solving the MPC problems (forward solver).
+    If this solver is suitable for computing sensitivities, it will also be returned as backward
+    solver (the solver for computing sensitivities). Otherwise,
+    a second batch solver will be created, which is suitable for computing sensitivities.
+
+    Args:
+        ocp: Acados optimal control problem formulation for the forward solver.
+        sensitivity_ocp: Acados optimal control problem formulation for the backward solver.
+            If None, this will be derived from the given `ocp`.
+        export_directory: Directory to export generated code. If none,
+            a unique temporary directory is created.
+        discount_factor: Discount factor for the solver. If not provided,
+            acados default weighting is used
+            (i.e., 1/N_horizon for intermediate stages, 1 for terminal stage).
+        n_batch_max: Maximum batch size.
+        num_threads: Number of threads used in the batch solver.
+    """
     # check if we can use the forward solver for the backward pass.
     need_backward_solver = _check_need_sensitivity_solver(ocp)
 
@@ -117,31 +129,14 @@ def create_forward_backward_batch_solvers(
         return forward_batch_solver, forward_batch_solver
 
     if sensitivity_ocp is None:
-        sensitivity_ocp: AcadosOcp = deepcopy(
-            forward_batch_solver.ocp_solvers[0].acados_ocp  # type:ignore
-        )
-        sensitivity_ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-        sensitivity_ocp.solver_options.qp_solver_ric_alg = 1
-        sensitivity_ocp.solver_options.qp_solver_cond_N = (
-            sensitivity_ocp.solver_options.N_horizon
-        )
-        sensitivity_ocp.solver_options.hessian_approx = "EXACT"
-        sensitivity_ocp.solver_options.regularize_method = "NO_REGULARIZE"
-        sensitivity_ocp.solver_options.exact_hess_constr = True
-        sensitivity_ocp.solver_options.exact_hess_cost = True
-        sensitivity_ocp.solver_options.exact_hess_dyn = True
-        sensitivity_ocp.solver_options.fixed_hess = 0
-        sensitivity_ocp.solver_options.levenberg_marquardt = 0.0
-        sensitivity_ocp.solver_options.with_solution_sens_wrt_params = True
-        sensitivity_ocp.solver_options.with_value_sens_wrt_params = True
-
-        sensitivity_ocp.model.cost_expr_ext_cost_custom_hess_0 = None
-        sensitivity_ocp.model.cost_expr_ext_cost_custom_hess = None
-        sensitivity_ocp.model.cost_expr_ext_cost_custom_hess_e = None
+        # NOTE: Use the ocp from an already compiled solver
+        # to hopefully avoid problems with deepcopy
+        sensitivity_ocp = deepcopy(forward_batch_solver.ocp_solvers[0].acados_ocp)  # type:ignore
+        make_ocp_sensitivity_compatible(sensitivity_ocp)  # type:ignore
 
     sensitivity_ocp.model.name += "_sensitivity"  # type:ignore
 
-    sensitivity_ocp.ensure_solution_sensitivities_available()
+    sensitivity_ocp.ensure_solution_sensitivities_available()  # type:ignore
 
     backward_batch_solver = create_batch_solver(
         sensitivity_ocp,  # type:ignore
@@ -170,7 +165,8 @@ def _turn_on_warmstart(acados_ocp: AcadosOcp):
         and acados_ocp.solver_options.nlp_solver_warm_start_first_qp_from_nlp
     ):
         print(
-            "WARNING: Warmstart is not enabled. We will enable it for our initialization strategies to work properly."
+            "WARNING: Warmstart is not enabled. We will enable it for"
+            + "our initialization strategies to work properly."
         )
     acados_ocp.solver_options.qp_solver_warm_start = 0
     acados_ocp.solver_options.nlp_solver_warm_start_first_qp = True
@@ -192,17 +188,21 @@ def _set_discount_factor(
         )
 
 
-def derive_sensitivity_ocp(ocp_sensitivity: AcadosOcp):
-    ocp_sensitivity.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    ocp_sensitivity.solver_options.qp_solver_ric_alg = 1
-    ocp_sensitivity.solver_options.qp_solver_cond_N = (
-        ocp_sensitivity.solver_options.N_horizon
-    )
-    ocp_sensitivity.solver_options.hessian_approx = "EXACT"
-    ocp_sensitivity.solver_options.exact_hess_dyn = True
-    ocp_sensitivity.solver_options.exact_hess_cost = True
-    ocp_sensitivity.solver_options.exact_hess_constr = True
-    ocp_sensitivity.solver_options.with_solution_sens_wrt_params = True
-    ocp_sensitivity.solver_options.with_value_sens_wrt_params = True
-    ocp_sensitivity.solver_options.with_batch_functionality = True
-    ocp_sensitivity.model.name += "_sensitivity"  # type:ignore
+def make_ocp_sensitivity_compatible(sensitivity_ocp: AcadosOcp):
+    """Make the given ocp compatible with sensitivity computation."""
+    sensitivity_ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    sensitivity_ocp.solver_options.qp_solver_ric_alg = 1
+    sensitivity_ocp.solver_options.qp_solver_cond_N = sensitivity_ocp.solver_options.N_horizon
+    sensitivity_ocp.solver_options.hessian_approx = "EXACT"
+    sensitivity_ocp.solver_options.regularize_method = "NO_REGULARIZE"
+    sensitivity_ocp.solver_options.exact_hess_constr = True
+    sensitivity_ocp.solver_options.exact_hess_cost = True
+    sensitivity_ocp.solver_options.exact_hess_dyn = True
+    sensitivity_ocp.solver_options.fixed_hess = 0
+    sensitivity_ocp.solver_options.levenberg_marquardt = 0.0
+    sensitivity_ocp.solver_options.with_solution_sens_wrt_params = True
+    sensitivity_ocp.solver_options.with_value_sens_wrt_params = True
+
+    sensitivity_ocp.model.cost_expr_ext_cost_custom_hess_0 = None
+    sensitivity_ocp.model.cost_expr_ext_cost_custom_hess = None
+    sensitivity_ocp.model.cost_expr_ext_cost_custom_hess_e = None

@@ -1,10 +1,10 @@
-"""Main script to run experiments."""
+"""Main script to run SAC experiments."""
 
 from argparse import ArgumentParser
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from leap_c.examples import create_env
+from leap_c.examples import ExampleEnvName, create_env
 from leap_c.run import default_output_path, init_run
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
@@ -14,7 +14,7 @@ from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
 class RunSacConfig:
     """Configuration for running SAC experiments."""
 
-    env: str = "cartpole"
+    env: ExampleEnvName = "cartpole"
     trainer: SacTrainerConfig = field(default_factory=SacTrainerConfig)
     extractor: ExtractorName = "identity"  # for hvac use "scaling"
 
@@ -30,12 +30,11 @@ def create_cfg() -> RunSacConfig:
     cfg.trainer.seed = 0
     cfg.trainer.train_steps = 1000000
     cfg.trainer.train_start = 0
-    cfg.trainer.val_interval = 10000
+    cfg.trainer.val_freq = 10000
     cfg.trainer.val_num_rollouts = 20
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
-    cfg.trainer.val_render_deterministic = True
     cfg.trainer.val_report_score = "cum"
     cfg.trainer.ckpt_modus = "best"
     cfg.trainer.batch_size = 64
@@ -84,6 +83,13 @@ def run_sac(cfg: RunSacConfig, output_path: str | Path, device: str = "cuda") ->
         train_env=create_env(cfg.env),
         extractor_cls=cfg.extractor,
     )
+    """
+    Args:
+        cfg: The configuration for running the controller.
+        output_path: The path to save outputs to. 
+            If it already exists, the run will continue from the last checkpoint.
+        device: The device to use.
+    """
     init_run(trainer, cfg, output_path)
 
     return trainer.run()

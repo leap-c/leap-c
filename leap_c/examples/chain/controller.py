@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import gymnasium as gym
 import numpy as np
-import torch
+from acados_template.acados_ocp import AcadosOcp
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.chain.acados_ocp import (
@@ -42,7 +42,28 @@ class ChainControllerConfig:
 
 
 class ChainController(ParameterizedController):
-    collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
+    """Acados-based controller for the hanging chain system.
+    The state and action correspond to the observation and action of the Chain environment.
+    The cost function takes the form of a weighted least-squares cost on the full state and action
+    and the dynamics correspond to the simulated ODE also found
+    in the Chain environment (using RK4). The inequality constraints
+    are box constraints on the action.
+
+    Attributes:
+        cfg: A configuration object containing high-level settings for the MPC problem,
+            such as horizon length.
+        ocp: The acados ocp object representing the optimal control problem structure.
+        param_manager: For managing the parameters of the ocp.
+        diff_mpc: An object wrapping the acados ocp solver for differentiable MPC solving.
+        collate_fn_map: A mapping for collating AcadosDiffMpcCtx objects in batches.
+    """
+
+    cfg: ChainControllerConfig
+    ocp: AcadosOcp
+    param_manager: AcadosParameterManager
+    diff_mpc: AcadosDiffMpc
+
+    collate_fn_map: dict[type, Callable] = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,
@@ -53,11 +74,13 @@ class ChainController(ParameterizedController):
         """Initializes the ChainController.
 
         Args:
-            cfg: A configuration object containing high-level settings for the
-                MPC problem, such as horizon length and number of masses.
-            params: An optional list of `Parameter` objects to define the
-                parameters of the controller.
-            export_directory: Directory to export the Acados OCP files.
+            cfg: cfg: A configuration object containing high-level settings for the
+                MPC problem, such as horizon length and maximum force. If not provided,
+                a default config is used.
+            params: An optional list of parameters to define the
+                ocp object. If not provided, default parameters for the Chain
+                system will be created based on the cfg.
+            export_directory: Directory to export the acados ocp files.
         """
         super().__init__()
         self.cfg = ChainControllerConfig() if cfg is None else cfg
@@ -80,9 +103,7 @@ class ChainController(ParameterizedController):
 
         # find resting reference position
         rest_length = self.param_manager.parameters["L"].default[0]
-        pos_last_mass_ref = fix_point + np.array(
-            [rest_length * (self.cfg.n_mass - 1), 0, 0]
-        )
+        pos_last_mass_ref = fix_point + np.array([rest_length * (self.cfg.n_mass - 1), 0, 0])
 
         dyn_param_dict = {k: self.param_manager.parameters[k].default for k in "LDCmw"}
 
@@ -112,13 +133,11 @@ class ChainController(ParameterizedController):
             export_directory=export_directory,
         )
 
-    def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
+    def forward(self, obs, param, ctx=None) -> tuple[Any, np.ndarray]:
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )
-        ctx, u0, x, u, value = self.diff_mpc(
-            obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx
-        )
+        ctx, u0, x, u, value = self.diff_mpc(obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
@@ -126,7 +145,7 @@ class ChainController(ParameterizedController):
 
     @property
     def param_space(self) -> gym.Space:
-        return self.param_manager.get_param_space(dtype=np.float64)
+        return self.param_manager.get_param_space(dtype=np.float32)
 
     def default_param(self, obs) -> np.ndarray:
         return self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore

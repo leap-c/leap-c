@@ -8,9 +8,24 @@ from acados_template.acados_ocp_iterate import (
 
 
 class AcadosOcpSolverInput(NamedTuple):
-    """Input for an Acados solver.
+    """Input for an Acados solver representing a batch of concrete problem instances
+    that should be solved.
 
-    Can be a batch of inputs, or a single input.
+    Attributes:
+        x0: Initial state, shape (batch_size, nx)
+        u0: Initial control input, shape (batch_size, nu), optional.
+            If provided, the initial control input will be constrained to this.
+        p_global: Global parameters, shape (batch_size, np_global), optional.
+            If not provided, the default values set in the acados ocp object will be used.
+        p_stagewise: Stage-wise parameters, shape (batch_size, N_horizon + 1, np_stagewise),
+            or (batch_size, N_horizon + 1, len(p_stagewise_sparse_idx),
+            if p_stagewise_sparse_idx is provided, optional.
+            If not provided, the default values set in the acados ocp object will be used.
+            Has to be provided if p_stagewise_sparse_idx is provided.
+        p_stagewise_sparse_idx: If provided, the indices determine which elements of the
+            total stagewise parameter in the solver should be overwritten
+            by the provided p_stagewise values,
+            shape (batch_size, N_horizon + 1, nindices), optional.
     """
 
     x0: np.ndarray
@@ -19,20 +34,13 @@ class AcadosOcpSolverInput(NamedTuple):
     p_stagewise: np.ndarray | None = None
     p_stagewise_sparse_idx: np.ndarray | None = None
 
-    def is_batched(self) -> bool:
-        return self.x0.ndim == 2
-
     @property
     def batch_size(self) -> int:
         """Get the batch size."""
-        if not self.is_batched():
-            raise ValueError("Cannot get batch size from non-batched MPCInput.")
         return self.x0.shape[0]
 
     def get_sample(self, idx: int) -> "AcadosOcpSolverInput":
         """Get the sample at index i from the batch."""
-        if not self.is_batched():
-            raise ValueError("Cannot sample from non-batched MPCInput.")
 
         def _g(data, idx):
             return None if data is None else data[idx]
@@ -48,7 +56,7 @@ class AcadosOcpSolverInput(NamedTuple):
 
 def collate_acados_flattened_iterate_fn(
     batch: Sequence[AcadosOcpFlattenedIterate],
-    collate_fn_map: dict = None,
+    collate_fn_map: dict | None = None,
 ) -> AcadosOcpFlattenedBatchIterate:
     return AcadosOcpFlattenedBatchIterate(
         x=np.stack([x.x for x in batch], axis=0),
@@ -64,7 +72,7 @@ def collate_acados_flattened_iterate_fn(
 
 def collate_acados_flattened_batch_iterate_fn(
     batch: Sequence[AcadosOcpFlattenedBatchIterate],
-    collate_fn_map: dict = None,
+    collate_fn_map: dict | None = None,
 ) -> AcadosOcpFlattenedBatchIterate:
     return AcadosOcpFlattenedBatchIterate(
         x=np.concat([x.x for x in batch], axis=0),
@@ -89,7 +97,7 @@ def _stack_safe(attr, batch):
 
 def collate_acados_ocp_solver_input(
     batch: Sequence[AcadosOcpSolverInput],
-    collate_fn_map: dict = None,
+    collate_fn_map: dict | None = None,
 ) -> AcadosOcpSolverInput:
     """Collates a batch of AcadosOcpSolverInput objects into a single object."""
 

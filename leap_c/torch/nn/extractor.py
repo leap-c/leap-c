@@ -1,6 +1,6 @@
 """This module contains classes for feature extraction from observations.
 
-We provide an abstraction to allow algorithms to be aplied to different
+We provide an abstraction to allow algorithms to be applied to different
 types of observations and using different neural network architectures.
 """
 
@@ -32,13 +32,13 @@ class Extractor(nn.Module, ABC):
 
 
 class ScalingExtractor(Extractor):
-    """An extractor that returns the input normalized."""
+    """An extractor that returns the input normalized to the range [0, 1], using min-max scaling."""
 
-    def __init__(self, observation_space: gym.Space) -> None:
+    def __init__(self, observation_space: gym.spaces.Box) -> None:
         """Initializes the extractor.
 
         Args:
-            observation_space: The observation space of the environment.
+            observation_space: The observation space of the environment. Only works for Box spaces.
         """
         super().__init__(observation_space)
 
@@ -46,20 +46,19 @@ class ScalingExtractor(Extractor):
             raise ValueError("ScalingExtractor only supports 1D observations.")
 
     def forward(self, x):
-        """Returns the input normalized.
+        """Returns the input normalized to the range [0, 1], using min-max scaling.
 
         Args:
             x: The input tensor.
 
         Returns:
-            The input tensor.
+            The normalized tensor.
         """
         y = min_max_scaling(x, self.observation_space)  # type: ignore
         return y
 
     @property
     def output_size(self) -> int:
-        """Returns the embedded vector size."""
         return self.observation_space.shape[0]  # type: ignore
 
 
@@ -90,7 +89,6 @@ class IdentityExtractor(Extractor):
 
     @property
     def output_size(self) -> int:
-        """Returns the embedded vector size."""
         return self.observation_space.shape[0]  # type: ignore
 
 

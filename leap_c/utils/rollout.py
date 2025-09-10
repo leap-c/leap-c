@@ -3,7 +3,7 @@
 from collections import defaultdict
 from pathlib import Path
 from timeit import default_timer
-from typing import Any, Callable, Generator
+from typing import Callable, Generator
 
 import torch
 from gymnasium import Env
@@ -19,30 +19,31 @@ def episode_rollout(
     render_human: bool = False,
     video_folder: str | Path | None = None,
     name_prefix: str | None = None,
-) -> Generator[
-    tuple[dict[str, int | float | bool | list[Any]], defaultdict[Any, list[Any]]],
-    None,
-    None,
-]:
+) -> Generator[tuple[dict[str, float | bool | list], dict[str, list]], None, None]:
     """Rollout an episode and returns the cumulative reward.
 
     Args:
         policy (Callable): The policy to be used for the rollout.
         env (Env): The gym environment.
         episodes (int): The number of episodes to run.
-        render_episodes (int): The number of episodes to render. If `0`, no episode is
-            rendered.
-        render_human (bool): If `True`, render the environment should be in human render
-            mode. Can not be true if `video_folder` is set.
-        video_folder (str, Path or None): The environment is rendered and saved as a
-            video in this folder. Can not be set if render_human is `True`.
-        name_prefix (str or None): The prefix for the video file names. Must be set if
-            `video_folder` is set.
+        render_episodes (int): The number of episodes to render. If 0, no episodes will be rendered.
+        render_human (bool): If True, render the environment in human mode.
+            The environment render mode should then also be human render mode.
+            Can not be true if video_path is set.
+        video_folder (Optional[str | Path]): The environment is rendered and saved as a
+            video in this folder. Can not be set if render_human is True.
+        name_prefix (Optional[str]): The prefix for the video file names. Must be set if
+            video_folder is set.
 
-    Returns:
-        A dictionary containing the information about the rollout (at least with keys
-        "score", "length", "terminated", and "truncated"), and a dictionary of policy
-        statistics.
+    Yields:
+        The first dictionary containing the information about the rollout,
+        at least containing the keys
+        "score": The cumulative reward of the episode,
+        "length": The length of the episode,
+        "terminated": Whether it terminated,
+        "truncated": Whether it truncated,
+        "inference_time": The average inference time of the policy per step.
+        The second dictionary containing statistics returned by the policy.
     """
     if (
         render_episodes > 0
@@ -50,9 +51,7 @@ def episode_rollout(
         and video_folder is not None
     ):
         if render_human:
-            raise ValueError(
-                "`render_human` and `video_folder` can not be set at the same time."
-            )
+            raise ValueError("`render_human` and `video_folder` can not be set at the same time.")
         if name_prefix is None:
             raise ValueError("`name_prefix` must be set if `video_folder` is set.")
 
@@ -97,9 +96,7 @@ def episode_rollout(
 
                 o = o_prime
 
-            assert "episode" in info, (
-                "The environment did not return episode information."
-            )
+            assert "episode" in info, "The environment did not return episode information."
             rollout_stats = {
                 "score": info["episode"]["r"],
                 "length": info["episode"]["l"],
