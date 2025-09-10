@@ -19,7 +19,7 @@ def episode_rollout(
     render_human: bool = False,
     video_folder: str | Path | None = None,
     name_prefix: str | None = None,
-) -> Generator[tuple[dict[str, float | bool | list], dict[str, list]]]:
+) -> Generator[tuple[dict[str, float | bool | list], dict[str, list]], None, None]:
     """Rollout an episode and returns the cumulative reward.
 
     Args:
