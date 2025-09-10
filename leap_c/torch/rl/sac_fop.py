@@ -80,7 +80,8 @@ class FopActor(nn.Module):
     and injecting noise in the parameter space.
 
     Attributes:
-        controller: The differentiable parameterized controller used to compute actions.
+        controller: The differentiable parameterized controller used to compute actions
+            from parameters.
         extractor: The feature extractor used to process observations before
             passing them to the MLP predicting parameters.
         mlp: The MLP used to predict the parameters of the controller from the observations.
@@ -101,6 +102,15 @@ class FopActor(nn.Module):
         controller: ParameterizedController,
         correction: bool = True,
     ):
+        """
+        Args:
+            extractor: The feature extractor used to process observations before
+                passing them to the MLP predicting parameters.
+            mlp_cfg: The configuration for the MLP used to predict parameters.
+            controller: The differentiable parameterized controller used to compute actions
+                from parameters.
+            correction: Whether to use the entropy correction term for the log-probability.
+        """
         super().__init__()
         self.controller = controller
         self.extractor = extractor
@@ -178,17 +188,25 @@ class FoaActor(nn.Module):
 
     def __init__(
         self,
-        env: gym.Env,
+        action_space: gym.spaces.Box,
         extractor: Extractor,
         mlp_cfg: MlpConfig,
         controller: ParameterizedController,
     ):
+        """
+        Args:
+            action_space: The action space this actor should predict actions from.
+            extractor: The feature extractor used to process observations before
+                passing them to the MLP predicting parameters.
+            mlp_cfg: The configuration for the MLP used to predict parameters.
+            controller: The differentiable parameterized controller used to compute actions
+                from parameters.
+        """
         super().__init__()
-        self.env = env
         self.controller = controller
         self.extractor = extractor
         param_dim = controller.param_space.shape[0]  # type:ignore
-        action_dim = env.action_space.shape[0]  # type:ignore
+        action_dim = action_space.shape[0]  # type:ignore
         self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
             output_sizes=(param_dim, action_dim),  # type:ignore
@@ -197,8 +215,8 @@ class FoaActor(nn.Module):
         self.parameter_transform = BoundedTransform(
             self.controller.param_space  # type:ignore
         )  # type:ignore
-        self.action_transform = BoundedTransform(self.env.action_space)  # type:ignore
-        self.squashed_gaussian = SquashedGaussian(self.env.action_space)  # type:ignore
+        self.action_transform = BoundedTransform(action_space)  # type:ignore
+        self.squashed_gaussian = SquashedGaussian(action_space)  # type:ignore
 
     def forward(self, obs, ctx=None, deterministic=False) -> SacFopActorOutput:
         """The given observations are passed to the extractor to obtain features.
@@ -235,14 +253,15 @@ class FoaActor(nn.Module):
 class SacFopTrainer(Trainer[SacFopTrainerConfig]):
     """
     A trainer implementing Soft Actor-Critic (SAC)
-    that uses a differentiable controller layer in the policy network.
+    that uses a differentiable controller layer in the policy network (SAC-FOP).
+    Supports variants using parameter noise or action noise. Always uses an action critic.
 
     Attributes:
         train_env: The training environment.
-        q: The Q-function approximator.
+        q: The Q-function approximator (critic).
         q_target: The target Q-function approximator.
         q_optim: The optimizer for the Q-function.
-        pi: The policy network.
+        pi: The policy network containing the parameterized controller.
         pi_optim: The optimizer for the policy network.
         log_alpha: The logarithm of the temperature parameter.
         alpha_optim: The optimizer for the temperature parameter.
@@ -324,7 +343,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             )
         elif cfg.noise == "action":
             self.pi = FoaActor(
-                train_env,
+                train_env.action_space,
                 extractor_cls(observation_space),  # type: ignore
                 cfg.actor_mlp,
                 controller,

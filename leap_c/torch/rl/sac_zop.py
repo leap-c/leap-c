@@ -22,6 +22,18 @@ from leap_c.utils.gym import seed_env, wrap_env
 
 
 class SacZopActorOutput(NamedTuple):
+    """
+    Attributes:
+        param: The predicted parameters (which have been input into the controller).
+        log_prob: The log-probability of the distribution that led to the action.
+            NOTE: This log-probability is just a proxy for the true log-probability of the action,
+            it is actually the log probability of the parameters that were
+            input into the controller.
+        stats: A dictionary containing several statistics of internal modules.
+        action: The action output by the controller.
+        ctx: The context object containing information about the MPC solve.
+    """
+
     param: torch.Tensor
     log_prob: torch.Tensor
     stats: dict[str, float]
@@ -30,6 +42,21 @@ class SacZopActorOutput(NamedTuple):
 
 
 class MpcSacActor(nn.Module):
+    """An actor module for SAC-ZOP, containing a ParameterizedController to compute actions,
+    but not differentiating through it, and injecting noise in the parameter space.
+
+    Attributes:
+        extractor: The feature extractor module.
+        controller: The parameterized controller.
+        mlp: The MLP module that predicts the parameters of the Gaussian distribution.
+        squashed_gaussian: The squashed Gaussian distribution module.
+    """
+
+    extractor: Extractor
+    controller: ParameterizedController
+    mlp: Mlp
+    squashed_gaussian: SquashedGaussian
+
     def __init__(
         self,
         extractor_cls: Type[Extractor],
@@ -37,6 +64,14 @@ class MpcSacActor(nn.Module):
         controller: ParameterizedController,
         mlp_cfg: MlpConfig,
     ):
+        """
+        Args:
+            extractor_cls: The class used for extracting features from observations.
+            observation_space: The observation space used to configure the extractor.
+            controller: The differentiable parameterized controller used to compute actions
+                from parameters.
+            mlp_cfg: The configuration for the MLP used to predict parameters.
+        """
         super().__init__()
 
         param_space: spaces.Box = controller.param_space  # type:ignore
@@ -57,6 +92,20 @@ class MpcSacActor(nn.Module):
         deterministic: bool = False,
         only_param: bool = False,
     ) -> SacZopActorOutput:
+        """The given observations are passed to the extractor to obtain features.
+        These are used to predict a distribution in the (learnable)
+        parameter space of the controller using the MLP. Afterwards, this parameters are sampled
+        from this distribution, and passed to the controller, which then computes the final actions.
+        This forward pass does NOT support differentiation through the controller.
+
+        Args:
+            obs: The observations to compute the actions for.
+            ctx: The optional context object containing information about the
+                previous controller solve. Can be used, e.g., to warm-start the solver.
+            deterministic: If true, use the mean of the distribution instead of sampling.
+            only_param: If true, only return the predicted parameters and
+                log-probabilities, but do not compute the action using the controller.
+        """
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
@@ -78,6 +127,25 @@ class MpcSacActor(nn.Module):
 
 
 class SacZopTrainer(Trainer[SacTrainerConfig]):
+    """A trainer that implements Soft Actor-Critic (SAC) with a controller
+    in the policy network, but without differentiating through it (SAC-ZOP).
+    Uses parameter noise and a parameter critic.
+
+    Attributes:
+        train_env: The training environment.
+        q: The Q-function approximator (critic).
+        q_target: The target Q-function approximator.
+        q_optim: The optimizer for the Q-function.
+        pi: The policy network containing the parameterized controller.
+        pi_optim: The optimizer for the policy network.
+        log_alpha: The log of the temperature parameter.
+        alpha_optim: The optimizer for the temperature parameter.
+        target_entropy: The target entropy for the policy. Is None, if the temperature is fixed.
+        entropy_norm: The normalization factor for the entropy term.
+            Normalizes the entropy based on the ratio of parameter and action dimensions.
+        buffer: The replay buffer used to store transitions.
+    """
+
     def __init__(
         self,
         cfg: SacTrainerConfig,
@@ -88,15 +156,15 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
         controller: ParameterizedController,
         extractor_cls: Type[Extractor] | ExtractorName = "identity",
     ):
-        """Initializes the SAC ZOP trainer.
+        """Initializes the SAC-ZOP trainer.
 
         Args:
             cfg: The configuration for the trainer.
             val_env: The validation environment.
             output_path: The path to the output directory.
-            device: The device on which the trainer is running
+            device: The device on which the trainer is running.
             train_env: The training environment.
-            controller: The controller to use for the policy.
+            controller: The controller to use in the policy.
             extractor_cls: The class used for extracting features from observations.
         """
         super().__init__(cfg, val_env, output_path, device)
@@ -107,7 +175,6 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
         param_dim = np.prod(param_space.shape)
 
         self.train_env = seed_env(wrap_env(train_env), seed=self.cfg.seed)
-        self.controller = controller
 
         if isinstance(extractor_cls, str):
             extractor_cls = get_extractor_cls(extractor_cls)
