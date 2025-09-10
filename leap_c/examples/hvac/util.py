@@ -187,11 +187,11 @@ def load_weather_data(csv_path: str | Path) -> pd.DataFrame:
 
     print(
         f"Loaded weather data: {len(weather_data)} records from "
-        "{weather_data.index[0]} to {weather_data.index[-1]}"
+        f"{weather_data.index[0]} to {weather_data.index[-1]}"
     )
     print(
         f"Temperature range: {weather_data['Tout'].min():.1f}°C "
-        "to {weather_data['Tout'].max():.1f}°C"
+        f"to {weather_data['Tout'].max():.1f}°C"
     )
     print(
         f"Solar radiation range: {weather_data['SolGlob'].min():.1f} "
