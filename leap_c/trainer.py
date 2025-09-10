@@ -208,7 +208,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         """Call this function in your script to start the training loop."""
         if self.cfg.val_report_score not in get_args(ValReportScoreOptions):
             raise RuntimeError(
-                f"report_score is '{self.cfg.val_report_score}'"
+                f"report_score is '{self.cfg.val_report_score}' "
                 + f"but has to be one of {get_args(ValReportScoreOptions)}"
             )
 
