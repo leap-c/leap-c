@@ -25,18 +25,23 @@ def episode_rollout(
         policy (Callable): The policy to be used for the rollout.
         env (Env): The gym environment.
         episodes (int): The number of episodes to run.
-        render_episodes (int): The number of episodes to render. If 0, no episodes
-        render_human (bool): If True, render the environment should be in human render
-            mode. Can not be true if video_path is set.
+        render_episodes (int): The number of episodes to render. If 0, no episodes will be rendered.
+        render_human (bool): If True, render the environment in human mode.
+            The environment render mode should then also be human render mode.
+            Can not be true if video_path is set.
         video_folder (Optional[str | Path]): The environment is rendered and saved as a
             video in this folder. Can not be set if render_human is True.
         name_prefix (Optional[str]): The prefix for the video file names. Must be set if
             video_folder is set.
 
     Returns:
-        A dictionary containing the information about the rollout, at containing the
-        keys "score", "length", "terminated", and "truncated" and a dictionary of
-        policy statistics.
+        A dictionary containing the information about the rollout, i.e., the keys
+        "score": The cumulative reward of the episode,
+        "length": The length of the episode,
+        "terminated": Whether it terminated,
+        "truncated", Whether it truncated,
+        "inference_time": The average inference time of the policy per step,
+        as well as any statistics returned by the policy.
     """
     if render_human and video_folder is not None:
         raise ValueError("render_human and video_path can not be set at the same time.")

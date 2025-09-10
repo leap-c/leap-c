@@ -16,8 +16,8 @@ class LoggerConfig:
 
     Args:
         verbose: If True, the logger will collect also verbose statistics.
-        interval: The interval at which statistics will be logged.
-        window: The moving window size for the statistics.
+        interval: The interval at which statistics will be logged (in steps).
+        window: The moving window size for the statistics (in steps).
         csv_logger: If True, the statistics will be logged to a CSV file.
         tensorboard_logger: If True, the statistics will be logged to TensorBoard.
         wandb_logger: If True, the statistics will be logged to Weights & Biases.
@@ -135,6 +135,11 @@ class Logger:
         state: The state of the logger.
         writer: The TensorBoard writer.
     """
+
+    cfg: LoggerConfig
+    output_path: Path
+    group_trackers: dict[str, GroupWindowTracker]
+    writer: Any  # TensorBoard SummaryWriter
 
     def __init__(self, cfg: LoggerConfig, output_path: str | Path) -> None:
         """
