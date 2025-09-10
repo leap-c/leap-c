@@ -14,8 +14,6 @@ from leap_c.examples.race_cars.plotFcn import plotTrackProj, plotRes, plotalat
 
 @dataclass(kw_only=True)
 class RaceCarEnvConfig:
-    """Configuration for the Race Car environment."""
-
     track_file: str = "LMS_Track.txt"
 
     dt: float = 0.02
@@ -32,7 +30,7 @@ class RaceCarEnvConfig:
 
     # Performance thresholds
     max_lateral_accel: float = 4.0
-    max_longitudinal_accel: float = 4.0
+    max_longitudinal_accel: float = 10.0
     track_width: float = 0.12
 
 
@@ -61,9 +59,7 @@ class RaceCarEnv(gym.Env):
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 20}
 
-    def __init__(
-        self, render_mode: str | None = None, cfg: RaceCarEnvConfig | None = None
-    ):
+    def __init__(self, render_mode: str | None = None, cfg: RaceCarEnvConfig | None = None):
         self.cfg = RaceCarEnvConfig() if cfg is None else cfg
 
         self.model, self.constraint = bicycle_model(self.cfg.track_file)
@@ -114,9 +110,7 @@ class RaceCarEnv(gym.Env):
 
         # Rendering
         if not (render_mode is None or render_mode in self.metadata["render_modes"]):
-            raise ValueError(
-                f"render_mode must be one of {self.metadata['render_modes']}"
-            )
+            raise ValueError(f"render_mode must be one of {self.metadata['render_modes']}")
         self.render_mode = render_mode
         self.window = None
         self.clock = None
@@ -199,28 +193,51 @@ class RaceCarEnv(gym.Env):
         return self.state.copy(), reward, terminated, truncated, info
 
     def _calculate_reward(self, action, a_lat, a_long):
-        """Calculate reward based on racing performance."""
+        """Calculate reward based on racing performance: go fast while staying on centerline."""
         s, n, alpha, v, D, delta = self.state
         
-        # Progress reward (main component)
-        progress_reward = v * np.cos(alpha) * self.cfg.dt  # reward for forward progress
+        # 1. Speed reward - encourage high velocity
+        # Use quadratic reward to strongly encourage speed
+        target_speed = 3.0  # target racing speed [m/s]
+        speed_reward = 2.0 * min(v / target_speed, 1.0)  # reward up to target speed
+        if v > target_speed:
+            speed_reward += 0.5 * (v - target_speed)  # bonus for exceeding target
         
-        # Penalty for lateral deviation from center line
-        lateral_penalty = -10.0 * (n / self.cfg.track_width) ** 2
+        # 2. Progress reward - reward forward motion along track
+        # Only reward progress if reasonably aligned with track
+        alignment_factor = max(0.0, np.cos(alpha))  # cos(alpha) in [0,1] for good alignment
+        progress_reward = v * alignment_factor * self.cfg.dt * 10.0
         
-        # Penalty for excessive control inputs (encourage smooth driving)
-        control_penalty = -0.1 * (action[0]**2 + action[1]**2)
+        # 3. Centerline following reward - strongly encourage staying on centerline
+        # Use exponential decay to heavily penalize deviations
+        centerline_reward = 5.0 * np.exp(-10.0 * (n / self.cfg.track_width) ** 2)
         
-        # Penalty for constraint violations
-        constraint_penalty = 0.0
-        if abs(a_lat) > self.cfg.max_lateral_accel:
-            constraint_penalty -= 50.0 * (abs(a_lat) - self.cfg.max_lateral_accel)
-        if abs(a_long) > self.cfg.max_longitudinal_accel:
-            constraint_penalty -= 50.0 * (abs(a_long) - self.cfg.max_longitudinal_accel)
+        # 4. Heading alignment reward - encourage car to be aligned with track
+        heading_reward = 2.0 * np.exp(-5.0 * alpha ** 2)
+        
+        # 5. Smooth driving bonus - encourage smooth control inputs
+        # smoothness_bonus = 1.0 * np.exp(-0.5 * (action[0]**2 + action[1]**2))
+        
+        # 6. Penalties for constraint violations (safety constraints)
+        violation_penalty = 0.0
+        
+        # Severe penalty for going off track
         if abs(n) > self.cfg.track_width:
-            constraint_penalty -= 100.0 * (abs(n) - self.cfg.track_width)
+            violation_penalty -= 200.0 * (abs(n) - self.cfg.track_width)
         
-        total_reward = progress_reward + lateral_penalty + control_penalty + constraint_penalty
+        # Penalty for excessive accelerations (vehicle limits)
+        if abs(a_lat) > self.cfg.max_lateral_accel:
+            violation_penalty -= 100.0 * (abs(a_lat) - self.cfg.max_lateral_accel)
+        if abs(a_long) > self.cfg.max_longitudinal_accel:
+            violation_penalty -= 100.0 * (abs(a_long) - self.cfg.max_longitudinal_accel)
+        
+        # Penalty for driving backwards
+        if v < 0.1:
+            violation_penalty -= 10.0
+        
+        # Total reward combines all components
+        total_reward = (speed_reward + progress_reward + centerline_reward + 
+                       heading_reward + violation_penalty)
         
         return total_reward
 
@@ -235,34 +252,33 @@ class RaceCarEnv(gym.Env):
         # Check if vehicle went off track (too far laterally)
         if abs(n) > self.cfg.track_width:
             terminated = True
-            info = {"task": {"violation": True, "success": False, "reason": "off_track"}}
+            info = {"task": {"violation": True, "success": False}}
         
         # Check if vehicle completed a lap
-        if s > self.track_length and self.lap_count == 0:
+        elif s > self.track_length and self.lap_count == 0:
             self.lap_count += 1
             lap_time = self.t - self.current_lap_start_time
             if lap_time < self.best_lap_time:
                 self.best_lap_time = lap_time
             
-            info["lap"] = {
-                "lap_time": lap_time,
-                "best_lap_time": self.best_lap_time,
-                "average_speed": self.track_length / lap_time if lap_time > 0 else 0.0
-            }
+            # Add numeric lap statistics
+            info["lap_time"] = lap_time
+            info["best_lap_time"] = self.best_lap_time
+            info["average_speed"] = self.track_length / lap_time if lap_time > 0 else 0.0
             
             # Successful lap completion
             terminated = True
-            info["task"] = {"violation": False, "success": True, "reason": "lap_complete"}
+            info["task"] = {"violation": False, "success": True}
         
         # Check time limit
-        if self.t > self.cfg.max_time:
+        elif self.t > self.cfg.max_time:
             truncated = True
-            info["task"] = {"violation": False, "success": False, "reason": "time_limit"}
+            info["task"] = {"violation": False, "success": False}
         
         # Check if vehicle is going backwards significantly
-        if v < 0.1 and self.t > 5.0:  # Very slow after initial period
+        elif v < 0.1 and self.t > 5.0:  # Very slow after initial period
             terminated = True
-            info["task"] = {"violation": True, "success": False, "reason": "too_slow"}
+            info["task"] = {"violation": True, "success": False}
         
         return terminated, truncated, info
 
@@ -305,13 +321,15 @@ class RaceCarEnv(gym.Env):
             return
         
         import pygame
-        from pygame import gfxdraw
+        
+        # Initialize pygame
+        pygame.init()
+        pygame.font.init()
         
         if self.window is None and self.render_mode == "human":
-            pygame.init()
             pygame.display.init()
             self.window = pygame.display.set_mode((1000, 800))
-            pygame.display.set_caption("Race Car MPC")
+            pygame.display.set_caption("Race Car Environment")
         if self.clock is None and self.render_mode == "human":
             self.clock = pygame.time.Clock()
 
@@ -325,195 +343,152 @@ class RaceCarEnv(gym.Env):
         # Get current state
         s, n, alpha, v, D, delta = self.state
         
-        # Scale for rendering
-        scale = 300  # pixels per meter
-        center_x, center_y = 500, 400
-        
+        # Transform current car position to x,y coordinates
         try:
-            # Transform current position to x, y coordinates
-            x_pos, y_pos, _, _ = transformProj2Orig(
+            x_car, y_car, _, _ = transformProj2Orig(
                 np.array([s]), np.array([n]), 
                 np.array([alpha]), np.array([v]), 
                 self.cfg.track_file
             )
-            car_x = int(center_x + x_pos[0] * scale)
-            car_y = int(center_y - y_pos[0] * scale)  # flip Y for screen coordinates
+            x_car, y_car = x_car[0], y_car[0]
+        except:
+            # Fallback if transformation fails
+            x_car, y_car = 0.0, 0.0
+        
+        # Set up coordinate system for rendering
+        # Scale and center the track
+        scale = 200  # pixels per meter
+        center_x, center_y = 500, 400
+        
+        # Draw the full track using loaded track data
+        if hasattr(self, 'Xref') and hasattr(self, 'Yref') and hasattr(self, 'Psiref'):
+            # Draw center line
+            center_points = []
+            for i in range(len(self.Xref)):
+                x = int(center_x + self.Xref[i] * scale)
+                y = int(center_y - self.Yref[i] * scale)  # flip Y for screen coordinates
+                if 0 <= x < 1000 and 0 <= y < 800:
+                    center_points.append((x, y))
             
-            # Draw track boundaries
-            if hasattr(self, 'Xref') and hasattr(self, 'Yref'):
-                # Draw center line
-                center_points = []
-                for i in range(0, len(self.Xref), 5):  # Sample every 5th point
-                    x = int(center_x + self.Xref[i] * scale)
-                    y = int(center_y - self.Yref[i] * scale)
+            if len(center_points) > 1:
+                pygame.draw.lines(canvas, (128, 128, 128), False, center_points, 2)
+            
+            # Draw track boundaries (following the acados example)
+            distance = self.cfg.track_width
+            left_points = []
+            right_points = []
+            
+            for i in range(len(self.Xref)):
+                # Left boundary
+                x_left = self.Xref[i] - distance * np.sin(self.Psiref[i])
+                y_left = self.Yref[i] + distance * np.cos(self.Psiref[i])
+                x = int(center_x + x_left * scale)
+                y = int(center_y - y_left * scale)
+                if 0 <= x < 1000 and 0 <= y < 800:
+                    left_points.append((x, y))
+                
+                # Right boundary
+                x_right = self.Xref[i] + distance * np.sin(self.Psiref[i])
+                y_right = self.Yref[i] - distance * np.cos(self.Psiref[i])
+                x = int(center_x + x_right * scale)
+                y = int(center_y - y_right * scale)
+                if 0 <= x < 1000 and 0 <= y < 800:
+                    right_points.append((x, y))
+            
+            if len(left_points) > 1:
+                pygame.draw.lines(canvas, (0, 0, 0), False, left_points, 3)
+            if len(right_points) > 1:
+                pygame.draw.lines(canvas, (0, 0, 0), False, right_points, 3)
+        
+        # Draw car position on track
+        car_screen_x = int(center_x + x_car * scale)
+        car_screen_y = int(center_y - y_car * scale)
+        
+        # Ensure car is visible on screen
+        car_screen_x = max(10, min(990, car_screen_x))
+        car_screen_y = max(10, min(790, car_screen_y))
+        
+        # Draw car as oriented rectangle
+        car_length = 15
+        car_width = 8
+        
+        # Car corners in local coordinates
+        corners = [
+            (-car_length//2, -car_width//2),
+            (car_length//2, -car_width//2), 
+            (car_length//2, car_width//2),
+            (-car_length//2, car_width//2)
+        ]
+        
+        # Get track heading at current position for car orientation
+        track_heading = 0.0
+        if hasattr(self, 'Psiref') and s >= 0 and s < len(self.Psiref):
+            idx = min(int(s), len(self.Psiref) - 1)
+            track_heading = self.Psiref[idx] if idx >= 0 else 0.0
+        
+        # Car's absolute heading
+        car_heading = track_heading + alpha
+        
+        # Rotate and translate corners
+        cos_heading = np.cos(car_heading)
+        sin_heading = np.sin(car_heading)
+        rotated_corners = []
+        
+        for cx, cy in corners:
+            rx = cx * cos_heading - cy * sin_heading
+            ry = cx * sin_heading + cy * cos_heading
+            rotated_corners.append((car_screen_x + rx, car_screen_y + ry))
+        
+        # Draw car body
+        pygame.draw.polygon(canvas, (0, 0, 255), rotated_corners)
+        pygame.draw.polygon(canvas, (0, 0, 0), rotated_corners, 2)
+        
+        # Draw velocity vector
+        vel_length = min(abs(v) * 10, 40)
+        vel_end_x = car_screen_x + vel_length * cos_heading
+        vel_end_y = car_screen_y + vel_length * sin_heading
+        pygame.draw.line(canvas, (0, 255, 0), (car_screen_x, car_screen_y), (vel_end_x, vel_end_y), 3)
+        
+        # Draw trajectory
+        if len(self.state_trajectory) > 1:
+            traj_points = []
+            for state in self.state_trajectory[-100:]:  # Last 100 points
+                try:
+                    x_traj, y_traj, _, _ = transformProj2Orig(
+                        np.array([state[0]]), np.array([state[1]]), 
+                        np.array([state[2]]), np.array([state[3]]), 
+                        self.cfg.track_file
+                    )
+                    x = int(center_x + x_traj[0] * scale)
+                    y = int(center_y - y_traj[0] * scale)
                     if 0 <= x < 1000 and 0 <= y < 800:
-                        center_points.append((x, y))
-                
-                if len(center_points) > 1:
-                    pygame.draw.lines(canvas, (100, 100, 100), False, center_points, 2)
-                
-                # Draw track boundaries
-                distance = self.cfg.track_width
-                left_points = []
-                right_points = []
-                
-                for i in range(0, len(self.Xref), 5):
-                    # Left boundary
-                    x_left = self.Xref[i] - distance * np.sin(self.Psiref[i])
-                    y_left = self.Yref[i] + distance * np.cos(self.Psiref[i])
-                    x = int(center_x + x_left * scale)
-                    y = int(center_y - y_left * scale)
-                    if 0 <= x < 1000 and 0 <= y < 800:
-                        left_points.append((x, y))
-                    
-                    # Right boundary
-                    x_right = self.Xref[i] + distance * np.sin(self.Psiref[i])
-                    y_right = self.Yref[i] - distance * np.cos(self.Psiref[i])
-                    x = int(center_x + x_right * scale)
-                    y = int(center_y - y_right * scale)
-                    if 0 <= x < 1000 and 0 <= y < 800:
-                        right_points.append((x, y))
-                
-                if len(left_points) > 1:
-                    pygame.draw.lines(canvas, (0, 0, 0), False, left_points, 3)
-                if len(right_points) > 1:
-                    pygame.draw.lines(canvas, (0, 0, 0), False, right_points, 3)
+                        traj_points.append((x, y))
+                except:
+                    continue
             
-            # Draw race car trajectory
-            if len(self.state_trajectory) > 1:
-                traj_points = []
-                states = np.array(self.state_trajectory[-100:])  # Last 100 points
-                
-                for state in states:
-                    try:
-                        x_traj, y_traj, _, _ = transformProj2Orig(
-                            np.array([state[0]]), np.array([state[1]]), 
-                            np.array([state[2]]), np.array([state[3]]), 
-                            self.cfg.track_file
-                        )
-                        x = int(center_x + x_traj[0] * scale)
-                        y = int(center_y - y_traj[0] * scale)
-                        if 0 <= x < 1000 and 0 <= y < 800:
-                            traj_points.append((x, y))
-                    except:
-                        continue
-                
-                if len(traj_points) > 1:
-                    pygame.draw.lines(canvas, (255, 0, 0), False, traj_points, 2)
-            
-            # Draw race car as oriented rectangle
-            car_length = 20
-            car_width = 8
-            
-            # Car corners in local coordinates
-            corners = [
-                (-car_length//2, -car_width//2),
-                (car_length//2, -car_width//2), 
-                (car_length//2, car_width//2),
-                (-car_length//2, car_width//2)
-            ]
-            
-            # Rotate and translate corners
-            cos_alpha = np.cos(alpha)
-            sin_alpha = np.sin(alpha)
-            rotated_corners = []
-            
-            for cx, cy in corners:
-                rx = cx * cos_alpha - cy * sin_alpha
-                ry = cx * sin_alpha + cy * cos_alpha
-                rotated_corners.append((car_x + rx, car_y + ry))
-            
-            # Draw car body
-            pygame.draw.polygon(canvas, (0, 0, 255), rotated_corners)
-            pygame.draw.polygon(canvas, (0, 0, 0), rotated_corners, 2)
-            
-            # Draw velocity vector
-            vel_length = min(v * 10, 50)  # Scale velocity for display
-            vel_end_x = car_x + vel_length * cos_alpha
-            vel_end_y = car_y + vel_length * sin_alpha
-            pygame.draw.line(canvas, (0, 255, 0), (car_x, car_y), (vel_end_x, vel_end_y), 3)
-            
-        except Exception as e:
-            # Fallback: draw car at center with basic info
-            car_x, car_y = center_x, center_y
-            pygame.draw.circle(canvas, (0, 0, 255), (car_x, car_y), 10)
+            if len(traj_points) > 1:
+                pygame.draw.lines(canvas, (255, 0, 0), False, traj_points, 2)
         
         # Draw HUD information
-        font = pygame.font.Font(None, 36)
+        font = pygame.font.Font(None, 24)
         
-        # Race info
         info_texts = [
             f"Time: {self.t:.2f}s",
-            f"Speed: {v:.2f}m/s",
-            f"Progress: {s:.1f}m ({(s/self.track_length*100):.1f}%)",
-            f"Lateral: {n:.3f}m",
+            f"Speed: {v:.2f}m/s", 
+            f"Position: s={s:.1f}m, n={n:.3f}m",
+            f"Heading: {alpha:.3f}rad",
             f"Throttle: {D:.2f}",
             f"Steering: {delta:.3f}rad",
+            f"Progress: {(s/self.track_length*100):.1f}%" if s >= 0 else "Progress: 0.0%"
         ]
         
         for i, text in enumerate(info_texts):
             color = (0, 0, 0)
-            if i == 2:  # Progress - green if good
-                color = (0, 150, 0) if s > 0 else (150, 0, 0)
-            elif i == 3:  # Lateral - red if too far
-                color = (150, 0, 0) if abs(n) > self.cfg.track_width * 0.8 else (0, 0, 0)
+            if i == 2 and abs(n) > self.cfg.track_width * 0.8:
+                color = (255, 0, 0)  # Red if near track boundaries
             
             text_surface = font.render(text, True, color)
-            canvas.blit(text_surface, (10, 10 + i * 30))
-        
-        # Draw progress bar
-        progress_width = 300
-        progress_height = 20
-        progress_x = 650
-        progress_y = 50
-        
-        # Background
-        pygame.draw.rect(canvas, (200, 200, 200), (progress_x, progress_y, progress_width, progress_height))
-        
-        # Progress
-        progress_pct = min(s / self.track_length, 1.0)
-        if progress_pct > 0:
-            pygame.draw.rect(canvas, (0, 255, 0), 
-                           (progress_x, progress_y, int(progress_width * progress_pct), progress_height))
-        
-        # Border
-        pygame.draw.rect(canvas, (0, 0, 0), (progress_x, progress_y, progress_width, progress_height), 2)
-        
-        # Progress text
-        progress_text = font.render(f"Lap Progress: {progress_pct*100:.1f}%", True, (0, 0, 0))
-        canvas.blit(progress_text, (progress_x, progress_y - 25))
-        
-        # Draw recent control inputs as bar charts
-        if len(self.action_trajectory) > 0:
-            recent_actions = self.action_trajectory[-20:]  # Last 20 actions
-            
-            # Throttle rate chart
-            chart_x, chart_y = 650, 150
-            chart_width, chart_height = 150, 100
-            
-            pygame.draw.rect(canvas, (240, 240, 240), (chart_x, chart_y, chart_width, chart_height))
-            pygame.draw.rect(canvas, (0, 0, 0), (chart_x, chart_y, chart_width, chart_height), 2)
-            
-            if len(recent_actions) > 1:
-                bar_width = chart_width // len(recent_actions)
-                for i, action in enumerate(recent_actions):
-                    throttle_rate = action[0]  # derD
-                    bar_height = int(abs(throttle_rate) * chart_height / 20)  # Scale to chart
-                    bar_x = chart_x + i * bar_width
-                    bar_y = chart_y + chart_height // 2
-                    
-                    color = (255, 0, 0) if throttle_rate < 0 else (0, 255, 0)
-                    if throttle_rate >= 0:
-                        pygame.draw.rect(canvas, color, (bar_x, bar_y - bar_height, bar_width-1, bar_height))
-                    else:
-                        pygame.draw.rect(canvas, color, (bar_x, bar_y, bar_width-1, bar_height))
-            
-            # Chart label
-            chart_label = font.render("Throttle Rate", True, (0, 0, 0))
-            canvas.blit(chart_label, (chart_x, chart_y - 25))
-        
-        # Flip canvas (pygame uses different coordinate system)
-        canvas = pygame.transform.flip(canvas, False, True)
+            canvas.blit(text_surface, (10, 10 + i * 25))
         
         if self.render_mode == "human":
             self.window.blit(canvas, (0, 0))

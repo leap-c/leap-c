@@ -1,6 +1,8 @@
 from functools import partial
 from pathlib import Path
 
+from .race_cars.controller import RaceCarController
+from .race_cars.env import RaceCarEnv
 from .cartpole.controller import CartPoleController
 from .cartpole.env import CartPoleEnv
 from .chain.controller import ChainController
@@ -15,6 +17,7 @@ ENV_REGISTRY = {
     "chain": ChainEnv,
     "pointmass": PointMassEnv,
     "hvac": StochasticThreeStateRcEnv,
+    "race_car": RaceCarEnv,
 }
 
 
@@ -27,6 +30,8 @@ CONTROLLER_REGISTRY = {
     "pointmass_stagewise": partial(PointMassController, stagewise=True),
     "hvac": HvacController,
     "hvac_stagewise": partial(HvacController, stagewise=True),
+    "race_car": RaceCarController,
+    "race_car_stagewise": partial(RaceCarController, stagewise=True),
 }
 
 

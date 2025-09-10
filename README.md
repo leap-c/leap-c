@@ -9,8 +9,10 @@
 `leap-c` can be set up up by following the [installation guide](https://leap-c.github.io/leap-c/installation.html).
 
 ## Usage
-- Use pyenv, pyenv-virtual env
-- Linux/MacOS can use
+Use pyenv, pyenv-virtual env
+
+Linux/MacOS can use
+
 1. Clone this repository
 ```
 git clone --recursive https://github.com/HAN2496/rlhf-mpc.git
@@ -36,9 +38,11 @@ https://docs.acados.org/installation/
 cd external/acados
 mkdir -p build
 cd build
-cmake -DACADOS_WITH_QPOASES=ON .. -DCMAKE_POLICY_VERSION_MINIMUM=3.5
+cmake -DACADOS_WITH_QPOASES=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
 make install -j4
 ```
+You can erase `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` if you can (my MacOS can't)
+
 
 5. Install acados_template python packages
 https://docs.acados.org/python_interface/index.html
@@ -50,9 +54,15 @@ pip install -e .
 Please see the [Getting started section](https://leap-c.github.io/leap-c/getting_started/index.html) or the [examples folder](https://github.com/leap-c/leap-c/tree/main/leap_c/examples).
 
 6. Execute race_car
+- train and test
 ```
 python scripts/train_racecar_sac_qmatrix.py --max-steps 10000 --output-dir ./outputs/racecar_q_learning
 python scripts/evaluate_racecar_qmatrix.py --model-path ./outputs/racecar_q_learning/final_racecar_model.pt
+```
+
+- render
+```
+python scripts/render_trained_model.py output/2025_09_10/16_24_20_sac_race_car_seed_0 --env race_car --render_mode rgb_array --save_video race_car_trained.mp4 --episodes 3 --max_steps 500
 ```
 
 ## Questions?

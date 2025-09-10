@@ -1,0 +1,47 @@
+actor_mlp:
+  activation: relu
+  hidden_dims:
+  - 256
+  - 256
+  - 256
+  weight_init: orthogonal
+batch_size: 4
+buffer_size: 100
+ckpt_modus: best
+critic_mlp:
+  activation: relu
+  hidden_dims:
+  - 256
+  - 256
+  - 256
+  weight_init: orthogonal
+entropy_reward_bonus: true
+gamma: 0.99
+init_alpha: 0.01
+log:
+  csv_logger: true
+  interval: 1000
+  tensorboard_logger: true
+  verbose: false
+  wandb_init_kwargs: {}
+  wandb_logger: false
+  window: 10000
+lr_alpha: 0.001
+lr_pi: 0.0001
+lr_q: 0.0001
+num_critics: 2
+report_loss_freq: 100
+seed: 0
+soft_update_freq: 1
+target_entropy: null
+tau: 0.005
+train_start: 0
+train_steps: 100000
+update_freq: 4
+val_deterministic: true
+val_interval: 10000
+val_num_render_rollouts: 1
+val_num_rollouts: 10
+val_render_deterministic: true
+val_render_mode: rgb_array
+val_report_score: cum

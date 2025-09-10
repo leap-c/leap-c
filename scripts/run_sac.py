@@ -14,7 +14,7 @@ from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
 class RunSacConfig:
     """Configuration for running SAC experiments."""
 
-    env: str = "cartpole"
+    env: str = "race_car"
     trainer: SacTrainerConfig = field(default_factory=SacTrainerConfig)
     extractor: ExtractorName = "identity"  # for hvac use "scaling"
 
