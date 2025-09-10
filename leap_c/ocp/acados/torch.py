@@ -85,9 +85,9 @@ class AcadosDiffMpc(nn.Module):
         self,
         x0: torch.Tensor,
         u0: torch.Tensor | None = None,
-        p_learnable: torch.Tensor | None = None,
-        p_non_learnable: torch.Tensor | None = None,
-        p_non_learnable_sparse_idx: torch.Tensor | None = None,
+        p_global: torch.Tensor | None = None,
+        p_stagewise: torch.Tensor | None = None,
+        p_stagewise_sparse_idx: torch.Tensor | None = None,
         ctx: AcadosDiffMpcCtx | None = None,
     ):
         """
@@ -104,19 +104,19 @@ class AcadosDiffMpc(nn.Module):
                 Defaults to `None`.
             x0: Initial states with shape `(B, x_dim)`.
             u0: Initial actions with shape `(B, u_dim)`. Defaults to `None`.
-            p_learnable: Learnable parameters, i.e., allowing backpropagation,
-                shape `(B, p_learnable_dim)`. Correspond to acados p_global. If none provided,
-                the default values set in the acados ocp object are used.
-            p_non_learnable: Non-learnable parameters, i.e., not allowing backpropagation,
-                shape `(B, N_horizon+1, p_non_learnable_dim)`.
-                Correspond to "normal" acados parameters.
+            p_global: Learnable parameters, i.e., allowing backpropagation,
+                shape `(B, p_global_dim)`. Correspond to learnable acados parameters.
+                If none provided, the default values set in the acados ocp object are used.
+            p_stagewise: Acados stagewise parameters, i.e., not allowing backpropagation,
+                shape `(B, N_horizon+1, p_stagewise_dim)`.
+                Correspond to "non-learnable" acados parameters.
                 If none provided, the default values set in the acados ocp object are used.
                 If p_stagewise_sparse_idx is provided, this also has to be provided.
                 If `p_stagewise_sparse_idx` is `None`, shape is
                 `(B, N_horizon+1, p_stagewise_dim)`.
                 If `p_stagewise_sparse_idx` is provided, shape is
                 `(B, N_horizon+1, len(p_stagewise_sparse_idx))`.
-            p_non_learnable_sparse_idx: Indices for sparsely setting stagewise
+            p_stagewise_sparse_idx: Indices for sparsely setting stagewise
                 parameters. Shape is `(B, N_horizon+1, n_p_stagewise_sparse_idx)`.
 
         Returns:
@@ -127,7 +127,7 @@ class AcadosDiffMpc(nn.Module):
             value: The cost value of the computed trajectory.
         """
         ctx, u0, x, u, value = self.autograd_fun.apply(
-            ctx, x0, u0, p_learnable, p_non_learnable, p_non_learnable_sparse_idx
+            ctx, x0, u0, p_global, p_stagewise, p_stagewise_sparse_idx
         )  # type: ignore
 
         return ctx, u0, x, u, value

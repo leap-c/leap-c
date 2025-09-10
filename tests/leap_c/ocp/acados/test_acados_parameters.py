@@ -927,7 +927,7 @@ def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
     )
     sol_forward["stagewise"] = mpc["stagewise"].forward(
         x0=torch.tensor(x0, dtype=torch.float32).reshape(1, -1),
-        p_non_learnable=p_stagewise,
+        p_stagewise=p_stagewise,
     )
 
     for key, val in sol_forward.items():
@@ -996,7 +996,7 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     x0 = torch.tensor(x0, dtype=torch.float32).reshape(1, -1)
 
     sol_pert = diff_mpc_with_stagewise_varying_params.forward(
-        x0=x0, p_learnable=p_global, p_non_learnable=p_stagewise
+        x0=x0, p_global=p_global, p_stagewise=p_stagewise
     )
 
     u_stagewise = sol_pert[3].detach().numpy().reshape(-1, ocp.dims.nu)
