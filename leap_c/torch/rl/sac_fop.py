@@ -261,7 +261,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         q: The Q-function approximator (critic).
         q_target: The target Q-function approximator.
         q_optim: The optimizer for the Q-function.
-        pi: The policy network containing the parameterized controller.
+        pi: The policy network containing the parameterized controller (the actor).
         pi_optim: The optimizer for the policy network.
         log_alpha: The logarithm of the temperature parameter.
         alpha_optim: The optimizer for the temperature parameter.

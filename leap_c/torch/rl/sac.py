@@ -23,23 +23,24 @@ class SacTrainerConfig(TrainerConfig):
     """Contains the necessary configuration for a SacTrainer.
 
     Attributes:
-        critic_mlp: The configuration for the critic networks.
-        actor_mlp: The configuration for the actor network.
+        critic_mlp: The configuration for the Q-networks (critics).
+        actor_mlp: The configuration for the policy network.
         batch_size: The batch size for training.
         buffer_size: The size of the replay buffer.
         gamma: The discount factor.
-        tau: The soft update factor.
-        soft_update_freq: The frequency of soft updates.
-        lr_q: The learning rate for the Q networks.
+        tau: The soft update factor for the target networks.
+        soft_update_freq: The frequency of soft updates (in steps).
+        lr_q: The learning rate for the Q-networks.
         lr_pi: The learning rate for the policy network.
         lr_alpha: The learning rate for the temperature parameter.
+            Can be set to None to avoid updating the temperature.
         init_alpha: The initial temperature parameter.
         target_entropy: The minimum target entropy for the policy. If None, it
             is set automatically depending on dimensions of the action space.
         entropy_reward_bonus: Whether to add an entropy bonus to the reward.
         num_critics: The number of critic networks.
-        report_loss_freq: The frequency of reporting the loss.
-        update_freq: The frequency of updating the networks.
+        report_loss_freq: The frequency of reporting the loss (in steps).
+        update_freq: The frequency of updating the networks (in steps).
     """
 
     critic_mlp: MlpConfig = field(default_factory=MlpConfig)
@@ -61,6 +62,20 @@ class SacTrainerConfig(TrainerConfig):
 
 
 class SacCritic(nn.Module):
+    """A critic network for Soft Actor-Critic (SAC).
+    Consists of multiple Q-networks that estimate the expected return for given
+    state-action pairs.
+
+    Attributes:
+        extractor: A list of feature extractors for the observations.
+        mlp: A list of multi-layer perceptrons (MLPs) that estimate Q-values.
+        action_space: The action space of the environment (used for normalizing the actions).
+    """
+
+    extractor: nn.ModuleList
+    mlp: nn.ModuleList
+    action_space: spaces.Box
+
     def __init__(
         self,
         extractor_cls: Type[Extractor],
@@ -69,6 +84,14 @@ class SacCritic(nn.Module):
         mlp_cfg: MlpConfig,
         num_critics: int,
     ):
+        """
+        Args:
+            extractor_cls: The class used for extracting features from observations.
+            action_space: The action space of the environment (used for normalizing the actions).
+            observation_space: The observation space of the environment for the extractors.
+            mlp_cfg: The configuration for the MLPs.
+            num_critics: The number of critic networks to create.
+        """
         super().__init__()
 
         action_dim = action_space.shape[0]  # type: ignore
@@ -87,11 +110,26 @@ class SacCritic(nn.Module):
         self.action_space = action_space
 
     def forward(self, x: torch.Tensor, a: torch.Tensor):
+        """Returns a list of Q-value estimates for the given state-action pairs."""
         a_norm = min_max_scaling(a, self.action_space)  # type: ignore
         return [mlp(qe(x), a_norm) for qe, mlp in zip(self.extractor, self.mlp)]
 
 
 class SacActor(nn.Module):
+    """
+    An actor network for Soft Actor-Critic (SAC).
+
+    Attributes:
+        extractor: A feature extractor for the observations.
+        mlp: A multi-layer perceptron (MLP) that outputs the mean and log standard deviation
+            for the action distribution.
+        squashed_gaussian: A module that samples actions from a squashed Gaussian distribution.
+    """
+
+    extractor: Extractor
+    mlp: Mlp
+    squashed_gaussian: SquashedGaussian
+
     def __init__(
         self,
         extractor_cls: Type[Extractor],
@@ -99,6 +137,13 @@ class SacActor(nn.Module):
         observation_space: spaces.Space,
         mlp_cfg: MlpConfig,
     ):
+        """
+        Args:
+            extractor_cls: The class used for extracting features from observations.
+            action_space: The action space this actor should predict actions from.
+            observation_space: The observation space of the environment for the extractor.
+            mlp_cfg: The configuration for the MLP.
+        """
         super().__init__()
 
         action_dim = action_space.shape[0]  # type: ignore
@@ -111,8 +156,19 @@ class SacActor(nn.Module):
         )
         self.squashed_gaussian = SquashedGaussian(action_space)
 
-    def forward(self, x: torch.Tensor, deterministic=False):
-        e = self.extractor(x)
+    def forward(self, obs: torch.Tensor, deterministic=False):
+        """The given observations are passed to the extractor to obtain features.
+        These are used by the MLP to predict a mean, as well as a standard deviation.
+        Those are used to define a distribution in the action space.
+        The final actions are then sampled from this distribution.
+
+        Args:
+            obs: The observations to compute the actions for.
+            ctx: The optional context object containing information
+                about the previous controller solve. Can be used, e.g., to warm-start the solver.
+            deterministic: If true, use the mean of the distribution instead of sampling.
+        """
+        e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
         action, log_prob, stats = self.squashed_gaussian(mean, log_std, deterministic)
@@ -121,6 +177,34 @@ class SacActor(nn.Module):
 
 
 class SacTrainer(Trainer[SacTrainerConfig]):
+    """A trainer for Soft Actor-Critic (SAC).
+
+    Attributes:
+        train_env: The training environment.
+        q: The Q-function approximator (critic).
+        q_target: The target Q-function approximator.
+        q_optim: The optimizer for the Q-function.
+        pi: The policy network (the actor).
+        pi_optim: The optimizer for the policy network.
+        log_alpha: The logarithm of the temperature parameter.
+        alpha_optim: The optimizer for the temperature parameter. Is None,
+            if the temperature is fixed.
+        target_entropy: The target entropy for the policy. Is None,
+            if the temperature is fixed.
+        buffer: The replay buffer used for storing and sampling experiences.
+    """
+
+    train_env: gym.Env
+    q: SacCritic
+    q_target: SacCritic
+    q_optim: torch.optim.Optimizer
+    pi: SacActor
+    pi_optim: torch.optim.Optimizer
+    log_alpha: nn.Parameter
+    alpha_optim: torch.optim.Optimizer | None
+    target_entropy: float | None
+    buffer: ReplayBuffer
+
     def __init__(
         self,
         cfg: SacTrainerConfig,

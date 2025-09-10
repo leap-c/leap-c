@@ -136,15 +136,29 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
         q: The Q-function approximator (critic).
         q_target: The target Q-function approximator.
         q_optim: The optimizer for the Q-function.
-        pi: The policy network containing the parameterized controller.
+        pi: The policy network containing the parameterized controller (the actor).
         pi_optim: The optimizer for the policy network.
         log_alpha: The log of the temperature parameter.
         alpha_optim: The optimizer for the temperature parameter.
-        target_entropy: The target entropy for the policy. Is None, if the temperature is fixed.
+            Is None, if the temperature is fixed.
+        target_entropy: The target entropy for the policy.
+            Is None, if the temperature is fixed.
         entropy_norm: The normalization factor for the entropy term.
             Normalizes the entropy based on the ratio of parameter and action dimensions.
         buffer: The replay buffer used to store transitions.
     """
+
+    train_env: gym.Env
+    q: SacCritic
+    q_target: SacCritic
+    q_optim: torch.optim.Optimizer
+    pi: MpcSacActor
+    pi_optim: torch.optim.Optimizer
+    log_alpha: nn.Parameter
+    alpha_optim: torch.optim.Optimizer | None
+    target_entropy: float | None
+    entropy_norm: float
+    buffer: ReplayBuffer
 
     def __init__(
         self,
