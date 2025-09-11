@@ -45,11 +45,11 @@ class TrainerConfig:
     seed: int = 0
 
     # configuration for the training loop
-    train_steps: int = 100000
+    train_steps: int = 100_000
     train_start: int = 0
 
     # validation configuration
-    val_freq: int = 10000
+    val_freq: int = 10_000
     val_num_rollouts: int = 10
     val_deterministic: bool = True
     val_num_render_rollouts: int = 1

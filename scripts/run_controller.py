@@ -111,8 +111,8 @@ def create_cfg(env: str, controller: str, seed: int) -> RunControllerConfig:
 
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
-    cfg.trainer.log.interval = 1000
-    cfg.trainer.log.window = 10000
+    cfg.trainer.log.interval = 1_000
+    cfg.trainer.log.window = 10_000
     cfg.trainer.log.csv_logger = True
     cfg.trainer.log.tensorboard_logger = True
     cfg.trainer.log.wandb_logger = False
