@@ -26,8 +26,8 @@ class LoggerConfig:
 
     verbose: bool = False
 
-    interval: int = 1000
-    window: int = 10000
+    interval: int = 1_000
+    window: int = 10_000
 
     csv_logger: bool = True
     tensorboard_logger: bool = True
