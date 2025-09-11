@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "leap-c"
 version = "2024.0.0"
-dependencies = ["gymnasium", "scipy", "numpy", "pandas", "PyYAML"]
+dependencies = ["gymnasium==1.1.1", "scipy==1.15.2", "numpy==2.3.0", "pandas==2.3.0", "PyYAML==6.0.2"]
 
 requires-python = ">=3.11"
 authors = [{ name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" }]
@@ -24,21 +24,21 @@ classifiers = [
 ]
 
 [project.optional-dependencies]
-test = ["pytest",
-        "pytest-cov",
-        "pygame",
-        "moviepy",
-        "wandb",
-        "tensorboard",
-        "gymnasium[mujoco]",
-        "numpy-quaternion",
-        "matplotlib",
-        "PyQt5"
+test = ["pytest==8.4.0",
+        "pytest-cov==7.0.0",
+        "pygame==2.6.1",
+        "moviepy==2.2.1",
+        "wandb==0.20.1",
+        "tensorboard==2.19.0",
+        "gymnasium[mujoco]==1.1.1",
+        "numpy-quaternion==2024.0.8",
+        "matplotlib==3.10.5",
+        "PyQt5==5.15.11"
 ]
-rendering = ["pygame", "moviepy"]
-docs = ["sphinx", "sphinx_rtd_theme", "myst-parser"]
-dev = ["leap_c[rendering]", "leap_c[docs]", "leap_c[test]", "pre-commit", "ruff"]
-wandb = ["wandb"]
+rendering = ["pygame==2.6.1", "moviepy==2.2.1"]
+docs = ["sphinx==8.2.3", "sphinx_rtd_theme==3.0.2", "myst-parser==4.0.1"]
+dev = ["leap_c[rendering]", "leap_c[docs]", "leap_c[test]", "pre-commit==4.3.0", "ruff==0.11.13"]
+wandb = ["wandb==0.20.1"]
 
 [tool.setuptools]
 packages = ["leap_c"]
