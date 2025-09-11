@@ -105,7 +105,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
         cfg: TrainerConfigType,
         eval_env: gym.Env,
         output_path: str | Path,
-        device: str,
+        device: int | str | torch.device,
         wrappers: list[WrapperType] | None = None,
     ) -> None:
         """Initializes the trainer with a configuration, output path, and device.
@@ -120,7 +120,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
         super().__init__()
 
         self.cfg = cfg
-        self.device = device
+        self.device = torch.device(device)
 
         self.output_path = Path(output_path)
         self.output_path.mkdir(parents=True, exist_ok=True)
