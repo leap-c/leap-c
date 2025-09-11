@@ -153,7 +153,6 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
         Yields:
            The number of steps the training loop did.
         """
-        ...
 
     @abstractmethod
     def act(
@@ -173,7 +172,6 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
         Returns:
             The action, the state of the policy and potential solving stats.
         """
-        ...
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
@@ -207,7 +205,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
         if self.cfg.val_report_score not in get_args(ValReportScoreOptions):
             raise RuntimeError(
                 f"report_score is '{self.cfg.val_report_score}' "
-                + f"but has to be one of {get_args(ValReportScoreOptions)}"
+                f"but has to be one of {get_args(ValReportScoreOptions)}"
             )
 
         self.to(self.device)

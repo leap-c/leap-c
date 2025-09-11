@@ -31,7 +31,7 @@ class AcadosParameter:
             `"fix"`.
         vary_stages: Sorted list (ascending order) of stages at which the parameter varies.
             Only used for the `"learnable"` interface. If `None`, the parameter remains constant
-            across all stages. `Defaults` to None.
+            across all stages. Defaults to `None`.
             Example: If the horizon has `9` stages (`0` to `9`, including the terminal stage),
             and `vary_stages = [5]`, then the parameter will have one value for stages `0` to `4`,
             and a different value for stages `5` to `9`.
@@ -346,9 +346,7 @@ class AcadosParameterManager:
             A casadi variable for the parameter, or its default value if fixed.
         """
         if name not in self.parameters:
-            raise ValueError(
-                f"Unknown field: {name}. Available fields: {list(self.parameters.keys())}"
-            )
+            raise ValueError(f"Unknown name: {name}. Available names: {', '.join(self.parameters)}")
 
         if self.parameters[name].interface == "fix":
             return self.parameters[name].default

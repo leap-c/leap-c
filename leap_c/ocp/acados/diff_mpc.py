@@ -108,8 +108,8 @@ class AcadosDiffMpcFunction(DiffFunction):
         ocp: The acados ocp object defining the optimal control problem structure.
         forward_batch_solver: The acados batch solver used for the forward pass.
         backward_batch_solver: The acados batch solver used for the backward pass.
-        initializer: The initializer used to provide initial guesses for the solver.
-            If none is provided explicitly or on a retry. Uses a zero iterate by default.
+        initializer: The initializer used to provide initial guesses for the solver, if none are
+            provided explicitly or on a retry. Uses a zero iterate by default.
     """
 
     def __init__(
@@ -126,8 +126,8 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         Args:
             ocp: The acados ocp object defining the optimal control problem structure.
-            initializer: The initializer used to provide initial guesses for the solver.
-                If none is provided explicitly or on a retry. Uses a zero iterate by default.
+            initializer: The initializer used to provide initial guesses for the solver, if none are
+                provided explicitly or on a retry. Uses a zero iterate by default.
             sensitivity_ocp: An optional acados ocp object for obtaining the sensitivities.
                 If none is provided, the sensitivity ocp will be derived from the given "normal"
                 `ocp`.
