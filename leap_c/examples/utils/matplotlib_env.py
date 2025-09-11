@@ -1,5 +1,5 @@
 import abc
-from typing import Any
+from typing import Any, Generic, TypeVar
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
@@ -10,8 +10,11 @@ from matplotlib.figure import Figure
 
 from leap_c.utils.latexify import latex_plot_context
 
+ObsType = TypeVar("ObsType")
+ActType = TypeVar("ActType")
 
-class MatplotlibRenderEnv(abc.ABC, gym.Env):
+
+class MatplotlibRenderEnv(abc.ABC, gym.Env[ObsType, ActType], Generic[ObsType, ActType]):
     """A class for Gymnasium environments to handle Matplotlib rendering.
 
     This mixin provides the boilerplate for `render()` and `close()` methods. To use it, an
