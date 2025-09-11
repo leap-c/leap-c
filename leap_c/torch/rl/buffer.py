@@ -42,7 +42,7 @@ class ReplayBuffer(torch.nn.Module):
     def __init__(
         self,
         buffer_limit: int,
-        device: str,
+        device: int | str | torch.device,
         tensor_dtype: torch.dtype = torch.float32,
         collate_fn_map: dict[Union[tuple, tuple[type, ...]], Callable] | None = None,
     ) -> None:
@@ -58,7 +58,7 @@ class ReplayBuffer(torch.nn.Module):
         """
         super().__init__()
         self.buffer = collections.deque(maxlen=buffer_limit)
-        self.device = device
+        self.device = torch.device(device)
         self.tensor_dtype = tensor_dtype
 
         if collate_fn_map is None:
