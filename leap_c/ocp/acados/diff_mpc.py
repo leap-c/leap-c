@@ -285,10 +285,8 @@ class AcadosDiffMpcFunction(DiffFunction):
             if output_grad is None or np.all(output_grad == 0):
                 return None
 
-            if output_grad.ndim == 1:
-                return np.einsum("bj,b->bj", self.sensitivity(ctx, field_name), output_grad)
-
-            return np.einsum("bij,bi->bj", self.sensitivity(ctx, field_name), output_grad)
+            subscripts = "bj,b->bj" if output_grad.ndim == 1 else "bij,bi->bj"
+            return np.einsum(subscripts, self.sensitivity(ctx, field_name), output_grad)
 
         def _safe_sum(*args):
             filtered_args = [a for a in args if a is not None]
@@ -387,12 +385,16 @@ class AcadosDiffMpcFunction(DiffFunction):
                     for s in active_solvers
                 ]
             )
-        elif field_name in ["dvalue_dp_global", "dvalue_dx0", "dvalue_du0"]:
-            with_respect_to = {
-                "dvalue_dp_global": "p_global",
-                "dvalue_dx0": "initial_state",
-                "dvalue_du0": "initial_control",
-            }[field_name]
+        elif field_name in ("dvalue_dp_global", "dvalue_dx0", "dvalue_du0"):
+            match field_name:
+                case "dvalue_dp_global":
+                    with_respect_to = "p_global"
+                case "dvalue_dx0":
+                    with_respect_to = "initial_state"
+                case "dvalue_du0":
+                    with_respect_to = "initial_control"
+                case _:
+                    raise ValueError(f"Unexpected `field_name` {field_name} encountered.")
             sens = np.array(
                 [s.eval_and_get_optimal_value_gradient(with_respect_to) for s in active_solvers]
             )

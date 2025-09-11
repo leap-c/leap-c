@@ -86,7 +86,7 @@ def run_sac(cfg: RunSacConfig, output_path: str | Path, device: str = "cuda") ->
     """
     Args:
         cfg: The configuration for running the controller.
-        output_path: The path to save outputs to. 
+        output_path: The path to save outputs to.
             If it already exists, the run will continue from the last checkpoint.
         device: The device to use.
     """

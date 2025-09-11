@@ -149,9 +149,4 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
-    run_sac_zop(
-        cfg=cfg,
-        output_path=output_path,
-        device=args.device,
-        reuse_code_dir=reuse_code_dir,
-    )
+    run_sac_zop(cfg=cfg, output_path=output_path, device=args.device, reuse_code_dir=reuse_code_dir)

@@ -140,10 +140,7 @@ class AcadosParameterManager:
 
         self.N_horizon = N_horizon
 
-        entries = {
-            "learnable": [],
-            "non-learnable": [],
-        }
+        entries = {"learnable": [], "non-learnable": []}
 
         def _add_learnable_parameter_entries(name: str, parameter: AcadosParameter) -> None:
             interface_type = "learnable"
@@ -263,14 +260,15 @@ class AcadosParameterManager:
         batch_size = next(iter(overwrite.values())).shape[0] if overwrite else batch_size or 1
 
         # Create a batch of parameter values
+        Np1 = self.N_horizon + 1
         batch_parameter_values = np.tile(
             self.non_learnable_parameters_default.cat.full().reshape(1, -1),
-            (batch_size, self.N_horizon + 1, 1),
+            (batch_size, Np1, 1),
         )
 
         # Set indicator for each stage
         if self.need_indicator:
-            batch_parameter_values[:, :, -(self.N_horizon + 1) :] = np.eye(self.N_horizon + 1)
+            batch_parameter_values[:, :, -Np1:] = np.eye(Np1)
 
         # Overwrite the values in the batch
         # TODO: Make sure indexing is consistent.
@@ -283,14 +281,10 @@ class AcadosParameterManager:
         # and reshape if needed or raise an error.
         for key, val in overwrite.items():
             batch_parameter_values[:, :, self.non_learnable_parameters.f[key]] = val.reshape(
-                batch_size, self.N_horizon + 1, -1
+                batch_size, Np1, -1
             )
 
-        expected_shape = (
-            batch_size,
-            self.N_horizon + 1,
-            self.non_learnable_parameters.cat.shape[0],
-        )
+        expected_shape = (batch_size, Np1, self.non_learnable_parameters.cat.shape[0])
         assert batch_parameter_values.shape == expected_shape, (
             f"batch_parameter_values should have shape {expected_shape}, "
             f"got {batch_parameter_values.shape}."
@@ -310,7 +304,7 @@ class AcadosParameterManager:
         """
         learnable_spaces = []
 
-        for name, param in self.parameters.items():
+        for param in self.parameters.values():
             if param.interface == "learnable":
                 if param.space is not None:
                     learnable_spaces.append(param.space)
@@ -327,7 +321,7 @@ class AcadosParameterManager:
 
         if not learnable_spaces:
             # No learnable parameters - return empty box space
-            return gym.spaces.Box(low=np.array([]), high=np.array([]), dtype=dtype)
+            return gym.spaces.Box(low=np.empty(0, dtype), high=np.empty(0, dtype), dtype=dtype)
         elif len(learnable_spaces) == 1:
             # Single space - flatten it to ensure consistent return type
             return learnable_spaces[0]

@@ -350,10 +350,10 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
-        if self.alpha_optim is None:
-            return [self.q_optim, self.pi_optim]
-
-        return [self.q_optim, self.pi_optim, self.alpha_optim]
+        optimizers = [self.q_optim, self.pi_optim]
+        if self.alpha_optim is not None:
+            optimizers.append(self.alpha_optim)
+        return optimizers
 
     def periodic_ckpt_modules(self) -> list[str]:
         return ["q", "pi", "q_target", "log_alpha"]

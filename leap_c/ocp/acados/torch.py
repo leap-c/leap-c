@@ -119,11 +119,7 @@ class AcadosDiffMpc(nn.Module):
             u: The solution of the whole control trajectory.
             value: The cost value of the computed trajectory.
         """
-        ctx, u0, x, u, value = self.autograd_fun.apply(
-            ctx, x0, u0, p_global, p_stagewise, p_stagewise_sparse_idx
-        )  # type: ignore
-
-        return ctx, u0, x, u, value
+        return self.autograd_fun.apply(ctx, x0, u0, p_global, p_stagewise, p_stagewise_sparse_idx)
 
     def sensitivity(self, ctx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
         """Retrieves a specific sensitivity field from the context object, or recalculates it if not
