@@ -10,6 +10,8 @@ from leap_c.trainer import Trainer
 from leap_c.utils.cfg import cfg_as_python
 from leap_c.utils.git import log_git_hash_and_diff
 
+OUTPUT_DIR = Path("output")
+
 
 def default_name(seed: int, tags: Iterable[Any] | None = None) -> str:
     """Generate a default name for the run based on the seed and optional tags."""
@@ -32,8 +34,7 @@ def default_output_path(seed: int, tags: Iterable[Any] | None = None) -> Path:
     now = datetime.datetime.now()
     date = now.strftime("%Y_%m_%d")
     time = now.strftime("%H_%M_%S")
-
-    return Path(f"output/{date}/{time}_{default_name(seed, tags)}")
+    return OUTPUT_DIR / date / f"{time}_{default_name(seed, tags)}"
 
 
 def default_controller_code_path() -> Path:
@@ -42,7 +43,7 @@ def default_controller_code_path() -> Path:
     Returns:
         A `Path` to the default directory for compiled controller code.
     """
-    return Path("output/controller_code")
+    return OUTPUT_DIR / "controller_code"
 
 
 def init_run(trainer: Trainer, cfg, output_path: str | Path) -> None:
