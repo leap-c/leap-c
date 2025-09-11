@@ -270,10 +270,7 @@ class AcadosParameterManager:
 
         # Set indicator for each stage
         if self.need_indicator:
-            batch_parameter_values[:, :, -(self.N_horizon + 1) :] = np.tile(
-                np.eye(self.N_horizon + 1),
-                (batch_size, 1, 1),
-            )
+            batch_parameter_values[:, :, -(self.N_horizon + 1) :] = np.eye(self.N_horizon + 1)
 
         # Overwrite the values in the batch
         # TODO: Make sure indexing is consistent.
