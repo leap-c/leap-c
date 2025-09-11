@@ -3,12 +3,13 @@ import random
 from typing import Any, Callable, Union
 
 import torch
-import torch.nn as nn
 from torch.utils._pytree import tree_map_only
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 
-def pytree_tensor_to(pytree: Any, device: str, tensor_dtype: torch.dtype) -> Any:
+def pytree_tensor_to(
+    pytree: Any, device: int | str | torch.device, tensor_dtype: torch.dtype
+) -> Any:
     """Convert tensors in the pytree to tensor_dtype and move them to device."""
     return tree_map_only(
         torch.Tensor,
@@ -17,7 +18,7 @@ def pytree_tensor_to(pytree: Any, device: str, tensor_dtype: torch.dtype) -> Any
     )
 
 
-class ReplayBuffer(nn.Module):
+class ReplayBuffer(torch.nn.Module):
     """Replay buffer for storing transitions.
 
     The replay buffer is a `deque` that stores transitions in a FIFO manner. The buffer has a
@@ -44,7 +45,7 @@ class ReplayBuffer(nn.Module):
         device: str,
         tensor_dtype: torch.dtype = torch.float32,
         collate_fn_map: dict[Union[tuple, tuple[type, ...]], Callable] | None = None,
-    ):
+    ) -> None:
         """Initialize the replay buffer.
 
         Args:
@@ -65,7 +66,7 @@ class ReplayBuffer(nn.Module):
         else:
             self.collate_fn_map = {**default_collate_fn_map, **collate_fn_map}
 
-    def put(self, data: Any):
+    def put(self, data: Any) -> None:
         """Put the data into the replay buffer. If the buffer is full, the oldest data is discarded.
 
         Args:
@@ -100,7 +101,7 @@ class ReplayBuffer(nn.Module):
             tensor_dtype=self.tensor_dtype,
         )
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.buffer)
 
     def get_extra_state(self) -> dict:
@@ -110,7 +111,7 @@ class ReplayBuffer(nn.Module):
         """
         return {"buffer": self.buffer}
 
-    def set_extra_state(self, state: dict):
+    def set_extra_state(self, state: dict) -> None:
         """Set the state dict of the replay buffer.
 
         This interface is used by `state_dict` and `load_state_dict` of `nn.Module`.

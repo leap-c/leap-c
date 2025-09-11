@@ -3,9 +3,8 @@
 from pathlib import Path
 
 import numpy as np
-import torch
-import torch.nn as nn
 from acados_template import AcadosOcp
+from torch import Tensor, autograd, nn
 
 from leap_c.autograd.torch import create_autograd_function
 from leap_c.ocp.acados.diff_mpc import (
@@ -32,7 +31,7 @@ class AcadosDiffMpc(nn.Module):
 
     ocp: AcadosOcp
     diff_mpc_fun: AcadosDiffMpcFunction
-    autograd_fun: type[torch.autograd.Function]
+    autograd_fun: type[autograd.Function]
 
     def __init__(
         self,
@@ -81,13 +80,13 @@ class AcadosDiffMpc(nn.Module):
 
     def forward(
         self,
-        x0: torch.Tensor,
-        u0: torch.Tensor | None = None,
-        p_global: torch.Tensor | None = None,
-        p_stagewise: torch.Tensor | None = None,
-        p_stagewise_sparse_idx: torch.Tensor | None = None,
+        x0: Tensor,
+        u0: Tensor | None = None,
+        p_global: Tensor | None = None,
+        p_stagewise: Tensor | None = None,
+        p_stagewise_sparse_idx: Tensor | None = None,
         ctx: AcadosDiffMpcCtx | None = None,
-    ):
+    ) -> tuple[AcadosDiffMpcCtx, Tensor, Tensor, Tensor, Tensor]:
         """Performs the forward pass by solving the provided problem instances.
 
         In the background, PyTorch builds a computational graph that can be used for

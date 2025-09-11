@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator, Type
+from typing import Generator, Type
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -82,7 +82,7 @@ class SacCritic(nn.Module):
         observation_space: spaces.Space,
         mlp_cfg: MlpConfig,
         num_critics: int,
-    ):
+    ) -> None:
         """Initializes the SAC critic network.
 
         Args:
@@ -135,7 +135,7 @@ class SacActor(nn.Module):
         action_space: spaces.Box,
         observation_space: spaces.Space,
         mlp_cfg: MlpConfig,
-    ):
+    ) -> None:
         """Initializes the SAC actor network.
 
         Args:
@@ -156,7 +156,9 @@ class SacActor(nn.Module):
         )
         self.squashed_gaussian = SquashedGaussian(action_space)
 
-    def forward(self, obs: torch.Tensor, deterministic=False):
+    def forward(
+        self, obs: torch.Tensor, deterministic: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """The given observations are passed to the extractor to obtain features.
         These are used by the MLP to predict a mean, as well as a standard deviation.
         Those are used to define a distribution in the action space.
@@ -213,7 +215,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         device: str,
         train_env: gym.Env,
         extractor_cls: Type[Extractor] | ExtractorName = "identity",
-    ):
+    ) -> None:
         """Initializes the trainer with a configuration, output path, and device.
 
         Args:
@@ -265,7 +267,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
 
         self.buffer = ReplayBuffer(cfg.buffer_size, device=device)
 
-    def train_loop(self) -> Iterator[int]:
+    def train_loop(self) -> Generator[int, None, None]:
         is_terminated = is_truncated = True
 
         while True:

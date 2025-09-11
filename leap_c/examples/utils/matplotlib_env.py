@@ -1,5 +1,5 @@
 import abc
-from typing import List
+from typing import Any
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
@@ -27,7 +27,7 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env):
 
     metadata = {"render_modes": ["human", "rgb_array"]}
 
-    def __init__(self, render_mode: str | None = None, **kwargs):
+    def __init__(self, render_mode: str | None = None, **kwargs: Any) -> None:
         """Initializes the environment with a specified render mode.
 
         Args:
@@ -43,7 +43,7 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env):
         self._ax: Axes | np.ndarray | None = None
         self._render_initialized: bool = False
 
-    def render(self) -> np.ndarray | List[np.ndarray] | None:
+    def render(self) -> np.ndarray | list[np.ndarray] | None:
         """Renders the environment.
 
         Handles initialization on the first call and delegates to the environment-specific drawing
@@ -80,7 +80,7 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env):
             else:
                 raise ValueError(f"Unsupported render mode: {self.render_mode}")
 
-    def close(self):
+    def close(self) -> None:
         """Closes the rendering window."""
         if self._fig is not None:
             plt.close(self._fig)
@@ -89,16 +89,15 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env):
         self._render_initialized = False
 
     @abc.abstractmethod
-    def _render_setup(self):
+    def _render_setup(self) -> None:
         """One-time setup for the rendering.
 
         This method should create the figure and axes (e.g., `self.fig, self.ax = plt.subplots()`)
         and draw any static elements of the plot.
         """
-        ...
 
     @abc.abstractmethod
-    def _render_frame(self):
+    def _render_frame(self) -> None:
         """Update the plot with the current environment state.
 
         This method is called on every `render()` call and should update

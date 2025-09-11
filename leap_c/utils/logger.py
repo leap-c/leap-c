@@ -36,11 +36,7 @@ class LoggerConfig:
 
 
 class GroupWindowTracker:
-    def __init__(
-        self,
-        interval: int,
-        window_size: int,
-    ) -> None:
+    def __init__(self, interval: int, window_size: int) -> None:
         """Initialize the group window tracker.
 
         Args:
@@ -172,7 +168,7 @@ class Logger:
         timestamp: int,
         verbose: bool = False,
         with_smoothing: bool = True,
-    ):
+    ) -> None:
         """Report statistics.
 
         If the statistics are a numpy array, the array is split into multiple

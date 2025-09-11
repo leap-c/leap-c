@@ -1,7 +1,10 @@
 from functools import partial
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
+from gymnasium import Env
+
+from ..controller import ParameterizedController
 from .cartpole.controller import CartPoleController
 from .cartpole.env import CartPoleEnv
 from .chain.controller import ChainController
@@ -41,7 +44,7 @@ ExampleControllerName = Literal[
 ]
 
 
-def create_env(env_name: ExampleEnvName, **kw):
+def create_env(env_name: ExampleEnvName, **kw: Any) -> Env:
     """Create an environment based on the given name.
 
     Args:
@@ -60,7 +63,7 @@ def create_env(env_name: ExampleEnvName, **kw):
 def create_controller(
     controller_name: ExampleControllerName,
     reuse_code_base_dir: Path | None = None,
-):
+) -> ParameterizedController:
     """Create a controller.
 
     Args:

@@ -3,7 +3,7 @@
 from argparse import ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Generator
 
 import gymnasium as gym
 import numpy as np
@@ -70,7 +70,7 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
         buffer = ReplayBuffer(1, device, collate_fn_map=controller.collate_fn_map)
         self.collate_fn = buffer.collate
 
-    def train_loop(self) -> Iterator[int]:
+    def train_loop(self) -> Generator[int, None, None]:
         """No training - just return immediately."""
         yield 1
 

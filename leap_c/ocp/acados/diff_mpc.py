@@ -228,7 +228,7 @@ class AcadosDiffMpcFunction(DiffFunction):
         x_grad: np.ndarray | None,
         u_grad: np.ndarray | None,
         value_grad: np.ndarray | None,
-    ):
+    ) -> tuple[np.ndarray | None, np.ndarray | None, np.ndarray | None, None, None]:
         """Perform the backward pass via implicit differentiation.
 
         Args:

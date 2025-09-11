@@ -1,12 +1,11 @@
 from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Generic, Iterator, List, Literal, TypeVar, get_args
+from typing import Any, Generator, Generic, Literal, TypeVar, get_args
 
 import gymnasium as gym
 import numpy as np
 import torch
-from torch import nn
 from yaml import safe_dump
 
 from leap_c.torch.utils.seed import set_seed
@@ -79,7 +78,7 @@ class TrainerState:
     max_score: float = -float("inf")
 
 
-class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
+class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
     """A trainer provides the implementation of an algorithm.
 
     It is responsible for training the components of the algorithm and
@@ -107,8 +106,8 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         eval_env: gym.Env,
         output_path: str | Path,
         device: str,
-        wrappers: List[WrapperType] | None = None,
-    ):
+        wrappers: list[WrapperType] | None = None,
+    ) -> None:
         """Initializes the trainer with a configuration, output path, and device.
 
         Args:
@@ -143,7 +142,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         set_seed(self.cfg.seed)
 
     @abstractmethod
-    def train_loop(self) -> Iterator[int]:
+    def train_loop(self) -> Generator[int, None, None]:
         """The main training loop.
 
         For simplicity, we use an Iterator here, to make the training loop as simple as
@@ -158,7 +157,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
     @abstractmethod
     def act(
-        self, obs, deterministic: bool = False, state=None
+        self, obs: np.ndarray, deterministic: bool = False, state: Any | None = None
     ) -> tuple[np.ndarray, Any | None, dict[str, float] | None]:
         """Act based on the observation.
 
@@ -187,7 +186,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         stats: dict[str, float | np.ndarray],
         verbose: bool = False,
         with_smoothing: bool = True,
-    ):
+    ) -> None:
         """Report the statistics of the training loop.
 
         If the statistics are a numpy array, the array is split into multiple
@@ -368,7 +367,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
         def save_element(name: str, elem: Any, path: Path, singleton: bool = False):
             """Saves an element to the checkpoint path."""
-            if isinstance(elem, nn.Module):
+            if isinstance(elem, torch.nn.Module):
                 state_dict = elem.state_dict()
                 torch.save(state_dict, self._ckpt_path(name, "ckpt", path, singleton))
             else:
@@ -398,7 +397,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
         def load_element(name: str, path: Path, singleton: bool = False):
             """Loads an element from the checkpoint path."""
-            if isinstance(getattr(self, name), nn.Module):
+            if isinstance(getattr(self, name), torch.nn.Module):
                 state_dict = torch.load(
                     self._ckpt_path(name, "ckpt", path, singleton), weights_only=False
                 )

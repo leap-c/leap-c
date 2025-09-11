@@ -1,4 +1,5 @@
 import warnings
+from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
@@ -45,7 +46,9 @@ class AcadosParameter:
     vary_stages: list[int] = field(default_factory=list)
 
     @classmethod
-    def from_base_parameter(cls, base_param: BaseParameter, vary_stages: list[int] | None = None):
+    def from_base_parameter(
+        cls, base_param: BaseParameter, vary_stages: list[int] | None = None
+    ) -> "AcadosParameter":
         """Create an acados Parameter from a base Parameter."""
         return cls(
             name=base_param.name,
@@ -94,11 +97,7 @@ class AcadosParameterManager:
     N_horizon: int
     need_indicator: bool
 
-    def __init__(
-        self,
-        parameters: list[AcadosParameter],
-        N_horizon: int,
-    ) -> None:
+    def __init__(self, parameters: Collection[AcadosParameter], N_horizon: int) -> None:
         if not parameters:
             warnings.warn(
                 "Empty parameter list provided to AcadosParamManager. "
@@ -146,7 +145,7 @@ class AcadosParameterManager:
             "non-learnable": [],
         }
 
-        def _add_learnable_parameter_entries(name: str, parameter: AcadosParameter):
+        def _add_learnable_parameter_entries(name: str, parameter: AcadosParameter) -> None:
             interface_type = "learnable"
             if parameter.vary_stages:
                 self.need_indicator = True
@@ -167,7 +166,7 @@ class AcadosParameterManager:
             else:
                 entries[interface_type].append(entry(name, shape=parameter.default.shape))
 
-        def _add_non_learnable_parameter_entries(name: str, parameter: AcadosParameter):
+        def _add_non_learnable_parameter_entries(name: str, parameter: AcadosParameter) -> None:
             interface_type = "non-learnable"
             # Non-learnable parameters are by construction for each stage
             entries[interface_type].append(entry(name, shape=parameter.default.shape))
@@ -200,7 +199,9 @@ class AcadosParameterManager:
                 # For parameters without stage variations
                 return key
 
-        def _fill_learnable_parameter_values(struct_dict, keys):
+        def _fill_learnable_parameter_values(
+            struct_dict: dict[str, struct], keys: Iterable[str]
+        ) -> None:
             """Fill parameter values and optionally bounds for a parameter structure."""
             for key in keys:
                 # First check if the key exists directly in parameters (no staging)
@@ -240,9 +241,7 @@ class AcadosParameterManager:
                 self.non_learnable_parameters_default[key] = self.parameters[key].default
 
     def combine_non_learnable_parameter_values(
-        self,
-        batch_size: int | None = None,
-        **overwrite: np.ndarray,
+        self, batch_size: int | None = None, **overwrite: np.ndarray
     ) -> np.ndarray:
         """
         Combine all non-learnable parameters and provided overwrites into a single numpy array.

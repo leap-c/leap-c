@@ -3,7 +3,7 @@ layer in the policy network."""
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, Literal, NamedTuple, Type
+from typing import Any, Generator, Literal, NamedTuple, Type
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -99,7 +99,7 @@ class FopActor(nn.Module):
         mlp_cfg: MlpConfig,
         controller: ParameterizedController,
         correction: bool = True,
-    ):
+    ) -> None:
         """Initializes the FOP actor.
 
         Args:
@@ -122,7 +122,9 @@ class FopActor(nn.Module):
         self.correction = correction
         self.squashed_gaussian = SquashedGaussian(controller.param_space)  # type:ignore
 
-    def forward(self, obs, ctx=None, deterministic=False) -> SacFopActorOutput:
+    def forward(
+        self, obs: np.ndarray, ctx: Any | None = None, deterministic: bool = False
+    ) -> SacFopActorOutput:
         """The given observations are passed to the extractor to obtain features.
         These are used to predict a distribution in the (learnable) parameter space of the
         controller using the MLP. Afterwards, this parameters are sampled from this distribution,
@@ -191,7 +193,7 @@ class FoaActor(nn.Module):
         extractor: Extractor,
         mlp_cfg: MlpConfig,
         controller: ParameterizedController,
-    ):
+    ) -> None:
         """Instantiate the FOA actor.
 
         Args:
@@ -218,7 +220,9 @@ class FoaActor(nn.Module):
         self.action_transform = BoundedTransform(action_space)  # type:ignore
         self.squashed_gaussian = SquashedGaussian(action_space)  # type:ignore
 
-    def forward(self, obs, ctx=None, deterministic=False) -> SacFopActorOutput:
+    def forward(
+        self, obs: np.ndarray, ctx: Any | None = None, deterministic: bool = False
+    ) -> SacFopActorOutput:
         """The given observations are passed to the extractor to obtain features.
         These are used by the MLP to predict parameters, as well as a standard deviation.
         The parameters are passed to the controller to obtain actions. These actions are used
@@ -293,7 +297,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         train_env: gym.Env,
         controller: ParameterizedController,
         extractor_cls: Type[Extractor] | ExtractorName = "identity",
-    ):
+    ) -> None:
         """Initializes the SAC-FOP trainer.
 
         Args:
@@ -367,7 +371,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             cfg.buffer_size, device=device, collate_fn_map=controller.collate_fn_map
         )
 
-    def train_loop(self) -> Iterator[int]:
+    def train_loop(self) -> Generator[int, None, None]:
         is_terminated = is_truncated = True
         policy_state = None
         obs = None
@@ -492,12 +496,12 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             yield 1
 
     def act(
-        self, obs, deterministic: bool = False, state=None
+        self, obs: np.ndarray, deterministic: bool = False, state: Any | None = None
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
         obs = self.buffer.collate([obs])
 
         with torch.no_grad():
-            pi_output = self.pi(obs, state, deterministic=deterministic)
+            pi_output: SacFopActorOutput = self.pi(obs, state, deterministic)
 
         action = pi_output.action.cpu().numpy()[0]
 

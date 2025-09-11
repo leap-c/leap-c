@@ -2,7 +2,7 @@
 layer for the policy network."""
 
 from pathlib import Path
-from typing import Any, Iterator, NamedTuple, Type
+from typing import Any, Generator, NamedTuple, Type
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -64,7 +64,7 @@ class MpcSacActor(nn.Module):
         observation_space: gym.Space,
         controller: ParameterizedController,
         mlp_cfg: MlpConfig,
-    ):
+    ) -> None:
         """
         Args:
             extractor_cls: The class used for extracting features from observations.
@@ -169,7 +169,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
         train_env: gym.Env,
         controller: ParameterizedController,
         extractor_cls: Type[Extractor] | ExtractorName = "identity",
-    ):
+    ) -> None:
         """Initializes the SAC-ZOP trainer.
 
         Args:
@@ -230,7 +230,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
 
         self.buffer = ReplayBuffer(cfg.buffer_size, device=device)
 
-    def train_loop(self) -> Iterator[int]:
+    def train_loop(self) -> Generator[int, None, None]:
         is_terminated = is_truncated = True
         policy_ctx = None
         obs = None
