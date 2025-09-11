@@ -40,7 +40,6 @@ class AcadosDiffMpc(nn.Module):
         sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
-        *,
         n_batch_max: int | None = None,
         num_threads_batch_solver: int | None = None,
     ) -> None:

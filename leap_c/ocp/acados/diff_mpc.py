@@ -22,8 +22,8 @@ from leap_c.ocp.acados.utils.create_solver import create_forward_backward_batch_
 from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
 from leap_c.ocp.acados.utils.solve import solve_with_retry
 
-N_BATCH_MAX = 256
-NUM_THREADS_BATCH_SOLVER = 4
+DEFAULT_N_BATCH_MAX = 256
+DEFAULT_NUM_THREADS_BATCH_SOLVER = 4
 
 
 @dataclass
@@ -119,7 +119,6 @@ class AcadosDiffMpcFunction(DiffFunction):
         sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
-        *,
         n_batch_max: int | None = None,
         num_threads_batch_solver: int | None = None,
     ) -> None:
@@ -149,8 +148,8 @@ class AcadosDiffMpcFunction(DiffFunction):
                 sensitivity_ocp=sensitivity_ocp,
                 discount_factor=discount_factor,
                 export_directory=export_directory,
-                n_batch_max=N_BATCH_MAX if n_batch_max is None else n_batch_max,
-                num_threads=NUM_THREADS_BATCH_SOLVER
+                n_batch_max=DEFAULT_N_BATCH_MAX if n_batch_max is None else n_batch_max,
+                num_threads=DEFAULT_NUM_THREADS_BATCH_SOLVER
                 if num_threads_batch_solver is None
                 else num_threads_batch_solver,
             )
