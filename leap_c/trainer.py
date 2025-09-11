@@ -238,7 +238,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
                         self.save()
 
                 # save model
-                if self.cfg.ckpt_modus in ["last", "all"]:
+                if self.cfg.ckpt_modus in ("last", "all"):
                     self.save()
 
         self.logger.close()
@@ -277,13 +277,8 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
 
             return policy_fn
 
-        policy = create_policy_fn()
-
-        parts_rollout = []
-        parts_policy = []
-
         rollouts = episode_rollout(
-            policy,
+            create_policy_fn(),
             self.eval_env,
             self.cfg.val_num_rollouts,
             self.cfg.val_num_render_rollouts,
@@ -292,6 +287,8 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
             name_prefix=f"{self.state.step}",
         )
 
+        parts_rollout = []
+        parts_policy = []
         for r, p in rollouts:
             parts_rollout.append(r)
             parts_policy.append(p)

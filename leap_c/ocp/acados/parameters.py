@@ -1,7 +1,6 @@
-import warnings
-from collections.abc import Collection, Iterable
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Collection, Iterable, Literal
+from warnings import warn
 
 import casadi as ca
 import gymnasium as gym
@@ -99,7 +98,7 @@ class AcadosParameterManager:
 
     def __init__(self, parameters: Collection[AcadosParameter], N_horizon: int) -> None:
         if not parameters:
-            warnings.warn(
+            warn(
                 "Empty parameter list provided to AcadosParamManager. "
                 "Consider adding parameters for building a parametric AcadosOcp.",
                 UserWarning,
