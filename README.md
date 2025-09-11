@@ -1,3 +1,5 @@
+[![codecov](https://codecov.io/github/dirkpr/leap-c/graph/badge.svg?token=TQE7RZ1O7M)](https://codecov.io/github/dirkpr/leap-c)
+
 # leap-c (Learning Predictive Control)
 
 ## Introduction

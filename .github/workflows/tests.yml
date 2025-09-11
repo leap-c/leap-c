@@ -105,5 +105,12 @@ jobs:
         eval "$(micromamba shell hook --shell=bash)"
         micromamba activate leapc_env
         # Run tests
-        pwd
-        pytest tests -vv -s
+        pytest -vv -s --cov=leap_c --cov-report=xml --cov-report=term
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: coverage.xml
+
+
