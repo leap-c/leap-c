@@ -105,6 +105,5 @@ jobs:
         eval "$(micromamba shell hook --shell=bash)"
         micromamba activate leapc_env
         # Run tests
-        pwd
         pytest -vv -s --cov=leap_c --cov-report=xml --cov-report=term
 
