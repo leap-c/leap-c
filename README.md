@@ -1,7 +1,7 @@
 [![Source Code License](https://img.shields.io/badge/license-BSD-blueviolet?style=for-the-badge)](https://github.com/leap-c/leap-c/blob/main/LICENSE)
 ![Python 3.11](https://img.shields.io/badge/python->=3.11-green.svg?style=for-the-badge)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json&style=for-the-badge)](https://docs.astral.sh/ruff/)
-[![codecov](https://codecov.io/github/leap-c/leap-c/graph/badge.svg?token=TQE7RZ1O7M&style=for-the-badge)](https://codecov.io/github/leap-c/leap-c)
+[![codecov](https://img.shields.io/codecov/c/github/leap-c/leap-c?token=TQE7RZ1O7M&style=for-the-badge)](https://codecov.io/github/leap-c/leap-c)
 
 # leap-c (Learning Predictive Control)
 
