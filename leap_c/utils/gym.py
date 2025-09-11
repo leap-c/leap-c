@@ -41,5 +41,4 @@ def seed_env(env: gym.Env, seed: int = 0) -> gym.Env:
     env.reset(seed=seed)
     env.observation_space.seed(seed)
     env.action_space.seed(seed)
-
     return env

@@ -55,9 +55,8 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env[ObsType, ActType], Generic[ObsType, A
         with latex_plot_context():
             if self.render_mode is None:
                 gym.logger.warn(
-                    "Cannot render because render_mode is not set. "
-                    "Set render_mode at initialization, e.g., "
-                    "gym.make(env_id, render_mode='human')."
+                    "Cannot render because render_mode is not set. Set `render_mode` at "
+                    "initialization, e.g., `gym.make(env_id, render_mode='human')`."
                 )
                 return None
 
@@ -106,4 +105,3 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env[ObsType, ActType], Generic[ObsType, A
         This method is called on every `render()` call and should update
         dynamic elements like agent position, trajectories, etc.
         """
-        ...
