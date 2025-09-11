@@ -324,20 +324,15 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
         singleton: bool = False,
     ) -> Path:
         """Returns the path to a checkpoint file."""
-        if basedir is None:
-            basedir = self.output_path
-
-        basedir = Path(basedir)
-        (basedir / "ckpts").mkdir(exist_ok=True)
-
-        all_but_singleton = True if self.cfg.ckpt_modus == "all" and singleton else False
+        ckpt_dir = (self.output_path if basedir is None else Path(basedir)) / "ckpts"
+        ckpt_dir.mkdir(exist_ok=True)
 
         if self.cfg.ckpt_modus == "best":
-            return basedir / "ckpts" / f"best_{name}.{suffix}"
-        elif self.cfg.ckpt_modus == "last" or all_but_singleton:
-            return basedir / "ckpts" / f"last_{name}.{suffix}"
+            return ckpt_dir / f"best_{name}.{suffix}"
+        elif self.cfg.ckpt_modus == "last" or (self.cfg.ckpt_modus == "all" and singleton):
+            return ckpt_dir / f"last_{name}.{suffix}"
 
-        return basedir / "ckpts" / f"{self.state.step}_{name}.{suffix}"
+        return ckpt_dir / f"{self.state.step}_{name}.{suffix}"
 
     def periodic_ckpt_modules(self) -> list[str]:
         """Returns the modules that should be checkpointed periodically.
@@ -366,13 +361,10 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
             path: The folder where to save the checkpoint.
         """
 
-        def save_element(name: str, elem: Any, path: Path, singleton: bool = False):
+        def save_element(name: str, elem: Any, path: Path, singleton: bool = False) -> None:
             """Saves an element to the checkpoint path."""
-            if isinstance(elem, torch.nn.Module):
-                state_dict = elem.state_dict()
-                torch.save(state_dict, self._ckpt_path(name, "ckpt", path, singleton))
-            else:
-                torch.save(elem, self._ckpt_path(name, "ckpt", path, singleton))
+            to_be_saved = elem.state_dict() if isinstance(elem, torch.nn.Module) else elem
+            torch.save(to_be_saved, self._ckpt_path(name, "ckpt", path, singleton))
 
         # split the state_dict into seperate parts
         for name in self.periodic_ckpt_modules():
@@ -396,18 +388,13 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
         """
         basedir = Path(path)
 
-        def load_element(name: str, path: Path, singleton: bool = False):
+        def load_element(name: str, path: Path, singleton: bool = False) -> None:
             """Loads an element from the checkpoint path."""
+            obj = torch.load(self._ckpt_path(name, "ckpt", path, singleton), weights_only=False)
             if isinstance(getattr(self, name), torch.nn.Module):
-                state_dict = torch.load(
-                    self._ckpt_path(name, "ckpt", path, singleton), weights_only=False
-                )
-                getattr(self, name).load_state_dict(state_dict)
+                getattr(self, name).load_state_dict(obj)
             else:
-                elem = torch.load(
-                    self._ckpt_path(name, "ckpt", path, singleton), weights_only=False
-                )
-                setattr(self, name, elem)
+                setattr(self, name, obj)
 
         # load
         for name in self.periodic_ckpt_modules():
