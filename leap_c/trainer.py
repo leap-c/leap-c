@@ -218,12 +218,12 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
         self.eval()
         with torch.inference_mode():
             val_score = self.validate()
+        self.train()
         self.state.scores.append(val_score)
         self.state.max_score = val_score
 
         while self.state.step < self.cfg.train_steps:
             # train
-            self.train()
             self.state.step += next(train_loop_iter)
 
             # validate
@@ -231,6 +231,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
                 self.eval()
                 with torch.inference_mode():
                     val_score = self.validate()
+                self.train()
                 self.state.scores.append(val_score)
 
                 if val_score > self.state.max_score:
