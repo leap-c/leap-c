@@ -943,6 +943,39 @@ def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
         ), f"The {label} does not match between global and stagewise varying diff MPC."
 
 
+def test_casadi_function_with_parameter_manager():
+    """Test creating a CasADi function using symbolic variables from AcadosParameterManager."""
+
+    for interface in ["learnable", "non-learnable"]:
+        default_a = np.array([2.0])
+        default_b = np.array([3.0, 4.0])
+        params = [
+            AcadosParameter(name="param_a", default=default_a, interface=interface),
+            AcadosParameter(name="param_b", default=default_b, interface=interface),
+        ]
+
+        manager = AcadosParameterManager(params, N_horizon=5)
+
+        # Get symbolic expressions
+        param_a_sym = manager.get("param_a")
+        param_b_sym = manager.get("param_b")
+
+        # Create a simple expression using the symbolic parameters
+        expr = param_a_sym * ca.sum1(param_b_sym)
+
+        # Define a CasADi function
+        casadi_func = ca.Function(
+            "test_func", [param_a_sym, param_b_sym], [expr], ["param_a", "param_b"], ["result"]
+        )
+
+        # Test the function with default values
+        result = casadi_func(default_a, default_b)
+
+        # Expected: 2.0 * (3.0 + 4.0) = 14.0
+        expected_result = 2.0 * (3.0 + 4.0)
+        np.testing.assert_allclose(float(result), expected_result, rtol=1e-6)
+
+
 def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     nominal_stagewise_params: tuple[AcadosParameter, ...],
     acados_test_ocp_no_p_global: AcadosOcp,
