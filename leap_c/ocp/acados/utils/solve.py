@@ -48,7 +48,7 @@ def solve_with_retry(
     active_solvers = batch_solver.ocp_solvers[:batch_size]
     batch_status = np.array([solver.status for solver in active_solvers])
 
-    if with_retry and any(status != 0 for status in batch_status):
+    if with_retry and batch_status.any():
         for idx, solver in enumerate(active_solvers):
             if batch_status[idx] == 0:
                 continue

@@ -60,7 +60,7 @@ class TrainerConfig:
     ckpt_modus: Literal["best", "last", "all", "none"] = "best"
 
     # logging configuration
-    log: LoggerConfig = field(default_factory=lambda: LoggerConfig())
+    log: LoggerConfig = field(default_factory=LoggerConfig)
 
 
 @dataclass(kw_only=True)
@@ -75,7 +75,7 @@ class TrainerState:
 
     step: int = 0
     scores: list[float] = field(default_factory=list)
-    max_score: float = -float("inf")
+    max_score: float = float("-inf")
 
 
 class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
@@ -225,7 +225,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
             self.state.step += next(train_loop_iter)
 
             # validate
-            if self.state.step // self.cfg.val_freq > len(self.state.scores) - 1:
+            if self.state.step // self.cfg.val_interval >= len(self.state.scores):
                 self.eval()
                 with torch.inference_mode():
                     val_score = self.validate()
