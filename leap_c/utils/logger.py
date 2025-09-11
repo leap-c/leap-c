@@ -11,18 +11,17 @@ import pandas as pd
 
 @dataclass(kw_only=True)
 class LoggerConfig:
-    """
-    Contains the necessary information for logging.
+    """Contains the necessary information for logging.
 
     Args:
-        verbose: If True, the logger will collect also verbose statistics.
+        verbose: If `True`, the logger will collect also verbose statistics.
         interval: The interval at which statistics will be logged (in steps).
         window: The moving window size for the statistics (in steps).
-        csv_logger: If True, the statistics will be logged to a CSV file.
-        tensorboard_logger: If True, the statistics will be logged to TensorBoard.
-        wandb_logger: If True, the statistics will be logged to Weights & Biases.
-        wandb_init_kwargs: The kwargs to pass to wandb.init. If "dir" is not specified,
-            it is set to output path / "wandb".
+        csv_logger: If `True`, the statistics will be logged to a CSV file.
+        tensorboard_logger: If `True`, the statistics will be logged to TensorBoard.
+        wandb_logger: If `True`, the statistics will be logged to Weights & Biases.
+        wandb_init_kwargs: The kwargs to pass to wandb.init. If `"dir"` is not specified, it is set
+            to `output_path / "wandb"`.
     """
 
     verbose: bool = False
@@ -42,8 +41,7 @@ class GroupWindowTracker:
         interval: int,
         window_size: int,
     ) -> None:
-        """
-        Initialize the group window tracker.
+        """Initialize the group window tracker.
 
         Args:
             interval: The interval at which statistics will be logged.
@@ -58,8 +56,7 @@ class GroupWindowTracker:
     def update(
         self, timestamp: int, stats: dict[str, float]
     ) -> Generator[tuple[int, dict[str, float]], None, None]:
-        """
-        Add timestamp and statistics to the tracker.
+        """Add timestamp and statistics to the tracker.
 
         This method adds the timestamp and statistics to the tracker. If the
         statistics are larger than the window size, the oldest statistics are
@@ -71,8 +68,8 @@ class GroupWindowTracker:
             stats: The statistics to be added.
 
         Returns:
-            None if the statistics are not ready to be reported, or a tuple of
-            report timestamps and statistics.
+            `None` if the statistics are not ready to be reported, or a tuple of report timestamps
+            and statistics.
         """
         prev_timestamp = -1
         for key, value in stats.items():
@@ -122,8 +119,7 @@ class GroupWindowTracker:
 
 
 class Logger:
-    """
-    A simple logger for statistics.
+    """A simple logger for statistics.
 
     This logger can write statistics to CSV, TensorBoard, and Weights & Biases.
 
@@ -142,8 +138,7 @@ class Logger:
     writer: Any  # TensorBoard SummaryWriter
 
     def __init__(self, cfg: LoggerConfig, output_path: str | Path) -> None:
-        """
-        Initialize the logger.
+        """Initialize the logger.
 
         Args:
             cfg: The configuration for the logger.
@@ -178,21 +173,19 @@ class Logger:
         verbose: bool = False,
         with_smoothing: bool = True,
     ):
-        """
-        Report statistics.
+        """Report statistics.
 
         If the statistics are a numpy array, the array is split into multiple
         statistics of the form `key_{i}`.
 
         Args:
-            group: The group of the statistics is added as a prefix to the log
-                entry and determines how to split the statistics.
+            group: The group of the statistics is added as a prefix to the log entry and determines
+                how to split the statistics.
             stats: The statistics to be reported.
             timestamp: The timestamp of the logging entry.
-            verbose: If True, the statistics will only be logged in verbosity mode.
-            with_smoothing: If True, the statistics are smoothed with a moving window.
-                This also results in the statistics being only reported at specific
-                intervals.
+            verbose: If `True`, the statistics will only be logged in verbosity mode.
+            with_smoothing: If `True`, the statistics are smoothed with a moving window.
+                This also results in the statistics being only reported at specific intervals.
         """
         if verbose and not self.cfg.verbose:
             return
@@ -254,8 +247,7 @@ class Logger:
                 df.to_csv(csv_path, **kw)
 
     def close(self) -> None:
-        """
-        Close the logger.
+        """Close the logger.
 
         This will close the TensorBoard writer and finish the Weights & Biases run.
         """

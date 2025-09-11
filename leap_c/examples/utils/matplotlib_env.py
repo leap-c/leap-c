@@ -14,11 +14,10 @@ from leap_c.utils.latexify import latex_plot_context
 class MatplotlibRenderEnv(abc.ABC, gym.Env):
     """A class for Gymnasium environments to handle Matplotlib rendering.
 
-    This mixin provides the boilerplate for `render()` and `close()` methods.
-    To use it, an environment class must inherit from this mixin and implement
-    two abstract methods:
-        - _render_setup(): For one-time plot initialization.
-        - _render_frame(): For updating the plot on each render call.
+    This mixin provides the boilerplate for `render()` and `close()` methods. To use it, an
+    environment class must inherit from this mixin and implement two abstract methods:
+    - `_render_setup()`: For one-time plot initialization.
+    - `_render_frame()`: For updating the plot on each render call.
 
     The environment must also have a `render_mode` attribute.
 
@@ -30,9 +29,10 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env):
 
     def __init__(self, render_mode: str | None = None, **kwargs):
         """Initializes the environment with a specified render mode.
+
         Args:
             render_mode: The mode in which to render the environment.
-                Can be "human" for interactive display or "rgb_array" for image output.
+                Can be `"human"` for interactive display or `"rgb_array"` for image output.
             **kwargs: Additional keyword arguments for the environment.
         """
         super().__init__(**kwargs)
@@ -46,8 +46,8 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env):
     def render(self) -> np.ndarray | List[np.ndarray] | None:
         """Renders the environment.
 
-        Handles initialization on the first call and delegates to the
-        environment-specific drawing methods.
+        Handles initialization on the first call and delegates to the environment-specific drawing
+        methods.
         """
         with latex_plot_context():
             if self.render_mode is None:
@@ -90,8 +90,7 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env):
 
     @abc.abstractmethod
     def _render_setup(self):
-        """
-        One-time setup for the rendering.
+        """One-time setup for the rendering.
 
         This method should create the figure and axes (e.g., `self.fig, self.ax = plt.subplots()`)
         and draw any static elements of the plot.
@@ -100,8 +99,7 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env):
 
     @abc.abstractmethod
     def _render_frame(self):
-        """
-        Update the plot with the current environment state.
+        """Update the plot with the current environment state.
 
         This method is called on every `render()` call and should update
         dynamic elements like agent position, trajectories, etc.

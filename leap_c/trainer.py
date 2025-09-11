@@ -25,20 +25,20 @@ class TrainerConfig:
     Args:
         seed: The seed for the training.
         train_steps: The number of steps in the training loop.
-        train_start: The number of training steps before training starts
-            (e.g., to collect some data first).
+        train_start: The number of training steps before training starts (e.g., to collect some data
+            first).
         val_freq: The frequency (in steps) at which validation episodes will be run.
         val_num_rollouts: The number of episode rollouts during validation.
         val_deterministic: If True, the policy will act deterministically during validation.
         val_render_mode: The mode in which the episodes will be rendered.
         val_report_score: Whether to report the cummulative score,
             the final evaluation score or the best evaluation score of the validation rollouts.
-        ckpt_modus: Models are potentially saved after each validation.
-            This controls which of the models to save.
-            "best": only the best model according to the validation score is saved.
-            "last": only the model of the last validation is saved.
-            "all": The models of every validation are saved.
-            "none": No models are saved.
+        ckpt_modus: Models are potentially saved after each validation. This controls which of the
+            models to save:
+            - `"best"`: only the best model according to the validation score is saved
+            - `"last"`: only the model of the last validation is saved
+            - `"all"`: the models of every validation are saved
+            - `"none"`: no models are saved.
         log: The configuration for the logger.
     """
 
@@ -148,10 +148,10 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
         For simplicity, we use an Iterator here, to make the training loop as simple as
         possible. To make your own code compatible use the yield statement to return the
-        number of steps your train loop did. If yield does not always return 1, the validation
+        number of steps your train loop did. If yield does not always return `1`, the validation
         might be performed not exactly at the specified interval.
 
-        Returns:
+        Yields:
            The number of steps the training loop did.
         """
         ...
@@ -166,11 +166,10 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
 
         Args:
             obs (Any): The observation for which the action should be determined.
-            deterministic (bool): If True, the action is drawn deterministically.
+            deterministic (bool): If `True`, the action is drawn deterministically.
             state: The state of the policy. Useful, if, e.g., the policy is recurrent or includes
                 an MPC planner which might want to pass warmstarting information.
-                Note, that at the start of an episode, the state
-                assumed to be None.
+                Note, that at the start of an episode, the state is assumed to be `None`.
 
         Returns:
             The action, the state of the policy and potential solving stats.
@@ -192,13 +191,13 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         """Report the statistics of the training loop.
 
         If the statistics are a numpy array, the array is split into multiple
-        statistics of the form `key_{i}`.
+        statistics of the form `"key_{i}"`.
 
         Args:
             group: The group of the statistics.
             stats: The statistics to be reported.
-            verbose: If True, the statistics will only be logged in verbosity mode.
-            with_smoothing: If True, the statistics are smoothed with a moving window.
+            verbose: If `True`, the statistics will only be logged in verbosity mode.
+            with_smoothing: If `True`, the statistics are smoothed with a moving window.
                 This also results in the statistics being only reported at specific
                 intervals.
         """
@@ -255,17 +254,16 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
                 return self.state.max_score
 
     def validate(self) -> float:
-        """Do a deterministic validation run of the policy and return the mean of the
-        cumulative reward over all validation episodes.
+        """Do a deterministic validation run of the policy and return the mean of the cumulative
+        reward over all validation episodes.
 
         Returns:
             The mean return over all validation episodes.
 
         Note:
-            This method neither sets the trainer to eval mode nor disables gradient
-            computations. It is the caller's responsibility to do so via
-            `trainer.eval()` as well as `torch.no_grad` or `torch.inference_mode`
-            context managers.
+            This method neither sets the trainer to eval mode nor disables gradient computations. It
+            is the caller's responsibility to do so via `trainer.eval()` as well as `torch.no_grad`
+            or `torch.inference_mode` context managers.
         """
 
         def create_policy_fn():
@@ -358,11 +356,11 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
     def save(self, path: str | Path | None = None) -> None:
         """Save the trainer state in a checkpoint folder.
 
-        If the path is None, the checkpoint is saved in the output path of the trainer.
-        The state_dict is split into different parts. For example if the trainer has
-        as submodule "pi" and "q", the state_dict is saved separately as "pi.ckpt" and
-        "q.ckpt". Additionally, the optimizers are saved as "optimizers.ckpt" and the
-        trainer state is saved as "trainer_state.ckpt".
+        If the path is `None`, the checkpoint is saved in the output path of the trainer. The
+        `state_dict` is split into different parts. For example if the trainer has as submodule
+        `"pi"` and `"q"`, the `state_dict` is saved separately as `"pi.ckpt"` and `"q.ckpt"`.
+        Additionally, the optimizers are saved as `"optimizers.ckpt"` and the trainer state is saved
+        as `"trainer_state.ckpt"`.
 
         Args:
             path: The folder where to save the checkpoint.
@@ -391,7 +389,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
             torch.save(state_dict, self._ckpt_path("optimizers", "ckpt", path))
 
     def load(self, path: str | Path) -> None:
-        """Loads the state of a trainer from the output_path.
+        """Loads the state of a trainer from disk.
 
         Args:
             path: The path to the checkpoint folder.

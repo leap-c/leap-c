@@ -20,9 +20,9 @@ def pytree_tensor_to(pytree: Any, device: str, tensor_dtype: torch.dtype) -> Any
 class ReplayBuffer(nn.Module):
     """Replay buffer for storing transitions.
 
-    The replay buffer is a deque that stores transitions in a FIFO manner. The buffer has
-    a maximum size, and when the buffer is full, the oldest transitions are discarded
-    when putting in a new one.
+    The replay buffer is a `deque` that stores transitions in a FIFO manner. The buffer has a
+    maximum size, and when the buffer is full, the oldest transitions are discarded when appending a
+    new one.
 
     Attributes:
         buffer: A deque that stores the transitions.
@@ -45,13 +45,11 @@ class ReplayBuffer(nn.Module):
         tensor_dtype: torch.dtype = torch.float32,
         collate_fn_map: dict[Union[tuple, tuple[type, ...]], Callable] | None = None,
     ):
-        """
-        Initialize the replay buffer.
+        """Initialize the replay buffer.
 
         Args:
             buffer_limit: The maximum number of transitions that can be stored in the buffer.
-                If the buffer is full, the oldest transition
-                is discarded when putting in a new one.
+                If the buffer is full, the oldest transition is discarded when appending a new one.
             device: The device to which all sampled tensors will be cast.
             tensor_dtype: The data type to which the sampled tensors will be cast.
             collate_fn_map: The collate function map that informs the buffer how to form batches.
@@ -77,9 +75,8 @@ class ReplayBuffer(nn.Module):
         self.buffer.append(data)
 
     def sample(self, n: int) -> Any:
-        """
-        Sample a mini-batch from the replay buffer,
-        and collate it according to the ``collate`` function.
+        """Sample a mini-batch from the replay buffer, and collate it according to the `collate`
+        function.
 
         Args:
             n: The number of samples to draw.
@@ -88,8 +85,8 @@ class ReplayBuffer(nn.Module):
         return self.collate(mini_batch)
 
     def collate(self, batch: Any) -> Any:
-        """Collate a batch of data according to the collate function map,
-        and move and cast all tensors in the collated batch (must be a pytree structure)
+        """Collate a batch of data according to the collate function map, and move and cast all
+        tensors in the collated batch (must be a pytree structure)
 
         Args:
             batch: The batch of data to collate.
@@ -109,14 +106,14 @@ class ReplayBuffer(nn.Module):
     def get_extra_state(self) -> dict:
         """State of the replay buffer.
 
-        This interface is used by state_dict and load_state_dict of nn.Module.
+        This interface is used by `state_dict` and `load_state_dict` of `nn.Module`.
         """
         return {"buffer": self.buffer}
 
     def set_extra_state(self, state: dict):
         """Set the state dict of the replay buffer.
 
-        This interface is used by state_dict and load_state_dict of nn.Module.
+        This interface is used by `state_dict` and `load_state_dict` of `nn.Module`.
 
         Args:
             state: The state dict to set.

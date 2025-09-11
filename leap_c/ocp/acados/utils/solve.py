@@ -17,22 +17,19 @@ def solve_with_retry(
 ) -> tuple[np.ndarray, dict[str, float]]:
     """Solve a batch of problem instances, and retry in case of failure.
 
-    This function prepares the batch solver by loading the iterate, setting
-    the initial conditions, and configuring the global and stage-wise
-    parameters. If `p_global` or `p_stagewise` is not provided, it will
-    check if the model has default parameters and load them accordingly.
+    This function prepares the batch solver by loading the iterate, setting the initial conditions,
+    and configuring the global and stage-wise parameters. If `p_global` or `p_stagewise` is not
+    provided, it will check if the model has default parameters and load them accordingly.
 
     Args:
         batch_solver: The batch solver to use.
         initializer: The initializer used for retries.
         ocp_iterate: The iterate to load into the batch solver.
-        solver_input: The input data for the solver, which includes initial
-            conditions and parameters.
+        solver_input: Input data for the solver, which includes initial conditions and parameters.
 
     Returns:
-        The status of each solver (status != 0 means failure)
-        and statistics of the solving process, including
-            solving_time, success_rate, and retry_rate.
+        The status of each solver (`status != 0` means failure) and statistics of the solving
+        process, i.e., `"solving_time"`, `"success_rate"`, and `"retry_rate"`.
     """
     batch_size = solver_input.batch_size
 

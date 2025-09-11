@@ -28,8 +28,8 @@ class SacFopTrainerConfig(SacTrainerConfig):
 
     Attributes:
         noise: The type of noise to use for the policy.
-            If "param", the noise is added to the predicted parameters (before the controller),
-            if "action", the noise is added to the predicted actions (after the controller).
+            If `"param"`, the noise is added to the predicted parameters (before the controller);
+            if `"action"`, the noise is added to the predicted actions (after the controller).
         entropy_correction: Whether to use the entropy correction term for the log-probability.
             When using parameter noise, the computed log-probability does not account for the
             transformation through the controller. The entropy correction adds a correction term
@@ -41,7 +41,8 @@ class SacFopTrainerConfig(SacTrainerConfig):
 
 
 class SacFopActorOutput(NamedTuple):
-    """
+    """Output of the SAC-FOP actor.
+
     Attributes:
         param: The predicted parameters (which have been input into the controller).
         log_prob: The log-probability of the distribution that led to the action.
@@ -49,7 +50,7 @@ class SacFopActorOutput(NamedTuple):
             if using parameter noise.
         stats: A dictionary containing several statistics of internal modules.
         action: The action output by the controller.
-        status: The status of the MPC solver (0 if successful).
+        status: The status of the MPC solver (`0` if successful).
         ctx: The context object containing information about the MPC solve.
     """
 
@@ -61,9 +62,7 @@ class SacFopActorOutput(NamedTuple):
     ctx: Any | None
 
     def select(self, mask: torch.Tensor) -> "SacFopActorOutput":
-        """
-        Select a subset of the output based on the given mask. Discards stats and ctx.
-        """
+        """Select a subset of the output based on the given mask. Discards stats and ctx."""
         return SacFopActorOutput(
             self.param[mask],
             self.log_prob[mask],
@@ -75,14 +74,14 @@ class SacFopActorOutput(NamedTuple):
 
 
 class FopActor(nn.Module):
-    """An actor module for SAC-FOP, containing a differentiable MPC layer
-    and injecting noise in the parameter space.
+    """An actor module for SAC-FOP, containing a differentiable MPC layer and injecting noise in the
+    parameter space.
 
     Attributes:
-        controller: The differentiable parameterized controller used to compute actions
-            from parameters.
-        extractor: The feature extractor used to process observations before
-            passing them to the MLP predicting parameters.
+        controller: The differentiable parameterized controller used to compute actions from
+            parameters.
+        extractor: The feature extractor used to process observations before passing them to the MLP
+            predicting parameters.
         mlp: The MLP used to predict the parameters of the controller from the observations.
         correction: Whether to use the entropy correction term for the log-probability.
         squashed_gaussian: The squashed Gaussian distribution used to sample parameters.
@@ -101,13 +100,14 @@ class FopActor(nn.Module):
         controller: ParameterizedController,
         correction: bool = True,
     ):
-        """
+        """Initializes the FOP actor.
+
         Args:
-            extractor: The feature extractor used to process observations before
-                passing them to the MLP predicting parameters.
+            extractor: The feature extractor used to process observations before passing them to the
+                MLP predicting parameters.
             mlp_cfg: The configuration for the MLP used to predict parameters.
-            controller: The differentiable parameterized controller used to compute actions
-                from parameters.
+            controller: The differentiable parameterized controller used to compute actions from
+                parameters.
             correction: Whether to use the entropy correction term for the log-probability.
         """
         super().__init__()
@@ -124,15 +124,15 @@ class FopActor(nn.Module):
 
     def forward(self, obs, ctx=None, deterministic=False) -> SacFopActorOutput:
         """The given observations are passed to the extractor to obtain features.
-        These are used to predict a distribution in the (learnable)
-        parameter space of the controller using the MLP. Afterwards, this parameters are sampled
-        from this distribution, and passed to the controller, which then computes the final actions.
+        These are used to predict a distribution in the (learnable) parameter space of the
+        controller using the MLP. Afterwards, this parameters are sampled from this distribution,
+        and passed to the controller, which then computes the final actions.
 
         Args:
             obs: The observations to compute the actions for.
-            ctx: The optional context object containing information about the
-                previous controller solve. Can be used, e.g., to warm-start the solver.
-            deterministic: If true, use the mean of the distribution instead of sampling.
+            ctx: The optional context object containing information about the previous controller
+                solve. Can be used, e.g., to warm-start the solver.
+            deterministic: If `True`, use the mean of the distribution instead of sampling.
         """
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
@@ -163,13 +163,13 @@ class FopActor(nn.Module):
 
 
 class FoaActor(nn.Module):
-    """An actor module for SAC-FOP, containing a differentiable MPC layer
-    and injecting noise in the action space.
+    """An actor module for SAC-FOP, containing a differentiable MPC layer and injecting noise in the
+    action space.
 
     Attributes:
         controller: The differentiable parameterized controller (MPC) used to compute actions.
-        extractor: The feature extractor used to process observations before
-            passing them to the MLP predicting parameters.
+        extractor: The feature extractor used to process observations before passing them to the MLP
+            predicting parameters.
         mlp: The MLP used to predict the parameters of the controller from the observations.
         parameter_transform: The transformation used to map the MLP output to the parameter space.
             Ensures predicted parameters are within bounds.
@@ -192,14 +192,15 @@ class FoaActor(nn.Module):
         mlp_cfg: MlpConfig,
         controller: ParameterizedController,
     ):
-        """
+        """Instantiate the FOA actor.
+
         Args:
             action_space: The action space this actor should predict actions from.
-            extractor: The feature extractor used to process observations before
-                passing them to the MLP predicting parameters.
+            extractor: The feature extractor used to process observations before passing them to the
+                MLP predicting parameters.
             mlp_cfg: The configuration for the MLP used to predict parameters.
-            controller: The differentiable parameterized controller used to compute actions
-                from parameters.
+            controller: The differentiable parameterized controller used to compute actions from
+                parameters.
         """
         super().__init__()
         self.controller = controller
@@ -226,9 +227,9 @@ class FoaActor(nn.Module):
 
         Args:
             obs: The observations to compute the actions for.
-            ctx: The optional context object containing information
-                about the previous controller solve. Can be used, e.g., to warm-start the solver.
-            deterministic: If true, use the mean of the distribution instead of sampling.
+            ctx: The optional context object containing information about the previous controller
+                solve. Can be used, e.g., to warm-start the solver.
+            deterministic: If `True`, use the mean of the distribution instead of sampling.
         """
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
@@ -250,9 +251,8 @@ class FoaActor(nn.Module):
 
 
 class SacFopTrainer(Trainer[SacFopTrainerConfig]):
-    """
-    A trainer implementing Soft Actor-Critic (SAC)
-    that uses a differentiable controller layer in the policy network (SAC-FOP).
+    """A trainer implementing Soft Actor-Critic (SAC) that uses a differentiable controller layer in
+    the policy network (SAC-FOP).
     Supports variants using parameter noise or action noise. Always uses an action critic.
 
     Attributes:
@@ -264,8 +264,9 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         pi_optim: The optimizer for the policy network.
         log_alpha: The logarithm of the temperature parameter.
         alpha_optim: The optimizer for the temperature parameter.
-            Is None, if the temperature is fixed.
-        target_entropy: The target entropy for the policy. Is None, if the temperature is fixed.
+            If `None`, the temperature is fixed.
+        target_entropy: The target entropy for the policy.
+            If `None`, the temperature is fixed.
         entropy_norm: The normalization factor for the entropy term.
             Normalizes the entropy based on the ratio of parameter and action dimensions.
         buffer: The replay buffer used to store transitions.

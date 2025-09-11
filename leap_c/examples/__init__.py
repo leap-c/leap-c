@@ -42,7 +42,15 @@ ExampleControllerName = Literal[
 
 
 def create_env(env_name: ExampleEnvName, **kw):
-    """Create an environment based on the given name."""
+    """Create an environment based on the given name.
+
+    Args:
+        env_name: Name of the environment.
+        **kw: Additional keyword arguments passed to the environment constructor.
+
+    Returns:
+        An instance of the requested environment.
+    """
     if env_name in ENV_REGISTRY:
         return ENV_REGISTRY[env_name](**kw)
 
@@ -58,6 +66,9 @@ def create_controller(
     Args:
         controller_name: Name of the controller.
         reuse_code_base_dir: Directory to reuse code base from, e.g., generated code.
+
+    Returns:
+        An instance of the requested controller.
     """
     if controller_name not in CONTROLLER_REGISTRY:
         raise ValueError(f"Controller '{controller_name}' is not registered or does not exist.")

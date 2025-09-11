@@ -17,6 +17,16 @@ def default_name(seed: int, tags: list[str] | None = None) -> str:
 
 
 def default_output_path(seed: int, tags: list[str] | None = None) -> Path:
+    """Returns the default path to store experiment outputs, such as logs. Based on the provided
+    seed and tags, a directory name is created.
+
+    Args:
+        seed: The RNG seed used for the experiment.
+        tags: Optional list of tags to include in the directory name.
+
+    Returns:
+        A `Path` to the default output directory.
+    """
     now = datetime.datetime.now()
     date = now.strftime("%Y_%m_%d")
     time = now.strftime("%H_%M_%S")
@@ -25,14 +35,18 @@ def default_output_path(seed: int, tags: list[str] | None = None) -> Path:
 
 
 def default_controller_code_path():
+    """Returns the default path to store compiled controller code.
+
+    Returns:
+        A `Path` to the default directory for compiled controller code.
+    """
     return Path("output/controller_code")
 
 
 def init_run(trainer: Trainer, cfg, output_path: str | Path):
     """Init function to run experiments.
 
-    If the output path already exists, the run will continue from the last
-    checkpoint.
+    If the output path already exists, the run will continue from the last checkpoint.
 
     Args:
         trainer: The trainer for the experiment.

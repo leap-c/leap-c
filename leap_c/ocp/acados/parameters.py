@@ -13,29 +13,27 @@ from leap_c.parameters import Parameter as BaseParameter
 
 @dataclass
 class AcadosParameter:
-    """
-    High-level parameter class for flexible optimization parameter configuration with acados
-    extensions. It provides an interface for defining parameter sets without
-    requiring knowledge of internal CasADi tools or acados interface details.
+    """High-level parameter class for flexible optimization parameter configuration with acados
+    extensions. It provides an interface for defining parameter sets without requiring knowledge of
+    internal CasADi tools or acados interface details.
 
     Attributes:
         name: The name identifier for the parameter.
         default: The parameter's default numerical value(s).
         space: A gym.spaces.Space defining the valid parameter space.
-            Only used for learnable parameters. Defaults to None (unbounded)-
+            Only used for learnable parameters. Defaults to `None` (unbounded).
         interface: Parameter interface type.
-            Either "fix" (fixed values, unchangeable after creation
-            of the solver), "non-learnable" (not exposed to the learning interface,
-            but will be changeable parameters also after creation of the solver),
-            or "learnable" (parameters directly exposed to the learning interface,
-            in particular supporting sensitivities).
-            Defaults to "fix".
+            Either `"fix"` (fixed values, unchangeable after creation of the solver),
+            `"non-learnable"` (not exposed to the learning interface, but will be changeable
+            parameters also after creation of the solver), or `"learnable"` (parameters directly
+            exposed to the learning interface, in particular supporting sensitivities). Defaults to
+            `"fix"`.
         vary_stages: Sorted list (ascending order) of stages at which the parameter varies.
-            Only used for the "learnable" interface. If None, the parameter
-            remains constant across all stages. Defaults to None.
-            Example: If the horizon has 9 stages (0 to 9, including the terminal stage),
-            and vary_stages = [5], then the parameter will have one value for stages 0 to 4,
-            and a different value for stages 5 to 9.
+            Only used for the `"learnable"` interface. If `None`, the parameter remains constant
+            across all stages. `Defaults` to None.
+            Example: If the horizon has `9` stages (`0` to `9`, including the terminal stage),
+            and `vary_stages = [5]`, then the parameter will have one value for stages `0` to `4`,
+            and a different value for stages `5` to `9`.
     """
 
     # Fields from base Parameter class
@@ -58,7 +56,7 @@ class AcadosParameter:
         )
 
     def to_base_parameter(self) -> BaseParameter:
-        """Convert to base Parameter (loses vary_stages information)."""
+        """Convert to base Parameter (loses `vary_stages` information)."""
         return BaseParameter(
             name=self.name,
             default=self.default,
@@ -68,10 +66,10 @@ class AcadosParameter:
 
 
 class AcadosParameterManager:
-    """Manager class for handling acados parameters according to their specifications
-    (e.g., interface).
-    In particular, this handles stage-varying learnable parameters,
-    which is not available out-of-the-box in acados.
+    """Manager class for handling acados parameters according to their specifications (e.g.,
+    interface).
+    In particular, this handles stage-varying learnable parameters, which is not available
+    out-of-the-box in acados.
 
     Attributes:
         parameters: Dictionary of parameter names to AcadosParameter instances.
@@ -82,8 +80,8 @@ class AcadosParameterManager:
         non_learnable_parameters: CasADi struct of non-learnable parameters.
         non_learnable_parameters_default: Default values for non-learnable parameters.
         N_horizon: The horizon length for the ocp.
-        need_indicator: Whether indicator variables exist
-            (for controlling stage-varying learnable parameters).
+        need_indicator: Whether indicator variables exist (for controlling stage-varying learnable
+            parameters).
     """
 
     parameters: dict[str, AcadosParameter]
@@ -254,12 +252,12 @@ class AcadosParameterManager:
                 Not needed if overwrite is provided.
             **overwrite: Overwrite values for specific parameters.
                 The keys should correspond to the parameter names to overwrite.
-                The values need to be np.ndarray with shape (batch_size, N_horizon, pdim),
-                where pdim is the number of dimensions of the parameter to overwrite.
+                The values need to be np.ndarray with shape `(batch_size, N_horizon, pdim)`,
+                where `pdim` is the number of dimensions of the parameter to overwrite.
 
         Returns:
-            np.ndarray: shape (batch_size, N_horizon, np). with np being the number of
-            parameter_values.
+            np.ndarray: shape `(batch_size, N_horizon, np)`. with `np` being the number of
+            `parameter_values`.
         """
         # Infer batch size from overwrite if not provided.
         # Resolve to 1 if empty, will result in one batch sample of default values.
@@ -308,8 +306,8 @@ class AcadosParameterManager:
         self, dtype: type[np.floating[Any]] | type[np.integer[Any]] = np.float32
     ) -> gym.Space:
         """Return the combined Gym space for the learnable parameters.
-        If the parameters do not provide a space themselves, an unbounded
-        Box space with type `dtype` will be filled in for them.
+        If the parameters do not provide a space themselves, an unbounded Box space with type
+        `dtype` will be filled in for them.
 
         Args:
             dtype: The desired data type for the filled-in spaces.
