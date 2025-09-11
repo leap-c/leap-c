@@ -4,12 +4,15 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "leap-c"
-version = "2024.0.0"
+version = "2025.0.0"
 dependencies = ["gymnasium==1.1.1", "scipy==1.15.2", "numpy==2.3.0", "pandas==2.3.0", "PyYAML==6.0.2"]
 
 requires-python = ">=3.11"
-authors = [{ name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" }]
-maintainers = [{ name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" }]
+maintainers = [
+  { name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" },
+  { name = "Jasper Hoffmann", email = "hoffmaja@informatik.uni-freiburg.de" },
+  { name = "Leonard Fichtner", email = "fichtnel@cs.uni-freiburg.de" },
+]
 description = "Learning Predictive Control"
 readme = "README.md"
 license = { file = "LICENSE.txt" }
