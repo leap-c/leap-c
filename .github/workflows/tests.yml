@@ -107,3 +107,9 @@ jobs:
         # Run tests
         pytest -vv -s --cov=leap_c --cov-report=xml --cov-report=term
 
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: coverage.xml
+
+
