@@ -106,4 +106,5 @@ jobs:
         micromamba activate leapc_env
         # Run tests
         pwd
-        pytest tests -vv -s
+        pytest -vv -s --cov=leap_c --cov-report=xml --cov-report=term
+
