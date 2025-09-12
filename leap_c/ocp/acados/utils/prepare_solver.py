@@ -20,11 +20,11 @@ def prepare_batch_solver(
     batch_solver: AcadosOcpBatchSolver,
     ocp_iterate: AcadosOcpFlattenedBatchIterate,
     solver_input: AcadosOcpSolverInput,
-):
-    """Prepare the batch solver such that it can now solve the problem
-    instance given by solver_input, starting from the given ocp_iterate.
-    Also caches the last call, such that repeated calls to this do not incur unnecessary
-    cost by preparing a batch solver multiple times with the same inputs."""
+) -> None:
+    """Prepare the batch solver such that it can now solve the problem instance given by
+    solver_input, starting from the given ocp_iterate.
+    Also caches the last call, such that repeated calls to this do not incur unnecessary cost by
+    preparing a batch solver multiple times with the same inputs."""
     # caching to improve performance
     if batch_solver in _PREPARE_CACHE:
         cached_ocp_iterate, cached_solver_input = _PREPARE_CACHE[batch_solver]
@@ -93,11 +93,10 @@ def prepare_batch_solver_for_backward(
     batch_solver: AcadosOcpBatchSolver,
     ocp_iterate: AcadosOcpFlattenedBatchIterate,
     solver_input: AcadosOcpSolverInput,
-):
+) -> None:
     """Prepare the backward batch solver such that the sensitivities can be retrieved.
-    Also caches the last call, such that repeated calls
-    to this do not incur unnecessary cost by preparing a batch solver multiple times
-    with the same inputs."""
+    Also caches the last call, such that repeated calls to this do not incur unnecessary cost by
+    preparing a batch solver multiple times with the same inputs."""
     if batch_solver in _PREPARE_BACKWARD_CACHE:
         cached_ocp_iterate, cached_solver_input = _PREPARE_BACKWARD_CACHE[batch_solver]
         if cached_ocp_iterate is ocp_iterate and cached_solver_input is solver_input:

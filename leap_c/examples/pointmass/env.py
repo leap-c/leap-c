@@ -162,7 +162,7 @@ class PointMassEnv(MatplotlibRenderEnv):
         self.trajectory_plot = None
         self.agent_plot = None
         self.action_arrow_patch = None
-        self.trajectory = []
+        self.trajectory: list[np.ndarray] = []
 
     def step(self, action: np.ndarray) -> tuple[Any, float, bool, bool, dict]:
         if self.state is None:

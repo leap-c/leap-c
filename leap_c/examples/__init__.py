@@ -1,7 +1,10 @@
 from functools import partial
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
+from gymnasium import Env
+
+from ..controller import ParameterizedController
 from .cartpole.controller import CartPoleController
 from .cartpole.env import CartPoleEnv
 from .chain.controller import ChainController
@@ -41,8 +44,16 @@ ExampleControllerName = Literal[
 ]
 
 
-def create_env(env_name: ExampleEnvName, **kw):
-    """Create an environment based on the given name."""
+def create_env(env_name: ExampleEnvName, **kw: Any) -> Env:
+    """Create an environment based on the given name.
+
+    Args:
+        env_name: Name of the environment.
+        **kw: Additional keyword arguments passed to the environment constructor.
+
+    Returns:
+        An instance of the requested environment.
+    """
     if env_name in ENV_REGISTRY:
         return ENV_REGISTRY[env_name](**kw)
 
@@ -52,12 +63,17 @@ def create_env(env_name: ExampleEnvName, **kw):
 def create_controller(
     controller_name: ExampleControllerName,
     reuse_code_base_dir: Path | None = None,
-):
+    **kw: Any,
+) -> ParameterizedController:
     """Create a controller.
 
     Args:
         controller_name: Name of the controller.
         reuse_code_base_dir: Directory to reuse code base from, e.g., generated code.
+        **kw: Additional keyword arguments passed to the controller constructor.
+
+    Returns:
+        An instance of the requested controller.
     """
     if controller_name not in CONTROLLER_REGISTRY:
         raise ValueError(f"Controller '{controller_name}' is not registered or does not exist.")
@@ -65,10 +81,11 @@ def create_controller(
     controller_class = CONTROLLER_REGISTRY[controller_name]
 
     if reuse_code_base_dir is not None:
-        export_directory = reuse_code_base_dir / f"{controller_name}"
+        export_directory = reuse_code_base_dir / controller_name
+        kw.pop("export_directory", None)  # remove if present
         try:
-            return controller_class(export_directory=export_directory)
+            return controller_class(**kw, export_directory=export_directory)
         except TypeError:
             pass
 
-    return controller_class()
+    return controller_class(**kw)

@@ -6,26 +6,24 @@ from leap_c.autograd.function import DiffFunction
 
 
 def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]:
-    """Creates a PyTorch autograd function from an object implementing
-    NumPy-based forward and backward methods.
+    """Creates a PyTorch autograd function from an object implementing NumPy-based forward and
+    backward methods.
 
-    The `fun` object must implement the `forward` and `backward` methods
-    as described in the `Function` class. During the backward pass, the
-    custom context objects gets the information about which inputs need
-    gradients via `torch_ctx.needs_input_grad`.
+    The `fun` object must implement the `forward` and `backward` methods as described in the
+    `Function` class. During the backward pass, the custom context object gets the information about
+    which inputs need gradients via `torch_ctx.needs_input_grad`.
 
     Args:
         fun: An object implementing `forward(custom_ctx, *args)` and
-            `backward(custom_ctx, *grad_outputs)` methods, where
-            `custom_ctx` is a context object that can be used to store
-            intermediate values for the backward pass.
+            `backward(custom_ctx, *grad_outputs)` methods, where `custom_ctx` is a context object
+            that can be used to store intermediate values for the backward pass.
 
     Returns:
         A PyTorch autograd function, wrapping the object.
 
-    Usage:
-        fn = create_autograd_function(obj)
-        ctx, y = fn(*inputs)
+    Examples:
+        >>> fn = create_autograd_function(obj)
+        >>> ctx, y = fn(*inputs)
     """
 
     class AutogradFunction(torch.autograd.Function):
