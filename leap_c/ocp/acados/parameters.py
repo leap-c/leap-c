@@ -102,6 +102,7 @@ class AcadosParameterManager:
         N_horizon: int,
         casadi_type: Literal["SX", "MX"] = "SX",
     ) -> None:
+        # add parameters to the manager
         if not parameters:
             warn(
                 "Empty parameter list provided to AcadosParamManager. "
@@ -109,8 +110,7 @@ class AcadosParameterManager:
                 UserWarning,
                 stacklevel=2,
             )
-
-        # Validate parameter dimensions before storing
+        # validate parameter dimensions before storing
         for param in parameters:
             if param.default.ndim > 2:
                 raise ValueError(
@@ -118,21 +118,16 @@ class AcadosParameterManager:
                     f"but CasADi only supports arrays up to 2 dimensions. "
                     f"Parameter shape: {param.default.shape}"
                 )
-            if param.space is not None and hasattr(param.space, "low") and param.space.low.ndim > 2:
-                raise ValueError(
-                    f"Parameter '{param.name}' space.low has {param.space.low.ndim} dimensions, "
-                    f"but CasADi only supports arrays up to 2 dimensions. "
-                    f"Lower bound shape: {param.space.low.shape}"
-                )
-            if (
-                param.space is not None
-                and hasattr(param.space, "high")
-                and param.space.high.ndim > 2
-            ):
-                raise ValueError(
-                    f"Parameter '{param.name}' space.high has {param.space.high.ndim} dimensions, "
-                    f"but CasADi only supports arrays up to 2 dimensions. "
-                    f"Upper bound shape: {param.space.high.shape}"
+            if isinstance(param.space, gym.spaces.Box):
+                if param.space.shape != param.default.shape:
+                    raise ValueError(
+                        f"Parameter '{param.name}' has default shape {param.default.shape} "
+                        f"which does not match the shape of the provided space {param.space.shape}."
+                    )
+            else:
+                raise NotImplementedError(
+                    f"Parameter '{param.name}' has space of type {type(param.space)}, "
+                    "but currently only gym.spaces.Box is supported."
                 )
             # Check end_stages convention
             if param.end_stages and param.end_stages[-1] not in [N_horizon - 1, N_horizon]:
@@ -140,7 +135,6 @@ class AcadosParameterManager:
                     f"Parameter '{param.name}' has end_stages {param.end_stages} "
                     f"but the last element must be either {N_horizon - 1} or {N_horizon}."
                 )
-
         self.parameters = {param.name: param for param in parameters}
 
         self.N_horizon = N_horizon
@@ -244,6 +238,12 @@ class AcadosParameterManager:
         for key in self.parameters.keys():
             if self.parameters[key].interface == "non-learnable":
                 self.non_learnable_parameters_default[key] = self.parameters[key].default
+
+    def combine_learnable_parameter_values(
+        self,
+        batch_size: int | None = None,
+    ):
+        pass
 
     def combine_non_learnable_parameter_values(
         self, batch_size: int | None = None, **overwrite: np.ndarray
