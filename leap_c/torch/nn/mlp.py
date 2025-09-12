@@ -5,7 +5,6 @@ from typing import Callable, Literal
 import torch
 import torch.nn as nn
 
-
 Activation = Literal["relu", "tanh", "sigmoid", "leaky_relu"]
 WeightInit = Literal["orthogonal"]
 
@@ -60,9 +59,13 @@ class Mlp(nn.Module):
 
     Attributes:
         activation: The activation function to use in the hidden layers.
-        mlp: The multi-layer perceptron model.
+        mlp: The multi-layer perceptron model. Is None if no hidden layers were set in the config,
+            and a parameter tensor is used instead.
+        param: A parameter tensor of the output size. Is None if hidden layers were set
+            in the config.
     """
 
+    activation: nn.Module
     mlp: nn.Module | None
     param: nn.Parameter | None
 
@@ -75,8 +78,9 @@ class Mlp(nn.Module):
         """Initializes the MLP.
 
         Args:
-            input_sizes: The sizes of the input tensors.
-            output_sizes: The sizes of the output tensors
+            input_sizes: The sizes of the input tensors. Inputs will be concatenated.
+            output_sizes: The sizes of the output tensors.
+                Outputs will be split according to these sizes.
             mlp_cfg: The configuration for the MLP.
         """
         super().__init__()

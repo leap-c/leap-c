@@ -1,19 +1,23 @@
 """Provides a simple Gaussian layer that allows policies to respect action bounds."""
 
-from gymnasium import spaces
 import numpy as np
 import torch
 import torch.nn as nn
+from gymnasium import spaces
 
 
 class BoundedTransform(nn.Module):
     """A bounded transform.
 
-    The output is squashed with a tanh function and then scaled and shifted to match the space.
+    The input is squashed with a tanh function and then scaled and shifted to match the space.
+
+    Attributes:
+        scale: The scale of the transform.
+        loc: The location of the transform (for shifting).
     """
 
-    scale: torch.tensor
-    loc: torch.tensor
+    scale: torch.Tensor
+    loc: torch.Tensor
 
     def __init__(
         self,
@@ -23,7 +27,6 @@ class BoundedTransform(nn.Module):
 
         Args:
             space: The space that the transform is bounded to.
-            padding: The amount of padding to subtract to the bounds.
         """
         super().__init__()
         loc = (space.high + space.low) / 2.0
@@ -36,7 +39,7 @@ class BoundedTransform(nn.Module):
         self.register_buffer("scale", scale)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """Applies the squashing function to the input tensor.
+        """Applies the transformation to the input tensor.
 
         Args:
             x: The input tensor.
@@ -47,8 +50,10 @@ class BoundedTransform(nn.Module):
         x = torch.tanh(x)
         return x * self.scale[None, :] + self.loc[None, :]
 
-    def inverse(self, x: torch.Tensor, padding: float = 0.001) -> tuple[torch.Tensor]:
-        """Applies the inverse squashing function to the input tensor.
+    def inverse(self, x: torch.Tensor, padding: float = 0.001) -> torch.Tensor:
+        """Applies the inverse transformation to the input tensor, i.e., descale, then arctanh.
+        For numerical stability, the input is slightly padded away from the bounds
+        before applying arctanh.
 
         Args:
             x: The input tensor.
@@ -64,13 +69,21 @@ class BoundedTransform(nn.Module):
 
 class SquashedGaussian(nn.Module):
     """A squashed Gaussian.
-
-    The output is sampled from this distribution and then squashed with a tanh function.
+    Samples the output from a Gaussian distribution specified by the input,
+    and then squashes the result with a tanh function.
     Finally, the output of the tanh function is scaled and shifted to match the space.
+
+    Can for example be used to enforce certain action bounds of a stochastic policy.
+
+    Attributes:
+        scale: The scale of the space-fitting transform.
+        loc: The location of the space-fitting transform (for shifting).
     """
 
     scale: torch.Tensor
     loc: torch.Tensor
+    log_std_min: float
+    log_std_max: float
 
     def __init__(
         self,
@@ -81,7 +94,7 @@ class SquashedGaussian(nn.Module):
         """Initializes the SquashedGaussian module.
 
         Args:
-            space: The action space of the environment. Used for constraints.
+            space: Space the output should fit to.
             log_std_min: The minimum value for the logarithm of the standard deviation.
             log_std_max: The maximum value for the logarithm of the standard deviation.
         """
@@ -103,12 +116,15 @@ class SquashedGaussian(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """
         Args:
-            mean: The mean of the distribution.
-            log_std: The logarithm of the standard deviation of the distribution.
-            deterministic: If True, the output will just be tanh(mean), no sampling is taking place.
+            mean: The mean of the normal distribution.
+            log_std: The logarithm of the standard deviation of the normal distribution,
+                of the same shape as the mean (i.e., assuming independent dimensions).
+                Will be clamped according to the attributes of this class.
+            deterministic: If True, the output will just be spacefitting(tanh(mean)),
+                no sampling is taking place.
 
         Returns:
-            An output sampled from the TanhNormal, the log probability of this output
+            An output sampled from the SquashedGaussian, the log probability of this output
             and a statistics dict containing the standard deviation.
         """
         log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
@@ -120,9 +136,7 @@ class SquashedGaussian(nn.Module):
             # reparameterization trick
             y = mean + std * torch.randn_like(mean)
 
-        log_prob = (
-            -0.5 * ((y - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)
-        )
+        log_prob = -0.5 * ((y - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)
 
         y = torch.tanh(y)
 

@@ -1,6 +1,7 @@
+import gymnasium as gym
 import numpy as np
 import pytest
-import gymnasium as gym
+
 from leap_c.parameters import Parameter, ParameterManager
 
 
@@ -10,9 +11,7 @@ def test_parameter_manager_learnable_params():
     params = [
         # Scalar parameters
         Parameter(name="scalar_fix", default=np.array([1.0]), interface="fix"),
-        Parameter(
-            name="scalar_learnable", default=np.array([2.0]), interface="learnable"
-        ),
+        Parameter(name="scalar_learnable", default=np.array([2.0]), interface="learnable"),
         Parameter(
             name="scalar_non_learnable",
             default=np.array([3.0]),
@@ -61,9 +60,7 @@ def test_parameter_manager_no_learnable_params():
     """Test ParameterManager when no parameters are learnable."""
     params = [
         Parameter(name="param1", default=np.array([1.0]), interface="fix"),
-        Parameter(
-            name="param2", default=np.array([2.0, 3.0]), interface="non-learnable"
-        ),
+        Parameter(name="param2", default=np.array([2.0, 3.0]), interface="non-learnable"),
     ]
 
     manager = ParameterManager(params)
@@ -103,9 +100,7 @@ def test_parameter_manager_matrix_support():
 def test_parameter_manager_get_method():
     """Test the get method for retrieving parameters."""
     params = [
-        Parameter(
-            name="test_param", default=np.array([1.0, 2.0]), interface="learnable"
-        ),
+        Parameter(name="test_param", default=np.array([1.0, 2.0]), interface="learnable"),
     ]
 
     manager = ParameterManager(params)
@@ -167,9 +162,7 @@ def test_learnable_params_lower_bound():
         Parameter(
             name="fixed",
             default=np.array([4.0]),
-            space=gym.spaces.Box(
-                low=np.array([0.0]), high=np.array([100.0]), dtype=np.float32
-            ),
+            space=gym.spaces.Box(low=np.array([0.0]), high=np.array([100.0]), dtype=np.float32),
             interface="fix",
         ),
         # Matrix parameter with bounds
@@ -212,9 +205,7 @@ def test_learnable_params_upper_bound():
         Parameter(
             name="fixed",
             default=np.array([4.0]),
-            space=gym.spaces.Box(
-                low=np.array([0.0]), high=np.array([100.0]), dtype=np.float32
-            ),
+            space=gym.spaces.Box(low=np.array([0.0]), high=np.array([100.0]), dtype=np.float32),
             interface="fix",
         ),
         # Matrix parameter with bounds
@@ -257,9 +248,7 @@ def test_learnable_params_bounds_consistency():
         Parameter(
             name="c",
             default=np.array([3.0]),
-            space=gym.spaces.Box(
-                low=np.array([-3.0]), high=np.array([30.0]), dtype=np.float32
-            ),
+            space=gym.spaces.Box(low=np.array([-3.0]), high=np.array([30.0]), dtype=np.float32),
             interface="learnable",
         ),
         Parameter(
@@ -317,9 +306,7 @@ def test_learnable_params_bounds_mixed_bounded_unbounded():
         Parameter(
             name="upper_only",
             default=np.array([3.0]),
-            space=gym.spaces.Box(
-                low=np.array([-np.inf]), high=np.array([100.0]), dtype=np.float32
-            ),
+            space=gym.spaces.Box(low=np.array([-np.inf]), high=np.array([100.0]), dtype=np.float32),
             interface="learnable",
         ),
         # Fully bounded

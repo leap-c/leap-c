@@ -1,26 +1,28 @@
-"""Main script to run experiments."""
+"""Main script to run SAC-FOP experiments."""
 
 from argparse import ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from leap_c.examples import create_env, create_controller
-from leap_c.run import (
-    default_controller_code_path,
-    default_name,
-    default_output_path,
-    init_run,
-)
+from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
+from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
 
 
 @dataclass
 class RunSacFopConfig:
-    """Configuration for running SAC-FOP experiments."""
+    """Configuration for running SAC-FOP experiments.
 
-    env: str = "cartpole"
-    controller: str = "cartpole"
+    Attributes:
+        env: The environment name.
+        controller: The controller name.
+        trainer: The trainer configuration.
+        extractor: The feature extractor to use.
+    """
+
+    env: ExampleEnvName = "cartpole"
+    controller: ExampleControllerName = "cartpole"
     trainer: SacFopTrainerConfig = field(default_factory=SacFopTrainerConfig)
     extractor: ExtractorName = "identity"
 
@@ -36,12 +38,11 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacFopConfig:
     cfg.trainer.seed = seed
     cfg.trainer.train_steps = 1000000 if env == "pointmass" else 200000
     cfg.trainer.train_start = 0
-    cfg.trainer.val_interval = 10000
+    cfg.trainer.val_freq = 10000
     cfg.trainer.val_num_rollouts = 20
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
-    cfg.trainer.val_render_deterministic = True
     cfg.trainer.val_report_score = "cum"
     cfg.trainer.ckpt_modus = "best"
     cfg.trainer.batch_size = 64
@@ -89,6 +90,14 @@ def run_sac_fop(
     device: str = "cuda",
     reuse_code_dir: Path | None = None,
 ) -> float:
+    """
+    Args:
+        cfg: The configuration for running the controller.
+        output_path: The path to save outputs to.
+            If it already exists, the run will continue from the last checkpoint.
+        device: The device to use.
+        reuse_code_dir: The directory to reuse compiled code from, if any.
+    """
     trainer = SacFopTrainer(
         val_env=create_env(cfg.env, render_mode="rgb_array"),
         train_env=create_env(cfg.env),
@@ -144,14 +153,7 @@ if __name__ == "__main__":
         output_path = args.output_path
 
     if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = default_controller_code_path() if args.reuse_code else None
-    elif args.reuse_code_dir is not None:
-        reuse_code_dir = args.reuse_code_dir
-    else:
-        reuse_code_dir = None
-
-    if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = default_controller_code_path() if args.reuse_code else None
+        reuse_code_dir = default_controller_code_path()
     elif args.reuse_code_dir is not None:
         reuse_code_dir = args.reuse_code_dir
     else:

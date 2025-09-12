@@ -1,28 +1,28 @@
 from pathlib import Path
 from typing import Any, NamedTuple
 
-import pandas as pd
 import casadi as ca
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import torch
-from acados_template import ACADOS_INFTY
-from acados_template import AcadosOcp
-from .env import StochasticThreeStateRcEnv, decompose_observation
+from acados_template import ACADOS_INFTY, AcadosOcp
 from scipy.constants import convert_temperature
-from .util import transcribe_discrete_state_space
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.hvac.config import make_default_hvac_params
-from leap_c.ocp.acados.parameters import AcadosParameterManager, AcadosParameter
-from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
 
-from .util import set_temperature_limits
+from .env import StochasticThreeStateRcEnv, decompose_observation
+from .util import set_temperature_limits, transcribe_discrete_state_space
 
 
 class HvacControllerCtx(NamedTuple):
+    """An extension of the AcadosDiffMpcCtx to also store the heater states."""
+
     diff_mpc_ctx: AcadosDiffMpcCtx
     qh: torch.Tensor
     dqh: torch.Tensor
@@ -41,6 +41,44 @@ class HvacControllerCtx(NamedTuple):
 
 
 class HvacController(ParameterizedController):
+    """acados-based controller for the HVAC system.
+    The first part of the state corresponds to the first part of the observation of the
+    StochasticThreeStateRcEnv environment, i.e., the indoor temperature Ti,
+    the radiator temperature Th, and the envelope temperature Te.
+    Appended to this state are the action "qh" from the environment
+    (the heating power of the radiator), and its derivative "dqh". Hence, the action of
+    this controller is "ddqh", the acceleration of the heating power.
+
+    The cost function takes the form of
+        0.25 * price * qh
+        + q_Ti * (ref_Ti - ocp.model.x[0]) ** 2
+        + q_dqh * (dqh) ** 2
+        + q_ddqh * (ddqh) ** 2,
+    i.e., a linear price term combined with weighted quadratic penalties on
+    the room temperature residuals, the rate of change of the heating power,
+    and the acceleration of the heating power.
+
+    The dynamics correspond partly to the dynamics also found in the environment.
+    The differences are:
+    - The dynamics here do not include the noise.
+    - In case the ambient temperature, the solar radiation and the prices are not learned,
+    they are set to a default value, instead of the data being used.
+    - The action "qh" from the environment is part of the state here.
+    To make setting of the radiator heating power smoother,
+    a double integrator is added to the dynamics (hence, the action in this controller is ddqh,
+    the acceleration of the heating power).
+
+    The inequality constraints are box constraints on the room temperature
+    (comfort bounds, soft/slacked), and the heating power qh (hard).
+
+    Attributes:
+        param_manager: For managing the parameters of the OCP.
+        ocp: The AcadosOcp object representing the optimal control problem.
+        diff_mpc: The AcadosDiffMpc object for solving the OCP and computing sensitivities.
+        stagewise: Whether to use stage-wise parameters.
+        collate_fn_map: A mapping for collating contexts in batch processing.
+    """
+
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
@@ -105,9 +143,7 @@ class HvacController(ParameterizedController):
         N_horizon = self.ocp.solver_options.N_horizon
         quarter_hours = np.array(
             [
-                np.arange(
-                    obs[i, 0].cpu().numpy(), obs[i, 0].cpu().numpy() + N_horizon + 1
-                )
+                np.arange(obs[i, 0].cpu().numpy(), obs[i, 0].cpu().numpy() + N_horizon + 1)
                 % N_horizon
                 for i in range(batch_size)
             ]
@@ -115,6 +151,8 @@ class HvacController(ParameterizedController):
 
         lb, ub = set_temperature_limits(quarter_hours=quarter_hours)
 
+        # NOTE: In case we want to pass the data of exogenous influences to the controller,
+        # we can do it here
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             lb_Ti=lb.reshape(batch_size, -1, 1),
             ub_Ti=ub.reshape(batch_size, -1, 1),
@@ -241,8 +279,7 @@ def export_parametric_ocp(
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = (
         0.25 * param_manager.get("price") * qh
-        + param_manager.get("q_Ti")
-        * (param_manager.get("ref_Ti") - ocp.model.x[0]) ** 2
+        + param_manager.get("q_Ti") * (param_manager.get("ref_Ti") - ocp.model.x[0]) ** 2
         + param_manager.get("q_dqh") * (dqh) ** 2
         + param_manager.get("q_ddqh") * (ddqh) ** 2
     )
@@ -250,8 +287,7 @@ def export_parametric_ocp(
     ocp.cost.cost_type_e = "EXTERNAL"
     ocp.model.cost_expr_ext_cost_e = (
         0.25 * param_manager.get("price") * qh
-        + param_manager.get("q_Ti")
-        * (param_manager.get("ref_Ti") - ocp.model.x[0]) ** 2
+        + param_manager.get("q_Ti") * (param_manager.get("ref_Ti") - ocp.model.x[0]) ** 2
         + param_manager.get("q_dqh") * (dqh) ** 2
     )
 
@@ -294,9 +330,7 @@ def _create_base_plot(
 ) -> tuple[plt.Figure, list]:
     """Create base figure and axes for thermal building control plots."""
     fig, axes = plt.subplots(4, 1, figsize=figsize, sharex=True)
-    fig.suptitle(
-        "Thermal Building Control - OCP Solution", fontsize=16, fontweight="bold"
-    )
+    fig.suptitle("Thermal Building Control - OCP Solution", fontsize=16, fontweight="bold")
     return fig, axes
 
 
@@ -338,9 +372,7 @@ def _plot_temperature_subplot(
     ax.set_title("Indoor/Envelope Temperature", fontsize=14, fontweight="bold")
 
 
-def _plot_heater_subplot(
-    ax: plt.Axes, time: np.ndarray, Th_celsius: np.ndarray
-) -> None:
+def _plot_heater_subplot(ax: plt.Axes, time: np.ndarray, Th_celsius: np.ndarray) -> None:
     """Plot heater temperature on given axes."""
     ax.step(time, Th_celsius, "b-", linewidth=2, label="Radiator temp. (Th)")
     ax.set_ylabel("Temperature [°C]", fontsize=12)
@@ -417,9 +449,7 @@ def _plot_control_subplot(
     ax_twin.set_ylim(bottom=0)
 
 
-def _add_summary_stats(
-    fig: plt.Figure, control_input: np.ndarray, ctx: Any = None
-) -> None:
+def _add_summary_stats(fig: plt.Figure, control_input: np.ndarray, ctx: Any = None) -> None:
     """Add summary statistics text to the figure."""
     dt = 900.0  # Time step in seconds (15 minutes)
     total_energy_kWh = control_input.sum() * dt / 3600 / 1000  # Convert to kWh
@@ -509,9 +539,7 @@ def plot_ocp_results(
     return fig
 
 
-def plot_simulation(
-    time: np.ndarray, obs: np.ndarray, action: np.ndarray
-) -> plt.Figure:
+def plot_simulation(time: np.ndarray, obs: np.ndarray, action: np.ndarray) -> plt.Figure:
     """
     Plot simulation results in a figure with four vertically stacked subplots.
 

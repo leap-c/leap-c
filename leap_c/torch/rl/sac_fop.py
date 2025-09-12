@@ -1,9 +1,9 @@
 """Provides a trainer for a Soft Actor-Critic algorithm that uses a differentiable MPC
-layer for the policy network."""
+layer in the policy network."""
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, NamedTuple, Literal, Type
+from typing import Any, Iterator, Literal, NamedTuple, Type
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -13,24 +13,46 @@ import torch.nn as nn
 
 from leap_c.controller import ParameterizedController
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
-from leap_c.torch.nn.gaussian import SquashedGaussian, BoundedTransform
+from leap_c.torch.nn.gaussian import BoundedTransform, SquashedGaussian
 from leap_c.torch.nn.mlp import Mlp, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
-from leap_c.torch.rl.sac import SacTrainerConfig, SacCritic
+from leap_c.torch.rl.sac import SacCritic, SacTrainerConfig
 from leap_c.torch.rl.utils import soft_target_update
 from leap_c.trainer import Trainer
-from leap_c.utils.gym import wrap_env, seed_env
+from leap_c.utils.gym import seed_env, wrap_env
 
 
 @dataclass(kw_only=True)
 class SacFopTrainerConfig(SacTrainerConfig):
-    """Specific settings for the Fop trainer."""
+    """Specific settings for the Fop trainer.
+
+    Attributes:
+        noise: The type of noise to use for the policy.
+            If "param", the noise is added to the predicted parameters (before the controller),
+            if "action", the noise is added to the predicted actions (after the controller).
+        entropy_correction: Whether to use the entropy correction term for the log-probability.
+            When using parameter noise, the computed log-probability does not account for the
+            transformation through the controller. The entropy correction adds a correction term
+            based on the Jacobian of the action with respect to the parameters.
+    """
 
     noise: Literal["param", "action"] = "param"
     entropy_correction: bool = False
 
 
 class SacFopActorOutput(NamedTuple):
+    """
+    Attributes:
+        param: The predicted parameters (which have been input into the controller).
+        log_prob: The log-probability of the distribution that led to the action.
+            NOTE: This log-probability is just a proxy for the true log-probability of the action,
+            if using parameter noise.
+        stats: A dictionary containing several statistics of internal modules.
+        action: The action output by the controller.
+        status: The status of the MPC solver (0 if successful).
+        ctx: The context object containing information about the MPC solve.
+    """
+
     param: torch.Tensor
     log_prob: torch.Tensor
     stats: dict[str, float]
@@ -39,6 +61,9 @@ class SacFopActorOutput(NamedTuple):
     ctx: Any | None
 
     def select(self, mask: torch.Tensor) -> "SacFopActorOutput":
+        """
+        Select a subset of the output based on the given mask. Discards stats and ctx.
+        """
         return SacFopActorOutput(
             self.param[mask],
             self.log_prob[mask],
@@ -50,6 +75,25 @@ class SacFopActorOutput(NamedTuple):
 
 
 class FopActor(nn.Module):
+    """An actor module for SAC-FOP, containing a differentiable MPC layer
+    and injecting noise in the parameter space.
+
+    Attributes:
+        controller: The differentiable parameterized controller used to compute actions
+            from parameters.
+        extractor: The feature extractor used to process observations before
+            passing them to the MLP predicting parameters.
+        mlp: The MLP used to predict the parameters of the controller from the observations.
+        correction: Whether to use the entropy correction term for the log-probability.
+        squashed_gaussian: The squashed Gaussian distribution used to sample parameters.
+    """
+
+    controller: ParameterizedController
+    extractor: Extractor
+    mlp: Mlp
+    correction: bool
+    squashed_gaussian: SquashedGaussian
+
     def __init__(
         self,
         extractor: Extractor,
@@ -57,6 +101,15 @@ class FopActor(nn.Module):
         controller: ParameterizedController,
         correction: bool = True,
     ):
+        """
+        Args:
+            extractor: The feature extractor used to process observations before
+                passing them to the MLP predicting parameters.
+            mlp_cfg: The configuration for the MLP used to predict parameters.
+            controller: The differentiable parameterized controller used to compute actions
+                from parameters.
+            correction: Whether to use the entropy correction term for the log-probability.
+        """
         super().__init__()
         self.controller = controller
         self.extractor = extractor
@@ -70,6 +123,17 @@ class FopActor(nn.Module):
         self.squashed_gaussian = SquashedGaussian(controller.param_space)  # type:ignore
 
     def forward(self, obs, ctx=None, deterministic=False) -> SacFopActorOutput:
+        """The given observations are passed to the extractor to obtain features.
+        These are used to predict a distribution in the (learnable)
+        parameter space of the controller using the MLP. Afterwards, this parameters are sampled
+        from this distribution, and passed to the controller, which then computes the final actions.
+
+        Args:
+            obs: The observations to compute the actions for.
+            ctx: The optional context object containing information about the
+                previous controller solve. Can be used, e.g., to warm-start the solver.
+            deterministic: If true, use the mean of the distribution instead of sampling.
+        """
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
 
@@ -84,9 +148,7 @@ class FopActor(nn.Module):
             j = torch.from_numpy(j).to(param.device)  # type:ignore
             jtj = j @ j.transpose(1, 2)
             correction = (
-                torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device))
-                .sqrt()
-                .log()
+                torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device)).sqrt().log()
             )
             log_prob -= correction.unsqueeze(1)
 
@@ -101,19 +163,49 @@ class FopActor(nn.Module):
 
 
 class FoaActor(nn.Module):
+    """An actor module for SAC-FOP, containing a differentiable MPC layer
+    and injecting noise in the action space.
+
+    Attributes:
+        controller: The differentiable parameterized controller (MPC) used to compute actions.
+        extractor: The feature extractor used to process observations before
+            passing them to the MLP predicting parameters.
+        mlp: The MLP used to predict the parameters of the controller from the observations.
+        parameter_transform: The transformation used to map the MLP output to the parameter space.
+            Ensures predicted parameters are within bounds.
+        action_transform: The transformation used to map the controller output to the action space.
+            Ensures predicted actions are within bounds.
+        squashed_gaussian: The squashed Gaussian distribution used to sample parameters.
+    """
+
+    controller: ParameterizedController
+    extractor: Extractor
+    mlp: Mlp
+    parameter_transform: BoundedTransform
+    action_transform: BoundedTransform
+    squashed_gaussian: SquashedGaussian
+
     def __init__(
         self,
-        env: gym.Env,
+        action_space: gym.spaces.Box,
         extractor: Extractor,
         mlp_cfg: MlpConfig,
         controller: ParameterizedController,
     ):
+        """
+        Args:
+            action_space: The action space this actor should predict actions from.
+            extractor: The feature extractor used to process observations before
+                passing them to the MLP predicting parameters.
+            mlp_cfg: The configuration for the MLP used to predict parameters.
+            controller: The differentiable parameterized controller used to compute actions
+                from parameters.
+        """
         super().__init__()
-        self.env = env
         self.controller = controller
         self.extractor = extractor
         param_dim = controller.param_space.shape[0]  # type:ignore
-        action_dim = env.action_space.shape[0]  # type:ignore
+        action_dim = action_space.shape[0]  # type:ignore
         self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
             output_sizes=(param_dim, action_dim),  # type:ignore
@@ -122,10 +214,22 @@ class FoaActor(nn.Module):
         self.parameter_transform = BoundedTransform(
             self.controller.param_space  # type:ignore
         )  # type:ignore
-        self.action_transform = BoundedTransform(self.env.action_space)  # type:ignore
-        self.squashed_gaussian = SquashedGaussian(self.env.action_space)  # type:ignore
+        self.action_transform = BoundedTransform(action_space)  # type:ignore
+        self.squashed_gaussian = SquashedGaussian(action_space)  # type:ignore
 
     def forward(self, obs, ctx=None, deterministic=False) -> SacFopActorOutput:
+        """The given observations are passed to the extractor to obtain features.
+        These are used by the MLP to predict parameters, as well as a standard deviation.
+        The parameters are passed to the controller to obtain actions. These actions are used
+        together with the standard deviation to define a distribution in the action space.
+        The final actions are then sampled from this distribution.
+
+        Args:
+            obs: The observations to compute the actions for.
+            ctx: The optional context object containing information
+                about the previous controller solve. Can be used, e.g., to warm-start the solver.
+            deterministic: If true, use the mean of the distribution instead of sampling.
+        """
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
         param = self.parameter_transform(mean)
@@ -146,6 +250,39 @@ class FoaActor(nn.Module):
 
 
 class SacFopTrainer(Trainer[SacFopTrainerConfig]):
+    """
+    A trainer implementing Soft Actor-Critic (SAC)
+    that uses a differentiable controller layer in the policy network (SAC-FOP).
+    Supports variants using parameter noise or action noise. Always uses an action critic.
+
+    Attributes:
+        train_env: The training environment.
+        q: The Q-function approximator (critic).
+        q_target: The target Q-function approximator.
+        q_optim: The optimizer for the Q-function.
+        pi: The policy network containing the parameterized controller (the actor).
+        pi_optim: The optimizer for the policy network.
+        log_alpha: The logarithm of the temperature parameter.
+        alpha_optim: The optimizer for the temperature parameter.
+            Is None, if the temperature is fixed.
+        target_entropy: The target entropy for the policy. Is None, if the temperature is fixed.
+        entropy_norm: The normalization factor for the entropy term.
+            Normalizes the entropy based on the ratio of parameter and action dimensions.
+        buffer: The replay buffer used to store transitions.
+    """
+
+    train_env: gym.Env
+    q: SacCritic
+    q_target: SacCritic
+    q_optim: torch.optim.Optimizer
+    pi: FopActor | FoaActor
+    pi_optim: torch.optim.Optimizer
+    log_alpha: nn.Parameter
+    alpha_optim: torch.optim.Optimizer | None
+    target_entropy: float | None
+    entropy_norm: float
+    buffer: ReplayBuffer
+
     def __init__(
         self,
         cfg: SacFopTrainerConfig,
@@ -156,15 +293,15 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         controller: ParameterizedController,
         extractor_cls: Type[Extractor] | ExtractorName = "identity",
     ):
-        """Initializes the SAC FOP trainer.
+        """Initializes the SAC-FOP trainer.
 
         Args:
             cfg: The configuration for the trainer.
             val_env: The validation environment.
             output_path: The path to the output directory.
-            device: The device on which the trainer is running
+            device: The device on which the trainer is running.
             train_env: The training environment.
-            controller: The controller to use for the policy.
+            controller: The controller to use in the policy.
             extractor_cls: The class used for extracting features from observations.
         """
         super().__init__(cfg, val_env, output_path, device)
@@ -175,7 +312,6 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         param_dim = np.prod(param_space.shape)
 
         self.train_env = seed_env(wrap_env(train_env), seed=self.cfg.seed)
-        self.controller = controller
 
         if isinstance(extractor_cls, str):
             extractor_cls = get_extractor_cls(extractor_cls)
@@ -206,7 +342,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             )
         elif cfg.noise == "action":
             self.pi = FoaActor(
-                train_env,
+                train_env.action_space,
                 extractor_cls(observation_space),  # type: ignore
                 cfg.actor_mlp,
                 controller,
@@ -221,9 +357,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         self.entropy_norm = param_dim / action_dim
         if cfg.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)  # type: ignore
-            self.target_entropy = (
-                -action_dim if cfg.target_entropy is None else cfg.target_entropy
-            )
+            self.target_entropy = -action_dim if cfg.target_entropy is None else cfg.target_entropy
         else:
             self.alpha_optim = None
             self.target_entropy = None
@@ -246,26 +380,19 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             obs_batched = self.buffer.collate([obs])
 
             with torch.no_grad():
-                # TODO (Jasper): Argument order is not consistent
                 pi_output: SacFopActorOutput = self.pi(
                     obs_batched, policy_state, deterministic=False
                 )
                 action = pi_output.action.cpu().numpy()[0]
                 param = pi_output.param.cpu().numpy()[0]
 
-            self.report_stats(
-                "train_trajectory", {"param": param, "action": action}, verbose=True
-            )
+            self.report_stats("train_trajectory", {"param": param, "action": action}, verbose=True)
             self.report_stats("train_policy_rollout", pi_output.stats, verbose=True)  # type: ignore
 
-            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(
-                action
-            )
+            obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
 
             if "episode" in info or "task" in info:
-                self.report_stats(
-                    "train", {**info.get("episode", {}), **info.get("task", {})}
-                )
+                self.report_stats("train", {**info.get("episode", {}), **info.get("task", {})})
 
             self.buffer.put(
                 (
@@ -276,7 +403,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                     is_terminated,
                     pi_output.ctx,
                 )
-            )  # type: ignore
+            )
 
             obs = obs_prime
             policy_state = pi_output.ctx
@@ -296,10 +423,9 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
 
                 pi_o_stats = pi_o.stats
 
-                # compute mask
+                # Only use samples where the MPC solver was successful for both
+                # current and next action.
                 mask_status = (pi_o.status == 0) & (pi_o_prime.status == 0)
-
-                # reduce batch
                 o = o[mask_status]
                 a = a[mask_status]
                 r = r[mask_status]
@@ -322,9 +448,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 # update critic
                 alpha = self.log_alpha.exp().item()
                 with torch.no_grad():
-                    q_target = torch.cat(
-                        self.q_target(o_prime, pi_o_prime.action), dim=1
-                    )
+                    q_target = torch.cat(self.q_target(o_prime, pi_o_prime.action), dim=1)
                     q_target = torch.min(q_target, dim=1, keepdim=True).values
 
                     # add entropy
@@ -341,7 +465,6 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 self.q_optim.step()
 
                 # update actor
-                # mask_status = pi_o.status == 0
                 q_pi = torch.cat(self.q(o, pi_o.action), dim=1)
                 min_q_pi = torch.min(q_pi, dim=1).values
                 pi_loss = (alpha * log_p - min_q_pi).mean()

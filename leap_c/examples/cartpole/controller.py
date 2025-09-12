@@ -1,10 +1,10 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import gymnasium as gym
 import numpy as np
-import torch
+from acados_template.acados_ocp import AcadosOcp
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.cartpole.acados_ocp import (
@@ -14,7 +14,7 @@ from leap_c.examples.cartpole.acados_ocp import (
     export_parametric_ocp,
 )
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
-from leap_c.ocp.acados.parameters import AcadosParameterManager, AcadosParameter
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
@@ -27,28 +27,47 @@ class CartPoleControllerConfig:
             The MPC will have N+1 nodes (the nodes 0...N-1 and the terminal
             node N).
         T_horizon: The simulation time between two MPC nodes will equal
-            T_horizon/N_horizon simulation time.
-        Fmax: The maximum force that can be applied to the cart.
+            T_horizon/N_horizon [s] simulation time.
+        Fmax: Bounds of the box constraints on the maximum force that can be
+            applied to the cart [N] (hard constraint)
+        x_threshold: Bounds of the box constraints of the maximum absolute position
+            of the cart [m] (soft/slacked constraint)
         cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
-        param_interface: Determines the exposed parameter interface of the
-            controller.
+        param_interface: Determines the exposed parameter interface of the controller.
     """
 
-    N_horizon: int = 5  # number of steps in the horizon
-    T_horizon: float = 0.25  # duration of the horizon [s]
-    Fmax: float = 80.0  # maximum force that can be applied to the cart [N]
-    x_threshold: float = (
-        2.4  # maximum absolute position of the cart before termination [m]
-    )
+    N_horizon: int = 5
+    T_horizon: float = 0.25
+    Fmax: float = 80.0
+    x_threshold: float = 2.4
 
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS"
     param_interface: CartPoleAcadosParamInterface = "global"
 
 
 class CartPoleController(ParameterizedController):
-    """acados-based controller for CartPole"""
+    """Acados-based controller for CartPole, aka inverted pendulum.
+    The state and action correspond to the observation and action of the CartPole environment.
+    The cost function takes the form of a weighted least-squares cost on the full state and action,
+    and the dynamics correspond to the simulated ODE of the standard CartPole environment
+    (using RK4). The inequality constraints are box constraints on the action and
+    on the cart position.
 
-    collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
+    Attributes:
+        cfg: A configuration object containing high-level settings for the MPC problem,
+            such as horizon length.
+        ocp: The acados ocp object representing the optimal control problem structure.
+        param_manager: For managing the parameters of the ocp.
+        diff_mpc: An object wrapping the acados ocp solver for differentiable MPC solving.
+        collate_fn_map: A mapping for collating AcadosDiffMpcCtx objects in batches.
+    """
+
+    cfg: CartPoleControllerConfig
+    ocp: AcadosOcp
+    param_manager: AcadosParameterManager
+    diff_mpc: AcadosDiffMpc
+
+    collate_fn_map: dict[type, Callable] = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,
@@ -60,10 +79,11 @@ class CartPoleController(ParameterizedController):
 
         Args:
             cfg: A configuration object containing high-level settings for the
-                MPC problem, such as horizon length and maximum force.
-            params: An optional list of `Parameter` objects to define the
-                OCP. If not provided, default parameters for the cart-pole
-                system will be created based on the `cfg.param_interface`.
+                MPC problem, such as horizon length and maximum force. If not provided,
+                a default config is used.
+            params: An optional list of parameters to define the
+                ocp object. If not provided, default parameters for the CartPole
+                system will be created based on the cfg.
             export_directory: An optional directory path where the generated
                 `acados` solver code will be exported.
         """
@@ -78,9 +98,7 @@ class CartPoleController(ParameterizedController):
             else params
         )
 
-        self.param_manager = AcadosParameterManager(
-            parameters=params, N_horizon=self.cfg.N_horizon
-        )
+        self.param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
 
         self.ocp = export_parametric_ocp(
             param_manager=self.param_manager,
@@ -94,13 +112,11 @@ class CartPoleController(ParameterizedController):
 
         self.diff_mpc = AcadosDiffMpc(self.ocp, export_directory=export_directory)
 
-    def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
+    def forward(self, obs, param, ctx=None) -> tuple[Any, np.ndarray]:
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )
-        ctx, u0, x, u, value = self.diff_mpc(
-            obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx
-        )
+        ctx, u0, x, u, value = self.diff_mpc(obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:

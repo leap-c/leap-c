@@ -1,15 +1,15 @@
-from pathlib import Path
 from functools import partial
+from pathlib import Path
+from typing import Literal
 
-from .cartpole.env import CartPoleEnv
 from .cartpole.controller import CartPoleController
-from .chain.env import ChainEnv
+from .cartpole.env import CartPoleEnv
 from .chain.controller import ChainController
-from .pointmass.env import PointMassEnv
-from .pointmass.controller import PointMassController
-from .hvac.env import StochasticThreeStateRcEnv
+from .chain.env import ChainEnv
 from .hvac.controller import HvacController
-
+from .hvac.env import StochasticThreeStateRcEnv
+from .pointmass.controller import PointMassController
+from .pointmass.env import PointMassEnv
 
 ENV_REGISTRY = {
     "cartpole": CartPoleEnv,
@@ -17,7 +17,7 @@ ENV_REGISTRY = {
     "pointmass": PointMassEnv,
     "hvac": StochasticThreeStateRcEnv,
 }
-
+ExampleEnvName = Literal["cartpole", "chain", "pointmass", "hvac"]
 
 CONTROLLER_REGISTRY = {
     "cartpole": CartPoleController,
@@ -29,9 +29,19 @@ CONTROLLER_REGISTRY = {
     "hvac": HvacController,
     "hvac_stagewise": partial(HvacController, stagewise=True),
 }
+ExampleControllerName = Literal[
+    "cartpole",
+    "cartpole_stagewise",
+    "chain",
+    "chain_stagewise",
+    "pointmass",
+    "pointmass_stagewise",
+    "hvac",
+    "hvac_stagewise",
+]
 
 
-def create_env(env_name: str, **kw):
+def create_env(env_name: ExampleEnvName, **kw):
     """Create an environment based on the given name."""
     if env_name in ENV_REGISTRY:
         return ENV_REGISTRY[env_name](**kw)
@@ -40,19 +50,17 @@ def create_env(env_name: str, **kw):
 
 
 def create_controller(
-    controller_name: str,
+    controller_name: ExampleControllerName,
     reuse_code_base_dir: Path | None = None,
 ):
     """Create a controller.
 
     Args:
         controller_name: Name of the controller.
-        reuse_code_base_dir: Directory to reuse code base from.
+        reuse_code_base_dir: Directory to reuse code base from, e.g., generated code.
     """
     if controller_name not in CONTROLLER_REGISTRY:
-        raise ValueError(
-            f"Controller '{controller_name}' is not registered or does not exist."
-        )
+        raise ValueError(f"Controller '{controller_name}' is not registered or does not exist.")
 
     controller_class = CONTROLLER_REGISTRY[controller_name]
 

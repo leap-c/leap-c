@@ -1,6 +1,5 @@
 import torch
 import torch.autograd as autograd
-
 from gymnasium import spaces
 
 
@@ -24,8 +23,9 @@ def min_max_scaling(
 
     Args:
         x: The tensor to normalize.
-        space: The Box space to normalize the tensor to.
-        straight_through: If True, the gradient will be passed through the normalization.
+        space: The Box space to normalize the tensor from.
+        straight_through: If True, the gradient will be passed through the normalization
+            (instead of backpropagating it through the normalization calculations).
 
     Returns:
         The normalized tensor.

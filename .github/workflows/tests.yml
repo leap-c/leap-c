@@ -10,6 +10,10 @@ jobs:
 
   run_tests:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
 
@@ -34,15 +38,6 @@ jobs:
       run: |
         .github/linux/install_tera.sh
 
-    - name: Install micromamba
-      shell: bash
-      run: |
-        "${SHELL}" <(curl -L micro.mamba.pm/install.sh)
-        # Add micromamba to PATH for subsequent steps
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
-        # Initialize micromamba for the shell
-        echo 'eval "$(micromamba shell hook --shell=bash)"' >> $GITHUB_ENV
-
     - name: Export Paths
       working-directory: ${{github.workspace}}
       shell: bash
@@ -51,59 +46,40 @@ jobs:
         echo "ACADOS_INSTALL_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
         echo "LD_LIBRARY_PATH=${{github.workspace}}/leap_c/external/acados/lib" >> $GITHUB_ENV
 
-    - name: Set up Python 3.11
+    - name: Set up Python ${{ matrix.python-version }}
       uses: actions/setup-python@v5
       with:
-        python-version: "3.11"
-
-    - name: Create and activate micromamba environment
-      shell: bash
-      run: |
-        # Source the micromamba activation
-        eval "$(micromamba shell hook --shell=bash)"
-        micromamba create -n leapc_env python=3.11
-        micromamba activate leapc_env
-        echo "PYTHONPATH=$(python -c 'import sys; print(":".join(sys.path))')" >> $GITHUB_ENV
-        # Make activation persistent across steps
-        echo "MICROMAMBA_ACTIVE_ENV=leapc_env" >> $GITHUB_ENV
-        # Set PATH to include the micromamba environment's bin directory
-        echo "$CONDA_PREFIX/bin" >> $GITHUB_PATH
+        python-version: ${{ matrix.python-version }}
 
     - name: Cache pip dependencies
       uses: actions/cache@v4
       with:
         path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        key: ${{ runner.os }}-py${{ matrix.python-version }}-pip-${{ hashFiles('**/pyproject.toml') }}
         restore-keys: |
-          ${{ runner.os }}-pip-
+          ${{ runner.os }}-py${{ matrix.python-version }}-pip-
 
     - name: Install Python interface
       working-directory: ${{github.workspace}}/leap_c/external/acados
       run: |
-        # Activate the micromamba environment
-        eval "$(micromamba shell hook --shell=bash)"
-        micromamba activate leapc_env
-        # Install packages
         pip install --upgrade pip
         pip install interfaces/acados_template
-        # micromamba install -y -c conda-forge pinocchio=3.6.0
 
     - name: Install leap_c
       working-directory: ${{github.workspace}}/leap_c
       run: |
-        # Activate the micromamba environment
-        eval "$(micromamba shell hook --shell=bash)"
-        micromamba activate leapc_env
-        # Install packages
         pip install -e .[test]
         pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
     - name: Run leap_c tests
       working-directory: ${{github.workspace}}/leap_c
       run: |
-        # Activate the micromamba environment
-        eval "$(micromamba shell hook --shell=bash)"
-        micromamba activate leapc_env
-        # Run tests
-        pwd
-        pytest tests -vv -s
+        pytest -vv -s --cov=leap_c --cov-report=xml --cov-report=term
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        files: coverage.xml
+
+

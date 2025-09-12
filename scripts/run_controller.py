@@ -1,22 +1,19 @@
-"""Main script to run controller with default parameters."""
+"""Main script to run the controller with default parameters."""
 
 from argparse import ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Iterator
-import numpy as np
-import gymnasium as gym
 
-from leap_c.examples import create_env, create_controller
-from leap_c.torch.rl.buffer import ReplayBuffer
-from leap_c.run import (
-    default_controller_code_path,
-    default_name,
-    default_output_path,
-    init_run,
-)
-from leap_c.trainer import Trainer, TrainerConfig
+import gymnasium as gym
+import numpy as np
+
+
 from leap_c.controller import ParameterizedController
+from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
+from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
+from leap_c.torch.rl.buffer import ReplayBuffer
+from leap_c.trainer import Trainer, TrainerConfig
 
 
 @dataclass
@@ -30,15 +27,26 @@ class ControllerTrainerConfig(TrainerConfig):
 
 @dataclass
 class RunControllerConfig:
-    """Configuration for running controller experiments."""
+    """Configuration for running controller experiments.
 
-    env: str = "cartpole"
-    controller: str = "cartpole"
+    Attributes:
+        env: The environment name.
+        controller: The controller name.
+        trainer: The trainer configuration.
+    """
+
+    env: ExampleEnvName = "cartpole"
+    controller: ExampleControllerName = "cartpole"
     trainer: ControllerTrainerConfig = field(default_factory=ControllerTrainerConfig)
 
 
 class ControllerTrainer(Trainer[ControllerTrainerConfig]):
-    """A trainer that just runs the controller with default parameters."""
+    """A trainer that just runs the controller with default parameters, without any training.
+
+    Attributes:
+        controller: The parameterized controller to use.
+        collate_fn: The function used to collate observations and actions.
+    """
 
     def __init__(
         self,
@@ -48,6 +56,15 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
         device: str,
         controller: ParameterizedController,
     ):
+        """
+
+        Args:
+            cfg: The trainer configuration.
+            val_env: The validation environment.
+            output_path: The path to save outputs to.
+            device: The device to use.
+            controller: The parameterized controller to use.
+        """
         super().__init__(cfg, val_env, output_path, device)
         self.controller = controller
 
@@ -61,7 +78,7 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
     def act(
         self, obs, deterministic: bool = False, state=None
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
-        """Use controller with default parameters."""
+        """Use the controller with default parameters."""
         obs_batched = self.collate_fn([obs])
 
         default_param = self.controller.default_param(obs)
@@ -90,7 +107,6 @@ def create_cfg(env: str, controller: str, seed: int) -> RunControllerConfig:
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
-    cfg.trainer.val_render_deterministic = True
     cfg.trainer.val_report_score = "cum"
     cfg.trainer.ckpt_modus = "none"  # No checkpoints needed
 
@@ -112,11 +128,16 @@ def run_controller(
     device: str = "cpu",
     reuse_code_dir: Path | None = None,
 ) -> float:
+    """
+    Args:
+        cfg: The configuration for running the controller.
+        output_path: The path to save outputs to.
+        device: The device to use.
+        reuse_code_dir: The directory to reuse compiled code from, if any.
+    """
     trainer = ControllerTrainer(
         val_env=create_env(cfg.env, render_mode="rgb_array"),
-        controller=create_controller(
-            cfg.controller, reuse_code_base_dir=reuse_code_dir
-        ),
+        controller=create_controller(cfg.controller, reuse_code_base_dir=reuse_code_dir),
         output_path=output_path,
         device=device,
         cfg=cfg.trainer,

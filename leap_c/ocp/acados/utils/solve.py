@@ -1,12 +1,12 @@
 import time
 
+import numpy as np
 from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
-import numpy as np
 
+from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver
-from leap_c.ocp.acados.data import AcadosOcpSolverInput
 
 
 def solve_with_retry(
@@ -15,7 +15,7 @@ def solve_with_retry(
     ocp_iterate: AcadosOcpFlattenedBatchIterate | None,
     solver_input: AcadosOcpSolverInput,
 ) -> tuple[np.ndarray, dict[str, float]]:
-    """Solve a batch of ocps, and retries in case of divergence.
+    """Solve a batch of problem instances, and retry in case of failure.
 
     This function prepares the batch solver by loading the iterate, setting
     the initial conditions, and configuring the global and stage-wise
@@ -30,7 +30,9 @@ def solve_with_retry(
             conditions and parameters.
 
     Returns:
-        The solving stats.
+        The status of each solver (status != 0 means failure)
+        and statistics of the solving process, including
+            solving_time, success_rate, and retry_rate.
     """
     batch_size = solver_input.batch_size
 
