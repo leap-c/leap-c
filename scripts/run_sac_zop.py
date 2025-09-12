@@ -131,9 +131,7 @@ if __name__ == "__main__":
         cfg.trainer.log.wandb_init_kwargs = {
             "entity": args.wandb_entity,
             "project": args.wandb_project,
-            "name": default_name(
-                args.seed, tags=["sac_zop", args.env, args.controller]
-            ),
+            "name": default_name(args.seed, tags=["sac_zop", args.env, args.controller]),
             "config": config_dict,
         }
 
