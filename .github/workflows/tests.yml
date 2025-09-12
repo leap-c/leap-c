@@ -74,7 +74,8 @@ jobs:
     - name: Run leap_c tests
       working-directory: ${{github.workspace}}/leap_c
       run: |
-        pytest -vv -s --cov=leap_c --cov-report=xml --cov-report=term
+        # pytest -vv -s --cov=leap_c --cov-report=xml --cov-report=term
+        pytest --cov --cov-branch --cov-report=xml
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
