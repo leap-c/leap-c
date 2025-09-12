@@ -198,6 +198,8 @@ class Logger:
             return
 
         if self.cfg.wandb_logger and not self._wandb_defined_metrics.get(group, False):
+            import wandb
+
             wandb.define_metric(f"{group}/*", f"{group}/step")
             self._wandb_defined_metrics[group] = True
 

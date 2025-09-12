@@ -8,7 +8,6 @@ from typing import Any, Iterator
 import gymnasium as gym
 import numpy as np
 
-
 from leap_c.controller import ParameterizedController
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
@@ -186,9 +185,7 @@ if __name__ == "__main__":
         cfg.trainer.log.wandb_init_kwargs = {
             "entity": args.wandb_entity,
             "project": args.wandb_project,
-            "name": default_name(
-                args.seed, tags=["controller", args.env, args.controller]
-            ),
+            "name": default_name(args.seed, tags=["controller", args.env, args.controller]),
             "config": config_dict,
         }
 
