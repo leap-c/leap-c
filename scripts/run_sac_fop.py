@@ -134,20 +134,6 @@ if __name__ == "__main__":
     cfg.trainer.seed = args.seed
 
     if args.output_path is None:
-        output_path = default_output_path(
-            seed=args.seed, tags=["sac_fop", args.env, args.controller]
-        )
-    else:
-        output_path = args.output_path
-
-    if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = default_controller_code_path() if args.reuse_code else None
-    elif args.reuse_code_dir is not None:
-        reuse_code_dir = args.reuse_code_dir
-    else:
-        reuse_code_dir = None
-
-    if args.output_path is None:
         trainer_output_path = default_output_path(
             seed=args.seed, tags=["sac_fop", args.env, args.controller]
         )
@@ -155,7 +141,7 @@ if __name__ == "__main__":
         trainer_output_path = args.output_path
 
     if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = default_controller_code_path() if args.reuse_code else None
+        reuse_code_dir = default_controller_code_path()
     elif args.reuse_code_dir is not None:
         reuse_code_dir = args.reuse_code_dir
     else:

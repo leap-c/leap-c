@@ -253,7 +253,7 @@ class PointMassEnv(MatplotlibRenderEnv):
             horizontalalignment="center",
             verticalalignment="center_baseline",
             zorder=3,
-            label="Start ($\odot$)",
+            label=r"Start ($\odot$)",
         )
         self._ax.plot([], [], "ko", marker=r"$\odot$", markersize=10, label="Start", zorder=3)
         self._ax.text(
@@ -265,7 +265,7 @@ class PointMassEnv(MatplotlibRenderEnv):
             horizontalalignment="center",  # Center the symbol horizontally
             verticalalignment="center_baseline",  # Center the symbol vertically
             zorder=3,  # Ensure it's drawn prominently
-            label="Goal ($\otimes$)",  # Optional: Update label for legend
+            label=r"Goal ($\otimes$)",  # Optional: Update label for legend
         )
         self._ax.plot([], [], "ko", marker=r"$\otimes$", markersize=10, label="Goal", zorder=3)
 
