@@ -19,6 +19,6 @@ jobs:
           pip install ruff
       # Update output format to enable automatic inline annotations.
       - name: Check Ruff Linting violations
-        run: ruff check --output-format=github .
+        run: ruff check --config pyproject.toml --output-format=github .
       - name: Check Ruff Formatting violations
         run: ruff format --diff .
