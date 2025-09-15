@@ -18,8 +18,9 @@ from leap_c.torch.nn.mlp import Mlp, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.sac import SacCritic, SacTrainerConfig
 from leap_c.torch.rl.utils import soft_target_update
+from leap_c.torch.utils.seed import mk_seed
 from leap_c.trainer import Trainer
-from leap_c.utils.gym import wrap_env
+from leap_c.utils.gym import seed_env, wrap_env
 
 
 @dataclass(kw_only=True)
@@ -373,7 +374,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
 
         while True:
             if is_terminated or is_truncated:
-                obs, _ = self.train_env.reset(options={"mode": "train"})
+                obs, _ = seed_env(self.train_env, mk_seed(self.rng), {"mode": "train"})
                 policy_state = None
                 is_terminated = is_truncated = False
 
