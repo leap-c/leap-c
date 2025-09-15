@@ -294,6 +294,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
             render_human=False,
             video_folder=self.output_path / "video",
             name_prefix=f"{self.state.step}",
+            rng=self.rng,
         )
 
         for r, p in rollouts:

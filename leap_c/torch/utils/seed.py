@@ -1,8 +1,13 @@
 import random
+from collections.abc import Sequence
+from typing import TypeAlias
 
 import numpy as np
 import torch
 
+RngType: TypeAlias = (
+    int | Sequence[int] | np.random.SeedSequence | np.random.BitGenerator | np.random.Generator
+)
 MAX_SEED = np.iinfo(np.uint32).max + 1
 
 
