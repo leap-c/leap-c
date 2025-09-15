@@ -10,7 +10,7 @@ from torch import nn
 from yaml import safe_dump
 
 from leap_c.torch.utils.seed import set_seed
-from leap_c.utils.gym import WrapperType, seed_env, wrap_env
+from leap_c.utils.gym import WrapperType, wrap_env
 from leap_c.utils.logger import Logger, LoggerConfig
 from leap_c.utils.rollout import episode_rollout
 
@@ -127,7 +127,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
-        self.eval_env = seed_env(wrap_env(eval_env, wrappers=wrappers), seed=self.cfg.seed)
+        self.eval_env = wrap_env(eval_env, wrappers=wrappers)
 
         # trainer state
         self.state = TrainerState()
