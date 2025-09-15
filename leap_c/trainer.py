@@ -140,7 +140,7 @@ class Trainer(ABC, nn.Module, Generic[TrainerConfigType]):
             safe_dump(asdict(self.cfg), f)
 
         # seed
-        set_seed(self.cfg.seed)
+        self.rng = set_seed(self.cfg.seed)
 
     @abstractmethod
     def train_loop(self) -> Iterator[int]:
