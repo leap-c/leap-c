@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator, Type
+from typing import Generator, Type
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -36,8 +36,8 @@ class SacTrainerConfig(TrainerConfig):
         lr_alpha: The learning rate for the temperature parameter.
             Can be set to None to avoid updating the temperature.
         init_alpha: The initial temperature parameter.
-        target_entropy: The minimum target entropy for the policy. If None, it
-            is set automatically depending on dimensions of the action space.
+        target_entropy: The minimum target entropy for the policy.
+            If `None`, it is set automatically depending on dimensions of the action space.
         entropy_reward_bonus: Whether to add an entropy bonus to the reward.
         num_critics: The number of critic networks.
         report_loss_freq: The frequency of reporting the loss (in steps).
@@ -64,8 +64,7 @@ class SacTrainerConfig(TrainerConfig):
 
 class SacCritic(nn.Module):
     """A critic network for Soft Actor-Critic (SAC).
-    Consists of multiple Q-networks that estimate the expected return for given
-    state-action pairs.
+    Consists of multiple Q-networks that estimate the expected return for given state-action pairs.
 
     Attributes:
         extractor: A list of feature extractors for the observations.
@@ -84,8 +83,9 @@ class SacCritic(nn.Module):
         observation_space: spaces.Space,
         mlp_cfg: MlpConfig,
         num_critics: int,
-    ):
-        """
+    ) -> None:
+        """Initializes the SAC critic network.
+
         Args:
             extractor_cls: The class used for extracting features from observations.
             action_space: The action space of the environment (used for normalizing the actions).
@@ -117,13 +117,12 @@ class SacCritic(nn.Module):
 
 
 class SacActor(nn.Module):
-    """
-    An actor network for Soft Actor-Critic (SAC).
+    """An actor network for Soft Actor-Critic (SAC).
 
     Attributes:
         extractor: A feature extractor for the observations.
-        mlp: A multi-layer perceptron (MLP) that outputs the mean and log standard deviation
-            for the action distribution.
+        mlp: A multi-layer perceptron (MLP) that outputs the mean and log standard deviation for the
+            action distribution.
         squashed_gaussian: A module that samples actions from a squashed Gaussian distribution.
     """
 
@@ -137,8 +136,9 @@ class SacActor(nn.Module):
         action_space: spaces.Box,
         observation_space: spaces.Space,
         mlp_cfg: MlpConfig,
-    ):
-        """
+    ) -> None:
+        """Initializes the SAC actor network.
+
         Args:
             extractor_cls: The class used for extracting features from observations.
             action_space: The action space this actor should predict actions from.
@@ -157,7 +157,9 @@ class SacActor(nn.Module):
         )
         self.squashed_gaussian = SquashedGaussian(action_space)
 
-    def forward(self, obs: torch.Tensor, deterministic=False):
+    def forward(
+        self, obs: torch.Tensor, deterministic: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """The given observations are passed to the extractor to obtain features.
         These are used by the MLP to predict a mean, as well as a standard deviation.
         Those are used to define a distribution in the action space.
@@ -165,9 +167,9 @@ class SacActor(nn.Module):
 
         Args:
             obs: The observations to compute the actions for.
-            ctx: The optional context object containing information
-                about the previous controller solve. Can be used, e.g., to warm-start the solver.
-            deterministic: If true, use the mean of the distribution instead of sampling.
+            ctx: The optional context object containing information about the previous controller
+                solve. Can be used, e.g., to warm-start the solver.
+            deterministic: If `True`, use the mean of the distribution instead of sampling.
         """
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
@@ -188,10 +190,10 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         pi: The policy network (the actor).
         pi_optim: The optimizer for the policy network.
         log_alpha: The logarithm of the temperature parameter.
-        alpha_optim: The optimizer for the temperature parameter. Is None,
-            if the temperature is fixed.
-        target_entropy: The target entropy for the policy. Is None,
-            if the temperature is fixed.
+        alpha_optim: The optimizer for the temperature parameter.
+            If `None`, the temperature is fixed.
+        target_entropy: The target entropy for the policy.
+            If `None`, the temperature is fixed.
         buffer: The replay buffer used for storing and sampling experiences.
     """
 
@@ -214,7 +216,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         device: str,
         train_env: gym.Env,
         extractor_cls: Type[Extractor] | ExtractorName = "identity",
-    ):
+    ) -> None:
         """Initializes the trainer with a configuration, output path, and device.
 
         Args:
@@ -266,7 +268,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
 
         self.buffer = ReplayBuffer(cfg.buffer_size, device=device)
 
-    def train_loop(self) -> Iterator[int]:
+    def train_loop(self) -> Generator[int, None, None]:
         is_terminated = is_truncated = True
 
         while True:
@@ -362,10 +364,10 @@ class SacTrainer(Trainer[SacTrainerConfig]):
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
-        if self.alpha_optim is None:
-            return [self.q_optim, self.pi_optim]
-
-        return [self.q_optim, self.pi_optim, self.alpha_optim]
+        optimizers = [self.q_optim, self.pi_optim]
+        if self.alpha_optim is not None:
+            optimizers.append(self.alpha_optim)
+        return optimizers
 
     def periodic_ckpt_modules(self) -> list[str]:
         return ["q", "pi", "q_target", "log_alpha"]

@@ -1,38 +1,55 @@
 """Module for running experiments."""
 
 import datetime
+from collections.abc import Iterable
 from pathlib import Path
+from typing import Any
 
 import leap_c
 from leap_c.trainer import Trainer
 from leap_c.utils.cfg import cfg_as_python
 from leap_c.utils.git import log_git_hash_and_diff
 
+OUTPUT_DIR = Path("output")
 
-def default_name(seed: int, tags: list[str] | None = None) -> str:
+
+def default_name(seed: int, tags: Iterable[Any] | None = None) -> str:
     """Generate a default name for the run based on the seed and optional tags."""
-    tags = tags or []
-    tags.extend(["seed", seed])
-    return "_".join([str(v) for v in tags])
+    if tags is None:
+        return f"seed_{seed}"
+    return "_".join(map(str, tags)) + f"_seed_{seed}"
 
 
-def default_output_path(seed: int, tags: list[str] | None = None) -> Path:
+def default_output_path(seed: int, tags: Iterable[Any] | None = None) -> Path:
+    """Returns the default path to store experiment outputs, such as logs. Based on the provided
+    seed and tags, a directory name is created.
+
+    Args:
+        seed: The RNG seed used for the experiment.
+        tags: Optional iterable of tags to include in the directory name.
+
+    Returns:
+        A `Path` to the default output directory.
+    """
     now = datetime.datetime.now()
     date = now.strftime("%Y_%m_%d")
     time = now.strftime("%H_%M_%S")
-
-    return Path(f"output/{date}/{time}_{default_name(seed, tags)}")
-
-
-def default_controller_code_path():
-    return Path("output/controller_code")
+    return OUTPUT_DIR / date / f"{time}_{default_name(seed, tags)}"
 
 
-def init_run(trainer: Trainer, cfg, output_path: str | Path):
+def default_controller_code_path() -> Path:
+    """Returns the default path to store compiled controller code.
+
+    Returns:
+        A `Path` to the default directory for compiled controller code.
+    """
+    return OUTPUT_DIR / "controller_code"
+
+
+def init_run(trainer: Trainer, cfg, output_path: str | Path) -> None:
     """Init function to run experiments.
 
-    If the output path already exists, the run will continue from the last
-    checkpoint.
+    If the output path already exists, the run will continue from the last checkpoint.
 
     Args:
         trainer: The trainer for the experiment.

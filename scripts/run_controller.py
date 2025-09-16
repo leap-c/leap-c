@@ -3,7 +3,7 @@
 from argparse import ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Generator
 
 import gymnasium as gym
 import numpy as np
@@ -70,7 +70,7 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
         buffer = ReplayBuffer(1, device, collate_fn_map=controller.collate_fn_map)
         self.collate_fn = buffer.collate
 
-    def train_loop(self) -> Iterator[int]:
+    def train_loop(self) -> Generator[int, None, None]:
         """No training - just return immediately."""
         yield 1
 
@@ -111,8 +111,8 @@ def create_cfg(env: str, controller: str, seed: int) -> RunControllerConfig:
 
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
-    cfg.trainer.log.interval = 1000
-    cfg.trainer.log.window = 10000
+    cfg.trainer.log.interval = 1_000
+    cfg.trainer.log.window = 10_000
     cfg.trainer.log.csv_logger = True
     cfg.trainer.log.tensorboard_logger = True
     cfg.trainer.log.wandb_logger = False
@@ -196,9 +196,4 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
-    run_controller(
-        cfg,
-        output_path,
-        device=args.device,
-        reuse_code_dir=reuse_code_dir,
-    )
+    run_controller(cfg, output_path, device=args.device, reuse_code_dir=reuse_code_dir)

@@ -31,23 +31,23 @@ def episode_rollout(
         policy (Callable): The policy to be used for the rollout.
         env (Env): The gym environment.
         episodes (int): The number of episodes to run.
-        render_episodes (int): The number of episodes to render. If 0, no episodes will be rendered.
-        render_human (bool): If True, render the environment in human mode.
+        render_episodes (int): Number of episodes to render. If `0`, no episodes will be rendered.
+        render_human (bool): If `True`, render the environment in human mode.
             The environment render mode should then also be human render mode.
-            Can not be true if video_path is set.
-        video_folder (Optional[str | Path]): The environment is rendered and saved as a
-            video in this folder. Can not be set if render_human is True.
-        name_prefix (Optional[str]): The prefix for the video file names. Must be set if
-            video_folder is set.
+            Can not be `True` if `video_path` is provided.
+        video_folder (str | Path, optional): The environment is rendered and saved as a
+            video in this folder. Can not be set if `render_human` is `True`.
+        name_prefix (str, optional): The prefix for the video file names. Must be provided if
+            `video_folder` is provided.
 
     Yields:
-        The first dictionary containing the information about the rollout,
-        at least containing the keys
-        "score": The cumulative reward of the episode,
-        "length": The length of the episode,
-        "terminated": Whether it terminated,
-        "truncated": Whether it truncated,
-        "inference_time": The average inference time of the policy per step.
+        The first dictionary containing the information about the rollout, at least containing the
+        following keys:
+         - `"score"`: The cumulative reward of the episode,
+         - `"length"`: The length of the episode,
+         - `"terminated"`: Whether it terminated,
+         - `"truncated"`: Whether it truncated,
+         - `"inference_time"`: The average inference time of the policy per step.
         The second dictionary containing statistics returned by the policy.
     """
     if (

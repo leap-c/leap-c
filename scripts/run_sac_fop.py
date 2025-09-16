@@ -36,9 +36,9 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacFopConfig:
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = seed
-    cfg.trainer.train_steps = 1000000 if env == "pointmass" else 200000
+    cfg.trainer.train_steps = 1_000_000 if env == "pointmass" else 200_000
     cfg.trainer.train_start = 0
-    cfg.trainer.val_freq = 10000
+    cfg.trainer.val_freq = 10_000
     cfg.trainer.val_num_rollouts = 20
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 0
@@ -46,7 +46,7 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacFopConfig:
     cfg.trainer.val_report_score = "cum"
     cfg.trainer.ckpt_modus = "best"
     cfg.trainer.batch_size = 64
-    cfg.trainer.buffer_size = 1000000
+    cfg.trainer.buffer_size = 1_000_000
     cfg.trainer.gamma = 0.99
     cfg.trainer.tau = 0.005
     cfg.trainer.soft_update_freq = 1
@@ -64,8 +64,8 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacFopConfig:
 
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
-    cfg.trainer.log.interval = 1000
-    cfg.trainer.log.window = 10000
+    cfg.trainer.log.interval = 1_000
+    cfg.trainer.log.window = 10_000
     cfg.trainer.log.csv_logger = True
     cfg.trainer.log.tensorboard_logger = True
     cfg.trainer.log.wandb_logger = False
@@ -157,9 +157,4 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
-    run_sac_fop(
-        cfg=cfg,
-        output_path=output_path,
-        device=args.device,
-        reuse_code_dir=reuse_code_dir,
-    )
+    run_sac_fop(cfg=cfg, output_path=output_path, device=args.device, reuse_code_dir=reuse_code_dir)

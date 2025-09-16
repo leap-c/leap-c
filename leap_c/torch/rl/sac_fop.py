@@ -3,7 +3,7 @@ layer in the policy network."""
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator, Literal, NamedTuple, Type
+from typing import Any, Generator, Literal, NamedTuple, Type
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -29,8 +29,8 @@ class SacFopTrainerConfig(SacTrainerConfig):
 
     Attributes:
         noise: The type of noise to use for the policy.
-            If "param", the noise is added to the predicted parameters (before the controller),
-            if "action", the noise is added to the predicted actions (after the controller).
+            If `"param"`, the noise is added to the predicted parameters (before the controller);
+            if `"action"`, the noise is added to the predicted actions (after the controller).
         entropy_correction: Whether to use the entropy correction term for the log-probability.
             When using parameter noise, the computed log-probability does not account for the
             transformation through the controller. The entropy correction adds a correction term
@@ -42,7 +42,8 @@ class SacFopTrainerConfig(SacTrainerConfig):
 
 
 class SacFopActorOutput(NamedTuple):
-    """
+    """Output of the SAC-FOP actor.
+
     Attributes:
         param: The predicted parameters (which have been input into the controller).
         log_prob: The log-probability of the distribution that led to the action.
@@ -50,7 +51,7 @@ class SacFopActorOutput(NamedTuple):
             if using parameter noise.
         stats: A dictionary containing several statistics of internal modules.
         action: The action output by the controller.
-        status: The status of the MPC solver (0 if successful).
+        status: The status of the MPC solver (`0` if successful).
         ctx: The context object containing information about the MPC solve.
     """
 
@@ -62,9 +63,7 @@ class SacFopActorOutput(NamedTuple):
     ctx: Any | None
 
     def select(self, mask: torch.Tensor) -> "SacFopActorOutput":
-        """
-        Select a subset of the output based on the given mask. Discards stats and ctx.
-        """
+        """Select a subset of the output based on the given mask. Discards stats and ctx."""
         return SacFopActorOutput(
             self.param[mask],
             self.log_prob[mask],
@@ -76,14 +75,14 @@ class SacFopActorOutput(NamedTuple):
 
 
 class FopActor(nn.Module):
-    """An actor module for SAC-FOP, containing a differentiable MPC layer
-    and injecting noise in the parameter space.
+    """An actor module for SAC-FOP, containing a differentiable MPC layer and injecting noise in the
+    parameter space.
 
     Attributes:
-        controller: The differentiable parameterized controller used to compute actions
-            from parameters.
-        extractor: The feature extractor used to process observations before
-            passing them to the MLP predicting parameters.
+        controller: The differentiable parameterized controller used to compute actions from
+            parameters.
+        extractor: The feature extractor used to process observations before passing them to the MLP
+            predicting parameters.
         mlp: The MLP used to predict the parameters of the controller from the observations.
         correction: Whether to use the entropy correction term for the log-probability.
         squashed_gaussian: The squashed Gaussian distribution used to sample parameters.
@@ -101,14 +100,15 @@ class FopActor(nn.Module):
         mlp_cfg: MlpConfig,
         controller: ParameterizedController,
         correction: bool = True,
-    ):
-        """
+    ) -> None:
+        """Initializes the FOP actor.
+
         Args:
-            extractor: The feature extractor used to process observations before
-                passing them to the MLP predicting parameters.
+            extractor: The feature extractor used to process observations before passing them to the
+                MLP predicting parameters.
             mlp_cfg: The configuration for the MLP used to predict parameters.
-            controller: The differentiable parameterized controller used to compute actions
-                from parameters.
+            controller: The differentiable parameterized controller used to compute actions from
+                parameters.
             correction: Whether to use the entropy correction term for the log-probability.
         """
         super().__init__()
@@ -123,17 +123,19 @@ class FopActor(nn.Module):
         self.correction = correction
         self.squashed_gaussian = SquashedGaussian(controller.param_space)  # type:ignore
 
-    def forward(self, obs, ctx=None, deterministic=False) -> SacFopActorOutput:
+    def forward(
+        self, obs: np.ndarray, ctx: Any | None = None, deterministic: bool = False
+    ) -> SacFopActorOutput:
         """The given observations are passed to the extractor to obtain features.
-        These are used to predict a distribution in the (learnable)
-        parameter space of the controller using the MLP. Afterwards, this parameters are sampled
-        from this distribution, and passed to the controller, which then computes the final actions.
+        These are used to predict a distribution in the (learnable) parameter space of the
+        controller using the MLP. Afterwards, this parameters are sampled from this distribution,
+        and passed to the controller, which then computes the final actions.
 
         Args:
             obs: The observations to compute the actions for.
-            ctx: The optional context object containing information about the
-                previous controller solve. Can be used, e.g., to warm-start the solver.
-            deterministic: If true, use the mean of the distribution instead of sampling.
+            ctx: The optional context object containing information about the previous controller
+                solve. Can be used, e.g., to warm-start the solver.
+            deterministic: If `True`, use the mean of the distribution instead of sampling.
         """
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
@@ -164,13 +166,13 @@ class FopActor(nn.Module):
 
 
 class FoaActor(nn.Module):
-    """An actor module for SAC-FOP, containing a differentiable MPC layer
-    and injecting noise in the action space.
+    """An actor module for SAC-FOP, containing a differentiable MPC layer and injecting noise in the
+    action space.
 
     Attributes:
         controller: The differentiable parameterized controller (MPC) used to compute actions.
-        extractor: The feature extractor used to process observations before
-            passing them to the MLP predicting parameters.
+        extractor: The feature extractor used to process observations before passing them to the MLP
+            predicting parameters.
         mlp: The MLP used to predict the parameters of the controller from the observations.
         parameter_transform: The transformation used to map the MLP output to the parameter space.
             Ensures predicted parameters are within bounds.
@@ -192,15 +194,16 @@ class FoaActor(nn.Module):
         extractor: Extractor,
         mlp_cfg: MlpConfig,
         controller: ParameterizedController,
-    ):
-        """
+    ) -> None:
+        """Instantiate the FOA actor.
+
         Args:
             action_space: The action space this actor should predict actions from.
-            extractor: The feature extractor used to process observations before
-                passing them to the MLP predicting parameters.
+            extractor: The feature extractor used to process observations before passing them to the
+                MLP predicting parameters.
             mlp_cfg: The configuration for the MLP used to predict parameters.
-            controller: The differentiable parameterized controller used to compute actions
-                from parameters.
+            controller: The differentiable parameterized controller used to compute actions from
+                parameters.
         """
         super().__init__()
         self.controller = controller
@@ -218,7 +221,9 @@ class FoaActor(nn.Module):
         self.action_transform = BoundedTransform(action_space)  # type:ignore
         self.squashed_gaussian = SquashedGaussian(action_space)  # type:ignore
 
-    def forward(self, obs, ctx=None, deterministic=False) -> SacFopActorOutput:
+    def forward(
+        self, obs: np.ndarray, ctx: Any | None = None, deterministic: bool = False
+    ) -> SacFopActorOutput:
         """The given observations are passed to the extractor to obtain features.
         These are used by the MLP to predict parameters, as well as a standard deviation.
         The parameters are passed to the controller to obtain actions. These actions are used
@@ -227,9 +232,9 @@ class FoaActor(nn.Module):
 
         Args:
             obs: The observations to compute the actions for.
-            ctx: The optional context object containing information
-                about the previous controller solve. Can be used, e.g., to warm-start the solver.
-            deterministic: If true, use the mean of the distribution instead of sampling.
+            ctx: The optional context object containing information about the previous controller
+                solve. Can be used, e.g., to warm-start the solver.
+            deterministic: If `True`, use the mean of the distribution instead of sampling.
         """
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
@@ -251,9 +256,8 @@ class FoaActor(nn.Module):
 
 
 class SacFopTrainer(Trainer[SacFopTrainerConfig]):
-    """
-    A trainer implementing Soft Actor-Critic (SAC)
-    that uses a differentiable controller layer in the policy network (SAC-FOP).
+    """A trainer implementing Soft Actor-Critic (SAC) that uses a differentiable controller layer in
+    the policy network (SAC-FOP).
     Supports variants using parameter noise or action noise. Always uses an action critic.
 
     Attributes:
@@ -265,8 +269,9 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         pi_optim: The optimizer for the policy network.
         log_alpha: The logarithm of the temperature parameter.
         alpha_optim: The optimizer for the temperature parameter.
-            Is None, if the temperature is fixed.
-        target_entropy: The target entropy for the policy. Is None, if the temperature is fixed.
+            If `None`, the temperature is fixed.
+        target_entropy: The target entropy for the policy.
+            If `None`, the temperature is fixed.
         entropy_norm: The normalization factor for the entropy term.
             Normalizes the entropy based on the ratio of parameter and action dimensions.
         buffer: The replay buffer used to store transitions.
@@ -293,7 +298,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         train_env: gym.Env,
         controller: ParameterizedController,
         extractor_cls: Type[Extractor] | ExtractorName = "identity",
-    ):
+    ) -> None:
         """Initializes the SAC-FOP trainer.
 
         Args:
@@ -367,7 +372,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             cfg.buffer_size, device=device, collate_fn_map=controller.collate_fn_map
         )
 
-    def train_loop(self) -> Iterator[int]:
+    def train_loop(self) -> Generator[int, None, None]:
         is_terminated = is_truncated = True
         policy_state = None
         obs = None
@@ -492,12 +497,12 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             yield 1
 
     def act(
-        self, obs, deterministic: bool = False, state=None
+        self, obs: np.ndarray, deterministic: bool = False, state: Any | None = None
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
         obs = self.buffer.collate([obs])
 
         with torch.no_grad():
-            pi_output = self.pi(obs, state, deterministic=deterministic)
+            pi_output: SacFopActorOutput = self.pi(obs, state, deterministic)
 
         action = pi_output.action.cpu().numpy()[0]
 
@@ -505,10 +510,10 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
-        if self.alpha_optim is None:
-            return [self.q_optim, self.pi_optim]
-
-        return [self.q_optim, self.pi_optim, self.alpha_optim]
+        optimizers = [self.q_optim, self.pi_optim]
+        if self.alpha_optim is not None:
+            optimizers.append(self.alpha_optim)
+        return optimizers
 
     def periodic_ckpt_modules(self) -> list[str]:
         return ["q", "pi", "q_target", "log_alpha"]

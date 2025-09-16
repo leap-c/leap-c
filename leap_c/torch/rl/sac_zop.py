@@ -2,7 +2,7 @@
 layer for the policy network."""
 
 from pathlib import Path
-from typing import Any, Iterator, NamedTuple, Type
+from typing import Any, Generator, NamedTuple, Type
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -23,13 +23,14 @@ from leap_c.utils.gym import seed_env, wrap_env
 
 
 class SacZopActorOutput(NamedTuple):
-    """
+    """Output of the SAC-ZOP actor's forward pass.
+
     Attributes:
         param: The predicted parameters (which have been input into the controller).
         log_prob: The log-probability of the distribution that led to the action.
             NOTE: This log-probability is just a proxy for the true log-probability of the action,
-            it is actually the log probability of the parameters that were
-            input into the controller.
+            it is actually the log probability of the parameters that were input into the
+            controller.
         stats: A dictionary containing several statistics of internal modules.
         action: The action output by the controller.
         ctx: The context object containing information about the MPC solve.
@@ -43,8 +44,8 @@ class SacZopActorOutput(NamedTuple):
 
 
 class MpcSacActor(nn.Module):
-    """An actor module for SAC-ZOP, containing a ParameterizedController to compute actions,
-    but not differentiating through it, and injecting noise in the parameter space.
+    """An actor module for SAC-ZOP, containing a ParameterizedController to compute actions, but not
+    differentiating through it, and injecting noise in the parameter space.
 
     Attributes:
         extractor: The feature extractor module.
@@ -64,13 +65,13 @@ class MpcSacActor(nn.Module):
         observation_space: gym.Space,
         controller: ParameterizedController,
         mlp_cfg: MlpConfig,
-    ):
+    ) -> None:
         """
         Args:
             extractor_cls: The class used for extracting features from observations.
             observation_space: The observation space used to configure the extractor.
-            controller: The differentiable parameterized controller used to compute actions
-                from parameters.
+            controller: The differentiable parameterized controller used to compute actions from
+                parameters.
             mlp_cfg: The configuration for the MLP used to predict parameters.
         """
         super().__init__()
@@ -94,18 +95,18 @@ class MpcSacActor(nn.Module):
         only_param: bool = False,
     ) -> SacZopActorOutput:
         """The given observations are passed to the extractor to obtain features.
-        These are used to predict a distribution in the (learnable)
-        parameter space of the controller using the MLP. Afterwards, this parameters are sampled
-        from this distribution, and passed to the controller, which then computes the final actions.
+        These are used to predict a distribution in the (learnable) parameter space of the
+        controller using the MLP. Afterwards, this parameters are sampled from this distribution,
+        and passed to the controller, which then computes the final actions.
         This forward pass does NOT support differentiation through the controller.
 
         Args:
             obs: The observations to compute the actions for.
-            ctx: The optional context object containing information about the
-                previous controller solve. Can be used, e.g., to warm-start the solver.
-            deterministic: If true, use the mean of the distribution instead of sampling.
-            only_param: If true, only return the predicted parameters and
-                log-probabilities, but do not compute the action using the controller.
+            ctx: The optional context object containing information about the previous controller
+                solve. Can be used, e.g., to warm-start the solver.
+            deterministic: If `True`, use the mean of the distribution instead of sampling.
+            only_param: If `True`, only return the predicted parameters and log-probabilities, but
+                do not compute the action using the controller.
         """
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
@@ -128,9 +129,8 @@ class MpcSacActor(nn.Module):
 
 
 class SacZopTrainer(Trainer[SacTrainerConfig]):
-    """A trainer that implements Soft Actor-Critic (SAC) with a controller
-    in the policy network, but without differentiating through it (SAC-ZOP).
-    Uses parameter noise and a parameter critic.
+    """A trainer that implements Soft Actor-Critic (SAC) with a controller in the policy network,
+    but without differentiating through it (SAC-ZOP). Uses parameter noise and a parameter critic.
 
     Attributes:
         train_env: The training environment.
@@ -141,9 +141,9 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
         pi_optim: The optimizer for the policy network.
         log_alpha: The log of the temperature parameter.
         alpha_optim: The optimizer for the temperature parameter.
-            Is None, if the temperature is fixed.
+            If `None`, the temperature is fixed.
         target_entropy: The target entropy for the policy.
-            Is None, if the temperature is fixed.
+            If `None`, the temperature is fixed.
         entropy_norm: The normalization factor for the entropy term.
             Normalizes the entropy based on the ratio of parameter and action dimensions.
         buffer: The replay buffer used to store transitions.
@@ -170,7 +170,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
         train_env: gym.Env,
         controller: ParameterizedController,
         extractor_cls: Type[Extractor] | ExtractorName = "identity",
-    ):
+    ) -> None:
         """Initializes the SAC-ZOP trainer.
 
         Args:
@@ -231,7 +231,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
 
         self.buffer = ReplayBuffer(cfg.buffer_size, device=device)
 
-    def train_loop(self) -> Iterator[int]:
+    def train_loop(self) -> Generator[int, None, None]:
         is_terminated = is_truncated = True
         policy_ctx = None
         obs = None
@@ -351,10 +351,10 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
 
     @property
     def optimizers(self) -> list[torch.optim.Optimizer]:
-        if self.alpha_optim is None:
-            return [self.q_optim, self.pi_optim]
-
-        return [self.q_optim, self.pi_optim, self.alpha_optim]
+        optimizers = [self.q_optim, self.pi_optim]
+        if self.alpha_optim is not None:
+            optimizers.append(self.alpha_optim)
+        return optimizers
 
     def periodic_ckpt_modules(self) -> list[str]:
         return ["q", "pi", "q_target", "log_alpha"]

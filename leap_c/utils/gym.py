@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, TypeAlias
+from typing import Any, Callable, TypeAlias
 
 from gymnasium import Env
 from gymnasium.core import ActType, ObsType
@@ -8,7 +8,7 @@ WrapperType: TypeAlias = Callable[[Env[ObsType, ActType]], Env[ObsType, ActType]
 
 
 def wrap_env(
-    env: Env[ObsType, ActType], wrappers: List[WrapperType] | None = None
+    env: Env[ObsType, ActType], wrappers: list[WrapperType] | None = None
 ) -> Env[ObsType, ActType]:
     """Wraps a gymnasium environment.
 
@@ -21,12 +21,9 @@ def wrap_env(
     """
     env = RecordEpisodeStatistics(env, buffer_length=1)
     env = OrderEnforcing(env)
-
-    if wrappers is None:
-        wrappers = []
-    for wrapper in wrappers:
-        env = wrapper(env)
-
+    if wrappers:
+        for wrapper in wrappers:
+            env = wrapper(env)
     return env
 
 

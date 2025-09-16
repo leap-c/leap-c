@@ -81,7 +81,9 @@ extend-exclude = ["external"]
 
 [tool.ruff.lint]
 ignore = ["E741"]
-extend-select = ["I",
-                 "NPY",
-                 "UP045",
-                 "E501"]
+extend-select = [
+    "I",
+    "NPY",
+    "UP045",
+    "E501",
+]
