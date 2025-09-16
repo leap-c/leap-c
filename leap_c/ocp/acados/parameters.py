@@ -6,7 +6,7 @@ import casadi as ca
 import gymnasium as gym
 import numpy as np
 from acados_template import AcadosOcp
-from casadi.tools import entry, struct, struct_symSX, struct_symMX
+from casadi.tools import entry, struct, struct_symMX, struct_symSX
 
 from leap_c.parameters import Parameter as BaseParameter
 
