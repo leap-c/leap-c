@@ -28,9 +28,9 @@ def create_cfg(env: str, seed: int) -> RunSacConfig:
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = seed
-    cfg.trainer.train_steps = 1000000 if env == "pointmass" else 200000
+    cfg.trainer.train_steps = 1_000_000 if env == "pointmass" else 200_000
     cfg.trainer.train_start = 0
-    cfg.trainer.val_freq = 10000
+    cfg.trainer.val_freq = 10_000
     cfg.trainer.val_num_rollouts = 20
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 0
@@ -38,7 +38,7 @@ def create_cfg(env: str, seed: int) -> RunSacConfig:
     cfg.trainer.val_report_score = "cum"
     cfg.trainer.ckpt_modus = "best"
     cfg.trainer.batch_size = 64
-    cfg.trainer.buffer_size = 1000000
+    cfg.trainer.buffer_size = 1_000_000
     cfg.trainer.gamma = 0.99
     cfg.trainer.tau = 0.005
     cfg.trainer.soft_update_freq = 1
@@ -54,8 +54,8 @@ def create_cfg(env: str, seed: int) -> RunSacConfig:
 
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
-    cfg.trainer.log.interval = 1000
-    cfg.trainer.log.window = 10000
+    cfg.trainer.log.interval = 1_000
+    cfg.trainer.log.window = 10_000
     cfg.trainer.log.csv_logger = True
     cfg.trainer.log.tensorboard_logger = True
     cfg.trainer.log.wandb_logger = False
@@ -86,7 +86,7 @@ def run_sac(cfg: RunSacConfig, output_path: str | Path, device: str = "cuda") ->
     """
     Args:
         cfg: The configuration for running the controller.
-        output_path: The path to save outputs to. 
+        output_path: The path to save outputs to.
             If it already exists, the run will continue from the last checkpoint.
         device: The device to use.
     """

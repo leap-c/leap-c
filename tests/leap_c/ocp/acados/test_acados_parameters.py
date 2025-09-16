@@ -529,7 +529,7 @@ def test_get_method_unknown_field():
 
     manager = AcadosParameterManager(params, N_horizon=5)
 
-    with pytest.raises(ValueError, match="Unknown field: nonexistent"):
+    with pytest.raises(ValueError, match="Unknown name: nonexistent"):
         manager.get("nonexistent")
 
 
