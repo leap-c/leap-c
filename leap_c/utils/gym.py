@@ -40,7 +40,6 @@ def seed_env(
     Returns:
         tuple: The output of `env.reset`, i.e., the initial observation and info dictionary.
     """
-    out = env.reset(seed=seed, options=options)
     env.observation_space.seed(seed)
     env.action_space.seed(seed)
-    return out
+    return env.reset(seed=seed, options=options)
