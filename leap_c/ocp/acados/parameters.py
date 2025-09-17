@@ -151,10 +151,9 @@ class AcadosParameterManager:
             interface_type = "learnable"
             if parameter.vary_stages:
                 self.need_indicator = True
-                # Clip vary_stages to the horizon
                 vary_stages = parameter.vary_stages
-                starts = [0] + vary_stages
-                ends = np.array(vary_stages + [self.N_horizon + 1]) - 1
+                starts = [0] + [v + 1 for v in vary_stages if v + 1 <= self.N_horizon]
+                ends = vary_stages
                 for start, end in zip(starts, ends):
                     # Build symbolic expressions for each stage
                     # following the template {name}_{first_stage}_{last_stage}
