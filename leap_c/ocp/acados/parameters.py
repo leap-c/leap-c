@@ -28,11 +28,11 @@ class AcadosParameter:
             parameters also after creation of the solver), or `"learnable"` (parameters directly
             exposed to the learning interface, in particular supporting sensitivities). Defaults to
             `"fix"`.
-        vary_stages: Sorted list (ascending order) of stages at which the parameter varies.
+        end_stages: Sorted list (ascending order) of stages after which the parameter varies.
             Only used for the `"learnable"` interface. If `None`, the parameter remains constant
             across all stages. Defaults to `None`.
             Example: If the horizon has `9` stages (`0` to `9`, including the terminal stage),
-            and `vary_stages = [5]`, then the parameter will have one value for stages `0` to `4`,
+            and `end_stages = [4, 9]`, then the parameter will have one value for stages `0` to `4`,
             and a different value for stages `5` to `9`.
     """
 
@@ -42,11 +42,11 @@ class AcadosParameter:
     space: gym.spaces.Space | None = None
     interface: Literal["fix", "learnable", "non-learnable"] = "fix"
     # Additional acados-specific field
-    vary_stages: list[int] = field(default_factory=list)
+    end_stages: list[int] = field(default_factory=list)
 
     @classmethod
     def from_base_parameter(
-        cls, base_param: BaseParameter, vary_stages: list[int] | None = None
+        cls, base_param: BaseParameter, end_stages: list[int] | None = None
     ) -> "AcadosParameter":
         """Create an acados Parameter from a base Parameter."""
         return cls(
@@ -54,11 +54,11 @@ class AcadosParameter:
             default=base_param.default,
             space=base_param.space,
             interface=base_param.interface,
-            vary_stages=vary_stages or [],
+            end_stages=end_stages or [],
         )
 
     def to_base_parameter(self) -> BaseParameter:
-        """Convert to base Parameter (loses `vary_stages` information)."""
+        """Convert to base Parameter (loses `end_stages` information)."""
         return BaseParameter(
             name=self.name,
             default=self.default,
@@ -134,10 +134,11 @@ class AcadosParameterManager:
                     f"but CasADi only supports arrays up to 2 dimensions. "
                     f"Upper bound shape: {param.space.high.shape}"
                 )
-            if param.vary_stages and param.vary_stages[-1] > N_horizon:
+            # Check end_stages convention
+            if param.end_stages and param.end_stages[-1] not in [N_horizon - 1, N_horizon]:
                 raise ValueError(
-                    f"Parameter '{param.name}' has vary_stages {param.vary_stages} "
-                    f"which exceed the horizon length {N_horizon}."
+                    f"Parameter '{param.name}' has end_stages {param.end_stages} "
+                    f"but the last element must be either {N_horizon - 1} or {N_horizon}."
                 )
 
         self.parameters = {param.name: param for param in parameters}
@@ -148,12 +149,11 @@ class AcadosParameterManager:
 
         def _add_learnable_parameter_entries(name: str, parameter: AcadosParameter) -> None:
             interface_type = "learnable"
-            if parameter.vary_stages:
+            if parameter.end_stages:
                 self.need_indicator = True
-                # Clip vary_stages to the horizon
-                vary_stages = parameter.vary_stages
-                starts = [0] + vary_stages
-                ends = np.array(vary_stages + [self.N_horizon + 1]) - 1
+                starts, ends = _define_starts_and_ends(
+                    end_stages=parameter.end_stages, N_horizon=self.N_horizon
+                )
                 for start, end in zip(starts, ends):
                     # Build symbolic expressions for each stage
                     # following the template {name}_{first_stage}_{last_stage}
@@ -353,11 +353,10 @@ class AcadosParameterManager:
         if self.parameters[name].interface == "fix":
             return self.parameters[name].default
 
-        if self.parameters[name].interface == "learnable" and self.parameters[name].vary_stages:
-            starts = ([0] if 0 not in self.parameters[name].vary_stages else []) + self.parameters[
-                name
-            ].vary_stages
-            ends = np.array(self.parameters[name].vary_stages + [self.N_horizon + 1]) - 1
+        if self.parameters[name].interface == "learnable" and self.parameters[name].end_stages:
+            starts, ends = _define_starts_and_ends(
+                end_stages=self.parameters[name].end_stages, N_horizon=self.N_horizon
+            )
             indicators = []
             variables = []
             for start, end in zip(starts, ends):
@@ -398,3 +397,10 @@ class AcadosParameterManager:
                 if self.non_learnable_parameters_default
                 else np.array([])
             )
+
+
+def _define_starts_and_ends(end_stages: list[int], N_horizon: int) -> tuple[list[int], list[int]]:
+    """Define the start and end indices for stage-varying parameters."""
+    ends = end_stages
+    starts = [0] + [v + 1 for v in ends if v + 1 <= N_horizon]
+    return starts, ends
