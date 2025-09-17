@@ -5,10 +5,14 @@ from pathlib import Path
 from timeit import default_timer
 from typing import Callable, Generator
 
+import numpy as np
 import torch
 from gymnasium import Env
 from gymnasium.wrappers import RecordVideo
 from numpy import ndarray
+
+from leap_c.torch.utils.seed import RngType, mk_seed
+from leap_c.utils.gym import seed_env
 
 
 def episode_rollout(
@@ -19,6 +23,7 @@ def episode_rollout(
     render_human: bool = False,
     video_folder: str | Path | None = None,
     name_prefix: str | None = None,
+    rng: RngType | None = None,
 ) -> Generator[tuple[dict[str, float | bool | list], dict[str, list]], None, None]:
     """Rollout an episode and returns the cumulative reward.
 
@@ -62,11 +67,13 @@ def episode_rollout(
             env, video_folder, name_prefix=name_prefix, episode_trigger=render_trigger
         )
 
+    rng = np.random.default_rng(rng)
+
     with torch.inference_mode():
         for episode in range(episodes):
             policy_stats = defaultdict(list)
             episode_stats = defaultdict(list)
-            o, _ = env.reset()
+            o, _ = seed_env(env, mk_seed(rng))
 
             terminated = False
             truncated = False

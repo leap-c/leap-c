@@ -103,21 +103,21 @@ def make_default_hvac_params(
                     dtype=np.float64,
                 ),
                 interface="learnable",
-                vary_stages=list(range(N_horizon)) if stagewise else [],
+                end_stages=list(range(N_horizon + 1)) if stagewise else [],
             ),
             AcadosParameter(
                 name="Phi_s",
                 default=np.array([200.0]),  # Solar radiation in W/m²
                 space=gym.spaces.Box(low=np.array([0.0]), high=np.array([400.0]), dtype=np.float64),
                 interface="learnable",
-                vary_stages=list(range(N_horizon)) if stagewise else [],
+                end_stages=list(range(N_horizon + 1)) if stagewise else [],
             ),
             AcadosParameter(
                 name="price",
                 default=np.array([0.15]),  # Electricity price in €/kWh
                 space=gym.spaces.Box(low=np.array([0.00]), high=np.array([0.30]), dtype=np.float64),
                 interface="learnable",
-                vary_stages=list(range(N_horizon)) if stagewise else [],
+                end_stages=list(range(N_horizon + 1)) if stagewise else [],
             ),
         ]
     )
@@ -134,7 +134,7 @@ def make_default_hvac_params(
                     dtype=np.float64,
                 ),
                 interface="non-learnable",
-                vary_stages=list(range(N_horizon)) if stagewise else [],
+                end_stages=list(range(N_horizon + 1)) if stagewise else [],
             ),
             AcadosParameter(
                 name="ub_Ti",  # Upper bound on indoor temperature in Kelvin
@@ -145,7 +145,7 @@ def make_default_hvac_params(
                     dtype=np.float64,
                 ),
                 interface="non-learnable",
-                vary_stages=list(range(N_horizon)) if stagewise else [],
+                end_stages=list(range(N_horizon + 1)) if stagewise else [],
             ),
             AcadosParameter(
                 name="ref_Ti",  # Reference indoor temperature in Kelvin
@@ -156,7 +156,7 @@ def make_default_hvac_params(
                     dtype=np.float64,
                 ),
                 interface="learnable",
-                vary_stages=list(range(N_horizon)) if stagewise else [],
+                end_stages=list(range(N_horizon + 1)) if stagewise else [],
             ),
         ]
     )
@@ -170,21 +170,21 @@ def make_default_hvac_params(
                     low=np.array([0.0001]), high=np.array([0.001]), dtype=np.float64
                 ),
                 interface="learnable",
-                vary_stages=list(range(N_horizon)) if stagewise else [],
+                end_stages=list(range(N_horizon + 1)) if stagewise else [],
             ),
             AcadosParameter(
                 name="q_dqh",
                 default=np.array([1.0]),  # weight for residuals of rate of change of heater power
                 space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64),
                 interface="learnable",
-                vary_stages=list(range(N_horizon)) if stagewise else [],
+                end_stages=list(range(N_horizon + 1)) if stagewise else [],
             ),
             AcadosParameter(
                 name="q_ddqh",
                 default=np.array([1.0]),  # weight for residuals of acceleration of heater power
                 space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64),
                 interface="learnable",
-                vary_stages=list(range(N_horizon)) if stagewise else [],
+                end_stages=list(range(N_horizon)) if stagewise else [],
             ),
         ]
     )

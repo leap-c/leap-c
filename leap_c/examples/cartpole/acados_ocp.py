@@ -58,7 +58,7 @@ def create_cartpole_params(
                 dtype=np.float64,
             ),
             interface="learnable",
-            vary_stages=list(range(N_horizon + 1)) if param_interface == "stagewise" else [],
+            end_stages=list(range(N_horizon + 1)) if param_interface == "stagewise" else [],
         ),  # reference theta
         AcadosParameter(
             "xref2",
