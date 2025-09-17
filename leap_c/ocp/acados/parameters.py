@@ -6,7 +6,7 @@ import casadi as ca
 import gymnasium as gym
 import numpy as np
 from acados_template import AcadosOcp
-from casadi.tools import entry, struct, struct_symSX
+from casadi.tools import entry, struct, struct_symMX, struct_symSX
 
 from leap_c.parameters import Parameter as BaseParameter
 
@@ -87,16 +87,21 @@ class AcadosParameterManager:
     """
 
     parameters: dict[str, AcadosParameter]
-    learnable_parameters: struct_symSX
+    learnable_parameters: struct_symSX | struct_symMX
     learnable_parameters_default: struct
     learnable_parameters_lb: struct
     learnable_parameters_ub: struct
-    non_learnable_parameters: struct_symSX
+    non_learnable_parameters: struct_symSX | struct_symMX
     non_learnable_parameters_default: struct
     N_horizon: int
     need_indicator: bool
 
-    def __init__(self, parameters: Collection[AcadosParameter], N_horizon: int) -> None:
+    def __init__(
+        self,
+        parameters: Collection[AcadosParameter],
+        N_horizon: int,
+        casadi_type: Literal["SX", "MX"] = "SX",
+    ) -> None:
         if not parameters:
             warn(
                 "Empty parameter list provided to AcadosParamManager. "
@@ -177,8 +182,12 @@ class AcadosParameterManager:
         if self.need_indicator:
             entries["non-learnable"].append(entry("indicator", shape=(self.N_horizon + 1,)))
 
-        self.learnable_parameters = struct_symSX(entries["learnable"])
-        self.non_learnable_parameters = struct_symSX(entries["non-learnable"])
+        if casadi_type == "SX":
+            self.learnable_parameters = struct_symSX(entries["learnable"])
+            self.non_learnable_parameters = struct_symSX(entries["non-learnable"])
+        elif casadi_type == "MX":
+            self.learnable_parameters = struct_symMX(entries["learnable"])
+            self.non_learnable_parameters = struct_symMX(entries["non-learnable"])
 
         # Now build the lower and upper bound
         self.learnable_parameters_default = self.learnable_parameters(0)
