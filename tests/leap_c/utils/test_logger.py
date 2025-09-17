@@ -3,6 +3,7 @@ from itertools import product
 from pathlib import Path
 
 import numpy as np
+import pytest
 
 from leap_c.utils.logger import GroupWindowTracker, Logger, LoggerConfig
 
@@ -54,6 +55,14 @@ def test_group_multi_report() -> None:
     for timestamp, stats in tracker.update(8, {"a": 2}):
         assert timestamp == timestamps.pop(0)
         assert stats == all_stats.pop(0)
+
+
+def test_logger_fails_if_not_initialized(tmp_path: Path) -> None:
+    """Tests that the logger raises an error if called before being initialized."""
+    cfg = LoggerConfig(csv_logger=True, tensorboard_logger=False, wandb_logger=False)
+    logger = Logger(cfg, tmp_path)
+    with pytest.raises(RuntimeError):
+        logger("a_group", {}, 0, with_smoothing=False)
 
 
 def test_logger_writes_to_csv_correctly(tmp_path: Path) -> None:
