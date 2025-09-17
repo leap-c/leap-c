@@ -151,7 +151,9 @@ class AcadosParameterManager:
             interface_type = "learnable"
             if parameter.vary_stages:
                 self.need_indicator = True
-                starts, ends = _define_starts_and_ends(parameter.vary_stages)
+                starts, ends = _define_starts_and_ends(
+                    vary_stages=parameter.vary_stages, N_horizon=self.N_horizon
+                )
                 for start, end in zip(starts, ends):
                     # Build symbolic expressions for each stage
                     # following the template {name}_{first_stage}_{last_stage}
@@ -353,7 +355,7 @@ class AcadosParameterManager:
 
         if self.parameters[name].interface == "learnable" and self.parameters[name].vary_stages:
             starts, ends = _define_starts_and_ends(
-                self.parameters[name].vary_stages, self.N_horizon
+                vary_stages=self.parameters[name].vary_stages, N_horizon=self.N_horizon
             )
             indicators = []
             variables = []
@@ -397,9 +399,7 @@ class AcadosParameterManager:
             )
 
 
-def _define_starts_and_ends(
-    self, vary_stages: list[int], N_horizon: int
-) -> tuple[list[int], list[int]]:
+def _define_starts_and_ends(vary_stages: list[int], N_horizon: int) -> tuple[list[int], list[int]]:
     """Define the start and end indices for stage-varying parameters."""
     ends = vary_stages
     starts = [0] + [v + 1 for v in ends if v + 1 <= N_horizon]
