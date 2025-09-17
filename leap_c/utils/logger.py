@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pandas as pd
 
 
 @dataclass(kw_only=True)
@@ -168,6 +167,12 @@ class Logger:
             from torch.utils.tensorboard import SummaryWriter
 
             self._tensorboard_writer = SummaryWriter(self.output_path)
+
+        if cfg.csv_logger:
+            from csv import DictWriter
+            from typing import TextIO
+
+            self._csv_files_and_writers: dict[str, tuple[TextIO, DictWriter]] = {}
         return self
 
     def __exit__(self, *_, **__) -> None:
@@ -184,6 +189,11 @@ class Logger:
             import wandb
 
             wandb.finish()
+
+        if cfg.csv_logger:
+            for csv_file, _ in self._csv_files_and_writers.values():
+                if csv_file:
+                    csv_file.close()
 
     def __call__(
         self,
@@ -208,8 +218,10 @@ class Logger:
                 This also results in the statistics being only reported at specific intervals.
         """
         cfg = self.cfg
-        if (cfg.tensorboard_logger and not hasattr(self, "_tensorboard_writer")) or (
-            cfg.wandb_logger and not hasattr(self, "_wandb_defined_metrics")
+        if (
+            (cfg.tensorboard_logger and not hasattr(self, "_tensorboard_writer"))
+            or (cfg.wandb_logger and not hasattr(self, "_wandb_defined_metrics"))
+            or (cfg.csv_logger and not hasattr(self, "_csv_files_and_writers"))
         ):
             raise RuntimeError(
                 "Logger waws not started before calling it. Must be initialized with `__enter__`, "
@@ -267,10 +279,17 @@ class Logger:
             if cfg.csv_logger:
                 csv_path = self.output_path / f"{group}_log.csv"
 
-                if csv_path.exists():
-                    kw = {"mode": "a", "header": False}
+                if group in self._csv_files_and_writers:
+                    csv_file, csv_writer = self._csv_files_and_writers[group]
                 else:
-                    kw = {"mode": "w", "header": True}
+                    from csv import DictWriter
 
-                df = pd.DataFrame(report_stats, index=[report_timestamp])  # type: ignore
-                df.to_csv(csv_path, index_label="timestamp", **kw)
+                    csv_file = open(csv_path, mode="a", newline="", buffering=1)
+                    csv_writer = DictWriter(csv_file, fieldnames=["timestamp"] + list(report_stats))
+                    if csv_file.tell() == 0:
+                        csv_writer.writeheader()
+                    self._csv_files_and_writers[group] = (csv_file, csv_writer)
+
+                csv_writer.writerow({"timestamp": report_timestamp, **report_stats})
+                csv_writer.writer
+                csv_file.flush()
