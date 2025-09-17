@@ -1,6 +1,6 @@
-import warnings
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Collection, Iterable, Literal
+from warnings import warn
 
 import casadi as ca
 import gymnasium as gym
@@ -13,29 +13,27 @@ from leap_c.parameters import Parameter as BaseParameter
 
 @dataclass
 class AcadosParameter:
-    """
-    High-level parameter class for flexible optimization parameter configuration with acados
-    extensions. It provides an interface for defining parameter sets without
-    requiring knowledge of internal CasADi tools or acados interface details.
+    """High-level parameter class for flexible optimization parameter configuration with acados
+    extensions. It provides an interface for defining parameter sets without requiring knowledge of
+    internal CasADi tools or acados interface details.
 
     Attributes:
         name: The name identifier for the parameter.
         default: The parameter's default numerical value(s).
         space: A gym.spaces.Space defining the valid parameter space.
-            Only used for learnable parameters. Defaults to None (unbounded)-
+            Only used for learnable parameters. Defaults to `None` (unbounded).
         interface: Parameter interface type.
-            Either "fix" (fixed values, unchangeable after creation
-            of the solver), "non-learnable" (not exposed to the learning interface,
-            but will be changeable parameters also after creation of the solver),
-            or "learnable" (parameters directly exposed to the learning interface,
-            in particular supporting sensitivities).
-            Defaults to "fix".
+            Either `"fix"` (fixed values, unchangeable after creation of the solver),
+            `"non-learnable"` (not exposed to the learning interface, but will be changeable
+            parameters also after creation of the solver), or `"learnable"` (parameters directly
+            exposed to the learning interface, in particular supporting sensitivities). Defaults to
+            `"fix"`.
         vary_stages: Sorted list (ascending order) of stages at which the parameter varies.
-            Only used for the "learnable" interface. If None, the parameter
-            remains constant across all stages. Defaults to None.
-            Example: If the horizon has 9 stages (0 to 9, including the terminal stage),
-            and vary_stages = [5], then the parameter will have one value for stages 0 to 4,
-            and a different value for stages 5 to 9.
+            Only used for the `"learnable"` interface. If `None`, the parameter remains constant
+            across all stages. Defaults to `None`.
+            Example: If the horizon has `9` stages (`0` to `9`, including the terminal stage),
+            and `vary_stages = [5]`, then the parameter will have one value for stages `0` to `4`,
+            and a different value for stages `5` to `9`.
     """
 
     # Fields from base Parameter class
@@ -47,7 +45,9 @@ class AcadosParameter:
     vary_stages: list[int] = field(default_factory=list)
 
     @classmethod
-    def from_base_parameter(cls, base_param: BaseParameter, vary_stages: list[int] | None = None):
+    def from_base_parameter(
+        cls, base_param: BaseParameter, vary_stages: list[int] | None = None
+    ) -> "AcadosParameter":
         """Create an acados Parameter from a base Parameter."""
         return cls(
             name=base_param.name,
@@ -58,7 +58,7 @@ class AcadosParameter:
         )
 
     def to_base_parameter(self) -> BaseParameter:
-        """Convert to base Parameter (loses vary_stages information)."""
+        """Convert to base Parameter (loses `vary_stages` information)."""
         return BaseParameter(
             name=self.name,
             default=self.default,
@@ -68,10 +68,10 @@ class AcadosParameter:
 
 
 class AcadosParameterManager:
-    """Manager class for handling acados parameters according to their specifications
-    (e.g., interface).
-    In particular, this handles stage-varying learnable parameters,
-    which is not available out-of-the-box in acados.
+    """Manager class for handling acados parameters according to their specifications (e.g.,
+    interface).
+    In particular, this handles stage-varying learnable parameters, which is not available
+    out-of-the-box in acados.
 
     Attributes:
         parameters: Dictionary of parameter names to AcadosParameter instances.
@@ -82,8 +82,8 @@ class AcadosParameterManager:
         non_learnable_parameters: CasADi struct of non-learnable parameters.
         non_learnable_parameters_default: Default values for non-learnable parameters.
         N_horizon: The horizon length for the ocp.
-        need_indicator: Whether indicator variables exist
-            (for controlling stage-varying learnable parameters).
+        need_indicator: Whether indicator variables exist (for controlling stage-varying learnable
+            parameters).
     """
 
     parameters: dict[str, AcadosParameter]
@@ -98,12 +98,12 @@ class AcadosParameterManager:
 
     def __init__(
         self,
-        parameters: list[AcadosParameter],
+        parameters: Collection[AcadosParameter],
         N_horizon: int,
         casadi_type: Literal["SX", "MX"] = "SX",
     ) -> None:
         if not parameters:
-            warnings.warn(
+            warn(
                 "Empty parameter list provided to AcadosParamManager. "
                 "Consider adding parameters for building a parametric AcadosOcp.",
                 UserWarning,
@@ -144,12 +144,9 @@ class AcadosParameterManager:
 
         self.N_horizon = N_horizon
 
-        entries = {
-            "learnable": [],
-            "non-learnable": [],
-        }
+        entries = {"learnable": [], "non-learnable": []}
 
-        def _add_learnable_parameter_entries(name: str, parameter: AcadosParameter):
+        def _add_learnable_parameter_entries(name: str, parameter: AcadosParameter) -> None:
             interface_type = "learnable"
             if parameter.vary_stages:
                 self.need_indicator = True
@@ -170,7 +167,7 @@ class AcadosParameterManager:
             else:
                 entries[interface_type].append(entry(name, shape=parameter.default.shape))
 
-        def _add_non_learnable_parameter_entries(name: str, parameter: AcadosParameter):
+        def _add_non_learnable_parameter_entries(name: str, parameter: AcadosParameter) -> None:
             interface_type = "non-learnable"
             # Non-learnable parameters are by construction for each stage
             entries[interface_type].append(entry(name, shape=parameter.default.shape))
@@ -207,7 +204,9 @@ class AcadosParameterManager:
                 # For parameters without stage variations
                 return key
 
-        def _fill_learnable_parameter_values(struct_dict, keys):
+        def _fill_learnable_parameter_values(
+            struct_dict: dict[str, struct], keys: Iterable[str]
+        ) -> None:
             """Fill parameter values and optionally bounds for a parameter structure."""
             for key in keys:
                 # First check if the key exists directly in parameters (no staging)
@@ -247,9 +246,7 @@ class AcadosParameterManager:
                 self.non_learnable_parameters_default[key] = self.parameters[key].default
 
     def combine_non_learnable_parameter_values(
-        self,
-        batch_size: int | None = None,
-        **overwrite: np.ndarray,
+        self, batch_size: int | None = None, **overwrite: np.ndarray
     ) -> np.ndarray:
         """
         Combine all non-learnable parameters and provided overwrites into a single numpy array.
@@ -259,29 +256,27 @@ class AcadosParameterManager:
                 Not needed if overwrite is provided.
             **overwrite: Overwrite values for specific parameters.
                 The keys should correspond to the parameter names to overwrite.
-                The values need to be np.ndarray with shape (batch_size, N_horizon, pdim),
-                where pdim is the number of dimensions of the parameter to overwrite.
+                The values need to be np.ndarray with shape `(batch_size, N_horizon, pdim)`,
+                where `pdim` is the number of dimensions of the parameter to overwrite.
 
         Returns:
-            np.ndarray: shape (batch_size, N_horizon, np). with np being the number of
-            parameter_values.
+            np.ndarray: shape `(batch_size, N_horizon, np)`. with `np` being the number of
+            `parameter_values`.
         """
         # Infer batch size from overwrite if not provided.
         # Resolve to 1 if empty, will result in one batch sample of default values.
         batch_size = next(iter(overwrite.values())).shape[0] if overwrite else batch_size or 1
 
         # Create a batch of parameter values
+        Np1 = self.N_horizon + 1
         batch_parameter_values = np.tile(
             self.non_learnable_parameters_default.cat.full().reshape(1, -1),
-            (batch_size, self.N_horizon + 1, 1),
+            (batch_size, Np1, 1),
         )
 
         # Set indicator for each stage
         if self.need_indicator:
-            batch_parameter_values[:, :, -(self.N_horizon + 1) :] = np.tile(
-                np.eye(self.N_horizon + 1),
-                (batch_size, 1, 1),
-            )
+            batch_parameter_values[:, :, -Np1:] = np.eye(Np1)
 
         # Overwrite the values in the batch
         # TODO: Make sure indexing is consistent.
@@ -294,14 +289,10 @@ class AcadosParameterManager:
         # and reshape if needed or raise an error.
         for key, val in overwrite.items():
             batch_parameter_values[:, :, self.non_learnable_parameters.f[key]] = val.reshape(
-                batch_size, self.N_horizon + 1, -1
+                batch_size, Np1, -1
             )
 
-        expected_shape = (
-            batch_size,
-            self.N_horizon + 1,
-            self.non_learnable_parameters.cat.shape[0],
-        )
+        expected_shape = (batch_size, Np1, self.non_learnable_parameters.cat.shape[0])
         assert batch_parameter_values.shape == expected_shape, (
             f"batch_parameter_values should have shape {expected_shape}, "
             f"got {batch_parameter_values.shape}."
@@ -313,15 +304,15 @@ class AcadosParameterManager:
         self, dtype: type[np.floating[Any]] | type[np.integer[Any]] = np.float32
     ) -> gym.Space:
         """Return the combined Gym space for the learnable parameters.
-        If the parameters do not provide a space themselves, an unbounded
-        Box space with type `dtype` will be filled in for them.
+        If the parameters do not provide a space themselves, an unbounded Box space with type
+        `dtype` will be filled in for them.
 
         Args:
             dtype: The desired data type for the filled-in spaces.
         """
         learnable_spaces = []
 
-        for name, param in self.parameters.items():
+        for param in self.parameters.values():
             if param.interface == "learnable":
                 if param.space is not None:
                     learnable_spaces.append(param.space)
@@ -338,7 +329,7 @@ class AcadosParameterManager:
 
         if not learnable_spaces:
             # No learnable parameters - return empty box space
-            return gym.spaces.Box(low=np.array([]), high=np.array([]), dtype=dtype)
+            return gym.spaces.Box(low=np.empty(0, dtype), high=np.empty(0, dtype), dtype=dtype)
         elif len(learnable_spaces) == 1:
             # Single space - flatten it to ensure consistent return type
             return learnable_spaces[0]
@@ -357,9 +348,7 @@ class AcadosParameterManager:
             A casadi variable for the parameter, or its default value if fixed.
         """
         if name not in self.parameters:
-            raise ValueError(
-                f"Unknown field: {name}. Available fields: {list(self.parameters.keys())}"
-            )
+            raise ValueError(f"Unknown name: {name}. Available names: {', '.join(self.parameters)}")
 
         if self.parameters[name].interface == "fix":
             return self.parameters[name].default

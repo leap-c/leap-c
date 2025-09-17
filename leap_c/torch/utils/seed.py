@@ -4,7 +4,7 @@ import numpy as np
 import torch
 
 
-def set_seed(seed: int):
+def set_seed(seed: int) -> None:
     """Set the seed for all random number generators."""
     random.seed(seed)
     np.random.seed(seed)  # noqa:NPY002
