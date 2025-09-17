@@ -124,14 +124,12 @@ class Logger:
     Attributes:
         cfg: The configuration for the logger.
         output_path: The path to save the logs.
-        state: The state of the logger.
-        writer: The TensorBoard writer.
+        group_trackers: A dictionary of group trackers for smoothing statistics.
     """
 
     cfg: LoggerConfig
     output_path: Path
     group_trackers: dict[str, GroupWindowTracker]
-    writer: Any  # TensorBoard SummaryWriter
 
     def __init__(self, cfg: LoggerConfig, output_path: str | Path) -> None:
         """Initialize the logger.
@@ -142,7 +140,7 @@ class Logger:
         """
         self.cfg = cfg
         self.output_path = Path(output_path)
-
+        self.output_path.mkdir(parents=True, exist_ok=True)
         self.group_trackers = defaultdict(lambda: GroupWindowTracker(cfg.interval, cfg.window))
 
         # init wandb
