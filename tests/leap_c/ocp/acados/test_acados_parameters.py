@@ -81,22 +81,23 @@ def test_parameter_interface_learnable_no_vary_stages():
 
 def test_parameter_interface_learnable_with_vary_stages():
     """Test learnable parameters with vary_stages."""
+    N_horizon = 10
     params = [
         AcadosParameter(
             name="price",
             default=np.array([10.0]),
             interface="learnable",
-            vary_stages=[3, 7],  # Changes at stages 3 and 7
+            end_stages=[3, 7, N_horizon],  # Ends at stages 3 and 7, and horizon (10)
         ),
         AcadosParameter(
             name="demand",
             default=np.array([5.0, 6.0]),
             interface="learnable",
-            vary_stages=[2, 5, 8],  # Changes at stages 2, 5, and 8
+            end_stages=[2, 5, 8, N_horizon],  # Changes at stages 2, 5, 8, and horizon (10)
         ),
     ]
 
-    manager = AcadosParameterManager(params, N_horizon=10)
+    manager = AcadosParameterManager(params, N_horizon=N_horizon)
 
     # Should create staged parameters with {name}_{start}_{end} template
     learnable_keys = list(manager.learnable_parameters.keys())
@@ -104,17 +105,17 @@ def test_parameter_interface_learnable_with_vary_stages():
     # price changes at [3, 7], so we expect: price_0_2, price_3_6, price_7_10
     price_keys = [k for k in learnable_keys if k.startswith("price_")]
     assert len(price_keys) == 3
-    assert "price_0_2" in price_keys
-    assert "price_3_6" in price_keys
-    assert "price_7_10" in price_keys
+    assert "price_0_3" in price_keys
+    assert "price_4_7" in price_keys
+    assert "price_8_10" in price_keys
 
     # demand changes at [2, 5, 8], so we expect: demand_0_1, demand_2_4, demand_5_7, demand_8_10
     demand_keys = [k for k in learnable_keys if k.startswith("demand_")]
     assert len(demand_keys) == 4
-    assert "demand_0_1" in demand_keys
-    assert "demand_2_4" in demand_keys
-    assert "demand_5_7" in demand_keys
-    assert "demand_8_10" in demand_keys
+    assert "demand_0_2" in demand_keys
+    assert "demand_3_5" in demand_keys
+    assert "demand_6_8" in demand_keys
+    assert "demand_9_10" in demand_keys
 
     # Check that values are set correctly for each stage (CasADi format)
     for key in price_keys:
@@ -289,57 +290,60 @@ def test_parameter_bounds_learnable():
 
 def test_parameter_bounds_learnable_with_vary_stages():
     """Test parameter bounds for learnable parameters with vary_stages."""
+    N_horizon = 5
     params = [
         AcadosParameter(
             name="bounded_staged",
             default=np.array([5.0]),
             space=gym.spaces.Box(low=np.array([0.0]), high=np.array([10.0])),
             interface="learnable",
-            vary_stages=[3],  # Changes at stage 3
+            end_stages=[3, N_horizon],  # Ends at stage 3, and horizon (5)
         ),
     ]
 
-    manager = AcadosParameterManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=N_horizon)
 
     # Should have bounds set for both staged parameters
-    assert "bounded_staged_0_2" in manager.learnable_parameters_lb.keys()
-    assert "bounded_staged_3_5" in manager.learnable_parameters_lb.keys()
+    assert "bounded_staged_0_3" in manager.learnable_parameters_lb.keys()
+    assert "bounded_staged_4_5" in manager.learnable_parameters_lb.keys()
 
     np.testing.assert_array_equal(
-        manager.learnable_parameters_lb["bounded_staged_0_2"], np.array([[0.0]])
+        manager.learnable_parameters_lb["bounded_staged_0_3"], np.array([[0.0]])
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_ub["bounded_staged_0_2"], np.array([[10.0]])
+        manager.learnable_parameters_ub["bounded_staged_0_3"], np.array([[10.0]])
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_lb["bounded_staged_3_5"], np.array([[0.0]])
+        manager.learnable_parameters_lb["bounded_staged_4_5"], np.array([[0.0]])
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_ub["bounded_staged_3_5"], np.array([[10.0]])
+        manager.learnable_parameters_ub["bounded_staged_4_5"], np.array([[10.0]])
     )
 
 
-def test_vary_stages_exceed_horizon_error():
-    """Test that ValueError is raised when vary_stages exceed N_horizon."""
+def test_vary_stages_last_element_not_valid():
+    """Test that ValueError is raised when vary_stages last element is invalid."""
+    N_horizon = 10
     params = [
         AcadosParameter(
             name="exceed_horizon",
             default=np.array([1.0]),
             interface="learnable",
-            vary_stages=[5, 15, 20],  # 15 and 20 exceed N_horizon=10
+            end_stages=[5],  # N_horizon is 10, but last vary_stages is 5
         ),
     ]
 
     with pytest.raises(
         ValueError,
-        match=r"Parameter 'exceed_horizon' has vary_stages \[5, 15, 20\] "
-        r"which exceed the horizon length 10\.",
+        match=r"Parameter 'exceed_horizon' has end_stages \[5\] "
+        r"but the last element must be either 9 or 10.",
     ):
-        AcadosParameterManager(params, N_horizon=10)
+        AcadosParameterManager(params, N_horizon=N_horizon)
 
 
 def test_indicator_creation():
     """Test that indicator is created when vary_stages are used."""
+    N_horizon = 5
     params_no_vary = [
         AcadosParameter(name="no_vary", default=np.array([1.0]), interface="learnable"),
     ]
@@ -349,12 +353,12 @@ def test_indicator_creation():
             name="with_vary",
             default=np.array([1.0]),
             interface="learnable",
-            vary_stages=[3],
+            end_stages=[3, N_horizon],  # Ends at stage 3, and horizon (5)
         ),
     ]
 
-    manager_no_vary = AcadosParameterManager(params_no_vary, N_horizon=5)
-    manager_with_vary = AcadosParameterManager(params_with_vary, N_horizon=5)
+    manager_no_vary = AcadosParameterManager(params_no_vary, N_horizon=N_horizon)
+    manager_with_vary = AcadosParameterManager(params_with_vary, N_horizon=N_horizon)
 
     # No vary_stages should not have indicator
     assert "indicator" not in manager_no_vary.non_learnable_parameters.keys()
@@ -365,6 +369,7 @@ def test_indicator_creation():
 
 def test_mixed_parameter_types_and_interfaces():
     """Test complex scenario with mixed parameter types and interfaces."""
+    N_horizon = 8
     params = [
         # Fixed parameters
         AcadosParameter(name="fix_scalar", default=np.array([1.0]), interface="fix"),
@@ -381,7 +386,7 @@ def test_mixed_parameter_types_and_interfaces():
             name="learn_staged",
             default=np.array([9.0]),
             interface="learnable",
-            vary_stages=[2, 6],
+            end_stages=[2, 6, N_horizon],
         ),
         # Non-learnable parameters without vary_stages
         AcadosParameter(
@@ -394,16 +399,16 @@ def test_mixed_parameter_types_and_interfaces():
         ),
     ]
 
-    manager = AcadosParameterManager(params, N_horizon=8)
+    manager = AcadosParameterManager(params, N_horizon=N_horizon)
 
     # Check learnable parameters
     learnable_keys = list(manager.learnable_parameters.keys())
     expected_learnable = [
         "learn_scalar",
         "learn_vector",
-        "learn_staged_0_1",
-        "learn_staged_2_5",
-        "learn_staged_6_8",
+        "learn_staged_0_2",
+        "learn_staged_3_6",
+        "learn_staged_7_8",
     ]
     assert len(learnable_keys) == len(expected_learnable)
     for key in expected_learnable:
@@ -496,16 +501,17 @@ def test_get_method_non_learnable_parameters():
 
 def test_get_method_vary_stages():
     """Test get method for parameters with vary_stages."""
+    N_horizon = 5
     params = [
         AcadosParameter(
             name="staged_param",
             default=np.array([1.0]),
             interface="learnable",
-            vary_stages=[3],
+            end_stages=[3, N_horizon],
         ),
     ]
 
-    manager = AcadosParameterManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=N_horizon)
 
     # Should return a combination of staged parameters
     result = manager.get("staged_param")
@@ -514,10 +520,9 @@ def test_get_method_vary_stages():
     assert isinstance(result, ca.SX)
     assert result.shape == (1, 1)
 
-    # TODO: This test might be fragile. Use a casadi.Function to validate the expression.
     assert result.str() == (
-        "((((indicator_0+indicator_1)+indicator_2)*staged_param_0_2)"
-        + "+(((indicator_3+indicator_4)+indicator_5)*staged_param_3_5))"
+        "(((((indicator_0+indicator_1)+indicator_2)+indicator_3)*staged_param_0_3)"
+        "+((indicator_4+indicator_5)*staged_param_4_5))"
     )
 
 
@@ -548,24 +553,25 @@ def test_empty_parameter_list():
 def test_parameter_name_with_underscores():
     """Test parameters with underscores in their names (potential conflict
     with template for stages: {name}_{start}_{end})."""
+    N_horizon = 5
     params = [
         AcadosParameter(
             name="param_with_underscores",
             default=np.array([1.0]),
             interface="learnable",
-            vary_stages=[3],
+            end_stages=[3, N_horizon],
         ),
     ]
 
-    manager = AcadosParameterManager(params, N_horizon=5)
+    manager = AcadosParameterManager(params, N_horizon=N_horizon)
 
     # Should properly handle names with underscores
     learnable_keys = list(manager.learnable_parameters.keys())
     staged_keys = [k for k in learnable_keys if k.startswith("param_with_underscores_")]
 
     assert len(staged_keys) == 2
-    assert "param_with_underscores_0_2" in staged_keys
-    assert "param_with_underscores_3_5" in staged_keys
+    assert "param_with_underscores_0_3" in staged_keys
+    assert "param_with_underscores_4_5" in staged_keys
 
     # Values should be set correctly (CasADi format)
     for key in staged_keys:
@@ -659,6 +665,7 @@ def test_combine_parameter_values():
 
 def test_combine_parameter_values_complex():
     """Test combine_parameter_values with mixed parameter types, interfaces, and vary_stages."""
+    N_horizon = 8
     params = [
         # Scalar parameters
         AcadosParameter(name="scalar_fix", default=np.array([2.0]), interface="fix"),
@@ -672,7 +679,7 @@ def test_combine_parameter_values_complex():
             name="scalar_staged",
             default=np.array([5.0]),
             interface="learnable",
-            vary_stages=[2, 6],
+            end_stages=[2, 6, N_horizon],
         ),
         # Vector parameters
         AcadosParameter(name="vector_fix", default=np.array([1.0, 2.0]), interface="fix"),
@@ -690,7 +697,7 @@ def test_combine_parameter_values_complex():
             name="vector_staged",
             default=np.array([10.0, 11.0]),
             interface="learnable",
-            vary_stages=[3],
+            end_stages=[3, N_horizon],
         ),
         # Matrix parameters
         AcadosParameter(
@@ -712,7 +719,7 @@ def test_combine_parameter_values_complex():
             name="matrix_staged",
             default=np.array([[20.0, 21.0], [22.0, 23.0]]),
             interface="learnable",
-            vary_stages=[1, 4, 7],
+            end_stages=[1, 4, 7],
         ),
     ]
 
