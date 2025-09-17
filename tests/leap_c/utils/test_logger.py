@@ -65,11 +65,9 @@ def test_logger_writes_to_csv_correctly(tmp_path: Path) -> None:
 
     # log data
     cfg = LoggerConfig(csv_logger=True, tensorboard_logger=False, wandb_logger=False)
-
-    logger = Logger(cfg, tmp_path)
-    for group, timestamp in product(groups, timestamps):
-        logger(group, stats[timestamp], timestamp, with_smoothing=False)
-    logger.close()
+    with Logger(cfg, tmp_path) as logger:
+        for group, timestamp in product(groups, timestamps):
+            logger(group, stats[timestamp], timestamp, with_smoothing=False)
 
     # test CSV files have been created and contain the correct data
     for group in groups:
