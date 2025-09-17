@@ -9,7 +9,7 @@ import torch
 from yaml import safe_dump
 
 from leap_c.torch.utils.seed import set_seed
-from leap_c.utils.gym import WrapperType, seed_env, wrap_env
+from leap_c.utils.gym import WrapperType, wrap_env
 from leap_c.utils.logger import Logger, LoggerConfig
 from leap_c.utils.rollout import episode_rollout
 
@@ -126,7 +126,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
-        self.eval_env = seed_env(wrap_env(eval_env, wrappers=wrappers), seed=self.cfg.seed)
+        self.eval_env = wrap_env(eval_env, wrappers=wrappers)
 
         # trainer state
         self.state = TrainerState()
@@ -139,7 +139,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
             safe_dump(asdict(self.cfg), f)
 
         # seed
-        set_seed(self.cfg.seed)
+        self.rng = set_seed(self.cfg.seed)
 
     @abstractmethod
     def train_loop(self) -> Generator[int, None, None]:
@@ -285,6 +285,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
             render_human=False,
             video_folder=self.output_path / "video",
             name_prefix=f"{self.state.step}",
+            rng=self.rng,
         )
 
         parts_rollout = []

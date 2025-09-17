@@ -14,6 +14,7 @@ from leap_c.torch.nn.mlp import Mlp, MlpConfig
 from leap_c.torch.nn.scale import min_max_scaling
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.utils import soft_target_update
+from leap_c.torch.utils.seed import mk_seed
 from leap_c.trainer import Trainer, TrainerConfig
 from leap_c.utils.gym import seed_env, wrap_env
 
@@ -228,7 +229,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         """
         super().__init__(cfg, val_env, output_path, device)
 
-        self.train_env = seed_env(wrap_env(train_env), seed=self.cfg.seed)
+        self.train_env = wrap_env(train_env)
         action_space: spaces.Box = self.train_env.action_space  # type: ignore
         observation_space = self.train_env.observation_space
 
@@ -272,7 +273,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
 
         while True:
             if is_terminated or is_truncated:
-                obs, _ = self.train_env.reset()
+                obs, _ = seed_env(self.train_env, mk_seed(self.rng))
                 is_terminated = is_truncated = False
 
             action, _, stats = self.act(obs)  # type: ignore
