@@ -55,23 +55,23 @@ def prepare_batch_solver(
     elif p_global is not None:
         # if p_global is provided, set it
         for param, solver in zip(p_global, active_solvers):
-            param = param.astype(np.float64)
+            param = param.astype(np.float64, copy=False)
             solver.set_p_global_and_precompute_dependencies(param)
 
     # set p_stagewise
     if p_stagewise is None and _is_param_legal(ocp.model.p) and p_stagewise_sparse_idx is None:
         # if p_stagewise is None and default exist, load default p
         param_default = np.tile(ocp.parameter_values, (batch_size, N + 1))
-        param = param_default.reshape(batch_size, -1).astype(np.float64)
+        param = param_default.reshape(batch_size, -1).astype(np.float64, copy=False)
         batch_solver.set_flat("p", param)
     elif p_stagewise is not None and p_stagewise_sparse_idx is None:
         # if p_stagewise is provided, set it
-        param = p_stagewise.reshape(batch_size, -1).astype(np.float64)
+        param = p_stagewise.reshape(batch_size, -1).astype(np.float64, copy=False)
         batch_solver.set_flat("p", param)
     elif p_stagewise is not None and p_stagewise_sparse_idx is not None:
         # if p_stagewise is provided and sparse indices are provided, set it
         for idx, stage in product(range(batch_size), range(N + 1)):
-            param = p_stagewise[idx, stage, :].astype(np.float64)
+            param = p_stagewise[idx, stage, :].astype(np.float64, copy=False)
             solver = batch_solver.ocp_solvers[idx]
             solver.set_params_sparse(stage, p_stagewise_sparse_idx[idx, stage, :], param)
 
