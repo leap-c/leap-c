@@ -150,14 +150,13 @@ class Logger:
             if not cfg.wandb_init_kwargs.get("dir", False):  # type:ignore
                 cfg.wandb_init_kwargs["dir"] = str(self.output_path)
             wandb.init(**cfg.wandb_init_kwargs)
-
-        self._wandb_defined_metrics = {}
+            self._wandb_defined_metrics: dict[str, bool] = {}
 
         # tensorboard
         if cfg.tensorboard_logger:
             from torch.utils.tensorboard import SummaryWriter
 
-            self.writer = SummaryWriter(self.output_path)
+            self._tensorboard_writer = SummaryWriter(self.output_path)
 
     def __call__(
         self,
@@ -227,7 +226,7 @@ class Logger:
 
             if self.cfg.tensorboard_logger:
                 for key, value in report_stats.items():
-                    self.writer.add_scalar(f"{group}/{key}", value, report_timestamp)
+                    self._tensorboard_writer.add_scalar(f"{group}/{key}", value, report_timestamp)
 
             if self.cfg.csv_logger:
                 csv_path = self.output_path / f"{group}_log.csv"
@@ -246,7 +245,7 @@ class Logger:
         This will close the TensorBoard writer and finish the Weights & Biases run.
         """
         if self.cfg.tensorboard_logger:
-            self.writer.close()
+            self._tensorboard_writer.close()
 
         if self.cfg.wandb_logger:
             import wandb
