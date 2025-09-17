@@ -225,7 +225,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
             self.state.step += next(train_loop_iter)
 
             # validate
-            if self.state.step // self.cfg.val_interval >= len(self.state.scores):
+            if self.state.step // self.cfg.val_freq >= len(self.state.scores):
                 self.eval()
                 with torch.inference_mode():
                     val_score = self.validate()
