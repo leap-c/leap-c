@@ -132,7 +132,10 @@ class Logger:
     group_trackers: dict[str, GroupWindowTracker]
 
     def __init__(self, cfg: LoggerConfig, output_path: str | Path) -> None:
-        """Initialize the logger.
+        """Initialize the logger, but does not start it.
+
+        Before using the logger, call `__enter__`, e.g., via a `with` statement. This will ensure
+        that the logger is properly started and stopped.
 
         Args:
             cfg: The configuration for the logger.
@@ -143,7 +146,16 @@ class Logger:
         self.output_path.mkdir(parents=True, exist_ok=True)
         self.group_trackers = defaultdict(lambda: GroupWindowTracker(cfg.interval, cfg.window))
 
-        # init wandb
+    def __enter__(self) -> "Logger":
+        """Starts the logger.
+
+        This will initialize the TensorBoard writer, Weights & Biases run, and CSV file.
+
+        Returns:
+            Logger: A reference to the logger itself.
+        """
+        cfg = self.cfg
+
         if cfg.wandb_logger:
             import wandb
 
@@ -152,11 +164,26 @@ class Logger:
             wandb.init(**cfg.wandb_init_kwargs)
             self._wandb_defined_metrics: dict[str, bool] = {}
 
-        # tensorboard
         if cfg.tensorboard_logger:
             from torch.utils.tensorboard import SummaryWriter
 
             self._tensorboard_writer = SummaryWriter(self.output_path)
+        return self
+
+    def __exit__(self, *_, **__) -> None:
+        """Closes the logger.
+
+        This closes the TensorBoard writer and CSV file, and finishes the Weights & Biases run.
+        """
+        cfg = self.cfg
+
+        if cfg.tensorboard_logger:
+            self._tensorboard_writer.close()
+
+        if cfg.wandb_logger:
+            import wandb
+
+            wandb.finish()
 
     def __call__(
         self,
@@ -180,10 +207,19 @@ class Logger:
             with_smoothing: If `True`, the statistics are smoothed with a moving window.
                 This also results in the statistics being only reported at specific intervals.
         """
-        if verbose and not self.cfg.verbose:
+        cfg = self.cfg
+        if (cfg.tensorboard_logger and not hasattr(self, "_tensorboard_writer")) or (
+            cfg.wandb_logger and not hasattr(self, "_wandb_defined_metrics")
+        ):
+            raise RuntimeError(
+                "Logger waws not started before calling it. Must be initialized with `__enter__`, "
+                "e.g., via `with Logger(...) as logger:`."
+            )
+
+        if verbose and not cfg.verbose:
             return
 
-        if self.cfg.wandb_logger and not self._wandb_defined_metrics.get(group, False):
+        if cfg.wandb_logger and not self._wandb_defined_metrics.get(group, False):
             import wandb
 
             wandb.define_metric(f"{group}/*", f"{group}/step")
@@ -214,7 +250,7 @@ class Logger:
             report_loop = [(timestamp, stats)]
 
         for report_timestamp, report_stats in report_loop:
-            if self.cfg.wandb_logger:
+            if cfg.wandb_logger:
                 import wandb
 
                 wandb.log(
@@ -224,11 +260,11 @@ class Logger:
                     }
                 )
 
-            if self.cfg.tensorboard_logger:
+            if cfg.tensorboard_logger:
                 for key, value in report_stats.items():
                     self._tensorboard_writer.add_scalar(f"{group}/{key}", value, report_timestamp)
 
-            if self.cfg.csv_logger:
+            if cfg.csv_logger:
                 csv_path = self.output_path / f"{group}_log.csv"
 
                 if csv_path.exists():
@@ -238,16 +274,3 @@ class Logger:
 
                 df = pd.DataFrame(report_stats, index=[report_timestamp])  # type: ignore
                 df.to_csv(csv_path, index_label="timestamp", **kw)
-
-    def close(self) -> None:
-        """Close the logger.
-
-        This will close the TensorBoard writer and finish the Weights & Biases run.
-        """
-        if self.cfg.tensorboard_logger:
-            self._tensorboard_writer.close()
-
-        if self.cfg.wandb_logger:
-            import wandb
-
-            wandb.finish()

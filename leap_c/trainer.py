@@ -208,40 +208,38 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
                 f"but has to be one of {get_args(ValReportScoreOptions)}"
             )
 
-        self.to(self.device)
+        with self.logger:
+            self.to(self.device)
+            train_loop_iter = self.train_loop()
 
-        train_loop_iter = self.train_loop()
+            # initial policy validation
+            self.eval()  # set to eval mode
+            with torch.inference_mode():
+                val_score = self.validate()
+            self.train()  # set back to train mode
+            self.state.scores.append(val_score)
+            self.state.max_score = val_score
 
-        # initial policy validation
-        self.eval()  # set to eval mode
-        with torch.inference_mode():
-            val_score = self.validate()
-        self.train()  # set back to train mode
-        self.state.scores.append(val_score)
-        self.state.max_score = val_score
+            while self.state.step < self.cfg.train_steps:
+                # train
+                self.state.step += next(train_loop_iter)
 
-        while self.state.step < self.cfg.train_steps:
-            # train
-            self.state.step += next(train_loop_iter)
+                # validate
+                if self.state.step // self.cfg.val_freq >= len(self.state.scores):
+                    self.eval()  # set to eval mode
+                    with torch.inference_mode():
+                        val_score = self.validate()
+                    self.train()  # set back to train mode
+                    self.state.scores.append(val_score)
 
-            # validate
-            if self.state.step // self.cfg.val_freq >= len(self.state.scores):
-                self.eval()  # set to eval mode
-                with torch.inference_mode():
-                    val_score = self.validate()
-                self.train()  # set back to train mode
-                self.state.scores.append(val_score)
+                    if val_score > self.state.max_score:
+                        self.state.max_score = val_score
+                        if self.cfg.ckpt_modus == "best":
+                            self.save()
 
-                if val_score > self.state.max_score:
-                    self.state.max_score = val_score
-                    if self.cfg.ckpt_modus == "best":
+                    # save model
+                    if self.cfg.ckpt_modus in ("last", "all"):
                         self.save()
-
-                # save model
-                if self.cfg.ckpt_modus in ("last", "all"):
-                    self.save()
-
-        self.logger.close()
 
         match self.cfg.val_report_score:
             case "cum":
