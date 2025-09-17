@@ -240,7 +240,7 @@ class Logger:
                     kw = {"mode": "w", "header": True}
 
                 df = pd.DataFrame(report_stats, index=[report_timestamp])  # type: ignore
-                df.to_csv(csv_path, **kw)
+                df.to_csv(csv_path, index_label="timestamp", **kw)
 
     def close(self) -> None:
         """Close the logger.
