@@ -50,7 +50,6 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacZopConfig:
     cfg.trainer.target_entropy = None
     cfg.trainer.entropy_reward_bonus = True
     cfg.trainer.num_critics = 2
-    cfg.trainer.report_loss_freq = 100
     cfg.trainer.update_freq = 4
     cfg.trainer.distribution_name = "squashed_gaussian"
     cfg.trainer.init_param_with_default = True
