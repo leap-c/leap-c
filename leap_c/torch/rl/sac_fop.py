@@ -354,7 +354,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
 
         self.log_alpha = nn.Parameter(torch.tensor(cfg.init_alpha).log())  # type: ignore
 
-        self.entropy_norm = param_dim / action_dim
+        self.entropy_norm = param_dim / action_dim if cfg.noise == "param" else 1.0
         if cfg.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)  # type: ignore
             self.target_entropy = -action_dim if cfg.target_entropy is None else cfg.target_entropy
