@@ -307,6 +307,9 @@ class AcadosParameterManager:
         If the parameters do not provide a space themselves, an unbounded Box space with type
         `dtype` will be filled in for them.
 
+        For parameters with stage variations (end_stages), the space is duplicated according
+        to the number of stage variations.
+
         Args:
             dtype: The desired data type for the filled-in spaces.
         """
@@ -314,18 +317,30 @@ class AcadosParameterManager:
 
         for param in self.parameters.values():
             if param.interface == "learnable":
+                # Determine the base space for this parameter
                 if param.space is not None:
-                    learnable_spaces.append(param.space)
+                    base_space = param.space
                 else:
                     # Create unbounded space for parameters without bounds
                     param_shape = param.default.shape
-                    unbounded_space = gym.spaces.Box(
+                    base_space = gym.spaces.Box(
                         low=-np.inf,
                         high=np.inf,
                         shape=param_shape,
                         dtype=dtype,
                     )
-                    learnable_spaces.append(unbounded_space)
+
+                # If parameter has stage variations, duplicate the space for each variation
+                if param.end_stages:
+                    starts, ends = _define_starts_and_ends(
+                        end_stages=param.end_stages, N_horizon=self.N_horizon
+                    )
+                    # Add one space for each stage variation
+                    for _ in zip(starts, ends):
+                        learnable_spaces.append(base_space)
+                else:
+                    # No stage variations, add single space
+                    learnable_spaces.append(base_space)
 
         if not learnable_spaces:
             # No learnable parameters - return empty box space
