@@ -448,6 +448,213 @@ def test_get_param_space():
     np.testing.assert_array_equal(manager.get_param_space().high, expected_ub)
 
 
+def test_get_param_space_with_variable_end_stages():
+    """Test get_param_space method with parameters that have variable end_stages.
+
+    The parameter space should scale up according to the number of stage variations
+    and dimensions of each parameter.
+    Each stage variation should create a separate entry in the parameter space.
+    """
+    N_horizon = 10
+    params = [
+        # Scalar parameter with 3 stage variations
+        AcadosParameter(
+            name="scalar",
+            default=np.array([5.0]),
+            space=gym.spaces.Box(low=np.array([0.0]), high=np.array([20.0])),
+            interface="learnable",
+            end_stages=[3, 7, N_horizon],
+        ),
+        # Vector parameter with 4 stage variations
+        AcadosParameter(
+            name="vector",
+            default=np.array([10.0, 15.0]),
+            space=gym.spaces.Box(low=np.array([0.0, 5.0]), high=np.array([50.0, 100.0])),
+            interface="learnable",
+            end_stages=[2, 5, 8, N_horizon],
+        ),
+        # Scalar parameter with 5 stage variations but no bounds (should get -inf/+inf)
+        AcadosParameter(
+            name="scalar_unbounded",
+            default=np.array([2.5]),
+            interface="learnable",
+            end_stages=[1, 3, 6, 8, N_horizon],
+        ),
+        # Matrix parameter with 2 stage variations
+        AcadosParameter(
+            name="matrix",
+            default=np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]),  # 3x3 matrix
+            space=gym.spaces.Box(
+                low=np.array([[-5.0, -5.0, -5.0], [-5.0, -5.0, -5.0], [-5.0, -5.0, -5.0]]),
+                high=np.array([[15.0, 15.0, 15.0], [15.0, 15.0, 15.0], [15.0, 15.0, 15.0]]),
+            ),
+            interface="learnable",
+            end_stages=[4, N_horizon],
+        ),
+        # Regular parameter without end_stages
+        AcadosParameter(
+            name="regular_param",
+            default=np.array([1.0]),
+            space=gym.spaces.Box(low=np.array([-10.0]), high=np.array([10.0])),
+            interface="learnable",
+        ),
+    ]
+
+    manager = AcadosParameterManager(params, N_horizon=N_horizon)
+    param_space = manager.get_param_space()
+
+    # Expected space dimensions:
+    # - scalar: 3 stage variations × 1 dimension = 3 elements
+    # - vector: 4 stage variations × 2 dimensions = 8 elements
+    # - scalar_unbounded: 5 stage variations × 1 dimension = 5 elements
+    # - matrix: 2 stage variations × 9 dimensions (3x3) = 18 elements
+    # - regular_param: 1 × 1 dimension = 1 element
+    # Total: 3 + 8 + 5 + 18 + 1 = 35 elements
+    expected_total_dims = 35
+
+    assert isinstance(param_space, gym.spaces.Box)
+    assert param_space.shape == (expected_total_dims,)
+
+    # Verify bounds are replicated correctly for staged parameters
+    expected_low = np.array(
+        [
+            # scalar (3 variations): [0.0, 0.0, 0.0]
+            0.0,
+            0.0,
+            0.0,
+            # vector (4 variations × 2 dims): [0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 0.0, 5.0]
+            0.0,
+            5.0,
+            0.0,
+            5.0,
+            0.0,
+            5.0,
+            0.0,
+            5.0,
+            # scalar_unbounded (5 variations): [-inf, -inf, -inf, -inf, -inf]
+            -np.inf,
+            -np.inf,
+            -np.inf,
+            -np.inf,
+            -np.inf,
+            # matrix (2 variations × 9 dims): [-5.0 repeated 18 times]
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,  # First variation
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,
+            -5.0,  # Second variation
+            # regular_param: [-10.0]
+            -10.0,
+        ],
+        dtype=np.float32,
+    )
+
+    expected_high = np.array(
+        [
+            # scalar (3 variations): [20.0, 20.0, 20.0]
+            20.0,
+            20.0,
+            20.0,
+            # vector (4 variations × 2 dims): [50.0, 100.0, ...]
+            50.0,
+            100.0,
+            50.0,
+            100.0,
+            50.0,
+            100.0,
+            50.0,
+            100.0,
+            # scalar_unbounded (5 variations): [+inf, +inf, +inf, +inf, +inf]
+            np.inf,
+            np.inf,
+            np.inf,
+            np.inf,
+            np.inf,
+            # matrix (2 variations × 9 dims): [15.0 repeated 18 times]
+            15.0,
+            15.0,
+            15.0,
+            15.0,
+            15.0,
+            15.0,
+            15.0,
+            15.0,
+            15.0,  # First variation
+            15.0,
+            15.0,
+            15.0,
+            15.0,
+            15.0,
+            15.0,
+            15.0,
+            15.0,
+            15.0,  # Second variation
+            # regular_param: [10.0]
+            10.0,
+        ],
+        dtype=np.float32,
+    )
+
+    np.testing.assert_array_equal(param_space.low, expected_low)
+    np.testing.assert_array_equal(param_space.high, expected_high)
+
+    # Verify learnable parameter keys match expected staged parameter names
+    learnable_keys = list(manager.learnable_parameters.keys())
+
+    # Check scalar variations (but not scalar_unbounded)
+    scalar_keys = [
+        k
+        for k in learnable_keys
+        if k.startswith("scalar_") and not k.startswith("scalar_unbounded_")
+    ]
+    assert len(scalar_keys) == 3
+    assert "scalar_0_3" in scalar_keys
+    assert "scalar_4_7" in scalar_keys
+    assert "scalar_8_10" in scalar_keys
+
+    # Check vector variations
+    vector_keys = [k for k in learnable_keys if k.startswith("vector_")]
+    assert len(vector_keys) == 4
+    assert "vector_0_2" in vector_keys
+    assert "vector_3_5" in vector_keys
+    assert "vector_6_8" in vector_keys
+    assert "vector_9_10" in vector_keys
+
+    # Check scalar_unbounded variations
+    scalar_unbounded_keys = [k for k in learnable_keys if k.startswith("scalar_unbounded_")]
+    assert len(scalar_unbounded_keys) == 5
+    assert "scalar_unbounded_0_1" in scalar_unbounded_keys
+    assert "scalar_unbounded_2_3" in scalar_unbounded_keys
+    assert "scalar_unbounded_4_6" in scalar_unbounded_keys
+    assert "scalar_unbounded_7_8" in scalar_unbounded_keys
+    assert "scalar_unbounded_9_10" in scalar_unbounded_keys
+
+    # Check matrix variations
+    matrix_keys = [k for k in learnable_keys if k.startswith("matrix_")]
+    assert len(matrix_keys) == 2
+    assert "matrix_0_4" in matrix_keys
+    assert "matrix_5_10" in matrix_keys
+
+    # Check regular parameter
+    assert "regular_param" in learnable_keys
+
+    # Total learnable parameters: 3 + 4 + 5 + 2 + 1 = 15 distinct parameter names
+    assert len(learnable_keys) == 15
+
+
 def test_get_method_fix_parameters():
     """Test get method for fixed parameters."""
     params = [
