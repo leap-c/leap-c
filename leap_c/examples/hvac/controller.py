@@ -171,9 +171,29 @@ class HvacController(ParameterizedController):
             dqh=x[:, 1, 4].detach(),
         )
 
+        if True:
+            print(f"x.shape = {x.shape}")
+            print(f"u.shape = {u.shape}")
+            print(f"batch_size = {batch_size}")
+            print(f"N_horizon = {N_horizon}")
+
+            # Take the first batch element
+            Ti = x[0, :, 0].cpu().numpy()
+            qh = x[0, :, 3].cpu().numpy()
+
+            import matplotlib.pyplot as plt
+
+            plt.figure(figsize=(12, 8))
+            plt.plot(Ti, label="Ti")
+            plt.plot(lb.flatten(), "g--", label="Ti lower")
+            plt.plot(ub.flatten(), "r--", label="Ti upper")
+            plt.legend()
+
+            Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
+
         return ctx, x[:, 1, 3][:, None]
 
-    def jacobian_action_param(self, ctx) -> np.ndarray:
+    def jacobian_action_param(self, ctx: HvacControllerCtx) -> np.ndarray:
         return self.diff_mpc.sensitivity(ctx.diff_mpc_ctx, field_name="du0_dp_global")
 
     @property
