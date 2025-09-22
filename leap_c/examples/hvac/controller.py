@@ -188,16 +188,16 @@ class HvacController(ParameterizedController):
             Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
 
             for stage in range(N_horizon + 1):
-                param["Ta", stage] = Ta_forecast[stage]
-                param["Phi_s", stage] = solar_forecast[stage]
-                param["price", stage] = price_forecast[stage]
+                param[f"Ta_{stage}_{stage}"] = Ta_forecast[stage]
+                param[f"Phi_s_{stage}_{stage}"] = solar_forecast[stage]
+                param[f"price_{stage}_{stage}"] = price_forecast[stage]
                 # TODO: Retrieve these from the parameter manager after its refactored
-                param["q_dqh", stage] = 1.0  # weight on rate of change of heater power
-                param["q_ddqh", stage] = 1.0  # weight on acceleration of heater power
-                param["q_Ti", stage] = 0.001  # weight on acceleration of heater power
-                param["ref_Ti", stage] = convert_temperature(
-                    21.0, "celsius", "kelvin"
-                )  # weight on acceleration of heater power
+                param[f"q_dqh_{stage}_{stage}"] = 1.0  # weight on rate of change of heater power
+                param[f"q_Ti_{stage}_{stage}"] = 0.001  # weight on acceleration of heater power
+                param[f"ref_Ti_{stage}_{stage}"] = convert_temperature(21.0, "celsius", "kelvin")
+
+            for stage in range(N_horizon):
+                param[f"q_ddqh_{stage}_{stage}"] = 1.0  # weight on acceleration of heater power
             return param.cat.full().flatten()
 
         return self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore
