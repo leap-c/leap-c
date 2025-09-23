@@ -171,25 +171,10 @@ class HvacController(ParameterizedController):
             dqh=x[:, 1, 4].detach(),
         )
 
-        if True:
-            print(f"x.shape = {x.shape}")
-            print(f"u.shape = {u.shape}")
-            print(f"batch_size = {batch_size}")
-            print(f"N_horizon = {N_horizon}")
+        ##################
 
-            # Take the first batch element
-            Ti = x[0, :, 0].cpu().numpy()
-            qh = x[0, :, 3].cpu().numpy()
-
-            import matplotlib.pyplot as plt
-
-            plt.figure(figsize=(12, 8))
-            plt.plot(Ti, label="Ti")
-            plt.plot(lb.flatten(), "g--", label="Ti lower")
-            plt.plot(ub.flatten(), "r--", label="Ti upper")
-            plt.legend()
-
-            Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
+        _ = self._plot_controller_analysis(x, obs, param, lb, ub)
+        plt.show()
 
         return ctx, x[:, 1, 3][:, None]
 
@@ -208,12 +193,156 @@ class HvacController(ParameterizedController):
 
         Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
 
+        Ta_forecast = Ta_forecast.cpu().numpy().flatten()
+        solar_forecast = solar_forecast.cpu().numpy().flatten()
+        price_forecast = price_forecast.cpu().numpy().flatten()
+
         for stage in range(self.ocp.solver_options.N_horizon + 1):
             param[f"Ta_{stage}_{stage}"] = Ta_forecast[stage]
             param[f"Phi_s_{stage}_{stage}"] = solar_forecast[stage]
             param[f"price_{stage}_{stage}"] = price_forecast[stage]
 
         return param.cat.full().flatten()
+
+    def _extract_param_by_prefix(self, structured_param, key_prefix: str) -> np.ndarray:
+        """
+        Extract parameters from structured_param that start with the given key prefix.
+
+        Args:
+            structured_param: The structured parameter object
+            key_prefix: The prefix to filter parameter keys (e.g., "Ta_", "Phi_s_", "price_")
+
+        Returns:
+            np.ndarray: Vertically concatenated array of parameter values
+        """
+        keys = [key for key in structured_param.keys() if key.startswith(key_prefix)]
+        return ca.vertcat(*[structured_param[key] for key in keys]).full()
+
+    def _plot_controller_analysis(
+        self,
+        x: torch.Tensor,
+        obs: torch.Tensor,
+        param: torch.Tensor,
+        lb: np.ndarray,
+        ub: np.ndarray,
+    ) -> None:
+        """
+        Plot comprehensive analysis of controller predictions and parameters.
+
+        Args:
+            x: State trajectory predictions from the controller
+            obs: Observations from the environment
+            param: Current parameter values
+            lb: Temperature lower bounds
+            ub: Temperature upper bounds
+        """
+        # Extract prediction from context
+        # x: (batch_size, N_horizon + 1, n_x)
+        # u: (batch_size, N_horizon, n_u)
+        Ti = x[:, :, 0].cpu().numpy().flatten()  # Indoor temperature
+        Th = x[:, :, 1].cpu().numpy().flatten()  # Radiator temperature
+        Te = x[:, :, 2].cpu().numpy().flatten()  # Envelope temperature
+        qh = x[:, :, 3].cpu().numpy().flatten()  # Heating power
+
+        plt.figure(figsize=(12, 8))
+        plt.subplot(7, 1, 1)
+        plt.step(
+            range(len(Ti)), convert_temperature(Ti, "kelvin", "celsius"), where="post", label="Ti"
+        )
+        plt.step(
+            range(lb.shape[1]),
+            convert_temperature(lb.flatten(), "kelvin", "celsius"),
+            "k--",
+            where="post",
+        )
+        plt.step(
+            range(ub.shape[1]),
+            convert_temperature(ub.flatten(), "kelvin", "celsius"),
+            "k--",
+            where="post",
+        )
+        plt.ylabel("Ti [°C]")
+        plt.grid(visible=True, alpha=0.3)
+
+        plt.subplot(7, 1, 2)
+        plt.step(
+            range(len(Th)), convert_temperature(Th, "kelvin", "celsius"), where="post", label="Th"
+        )
+        plt.ylabel("Th [°C]")
+        plt.grid(visible=True, alpha=0.3)
+
+        plt.subplot(7, 1, 3)
+        plt.step(
+            range(len(Te)), convert_temperature(Te, "kelvin", "celsius"), where="post", label="Te"
+        )
+        plt.ylabel("Te [°C]")
+        plt.grid(visible=True, alpha=0.3)
+        plt.subplot(7, 1, 4)
+        plt.step(range(len(qh)), qh * 1e-3, where="post", label="qh")
+        plt.ylabel("qh [kW]")
+        plt.grid(visible=True, alpha=0.3)
+
+        structured_param = self.param_manager.learnable_parameters(
+            param.cpu().numpy().reshape(-1, 1)
+        )
+
+        structured_default_param = self.param_manager.learnable_parameters(
+            self.default_param(obs).reshape(-1, 1)
+        )
+
+        keys = ["price", "Ta", "Phi_s"]
+        ylabel = {"price": "price [EUR/kWh]", "Ta": "Ta [°C]", "Phi_s": "Solar [W/m²]"}
+        val, default_val, param_lb, param_ub = {}, {}, {}, {}
+        for key in keys:
+            val[key] = self._extract_param_by_prefix(structured_param, key)
+            default_val[key] = self._extract_param_by_prefix(structured_default_param, key)
+            param_lb[key] = self._extract_param_by_prefix(
+                self.param_manager.learnable_parameters(self.param_space.low.reshape(-1, 1)), key
+            )
+            param_ub[key] = self._extract_param_by_prefix(
+                self.param_manager.learnable_parameters(self.param_space.high.reshape(-1, 1)), key
+            )
+
+        val["Ta"] = convert_temperature(val["Ta"], "kelvin", "celsius")
+        default_val["Ta"] = convert_temperature(default_val["Ta"], "kelvin", "celsius")
+        param_lb["Ta"] = convert_temperature(param_lb["Ta"], "kelvin", "celsius")
+        param_ub["Ta"] = convert_temperature(param_ub["Ta"], "kelvin", "celsius")
+
+        for key in keys:
+            plt.subplot(7, 1, keys.index(key) + 5)
+            plt.step(
+                range(len(val[key].flatten())),
+                val[key].flatten(),
+                where="post",
+                label="learned",
+            )
+            plt.step(
+                range(len(default_val[key].flatten())),
+                default_val[key].flatten(),
+                where="post",
+                label="default",
+            )
+            plt.step(
+                range(len(param_lb[key].flatten())),
+                param_lb[key].flatten(),
+                where="post",
+                linestyle="--",
+                color="black",
+            )
+            plt.step(
+                range(len(param_ub[key].flatten())),
+                param_ub[key].flatten(),
+                where="post",
+                linestyle="--",
+                color="black",
+            )
+            plt.grid(visible=True, alpha=0.3)
+            plt.ylabel(ylabel[key])
+            plt.legend()
+
+        plt.tight_layout()
+
+        return plt.gcf()
 
 
 def export_parametric_ocp(
