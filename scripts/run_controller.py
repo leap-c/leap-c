@@ -72,7 +72,8 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
 
     def train_loop(self) -> Generator[int, None, None]:
         """No training - just return immediately."""
-        yield 1
+        while True:
+            yield 1
 
     def act(
         self, obs, deterministic: bool = False, state=None
