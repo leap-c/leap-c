@@ -13,7 +13,7 @@ def chain_controller():
 
 
 def test_chain_policy_evaluation_works(chain_controller: ChainController):
-    x0 = chain_controller.diff_mpc.ocp.constraints.x0
+    x0 = chain_controller.diff_mpc.diff_mpc_fun.ocp.constraints.x0
 
     # Move the second mass a bit in x direction
     x0[3] += 0.1

@@ -29,7 +29,6 @@ class AcadosDiffMpc(nn.Module):
         autograd_fun: A PyTorch autograd function created from `diff_mpc_fun`.
     """
 
-    ocp: AcadosOcp
     diff_mpc_fun: AcadosDiffMpcFunction
     autograd_fun: type[autograd.Function]
 
@@ -63,8 +62,6 @@ class AcadosDiffMpc(nn.Module):
                 If `None`, a default value is used.
         """
         super().__init__()
-
-        self.ocp = ocp
 
         self.diff_mpc_fun = AcadosDiffMpcFunction(
             ocp=ocp,
