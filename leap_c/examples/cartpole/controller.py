@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
 from leap_c.examples.cartpole.acados_ocp import (
     CartPoleAcadosCostType,
