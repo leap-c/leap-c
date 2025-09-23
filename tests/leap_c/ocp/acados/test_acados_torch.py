@@ -48,7 +48,7 @@ def test_file_management(diff_mpc: AcadosDiffMpc, tol: float = 1e-5) -> None:
             - Reloading the solver modifies the `.so` files beyond the specified
                 tolerance.
     """
-    code_export_directory = Path(diff_mpc.ocp.code_export_directory)
+    code_export_directory = Path(diff_mpc.diff_mpc_fun.ocp.code_export_directory)
     export_directory = code_export_directory.parent
 
     assert code_export_directory.exists(), "c_generated_code directory does not exist"
@@ -73,7 +73,7 @@ def test_file_management(diff_mpc: AcadosDiffMpc, tol: float = 1e-5) -> None:
 
     # Should reload the solver
     AcadosDiffMpc(
-        ocp=diff_mpc.ocp,
+        ocp=diff_mpc.diff_mpc_fun.ocp,
         initializer=diff_mpc.diff_mpc_fun.initializer,
         sensitivity_ocp=diff_mpc.diff_mpc_fun.backward_batch_solver.ocp_solvers[0].acados_ocp,  # type: ignore
         export_directory=export_directory,
@@ -135,7 +135,7 @@ def test_statelessness(diff_mpc: AcadosDiffMpc) -> None:
         A=p_stagewise,
         reps=(
             diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max,
-            diff_mpc.ocp.solver_options.N_horizon + 1,  # type: ignore
+            diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1,  # type: ignore
             1,
         ),
     )
@@ -243,7 +243,8 @@ def test_closed_loop(
         diff_mpc_with_stagewise_varying_params,
         diff_mpc,
     ]:
-        nx = diff_mpc_k.ocp.dims.nx
+        ocp = diff_mpc_k.diff_mpc_fun.ocp
+        nx = ocp.dims.nx
 
         x0 = np.array([0.5, 0.5, 0.5, 0.5])
         x = [x0]
@@ -252,7 +253,7 @@ def test_closed_loop(
         # Need first dimension of inputs to be batch size
         n_batch = 1
 
-        p_global = diff_mpc_k.ocp.p_global_values.reshape(n_batch, diff_mpc_k.ocp.dims.np_global)
+        p_global = ocp.p_global_values.reshape(n_batch, ocp.dims.np_global)
 
         for step in range(100):
             # Need first dimension to be batch size
@@ -314,7 +315,7 @@ def _setup_test_inputs(
     noise_scale: float,
 ) -> AcadosTestInputs:
     """Set up test data tensors with proper gradients enabled."""
-    ocp = diff_mpc.ocp
+    ocp = diff_mpc.diff_mpc_fun.ocp
 
     # Create a seeded generator
     generator = torch.Generator()
@@ -426,7 +427,7 @@ def test_forward(
         )
 
     for diff_mpc_k in [diff_mpc_with_stagewise_varying_params, diff_mpc]:
-        acados_ocp = diff_mpc_k.ocp
+        acados_ocp = diff_mpc_k.diff_mpc_fun.ocp
         n_batch = diff_mpc_k.diff_mpc_fun.forward_batch_solver.N_batch_max
 
         # Setup test data
@@ -515,19 +516,20 @@ def test_sensitivity(
 
         assert results["dvalue_dp_global"].shape == (
             n_batch,
-            diff_mpc_k.ocp.dims.np_global,
+            diff_mpc_k.diff_mpc_fun.ocp.dims.np_global,
         ), (
             f"dvalue_dp_global shape mismatch. Expected: \
-                {(n_batch, diff_mpc_k.ocp.dims.np_global)}, "
+                {(n_batch, diff_mpc_k.diff_mpc_fun.ocp.dims.np_global)}, "
             f"Got: {results['dvalue_dp_global'].shape}"
         )
 
         assert results["dvalue_dx0"].shape == (
             n_batch,
-            diff_mpc_k.ocp.dims.nx,
+            diff_mpc_k.diff_mpc_fun.ocp.dims.nx,
         ), (
-            f"dvalue_dx0 shape mismatch. Expected: {(n_batch, diff_mpc_k.ocp.dims.nx)},"
-            f" "
+            "dvalue_dx0 shape mismatch. Expected: "
+            f"{(n_batch, diff_mpc_k.diff_mpc_fun.ocp.dims.nx)},"
+            " "
             f"Got: {results['dvalue_dx0'].shape}"
         )
 
@@ -536,10 +538,11 @@ def test_sensitivity(
 
         assert results["dvalue_du0"].shape == (
             n_batch,
-            diff_mpc_k.ocp.dims.nu,
+            diff_mpc_k.diff_mpc_fun.ocp.dims.nu,
         ), (
-            f"dvalue_du0 shape mismatch. Expected: {(n_batch, diff_mpc_k.ocp.dims.nu)},"
-            f" "
+            "dvalue_du0 shape mismatch. Expected: "
+            f"{(n_batch, diff_mpc_k.diff_mpc_fun.ocp.dims.nu)},"
+            " "
             f"Got: {results['dvalue_du0'].shape}"
         )
 
