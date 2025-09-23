@@ -1,4 +1,4 @@
-from typing import Any, Callable
+from typing import Callable
 
 import gymnasium as gym
 import numpy as np
@@ -24,7 +24,7 @@ class AcadosController(ParameterizedController):
 
     collate_fn_map: dict[type, Callable] = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
-    def forward(self, obs, param, ctx=None) -> tuple[Any, np.ndarray]:
+    def forward(self, obs, param, ctx=None) -> tuple[AcadosDiffMpcCtx, np.ndarray]:
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )
