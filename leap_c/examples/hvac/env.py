@@ -204,7 +204,7 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         # Step the temperature and solar forecasting errors via the AR1 models
         uncertainty_level = "high"  # TODO: Make this configurable
-        self.error_forecast_temp = self._predict_temperature_error_AR1(
+        error_forecast_temp = self._predict_temperature_error_AR1(
             hp=self.N_forecast,
             F0=self.uncertainty_params["temperature"][uncertainty_level]["F0"],
             K0=self.uncertainty_params["temperature"][uncertainty_level]["K0"],
@@ -213,22 +213,22 @@ class StochasticThreeStateRcEnv(gym.Env):
             mu=self.uncertainty_params["temperature"][uncertainty_level]["mu"],
         )
 
-        self.error_forecast_solar = self._predict_solar_error_AR1(
-            hp=self.N_forecast,
-            ag0=self.uncertainty_params["solar"][uncertainty_level]["ag0"],
-            bg0=self.uncertainty_params["solar"][uncertainty_level]["bg0"],
-            phi=self.uncertainty_params["solar"][uncertainty_level]["phi"],
-            ag=self.uncertainty_params["solar"][uncertainty_level]["ag"],
-            bg=self.uncertainty_params["solar"][uncertainty_level]["bg"],
-        )
-
         ambient_temperature_forecast = (
             self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
-        ) + self.error_forecast_temp
+        ) + error_forecast_temp
 
-        solar_forecast = (
-            self.data["solar"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
-        ) + self.error_forecast_solar
+        # TODO: Currently not using solar forecast error.
+        # Implement a better model that accounts for night time.
+        # error_forecast_solar = self._predict_solar_error_AR1(
+        #     hp=self.N_forecast,
+        #     ag0=self.uncertainty_params["solar"][uncertainty_level]["ag0"],
+        #     bg0=self.uncertainty_params["solar"][uncertainty_level]["bg0"],
+        #     phi=self.uncertainty_params["solar"][uncertainty_level]["phi"],
+        #     ag=self.uncertainty_params["solar"][uncertainty_level]["ag"],
+        #     bg=self.uncertainty_params["solar"][uncertainty_level]["bg"],
+        # )
+
+        solar_forecast = self.data["solar"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
 
         return np.concatenate(
             [
@@ -618,14 +618,14 @@ def decompose_observation(obs: np.ndarray) -> tuple:
             )
 
         # Cast to appropriate types
-        quarter_hour = quarter_hour.astype(np.int32)
-        day_of_year = day_of_year.astype(np.int32)
-        Ti = Ti.astype(np.float32)
-        Th = Th.astype(np.float32)
-        Te = Te.astype(np.float32)
-        Ta_forecast = Ta_forecast.astype(np.float32)
-        solar_forecast = solar_forecast.astype(np.float32)
-        price_forecast = price_forecast.astype(np.float32)
+        # quarter_hour = quarter_hour.astype(np.int32)
+        # day_of_year = day_of_year.astype(np.int32)
+        # Ti = Ti.astype(np.float32)
+        # Th = Th.astype(np.float32)
+        # Te = Te.astype(np.float32)
+        # Ta_forecast = Ta_forecast.astype(np.float32)
+        # solar_forecast = solar_forecast.astype(np.float32)
+        # price_forecast = price_forecast.astype(np.float32)
 
     else:
         N_forecast = (len(obs) - 5) // 3
