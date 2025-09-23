@@ -194,10 +194,10 @@ class HvacControllerPlotter:
         self.fig.canvas.draw()
 
         image = np.frombuffer(
-            self.fig.canvas.buffer_rgba(),  # type:ignore
+            self.fig.canvas.buffer_rgba(),
             dtype=np.uint8,
         )
-        width, height = self.fig.canvas.get_width_height()  # type:ignore
+        width, height = self.fig.canvas.get_width_height()
 
         return image.reshape(height, width, 4)[:, :, :3]
 
@@ -403,15 +403,13 @@ class HvacController(ParameterizedController):
         if not hasattr(self, "_last_render_data") or self._last_render_data is None:
             return None
 
-        img = self.plotter(
+        return self.plotter(
             self._last_render_data["x"],
             self._last_render_data["obs"],
             self._last_render_data["param"],
             self._last_render_data["lb"],
             self._last_render_data["ub"],
         )
-
-        return img
 
     def jacobian_action_param(self, ctx: HvacControllerCtx) -> np.ndarray:
         return self.diff_mpc.sensitivity(ctx.diff_mpc_ctx, field_name="du0_dp_global")
@@ -452,132 +450,6 @@ class HvacController(ParameterizedController):
         """
         keys = [key for key in structured_param.keys() if key.startswith(key_prefix)]
         return ca.vertcat(*[structured_param[key] for key in keys]).full()
-
-    def _plot_controller_analysis(
-        self,
-        x: torch.Tensor,
-        obs: torch.Tensor,
-        param: torch.Tensor,
-        lb: np.ndarray,
-        ub: np.ndarray,
-    ) -> None:
-        """
-        Plot comprehensive analysis of controller predictions and parameters.
-
-        Args:
-            x: State trajectory predictions from the controller
-            obs: Observations from the environment
-            param: Current parameter values
-            lb: Temperature lower bounds
-            ub: Temperature upper bounds
-        """
-        # Extract prediction from context
-        # x: (batch_size, N_horizon + 1, n_x)
-        # u: (batch_size, N_horizon, n_u)
-        Ti = x[:, :, 0].cpu().numpy().flatten()  # Indoor temperature
-        Th = x[:, :, 1].cpu().numpy().flatten()  # Radiator temperature
-        Te = x[:, :, 2].cpu().numpy().flatten()  # Envelope temperature
-        qh = x[:, :, 3].cpu().numpy().flatten()  # Heating power
-
-        plt.figure(figsize=(12, 8))
-        plt.subplot(7, 1, 1)
-        plt.step(
-            range(len(Ti)), convert_temperature(Ti, "kelvin", "celsius"), where="post", label="Ti"
-        )
-        plt.step(
-            range(lb.shape[1]),
-            convert_temperature(lb.flatten(), "kelvin", "celsius"),
-            "k--",
-            where="post",
-        )
-        plt.step(
-            range(ub.shape[1]),
-            convert_temperature(ub.flatten(), "kelvin", "celsius"),
-            "k--",
-            where="post",
-        )
-        plt.ylabel("Ti [°C]")
-        plt.grid(visible=True, alpha=0.3)
-
-        plt.subplot(7, 1, 2)
-        plt.step(
-            range(len(Th)), convert_temperature(Th, "kelvin", "celsius"), where="post", label="Th"
-        )
-        plt.ylabel("Th [°C]")
-        plt.grid(visible=True, alpha=0.3)
-
-        plt.subplot(7, 1, 3)
-        plt.step(
-            range(len(Te)), convert_temperature(Te, "kelvin", "celsius"), where="post", label="Te"
-        )
-        plt.ylabel("Te [°C]")
-        plt.grid(visible=True, alpha=0.3)
-        plt.subplot(7, 1, 4)
-        plt.step(range(len(qh)), qh * 1e-3, where="post", label="qh")
-        plt.ylabel("qh [kW]")
-        plt.grid(visible=True, alpha=0.3)
-
-        structured_param = self.param_manager.learnable_parameters(
-            param.cpu().numpy().reshape(-1, 1)
-        )
-
-        structured_default_param = self.param_manager.learnable_parameters(
-            self.default_param(obs).reshape(-1, 1)
-        )
-
-        keys = ["price", "Ta", "Phi_s"]
-        ylabel = {"price": "price [EUR/kWh]", "Ta": "Ta [°C]", "Phi_s": "Solar [W/m²]"}
-        val, default_val, param_lb, param_ub = {}, {}, {}, {}
-        for key in keys:
-            val[key] = self._extract_param_by_prefix(structured_param, key)
-            default_val[key] = self._extract_param_by_prefix(structured_default_param, key)
-            param_lb[key] = self._extract_param_by_prefix(
-                self.param_manager.learnable_parameters(self.param_space.low.reshape(-1, 1)), key
-            )
-            param_ub[key] = self._extract_param_by_prefix(
-                self.param_manager.learnable_parameters(self.param_space.high.reshape(-1, 1)), key
-            )
-
-        val["Ta"] = convert_temperature(val["Ta"], "kelvin", "celsius")
-        default_val["Ta"] = convert_temperature(default_val["Ta"], "kelvin", "celsius")
-        param_lb["Ta"] = convert_temperature(param_lb["Ta"], "kelvin", "celsius")
-        param_ub["Ta"] = convert_temperature(param_ub["Ta"], "kelvin", "celsius")
-
-        for key in keys:
-            plt.subplot(7, 1, keys.index(key) + 5)
-            plt.step(
-                range(len(val[key].flatten())),
-                val[key].flatten(),
-                where="post",
-                label="learned",
-            )
-            plt.step(
-                range(len(default_val[key].flatten())),
-                default_val[key].flatten(),
-                where="post",
-                label="default",
-            )
-            plt.step(
-                range(len(param_lb[key].flatten())),
-                param_lb[key].flatten(),
-                where="post",
-                linestyle="--",
-                color="black",
-            )
-            plt.step(
-                range(len(param_ub[key].flatten())),
-                param_ub[key].flatten(),
-                where="post",
-                linestyle="--",
-                color="black",
-            )
-            plt.grid(visible=True, alpha=0.3)
-            plt.ylabel(ylabel[key])
-            plt.legend()
-
-        plt.tight_layout()
-
-        return plt.gcf()
 
 
 def export_parametric_ocp(
