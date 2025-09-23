@@ -20,6 +20,217 @@ from .env import StochasticThreeStateRcEnv, decompose_observation
 from .util import set_temperature_limits, transcribe_discrete_state_space
 
 
+class HvacControllerPlotter:
+    """A plotter class for visualizing HVAC controller analysis with reusable figure and lines."""
+
+    def __init__(self, param_manager: AcadosParameterManager, param_space: gym.Space):
+        """
+        Initialize the plotter with a fixed figure structure.
+
+        Args:
+            param_manager: Parameter manager for extracting parameter information
+            param_space: Parameter space for bounds information
+        """
+        self.param_manager = param_manager
+        self.param_space = param_space
+        self.fig = None
+        self.axes = None
+        self.lines = {}
+        self.keys = ["price", "Ta", "Phi_s"]
+        self.ylabel = {"price": "price [EUR/kWh]", "Ta": "Ta [°C]", "Phi_s": "Solar [W/m²]"}
+        self._initialize_figure()
+
+    def _initialize_figure(self):
+        """Initialize the figure and axes structure."""
+        self.fig, self.axes = plt.subplots(7, 1, figsize=(12, 8))
+        self.fig.suptitle("HVAC Controller Analysis", fontsize=14)
+
+        # Initialize empty lines for each subplot
+        self.lines = {}
+
+        # Temperature subplots (Ti, Th, Te, qh)
+        temp_labels = ["Ti", "Th", "Te"]
+        temp_ylabels = ["Ti [°C]", "Th [°C]", "Te [°C]"]
+
+        for i, (label, ylabel) in enumerate(zip(temp_labels, temp_ylabels)):
+            ax = self.axes[i]
+            (self.lines[f"{label}_main"],) = ax.step([], [], where="post", label=label)
+            if i == 0:  # Only Ti has bounds
+                (self.lines["Ti_lb"],) = ax.step([], [], "k--", where="post", label="bounds")
+                (self.lines["Ti_ub"],) = ax.step([], [], "k--", where="post")
+            ax.set_ylabel(ylabel)
+            ax.grid(visible=True, alpha=0.3)
+
+        # Heating power subplot
+        ax = self.axes[3]
+        (self.lines["qh_main"],) = ax.step([], [], where="post", label="qh")
+        ax.set_ylabel("qh [kW]")
+        ax.grid(visible=True, alpha=0.3)
+
+        # Parameter subplots (price, Ta, Phi_s)
+        for i, key in enumerate(self.keys):
+            ax = self.axes[i + 4]
+            (self.lines[f"{key}_learned"],) = ax.step([], [], where="post", label="learned")
+            (self.lines[f"{key}_default"],) = ax.step([], [], where="post", label="default")
+            (self.lines[f"{key}_lb"],) = ax.step(
+                [], [], where="post", linestyle="--", color="black"
+            )
+            (self.lines[f"{key}_ub"],) = ax.step(
+                [], [], where="post", linestyle="--", color="black"
+            )
+            ax.set_ylabel(self.ylabel[key])
+            ax.grid(visible=True, alpha=0.3)
+            ax.legend()
+
+        self.axes[-1].set_xlabel("Time Step")
+        plt.tight_layout()
+
+    def __call__(
+        self,
+        x: torch.Tensor,
+        obs: torch.Tensor,
+        param: torch.Tensor,
+        lb: np.ndarray,
+        ub: np.ndarray,
+    ) -> None:
+        """
+        Update the plot with new data.
+
+        Args:
+            x: State trajectory predictions from the controller
+            obs: Observations from the environment
+            param: Current parameter values
+            lb: Temperature lower bounds
+            ub: Temperature upper bounds
+
+        Returns:
+            plt.Figure: The updated figure
+        """
+        # Extract state trajectories
+        Ti = x[:, :, 0].cpu().numpy().flatten()
+        Th = x[:, :, 1].cpu().numpy().flatten()
+        Te = x[:, :, 2].cpu().numpy().flatten()
+        qh = x[:, :, 3].cpu().numpy().flatten()
+
+        # Update temperature plots
+        self.lines["Ti_main"].set_data(range(len(Ti)), convert_temperature(Ti, "kelvin", "celsius"))
+        self.lines["Ti_lb"].set_data(
+            range(lb.shape[1]), convert_temperature(lb.flatten(), "kelvin", "celsius")
+        )
+        self.lines["Ti_ub"].set_data(
+            range(ub.shape[1]), convert_temperature(ub.flatten(), "kelvin", "celsius")
+        )
+
+        self.lines["Th_main"].set_data(range(len(Th)), convert_temperature(Th, "kelvin", "celsius"))
+        self.lines["Te_main"].set_data(range(len(Te)), convert_temperature(Te, "kelvin", "celsius"))
+        self.lines["qh_main"].set_data(range(len(qh)), qh * 1e-3)
+
+        # Update axis limits for state plots
+        for i, data in enumerate([Ti, Th, Te]):
+            converted_data = convert_temperature(data, "kelvin", "celsius")
+            self.axes[i].relim()
+            self.axes[i].set_xlim(0, len(data))
+            self.axes[i].set_ylim(converted_data.min() - 1, converted_data.max() + 1)
+
+        # qh axis limits
+        self.axes[3].relim()
+        self.axes[3].set_xlim(0, len(qh))
+        self.axes[3].set_ylim((qh * 1e-3).min() - 0.1, (qh * 1e-3).max() + 0.1)
+
+        # Update parameter plots
+        structured_param = self.param_manager.learnable_parameters(
+            param.cpu().numpy().reshape(-1, 1)
+        )
+
+        # Get default parameters
+        default_param_values = self._get_default_param_from_obs(obs)
+        structured_default_param = self.param_manager.learnable_parameters(
+            default_param_values.reshape(-1, 1)
+        )
+
+        val, default_val, param_lb, param_ub = {}, {}, {}, {}
+        for key in self.keys:
+            val[key] = self._extract_param_by_prefix(structured_param, key)
+            default_val[key] = self._extract_param_by_prefix(structured_default_param, key)
+            param_lb[key] = self._extract_param_by_prefix(
+                self.param_manager.learnable_parameters(self.param_space.low.reshape(-1, 1)), key
+            )
+            param_ub[key] = self._extract_param_by_prefix(
+                self.param_manager.learnable_parameters(self.param_space.high.reshape(-1, 1)), key
+            )
+
+        # Convert temperature units
+        for temp_key in ["Ta"]:
+            if temp_key in val:
+                val[temp_key] = convert_temperature(val[temp_key], "kelvin", "celsius")
+                default_val[temp_key] = convert_temperature(
+                    default_val[temp_key], "kelvin", "celsius"
+                )
+                param_lb[temp_key] = convert_temperature(param_lb[temp_key], "kelvin", "celsius")
+                param_ub[temp_key] = convert_temperature(param_ub[temp_key], "kelvin", "celsius")
+
+        # Update parameter lines
+        for key in self.keys:
+            data_len = len(val[key].flatten())
+            self.lines[f"{key}_learned"].set_data(range(data_len), val[key].flatten())
+            self.lines[f"{key}_default"].set_data(range(data_len), default_val[key].flatten())
+            self.lines[f"{key}_lb"].set_data(range(data_len), param_lb[key].flatten())
+            self.lines[f"{key}_ub"].set_data(range(data_len), param_ub[key].flatten())
+
+            # Update axis limits for parameter plots
+            ax = self.axes[self.keys.index(key) + 4]
+            ax.set_xlim(0, data_len)
+            all_values = np.concatenate(
+                [
+                    val[key].flatten(),
+                    default_val[key].flatten(),
+                    param_lb[key].flatten(),
+                    param_ub[key].flatten(),
+                ]
+            )
+            margin = abs(all_values.max() - all_values.min()) * 0.1
+            ax.set_ylim(all_values.min() - margin, all_values.max() + margin)
+
+        self.fig.canvas.draw()
+
+        image = np.frombuffer(
+            self.fig.canvas.buffer_rgba(),  # type:ignore
+            dtype=np.uint8,
+        )
+        width, height = self.fig.canvas.get_width_height()  # type:ignore
+
+        return image.reshape(height, width, 4)[:, :, :3]
+
+    def _extract_param_by_prefix(self, structured_param, key_prefix: str) -> np.ndarray:
+        """Extract parameters by key prefix (same as in HvacController)."""
+        keys = [key for key in structured_param.keys() if key.startswith(key_prefix)]
+        return ca.vertcat(*[structured_param[key] for key in keys]).full()
+
+    def _get_default_param_from_obs(self, obs: torch.Tensor) -> np.ndarray:
+        """Get default parameter values based on observations."""
+        param = self.param_manager.learnable_parameters_default()
+
+        # if not hasattr(self.param_manager, 'stagewise') or not self.param_manager.stagewise:
+        #     return param.cat.full().flatten()
+
+        Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
+
+        Ta_forecast = Ta_forecast.cpu().numpy().flatten()
+        solar_forecast = solar_forecast.cpu().numpy().flatten()
+        price_forecast = price_forecast.cpu().numpy().flatten()
+
+        N_horizon = self.param_manager.N_horizon
+        for stage in range(N_horizon + 1):
+            if stage < len(Ta_forecast):
+                param[f"Ta_{stage}_{stage}"] = Ta_forecast[stage]
+            if stage < len(solar_forecast):
+                param[f"Phi_s_{stage}_{stage}"] = solar_forecast[stage]
+            if stage < len(price_forecast):
+                param[f"price_{stage}_{stage}"] = price_forecast[stage]
+
+        return param.cat.full().flatten()
+
+
 class HvacControllerCtx(NamedTuple):
     """An extension of the AcadosDiffMpcCtx to also store the heater states."""
 
@@ -114,6 +325,12 @@ class HvacController(ParameterizedController):
             self.ocp, **diff_mpc_kwargs, export_directory=export_directory
         )
 
+        # Initialize plotter
+        self.plotter = HvacControllerPlotter(self.param_manager, self.param_space)
+
+        # Initialize render data storage
+        self._last_render_data = None
+
     def forward(self, obs, param: Any = None, ctx=None) -> tuple[Any, torch.Tensor]:
         batch_size = obs.shape[0]
 
@@ -171,12 +388,30 @@ class HvacController(ParameterizedController):
             dqh=x[:, 1, 4].detach(),
         )
 
-        ##################
-
-        _ = self._plot_controller_analysis(x, obs, param, lb, ub)
-        plt.show()
+        # Store data for rendering
+        self._last_render_data = {"x": x, "obs": obs, "param": param, "lb": lb, "ub": ub}
 
         return ctx, x[:, 1, 3][:, None]
+
+    def render(self) -> np.ndarray | None:
+        """
+        Render the current controller state using the plotter.
+
+        Returns:
+            np.ndarray: RGB image of the plot, or None if no data is available
+        """
+        if not hasattr(self, "_last_render_data") or self._last_render_data is None:
+            return None
+
+        img = self.plotter(
+            self._last_render_data["x"],
+            self._last_render_data["obs"],
+            self._last_render_data["param"],
+            self._last_render_data["lb"],
+            self._last_render_data["ub"],
+        )
+
+        return img
 
     def jacobian_action_param(self, ctx: HvacControllerCtx) -> np.ndarray:
         return self.diff_mpc.sensitivity(ctx.diff_mpc_ctx, field_name="du0_dp_global")
