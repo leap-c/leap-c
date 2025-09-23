@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 import gymnasium as gym
 import numpy as np
@@ -67,7 +67,7 @@ class CartPoleController(ParameterizedController):
     param_manager: AcadosParameterManager
     diff_mpc: AcadosDiffMpc
 
-    collate_fn_map: dict[type, Callable] = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
+    collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,

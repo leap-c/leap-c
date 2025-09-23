@@ -124,6 +124,8 @@ class AcadosParameterManager:
                         f"Parameter '{param.name}' has default shape {param.default.shape} "
                         f"which does not match the shape of the provided space {param.space.shape}."
                     )
+            elif param.space is None:
+                pass
             else:
                 raise NotImplementedError(
                     f"Parameter '{param.name}' has space of type {type(param.space)}, "
