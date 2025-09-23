@@ -119,10 +119,11 @@ class AcadosParameterManager:
                     f"Parameter shape: {param.default.shape}"
                 )
             if isinstance(param.space, gym.spaces.Box):
-                if param.space.shape != param.default.shape:
+                if len(param.space.shape) > 2:
                     raise ValueError(
-                        f"Parameter '{param.name}' has default shape {param.default.shape} "
-                        f"which does not match the shape of the provided space {param.space.shape}."
+                        f"Parameter '{param.name}' space has {len(param.space.shape)} dimensions, "
+                        f"but CasADi only supports arrays up to 2 dimensions. "
+                        f"Space shape: {param.space.shape}"
                     )
             elif param.space is None:
                 pass
@@ -131,6 +132,7 @@ class AcadosParameterManager:
                     f"Parameter '{param.name}' has space of type {type(param.space)}, "
                     "but currently only gym.spaces.Box is supported."
                 )
+
             # Check end_stages convention
             if param.end_stages and param.end_stages[-1] not in [N_horizon - 1, N_horizon]:
                 raise ValueError(
@@ -240,12 +242,6 @@ class AcadosParameterManager:
         for key in self.parameters.keys():
             if self.parameters[key].interface == "non-learnable":
                 self.non_learnable_parameters_default[key] = self.parameters[key].default
-
-    def combine_learnable_parameter_values(
-        self,
-        batch_size: int | None = None,
-    ):
-        pass
 
     def combine_non_learnable_parameter_values(
         self, batch_size: int | None = None, **overwrite: np.ndarray

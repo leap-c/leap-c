@@ -1,3 +1,5 @@
+import re
+
 import casadi as ca
 import gymnasium as gym
 import numpy as np
@@ -847,8 +849,10 @@ def test_large_dimension_parameters():
 
     with pytest.raises(
         ValueError,
-        match="Parameter 'tensor_bounds_param' space.low has 3 dimensions."
-        "*CasADi only supports arrays up to 2 dimensions",
+        match=re.escape(
+            "Parameter 'tensor_bounds_param' space has 3 dimensions, but CasADi only"
+            " supports arrays up to 2 dimensions. Space shape: (2, 2, 2)"
+        ),
     ):
         AcadosParameterManager(params_3d_bounds, N_horizon=5)
 

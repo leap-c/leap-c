@@ -213,10 +213,10 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
         train_loop_iter = self.train_loop()
 
         # initial policy validation
-        self.eval()
+        self.eval()  # set to eval mode
         with torch.inference_mode():
             val_score = self.validate()
-        self.train()
+        self.train()  # set back to train mode
         self.state.scores.append(val_score)
         self.state.max_score = val_score
 
@@ -226,10 +226,10 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
 
             # validate
             if self.state.step // self.cfg.val_freq >= len(self.state.scores):
-                self.eval()
+                self.eval()  # set to eval mode
                 with torch.inference_mode():
                     val_score = self.validate()
-                self.train()
+                self.train()  # set back to train mode
                 self.state.scores.append(val_score)
 
                 if val_score > self.state.max_score:
