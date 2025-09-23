@@ -102,6 +102,7 @@ class AcadosParameterManager:
         N_horizon: int,
         casadi_type: Literal["SX", "MX"] = "SX",
     ) -> None:
+        # add parameters to the manager
         if not parameters:
             warn(
                 "Empty parameter list provided to AcadosParamManager. "
@@ -109,8 +110,7 @@ class AcadosParameterManager:
                 UserWarning,
                 stacklevel=2,
             )
-
-        # Validate parameter dimensions before storing
+        # validate parameter dimensions before storing
         for param in parameters:
             if param.default.ndim > 2:
                 raise ValueError(
@@ -118,29 +118,27 @@ class AcadosParameterManager:
                     f"but CasADi only supports arrays up to 2 dimensions. "
                     f"Parameter shape: {param.default.shape}"
                 )
-            if param.space is not None and hasattr(param.space, "low") and param.space.low.ndim > 2:
-                raise ValueError(
-                    f"Parameter '{param.name}' space.low has {param.space.low.ndim} dimensions, "
-                    f"but CasADi only supports arrays up to 2 dimensions. "
-                    f"Lower bound shape: {param.space.low.shape}"
+            if isinstance(param.space, gym.spaces.Box):
+                if len(param.space.shape) > 2:
+                    raise ValueError(
+                        f"Parameter '{param.name}' space has {len(param.space.shape)} dimensions, "
+                        f"but CasADi only supports arrays up to 2 dimensions. "
+                        f"Space shape: {param.space.shape}"
+                    )
+            elif param.space is None:
+                pass
+            else:
+                raise NotImplementedError(
+                    f"Parameter '{param.name}' has space of type {type(param.space)}, "
+                    "but currently only gym.spaces.Box is supported."
                 )
-            if (
-                param.space is not None
-                and hasattr(param.space, "high")
-                and param.space.high.ndim > 2
-            ):
-                raise ValueError(
-                    f"Parameter '{param.name}' space.high has {param.space.high.ndim} dimensions, "
-                    f"but CasADi only supports arrays up to 2 dimensions. "
-                    f"Upper bound shape: {param.space.high.shape}"
-                )
+
             # Check end_stages convention
             if param.end_stages and param.end_stages[-1] not in [N_horizon - 1, N_horizon]:
                 raise ValueError(
                     f"Parameter '{param.name}' has end_stages {param.end_stages} "
                     f"but the last element must be either {N_horizon - 1} or {N_horizon}."
                 )
-
         self.parameters = {param.name: param for param in parameters}
 
         self.N_horizon = N_horizon
