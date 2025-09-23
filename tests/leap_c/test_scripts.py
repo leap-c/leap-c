@@ -21,31 +21,34 @@ def find_all_scripts():
     return scripts
 
 
+def _create_script_module(script_name: str):
+    script_path = LEAP_C_ROOT_SCRIPTS / f"run_{script_name}.py"
+
+    if not script_path.exists():
+        raise ValueError(f"Script {script_name} does not exist at {script_path}")
+
+    script_module = types.ModuleType(f"leap_c_test_scripts.{script_name}")
+    with open(script_path, "r") as f:
+        exec(f.read(), script_module.__dict__)
+
+    return script_module
+
+
 def create_cfg(
     script_name: str, env: str = "cartpole", seed: int = 13, controller: str | None = None
 ):
     """Returns the according script config dataclass."""
-    script_path = LEAP_C_ROOT_SCRIPTS / f"run_{script_name}.py"
+    script_module = _create_script_module(script_name)
+    create_cfg_fn = getattr(script_module, "create_cfg", None)
 
-    # check if the script exists
-    if not script_path.exists():
-        raise ValueError(f"Script {script_name} does not exist at {script_path}")
-
-    # import the script and find the create_cfg function
-    script_module = types.ModuleType(f"leap_c_exp.scripts.{script_name}")
-
-    with open(script_path, "r") as f:
-        exec(f.read(), script_module.__dict__)
-    create_cfg = getattr(script_module, "create_cfg", None)
-
-    if create_cfg is None:
+    if create_cfg_fn is None:
         raise ValueError(f"Script {script_name} does not have a create_cfg function")
 
-    # call the finalize_cfg function to get the config
+    # call the create_cfg function to get the config
     if controller is None:
-        cfg = create_cfg(env=env, seed=seed)
+        cfg = create_cfg_fn(env=env, seed=seed)
     else:
-        cfg = create_cfg(env=env, seed=seed, controller=controller)
+        cfg = create_cfg_fn(env=env, seed=seed, controller=controller)
 
     return cfg
 
@@ -54,23 +57,14 @@ def run_script(script_name: str, cfg, **kw):
     """Runs the script with the given name and arguments.
 
     We assume that the method is called `run_{script_name}`."""
-    # Run the script
-    script_path = LEAP_C_ROOT_SCRIPTS / f"run_{script_name}.py"
+    script_module = _create_script_module(script_name)
+    run_fn = getattr(script_module, f"run_{script_name}", None)
 
-    if not script_path.exists():
-        raise ValueError(f"Script {script_name} does not exist at {script_path}")
-
-    # Import the script and find the main function
-    script_module = types.ModuleType(f"leap_c_exp.scripts.{script_name}")
-    with open(script_path, "r") as f:
-        exec(f.read(), script_module.__dict__)
-    run_func = getattr(script_module, f"run_{script_name}", None)
-
-    if run_func is None:
+    if run_fn is None:
         raise ValueError(f"Script {script_name} does not have a run_{script_name} function")
 
     # Call the run function with the config
-    return run_func(cfg, **kw)
+    return run_fn(cfg, **kw)
 
 
 @pytest.fixture(params=["sac", "sac_zop", "sac_fop", "controller"])
