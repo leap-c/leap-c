@@ -24,7 +24,6 @@ class AcadosDiffMpc(nn.Module):
 
 
     Attributes:
-        ocp: The acados optimal control problem.
         diff_mpc_fun: The differentiable MPC function wrapper for acados.
         autograd_fun: A PyTorch autograd function created from `diff_mpc_fun`.
     """
