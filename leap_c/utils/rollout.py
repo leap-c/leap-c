@@ -50,6 +50,10 @@ def episode_rollout(
          - `"inference_time"`: The average inference time of the policy per step.
         The second dictionary containing statistics returned by the policy.
     """
+
+    def render_trigger(episode_id: int) -> bool:
+        return episode_id < render_episodes
+
     if (
         render_episodes > 0
         and env.render_mode not in (None, "human", "ansi")
@@ -59,9 +63,6 @@ def episode_rollout(
             raise ValueError("`render_human` and `video_folder` can not be set at the same time.")
         if name_prefix is None:
             raise ValueError("`name_prefix` must be set if `video_folder` is set.")
-
-        def render_trigger(episode_id: int) -> bool:
-            return episode_id < render_episodes
 
         env = RecordVideo(
             env, video_folder, name_prefix=name_prefix, episode_trigger=render_trigger
