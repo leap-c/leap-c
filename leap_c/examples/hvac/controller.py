@@ -23,7 +23,7 @@ from .util import set_temperature_limits, transcribe_discrete_state_space
 class HvacControllerPlotter:
     """A plotter class for visualizing HVAC controller analysis with reusable figure and lines."""
 
-    def __init__(self, param_manager: AcadosParameterManager, param_space: gym.Space):
+    def __init__(self, param_manager: AcadosParameterManager, param_space: gym.Space) -> None:
         """
         Initialize the plotter with a fixed figure structure.
 
@@ -104,7 +104,7 @@ class HvacControllerPlotter:
             ub: Temperature upper bounds
 
         Returns:
-            plt.Figure: The updated figure
+            img: RGB image of the updated plot
         """
         # Extract state trajectories
         Ti = x[:, :, 0].cpu().numpy().flatten()
