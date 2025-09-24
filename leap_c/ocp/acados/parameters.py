@@ -73,6 +73,12 @@ class AcadosParameterManager:
     In particular, this handles stage-varying learnable parameters, which is not available
     out-of-the-box in acados.
 
+    Basic usage inside the AcadosOcp formulation:
+        Step 1: Create a list of AcadosParameter objects that define the Parameters you want to use.
+        Step 2: Use `param = param_manager.get(name)` to retrieve parameters with a certain name.
+        Use these variables in the ocp formulation to define costs, dynamics, etc.
+        Step 3: Use `param_manager.assign_to_ocp(ocp)` to assign the parameters to the ocp object.
+
     Attributes:
         parameters: Dictionary of parameter names to AcadosParameter instances.
         learnable_parameters: CasADi struct of learnable parameters.
@@ -394,7 +400,9 @@ class AcadosParameterManager:
             )
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
-        """Assign the parameters to the acados ocp object."""
+        """Assign the parameters to the acados ocp object.
+        NOTE: Overwrites any existing parameter definitions in the ocp object.
+        """
         if self.learnable_parameters is not None:
             ocp.model.p_global = self.learnable_parameters.cat
             ocp.p_global_values = (
