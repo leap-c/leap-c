@@ -15,7 +15,7 @@
 
 ## Usage
 
-Please see the [Getting started section](https://leap-c.github.io/leap-c/getting_started/index.html) or the [examples folder](https://github.com/leap-c/leap-c/tree/main/leap_c/examples).
+Please see the [Getting started section](https://leap-c.github.io/leap-c/getting_started/index.html).
 
 ## Questions?
 
