@@ -6,6 +6,7 @@ from typing import Any, Callable, Union
 
 import gymnasium as gym
 import numpy as np
+import torch
 import torch.nn as nn
 
 
@@ -23,7 +24,7 @@ class ParameterizedController(nn.Module):
     collate_fn_map: dict[Union[type, tuple[type, ...]], Callable] | None = None
 
     @abstractmethod
-    def forward(self, obs, param, ctx=None) -> tuple[Any, np.ndarray]:
+    def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         """Computes action from observation, parameters and internal context.
 
         Args:
@@ -34,7 +35,7 @@ class ParameterizedController(nn.Module):
         Returns:
             ctx: A context object containing any intermediate values
                 needed for backward computation and further invocations.
-            action: The computed action as a NumPy array.
+            action: The computed action.
         """
         ...
 

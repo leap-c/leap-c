@@ -69,7 +69,6 @@ class ChainController(AcadosController):
                 system will be created based on the cfg.
             export_directory: Directory to export the acados ocp files.
         """
-        super().__init__()
         self.cfg = ChainControllerConfig() if cfg is None else cfg
         params = (
             create_chain_params(
@@ -81,7 +80,7 @@ class ChainController(AcadosController):
             else params
         )
 
-        self.param_manager = AcadosParameterManager(
+        param_manager = AcadosParameterManager(
             parameters=params,
             N_horizon=self.cfg.N_horizon,  # type:ignore
         )
@@ -89,10 +88,10 @@ class ChainController(AcadosController):
         fix_point = np.zeros(3)
 
         # find resting reference position
-        rest_length = self.param_manager.parameters["L"].default[0]
+        rest_length = param_manager.parameters["L"].default[0]
         pos_last_mass_ref = fix_point + np.array([rest_length * (self.cfg.n_mass - 1), 0, 0])
 
-        dyn_param_dict = {k: self.param_manager.parameters[k].default for k in "LDCmw"}
+        dyn_param_dict = {k: param_manager.parameters[k].default for k in "LDCmw"}
 
         resting_chain_solver = RestingChainSolver(
             n_mass=self.cfg.n_mass,
@@ -103,8 +102,8 @@ class ChainController(AcadosController):
 
         x_ref, u_ref = resting_chain_solver(p_last=pos_last_mass_ref)
 
-        self.ocp = export_parametric_ocp(
-            param_manager=self.param_manager,
+        ocp = export_parametric_ocp(
+            param_manager=param_manager,
             x_ref=x_ref,
             fix_point=fix_point,
             N_horizon=self.cfg.N_horizon,
@@ -112,10 +111,11 @@ class ChainController(AcadosController):
             n_mass=self.cfg.n_mass,
         )
 
-        initializer = ChainInitializer(self.ocp, x_ref=x_ref)
+        initializer = ChainInitializer(ocp, x_ref=x_ref)
 
-        self.diff_mpc = AcadosDiffMpc(
-            self.ocp,
+        diff_mpc = AcadosDiffMpc(
+            ocp,
             initializer=initializer,
             export_directory=export_directory,
         )
+        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
