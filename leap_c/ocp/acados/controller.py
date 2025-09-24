@@ -2,6 +2,7 @@ from typing import Callable
 
 import gymnasium as gym
 import numpy as np
+import torch
 
 from leap_c.controller import ParameterizedController
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
@@ -24,12 +25,21 @@ class AcadosController(ParameterizedController):
 
     collate_fn_map: dict[type, Callable] = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
-    def forward(self, obs, param, ctx=None) -> tuple[AcadosDiffMpcCtx, np.ndarray]:
+    def __init__(self, param_manager: AcadosParameterManager, diff_mpc: AcadosDiffMpc):
+        super().__init__()
+        self.param_manager = param_manager
+        self.diff_mpc = diff_mpc
+
+    def forward(
+        self, obs: torch.Tensor, param: torch.Tensor, ctx: AcadosDiffMpcCtx | None = None
+    ) -> tuple[AcadosDiffMpcCtx, torch.Tensor]:
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )
-        ctx, u0, x, u, value = self.diff_mpc(obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
-        return ctx, u0
+        ctx_out, u0, x, u, value = self.diff_mpc(
+            obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx
+        )
+        return ctx_out, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
         return self.diff_mpc.sensitivity(ctx, field_name="du0_dp_global")
