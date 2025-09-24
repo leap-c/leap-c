@@ -7,7 +7,6 @@
 - git
 - Python 3.11 or higher
 - [acados dependencies](https://docs.acados.org/installation/index.html)
-- [CasADi](https://web.casadi.org/get/)
 
 Clone the repository and recursively update submodules:
 ```bash
