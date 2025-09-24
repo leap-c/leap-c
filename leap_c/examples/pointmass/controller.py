@@ -63,7 +63,6 @@ class PointMassController(AcadosController):
                 system will be created based on the cfg.
             export_directory: Optional directory for generated acados solver code.
         """
-        super().__init__()
         self.cfg = PointMassControllerConfig() if cfg is None else cfg
         params = (
             create_pointmass_params(
@@ -74,17 +73,18 @@ class PointMassController(AcadosController):
             else params
         )
 
-        self.param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
+        param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
 
-        self.ocp = export_parametric_ocp(
-            param_manager=self.param_manager,
+        ocp = export_parametric_ocp(
+            param_manager=param_manager,
             name="pointmass",
             N_horizon=self.cfg.N_horizon,
             T_horizon=self.cfg.T_horizon,
             Fmax=self.cfg.Fmax,
         )
 
-        self.diff_mpc = AcadosDiffMpc(self.ocp, export_directory=export_directory)
+        diff_mpc = AcadosDiffMpc(ocp, export_directory=export_directory)
+        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, np.ndarray]:
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(

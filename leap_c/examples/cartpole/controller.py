@@ -72,7 +72,6 @@ class CartPoleController(AcadosController):
             export_directory: An optional directory path where the generated
                 `acados` solver code will be exported.
         """
-        super().__init__()
         self.cfg = CartPoleControllerConfig() if cfg is None else cfg
         params = (
             create_cartpole_params(
@@ -83,10 +82,10 @@ class CartPoleController(AcadosController):
             else params
         )
 
-        self.param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
+        param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
 
-        self.ocp = export_parametric_ocp(
-            param_manager=self.param_manager,
+        ocp = export_parametric_ocp(
+            param_manager=param_manager,
             cost_type=self.cfg.cost_type,
             name="cartpole",
             N_horizon=self.cfg.N_horizon,
@@ -95,4 +94,5 @@ class CartPoleController(AcadosController):
             x_threshold=self.cfg.x_threshold,
         )
 
-        self.diff_mpc = AcadosDiffMpc(self.ocp, export_directory=export_directory)
+        diff_mpc = AcadosDiffMpc(ocp, export_directory=export_directory)
+        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
