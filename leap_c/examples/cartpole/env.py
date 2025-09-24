@@ -48,6 +48,7 @@ class CartPoleEnv(gym.Env):
     NOTE: Contrary to the original CartPoleEnv, the state space here is arranged like
     [x, theta, dx, dtheta] instead of [x, dx, theta, dtheta].
     NOTE: A positive angle theta is interpreted as counterclockwise rotation.
+    An angle of 0 means the pole is pointing upwards.
 
 
     Action Space:
