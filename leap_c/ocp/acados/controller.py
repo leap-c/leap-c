@@ -11,8 +11,8 @@ from leap_c.ocp.acados.torch import AcadosDiffMpc
 
 
 class AcadosController(ParameterizedController):
-    """Acados-based controller, providing a simple standard implementation of
-    most of the functionalities needed in the `ParameterizedController` interface.
+    """Acados-based controller, providing a simple standard implementation
+    of the functionalities needed in the `ParameterizedController` interface.
 
     Attributes:
         param_manager: For managing the parameters of the ocp.
