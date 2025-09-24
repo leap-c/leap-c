@@ -77,7 +77,28 @@ For development, you might want to install all additional dependencies:
 pip install -e .[dev]
 ```
 
-See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on preconfigurations of installed packages.
+See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on package configurations.
+
+## Windows
+We recommend to use WSL (Windows Subsystem for Linux) and then following the guide above.
+You can then conveniently program on your WSL, e.g., 
+by using VS Code on Windows together with the "Remote Development" extension pack.
+
+Note the installation instructions for acados regarding WSL.
+
+Note that matplotlibs `plt.show()` will probably not work.
+To fix it, you can run
+```bash
+sudo apt install libqt5gui5
+```
+and then install
+`PyQt5` in your python virtual environment using
+```bash
+pip install pyqt5
+```
+(This is already contained in some of the package preconfigurations).
+If this doesn't work for some reason, you can also save the relevant plots by using `plt.savefig` 
+and look at them manually.
 
 ## Testing
 
