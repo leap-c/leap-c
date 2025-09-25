@@ -37,16 +37,6 @@ jobs:
       shell: bash
       run: for dir in *-build-*; do mv "$dir" "${dir%%-build-*}"; done
 
-    - name: Debug1
-      working-directory: ${{github.workspace}}/leap_c/external/acados
-      shell: bash
-      run: ls
-
-    - name: Debug2
-      working-directory: ${{github.workspace}}/leap_c/external/acados/interfaces/acados_c
-      shell: bash
-      run: ls
-
     - name: Install Tera
       working-directory: ${{github.workspace}}/leap_c/external/acados
       shell: bash
