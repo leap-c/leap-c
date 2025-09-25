@@ -32,15 +32,15 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         run-id: 17915763439
 
-    - name: Debug
+    - name: Debug1
       working-directory: ${{github.workspace}}/leap_c/external/acados
       shell: bash
-      run: |
-        ls
-        cd interfaces
-        ls
-        cd acados_c
-        ls
+      run: ls
+
+    - name: Debug2
+      working-directory: ${{github.workspace}}/leap_c/external/acados/interfaces/acados_c
+      shell: bash
+      run: ls
 
     - name: Install Tera
       working-directory: ${{github.workspace}}/leap_c/external/acados
