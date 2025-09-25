@@ -32,6 +32,11 @@ jobs:
         github-token: ${{ secrets.GITHUB_TOKEN }}
         run-id: 17915763439
 
+    - name: Rename artifact directories
+      working-directory: ${{github.workspace}}/leap_c/external/acados
+      shell: bash
+      run: for dir in *-build-*; do mv "$dir" "${dir%%-build-*}"; done
+
     - name: Debug1
       working-directory: ${{github.workspace}}/leap_c/external/acados
       shell: bash
