@@ -3,8 +3,8 @@
 ## Fixing the Code Highlighting in VS Code
 
 Sometimes there is an issue regarding the code analysis in VS Code while using leap-c. 
-Even though you installed leap-c correctly and the code runs properly, e.g., when running a script via the terminal,
-VS Code will not recognize the imports and not highlight the imported classes or show their documentation upon hovering.
+You installed leap-c correctly and the code runs properly, e.g., when running a script via the terminal,
+but VS Code will not recognize the imports and not highlight the imported classes or show their documentation upon hovering.
 
 Possible fixes could be the following:
 1. Install the Python extension in VS Code.
