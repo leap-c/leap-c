@@ -79,11 +79,11 @@ pip install -e .[dev]
 See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on package configurations.
 
 ## Windows
-We recommend to use WSL (Windows Subsystem for Linux) and then following the guide above.
+We recommend to use [WSL (Windows Subsystem for Linux)](https://ubuntu.com/desktop/wsl) and then following the guide above.
 You can then conveniently program on your WSL, e.g., 
 by using VS Code on Windows together with the "Remote Development" extension pack.
 
-Note the installation instructions for acados regarding WSL.
+Note the [installation instructions for acados regarding WSL](https://docs.acados.org/installation/index.html#windows-10-wsl).
 
 Note that matplotlibs `plt.show()` will probably not work.
 To fix it, you can run
