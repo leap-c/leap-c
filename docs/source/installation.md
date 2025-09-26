@@ -10,8 +10,8 @@
 
 Clone the repository and recursively update submodules:
 ```bash
-git clone git@github.com:leap-c/leap-c.git leap_c
-cd leap_c
+git clone git@github.com:leap-c/leap-c.git
+cd leap-c
 git submodule update --init --recursive
 ```
 
@@ -78,26 +78,17 @@ pip install -e .[dev]
 
 See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on package configurations.
 
+### Troubleshooting
+In the [troubleshooting tab](https://leap-c.github.io/leap-c/troubleshooting.html) 
+we highlight how to fix common problems arising while using leap-c with VS Code. 
+
 ## Windows
 We recommend to use [WSL (Windows Subsystem for Linux)](https://ubuntu.com/desktop/wsl) and then following the guide above.
 You can then conveniently program on your WSL, e.g., 
 by using VS Code on Windows together with the "Remote Development" extension pack.
 
 Note the [installation instructions for acados regarding WSL](https://docs.acados.org/installation/index.html#windows-10-wsl).
-
-Note that matplotlibs `plt.show()` will probably not work.
-To fix it, you can run
-```bash
-sudo apt install libqt5gui5
-```
-and then install
-`PyQt5` in your python virtual environment using
-```bash
-pip install pyqt5
-```
-(This is already contained in some of the package preconfigurations).
-If this doesn't work for some reason, you can also save the relevant plots by using `plt.savefig` 
-and look at them manually.
+Also note the troubleshooting section for `plt.show()` in WSL below.
 
 ## Testing
 
