@@ -46,6 +46,10 @@ def create_batch_solver(
         ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
 
     # TODO (Leonard): Check whether we still need this.
+    # Leonard: Its a bit unclear what exactly happens in HPIPM depending on the options.
+    # I would say we should only make changes after all
+    # the current experiments in our queue are finished.
+    # I will look at it in detail after the mpcrl school.
     _turn_on_warmstart(ocp)
 
     if export_directory is None:
@@ -165,7 +169,7 @@ def _turn_on_warmstart(acados_ocp: AcadosOcp):
         and acados_ocp.solver_options.nlp_solver_warm_start_first_qp_from_nlp
     ):
         print(
-            "WARNING: Warmstart is not enabled. We will enable it for"
+            "WARNING: Warmstarting the first QP is not enabled. We will enable it for"
             + "our initialization strategies to work properly."
         )
     acados_ocp.solver_options.qp_solver_warm_start = 0

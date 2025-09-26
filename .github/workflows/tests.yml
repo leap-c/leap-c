@@ -30,7 +30,12 @@ jobs:
         path: ${{github.workspace}}/leap_c/external/acados
         repository: acados/acados
         github-token: ${{ secrets.GITHUB_TOKEN }}
-        run-id: 17242178620
+        run-id: 17980837811
+
+    - name: Rename artifact directories
+      working-directory: ${{github.workspace}}/leap_c/external/acados
+      shell: bash
+      run: for dir in *-build-*; do mv "$dir" "${dir%%-build-*}"; done
 
     - name: Install Tera
       working-directory: ${{github.workspace}}/leap_c/external/acados

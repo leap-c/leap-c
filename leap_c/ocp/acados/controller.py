@@ -33,6 +33,10 @@ class AcadosController(ParameterizedController):
     def forward(
         self, obs: torch.Tensor, param: torch.Tensor, ctx: AcadosDiffMpcCtx | None = None
     ) -> tuple[AcadosDiffMpcCtx, torch.Tensor]:
+        """Passes obs, param and ctx, as-is to the AcadosDiffMpc object. Note that param
+        is assumed to be the learnable parameters only, while the non-learnable parameters
+        are automatically obtained from the param_manager.
+        """
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )

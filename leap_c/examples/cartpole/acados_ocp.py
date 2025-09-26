@@ -149,8 +149,6 @@ def export_parametric_ocp(
     xref = ca.vertcat(*[param_manager.get(f"xref{i}") for i in range(4)])
     uref = param_manager.get("uref")
     yref = ca.vertcat(xref, uref)  # type:ignore
-    if isinstance(yref, ca.DM):
-        yref = yref.full()
     yref_e = yref[: ocp.dims.nx]
     y = ca.vertcat(ocp.model.x, ocp.model.u)
     y_e = ocp.model.x

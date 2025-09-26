@@ -48,6 +48,7 @@ class CartPoleEnv(gym.Env):
     NOTE: Contrary to the original CartPoleEnv, the state space here is arranged like
     [x, theta, dx, dtheta] instead of [x, dx, theta, dtheta].
     NOTE: A positive angle theta is interpreted as counterclockwise rotation.
+    An angle of 0 means the pole is pointing upwards.
 
 
     Action Space:
@@ -363,17 +364,21 @@ class CartPoleEnv(gym.Env):
                 for x, y in self.pole_end_trajectory
             ]
 
+            r = 3  # Radius of the small circles representing the trajectory points
+
             # Draw the positions offset in the y direction for better visibility
             for i, planx in enumerate(planxs):
-                if abs(planx) > self.screen_width:
+                if abs(planx) + r > self.screen_width:
                     # Dont render out of bounds
                     continue
-                gfxdraw.pixel(canvas, int(planx), int(ground_height + i), (255, 5, 5))
+                gfxdraw.filled_circle(canvas, int(planx), int(ground_height + i), r, (255, 5, 5))
             for i, plan_pole_end in enumerate(plan_pole_end):
-                if abs(plan_pole_end[0]) > self.screen_width:
+                if abs(plan_pole_end[0]) + r > self.screen_width:
                     # Dont render out of bounds
                     continue
-                gfxdraw.pixel(canvas, int(plan_pole_end[0]), int(plan_pole_end[1]), (5, 255, 5))
+                gfxdraw.filled_circle(
+                    canvas, int(plan_pole_end[0]), int(plan_pole_end[1]), r, (5, 255, 5)
+                )
 
         canvas = pygame.transform.flip(canvas, False, True)
 
