@@ -5,14 +5,16 @@
 Sometimes there is an issue regarding the code analysis in VS Code regarding leap-c . 
 Even though you installed leap-c correctly and the code runs properly, e.g., when running a script via the terminal,
 VS Code will not recognize the imports and not highlight the imported classes or show their documentation upon hovering.
+
 Possible fixes could be the following:
-1. Make sure you installed the Python extension in VS Code (or else there will probably not be any code analysis in the first place).
-2. Make sure that you selected the correct interpreter in VS Code: When you have opened a Python file in VS Code, 
+1. Install the Python extension in VS Code.
+2. Select the correct interpreter in VS Code: When you have opened a Python file in VS Code, 
 you can see your currently used Python version in the lower right corner, e.g., "3.11.13". Click it to select
 the correct interpreter, e.g., if you have installed leap-c in a virtual environment named "venv", it is the file
 path_to_venv/bin/python . Alternatively, you can use `Ctrl+Shift+P` and search for "Select Interpreter".
-3. Use `Ctrl+Shift+P` and search for "Preferences: Open User Settings" and press enter to open a new tab showing your settings.
-Right below the search bar click on "Workspace". Now search for "Python Analysis Extra Paths" in the search bar.
+3. Add extra path to the python analysis: Use `Ctrl+Shift+P` and search for "Preferences: Open User Settings", 
+then select it to open a new tab showing your settings. Right below the search bar click on "Workspace". 
+Now search for "Python Analysis Extra Paths" in the search bar.
 In the setting "Python > Analysis: Extra Paths" click on "Add item", then enter the path to the leap-c root folder, e.g.
 "~/leap-c".
 

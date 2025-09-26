@@ -78,6 +78,10 @@ pip install -e .[dev]
 
 See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on package configurations.
 
+### Troubleshooting
+In the [troubleshooting tab](https://leap-c.github.io/leap-c/troubleshooting.html) 
+we highlight how to fix common problems arising while using leap-c with VS Code. 
+
 ## Windows
 We recommend to use [WSL (Windows Subsystem for Linux)](https://ubuntu.com/desktop/wsl) and then following the guide above.
 You can then conveniently program on your WSL, e.g., 
