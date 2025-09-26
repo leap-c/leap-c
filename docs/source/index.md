@@ -33,5 +33,5 @@ Documentation latest build: |today|
 Home<self>
 installation
 getting_started/index
-api
+troubleshooting
 ```
