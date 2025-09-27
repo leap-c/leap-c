@@ -1,10 +1,53 @@
 """Provides a simple Gaussian layer that allows policies to respect action bounds."""
 
+from abc import abstractmethod
+from typing import Literal
+
 import numpy as np
 import torch
 import torch.nn as nn
 from gymnasium import spaces
 from torch.distributions.beta import Beta
+
+BoundedDistributionName = Literal["squashedgaussian", "scaledbeta"]
+
+
+def get_bounded_distribution(name: BoundedDistributionName, **init_kwargs) -> "BoundedDistribution":
+    if name == "squashedgaussian":
+        return SquashedGaussian(**init_kwargs)
+    elif name == "scaledbeta":
+        return ScaledBeta(**init_kwargs)
+    else:
+        raise ValueError(f"Unknown bounded distribution: {name}")
+
+
+class BoundedDistribution(nn.Module):
+    """An abstract class for bounded distributions."""
+
+    @abstractmethod
+    def forward(
+        self, *defining_parameters, deterministic: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
+        """Samples from the distribution.
+
+        Returns:
+            A tuple of (sample, log_prob, stats).
+        """
+        ...
+
+    @abstractmethod
+    def parameter_size(self, output_dim: int) -> tuple[int, ...]:
+        """Returns the number of parameters required to define the distribution
+        for the given output dimensionality.
+
+        Args:
+            output_dim: The dimensionality of the output space (e.g., action space).
+
+        Returns:
+            A tuple of integers, each integer specifying the size of one
+            parameter required to define the distribution in the forward pass.
+        """
+        ...
 
 
 class BoundedTransform(nn.Module):
@@ -68,7 +111,7 @@ class BoundedTransform(nn.Module):
         return torch.arctanh(x)
 
 
-class SquashedGaussian(nn.Module):
+class SquashedGaussian(BoundedDistribution):
     """A squashed Gaussian.
     Samples the output from a Gaussian distribution specified by the input,
     and then squashes the result with a tanh function.
@@ -150,8 +193,11 @@ class SquashedGaussian(nn.Module):
 
         return y_scaled, log_prob, stats
 
+    def parameter_size(self, output_dim: int) -> tuple[int, ...]:
+        return (output_dim, output_dim)
 
-class ScaledBeta(nn.Module):
+
+class ScaledBeta(BoundedDistribution):
     """A concave (alpha, beta > 1 is enforced) scaled Beta distribution.
     Samples the output from a Beta distribution specified by the input,
     and then scales and shifts the result to match the space.
@@ -221,3 +267,6 @@ class ScaledBeta(nn.Module):
         # but I think they should at least be investigated for each action
         # dimension independently
         return y_scaled, log_prob, {}
+
+    def parameter_size(self, output_dim: int) -> tuple[int, ...]:
+        return (output_dim, output_dim)
