@@ -200,7 +200,7 @@ class SquashedGaussian(BoundedDistribution):
 
 
 class ScaledBeta(BoundedDistribution):
-    """A concave (alpha, beta > 1 is enforced) scaled Beta distribution.
+    """A unimodal (alpha, beta > 1 is enforced) scaled Beta distribution.
     Samples the output from a Beta distribution specified by the input,
     and then scales and shifts the result to match the space.
 
