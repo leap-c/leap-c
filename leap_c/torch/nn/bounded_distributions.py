@@ -1,9 +1,55 @@
 """Provides a simple Gaussian layer that allows policies to respect action bounds."""
 
+from abc import abstractmethod
+from typing import Literal
+
 import numpy as np
 import torch
 import torch.nn as nn
 from gymnasium import spaces
+from torch.distributions.beta import Beta
+
+BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta"]
+
+
+def get_bounded_distribution(name: BoundedDistributionName, **init_kwargs) -> "BoundedDistribution":
+    if name == "squashed_gaussian":
+        return SquashedGaussian(**init_kwargs)
+    elif name == "scaled_beta":
+        return ScaledBeta(**init_kwargs)
+    else:
+        raise ValueError(f"Unknown bounded distribution: {name}")
+
+
+class BoundedDistribution(nn.Module):
+    """An abstract class for bounded distributions."""
+
+    @abstractmethod
+    def forward(
+        self, *defining_parameters, deterministic: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
+        """Samples from the distribution.
+        If `deterministic` is True, the mode of the distribution is used instead of
+        sampling.
+
+        Returns:
+            A tuple containing the samples, their log_prob and a dictionary of stats.
+        """
+        ...
+
+    @abstractmethod
+    def parameter_size(self, output_dim: int) -> tuple[int, ...]:
+        """Returns the number of parameters required to define the distribution
+        for the given output dimensionality.
+
+        Args:
+            output_dim: The dimensionality of the output space (e.g., action space).
+
+        Returns:
+            A tuple of integers, each integer specifying the size of one
+            parameter required to define the distribution in the forward pass.
+        """
+        ...
 
 
 class BoundedTransform(nn.Module):
@@ -67,7 +113,7 @@ class BoundedTransform(nn.Module):
         return torch.arctanh(x)
 
 
-class SquashedGaussian(nn.Module):
+class SquashedGaussian(BoundedDistribution):
     """A squashed Gaussian.
     Samples the output from a Gaussian distribution specified by the input,
     and then squashes the result with a tanh function.
@@ -148,3 +194,81 @@ class SquashedGaussian(nn.Module):
         stats = {"gaussian_unsquashed_std": std.prod(dim=-1).mean().item()}
 
         return y_scaled, log_prob, stats
+
+    def parameter_size(self, output_dim: int) -> tuple[int, ...]:
+        return (output_dim, output_dim)
+
+
+class ScaledBeta(BoundedDistribution):
+    """A unimodal (alpha, beta > 1 is enforced) scaled Beta distribution.
+    Samples the output from a Beta distribution specified by the input,
+    and then scales and shifts the result to match the space.
+
+    Can for example be used to enforce certain action bounds of a stochastic policy.
+
+    Attributes:
+        scale: The scale of the space-fitting transform.
+        loc: The location of the space-fitting transform (for shifting).
+    """
+
+    scale: torch.Tensor
+    loc: torch.Tensor
+
+    def __init__(
+        self,
+        space: spaces.Box,
+    ):
+        """Initializes the ScaledBeta module.
+
+        Args:
+            space: Space the output should fit to.
+        """
+        super().__init__()
+
+        loc = space.low
+        scale = space.high - space.low
+
+        loc = torch.tensor(loc, dtype=torch.float32)
+        scale = torch.tensor(scale, dtype=torch.float32)
+
+        self.register_buffer("loc", loc)
+        self.register_buffer("scale", scale)
+
+    def forward(
+        self, log_alpha: torch.Tensor, log_beta: torch.Tensor, deterministic: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
+        """Note that alpha and beta are enforced to be > 1 to ensure concavity.
+        Args:
+            log_alpha: The logarithm of the alpha parameter of the Beta distribution.
+            log_beta: The logarithm of the beta parameter of the Beta distribution.
+            deterministic: If True, the output will just be spacefitting(mode),
+                no sampling is taking place.
+
+        Returns:
+            An output sampled from the ScaledBeta distribution, the log probability of this output
+            and a statistics dict containing the standard deviation.
+        """
+        # Add 1 to ensure concavity
+        alpha = torch.exp(log_alpha) + 1.0
+        beta = torch.exp(log_beta) + 1.0
+
+        dist = Beta(alpha, beta)
+
+        if deterministic:
+            y = dist.mode
+        else:
+            # reparameterization trick
+            y = dist.rsample()
+        log_prob = dist.log_prob(y)
+
+        y_scaled = y * self.scale[None, :] + self.loc[None, :]
+        log_prob -= torch.log(self.scale[None, :])
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
+
+        # We could return the mean of alpha and beta as stats,
+        # but I think they should at least be investigated for each action
+        # dimension independently
+        return y_scaled, log_prob, {}
+
+    def parameter_size(self, output_dim: int) -> tuple[int, ...]:
+        return (output_dim, output_dim)

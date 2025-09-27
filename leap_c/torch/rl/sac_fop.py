@@ -12,8 +12,14 @@ import torch
 import torch.nn as nn
 
 from leap_c.controller import ParameterizedController
+from leap_c.torch.nn.bounded_distributions import (
+    BoundedDistribution,
+    BoundedDistributionName,
+    BoundedTransform,
+    SquashedGaussian,
+    get_bounded_distribution,
+)
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
-from leap_c.torch.nn.gaussian import BoundedTransform, SquashedGaussian
 from leap_c.torch.nn.mlp import Mlp, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.sac import SacCritic, SacTrainerConfig
@@ -85,20 +91,21 @@ class FopActor(nn.Module):
             predicting parameters.
         mlp: The MLP used to predict the parameters of the controller from the observations.
         correction: Whether to use the entropy correction term for the log-probability.
-        squashed_gaussian: The squashed Gaussian distribution used to sample parameters.
+        bounded_distribution: The bounded distribution used to sample parameters.
     """
 
     controller: ParameterizedController
     extractor: Extractor
     mlp: Mlp
     correction: bool
-    squashed_gaussian: SquashedGaussian
+    bounded_distribution: BoundedDistribution
 
     def __init__(
         self,
         extractor: Extractor,
         mlp_cfg: MlpConfig,
         controller: ParameterizedController,
+        distribution_name: BoundedDistributionName,
         correction: bool = True,
     ) -> None:
         """Initializes the FOP actor.
@@ -109,25 +116,28 @@ class FopActor(nn.Module):
             mlp_cfg: The configuration for the MLP used to predict parameters.
             controller: The differentiable parameterized controller used to compute actions from
                 parameters.
+            distribution_name: The name of the bounded distribution
+                used to sample parameters.
             correction: Whether to use the entropy correction term for the log-probability.
         """
         super().__init__()
         self.controller = controller
         self.extractor = extractor
-        param_dim = controller.param_space.shape[0]
+        param_space = controller.param_space  # type: ignore
+        param_dim = param_space.shape[0]  # type: ignore
+        self.bounded_distribution = get_bounded_distribution(distribution_name, space=param_space)
         self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
-            output_sizes=(param_dim, param_dim),  # type:ignore
+            output_sizes=list(self.bounded_distribution.parameter_size(param_dim)),
             mlp_cfg=mlp_cfg,
         )
         self.correction = correction
-        self.squashed_gaussian = SquashedGaussian(controller.param_space)  # type:ignore
 
     def forward(
         self, obs: np.ndarray, ctx: Any | None = None, deterministic: bool = False
     ) -> SacFopActorOutput:
         """The given observations are passed to the extractor to obtain features.
-        These are used to predict a distribution in the (learnable) parameter space of the
+        These are used to predict a bounded distribution in the (learnable) parameter space of the
         controller using the MLP. Afterwards, this parameters are sampled from this distribution,
         and passed to the controller, which then computes the final actions.
 
@@ -135,13 +145,13 @@ class FopActor(nn.Module):
             obs: The observations to compute the actions for.
             ctx: The optional context object containing information about the previous controller
                 solve. Can be used, e.g., to warm-start the solver.
-            deterministic: If `True`, use the mean of the distribution instead of sampling.
+            deterministic: If `True`, use the mode of the distribution instead of sampling.
         """
         e = self.extractor(obs)
-        mean, log_std = self.mlp(e)
+        dist_params = self.mlp(e)
 
-        param, log_prob, gaussian_stats = self.squashed_gaussian(
-            mean, log_std, deterministic=deterministic
+        param, log_prob, dist_stats = self.bounded_distribution(
+            *dist_params, deterministic=deterministic
         )
 
         ctx, action = self.controller(obs, param, ctx=ctx)
@@ -158,7 +168,7 @@ class FopActor(nn.Module):
         return SacFopActorOutput(
             param,
             log_prob,
-            {**gaussian_stats, **ctx.log},
+            {**dist_stats, **ctx.log},
             action,
             ctx.status,
             ctx,
@@ -344,9 +354,14 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 extractor_cls(observation_space),  # type: ignore
                 cfg.actor_mlp,
                 controller,
+                distribution_name=cfg.distribution_name,
                 correction=cfg.entropy_correction,
             )
         elif cfg.noise == "action":
+            if cfg.distribution_name != "squashed_gaussian":
+                raise ValueError(
+                    "When using action noise, the distribution must be 'squashed_gaussian'."
+                )
             self.pi = FoaActor(
                 train_env.action_space,
                 extractor_cls(observation_space),  # type: ignore
