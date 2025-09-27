@@ -9,13 +9,13 @@ import torch.nn as nn
 from gymnasium import spaces
 from torch.distributions.beta import Beta
 
-BoundedDistributionName = Literal["squashedgaussian", "scaledbeta"]
+BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta"]
 
 
 def get_bounded_distribution(name: BoundedDistributionName, **init_kwargs) -> "BoundedDistribution":
-    if name == "squashedgaussian":
+    if name == "squashed_gaussian":
         return SquashedGaussian(**init_kwargs)
-    elif name == "scaledbeta":
+    elif name == "scaled_beta":
         return ScaledBeta(**init_kwargs)
     else:
         raise ValueError(f"Unknown bounded distribution: {name}")

@@ -68,7 +68,7 @@ class MpcSacActor(nn.Module):
         extractor_cls: Type[Extractor],
         observation_space: gym.Space,
         controller: ParameterizedController,
-        bounded_distribution_name: BoundedDistributionName,
+        distribution_name: BoundedDistributionName,
         mlp_cfg: MlpConfig,
     ) -> None:
         """
@@ -77,6 +77,8 @@ class MpcSacActor(nn.Module):
             observation_space: The observation space used to configure the extractor.
             controller: The differentiable parameterized controller used to compute actions from
                 parameters.
+            distribution_name: The name of the bounded distribution
+                used to sample parameters.
             mlp_cfg: The configuration for the MLP used to predict parameters.
         """
         super().__init__()
@@ -87,11 +89,11 @@ class MpcSacActor(nn.Module):
         self.extractor = extractor_cls(observation_space)
         self.controller = controller
         self.bounded_distribution = get_bounded_distribution(
-            bounded_distribution_name, space=controller.param_space
+            distribution_name, space=controller.param_space
         )
         self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
-            output_sizes=self.bounded_distribution.parameter_size(param_dim),  # type:ignore
+            output_sizes=list(self.bounded_distribution.parameter_size(param_dim)),
             mlp_cfg=mlp_cfg,
         )
 
@@ -112,19 +114,19 @@ class MpcSacActor(nn.Module):
             obs: The observations to compute the actions for.
             ctx: The optional context object containing information about the previous controller
                 solve. Can be used, e.g., to warm-start the solver.
-            deterministic: If `True`, use the mean of the distribution instead of sampling.
+            deterministic: If `True`, use the mode of the distribution instead of sampling.
             only_param: If `True`, only return the predicted parameters and log-probabilities, but
                 do not compute the action using the controller.
         """
         e = self.extractor(obs)
         dist_params = self.mlp(e)
 
-        param, log_prob, gauss_stats = self.bounded_distribution(
+        param, log_prob, dist_stats = self.bounded_distribution(
             *dist_params, deterministic=deterministic
         )
 
         if only_param:
-            return SacZopActorOutput(param, log_prob, gauss_stats)
+            return SacZopActorOutput(param, log_prob, dist_stats)
 
         with torch.no_grad():
             ctx, action = self.controller(obs, param, ctx=ctx)
@@ -132,7 +134,7 @@ class MpcSacActor(nn.Module):
         return SacZopActorOutput(
             param,
             log_prob,
-            gauss_stats,
+            dist_stats,
             action,
             ctx,
         )
@@ -225,7 +227,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
             extractor_cls,  # type: ignore
             observation_space,
             controller,
-            cfg.bounded_distribution_name,
+            cfg.distribution_name,
             cfg.actor_mlp,
         )
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)

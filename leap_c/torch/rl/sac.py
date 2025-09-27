@@ -46,7 +46,7 @@ class SacTrainerConfig(TrainerConfig):
         num_critics: The number of critic networks.
         report_loss_freq: The frequency of reporting the loss (in steps).
         update_freq: The frequency of updating the networks (in steps).
-        bounded_distribution: The type of bounded distribution to use
+        distribution_name: The type of bounded distribution to use
             for sampling inside the policy.
     """
 
@@ -66,7 +66,7 @@ class SacTrainerConfig(TrainerConfig):
     num_critics: int = 2
     report_loss_freq: int = 100
     update_freq: int = 4
-    bounded_distribution_name: BoundedDistributionName = "squashedgaussian"
+    distribution_name: BoundedDistributionName = "squashed_gaussian"
 
 
 class SacCritic(nn.Module):
@@ -162,7 +162,7 @@ class SacActor(nn.Module):
         self.bounded_distribution = get_bounded_distribution(distribution_name, space=action_space)
         self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
-            output_sizes=self.bounded_distribution.parameter_size(action_dim),  # type: ignore
+            output_sizes=list(self.bounded_distribution.parameter_size(action_dim)),
             mlp_cfg=mlp_cfg,
         )
 
@@ -268,7 +268,7 @@ class SacTrainer(Trainer[SacTrainerConfig]):
             extractor_cls,
             action_space,
             observation_space,
-            cfg.bounded_distribution_name,
+            cfg.distribution_name,
             cfg.actor_mlp,
         )  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
