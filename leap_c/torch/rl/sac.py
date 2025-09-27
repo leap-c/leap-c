@@ -159,9 +159,7 @@ class SacActor(nn.Module):
         action_dim = action_space.shape[0]  # type: ignore
 
         self.extractor = extractor_cls(observation_space)
-        self.bounded_distribution = get_bounded_distribution(
-            distribution_name, action_space=action_space
-        )
+        self.bounded_distribution = get_bounded_distribution(distribution_name, space=action_space)
         self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
             output_sizes=self.bounded_distribution.parameter_size(action_dim),  # type: ignore

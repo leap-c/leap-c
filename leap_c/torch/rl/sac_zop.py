@@ -11,8 +11,12 @@ import torch
 import torch.nn as nn
 
 from leap_c.controller import ParameterizedController
+from leap_c.torch.nn.bounded_distributions import (
+    BoundedDistribution,
+    BoundedDistributionName,
+    get_bounded_distribution,
+)
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
-from leap_c.torch.nn.gaussian import SquashedGaussian
 from leap_c.torch.nn.mlp import Mlp, MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.sac import SacCritic, SacTrainerConfig
@@ -51,19 +55,20 @@ class MpcSacActor(nn.Module):
         extractor: The feature extractor module.
         controller: The parameterized controller.
         mlp: The MLP module that predicts the parameters of the Gaussian distribution.
-        squashed_gaussian: The squashed Gaussian distribution module.
+        bounded_distribution: The bounded distribution module.
     """
 
     extractor: Extractor
     controller: ParameterizedController
     mlp: Mlp
-    squashed_gaussian: SquashedGaussian
+    bounded_distribution: BoundedDistribution
 
     def __init__(
         self,
         extractor_cls: Type[Extractor],
         observation_space: gym.Space,
         controller: ParameterizedController,
+        bounded_distribution_name: BoundedDistributionName,
         mlp_cfg: MlpConfig,
     ) -> None:
         """
@@ -77,15 +82,18 @@ class MpcSacActor(nn.Module):
         super().__init__()
 
         param_space: spaces.Box = controller.param_space  # type:ignore
+        param_dim = param_space.shape[0]
 
         self.extractor = extractor_cls(observation_space)
         self.controller = controller
+        self.bounded_distribution = get_bounded_distribution(
+            bounded_distribution_name, space=controller.param_space
+        )
         self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
-            output_sizes=(param_space.shape[0], param_space.shape[0]),  # type:ignore
+            output_sizes=self.bounded_distribution.parameter_size(param_dim),  # type:ignore
             mlp_cfg=mlp_cfg,
         )
-        self.squashed_gaussian = SquashedGaussian(param_space)  # type:ignore
 
     def forward(
         self,
@@ -95,7 +103,7 @@ class MpcSacActor(nn.Module):
         only_param: bool = False,
     ) -> SacZopActorOutput:
         """The given observations are passed to the extractor to obtain features.
-        These are used to predict a distribution in the (learnable) parameter space of the
+        These are used to predict a bounded distribution in the (learnable) parameter space of the
         controller using the MLP. Afterwards, this parameters are sampled from this distribution,
         and passed to the controller, which then computes the final actions.
         This forward pass does NOT support differentiation through the controller.
@@ -109,9 +117,11 @@ class MpcSacActor(nn.Module):
                 do not compute the action using the controller.
         """
         e = self.extractor(obs)
-        mean, log_std = self.mlp(e)
+        dist_params = self.mlp(e)
 
-        param, log_prob, gauss_stats = self.squashed_gaussian(mean, log_std, deterministic)
+        param, log_prob, gauss_stats = self.bounded_distribution(
+            *dist_params, deterministic=deterministic
+        )
 
         if only_param:
             return SacZopActorOutput(param, log_prob, gauss_stats)
@@ -215,6 +225,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
             extractor_cls,  # type: ignore
             observation_space,
             controller,
+            cfg.bounded_distribution_name,
             cfg.actor_mlp,
         )
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
