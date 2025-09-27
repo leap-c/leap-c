@@ -8,8 +8,12 @@ import numpy as np
 import torch
 import torch.nn as nn
 
+from leap_c.torch.nn.bounded_distributions import (
+    BoundedDistribution,
+    BoundedDistributionName,
+    get_bounded_distribution,
+)
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
-from leap_c.torch.nn.gaussian import SquashedGaussian
 from leap_c.torch.nn.mlp import Mlp, MlpConfig
 from leap_c.torch.nn.scale import min_max_scaling
 from leap_c.torch.rl.buffer import ReplayBuffer
@@ -42,6 +46,8 @@ class SacTrainerConfig(TrainerConfig):
         num_critics: The number of critic networks.
         report_loss_freq: The frequency of reporting the loss (in steps).
         update_freq: The frequency of updating the networks (in steps).
+        bounded_distribution: The type of bounded distribution to use
+            for sampling inside the policy.
     """
 
     critic_mlp: MlpConfig = field(default_factory=MlpConfig)
@@ -60,6 +66,7 @@ class SacTrainerConfig(TrainerConfig):
     num_critics: int = 2
     report_loss_freq: int = 100
     update_freq: int = 4
+    bounded_distribution_name: BoundedDistributionName = "squashedgaussian"
 
 
 class SacCritic(nn.Module):
@@ -123,18 +130,19 @@ class SacActor(nn.Module):
         extractor: A feature extractor for the observations.
         mlp: A multi-layer perceptron (MLP) that outputs the mean and log standard deviation for the
             action distribution.
-        squashed_gaussian: A module that samples actions from a squashed Gaussian distribution.
+        bounded_distribution: A module that samples actions from a bounded distribution.
     """
 
     extractor: Extractor
     mlp: Mlp
-    squashed_gaussian: SquashedGaussian
+    bounded_distribution: BoundedDistribution
 
     def __init__(
         self,
         extractor_cls: Type[Extractor],
         action_space: spaces.Box,
         observation_space: spaces.Space,
+        distribution_name: BoundedDistributionName,
         mlp_cfg: MlpConfig,
     ) -> None:
         """Initializes the SAC actor network.
@@ -143,6 +151,7 @@ class SacActor(nn.Module):
             extractor_cls: The class used for extracting features from observations.
             action_space: The action space this actor should predict actions from.
             observation_space: The observation space of the environment for the extractor.
+            distribution_name: The name of the bounded distribution to use for sampling actions.
             mlp_cfg: The configuration for the MLP.
         """
         super().__init__()
@@ -150,31 +159,35 @@ class SacActor(nn.Module):
         action_dim = action_space.shape[0]  # type: ignore
 
         self.extractor = extractor_cls(observation_space)
+        self.bounded_distribution = get_bounded_distribution(
+            distribution_name, action_space=action_space
+        )
         self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
-            output_sizes=(action_dim, action_dim),  # type: ignore
+            output_sizes=self.bounded_distribution.parameter_size(action_dim),  # type: ignore
             mlp_cfg=mlp_cfg,
         )
-        self.squashed_gaussian = SquashedGaussian(action_space)
 
     def forward(
         self, obs: torch.Tensor, deterministic: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """The given observations are passed to the extractor to obtain features.
-        These are used by the MLP to predict a mean, as well as a standard deviation.
-        Those are used to define a distribution in the action space.
+        These are used by the MLP to predict parameters used to define a
+        bounded distribution in the action space.
         The final actions are then sampled from this distribution.
 
         Args:
             obs: The observations to compute the actions for.
             ctx: The optional context object containing information about the previous controller
                 solve. Can be used, e.g., to warm-start the solver.
-            deterministic: If `True`, use the mean of the distribution instead of sampling.
+            deterministic: If `True`, use the mode of the distribution instead of sampling.
         """
         e = self.extractor(obs)
-        mean, log_std = self.mlp(e)
+        dist_params = self.mlp(e)
 
-        action, log_prob, stats = self.squashed_gaussian(mean, log_std, deterministic)
+        action, log_prob, stats = self.bounded_distribution(
+            *dist_params, deterministic=deterministic
+        )
 
         return action, log_prob, stats
 
@@ -253,7 +266,13 @@ class SacTrainer(Trainer[SacTrainerConfig]):
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.lr_q)
 
-        self.pi = SacActor(extractor_cls, action_space, observation_space, cfg.actor_mlp)  # type: ignore
+        self.pi = SacActor(
+            extractor_cls,
+            action_space,
+            observation_space,
+            cfg.bounded_distribution_name,
+            cfg.actor_mlp,
+        )  # type: ignore
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(cfg.init_alpha).log())  # type: ignore

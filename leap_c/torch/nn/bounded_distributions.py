@@ -29,9 +29,11 @@ class BoundedDistribution(nn.Module):
         self, *defining_parameters, deterministic: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Samples from the distribution.
+        If `deterministic` is True, the mode of the distribution is used instead of
+        sampling.
 
         Returns:
-            A tuple of (sample, log_prob, stats).
+            A tuple containing the samples, their log_prob and a dictionary of stats.
         """
         ...
 
