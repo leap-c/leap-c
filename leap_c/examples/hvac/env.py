@@ -276,9 +276,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             dt=self.step_size,
         )
 
-        # Ensure Qd is symmetric positive semi-definite
-        Qd = self._project_to_spsd(Qd)
-
         # Compute discrete-time state-space matrices
         Ad, Bd, Ed = transcribe_discrete_state_space(
             Ad=np.zeros((3, 3)),
@@ -323,18 +320,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         Phi = exp_M[:n, n:]
 
         # The discrete-time covariance is Qd = Ad @ Phi
-        return Ad @ Phi
+        matrix = Ad @ Phi
 
-    def _project_to_spsd(self, matrix: np.ndarray) -> np.ndarray:
-        """
-        Project a matrix to be symmetric positive semi-definite.
-
-        Args:
-            matrix: Input matrix to project
-
-        Returns:
-            Symmetric positive semi-definite matrix
-        """
         # Make symmetric by averaging with transpose
         symmetric_matrix = 0.5 * (matrix + matrix.T)
 
