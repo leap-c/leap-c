@@ -13,8 +13,8 @@ def test_scaled_beta():
 
     # Define parameters
     def create_alpha_beta_tensors():
-        alpha = torch.tensor([[1.0, 2.0, 3.0], [3.0, 4.0, 5.0]])
-        beta = torch.tensor([[4.0, 3.0, 2.0], [2.0, 1.0, 0.0]])
+        alpha = torch.tensor([[1.0, -2.0, -3.0], [3.0, 4.0, -5.0]])
+        beta = torch.tensor([[4.0, 3.0, 2.0], [2.0, -1.0, 0.0]])
         alpha.requires_grad = True
         beta.requires_grad = True
         return alpha, beta
@@ -33,15 +33,15 @@ def test_scaled_beta():
 
     # test backward of log_prob works
     log_prob.sum().backward()
-    assert alpha.grad is not None
-    assert beta.grad is not None
+    assert alpha.grad is not None and not torch.any(torch.isnan(alpha.grad))
+    assert beta.grad is not None and not torch.any(torch.isnan(beta.grad))
 
     alpha, beta = create_alpha_beta_tensors()
     samples, log_prob, _ = dist(alpha, beta, deterministic=False)
     # test backward of samples works
     samples.sum().backward()
-    assert alpha.grad is not None
-    assert beta.grad is not None
+    assert alpha.grad is not None and not torch.any(torch.isnan(alpha.grad))
+    assert beta.grad is not None and not torch.any(torch.isnan(beta.grad))
 
     # Test deterministic sampling (mode)
     alpha, beta = create_alpha_beta_tensors()
@@ -56,13 +56,13 @@ def test_scaled_beta():
 
     # Test mode_sample backward works
     mode_samples.sum().backward()
-    assert alpha.grad is not None
-    assert beta.grad is not None
+    assert alpha.grad is not None and not torch.any(torch.isnan(alpha.grad))
+    assert beta.grad is not None and not torch.any(torch.isnan(beta.grad))
 
     alpha, beta = create_alpha_beta_tensors()
     mode_samples, mode_log_prob, _ = dist(alpha, beta, deterministic=True)
 
     # Test mode_log_prob backward works
     mode_log_prob.sum().backward()
-    assert alpha.grad is not None
-    assert beta.grad is not None
+    assert alpha.grad is not None and not torch.any(torch.isnan(alpha.grad))
+    assert beta.grad is not None and not torch.any(torch.isnan(beta.grad))
