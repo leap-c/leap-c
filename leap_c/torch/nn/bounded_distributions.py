@@ -209,21 +209,42 @@ class ScaledBeta(BoundedDistribution):
     Attributes:
         scale: The scale of the space-fitting transform.
         loc: The location of the space-fitting transform (for shifting).
+        log_alpha_min: The minimum value for the logarithm of the alpha parameter.
+        log_beta_min: The minimum value for the logarithm of the beta parameter.
+        log_alpha_max: The maximum value for the logarithm of the alpha parameter.
+        log_beta_max: The maximum value for the logarithm of the beta parameter.
     """
 
     scale: torch.Tensor
     loc: torch.Tensor
+    log_alpha_min: float
+    log_beta_min: float
+    log_alpha_max: float
+    log_beta_max: float
 
     def __init__(
         self,
         space: spaces.Box,
+        log_alpha_min: float = -10.0,
+        log_beta_min: float = -10.0,
+        log_alpha_max: float = 10.0,
+        log_beta_max: float = 10.0,
     ):
         """Initializes the ScaledBeta module.
 
         Args:
             space: Space the output should fit to.
+            log_alpha_min: The minimum value for the logarithm of the alpha parameter.
+            log_beta_min: The minimum value for the logarithm of the beta parameter.
+            log_alpha_max: The maximum value for the logarithm of the alpha parameter.
+            log_beta_max: The maximum value for the logarithm of the beta parameter.
         """
         super().__init__()
+
+        self.log_alpha_max = log_alpha_max
+        self.log_beta_max = log_beta_max
+        self.log_alpha_min = log_alpha_min
+        self.log_beta_min = log_beta_min
 
         loc = space.low
         scale = space.high - space.low
@@ -248,6 +269,8 @@ class ScaledBeta(BoundedDistribution):
             An output sampled from the ScaledBeta distribution, the log probability of this output
             and a statistics dict containing the standard deviation.
         """
+        log_alpha = torch.clamp(log_alpha, self.log_alpha_min, self.log_alpha_max)
+        log_beta = torch.clamp(log_beta, self.log_beta_min, self.log_beta_max)
         # Add 1 to ensure concavity
         alpha = torch.exp(log_alpha) + 1.0
         beta = torch.exp(log_beta) + 1.0
