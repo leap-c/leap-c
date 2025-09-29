@@ -82,6 +82,16 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env[ObsType, ActType], Generic[ObsType, A
             else:
                 raise ValueError(f"Unsupported render mode: {self.render_mode}")
 
+    def set_ctx(self, ctx: Any) -> None:
+        """Sets the context for rendering.
+
+        This method can be used to pass additional information to the rendering methods.
+
+        Args:
+            ctx: The context to set.
+        """
+        self.ctx = ctx
+
     def close(self) -> None:
         """Closes the rendering window."""
         if self._fig is not None:

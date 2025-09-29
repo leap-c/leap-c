@@ -2,13 +2,14 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import gymnasium as gym
+import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import scipy
 from gymnasium import spaces
 from scipy.constants import convert_temperature
 
+from leap_c.examples.hvac.controller import HvacControllerCtx
 from leap_c.examples.hvac.util import (
     load_price_data,
     load_weather_data,
@@ -17,6 +18,7 @@ from leap_c.examples.hvac.util import (
     transcribe_continuous_state_space,
     transcribe_discrete_state_space,
 )
+from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 
 from .config import (
     BestestHydronicParameters,
@@ -31,7 +33,7 @@ MAGNITUDE_AMBIENT_TEMPERATURE = 5
 MAGNITUDE_SOLAR_RADIATION = 200
 
 
-class StochasticThreeStateRcEnv(gym.Env):
+class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     """Simulator for a three-state RC thermal model with exact discretization of Gaussian noise.
 
     This environment uses the matrix exponential approach to exactly discretize both the
@@ -40,12 +42,14 @@ class StochasticThreeStateRcEnv(gym.Env):
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
+    trajectory_plots: dict[str, plt.Line2D] | None
+
     def __init__(
         self,
         params: None | BestestParameters = None,
         step_size: float = 900.0,  # Default 15 minutes
         start_time: pd.Timestamp | None = None,
-        horizon_hours: int = 36,
+        horizon_hours: int = 25,
         max_hours: int = 3 * 24,  # 3 days
         render_mode: str | None = None,
         price_zone: str = "NO_1",
@@ -63,7 +67,10 @@ class StochasticThreeStateRcEnv(gym.Env):
             solar_radiation_function: Function for solar radiation
             enable_noise: Whether to include stochastic noise
         """
+        super().__init__(render_mode=render_mode)
         N_forecast = 4 * horizon_hours  # Number of forecasted ambient temperatures
+
+        self.ctx: HvacControllerCtx | None = None
 
         self.N_forecast = N_forecast
         self.max_steps = int(max_hours * 3600 / step_size)
@@ -165,6 +172,8 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         self.uncertainty_params = self._load_uncertainty_params()
 
+        self.trajectory_plots = None
+
     def _get_observation(self) -> np.ndarray:
         """
         Get the current observation including time, state, ambient temperatures,
@@ -204,7 +213,7 @@ class StochasticThreeStateRcEnv(gym.Env):
 
         # Step the temperature and solar forecasting errors via the AR1 models
         uncertainty_level = "high"  # TODO: Make this configurable
-        self.error_forecast_temp = self._predict_temperature_error_AR1(
+        error_forecast_temp = self._predict_temperature_error_AR1(
             hp=self.N_forecast,
             F0=self.uncertainty_params["temperature"][uncertainty_level]["F0"],
             K0=self.uncertainty_params["temperature"][uncertainty_level]["K0"],
@@ -213,22 +222,22 @@ class StochasticThreeStateRcEnv(gym.Env):
             mu=self.uncertainty_params["temperature"][uncertainty_level]["mu"],
         )
 
-        self.error_forecast_solar = self._predict_solar_error_AR1(
-            hp=self.N_forecast,
-            ag0=self.uncertainty_params["solar"][uncertainty_level]["ag0"],
-            bg0=self.uncertainty_params["solar"][uncertainty_level]["bg0"],
-            phi=self.uncertainty_params["solar"][uncertainty_level]["phi"],
-            ag=self.uncertainty_params["solar"][uncertainty_level]["ag"],
-            bg=self.uncertainty_params["solar"][uncertainty_level]["bg"],
-        )
-
         ambient_temperature_forecast = (
             self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
-        ) + self.error_forecast_temp
+        ) + error_forecast_temp
 
-        solar_forecast = (
-            self.data["solar"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
-        ) + self.error_forecast_solar
+        # TODO: Currently not using solar forecast error.
+        # Implement a better model that accounts for night time.
+        # error_forecast_solar = self._predict_solar_error_AR1(
+        #     hp=self.N_forecast,
+        #     ag0=self.uncertainty_params["solar"][uncertainty_level]["ag0"],
+        #     bg0=self.uncertainty_params["solar"][uncertainty_level]["bg0"],
+        #     phi=self.uncertainty_params["solar"][uncertainty_level]["phi"],
+        #     ag=self.uncertainty_params["solar"][uncertainty_level]["ag"],
+        #     bg=self.uncertainty_params["solar"][uncertainty_level]["bg"],
+        # )
+
+        solar_forecast = self.data["solar"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
 
         return np.concatenate(
             [
@@ -311,7 +320,19 @@ class StochasticThreeStateRcEnv(gym.Env):
         Phi = exp_M[:n, n:]
 
         # The discrete-time covariance is Qd = Ad @ Phi
-        return Ad @ Phi
+        matrix = Ad @ Phi
+
+        # Make symmetric by averaging with transpose
+        symmetric_matrix = 0.5 * (matrix + matrix.T)
+
+        # Eigenvalue decomposition
+        eigenvalues, eigenvectors = np.linalg.eigh(symmetric_matrix)
+
+        # Clip negative eigenvalues to zero (or small positive value)
+        eigenvalues = np.maximum(eigenvalues, 0.0)
+
+        # Reconstruct the matrix
+        return eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
 
     def _reward_function(self, state: np.ndarray, action: np.ndarray):
         """
@@ -576,86 +597,117 @@ class StochasticThreeStateRcEnv(gym.Env):
             "step_size": self.step_size,
         }
 
+    def _init_state(self, options=None):
+        if options is not None and "mode" in options and options["mode"] == "train":
+            pass
+        else:
+            pass
 
-def decompose_observation(obs: np.ndarray) -> tuple:
-    """
-    Decompose the observation vector into its components.
+    def _render_setup(self):
+        """Initializes the Matplotlib figure and axes for rendering."""
+        if self.render_mode == "human":
+            plt.ion()
 
-    Args:
-        obs: Observation vector from the environment.
+        self._fig, self.axes = plt.subplots(7, 1, figsize=plt.rcParams["figure.figsize"])
+        self._fig.canvas.manager.full_screen_toggle()
+        self._fig.suptitle("HVAC Controller Analysis", fontsize=14)
 
-    Returns:
-        Tuple containing:
-        - quarter_hour: Current quarter hour of the day (0-95)
-        - day_of_year: Current day of the year (1-365)
-        - Ti: Indoor air temperature in Kelvin
-        - Th: Radiator temperature in Kelvin
-        - Te: Envelope temperature in Kelvin
-        - Ta_forecast: Ambient temperature forecast for the next N steps
-        - solar_forecast: Solar radiation forecast for the next N steps
-        - price_forecast: Electricity price forecast for the next N steps
-    """
-    if obs.ndim > 1:
-        N_forecast = (obs.shape[1] - 5) // 3
+        # Initialize empty lines for each subplot
+        self.trajectory_plots = {}
 
-        quarter_hour = obs[:, 0]
-        day_of_year = obs[:, 1]
-        Ti = obs[:, 2]
-        Th = obs[:, 3]
-        Te = obs[:, 4]
+        ax = self.axes[0]
+        (self.trajectory_plots["Ti"],) = ax.step([], [], where="post", label="Ti")
+        (self.trajectory_plots["Ti_lb"],) = ax.step([], [], where="post", label="Ti_lb")
+        (self.trajectory_plots["Ti_ub"],) = ax.step([], [], where="post", label="Ti_ub")
+        ax.set_ylim(0, 30)
+        ax.set_ylabel("Ti [°C]")
+        ax.grid(visible=True, alpha=0.3)
 
-        Ta_forecast = obs[:, 5 : 5 + 1 * N_forecast]
-        solar_forecast = obs[:, 5 + 1 * N_forecast : 5 + 2 * N_forecast]
-        price_forecast = obs[:, 5 + 2 * N_forecast : 5 + 3 * N_forecast]
+        ax = self.axes[1]
+        (self.trajectory_plots["Th"],) = ax.step([], [], where="post", label="Th")
+        ax.set_ylim(-400, 400)
+        ax.set_ylabel("Th [°C]")
+        ax.grid(visible=True, alpha=0.3)
 
-        for forecast in [
-            Ta_forecast,
-            solar_forecast,
-            price_forecast,
-        ]:
-            assert forecast.shape[1] == N_forecast, (
-                f"Expected {N_forecast} forecasts, got {forecast.shape[1]}"
-            )
+        ax = self.axes[2]
+        (self.trajectory_plots["Te"],) = ax.step([], [], where="post", label="Te")
+        ax.set_ylim(0, 30)
+        ax.set_ylabel("Te [°C]")
+        ax.grid(visible=True, alpha=0.3)
 
-        # Cast to appropriate types
-        quarter_hour = quarter_hour.astype(np.int32)
-        day_of_year = day_of_year.astype(np.int32)
-        Ti = Ti.astype(np.float32)
-        Th = Th.astype(np.float32)
-        Te = Te.astype(np.float32)
-        Ta_forecast = Ta_forecast.astype(np.float32)
-        solar_forecast = solar_forecast.astype(np.float32)
-        price_forecast = price_forecast.astype(np.float32)
+        # Heating power subplot
+        ax = self.axes[3]
+        (self.trajectory_plots["qh"],) = ax.step([], [], where="post", label="qh")
+        ax.set_ylim(-5.05e3, 5.05e3)
+        ax.set_ylabel("qh [kW]")
+        ax.grid(visible=True, alpha=0.3)
 
-    else:
-        N_forecast = (len(obs) - 5) // 3
+        ax = self.axes[4]
+        (self.trajectory_plots["price"],) = ax.step([], [], where="post", label="price")
+        ax.set_ylim(0, 0.2)
+        ax.set_ylabel("price [NOK/kWh]")
 
-        quarter_hour = obs[0]
-        day_of_year = obs[1]
-        Ti = obs[2]
-        Th = obs[3]
-        Te = obs[4]
+        ax = self.axes[5]
+        (self.trajectory_plots["Ta"],) = ax.step([], [], where="post", label="Ta")
+        ax.set_ylim(-30, 30)
+        ax.set_ylabel("Ta [°C]")
 
-        Ta_forecast = obs[5 : 5 + 1 * N_forecast]
-        solar_forecast = obs[5 + 1 * N_forecast : 5 + 2 * N_forecast]
-        price_forecast = obs[5 + 2 * N_forecast : 5 + 3 * N_forecast]
+        ax = self.axes[6]
+        (self.trajectory_plots["solar"],) = ax.step([], [], where="post", label="solar")
+        ax.set_ylim(0.0, 600.0)
+        ax.set_ylabel("solar [W/m²]")
 
-        for forecast in [
-            Ta_forecast,
-            solar_forecast,
-            price_forecast,
-        ]:
-            assert len(forecast) == N_forecast, (
-                f"Expected {N_forecast} forecasts, got {len(forecast)}"
-            )
+        for ax in self.axes:
+            ax.set_xlim(0, self.N_forecast)
+            ax.grid(visible=True, alpha=0.3)
 
-    return (
-        quarter_hour,
-        day_of_year,
-        Ti,
-        Th,
-        Te,
-        Ta_forecast,
-        solar_forecast,
-        price_forecast,
-    )
+    def _render_frame(self) -> np.ndarray | None:
+        """Renders the current frame of the environment."""
+
+        ctx: HvacControllerCtx = self.ctx
+
+        if not ctx:
+            raise ValueError("Context (ctx) not set for rendering.")
+
+        x = ctx.diff_mpc_ctx.iterate.x.reshape(-1, 5)
+        Ti = x[:, 0].flatten()
+        Th = x[:, 1].flatten()
+        Te = x[:, 2].flatten()
+        qh = x[:-1, 3].flatten()
+
+        N_horizon = len(Ti)
+
+        quarter_hours = self.data["quarter_hour"].iloc[self.idx : self.idx + N_horizon]
+
+        Ti_lb, Ti_ub = set_temperature_limits(quarter_hours=quarter_hours)
+
+        obs = self._get_observation()
+        Ta = obs[5 : 5 + self.N_forecast][:N_horizon]
+        solar_forecast = obs[5 + self.N_forecast : 5 + 2 * self.N_forecast][:N_horizon]
+        price_forecast = obs[5 + 2 * self.N_forecast : 5 + 3 * self.N_forecast][:N_horizon]
+
+        self.trajectory_plots["Ti"].set_data(range(N_horizon), convert_temperature(Ti, "k", "c"))
+        self.trajectory_plots["Ti_lb"].set_data(
+            range(N_horizon), convert_temperature(Ti_lb, "k", "c")
+        )
+        self.trajectory_plots["Ti_ub"].set_data(
+            range(N_horizon), convert_temperature(Ti_ub, "k", "c")
+        )
+
+        self.trajectory_plots["Th"].set_data(range(N_horizon), convert_temperature(Th, "k", "c"))
+        self.trajectory_plots["Te"].set_data(range(N_horizon), convert_temperature(Te, "k", "c"))
+
+        self.trajectory_plots["qh"].set_data(range(N_horizon - 1), qh)
+
+        self.trajectory_plots["price"].set_data(range(N_horizon), price_forecast)
+        self.trajectory_plots["Ta"].set_data(range(N_horizon), convert_temperature(Ta, "k", "c"))
+        self.trajectory_plots["solar"].set_data(range(N_horizon), solar_forecast)
+
+    def set_ctx(self, ctx: HvacControllerCtx) -> None:
+        """
+        Set the context for rendering.
+
+        Args:
+            ctx: The HvacControllerCtx to set for rendering.
+        """
+        self.ctx: HvacControllerCtx = ctx

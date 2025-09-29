@@ -11,6 +11,7 @@ from gymnasium import Env
 from gymnasium.wrappers import RecordVideo
 from numpy import ndarray
 
+from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 from leap_c.torch.utils.seed import RngType, mk_seed
 from leap_c.utils.gym import seed_env
 
@@ -50,6 +51,10 @@ def episode_rollout(
          - `"inference_time"`: The average inference time of the policy per step.
         The second dictionary containing statistics returned by the policy.
     """
+
+    def render_trigger(episode_id: int) -> bool:
+        return episode_id < render_episodes
+
     if (
         render_episodes > 0
         and env.render_mode not in (None, "human", "ansi")
@@ -59,9 +64,6 @@ def episode_rollout(
             raise ValueError("`render_human` and `video_folder` can not be set at the same time.")
         if name_prefix is None:
             raise ValueError("`name_prefix` must be set if `video_folder` is set.")
-
-        def render_trigger(episode_id: int) -> bool:
-            return episode_id < render_episodes
 
         env = RecordVideo(
             env, video_folder, name_prefix=name_prefix, episode_trigger=render_trigger
@@ -82,7 +84,7 @@ def episode_rollout(
 
             while not terminated and not truncated:
                 t0 = default_timer()
-                a, stats = policy(o)
+                a, ctx, stats = policy(o)
                 cum_inference_time += default_timer() - t0
 
                 if stats is not None:
@@ -99,6 +101,9 @@ def episode_rollout(
                         episode_stats[key].append(value)
 
                 if render_human and render_trigger(episode):
+                    if isinstance(env.unwrapped, MatplotlibRenderEnv):
+                        env.unwrapped.set_ctx(ctx)
+
                     env.render()
 
                 o = o_prime
