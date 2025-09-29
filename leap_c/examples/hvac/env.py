@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -56,7 +55,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         price_zone: str = "NO_1",
         price_data_path: Path | None = None,
         weather_data_path: Path | None = None,
-        enable_noise: bool = False,
+        enable_noise: bool = True,
     ) -> None:
         """
         Initialize the stochastic environment.
@@ -277,6 +276,9 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             dt=self.step_size,
         )
 
+        # Ensure Qd is symmetric positive semi-definite
+        Qd = self._project_to_spsd(Qd)
+
         # Compute discrete-time state-space matrices
         Ad, Bd, Ed = transcribe_discrete_state_space(
             Ad=np.zeros((3, 3)),
@@ -322,6 +324,28 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         # The discrete-time covariance is Qd = Ad @ Phi
         return Ad @ Phi
+
+    def _project_to_spsd(self, matrix: np.ndarray) -> np.ndarray:
+        """
+        Project a matrix to be symmetric positive semi-definite.
+
+        Args:
+            matrix: Input matrix to project
+
+        Returns:
+            Symmetric positive semi-definite matrix
+        """
+        # Make symmetric by averaging with transpose
+        symmetric_matrix = 0.5 * (matrix + matrix.T)
+
+        # Eigenvalue decomposition
+        eigenvalues, eigenvectors = np.linalg.eigh(symmetric_matrix)
+
+        # Clip negative eigenvalues to zero (or small positive value)
+        eigenvalues = np.maximum(eigenvalues, 0.0)
+
+        # Reconstruct the matrix
+        return eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
 
     def _reward_function(self, state: np.ndarray, action: np.ndarray):
         """
@@ -686,33 +710,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.trajectory_plots["Ta"].set_data(range(N_horizon), Ta)
         self.trajectory_plots["solar"].set_data(range(N_horizon), solar_forecast)
 
-        # _plot_temperature_subplot(
-        #     ax=self.axes[0],
-        #     time=time,
-        #     Ti_celsius=convert_temperature(Ti, "kelvin", "celsius"),
-        #     Te_celsius=convert_temperature(Te, "kelvin", "celsius"),
-        #     Ti_lower_celsius=convert_temperature(lb, "kelvin", "celsius"),
-        #     Ti_upper_celsius=convert_temperature(ub, "kelvin", "celsius"),
-        # )
-
-        # _plot_heater_subplot(
-        #     ax=self.axes[1],
-        #     time=time,
-        #     Th_celsius=convert_temperature(Th, "kelvin", "celsius"),
-        # )
-        # _plot_disturbance_subplot(
-        #     ax=self.axes[2],
-        #     time=time,
-        #     Ta_celsius=convert_temperature(Ta, "kelvin", "celsius"),
-        #     solar=solar_forecast,
-        # )
-        # _plot_control_subplot(
-        #     ax=self.axes[3],
-        #     time=time[:-1],
-        #     control_input=qh,
-        #     price=price_forecast[:-1],
-        # )
-
     def set_ctx(self, ctx: HvacControllerCtx) -> None:
         """
         Set the context for rendering.
@@ -721,231 +718,3 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             ctx: The HvacControllerCtx to set for rendering.
         """
         self.ctx: HvacControllerCtx = ctx
-
-
-def _create_base_plot(
-    figsize: tuple[float, float] = (12, 10),
-) -> tuple[plt.Figure, list]:
-    """Create base figure and axes for thermal building control plots."""
-    fig, axes = plt.subplots(4, 1, figsize=figsize, sharex=True)
-    fig.suptitle("Thermal Building Control - OCP Solution", fontsize=16, fontweight="bold")
-    return fig, axes
-
-
-def _plot_temperature_subplot(
-    ax: plt.Axes,
-    time: np.ndarray,
-    Ti_celsius: np.ndarray,
-    Te_celsius: np.ndarray,
-    Ti_lower_celsius: np.ndarray,
-    Ti_upper_celsius: np.ndarray,
-) -> None:
-    """Plot temperature data with comfort zone on given axes."""
-    ax.fill_between(
-        time,
-        Ti_lower_celsius,
-        Ti_upper_celsius,
-        alpha=0.2,
-        color="lightgreen",
-        label="Comfort zone",
-    )
-
-    # Plot comfort bounds as dashed lines
-    ax.step(time, Ti_lower_celsius, "g--", alpha=0.7, label="Lower bound")
-    ax.step(time, Ti_upper_celsius, "g--", alpha=0.7, label="Upper bound")
-
-    # Plot state trajectories
-    ax.step(time, Ti_celsius, "b-", linewidth=2, label="Indoor temp. (Ti)")
-    ax.step(
-        time,
-        Te_celsius,
-        "orange",
-        linewidth=2,
-        label="Envelope temp. (Te)",
-    )
-
-    ax.set_ylabel("Temperature [°C]", fontsize=12)
-    ax.legend(loc="best")
-    ax.grid(visible=True, alpha=0.3)
-    ax.set_title("Indoor/Envelope Temperature", fontsize=14, fontweight="bold")
-
-
-def _plot_heater_subplot(ax: plt.Axes, time: np.ndarray, Th_celsius: np.ndarray) -> None:
-    """Plot heater temperature on given axes."""
-    ax.step(time, Th_celsius, "b-", linewidth=2, label="Radiator temp. (Th)")
-    ax.set_ylabel("Temperature [°C]", fontsize=12)
-    ax.grid(visible=True, alpha=0.3)
-    ax.set_title("Heater Temperature", fontsize=14, fontweight="bold")
-
-
-def _plot_disturbance_subplot(
-    ax: plt.Axes, time: np.ndarray, Ta_celsius: np.ndarray, solar: np.ndarray
-) -> None:
-    """Plot disturbance signals (outdoor temperature and solar radiation) on given axes."""
-    # Outdoor temperature (left y-axis)
-    ax.step(
-        time,
-        Ta_celsius,
-        "b-",
-        where="post",
-        linewidth=2,
-        label="Outdoor temp.",
-    )
-    ax.set_ylabel("Outdoor Temperature [°C]", color="b", fontsize=12)
-    ax.tick_params(axis="y", labelcolor="b")
-
-    # Solar radiation (right y-axis)
-    ax_twin = ax.twinx()
-    ax_twin.step(
-        time,
-        solar,
-        color="orange",
-        where="post",
-        linewidth=2,
-        label="Solar radiation",
-    )
-    ax_twin.set_ylabel("Solar Radiation [W/m²]", color="orange", fontsize=12)
-    ax_twin.tick_params(axis="y", labelcolor="orange")
-
-    ax.grid(visible=True, alpha=0.3)
-    ax.set_title("Exogeneous Signals", fontsize=14, fontweight="bold")
-
-
-def _plot_control_subplot(
-    ax: plt.Axes, time: np.ndarray, control_input: np.ndarray, price: np.ndarray
-) -> None:
-    """Plot control input and energy price on given axes."""
-    # Plot control as step function
-    ax.step(
-        time,
-        control_input,
-        "b-",
-        where="post",
-        linewidth=2,
-        label="Heat input",
-    )
-
-    ax.set_xlabel("Time [hours]", fontsize=12)
-    ax.set_ylabel("Heat Input [W]", color="b", fontsize=12)
-    ax.grid(visible=True, alpha=0.3)
-    ax.set_title("Control Input", fontsize=14, fontweight="bold")
-    ax.set_ylim(bottom=0)
-
-    # Add energy cost as a secondary y-axis
-    ax_twin = ax.twinx()
-    ax_twin.step(
-        time,
-        price,
-        color="orange",
-        where="post",
-        linewidth=2,
-        label="Energy cost (scaled)",
-    )
-    ax_twin.set_ylabel("Energy Price [EUR/kWh]", color="orange", fontsize=12)
-    ax_twin.tick_params(axis="y", labelcolor="orange")
-    ax_twin.grid(visible=False)
-    ax_twin.set_ylim(bottom=0)
-
-
-def _add_summary_stats(fig: plt.Figure, control_input: np.ndarray, ctx: Any = None) -> None:
-    """Add summary statistics text to the figure."""
-    dt = 900.0  # Time step in seconds (15 minutes)
-    total_energy_kWh = control_input.sum() * dt / 3600 / 1000  # Convert to kWh
-
-    if ctx is not None:
-        max_comfort_violation = max(
-            ctx.iterate.sl.reshape(-1, 2).max(),
-            ctx.iterate.su.reshape(-1, 2).max(),
-        )
-        stats_text = (
-            f"Total Energy: {total_energy_kWh:.1f} kWh | "
-            f"Max Comfort Violation: {max_comfort_violation:.2f} K"
-        )
-    else:
-        stats_text = f"Total Energy: {total_energy_kWh:.1f} kWh"
-
-    fig.text(
-        0.78,
-        0.02,
-        stats_text,
-        ha="center",
-        fontsize=10,
-        bbox={"boxstyle": "round,pad=0.3", "facecolor": "lightgray", "alpha": 0.8},
-    )
-
-
-# def plot_ocp_results(
-#     time: np.ndarray[np.datetime64],
-#     obs: np.ndarray,
-#     ctx: Any,
-#     figsize: tuple[float, float] = (12, 10),
-#     save_path: str | None = None,
-# ) -> plt.Figure:
-#     """
-#     Plot the OCP solution results in a figure with three vertically stacked subplots.
-
-#     Args:
-#         obs: Observation data
-#         ctx: Context containing the OCP iterate
-#         dt: Time step in seconds
-#         figsize: Figure size (width, height)
-#         save_path: Optional path to save the figure
-
-#     Returns:
-#         matplotlib Figure object
-#     """
-#     x = ctx.iterate.x.reshape(-1, 5)
-#     u = x[:, 4]
-
-#     # Convert temperatures to Celsius for plotting
-#     Ti_celsius = convert_temperature(x[:, 0], "kelvin", "celsius")
-#     Th_celsius = convert_temperature(x[:, 1], "kelvin", "celsius")
-#     Te_celsius = convert_temperature(x[:, 2], "kelvin", "celsius")
-
-#     Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs=obs)[5:]
-#     solar_forecast = solar_forecast.reshape(-1)
-#     price_forecast = price_forecast.reshape(-1)
-#     time = time.reshape(-1)
-
-#     quarter_hours = np.arange(obs[0], obs[0] + len(time)) % len(time)
-#     T_lower, T_upper = set_temperature_limits(quarter_hours=quarter_hours)
-
-#     T_lower_celsius = convert_temperature(T_lower.reshape(-1), "kelvin", "celsius")
-#     T_upper_celsius = convert_temperature(T_upper.reshape(-1), "kelvin", "celsius")
-#     Ta_celsius = convert_temperature(Ta_forecast.reshape(-1), "kelvin", "celsius")
-
-#     # Create base plot
-#     fig, axes = _create_base_plot(figsize)
-
-#     # Plot each subplot using helper functions
-#     _plot_temperature_subplot(
-#         axes[0], time, Ti_celsius, Te_celsius, T_lower_celsius, T_upper_celsius
-#     )
-#     _plot_heater_subplot(axes[1], time, Th_celsius)
-#     _plot_disturbance_subplot(axes[2], time, Ta_celsius, solar_forecast)
-#     _plot_control_subplot(axes[3], time, u, price_forecast)
-
-#     # Adjust layout and add summary stats
-#     plt.tight_layout()
-#     _add_summary_stats(fig, u, ctx)
-
-#     # Save figure if path provided
-#     if save_path:
-#         plt.savefig(save_path, dpi=300, bbox_inches="tight")
-#         print(f"Figure saved to: {save_path}")
-
-#     return fig
-
-# fig, axes = _create_base_plot()
-
-# # Plot each subplot using helper functions
-# _plot_temperature_subplot(
-#     axes[0], time, Ti_celsius, Te_celsius, Ti_lower_celsius, Ti_upper_celsius
-# )
-# _plot_heater_subplot(axes[1], time, Th_celsius)
-# _plot_disturbance_subplot(axes[2], time, Ta_celsius, solar)
-# _plot_control_subplot(axes[3], time, qh, price)
-
-# # Adjust layout and add summary stats
-# plt.tight_layout()
-# _add_summary_stats(fig, qh)
