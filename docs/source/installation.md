@@ -67,13 +67,13 @@ pip install -e .
 For also enabling rendering in some of our examples use:
 
 ```bash
-pip install -e .[rendering]
+pip install -e ".[rendering]"
 ```
 
 For development, you might want to install all additional dependencies:
 
 ```bash
-pip install -e .[dev]
+pip install -e ".[dev]"
 ```
 
 See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on package configurations.
