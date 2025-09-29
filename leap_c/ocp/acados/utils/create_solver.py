@@ -170,7 +170,7 @@ def _turn_on_warmstart(acados_ocp: AcadosOcp):
     ):
         print(
             "WARNING: Warmstarting the first QP is not enabled. We will enable it for"
-            + "our initialization strategies to work properly."
+            + " our initialization strategies to work properly."
         )
     acados_ocp.solver_options.qp_solver_warm_start = 0
     acados_ocp.solver_options.nlp_solver_warm_start_first_qp = True
