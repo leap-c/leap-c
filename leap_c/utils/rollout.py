@@ -11,6 +11,7 @@ from gymnasium import Env
 from gymnasium.wrappers import RecordVideo
 from numpy import ndarray
 
+from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 from leap_c.torch.utils.seed import RngType, mk_seed
 from leap_c.utils.gym import seed_env
 
@@ -83,7 +84,7 @@ def episode_rollout(
 
             while not terminated and not truncated:
                 t0 = default_timer()
-                a, stats = policy(o)
+                a, ctx, stats = policy(o)
                 cum_inference_time += default_timer() - t0
 
                 if stats is not None:
@@ -100,6 +101,9 @@ def episode_rollout(
                         episode_stats[key].append(value)
 
                 if render_human and render_trigger(episode):
+                    if isinstance(env.unwrapped, MatplotlibRenderEnv):
+                        env.unwrapped.set_ctx(ctx)
+
                     env.render()
 
                 o = o_prime
