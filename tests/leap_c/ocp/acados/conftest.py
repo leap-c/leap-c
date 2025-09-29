@@ -11,7 +11,7 @@ from leap_c.ocp.acados.parameters import (
     AcadosParameter,
     AcadosParameterManager,
 )
-from leap_c.ocp.acados.torch import AcadosDiffMpc
+from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
 @pytest.fixture(scope="session")
@@ -489,8 +489,8 @@ def acados_test_ocp_with_stagewise_varying_params(
 
 
 @pytest.fixture(scope="session")
-def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpc:
-    return AcadosDiffMpc(
+def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpcTorch:
+    return AcadosDiffMpcTorch(
         ocp=acados_test_ocp,
         initializer=None,
         sensitivity_ocp=None,
@@ -503,8 +503,8 @@ def diff_mpc_with_stagewise_varying_params(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
     nominal_stagewise_params: tuple[AcadosParameter, ...],
     print_level: int = 0,
-) -> AcadosDiffMpc:
-    diff_mpc = AcadosDiffMpc(
+) -> AcadosDiffMpcTorch:
+    diff_mpc = AcadosDiffMpcTorch(
         ocp=acados_test_ocp_with_stagewise_varying_params,
         initializer=None,
         sensitivity_ocp=None,

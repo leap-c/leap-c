@@ -13,7 +13,7 @@ from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
 from leap_c.ocp.acados.controller import AcadosController
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
-from leap_c.ocp.acados.torch import AcadosDiffMpc
+from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
 @dataclass(kw_only=True)
@@ -113,7 +113,7 @@ class ChainController(AcadosController):
 
         initializer = ChainInitializer(ocp, x_ref=x_ref)
 
-        diff_mpc = AcadosDiffMpc(
+        diff_mpc = AcadosDiffMpcTorch(
             ocp,
             initializer=initializer,
             export_directory=export_directory,

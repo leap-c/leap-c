@@ -8,7 +8,7 @@ import torch
 from acados_template import AcadosOcp, AcadosOcpSolver
 
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
-from leap_c.ocp.acados.torch import AcadosDiffMpc
+from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
 def test_acados_param_manager_basic_initialization():
@@ -1110,8 +1110,8 @@ def test_param_manager_combine_parameter_values(
 
 
 def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
-    diff_mpc: AcadosDiffMpc,
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
+    diff_mpc: AcadosDiffMpcTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
     nominal_stagewise_params: tuple[AcadosParameter, ...],
 ) -> None:
     """
@@ -1197,8 +1197,8 @@ def test_casadi_function_with_parameter_manager():
 def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     nominal_stagewise_params: tuple[AcadosParameter, ...],
     acados_test_ocp_no_p_global: AcadosOcp,
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpc,
-    diff_mpc: AcadosDiffMpc,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
+    diff_mpc: AcadosDiffMpcTorch,
     rng: np.random.Generator,
 ) -> None:
     """
