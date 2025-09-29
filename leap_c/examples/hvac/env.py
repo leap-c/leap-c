@@ -608,7 +608,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         if self.render_mode == "human":
             plt.ion()
 
-        self._fig, self.axes = plt.subplots(7, 1, figsize=(12, 8))
+        self._fig, self.axes = plt.subplots(7, 1, figsize=plt.rcParams["figure.figsize"])
+        self._fig.canvas.manager.full_screen_toggle()
         self._fig.suptitle("HVAC Controller Analysis", fontsize=14)
 
         # Initialize empty lines for each subplot
@@ -624,7 +625,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         ax = self.axes[1]
         (self.trajectory_plots["Th"],) = ax.step([], [], where="post", label="Th")
-        ax.set_ylim(0, 300)
+        ax.set_ylim(-400, 400)
         ax.set_ylabel("Th [°C]")
         ax.grid(visible=True, alpha=0.3)
 
@@ -637,19 +638,24 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         # Heating power subplot
         ax = self.axes[3]
         (self.trajectory_plots["qh"],) = ax.step([], [], where="post", label="qh")
-        ax.set_ylim(-5e3, 5e3)
+        ax.set_ylim(-5.05e3, 5.05e3)
         ax.set_ylabel("qh [kW]")
         ax.grid(visible=True, alpha=0.3)
 
         ax = self.axes[4]
-        ax.set_ylim(0, 1.0)
         (self.trajectory_plots["price"],) = ax.step([], [], where="post", label="price")
+        ax.set_ylim(0, 0.2)
+        ax.set_ylabel("price [NOK/kWh]")
 
         ax = self.axes[5]
         (self.trajectory_plots["Ta"],) = ax.step([], [], where="post", label="Ta")
+        ax.set_ylim(-30, 30)
+        ax.set_ylabel("Ta [°C]")
 
         ax = self.axes[6]
         (self.trajectory_plots["solar"],) = ax.step([], [], where="post", label="solar")
+        ax.set_ylim(0.0, 600.0)
+        ax.set_ylabel("solar [W/m²]")
 
         for ax in self.axes:
             ax.set_xlim(0, self.N_forecast)
@@ -694,7 +700,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.trajectory_plots["qh"].set_data(range(N_horizon - 1), qh)
 
         self.trajectory_plots["price"].set_data(range(N_horizon), price_forecast)
-        self.trajectory_plots["Ta"].set_data(range(N_horizon), Ta)
+        self.trajectory_plots["Ta"].set_data(range(N_horizon), convert_temperature(Ta, "k", "c"))
         self.trajectory_plots["solar"].set_data(range(N_horizon), solar_forecast)
 
     def set_ctx(self, ctx: HvacControllerCtx) -> None:
