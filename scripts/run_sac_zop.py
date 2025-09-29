@@ -53,6 +53,7 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacZopConfig:
     cfg.trainer.num_critics = 2
     cfg.trainer.report_loss_freq = 100
     cfg.trainer.update_freq = 4
+    cfg.trainer.distribution_name = "squashed_gaussian"
 
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
