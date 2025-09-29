@@ -36,7 +36,7 @@ The following steps assume that the virtual environment is activated.
 
 #### acados
 
-Then change into the acados directory 
+Then change into the acados directory
 
 ```bash
 cd external/acados
@@ -67,24 +67,24 @@ pip install -e .
 For also enabling rendering in some of our examples use:
 
 ```bash
-pip install -e .[rendering]
+pip install -e ".[rendering]"
 ```
 
 For development, you might want to install all additional dependencies:
 
 ```bash
-pip install -e .[dev]
+pip install -e ".[dev]"
 ```
 
 See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on package configurations.
 
 ### Troubleshooting
-In the [troubleshooting tab](https://leap-c.github.io/leap-c/troubleshooting.html) 
-we highlight how to fix common problems arising while using leap-c with VS Code. 
+In the [troubleshooting tab](https://leap-c.github.io/leap-c/troubleshooting.html),
+we highlight how to fix common problems arising while using leap-c with VS Code.
 
 ## Windows
 We recommend to use [WSL (Windows Subsystem for Linux)](https://ubuntu.com/desktop/wsl) and then following the guide above.
-You can then conveniently program on your WSL, e.g., 
+You can then conveniently program on your WSL, e.g.,
 by using VS Code on Windows together with the "Remote Development" extension pack.
 
 Note the [installation instructions for acados regarding WSL](https://docs.acados.org/installation/index.html#windows-10-wsl).

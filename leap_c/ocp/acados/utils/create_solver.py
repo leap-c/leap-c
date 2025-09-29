@@ -96,7 +96,7 @@ def create_forward_backward_batch_solvers(
     discount_factor: float | None = None,
     n_batch_max: int = 256,
     num_threads: int = 4,
-):
+) -> tuple[AcadosOcpBatchSolver, AcadosOcpBatchSolver]:
     """Create a batch solver for solving the MPC problems (forward solver).
     If this solver is suitable for computing sensitivities, it will also be returned as backward
     solver (the solver for computing sensitivities). Otherwise,
@@ -170,7 +170,7 @@ def _turn_on_warmstart(acados_ocp: AcadosOcp):
     ):
         print(
             "WARNING: Warmstarting the first QP is not enabled. We will enable it for"
-            + "our initialization strategies to work properly."
+            + " our initialization strategies to work properly."
         )
     acados_ocp.solver_options.qp_solver_warm_start = 0
     acados_ocp.solver_options.nlp_solver_warm_start_first_qp = True
