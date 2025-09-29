@@ -96,7 +96,7 @@ def create_forward_backward_batch_solvers(
     discount_factor: float | None = None,
     n_batch_max: int = 256,
     num_threads: int = 4,
-):
+) -> tuple[AcadosOcpBatchSolver, AcadosOcpBatchSolver]:
     """Create a batch solver for solving the MPC problems (forward solver).
     If this solver is suitable for computing sensitivities, it will also be returned as backward
     solver (the solver for computing sensitivities). Otherwise,
