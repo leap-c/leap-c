@@ -15,7 +15,7 @@ from leap_c.ocp.acados.diff_mpc import (
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 
 
-class AcadosDiffMpc(nn.Module):
+class AcadosDiffMpcTorch(nn.Module):
     """PyTorch module for differentiable MPC based on acados.
 
     This module wraps acados solvers to enable their use in differentiable machine learning
@@ -41,7 +41,7 @@ class AcadosDiffMpc(nn.Module):
         n_batch_max: int | None = None,
         num_threads_batch_solver: int | None = None,
     ) -> None:
-        """Initializes the AcadosDiffMpc module.
+        """Initializes the AcadosDiffMpcTorch module.
 
         Args:
             ocp: The acados ocp object defining the optimal control problem structure.

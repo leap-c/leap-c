@@ -14,7 +14,7 @@ from leap_c.controller import ParameterizedController
 from leap_c.examples.hvac.config import make_default_hvac_params
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
-from leap_c.ocp.acados.torch import AcadosDiffMpc, AcadosDiffMpcCtx
+from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
 from .env import StochasticThreeStateRcEnv, decompose_observation
 from .util import set_temperature_limits, transcribe_discrete_state_space
@@ -74,7 +74,7 @@ class HvacController(ParameterizedController):
     Attributes:
         param_manager: For managing the parameters of the OCP.
         ocp: The AcadosOcp object representing the optimal control problem.
-        diff_mpc: The AcadosDiffMpc object for solving the OCP and computing sensitivities.
+        diff_mpc: The AcadosDiffMpcTorch object for solving the OCP and computing sensitivities.
         stagewise: Whether to use stage-wise parameters.
         collate_fn_map: A mapping for collating contexts in batch processing.
     """
@@ -110,7 +110,7 @@ class HvacController(ParameterizedController):
         if diff_mpc_kwargs is None:
             diff_mpc_kwargs = {}
 
-        self.diff_mpc = AcadosDiffMpc(
+        self.diff_mpc = AcadosDiffMpcTorch(
             self.ocp, **diff_mpc_kwargs, export_directory=export_directory
         )
 

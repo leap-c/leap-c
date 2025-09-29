@@ -7,7 +7,7 @@ import torch
 from leap_c.controller import ParameterizedController
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
 from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.ocp.acados.torch import AcadosDiffMpc
+from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
 class AcadosController(ParameterizedController):
@@ -21,11 +21,11 @@ class AcadosController(ParameterizedController):
     """
 
     param_manager: AcadosParameterManager
-    diff_mpc: AcadosDiffMpc
+    diff_mpc: AcadosDiffMpcTorch
 
     collate_fn_map: dict[type, Callable] = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
-    def __init__(self, param_manager: AcadosParameterManager, diff_mpc: AcadosDiffMpc):
+    def __init__(self, param_manager: AcadosParameterManager, diff_mpc: AcadosDiffMpcTorch):
         super().__init__()
         self.param_manager = param_manager
         self.diff_mpc = diff_mpc
@@ -33,7 +33,7 @@ class AcadosController(ParameterizedController):
     def forward(
         self, obs: torch.Tensor, param: torch.Tensor, ctx: AcadosDiffMpcCtx | None = None
     ) -> tuple[AcadosDiffMpcCtx, torch.Tensor]:
-        """Passes obs, param and ctx, as-is to the AcadosDiffMpc object. Note that param
+        """Passes obs, param and ctx, as-is to the AcadosDiffMpcTorch object. Note that param
         is assumed to be the learnable parameters only, while the non-learnable parameters
         are automatically obtained from the param_manager.
         """

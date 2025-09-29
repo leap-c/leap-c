@@ -9,7 +9,7 @@ from leap_c.examples.cartpole.acados_ocp import (
 )
 from leap_c.ocp.acados.controller import AcadosController
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
-from leap_c.ocp.acados.torch import AcadosDiffMpc
+from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
 @dataclass(kw_only=True)
@@ -94,5 +94,5 @@ class CartPoleController(AcadosController):
             x_threshold=self.cfg.x_threshold,
         )
 
-        diff_mpc = AcadosDiffMpc(ocp, export_directory=export_directory)
+        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory)
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
