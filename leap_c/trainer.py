@@ -273,7 +273,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
                 action, policy_state, policy_stats = self.act(
                     obs, deterministic=self.cfg.val_deterministic, state=policy_state
                 )
-                return action, policy_stats
+                return action, policy_state, policy_stats
 
             return policy_fn
 
@@ -282,7 +282,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
             self.eval_env,
             self.cfg.val_num_rollouts,
             self.cfg.val_num_render_rollouts,
-            render_human=False,
+            render_human=self.cfg.val_render_mode == "human",
             video_folder=self.output_path / "video",
             name_prefix=f"{self.state.step}",
             rng=self.rng,
