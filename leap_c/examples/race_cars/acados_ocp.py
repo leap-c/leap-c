@@ -1,46 +1,37 @@
+import types
 from typing import Literal
-import sys
-import os
 
+import scipy
+import numpy as np
 import casadi as ca
 import gymnasium as gym
-import numpy as np
 from acados_template import AcadosModel, AcadosOcp
 
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
-# Add the race car example path to sys.path
-race_car_path = os.path.join(os.path.dirname(__file__), '../../../external/acados/examples/acados_python/race_cars')
-if race_car_path not in sys.path:
-    sys.path.insert(0, race_car_path)
+from leap_c.examples.race_cars.tracks.readDataFcn import getTrack
 
-try:
-    from bicycle_model import bicycle_model
-    from tracks.readDataFcn import getTrack
-except ImportError as e:
-    print(f"Warning: Could not import race car modules: {e}")
 
 RaceCarAcadosParamInterface = Literal["global", "stagewise"]
-RaceCarAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
+RaceCarAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS", "LINEAR_LS"]
 
 
-def create_racecar_params(
+def create_race_car_params(
     param_interface: RaceCarAcadosParamInterface,
     N_horizon: int = 50,
     track_file: str = "LMS_Track.txt",
 ) -> list[AcadosParameter]:
-    """Returns a list of parameters used in race car model."""
-    
-    # Load track to determine appropriate bounds
-    try:
-        Sref, _, _, _, _ = getTrack(track_file)
-        track_length = Sref[-1]
-    except:
-        track_length = 10.0  # fallback
-    
+
+    q_diag_sqrt = np.sqrt(np.array([1e-1, 1e-8, 1e-8, 1e-8, 1e-3, 5e-3]))
+    r_diag_sqrt = np.sqrt(np.array([1e-3, 5e-3]))
+    qe_diag_sqrt = np.sqrt(np.array([5e0, 1e1, 1e-8, 1e-8, 5e-3, 2e-3]))
+
+    Sref, _, _, _, _ = getTrack(track_file)
+    track_length = Sref[-1]
+
     return [
-        # Race car dynamics parameters (from bicycle_model.py)
+        # Dynamics parameters
         AcadosParameter("m", default=np.array([0.043])),    # mass [kg]
         AcadosParameter("C1", default=np.array([0.5])),     # front tire parameter
         AcadosParameter("C2", default=np.array([15.5])),    # rear tire parameter
@@ -48,115 +39,20 @@ def create_racecar_params(
         AcadosParameter("Cm2", default=np.array([0.05])),   # motor parameter
         AcadosParameter("Cr0", default=np.array([0.011])),  # rolling resistance
         AcadosParameter("Cr2", default=np.array([0.006])),  # air resistance
-        
-        # Cost matrix parameters - these will be learned by SAC
-        # State cost weights: [s, n, alpha, v, D, delta]
-        AcadosParameter(
-            "Q_s", 
-            default=np.array([1e-1]),  # progress weight
+        # Cost matrix factorization parameters
+        AcadosParameter( #[s, n, alpha, v, D, delta]
+            "q_diag_sqrt", default=q_diag_sqrt,
             interface="learnable",
-            space=gym.spaces.Box(
-                low=np.array([1e-3]),
-                high=np.array([1.0]),
-                dtype=np.float64,
-            ),
-        ),
+        ),  # cost on state residuals
         AcadosParameter(
-            "Q_n", 
-            default=np.array([1e1]),  # lateral deviation weight (important!)
-            interface="learnable", 
-            space=gym.spaces.Box(
-                low=np.array([1.0]),
-                high=np.array([100.0]),
-                dtype=np.float64,
-            ),
-        ),
-        AcadosParameter(
-            "Q_alpha", 
-            default=np.array([1e-8]),  # heading angle weight
-            interface="learnable",
-            space=gym.spaces.Box(
-                low=np.array([1e-9]),
-                high=np.array([1e-2]),
-                dtype=np.float64,
-            ),
-        ),
-        AcadosParameter(
-            "Q_v", 
-            default=np.array([1e-8]),  # velocity weight
-            interface="learnable",
-            space=gym.spaces.Box(
-                low=np.array([1e-9]),
-                high=np.array([1e-2]),
-                dtype=np.float64,
-            ),
-        ),
-        AcadosParameter(
-            "Q_D", 
-            default=np.array([1e-3]),  # throttle weight
-            interface="learnable",
-            space=gym.spaces.Box(
-                low=np.array([1e-4]),
-                high=np.array([1e-1]),
-                dtype=np.float64,
-            ),
-        ),
-        AcadosParameter(
-            "Q_delta", 
-            default=np.array([5e-3]),  # steering weight
-            interface="learnable",
-            space=gym.spaces.Box(
-                low=np.array([1e-4]),
-                high=np.array([1e-1]),
-                dtype=np.float64,
-            ),
-        ),
-        
-        # Control cost weights: [derD, derDelta]
-        AcadosParameter(
-            "R_derD", 
-            default=np.array([1e-3]),  # throttle rate weight
-            interface="learnable",
-            space=gym.spaces.Box(
-                low=np.array([1e-4]),
-                high=np.array([1e-1]),
-                dtype=np.float64,
-            ),
-        ),
-        AcadosParameter(
-            "R_derDelta", 
-            default=np.array([5e-3]),  # steering rate weight
-            interface="learnable",
-            space=gym.spaces.Box(
-                low=np.array([1e-4]),
-                high=np.array([1e-1]),
-                dtype=np.float64,
-            ),
-        ),
-        
+            "r_diag_sqrt", default=r_diag_sqrt
+        ),  # [derD, derDelta]
         # Terminal cost weights (for final state)
         AcadosParameter(
-            "Qe_s", 
-            default=np.array([5e0]),  # terminal progress weight
+            "qe_diag_sqrt",
+            default = qe_diag_sqrt,
             interface="learnable",
-            space=gym.spaces.Box(
-                low=np.array([1e-1]),
-                high=np.array([50.0]),
-                dtype=np.float64,
-            ),
         ),
-        AcadosParameter(
-            "Qe_n", 
-            default=np.array([1e1]),  # terminal lateral deviation weight
-            interface="learnable",
-            space=gym.spaces.Box(
-                low=np.array([1.0]),
-                high=np.array([100.0]),
-                dtype=np.float64,
-            ),
-        ),
-        
-        # Reference parameters - these are set dynamically during racing
         AcadosParameter(
             "sref", 
             default=np.array([track_length]),  # reference progress
@@ -167,7 +63,7 @@ def create_racecar_params(
         ),
         AcadosParameter(
             "yref", 
-            default=np.zeros(8),  # reference state + control [s,n,alpha,v,D,delta,derD,derDelta]
+            default=np.array([1, 0, 0, 0, 0, 0, 0, 0]),
             interface="non-learnable",
             vary_stages=list(range(N_horizon))
             if param_interface == "stagewise"
@@ -175,7 +71,7 @@ def create_racecar_params(
         ),
         AcadosParameter(
             "yref_e", 
-            default=np.zeros(6),  # terminal reference state [s,n,alpha,v,D,delta]
+            default=np.array([0, 0, 0, 0, 0, 0]),
             interface="non-learnable",
         ),
     ]
@@ -184,62 +80,75 @@ def create_racecar_params(
 def define_f_expl_expr(
     model: AcadosModel, param_manager: AcadosParameterManager, track_file: str = "LMS_Track.txt"
 ) -> ca.SX:
-    """Define explicit dynamics for race car bicycle model."""
-    
-    # Get model parameters
     m = param_manager.get("m")
-    C1 = param_manager.get("C1")
-    C2 = param_manager.get("C2")
-    Cm1 = param_manager.get("Cm1")
-    Cm2 = param_manager.get("Cm2")
-    Cr0 = param_manager.get("Cr0")
-    Cr2 = param_manager.get("Cr2")
-    
-    # Load track curvature data
-    try:
-        s0, _, _, _, kapparef = getTrack(track_file)
-        length = len(s0)
-        pathlength = s0[-1]
-        
-        # Extend track data (as in original bicycle_model.py)
-        s0_ext = ca.DM(np.append(s0, [s0[length - 1] + s0[1:length]]))
-        kapparef_ext = ca.DM(np.append(kapparef, kapparef[1:length]))
-        s0_ext = ca.DM(np.append([-s0[length - 2] + s0[length - 81 : length - 2]], s0_ext))
-        kapparef_ext = ca.DM(np.append(kapparef[length - 80 : length - 1], kapparef_ext))
-        
-        # Create curvature interpolant
-        kapparef_s = ca.interpolant("kapparef_s", "bspline", [s0_ext], kapparef_ext)
-    except:
-        # Fallback: assume straight track
-        kapparef_s = lambda s: 0.0
-    
-    # State variables: [s, n, alpha, v, D, delta]
-    s = model.x[0]      # progress along track [m]
-    n = model.x[1]      # lateral deviation [m]
-    alpha = model.x[2]  # heading angle relative to track [rad]
-    v = model.x[3]      # velocity [m/s]
-    D = model.x[4]      # throttle/brake input [-1, 1]
-    delta = model.x[5]  # steering angle [rad]
-    
-    # Control variables: [derD, derDelta]
-    derD = model.u[0]      # throttle rate
-    derDelta = model.u[1]  # steering rate
-    
+    C1, C2 = param_manager.get("C1"), param_manager.get("C2")
+    Cm1, Cm2 = param_manager.get("Cm1"), param_manager.get("Cm2")
+    Cr0, Cr2 = param_manager.get("Cr0"), param_manager.get("Cr2")
+
+    [s0, _, _, _, kapparef] = getTrack(track_file)
+    length = len(s0)
+    pathlength = s0[-1]
+
+    s0 = np.append(s0, [s0[length - 1] + s0[1:length]])
+    kapparef = np.append(kapparef, kapparef[1:length])
+    s0 = np.append([-s0[length - 2] + s0[length - 81 : length - 2]], s0)
+    kapparef = np.append(kapparef[length - 80 : length - 1], kapparef)
+    kapparef_s = ca.interpolant("kapparef_s", "bspline", [s0], kapparef)
+
+    # [s, n, alpha, v, D, delta]
+    s = model.x[0]
+    n = model.x[1]
+    alpha = model.x[2]
+    v = model.x[3]
+    D = model.x[4]
+    delta = model.x[5]
+    x = ca.vertcat(s, n, alpha, v, D, delta)
+
+    derD = model.u[0]
+    derDelta = model.u[1]
+    u = ca.vertcat(derD, derDelta)
+
     # Race car dynamics (from bicycle_model.py)
     Fxd = (Cm1 - Cm2 * v) * D - Cr2 * v * v - Cr0 * ca.tanh(5 * v)
     
-    # State derivatives
-    kappa = kapparef_s(s)
-    sdot = (v * ca.cos(alpha + C1 * delta)) / (1 - kappa * n)
-    ndot = v * ca.sin(alpha + C1 * delta)
-    alphadot = v * C2 * delta - kappa * sdot
-    vdot = Fxd / m * ca.cos(C1 * delta)
-    Ddot = derD
-    deltadot = derDelta
-    
-    f_expl = ca.vertcat(sdot, ndot, alphadot, vdot, Ddot, deltadot)
-    
-    return f_expl
+    # dynamics
+    sdota = (v * ca.cos(alpha + C1 * delta)) / (1 - kapparef_s(s) * n)
+
+    f_expl = ca.vertcat(
+        sdota,
+        v * ca.sin(alpha + C1 * delta),
+        v * C2 * delta - kapparef_s(s) * sdota,
+        Fxd / m * ca.cos(C1 * delta),
+        derD,
+        derDelta,
+    )
+    constraint = types.SimpleNamespace()
+    a_lat = C2 * v * v * delta + Fxd * ca.sin(C1 * delta) / m
+    a_long = Fxd / m
+
+    # Model bounds (like acados bicycle_model.py)
+    constraint.n_min = -0.12  # width of the track [m]
+    constraint.n_max = 0.12   # width of the track [m]
+    constraint.throttle_min = -1.0
+    constraint.throttle_max = 1.0
+    constraint.delta_min = -0.40  # minimum steering angle [rad]
+    constraint.delta_max = 0.40   # maximum steering angle [rad]
+    constraint.dthrottle_min = -10  # minimum throttle change rate
+    constraint.dthrottle_max = 10   # maximum throttle change rate
+    constraint.ddelta_min = -2.0    # minimum change rate of steering angle [rad/s]
+    constraint.ddelta_max = 2.0     # maximum change rate of steering angle [rad/s]
+
+    # nonlinear constraint forces
+    constraint.alat_min = -4  # maximum lateral force [m/s^2]
+    constraint.alat_max = 4   # maximum lateral force [m/s^1]
+    constraint.along_min = -4  # maximum longitudinal force [m/s^2]
+    constraint.along_max = 4   # maximum longitudinal force [m/s^2]
+
+    # define constraints struct
+    constraint.alat = ca.Function("a_lat", [x, u], [a_lat])
+    constraint.pathlength = pathlength
+    constraint.expr = ca.vertcat(a_long, a_lat, n, D, delta)
+    return f_expl, constraint
 
 
 def export_parametric_ocp(
@@ -251,29 +160,34 @@ def export_parametric_ocp(
     T_horizon: float = 1.0,
 ) -> AcadosOcp:
     ocp = AcadosOcp()
-    
+
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = T_horizon
-    
+
     param_manager.assign_to_ocp(ocp)
-    
+
     dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
-    
+
     ######## Model ########
     ocp.model.name = name
-    
+
     ocp.dims.nx = 6  # [s, n, alpha, v, D, delta]
     ocp.dims.nu = 2  # [derD, derDelta]
-    
+
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
-    
+
     p = ca.vertcat(
         param_manager.non_learnable_parameters.cat,
         param_manager.learnable_parameters.cat,
     )
-    
-    f_expl = define_f_expl_expr(ocp.model, param_manager, track_file)
+    f_expl, constraint = define_f_expl_expr(ocp.model, param_manager, track_file)
+
+    ##########################
+    # Check if we can use f_expl_expr directly or not
+    # If not, we use an integrator to define the discrete dynamics
+    ##########################
+    # ocp.model.f_expl_expr = f_expl
     ocp.model.disc_dyn_expr = integrate_erk4(
         f_expl=f_expl,
         x=ocp.model.x,
@@ -281,27 +195,10 @@ def export_parametric_ocp(
         p=p,
         dt=dt,
     )
-    
-    # Add constraints for lateral and longitudinal accelerations
-    # (as in the original race car example)
-    m = param_manager.get("m")
-    C1 = param_manager.get("C1")
-    C2 = param_manager.get("C2")
-    Cm1 = param_manager.get("Cm1")
-    Cm2 = param_manager.get("Cm2")
-    Cr0 = param_manager.get("Cr0")
-    Cr2 = param_manager.get("Cr2")
-    
-    s, n, alpha, v, D, delta = ocp.model.x[0], ocp.model.x[1], ocp.model.x[2], ocp.model.x[3], ocp.model.x[4], ocp.model.x[5]
-    derD, derDelta = ocp.model.u[0], ocp.model.u[1]
-    
-    # Force constraints
-    Fxd = (Cm1 - Cm2 * v) * D - Cr2 * v * v - Cr0 * ca.tanh(5 * v)
-    a_lat = C2 * v * v * delta + Fxd * ca.sin(C1 * delta) / m
-    a_long = Fxd / m
-    
-    ocp.model.con_h_expr = ca.vertcat(a_long, a_lat, n, D, delta)
-    
+
+    # Constraint
+    ocp.model.con_h_expr = constraint.expr
+
     ######## Cost ########
     yref = param_manager.get("yref")  # [s,n,alpha,v,D,delta,derD,derDelta]
     yref_e = param_manager.get("yref_e")  # [s,n,alpha,v,D,delta]
@@ -310,48 +207,56 @@ def export_parametric_ocp(
     y_e = ocp.model.x  # [s,n,alpha,v,D,delta]
     
     # Create diagonal Q and R matrices from learnable parameters
-    Q_diag = ca.vertcat(
-        param_manager.get("Q_s"),
-        param_manager.get("Q_n"),
-        param_manager.get("Q_alpha"),
-        param_manager.get("Q_v"),
-        param_manager.get("Q_D"),
-        param_manager.get("Q_delta"),
-    )
-    
-    R_diag = ca.vertcat(
-        param_manager.get("R_derD"),
-        param_manager.get("R_derDelta"),
-    )
-    
-    # Terminal cost weights
-    Qe_diag = ca.vertcat(
-        param_manager.get("Qe_s"),
-        param_manager.get("Qe_n"),
-        param_manager.get("Q_alpha"),  # reuse intermediate cost
-        param_manager.get("Q_v"),      # reuse intermediate cost
-        param_manager.get("Q_D"),      # reuse intermediate cost
-        param_manager.get("Q_delta"),  # reuse intermediate cost
-    )
+    q_diag_sqrt = param_manager.get("q_diag_sqrt")
+    r_diag_sqrt = param_manager.get("r_diag_sqrt")
+    qe_diag_sqrt = param_manager.get("qe_diag_sqrt")
     
     # Construct cost matrices
-    W = ca.diag(ca.vertcat(Q_diag, R_diag))  # Combined state + control cost
-    W_e = ca.diag(Qe_diag)  # Terminal cost only on states
-    
+    W = ca.diag(ca.vertcat(q_diag_sqrt, r_diag_sqrt))  # Combined state + control cost
+    W_e = ca.diag(qe_diag_sqrt)  # Terminal cost only on states
+
     # Scale cost matrices (as in original example)
     unscale = N_horizon / T_horizon
     W = unscale * W
     W_e = W_e / unscale
-    
-    if cost_type == "EXTERNAL":
+
+    if cost_type == "LINEAR_LS":
         ocp.cost.cost_type = cost_type
-        ocp.model.cost_expr_ext_cost = 0.5 * (y - yref).T @ W @ (y - yref)
-        
         ocp.cost.cost_type_e = cost_type
-        ocp.model.cost_expr_ext_cost_e = 0.5 * (y_e - yref_e).T @ W_e @ (y_e - yref_e)
-        
-        ocp.solver_options.hessian_approx = "EXACT"
-        
+
+        # Create Q and R matrices from sqrt parameters (like acados example)
+        Q = np.diag(q_diag_sqrt ** 2)  # Convert back to full matrices
+        R = np.diag(r_diag_sqrt ** 2)
+        Qe = np.diag(qe_diag_sqrt ** 2)
+
+        # Set cost matrices (exactly like acados example)
+        ocp.cost.W = unscale * scipy.linalg.block_diag(Q, R)
+        ocp.cost.W_e = Qe / unscale
+
+        # Set transformation matrices (exactly like acados example)
+        ny = ocp.dims.nx + ocp.dims.nu  # 8 = 6 + 2
+        ny_e = ocp.dims.nx              # 6
+
+        Vx = np.zeros((ny, ocp.dims.nx))
+        Vx[:ocp.dims.nx, :ocp.dims.nx] = np.eye(ocp.dims.nx)
+        ocp.cost.Vx = Vx
+
+        Vu = np.zeros((ny, ocp.dims.nu))
+        Vu[6, 0] = 1.0  # derD at position 6
+        Vu[7, 1] = 1.0  # derDelta at position 7
+        ocp.cost.Vu = Vu
+
+        Vx_e = np.zeros((ny_e, ocp.dims.nx))
+        Vx_e[:ocp.dims.nx, :ocp.dims.nx] = np.eye(ocp.dims.nx)
+        ocp.cost.Vx_e = Vx_e
+
+        # Set references (will be updated at runtime)
+        ocp.cost.yref = yref
+        ocp.cost.yref_e = yref_e
+
+        # Solver options for LINEAR_LS (like acados example)
+        ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
+
     elif cost_type == "NONLINEAR_LS":
         ocp.cost.cost_type = "NONLINEAR_LS"
         ocp.cost.cost_type_e = "NONLINEAR_LS"
@@ -363,53 +268,71 @@ def export_parametric_ocp(
         ocp.cost.W_e = W_e
         ocp.cost.yref_e = yref_e
         ocp.model.cost_y_expr_e = y_e
-        
+
         ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
-    else:
-        raise ValueError(
-            f"Cost type {cost_type} not supported. Use 'EXTERNAL' or 'NONLINEAR_LS'."
-        )
+    elif cost_type == "EXTERNAL":
+        ocp.cost.cost_type = cost_type
+        ocp.model.cost_expr_ext_cost = 0.5 * (y - yref).T @ W @ (y - yref)
+        ocp.cost.cost_type_e = cost_type
+        ocp.model.cost_expr_ext_cost_e = 0.5 * (y_e - yref_e).T @ W_e @ (y_e - yref_e)
+        ocp.solver_options.hessian_approx = "EXACT"
     
     ######## Constraints ########
     # Initial state constraint (will be set at runtime)
     ocp.constraints.idxbx_0 = np.array([0, 1, 2, 3, 4, 5])
-    ocp.constraints.x0 = np.array([-2.0, 0.0, 0.0, 0.0, 0.0, 0.0])  # Default start
-    
-    # Control input bounds (from bicycle_model.py)
-    ocp.constraints.lbu = np.array([-10.0, -2.0])  # [dthrottle_min, ddelta_min]
-    ocp.constraints.ubu = np.array([10.0, 2.0])    # [dthrottle_max, ddelta_max]
+    ocp.constraints.x0 = np.array([-2, 0, 0, 0, 0, 0])
+
+    # Control input bounds (using constraint object like acados)
+    ocp.constraints.lbu = np.array([constraint.dthrottle_min, constraint.ddelta_min])
+    ocp.constraints.ubu = np.array([constraint.dthrottle_max, constraint.ddelta_max])
     ocp.constraints.idxbu = np.array([0, 1])
-    
+
     # State bounds: lateral deviation
-    ocp.constraints.lbx = np.array([-0.12])  # n_min (track width)
-    ocp.constraints.ubx = np.array([0.12])   # n_max
-    ocp.constraints.idxbx = np.array([1])    # lateral deviation index
+    ocp.constraints.lbx = np.array([-12])  # n_min (track width)
+    ocp.constraints.ubx = np.array([12])   # n_max
+    ocp.constraints.idxbx = np.array([1])  # lateral deviation index
     
     # Terminal bounds
-    ocp.constraints.lbx_e = np.array([-0.12])
-    ocp.constraints.ubx_e = np.array([0.12])
+    ocp.constraints.lbx_e = np.array([-12])
+    ocp.constraints.ubx_e = np.array([12])
     ocp.constraints.idxbx_e = np.array([1])
     
-    # Nonlinear constraints: accelerations, track bounds, input bounds
-    ocp.constraints.lh = np.array([-4.0, -4.0, -0.12, -1.0, -0.40])  # [a_long_min, a_lat_min, n_min, throttle_min, delta_min]
-    ocp.constraints.uh = np.array([4.0, 4.0, 0.12, 1.0, 0.40])       # [a_long_max, a_lat_max, n_max, throttle_max, delta_max]
-    
+    # Nonlinear constraints: accelerations, track bounds, input bounds (using constraint object like acados)
+    ocp.constraints.lh = np.array([
+        constraint.along_min,
+        constraint.alat_min,
+        constraint.n_min,
+        constraint.throttle_min,
+        constraint.delta_min,
+    ])
+    ocp.constraints.uh = np.array([
+        constraint.along_max,
+        constraint.alat_max,
+        constraint.n_max,
+        constraint.throttle_max,
+        constraint.delta_max,
+    ])
+
     # Soft constraints for acceleration and track bounds
-    nsh = 2  # number of soft constraints
-    ocp.constraints.lsh = np.zeros(nsh)
-    ocp.constraints.ush = np.zeros(nsh)
-    ocp.constraints.idxsh = np.array([0, 2])  # soften acceleration and track bounds
+    ns = 2
+    ocp.constraints.lsh = np.zeros(ns)
+    ocp.constraints.ush = np.zeros(ns)
+    ocp.constraints.idxsh = np.array([0, 2])
     
     # Soft constraint costs
-    ocp.cost.zl = 100 * np.ones(nsh)
-    ocp.cost.Zl = 0 * np.ones(nsh)
-    ocp.cost.zu = 100 * np.ones(nsh)
-    ocp.cost.Zu = 0 * np.ones(nsh)
-    
+    ocp.cost.zl = 100 * np.ones(ns)
+    ocp.cost.Zl = 0   * np.ones(ns)
+    ocp.cost.zu = 100 * np.ones(ns)
+    ocp.cost.Zu = 0   * np.ones(ns)
+
     ######## Solver configuration ########
-    ocp.solver_options.integrator_type = "DISCRETE"  # Required for sensitivity computation
-    ocp.solver_options.nlp_solver_type = "SQP"  # Use SQP instead of SQP_RTI for learning
+    ocp.solver_options.integrator_type = "ERK"
+    ocp.solver_options.nlp_solver_type = "SQP_RTI"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
+
+    # Additional solver options from acados example (for f_expl_expr compatibility)
+    ocp.solver_options.sim_method_num_stages = 4
+    ocp.solver_options.sim_method_num_steps = 3
     
     return ocp

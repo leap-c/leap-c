@@ -56,8 +56,8 @@ Please see the [Getting started section](https://leap-c.github.io/leap-c/getting
 6. Execute race_car
 - train and test
 ```
-python scripts/train_racecar_sac_qmatrix.py --max-steps 10000 --output-dir ./outputs/racecar_q_learning
-python scripts/evaluate_racecar_qmatrix.py --model-path ./outputs/racecar_q_learning/final_racecar_model.pt
+python scripts/train_racecar_sac_qmatrix.py --max-steps 10000 --output-dir ./output/racecar_q_learning
+python scripts/evaluate_racecar_qmatrix.py --model-path ./output/racecar_q_learning/final_racecar_model.pt
 ```
 
 - render

@@ -39,25 +39,42 @@ except Exception as e:
 try:
     # Test our wrapper
     from leap_c.examples.race_cars.env import RaceCarEnv, RaceCarEnvConfig
-    
+
     print("\n✓ Testing our race car environment wrapper...")
-    env = RaceCarEnv(cfg=RaceCarEnvConfig())
+    env = RaceCarEnv(cfg=RaceCarEnvConfig())  # kappa_ref will be auto-loaded
     obs, info = env.reset()
     print(f"✓ Environment reset successful. State shape: {obs.shape}")
-    
+    print(f"✓ Observation space: {env.observation_space}")
+    print(f"✓ Action space: {env.action_space}")
+
     # Test a few steps
-    for i in range(5):
+    for i in range(10):
         action = env.action_space.sample()
         obs, reward, terminated, truncated, info = env.step(action)
-        print(f"  Step {i+1}: reward={reward:.3f}, terminated={terminated}, truncated={truncated}")
-        
+        s, n, alpha, v, D, delta = obs
+        print(f"  Step {i+1}: s={s:.2f}, n={n:.3f}, v={v:.2f}, reward={reward:.3f}")
+
         if terminated or truncated:
             print(f"  Episode ended: {info}")
             break
-    
+
+    # Test visualization methods
+    print("\n✓ Testing visualization methods...")
+    try:
+        env.plot_trajectory()
+        print("✓ plot_trajectory() works")
+    except Exception as e:
+        print(f"⚠ plot_trajectory() error: {e}")
+
+    try:
+        env.plot_results()
+        print("✓ plot_results() works")
+    except Exception as e:
+        print(f"⚠ plot_results() error: {e}")
+
     env.close()
     print("✓ Race car environment wrapper is working!")
-    
+
 except Exception as e:
     print(f"❌ Error with race car environment wrapper: {e}")
     import traceback

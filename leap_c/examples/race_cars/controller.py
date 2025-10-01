@@ -12,7 +12,7 @@ from leap_c.controller import ParameterizedController
 from leap_c.examples.race_cars.acados_ocp import (
     RaceCarAcadosCostType,
     RaceCarAcadosParamInterface,
-    create_racecar_params,
+    create_race_car_params,
     export_parametric_ocp,
 )
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx

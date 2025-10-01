@@ -31,7 +31,7 @@
 # author: Daniel Kloeser
 
 import numpy as np
-from tracks.readDataFcn import getTrack
+from leap_c.examples.race_cars.tracks.readDataFcn import getTrack
 
 
 
