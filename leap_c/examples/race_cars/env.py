@@ -144,9 +144,11 @@ class RaceCarEnv(MatplotlibRenderEnv, gym.Env):
 
     def _get_reward(self, x, u):
         s, n, alpha, v, D, delta = x
-        v_ref = 3.0  # [m/s]
+        v_ref = 2.0 # m/s
+        alpha = np.arctan2(np.sin(alpha), np.cos(alpha))
+
         r_long = -(v - v_ref)**2
-        r_lat = -(n**2 + alpha**2)
+        r_lat = -(n**2 + alpha**2) * 3
         r_total = r_long + r_lat
         return float(r_total)
 

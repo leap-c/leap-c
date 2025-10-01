@@ -43,6 +43,11 @@ def create_race_car_params(
         AcadosParameter( #[s, n, alpha, v, D, delta]
             "q_diag_sqrt", default=q_diag_sqrt,
             interface="learnable",
+            space=gym.spaces.Box(
+                low=q_diag_sqrt * 0.01,
+                high=q_diag_sqrt * 100.0,
+                dtype=np.float32,
+            ),
         ),  # cost on state residuals
         AcadosParameter(
             "r_diag_sqrt", default=r_diag_sqrt
@@ -52,6 +57,11 @@ def create_race_car_params(
             "qe_diag_sqrt",
             default = qe_diag_sqrt,
             interface="learnable",
+            space=gym.spaces.Box(
+                low=qe_diag_sqrt * 0.01,
+                high=qe_diag_sqrt * 100.0,
+                dtype=np.float32,
+            ),
         ),
         AcadosParameter(
             "sref", 
@@ -62,16 +72,16 @@ def create_race_car_params(
             else [],
         ),
         AcadosParameter(
-            "yref", 
-            default=np.array([1, 0, 0, 0, 0, 0, 0, 0]),
+            "yref",
+            default=np.array([-2, 0, 0, 0, 0, 0, 0, 0]),  # Match initial state s=-2
             interface="non-learnable",
             vary_stages=list(range(N_horizon))
             if param_interface == "stagewise"
             else [],
         ),
         AcadosParameter(
-            "yref_e", 
-            default=np.array([0, 0, 0, 0, 0, 0]),
+            "yref_e",
+            default=np.array([-2, 0, 0, 0, 0, 0]),  # Match initial state s=-2
             interface="non-learnable",
         ),
     ]
@@ -168,7 +178,6 @@ def export_parametric_ocp(
 
     dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
 
-    ######## Model ########
     ocp.model.name = name
 
     ocp.dims.nx = 6  # [s, n, alpha, v, D, delta]
@@ -215,7 +224,7 @@ def export_parametric_ocp(
     W = ca.diag(ca.vertcat(q_diag_sqrt, r_diag_sqrt))  # Combined state + control cost
     W_e = ca.diag(qe_diag_sqrt)  # Terminal cost only on states
 
-    # Scale cost matrices (as in original example)
+    # Scale cost matrices
     unscale = N_horizon / T_horizon
     W = unscale * W
     W_e = W_e / unscale
@@ -260,11 +269,11 @@ def export_parametric_ocp(
     elif cost_type == "NONLINEAR_LS":
         ocp.cost.cost_type = "NONLINEAR_LS"
         ocp.cost.cost_type_e = "NONLINEAR_LS"
-        
+
         ocp.cost.W = W
         ocp.cost.yref = yref
         ocp.model.cost_y_expr = y
-        
+
         ocp.cost.W_e = W_e
         ocp.cost.yref_e = yref_e
         ocp.model.cost_y_expr_e = y_e
@@ -276,7 +285,7 @@ def export_parametric_ocp(
         ocp.cost.cost_type_e = cost_type
         ocp.model.cost_expr_ext_cost_e = 0.5 * (y_e - yref_e).T @ W_e @ (y_e - yref_e)
         ocp.solver_options.hessian_approx = "EXACT"
-    
+
     ######## Constraints ########
     # Initial state constraint (will be set at runtime)
     ocp.constraints.idxbx_0 = np.array([0, 1, 2, 3, 4, 5])
@@ -288,15 +297,15 @@ def export_parametric_ocp(
     ocp.constraints.idxbu = np.array([0, 1])
 
     # State bounds: lateral deviation
-    ocp.constraints.lbx = np.array([-12])  # n_min (track width)
-    ocp.constraints.ubx = np.array([12])   # n_max
+    ocp.constraints.lbx = np.array([constraint.n_min])  # n_min (track width)
+    ocp.constraints.ubx = np.array([constraint.n_max])   # n_max
     ocp.constraints.idxbx = np.array([1])  # lateral deviation index
-    
+
     # Terminal bounds
-    ocp.constraints.lbx_e = np.array([-12])
-    ocp.constraints.ubx_e = np.array([12])
+    ocp.constraints.lbx_e = np.array([constraint.n_min])
+    ocp.constraints.ubx_e = np.array([constraint.n_max])
     ocp.constraints.idxbx_e = np.array([1])
-    
+
     # Nonlinear constraints: accelerations, track bounds, input bounds (using constraint object like acados)
     ocp.constraints.lh = np.array([
         constraint.along_min,
@@ -318,7 +327,7 @@ def export_parametric_ocp(
     ocp.constraints.lsh = np.zeros(ns)
     ocp.constraints.ush = np.zeros(ns)
     ocp.constraints.idxsh = np.array([0, 2])
-    
+
     # Soft constraint costs
     ocp.cost.zl = 100 * np.ones(ns)
     ocp.cost.Zl = 0   * np.ones(ns)
@@ -326,7 +335,7 @@ def export_parametric_ocp(
     ocp.cost.Zu = 0   * np.ones(ns)
 
     ######## Solver configuration ########
-    ocp.solver_options.integrator_type = "ERK"
+    ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP_RTI"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1

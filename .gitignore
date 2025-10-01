@@ -2,7 +2,8 @@ TODOs.md
 exp
 wandb
 .DS_Store
-
+.python-version
+rlhf_mpc_env/
 # for some dotfilemanagers ;)
 .envrc
 

@@ -34,10 +34,10 @@ class RaceCarControllerConfig:
         param_interface: Determines the exposed parameter interface.
     """
 
-    N_horizon: int = 50  # number of steps in the horizon  
-    T_horizon: float = 1.0  # duration of the horizon [s]
+    N_horizon: int = 50
+    T_horizon: float = 1.0
     track_file: str = "LMS_Track.txt"  # track data file
-    
+
     cost_type: RaceCarAcadosCostType = "NONLINEAR_LS"
     param_interface: RaceCarAcadosParamInterface = "stagewise"  # stagewise for racing
 
@@ -66,7 +66,7 @@ class RaceCarController(ParameterizedController):
         self.cfg = RaceCarControllerConfig() if cfg is None else cfg
         
         params = (
-            create_racecar_params(
+            create_race_car_params(
                 param_interface=self.cfg.param_interface,
                 N_horizon=self.cfg.N_horizon,
                 track_file=self.cfg.track_file,
@@ -98,81 +98,59 @@ class RaceCarController(ParameterizedController):
             print("Warning: Could not load track data")
             self.track_length = 10.0
 
+        # Initialize reference tracking variables
+        self._current_s = 0.0
+        self._lookahead_distance = 3.0
+
     def set_racing_references(self, current_state: np.ndarray, lookahead_distance: float = 3.0):
         """Set racing reference trajectory based on current state.
-        
+
         Args:
             current_state: Current race car state [s, n, alpha, v, D, delta]
             lookahead_distance: How far ahead to set the reference progress
+
+        Note: References will be set in the forward() method via combine_non_learnable_parameter_values
         """
-        s_current = current_state[0]
-        
-        # Generate reference trajectory for MPC horizon
-        N = self.cfg.N_horizon
-        dt = self.cfg.T_horizon / N
-        
-        # Racing strategy: aim to maximize progress along track
-        for stage in range(N + 1):
-            # Target progress: current + lookahead scaled by prediction time
-            s_ref = s_current + lookahead_distance * (stage * dt) / self.cfg.T_horizon
-            
-            if stage <= N - 1:
-                # Stage references [s, n, alpha, v, D, delta, derD, derDelta]
-                yref = np.array([
-                    s_ref,      # target progress
-                    0.0,        # center of track
-                    0.0,        # aligned with track
-                    0.0,        # let velocity be optimized
-                    0.0,        # let throttle be optimized
-                    0.0,        # let steering be optimized
-                    0.0,        # zero control rate preferred
-                    0.0,        # zero control rate preferred
-                ])
-                
-                self.param_manager.set_parameter_value("yref", yref, stage=stage)
-            
-            if stage == N:
-                # Terminal reference [s, n, alpha, v, D, delta]
-                yref_e = np.array([
-                    s_ref,      # target terminal progress
-                    0.0,        # center of track
-                    0.0,        # aligned with track
-                    0.0,        # let velocity be optimized
-                    0.0,        # let throttle be optimized
-                    0.0,        # let steering be optimized
-                ])
-                
-                self.param_manager.set_parameter_value("yref_e", yref_e)
+        # Store current state for use in forward()
+        self._current_s = current_state[0]
+        self._lookahead_distance = lookahead_distance
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         """Forward pass through the controller.
-        
+
         Args:
             obs: Current observation/state tensor [batch_size, 6]
             param: Learnable parameters (Q matrix elements) [batch_size, n_params]
             ctx: Optional context from previous call
-            
+
         Returns:
             Tuple of (context, control_action)
         """
         batch_size = obs.shape[0]
-        
+
         # Set racing references based on current state
         # For batch processing, use the first sample to set references
         if batch_size > 0:
             current_state = obs[0].detach().cpu().numpy()
             self.set_racing_references(current_state)
-        
-        # Combine non-learnable parameters (references, dynamics)
+
+        # Generate reference trajectory
+        N = self.cfg.N_horizon
+        dt = self.cfg.T_horizon / N
+        s_current = self._current_s
+        lookahead = self._lookahead_distance
+
+        # Combine non-learnable parameters without overwriting
+        # References are fixed in param_manager defaults
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=batch_size
         )
-        
+
         # Call the differentiable MPC solver
         ctx, u0, x, u, value = self.diff_mpc(
             obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx
         )
-        
+
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
