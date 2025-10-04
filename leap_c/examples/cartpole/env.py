@@ -402,7 +402,14 @@ class CartPoleEnv(gym.Env):
 class CartPoleBalanceEnv(CartPoleEnv):
     """The same as the CartPoleEnv, but instead of swinging up, the pole starts in an upwards,
     slightly disbalanced, position and the agent should learn to balance the pole.
+    For this, the reward is 1 for every step the pole is balanced, and the episode terminates
+    if the pole angle is more than 12 rad away from the upright position (theta = 0).
+
+    Attributes:
+        theta_threshold: The maximum absolute angle of the pole before termination [rad]
     """
+
+    theta_threshold: float = 12 * 2 * np.pi / 360
 
     def init_state(self, options: dict | None) -> np.ndarray:
         low, high = gym_utils.maybe_parse_reset_bounds(
@@ -411,3 +418,13 @@ class CartPoleBalanceEnv(CartPoleEnv):
             0.05,  # default low
         )  # default high
         return self.np_random.uniform(low=low, high=high, size=(4,))
+
+    def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict]:
+        s_prime, r, term, trunc, info = super().step(action)
+        theta = s_prime[1]
+        if abs(theta) > self.theta_threshold:
+            term = True
+            info["task"]["violation"] = True
+            info["task"]["success"] = False
+        r = 1.0 if not term else 0.0
+        return s_prime, r, term, trunc, info
