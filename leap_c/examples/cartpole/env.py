@@ -432,6 +432,8 @@ class CartPoleBalanceEnv(CartPoleEnv):
         theta = s_prime[1]
         if abs(theta) > self.theta_threshold:
             term = True
+            if info.get("task") is None:
+                info["task"] = {}
             info["task"]["violation"] = True
             info["task"]["success"] = False
         r = 1.0 if not term else 0.0
