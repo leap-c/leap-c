@@ -411,6 +411,14 @@ class CartPoleBalanceEnv(CartPoleEnv):
 
     theta_threshold: float = 12 * 2 * np.pi / 360
 
+    def __init__(self, render_mode: str | None = None, cfg: CartPoleEnvConfig | None = None):
+        super().__init__(render_mode, cfg)
+        low = self.observation_space.low
+        high = self.observation_space.high
+        low[1] = -self.theta_threshold
+        high[1] = self.theta_threshold
+        self.observation_space = spaces.Box(low, high, dtype=np.float32)
+
     def init_state(self, options: dict | None) -> np.ndarray:
         low, high = gym_utils.maybe_parse_reset_bounds(
             options,
