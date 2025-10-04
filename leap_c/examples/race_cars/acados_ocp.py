@@ -41,27 +41,31 @@ def create_race_car_params(
         AcadosParameter("Cr2", default=np.array([0.006])),  # air resistance
         # Cost matrix factorization parameters
         AcadosParameter( #[s, n, alpha, v, D, delta]
-            "q_diag_sqrt", default=q_diag_sqrt,
-            interface="learnable",
+            "q_diag_sqrt",
+            default=q_diag_sqrt,
             space=gym.spaces.Box(
                 low=q_diag_sqrt * 0.01,
                 high=q_diag_sqrt * 100.0,
                 dtype=np.float32,
             ),
+            interface="learnable",
+            # Q matrix should be GLOBAL (same for all stages), not stagewise!
         ),  # cost on state residuals
         AcadosParameter(
-            "r_diag_sqrt", default=r_diag_sqrt
+            "r_diag_sqrt",
+            default=r_diag_sqrt,
         ),  # [derD, derDelta]
         # Terminal cost weights (for final state)
         AcadosParameter(
             "qe_diag_sqrt",
-            default = qe_diag_sqrt,
+            default=qe_diag_sqrt,
             interface="learnable",
             space=gym.spaces.Box(
                 low=qe_diag_sqrt * 0.01,
                 high=qe_diag_sqrt * 100.0,
                 dtype=np.float32,
             ),
+            # Terminal Q matrix should also be GLOBAL
         ),
         AcadosParameter(
             "sref", 
@@ -73,16 +77,11 @@ def create_race_car_params(
         ),
         AcadosParameter(
             "yref",
-            default=np.array([-2, 0, 0, 0, 0, 0, 0, 0]),  # Match initial state s=-2
+            default=np.array([1, 0, 0, 0, 0, 0, 0, 0]),  # [s, n, alpha, v, D, delta, derD, derDelta]
             interface="non-learnable",
             vary_stages=list(range(N_horizon))
             if param_interface == "stagewise"
             else [],
-        ),
-        AcadosParameter(
-            "yref_e",
-            default=np.array([-2, 0, 0, 0, 0, 0]),  # Match initial state s=-2
-            interface="non-learnable",
         ),
     ]
 
@@ -163,6 +162,48 @@ def define_f_expl_expr(
 
 def export_parametric_ocp(
     param_manager: AcadosParameterManager,
+    name: str = "race_cars",
+    N_horizon: int = 50,  # noqa: N803
+    T_horizon: float = 1.0,
+    track_file: str = "LMS_Track.txt"
+) -> AcadosOcp:
+    ocp = AcadosOcp()
+
+    ocp.solver_options.N_horizon = N_horizon
+    ocp.solver_options.tf = T_horizon
+
+    param_manager.assign_to_ocp(ocp)
+
+    dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
+
+    ######## Model ########
+    ocp.model.name = name
+
+    ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
+    ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
+
+    p = ca.vertcat(
+        param_manager.non_learnable_parameters.cat,
+        param_manager.learnable_parameters.cat,
+    )  # type:ignore
+    f_expl, constraint = define_f_expl_expr(ocp.model, param_manager)
+    ocp.model.disc_dyn_expr = integrate_erk4(
+        f_expl=f_expl,
+        x=ocp.model.x,
+        u=ocp.model.u,
+        p=p,
+        dt=dt,
+    )
+
+    ######## Cost ########
+    yref = param_manager.get("yref")
+
+    # Constraint
+    ocp.model.con_h_expr = constraint.expr
+
+
+def export_parametric_ocp(
+    param_manager: AcadosParameterManager,
     cost_type: RaceCarAcadosCostType = "NONLINEAR_LS",
     name: str = "racecar",
     track_file: str = "LMS_Track.txt",
@@ -186,17 +227,19 @@ def export_parametric_ocp(
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
+    # For learnable parameters: must use DISCRETE integrator
+    # (sensitivity w.r.t. parameters only works with DISCRETE dynamics)
     p = ca.vertcat(
         param_manager.non_learnable_parameters.cat,
         param_manager.learnable_parameters.cat,
     )
+
     f_expl, constraint = define_f_expl_expr(ocp.model, param_manager, track_file)
 
     ##########################
-    # Check if we can use f_expl_expr directly or not
-    # If not, we use an integrator to define the discrete dynamics
+    # Use DISCRETE integrator (required for parameter sensitivity)
+    # We use ERK4 discretization to maintain accuracy
     ##########################
-    # ocp.model.f_expl_expr = f_expl
     ocp.model.disc_dyn_expr = integrate_erk4(
         f_expl=f_expl,
         x=ocp.model.x,
@@ -233,10 +276,15 @@ def export_parametric_ocp(
         ocp.cost.cost_type = cost_type
         ocp.cost.cost_type_e = cost_type
 
+        # LINEAR_LS requires numeric matrices - use default parameter values
+        q_diag_sqrt_val = param_manager.parameters["q_diag_sqrt"].default
+        r_diag_sqrt_val = param_manager.parameters["r_diag_sqrt"].default
+        qe_diag_sqrt_val = param_manager.parameters["qe_diag_sqrt"].default
+
         # Create Q and R matrices from sqrt parameters (like acados example)
-        Q = np.diag(q_diag_sqrt ** 2)  # Convert back to full matrices
-        R = np.diag(r_diag_sqrt ** 2)
-        Qe = np.diag(qe_diag_sqrt ** 2)
+        Q = np.diag(q_diag_sqrt_val ** 2)  # Convert back to full matrices
+        R = np.diag(r_diag_sqrt_val ** 2)
+        Qe = np.diag(qe_diag_sqrt_val ** 2)
 
         # Set cost matrices (exactly like acados example)
         ocp.cost.W = unscale * scipy.linalg.block_diag(Q, R)
@@ -259,9 +307,12 @@ def export_parametric_ocp(
         Vx_e[:ocp.dims.nx, :ocp.dims.nx] = np.eye(ocp.dims.nx)
         ocp.cost.Vx_e = Vx_e
 
-        # Set references (will be updated at runtime)
-        ocp.cost.yref = yref
-        ocp.cost.yref_e = yref_e
+        # Set numeric references (will be updated at runtime via parameter updates)
+        # LINEAR_LS requires numeric values, not symbolic
+        yref_val = param_manager.parameters["yref"].default
+        yref_e_val = param_manager.parameters["yref_e"].default
+        ocp.cost.yref = yref_val
+        ocp.cost.yref_e = yref_e_val
 
         # Solver options for LINEAR_LS (like acados example)
         ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
@@ -270,11 +321,16 @@ def export_parametric_ocp(
         ocp.cost.cost_type = "NONLINEAR_LS"
         ocp.cost.cost_type_e = "NONLINEAR_LS"
 
-        ocp.cost.W = W
+        # Use squared matrices (not sqrt) for NONLINEAR_LS to match LINEAR_LS behavior
+        W_full = ca.diag(ca.vertcat(q_diag_sqrt**2, r_diag_sqrt**2))
+        W_e_full = ca.diag(qe_diag_sqrt**2)
+
+        ocp.cost.W = unscale * W_full
+        ocp.cost.W_e = W_e_full / unscale
+
         ocp.cost.yref = yref
         ocp.model.cost_y_expr = y
 
-        ocp.cost.W_e = W_e
         ocp.cost.yref_e = yref_e
         ocp.model.cost_y_expr_e = y_e
 
@@ -335,13 +391,18 @@ def export_parametric_ocp(
     ocp.cost.Zu = 0   * np.ones(ns)
 
     ######## Solver configuration ########
+    # DISCRETE integrator is REQUIRED for parameter sensitivity
+    # (ERK does not support with_solution_sens_wrt_params)
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP_RTI"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    ocp.solver_options.qp_solver_ric_alg = 1
+    ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
 
-    # Additional solver options from acados example (for f_expl_expr compatibility)
-    ocp.solver_options.sim_method_num_stages = 4
-    ocp.solver_options.sim_method_num_steps = 3
-    
+    # CRITICAL: Use Riccati algorithm 0 for parametric sensitivities with condensing
+    # (avoids full space Hessian factorization which can't handle indefinite matrices)
+    ocp.solver_options.qp_solver_cond_ric_alg = 0
+
+    # Increase QP solver max iterations to prevent status 3 errors
+    ocp.solver_options.qp_solver_iter_max = 200  # Default is ~50
+
     return ocp

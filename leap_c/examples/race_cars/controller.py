@@ -38,13 +38,11 @@ class RaceCarControllerConfig:
     T_horizon: float = 1.0
     track_file: str = "LMS_Track.txt"  # track data file
 
-    cost_type: RaceCarAcadosCostType = "NONLINEAR_LS"
+    cost_type: RaceCarAcadosCostType = "NONLINEAR_LS"  # NONLINEAR_LS allows learnable Q matrix
     param_interface: RaceCarAcadosParamInterface = "stagewise"  # stagewise for racing
 
 
 class RaceCarController(ParameterizedController):
-    """acados-based race car controller with learnable Q matrix parameters."""
-
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
@@ -53,18 +51,8 @@ class RaceCarController(ParameterizedController):
         params: list[AcadosParameter] | None = None,
         export_directory: Path | None = None,
     ):
-        """Initializes the RaceCarController.
-
-        Args:
-            cfg: Configuration object containing MPC settings.
-            params: Optional list of Parameter objects. If not provided,
-                default parameters will be created.
-            export_directory: Optional directory path where the generated
-                acados solver code will be exported.
-        """
         super().__init__()
         self.cfg = RaceCarControllerConfig() if cfg is None else cfg
-        
         params = (
             create_race_car_params(
                 param_interface=self.cfg.param_interface,
@@ -76,7 +64,8 @@ class RaceCarController(ParameterizedController):
         )
 
         self.param_manager = AcadosParameterManager(
-            parameters=params, N_horizon=self.cfg.N_horizon
+            parameters=params,
+            N_horizon=self.cfg.N_horizon
         )
 
         self.ocp = export_parametric_ocp(
@@ -90,63 +79,43 @@ class RaceCarController(ParameterizedController):
 
         self.diff_mpc = AcadosDiffMpc(self.ocp, export_directory=export_directory)
         
-        # Load track data for reference generation
-        try:
-            self.Sref, self.Xref, self.Yref, self.Psiref, self.kapparef = getTrack(self.cfg.track_file)
-            self.track_length = self.Sref[-1]
-        except:
-            print("Warning: Could not load track data")
-            self.track_length = 10.0
+        Sref, _, _, _, _ = getTrack(self.cfg.track_file)
+        self.track_length = Sref[-1]
 
-        # Initialize reference tracking variables
-        self._current_s = 0.0
+        # Initialize reference tracking variables (matching initial state from env)
+        self._current_s = -2.0  # Match env.init_state() s value
         self._lookahead_distance = 3.0
 
     def set_racing_references(self, current_state: np.ndarray, lookahead_distance: float = 3.0):
-        """Set racing reference trajectory based on current state.
-
-        Args:
-            current_state: Current race car state [s, n, alpha, v, D, delta]
-            lookahead_distance: How far ahead to set the reference progress
-
-        Note: References will be set in the forward() method via combine_non_learnable_parameter_values
-        """
-        # Store current state for use in forward()
         self._current_s = current_state[0]
         self._lookahead_distance = lookahead_distance
 
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
-        """Forward pass through the controller.
-
-        Args:
-            obs: Current observation/state tensor [batch_size, 6]
-            param: Learnable parameters (Q matrix elements) [batch_size, n_params]
-            ctx: Optional context from previous call
-
-        Returns:
-            Tuple of (context, control_action)
-        """
         batch_size = obs.shape[0]
-
-        # Set racing references based on current state
-        # For batch processing, use the first sample to set references
-        if batch_size > 0:
-            current_state = obs[0].detach().cpu().numpy()
-            self.set_racing_references(current_state)
-
-        # Generate reference trajectory
         N = self.cfg.N_horizon
-        dt = self.cfg.T_horizon / N
-        s_current = self._current_s
-        lookahead = self._lookahead_distance
 
-        # Combine non-learnable parameters without overwriting
-        # References are fixed in param_manager defaults
+        s_current_batch = obs[:, 0].detach().cpu().numpy() if isinstance(obs, torch.Tensor) else obs[:, 0]
+
+        sref_N_batch = s_current_batch + self._lookahead_distance
+
+        yref_batch = np.zeros((batch_size, N + 1, 8))
+
+        interp_weights = np.arange(N) / N
+
+        s_ref_all = s_current_batch[:, None] + (sref_N_batch - s_current_batch)[:, None] * interp_weights[None, :]
+
+        yref_batch[:, :N, 0] = s_ref_all
+        yref_batch[:, N, :] = yref_batch[:, N-1, :]
+
+        yref_e_batch = np.zeros((batch_size, N + 1, 6))
+        yref_e_batch[:, :, 0] = sref_N_batch[:, None]
+
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
-            batch_size=batch_size
+            batch_size=batch_size,
+            yref=yref_batch,
+            yref_e=yref_e_batch,
         )
 
-        # Call the differentiable MPC solver
         ctx, u0, x, u, value = self.diff_mpc(
             obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx
         )
@@ -154,70 +123,24 @@ class RaceCarController(ParameterizedController):
         return ctx, u0
 
     def jacobian_action_param(self, ctx) -> np.ndarray:
-        """Compute Jacobian of action w.r.t. learnable parameters."""
         return self.diff_mpc.sensitivity(ctx, field_name="du0_dp_global")
 
     @property
     def param_space(self) -> gym.Space:
-        """Get the parameter space for learnable parameters."""
         return self.param_manager.get_param_space(dtype=np.float32)
 
     def default_param(self, obs) -> np.ndarray:
-        """Get default learnable parameters."""
         return self.param_manager.learnable_parameters_default.cat.full().flatten()
     
-    def get_predicted_trajectory(self, ctx) -> tuple[np.ndarray, np.ndarray]:
-        """Get the predicted state and control trajectories from the last solve.
-        
-        Args:
-            ctx: Context from the last forward call
-            
-        Returns:
-            Tuple of (predicted_states, predicted_controls)
-        """
-        if ctx is None or not hasattr(ctx, 'x') or not hasattr(ctx, 'u'):
-            return np.array([]), np.array([])
-            
-        # Extract trajectories from context
-        x_pred = ctx.x.detach().cpu().numpy()  # Shape: (batch, N+1, nx)
-        u_pred = ctx.u.detach().cpu().numpy()  # Shape: (batch, N, nu)
-        
-        return x_pred, u_pred
-    
     def get_lap_progress(self, state: np.ndarray) -> float:
-        """Get lap progress as a percentage.
-        
-        Args:
-            state: Race car state [s, n, alpha, v, D, delta]
-            
-        Returns:
-            Lap progress as percentage (0-100%)
-        """
         s = state[0]
         return min(100.0, max(0.0, (s / self.track_length) * 100.0))
     
     def is_lap_complete(self, state: np.ndarray) -> bool:
-        """Check if a lap has been completed.
-        
-        Args:
-            state: Race car state [s, n, alpha, v, D, delta]
-            
-        Returns:
-            True if lap is complete
-        """
         s = state[0]
         return s >= self.track_length
     
     def get_racing_metrics(self, state_trajectory: np.ndarray, dt: float) -> dict:
-        """Calculate racing performance metrics.
-        
-        Args:
-            state_trajectory: Array of states over time [T, 6]
-            dt: Time step
-            
-        Returns:
-            Dictionary of racing metrics
-        """
         if len(state_trajectory) == 0:
             return {}
         
