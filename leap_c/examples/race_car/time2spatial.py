@@ -31,12 +31,13 @@
 # author: Daniel Kloeser
 
 import numpy as np
-from leap_c.examples.race_cars.tracks.readDataFcn import getTrack
+from leap_c.examples.race_car.track import Track
 
 
 
 def transformProj2Orig(si,ni,alpha,v,filename='LMS_Track.txt'):
-    [sref,xref,yref,psiref,_]=getTrack(filename=filename)
+    track = Track(filename)
+    sref, xref, yref, psiref = track.thetaref, track.Xref, track.Yref, track.psiref
     tracklength=sref[-1]
     si=si%tracklength
     idxmindist=findClosestS(si,sref)
@@ -80,7 +81,8 @@ def findSecondClosestS(si,sref,idxmindist):
     return idxmindist2
 
 def transformOrig2Proj(x,y,psi,v,filename='LMS_Track.txt'):
-    [sref,xref,yref,psiref,_]=getTrack(filename=filename)
+    track = Track(filename)
+    sref, xref, yref, psiref = track.thetaref, track.Xref, track.Yref, track.psiref
     idxmindist=findClosestPoint(x,y,xref,yref)
     idxmindist2=findClosestNeighbour(x,y,xref,yref,idxmindist)
     t=findProjection(x,y,xref,yref,sref,idxmindist,idxmindist2)

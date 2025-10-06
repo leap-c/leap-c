@@ -43,7 +43,8 @@ cmake -DACADOS_WITH_QPOASES=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DACADOS_WITH_
 cmake -DACADOS_WITH_QPOASES=ON -DACADOS_WITH_OPENMP=ON -DACADOS_PYTHON=ON -DACADOS_NUM_THREADS=1 ..
 make install -j4
 ```
-You can erase `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` if you can (my MacOS can't)
+- You can erase `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` if you can (my MacOS can't)
+- Maybe, there are more errors. Contact to `hanjw2496@yonsei.ac.kr` (or talk with GPT ..)
 
 
 5. Install acados_template python packages
@@ -61,18 +62,11 @@ export ACADOS_SOURCE_DIR="<acados_root>"
 Please see the [Getting started section](https://leap-c.github.io/leap-c/getting_started/index.html) or the [examples folder](https://github.com/leap-c/leap-c/tree/main/leap_c/examples).
 
 6. Execute race_car
-- train and test
+- train
 ```
 python scripts/run_sac_fop.py --
-python scripts/train_racecar_sac_qmatrix.py
-python scripts/train_racecar_sac_qmatrix.py --device cuda
-python scripts/evaluate_racecar_qmatrix.py --model-path ./output/racecar_q_learning/final_racecar_model.pt
 ```
 
-- render
-```
-python scripts/render_trained_model.py output/2025_09_10/16_24_20_sac_race_car_seed_0 --env race_car --render_mode rgb_array --save_video race_car_trained.mp4 --episodes 3 --max_steps 500
-```
 
 ## Questions?
 
@@ -101,21 +95,25 @@ libreadline-dev libsqlite3-dev wget curl llvm libncurses5-dev \
 libncursesw5-dev xz-utils tk-dev libffi-dev liblzma-dev git
 ```
 
-1. pyenv 설치
+2. pyenv 설치
 ```
 curl https://pyenv.run | bash
 ```
 
-1. bashrc에 pyenv 설정 추가
+3. bashrc에 pyenv 설정 추가
 ```
 echo 'export PATH="$HOME/.pyenv/bin:$PATH"' >> ~/.bashrc
 echo 'eval "$(pyenv init --path)"' >> ~/.bashrc
 echo 'eval "$(pyenv virtualenv-init -)"' >> ~/.bashrc
 ```
 
-1. 쉘 재시작
+4. Restart shell
 ```
 exec $SHELL
 ```
 
-1. 다음부터는 Usage 2번 이어서
+5. Then, Go to Usage 2 ..
+
+### 참고
+- Mac 설치시, llvm, libomp 설치하고 zshrc에 넣어주었음 (openmp 우회하기 위함)
+- 이렇게 하면 Openmp 우회가 되는데, libqpOASES_e.dylib이 인식 안되는 문제가 생김. 이것도 해결해주면 됨 (자세한 내용은 기억이 안남)

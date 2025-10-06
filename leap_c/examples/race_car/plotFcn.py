@@ -30,7 +30,7 @@
 
 # author: Daniel Kloeser
 
-from leap_c.examples.race_car.track.readDataFcn import getTrack
+from leap_c.examples.race_car.track import Track
 from leap_c.examples.race_car.time2spatial import transformProj2Orig,transformOrig2Proj
 from matplotlib import cm
 import matplotlib.pyplot as plt
@@ -55,7 +55,8 @@ def plotTrackProj(simX,filename='LMS_Track.txt', T_opt=None):
     plt.xlabel('x[m]')
 
     # Plot center line
-    [Sref,Xref,Yref,Psiref,_]=getTrack(filename)
+    track = Track(filename)
+    Sref, Xref, Yref, Psiref = track.thetaref, track.Xref, track.Yref, track.psiref
     plt.plot(Xref,Yref,'--',color='k')
 
     # Draw Trackboundaries
