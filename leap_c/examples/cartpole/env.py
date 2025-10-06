@@ -402,7 +402,8 @@ class CartPoleEnv(gym.Env):
 class CartPoleBalanceEnv(CartPoleEnv):
     """The same as the CartPoleEnv, but instead of swinging up, the pole starts in an upwards,
     slightly disbalanced, position and the agent should learn to balance the pole.
-    For this, the reward is 1 for every step the pole is balanced, and the episode terminates
+
+    In more detail, the reward is 1 for every step the pole is balanced, and the episode terminates
     if the pole angle is more than 12 rad away from the upright position (theta = 0).
 
     Attributes:
