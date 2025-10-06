@@ -1,8 +1,8 @@
 from functools import partial
 from pathlib import Path
 
-from .race_cars.controller import RaceCarController
-from .race_cars.env import RaceCarEnv
+from .race_car.controller import RaceCarController
+from .race_car.env import RaceCarEnv
 from .cartpole.controller import CartPoleController
 from .cartpole.env import CartPoleEnv
 from .chain.controller import ChainController
@@ -31,7 +31,6 @@ CONTROLLER_REGISTRY = {
     "hvac": HvacController,
     "hvac_stagewise": partial(HvacController, stagewise=True),
     "race_car": RaceCarController,
-    "race_car_stagewise": partial(RaceCarController, stagewise=True),
 }
 
 

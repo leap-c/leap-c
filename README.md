@@ -29,7 +29,7 @@ pyenv local rlhf_mpc_env
 ```
 pip install casadi
 pip install torch
-pip install -e ".[rendering]"
+pip install -e ".[dev]"
 ```
 
 4. Install acados
@@ -38,9 +38,9 @@ https://docs.acados.org/installation/
 cd external/acados
 mkdir -p build
 cd build
-cmake -DACADOS_WITH_QPOASES=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 ..
+cmake -DACADOS_WITH_QPOASES=ON -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DACADOS_WITH_OPENMP=ON -DACADOS_PYTHON=ON -DACADOS_NUM_THREADS=1 ..
 # If you use ubuntu, just ..
-cmake -DACADOS_WITH_QPOASES=ON ..
+cmake -DACADOS_WITH_QPOASES=ON -DACADOS_WITH_OPENMP=ON -DACADOS_PYTHON=ON -DACADOS_NUM_THREADS=1 ..
 make install -j4
 ```
 You can erase `-DCMAKE_POLICY_VERSION_MINIMUM=3.5` if you can (my MacOS can't)
@@ -54,7 +54,7 @@ pip install -e .
 ```
 Add path
 ```
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"<acados_root>/lib"
+export DYLD_LIBRARY_PATH=$DYLD_LIBRARY_PATH:"<acados_root>/lib"
 export ACADOS_SOURCE_DIR="<acados_root>"
 ```
 
@@ -63,6 +63,7 @@ Please see the [Getting started section](https://leap-c.github.io/leap-c/getting
 6. Execute race_car
 - train and test
 ```
+python scripts/run_sac_fop.py --
 python scripts/train_racecar_sac_qmatrix.py
 python scripts/train_racecar_sac_qmatrix.py --device cuda
 python scripts/evaluate_racecar_qmatrix.py --model-path ./output/racecar_q_learning/final_racecar_model.pt

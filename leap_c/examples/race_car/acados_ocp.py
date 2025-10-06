@@ -1,16 +1,16 @@
 import types
 from typing import Literal
 
-import casadi as ca
 import gymnasium as gym
+import casadi as ca
 import numpy as np
 from acados_template import AcadosModel, AcadosOcp
 
-from leap_c.examples.race_cars.acados_ocp import RaceCarAcadosCostType
+from leap_c.examples.race_car.acados_ocp import RaceCarAcadosCostType
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
-from leap_c.examples.race_cars_2.track import Track
+from leap_c.examples.race_car.track import Track
 
 RaceAcadosParamInterface = Literal["global", "stagewise"]
 RaceAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
@@ -18,7 +18,6 @@ RaceAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 
 def create_race_params(
     param_interface: RaceAcadosParamInterface,
-    cost_type: RaceAcadosCostType,
     N_horizon: int = 50,
 ) -> list[AcadosParameter]:
 
@@ -41,6 +40,11 @@ def create_race_params(
             "q_diag_sqrt",
             default=q_diag_sqrt,
             interface="learnable",
+            space=gym.spaces.Box(
+                low=qe_diag_sqrt * 0.01,
+                high=qe_diag_sqrt * 100.0,
+                dtype=np.float32,
+            ),
         ),  # cost on state residuals
         AcadosParameter(
             "r_diag_sqrt",
@@ -50,11 +54,17 @@ def create_race_params(
             "qe_diag_sqrt",
             default=qe_diag_sqrt,
             interface="learnable",
+            space=gym.spaces.Box(
+                low=qe_diag_sqrt * 0.01,
+                high=qe_diag_sqrt * 100.0,
+                dtype=np.float32,
+            ),
         ),
         AcadosParameter(
             "thetaref",
             default=np.array([0.0]),
             interface="non-learnable",
+            vary_stages=list(range(N_horizon + 1)),
         )
     ]
 
@@ -66,7 +76,8 @@ def define_f_expl_expr(
     Cm1, Cm2 = param_manager.get("Cm1"), param_manager.get("Cm2")
     Cr0, Cr2 = param_manager.get("Cr0"), param_manager.get("Cr2")
 
-    kapparef = ca.interpolant("kapparef_s", "bspline", [track.thetaref], track.kapparef)
+    kapparef = ca.interpolant("kapparef_s", "linear", [track.thetaref], track.kapparef)
+    L = float(track.thetaref[-1])
 
     theta = model.x[0]
     ec = model.x[1]
@@ -80,16 +91,17 @@ def define_f_expl_expr(
     dD = model.u[1]
     u = ca.vertcat(ddelta, dD)
 
-    thetaref = param_manager.get("thetaref")
+    s_wrapped = theta - L * ca.floor(theta / L)
+    kappa = kapparef(s_wrapped)
 
     Fxd = (Cm1 - Cm2 * v) * D - Cr2 * v * v - Cr0 * ca.tanh(5 * v)
     beta = C1 * delta
-    thetadot = v * ca.cos(epsi + beta) / (1 - kapparef(thetaref + theta) * ec)
+    thetadot = v * ca.cos(epsi + beta) / (1 - kappa * ec + 1e-3)
 
     f_expl = ca.vertcat(
         thetadot,
         v * ca.sin(epsi + beta),
-        v * C2 * delta - kapparef(theta) * thetadot,
+        v * C2 * delta - kappa * thetadot,
         Fxd / m * ca.cos(C1 * delta),
         ddelta,
         dD
@@ -124,6 +136,8 @@ def define_f_expl_expr(
     constraint.along_min = -4  # maximum longitudinal force [m/s^2]
     constraint.along_max = 4  # maximum longitudinal force [m/s^2]
 
+    constraint.alat = ca.Function("a_lat", [x, u], [a_lat])
+    constraint.expr = ca.vertcat(a_long, a_lat, ec, delta, D)
     return f_expl, constraint
 
 
@@ -176,17 +190,26 @@ def export_parametric_ocp(
     y_e = ocp.model.x
 
     q_diag_sqrt = param_manager.get("q_diag_sqrt")
+    qe_diag_sqrt = param_manager.get("qe_diag_sqrt")
     r_diag_sqrt = param_manager.get("r_diag_sqrt")
     W_sqrt = ca.diag(ca.vertcat(q_diag_sqrt, r_diag_sqrt))
+    We_sqrt = ca.diag(qe_diag_sqrt)
+
+    # W, We = W_sqrt, We_sqrt
     W = W_sqrt @ W_sqrt.T
-    W_e = W[: ocp.dims.nx, : ocp.dims.nx]
+    We = We_sqrt  @ We_sqrt.T
+
+    # Scale cost matrices
+    unscale = N_horizon / T_horizon
+    W = unscale * W
+    We = We / unscale
 
     if cost_type == "EXTERNAL":
         ocp.cost.cost_type = cost_type
         ocp.model.cost_expr_ext_cost = 0.5 * (yref - y).T @ W @ (yref - y)
 
         ocp.cost.cost_type_e = cost_type
-        ocp.model.cost_expr_ext_cost_e = 0.5 * (yref_e - y_e).T @ W_e @ (yref_e - y_e)
+        ocp.model.cost_expr_ext_cost_e = 0.5 * (yref_e - y_e).T @ We @ (yref_e - y_e)
     elif cost_type == "NONLINEAR_LS":
         pass
     else:
@@ -195,11 +218,13 @@ def export_parametric_ocp(
         )
 
     ######## Constraints ########
-    ocp.constraints.idxbx_0 = np.array([0, 1, 2, 3, 4, 5])
-    ocp.constraints.x0 = np.array([-2, 0, 0, 0, 0, 0])
+    ocp.model.con_h_expr = constraint.expr
 
-    ocp.constraints.lbu = np.array([constraint.dthrottle_min, constraint.ddelta_min])
-    ocp.constraints.ubu = np.array([constraint.dthrottle_max, constraint.ddelta_max])
+    ocp.constraints.idxbx_0 = np.array([0, 1, 2, 3, 4, 5])
+    ocp.constraints.x0 = np.array([-2, 0, 0, 0, 0, 0])  # Match env init: v=0.5 m/s
+
+    ocp.constraints.lbu = np.array([constraint.ddelta_min, constraint.dthrottle_min])
+    ocp.constraints.ubu = np.array([constraint.ddelta_max, constraint.dthrottle_max])
     ocp.constraints.idxbu = np.array([0, 1])
 
     ocp.constraints.lbx = np.array([constraint.n_min])
@@ -216,8 +241,8 @@ def export_parametric_ocp(
             constraint.along_min,
             constraint.alat_min,
             constraint.n_min,
-            constraint.throttle_min,
             constraint.delta_min,
+            constraint.throttle_min,
         ]
     )
     ocp.constraints.uh = np.array(
@@ -225,8 +250,8 @@ def export_parametric_ocp(
             constraint.along_max,
             constraint.alat_max,
             constraint.n_max,
-            constraint.throttle_max,
             constraint.delta_max,
+            constraint.throttle_max,
         ]
     )
 
@@ -245,5 +270,6 @@ def export_parametric_ocp(
     ocp.solver_options.nlp_solver_type = "SQP_RTI"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.hessian_approx = "GAUSS_NEWTON"
+    # ocp.solver_options.hessian_approx = "EXACT"
 
     return ocp

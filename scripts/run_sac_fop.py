@@ -32,9 +32,9 @@ def create_cfg() -> RunSacFopConfig:
     cfg.trainer.train_steps = 1000000
     cfg.trainer.train_start = 0
     cfg.trainer.val_interval = 10000
-    cfg.trainer.val_num_rollouts = 20
+    cfg.trainer.val_num_rollouts = 5
     cfg.trainer.val_deterministic = True
-    cfg.trainer.val_num_render_rollouts = 0
+    cfg.trainer.val_num_render_rollouts = 1
     cfg.trainer.val_render_mode = "rgb_array"
     cfg.trainer.val_render_deterministic = True
     cfg.trainer.val_report_score = "cum"

@@ -30,8 +30,8 @@
 
 # author: Daniel Kloeser
 
-from leap_c.examples.race_cars.tracks.readDataFcn import getTrack
-from leap_c.examples.race_cars.time2spatial import transformProj2Orig,transformOrig2Proj
+from leap_c.examples.race_car.track.readDataFcn import getTrack
+from leap_c.examples.race_car.time2spatial import transformProj2Orig,transformOrig2Proj
 from matplotlib import cm
 import matplotlib.pyplot as plt
 import numpy as np
