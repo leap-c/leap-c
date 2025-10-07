@@ -6,13 +6,11 @@
 
 - git
 - Python 3.11 or higher
-- [acados dependencies](https://docs.acados.org/installation/index.html)
 
-Clone the repository and recursively update submodules:
+Clone the repository:
 ```bash
 git clone git@github.com:leap-c/leap-c.git
 cd leap-c
-git submodule update --init --recursive
 ```
 
 ### Python
@@ -34,18 +32,6 @@ source .venv/bin/activate
 
 The following steps assume that the virtual environment is activated.
 
-#### acados
-
-Then change into the acados directory
-
-```bash
-cd external/acados
-```
-
-and build it as described in the [acados documentation](https://docs.acados.org/installation/index.html). When running the
-`cmake` command, make sure to include the options `-DACADOS_WITH_OPENMP=ON`, `-DACADOS_PYTHON=ON` and `-DACADOS_NUM_THREADS=1`.
-Afterwards, install the [python interface](https://docs.acados.org/python_interface/index.html) of acados.
-
 #### PyTorch
 
 Install PyTorch as described on the [PyTorch website](https://pytorch.org/get-started/locally/).
@@ -58,11 +44,13 @@ pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
 ### Install leap-c
 
-To install the package containing minimum dependencies in the root directory of the repository, run:
+To install the package containing minimum dependencies (including acados) in the root directory of the repository, run:
 
 ```bash
 pip install -e .
 ```
+
+**Note:** The `acados_template` Python package will be installed automatically as a dependency. If you encounter issues with the acados installation, please refer to the [acados installation documentation](https://docs.acados.org/installation/index.html) for system-specific requirements and troubleshooting.
 
 For also enabling rendering in some of our examples use:
 
@@ -87,7 +75,6 @@ We recommend to use [WSL (Windows Subsystem for Linux)](https://ubuntu.com/deskt
 You can then conveniently program on your WSL, e.g.,
 by using VS Code on Windows together with the "Remote Development" extension pack.
 
-Note the [installation instructions for acados regarding WSL](https://docs.acados.org/installation/index.html#windows-10-wsl).
 Also note the troubleshooting section for `plt.show()` in WSL below.
 
 ## Testing
