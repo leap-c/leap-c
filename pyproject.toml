@@ -11,9 +11,11 @@ dependencies = [
   "scipy==1.15.2",
   "numpy==2.3.0",
   "pandas==2.3.0",
-  "PyYAML==6.0.2",
-  "acados_template"
+  "PyYAML==6.0.2"
 ]
+
+# Note: acados_template must be installed separately following the acados installation instructions:
+# https://docs.acados.org/installation/index.html
 
 requires-python = ">=3.11"
 maintainers = [

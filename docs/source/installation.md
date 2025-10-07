@@ -42,15 +42,24 @@ To install CPU-only PyTorch you can use:
 pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
+### Install acados
+
+acados is required for leap-c. Please install acados following the [official acados installation instructions](https://docs.acados.org/installation/index.html).
+
+**Note:** As of the current version, acados needs to be installed manually following the official documentation. The installation typically involves:
+1. Installing system dependencies (cmake, build tools, etc.)
+2. Building the C library from source
+3. Installing the Python interface (`acados_template`)
+
+Once acados provides pip-installable packages, installation will be simplified to just `pip install acados`.
+
 ### Install leap-c
 
-To install the package containing minimum dependencies (including acados) in the root directory of the repository, run:
+To install the package containing minimum dependencies in the root directory of the repository, run:
 
 ```bash
 pip install -e .
 ```
-
-**Note:** The `acados_template` Python package will be installed automatically as a dependency. If you encounter issues with the acados installation, please refer to the [acados installation documentation](https://docs.acados.org/installation/index.html) for system-specific requirements and troubleshooting.
 
 For also enabling rendering in some of our examples use:
 

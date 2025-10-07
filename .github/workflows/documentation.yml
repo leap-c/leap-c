@@ -19,6 +19,35 @@ jobs:
      uses: actions/checkout@v4
      with:
        path: ${{github.workspace}}/leap_c
+
+   - name: Checkout acados
+     uses: actions/checkout@v4
+     with:
+       repository: acados/acados
+       path: ${{github.workspace}}/acados
+       submodules: 'recursive'
+
+   - name: Download acados artifacts (build, lib, include) into acados repository
+     uses: actions/download-artifact@v4
+     with:
+       path: ${{github.workspace}}/acados
+       repository: acados/acados
+       github-token: ${{ secrets.GITHUB_TOKEN }}
+       run-id: 16416756341
+
+   - name: Install Tera
+     working-directory: ${{github.workspace}}/acados
+     shell: bash
+     run: |
+       .github/linux/install_tera.sh
+
+   - name: Export Paths
+     working-directory: ${{github.workspace}}
+     shell: bash
+     run: |
+       echo "ACADOS_SOURCE_DIR=${{github.workspace}}/acados" >> $GITHUB_ENV
+       echo "ACADOS_INSTALL_DIR=${{github.workspace}}/acados" >> $GITHUB_ENV
+       echo "LD_LIBRARY_PATH=${{github.workspace}}/acados/lib" >> $GITHUB_ENV
        
    - name: Set up Python 3.11
      uses: actions/setup-python@v5
@@ -32,6 +61,12 @@ jobs:
        key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
        restore-keys: |
          ${{ runner.os }}-pip-
+
+   - name: Install Python interface
+     working-directory: ${{github.workspace}}/acados
+     run: |
+       pip install --upgrade pip
+       pip install interfaces/acados_template
 
    - name: Install leap_c
      working-directory: ${{github.workspace}}/leap_c
