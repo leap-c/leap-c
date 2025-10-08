@@ -10,7 +10,7 @@
 
 Clone the repository and recursively update submodules:
 ```bash
-git clone git@github.com:leap-c/leap-c.git
+git clone https://github.com/leap-c/leap-c.git
 cd leap-c
 git submodule update --init --recursive
 ```
