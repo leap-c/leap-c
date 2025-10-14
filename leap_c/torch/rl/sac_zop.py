@@ -1,6 +1,7 @@
 """Provides a trainer for a Soft Actor-Critic algorithm that uses a differentiable MPC
 layer for the policy network."""
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Generator, NamedTuple, Type
 
@@ -14,6 +15,7 @@ from leap_c.controller import ParameterizedController
 from leap_c.torch.nn.bounded_distributions import (
     BoundedDistribution,
     BoundedDistributionName,
+    SquashedGaussian,
     get_bounded_distribution,
 )
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
@@ -47,6 +49,20 @@ class SacZopActorOutput(NamedTuple):
     ctx: Any = None
 
 
+@dataclass(kw_only=True)
+class SacZopTrainerConfig(SacTrainerConfig):
+    """Specific settings for the Zop trainer.
+
+    Attributes:
+        init_param_with_default: Whether to initialize the parameters of the controller with
+            their default values, in case they are fixed nn.Parameters, and not predicted by a
+            network (see MlpConfig hidden_dims). Only works for SquashedGaussian distribution.
+            Will take the default parameters according to controller.default_param(None).
+    """
+
+    init_param_with_default: bool = True
+
+
 class MpcSacActor(nn.Module):
     """An actor module for SAC-ZOP, containing a ParameterizedController to compute actions, but not
     differentiating through it, and injecting noise in the parameter space.
@@ -70,6 +86,7 @@ class MpcSacActor(nn.Module):
         controller: ParameterizedController,
         distribution_name: BoundedDistributionName,
         mlp_cfg: MlpConfig,
+        init_param_with_default: bool,
     ) -> None:
         """
         Args:
@@ -80,6 +97,10 @@ class MpcSacActor(nn.Module):
             distribution_name: The name of the bounded distribution
                 used to sample parameters.
             mlp_cfg: The configuration for the MLP used to predict parameters.
+            init_param_with_default: Whether to initialize the parameters of the controller with
+                their default values, in case they are fixed nn.Parameters, and not predicted by a
+                network (see MlpConfig hidden_dims). Only works for SquashedGaussian distribution,
+                and
         """
         super().__init__()
 
@@ -96,6 +117,24 @@ class MpcSacActor(nn.Module):
             output_sizes=list(self.bounded_distribution.parameter_size(param_dim)),
             mlp_cfg=mlp_cfg,
         )
+        if init_param_with_default and self.mlp.param is not None:
+            if not isinstance(self.bounded_distribution, SquashedGaussian):
+                raise ValueError(
+                    "init_param_with_default only works for SquashedGaussian, "
+                    f"but got {distribution_name}."
+                )
+            try:
+                # Hope you fail when the default param is dependend on the observation
+                # and else everything is fine
+                params = self.controller.default_param(obs=None)
+            except Exception as e:
+                raise ValueError(
+                    "init_param_with_default only makes sense if the "
+                    "default parameters of the controller do not depend on the "
+                    "observation. Probably thats not the case here"
+                ) from e
+            params_untransformed = self.bounded_distribution.inverse(x=params, padding=0)
+            self.mlp.param[:param_dim] = params_untransformed
 
     def forward(
         self,
@@ -140,7 +179,7 @@ class MpcSacActor(nn.Module):
         )
 
 
-class SacZopTrainer(Trainer[SacTrainerConfig]):
+class SacZopTrainer(Trainer[SacZopTrainerConfig]):
     """A trainer that implements Soft Actor-Critic (SAC) with a controller in the policy network,
     but without differentiating through it (SAC-ZOP). Uses parameter noise and a parameter critic.
 
@@ -175,7 +214,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
 
     def __init__(
         self,
-        cfg: SacTrainerConfig,
+        cfg: SacZopTrainerConfig,
         val_env: gym.Env,
         output_path: str | Path,
         device: str,

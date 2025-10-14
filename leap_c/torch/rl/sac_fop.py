@@ -41,10 +41,14 @@ class SacFopTrainerConfig(SacTrainerConfig):
             When using parameter noise, the computed log-probability does not account for the
             transformation through the controller. The entropy correction adds a correction term
             based on the Jacobian of the action with respect to the parameters.
+        init_param_with_default: Whether to initialize the parameters of the controller with
+            their default values, in case they are fixed nn.Parameters, and not predicted by a
+            network (see MlpConfig hidden_dims). Only works for SquashedGaussian distribution.
     """
 
     noise: Literal["param", "action"] = "param"
     entropy_correction: bool = False
+    init_param_with_default: bool = True
 
 
 class SacFopActorOutput(NamedTuple):
