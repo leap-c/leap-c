@@ -26,7 +26,7 @@ def episode_rollout(
     name_prefix: str | None = None,
     rng: RngType | None = None,
 ) -> Generator[tuple[dict[str, float | bool | list], dict[str, list]], None, None]:
-    """Rollout an episode and returns the cumulative reward.
+    """Rollout episodes with the given policy.
 
     Args:
         policy (Callable): The policy to be used for the rollout.
