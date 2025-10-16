@@ -89,7 +89,7 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
 
         action = action.cpu().numpy()[0]
 
-        return action, ctx, {}
+        return action, ctx, ctx.log
 
 
 def create_cfg(env: str, controller: str, seed: int) -> RunControllerConfig:

@@ -35,6 +35,8 @@ class ParameterizedController(nn.Module):
         Returns:
             ctx: A context object containing any intermediate values
                 needed for backward computation and further invocations.
+                Stats to be logged are expected to be passed in the field ctx.log,
+                which should be a dictionary mapping string keys to float values.
             action: The computed action.
         """
         ...

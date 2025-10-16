@@ -134,7 +134,7 @@ class MpcSacActor(nn.Module):
         return SacZopActorOutput(
             param,
             log_prob,
-            dist_stats,
+            {**dist_stats, **ctx.log},
             action,
             ctx,
         )
