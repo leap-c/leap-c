@@ -179,7 +179,8 @@ def init_mlp_params_with_inverse_default(
                 "default parameters of the controller do not depend on the "
                 "observation. Could it be that this is not the case here?"
             ) from e
-        params_untransformed = bounded_fun.inverse(x=params, padding=0).detach()
-        param_dim = mlp.param.shape[0]
-        mlp.param[:param_dim] = params_untransformed
+        param_dim = params.shape[0]
+        with torch.no_grad():
+            params_untransformed = bounded_fun.inverse(x=params[None, :], padding=0)
+            mlp.param[:param_dim] = params_untransformed.flatten()
     # NOTE Do nothing if the mlp uses hidden layers
