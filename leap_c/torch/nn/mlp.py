@@ -164,12 +164,12 @@ def init_mlp_params_with_inverse_default(
             bounded_fun, BoundedTransform
         ):
             raise ValueError(
-                "Initializing the parameters with the inverse default"
+                "Initializing the parameters with the inverse default "
                 "only works for SquashedGaussian or BoundedTransform, "
                 f"but got {type(bounded_fun)}."
             )
         try:
-            # Hope you fail when the default param is dependend on the observation
+            # Hope you fail when the default param is dependent on the observation
             # and else everything is fine
             params = controller.default_param(obs=None)
             params = torch.tensor(params, dtype=mlp.param.dtype, device=mlp.param.device)
