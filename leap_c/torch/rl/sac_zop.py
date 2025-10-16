@@ -15,11 +15,10 @@ from leap_c.controller import ParameterizedController
 from leap_c.torch.nn.bounded_distributions import (
     BoundedDistribution,
     BoundedDistributionName,
-    SquashedGaussian,
     get_bounded_distribution,
 )
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
-from leap_c.torch.nn.mlp import Mlp, MlpConfig
+from leap_c.torch.nn.mlp import Mlp, MlpConfig, init_mlp_params_with_inverse_default
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.sac import SacCritic, SacTrainerConfig
 from leap_c.torch.rl.utils import soft_target_update
@@ -54,10 +53,15 @@ class SacZopTrainerConfig(SacTrainerConfig):
     """Specific settings for the Zop trainer.
 
     Attributes:
-        init_param_with_default: Whether to initialize the parameters of the controller with
-            their default values, in case they are fixed nn.Parameters, and not predicted by a
-            network (see MlpConfig hidden_dims). Only works for SquashedGaussian distribution.
-            Will take the default parameters according to controller.default_param(None).
+        init_param_with_default: Whether to initialize the parameters of the controller such that
+            the mean of the gaussian transformed by the squashing of the SquashedGaussian
+            corresponds to the Parameter default values. Only works if
+            1. the parameters are fixed nn.Parameters, and not predicted by a network
+            (see MlpConfig hidden_dims).
+            2. a SquashedGaussian distribution is used.
+            If true, the default parameters according to controller.default_param(None)
+            will be used, else the parameters will be initialized to the middle
+            of the parameter bounds.
     """
 
     init_param_with_default: bool = True
@@ -97,10 +101,8 @@ class MpcSacActor(nn.Module):
             distribution_name: The name of the bounded distribution
                 used to sample parameters.
             mlp_cfg: The configuration for the MLP used to predict parameters.
-            init_param_with_default: Whether to initialize the parameters of the controller with
-                their default values, in case they are fixed nn.Parameters, and not predicted by a
-                network (see MlpConfig hidden_dims). Only works for SquashedGaussian distribution,
-                and
+            init_param_with_default: Whether to initialize the parameters of the mlp such that the
+                parameters transformed by the distribution correspond to the default parameters.
         """
         super().__init__()
 
@@ -117,24 +119,8 @@ class MpcSacActor(nn.Module):
             output_sizes=list(self.bounded_distribution.parameter_size(param_dim)),
             mlp_cfg=mlp_cfg,
         )
-        if init_param_with_default and self.mlp.param is not None:
-            if not isinstance(self.bounded_distribution, SquashedGaussian):
-                raise ValueError(
-                    "init_param_with_default only works for SquashedGaussian, "
-                    f"but got {distribution_name}."
-                )
-            try:
-                # Hope you fail when the default param is dependend on the observation
-                # and else everything is fine
-                params = self.controller.default_param(obs=None)
-            except Exception as e:
-                raise ValueError(
-                    "init_param_with_default only makes sense if the "
-                    "default parameters of the controller do not depend on the "
-                    "observation. Probably thats not the case here"
-                ) from e
-            params_untransformed = self.bounded_distribution.inverse(x=params, padding=0)
-            self.mlp.param[:param_dim] = params_untransformed
+        if init_param_with_default:
+            init_mlp_params_with_inverse_default(self.mlp, self.bounded_distribution, controller)
 
     def forward(
         self,
