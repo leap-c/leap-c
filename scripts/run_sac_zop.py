@@ -7,8 +7,7 @@ from pathlib import Path
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
 from leap_c.torch.nn.extractor import ExtractorName
-from leap_c.torch.rl.sac import SacTrainerConfig
-from leap_c.torch.rl.sac_zop import SacZopTrainer
+from leap_c.torch.rl.sac_zop import SacZopTrainer, SacZopTrainerConfig
 
 
 @dataclass
@@ -17,7 +16,7 @@ class RunSacZopConfig:
 
     env: ExampleEnvName = "cartpole"
     controller: ExampleControllerName = "cartpole"
-    trainer: SacTrainerConfig = field(default_factory=SacTrainerConfig)
+    trainer: SacZopTrainerConfig = field(default_factory=SacZopTrainerConfig)
     extractor: ExtractorName = "identity"
 
 
@@ -54,6 +53,7 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacZopConfig:
     cfg.trainer.report_loss_freq = 100
     cfg.trainer.update_freq = 4
     cfg.trainer.distribution_name = "squashed_gaussian"
+    cfg.trainer.init_param_with_default = True
 
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True

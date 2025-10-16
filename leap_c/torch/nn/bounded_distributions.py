@@ -198,6 +198,22 @@ class SquashedGaussian(BoundedDistribution):
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
         return (output_dim, output_dim)
 
+    def inverse(self, x: torch.Tensor, padding: float = 0.001) -> torch.Tensor:
+        """Applies the inverse transformation to the input tensor, i.e., descale, then arctanh.
+        For numerical stability, the input is slightly padded away from the bounds
+        before applying arctanh.
+
+        Args:
+            x: The input tensor.
+            padding: The amount of padding to distance the action of the bounds.
+
+        Returns:
+            The inverse squashed tensor, scaled and shifted to match the action space.
+        """
+        abs_padding = self.scale[None, :] * padding
+        x = (x - self.loc[None, :]) / (self.scale[None, :] + 2 * abs_padding)
+        return torch.arctanh(x)
+
 
 class ScaledBeta(BoundedDistribution):
     """A unimodal (alpha, beta > 1 is enforced) scaled Beta distribution.

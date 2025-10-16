@@ -1,6 +1,7 @@
 """Provides a trainer for a Soft Actor-Critic algorithm that uses a differentiable MPC
 layer for the policy network."""
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Generator, NamedTuple, Type
 
@@ -17,7 +18,7 @@ from leap_c.torch.nn.bounded_distributions import (
     get_bounded_distribution,
 )
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
-from leap_c.torch.nn.mlp import Mlp, MlpConfig
+from leap_c.torch.nn.mlp import Mlp, MlpConfig, init_mlp_params_with_inverse_default
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.sac import SacCritic, SacTrainerConfig
 from leap_c.torch.rl.utils import soft_target_update
@@ -47,6 +48,25 @@ class SacZopActorOutput(NamedTuple):
     ctx: Any = None
 
 
+@dataclass(kw_only=True)
+class SacZopTrainerConfig(SacTrainerConfig):
+    """Specific settings for the Zop trainer.
+
+    Attributes:
+        init_param_with_default: Whether to initialize the parameters of the controller such that
+            the mean of the gaussian transformed by the squashing of the SquashedGaussian
+            corresponds to the Parameter default values. Only works if
+            1. the parameters are fixed nn.Parameters, and not predicted by a network
+            (see MlpConfig hidden_dims).
+            2. a SquashedGaussian distribution is used.
+            If true, the default parameters according to controller.default_param(None)
+            will be used, else the parameters will be initialized to the middle
+            of the parameter bounds.
+    """
+
+    init_param_with_default: bool = True
+
+
 class MpcSacActor(nn.Module):
     """An actor module for SAC-ZOP, containing a ParameterizedController to compute actions, but not
     differentiating through it, and injecting noise in the parameter space.
@@ -70,6 +90,7 @@ class MpcSacActor(nn.Module):
         controller: ParameterizedController,
         distribution_name: BoundedDistributionName,
         mlp_cfg: MlpConfig,
+        init_param_with_default: bool,
     ) -> None:
         """
         Args:
@@ -80,6 +101,8 @@ class MpcSacActor(nn.Module):
             distribution_name: The name of the bounded distribution
                 used to sample parameters.
             mlp_cfg: The configuration for the MLP used to predict parameters.
+            init_param_with_default: Whether to initialize the parameters of the mlp such that the
+                parameters transformed by the distribution correspond to the default parameters.
         """
         super().__init__()
 
@@ -96,6 +119,8 @@ class MpcSacActor(nn.Module):
             output_sizes=list(self.bounded_distribution.parameter_size(param_dim)),
             mlp_cfg=mlp_cfg,
         )
+        if init_param_with_default:
+            init_mlp_params_with_inverse_default(self.mlp, self.bounded_distribution, controller)
 
     def forward(
         self,
@@ -140,7 +165,7 @@ class MpcSacActor(nn.Module):
         )
 
 
-class SacZopTrainer(Trainer[SacTrainerConfig]):
+class SacZopTrainer(Trainer[SacZopTrainerConfig]):
     """A trainer that implements Soft Actor-Critic (SAC) with a controller in the policy network,
     but without differentiating through it (SAC-ZOP). Uses parameter noise and a parameter critic.
 
@@ -175,7 +200,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
 
     def __init__(
         self,
-        cfg: SacTrainerConfig,
+        cfg: SacZopTrainerConfig,
         val_env: gym.Env,
         output_path: str | Path,
         device: str,
@@ -229,6 +254,7 @@ class SacZopTrainer(Trainer[SacTrainerConfig]):
             controller,
             cfg.distribution_name,
             cfg.actor_mlp,
+            cfg.init_param_with_default,
         )
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
 

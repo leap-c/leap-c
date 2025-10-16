@@ -20,7 +20,7 @@ from leap_c.torch.nn.bounded_distributions import (
     get_bounded_distribution,
 )
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
-from leap_c.torch.nn.mlp import Mlp, MlpConfig
+from leap_c.torch.nn.mlp import Mlp, MlpConfig, init_mlp_params_with_inverse_default
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.sac import SacCritic, SacTrainerConfig
 from leap_c.torch.rl.utils import soft_target_update
@@ -41,10 +41,20 @@ class SacFopTrainerConfig(SacTrainerConfig):
             When using parameter noise, the computed log-probability does not account for the
             transformation through the controller. The entropy correction adds a correction term
             based on the Jacobian of the action with respect to the parameters.
+        init_param_with_default: Whether to initialize the parameters of the controller such that
+            the mean of the gaussian transformed by the squashing of the SquashedGaussian
+            corresponds to the Parameter default values. Only works if
+            1. the parameters are fixed nn.Parameters, and not predicted by a network
+            (see MlpConfig hidden_dims).
+            2. a SquashedGaussian distribution is used.
+            If true, the default parameters according to controller.default_param(None)
+            will be used, else the parameters will be initialized to the middle
+            of the parameter bounds.
     """
 
     noise: Literal["param", "action"] = "param"
     entropy_correction: bool = False
+    init_param_with_default: bool = True
 
 
 class SacFopActorOutput(NamedTuple):
@@ -107,6 +117,7 @@ class FopActor(nn.Module):
         controller: ParameterizedController,
         distribution_name: BoundedDistributionName,
         correction: bool = True,
+        init_param_with_default: bool = True,
     ) -> None:
         """Initializes the FOP actor.
 
@@ -119,6 +130,8 @@ class FopActor(nn.Module):
             distribution_name: The name of the bounded distribution
                 used to sample parameters.
             correction: Whether to use the entropy correction term for the log-probability.
+            init_param_with_default: Whether to initialize the parameters of the mlp such that the
+                parameters transformed by the distribution correspond to the default parameters.
         """
         super().__init__()
         self.controller = controller
@@ -132,6 +145,8 @@ class FopActor(nn.Module):
             mlp_cfg=mlp_cfg,
         )
         self.correction = correction
+        if init_param_with_default:
+            init_mlp_params_with_inverse_default(self.mlp, self.bounded_distribution, controller)
 
     def forward(
         self, obs: np.ndarray, ctx: Any | None = None, deterministic: bool = False
@@ -204,6 +219,7 @@ class FoaActor(nn.Module):
         extractor: Extractor,
         mlp_cfg: MlpConfig,
         controller: ParameterizedController,
+        init_param_with_default: bool,
     ) -> None:
         """Instantiate the FOA actor.
 
@@ -214,6 +230,8 @@ class FoaActor(nn.Module):
             mlp_cfg: The configuration for the MLP used to predict parameters.
             controller: The differentiable parameterized controller used to compute actions from
                 parameters.
+            init_param_with_default: Whether to initialize the parameters of the mlp such that the
+                parameters transformed by the distribution correspond to the default parameters.
         """
         super().__init__()
         self.controller = controller
@@ -230,6 +248,8 @@ class FoaActor(nn.Module):
         )  # type:ignore
         self.action_transform = BoundedTransform(action_space)  # type:ignore
         self.squashed_gaussian = SquashedGaussian(action_space)  # type:ignore
+        if init_param_with_default:
+            init_mlp_params_with_inverse_default(self.mlp, self.parameter_transform, controller)
 
     def forward(
         self, obs: np.ndarray, ctx: Any | None = None, deterministic: bool = False
