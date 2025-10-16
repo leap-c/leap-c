@@ -268,6 +268,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig]):
             controller,
             cfg.distribution_name,
             cfg.actor_mlp,
+            cfg.init_param_with_default,
         )
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
 
