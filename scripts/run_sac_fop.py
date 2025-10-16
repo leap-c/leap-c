@@ -62,6 +62,7 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacFopConfig:
     cfg.trainer.noise = "param"
     cfg.trainer.entropy_correction = False
     cfg.trainer.distribution_name = "squashed_gaussian"
+    cfg.trainer.init_param_with_default = True
 
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
