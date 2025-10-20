@@ -10,7 +10,7 @@
 
 Clone the repository and recursively update submodules:
 ```bash
-git clone git@github.com:leap-c/leap-c.git
+git clone https://github.com/leap-c/leap-c.git
 cd leap-c
 git submodule update --init --recursive
 ```
@@ -42,8 +42,8 @@ Then change into the acados directory
 cd external/acados
 ```
 
-and build it as described in the [acados documentation](https://docs.acados.org/installation/index.html). When running the
-`cmake` command, make sure to include the options `-DACADOS_WITH_OPENMP=ON`, `-DACADOS_PYTHON=ON` and `-DACADOS_NUM_THREADS=1`.
+and build it as described in the [acados documentation](https://docs.acados.org/installation/index.html).
+When running the `cmake` command, include the options `-DACADOS_WITH_OPENMP=ON -DACADOS_NUM_THREADS=1`.
 Afterwards, install the [python interface](https://docs.acados.org/python_interface/index.html) of acados.
 
 #### PyTorch
