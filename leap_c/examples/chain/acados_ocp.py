@@ -10,10 +10,7 @@ from casadi.tools import entry, struct_symSX
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
-from leap_c.ocp.acados.initializer import (
-    AcadosDiffMpcInitializer,
-    create_zero_iterate_from_ocp,
-)
+from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 ChainAcadosParamInterface = Literal["global", "stagewise"]
@@ -170,7 +167,7 @@ class ChainInitializer(AcadosDiffMpcInitializer):
     and all other variables in the iterate with zeros."""
 
     def __init__(self, ocp: AcadosOcp, x_ref: np.ndarray):
-        iterate = create_zero_iterate_from_ocp(ocp).flatten()
+        iterate = ocp.create_default_initial_iterate().flatten()
         iterate.x = np.tile(x_ref, ocp.solver_options.N_horizon + 1)  # type:ignore
         self.default_iterate = iterate
 
