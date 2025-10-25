@@ -495,7 +495,8 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 self.pi_optim.step()
 
                 # soft updates
-                soft_target_update(self.q, self.q_target, self.cfg.tau)
+                if self.state.step % self.cfg.soft_update_freq == 0:
+                    soft_target_update(self.q, self.q_target, self.cfg.tau)
 
                 loss_stats = {
                     "q_loss": q_loss.item(),
