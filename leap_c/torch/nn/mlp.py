@@ -1,5 +1,6 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
+from numbers import Integral
 from typing import Callable, Literal
 
 import torch
@@ -94,12 +95,12 @@ class Mlp(nn.Module):
 
         self.activation = string_to_activation(mlp_cfg.activation)
 
-        if isinstance(input_sizes, int):
+        if isinstance(input_sizes, Integral):
             input_sizes = [input_sizes]
         self._comb_input_dim = sum(input_sizes)
         self._input_dims = input_sizes
 
-        if isinstance(output_sizes, int):
+        if isinstance(output_sizes, Integral):
             output_sizes = [output_sizes]
         self._comb_output_dim = sum(output_sizes)
         self._output_dims = output_sizes
