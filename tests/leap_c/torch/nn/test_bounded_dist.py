@@ -5,7 +5,7 @@ from gymnasium import spaces
 from leap_c.torch.nn.bounded_distributions import ScaledBeta
 
 
-def test_scaled_beta():
+def test_scaled_beta() -> None:
     """Sanity checks for the ScaledBeta distribution."""
 
     test_space = spaces.Box(
