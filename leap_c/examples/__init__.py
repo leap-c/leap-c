@@ -2,7 +2,7 @@ from functools import partial
 from pathlib import Path
 from typing import Any, Literal
 
-from gymnasium import Env
+from gymnasium import Env, make
 
 from ..controller import ParameterizedController
 from .cartpole.controller import CartPoleController, CartPoleControllerConfig
@@ -56,8 +56,11 @@ CONTROLLER_REGISTRY = {
 }
 
 
-def create_env(env_name: ExampleEnvName, **kw: Any) -> Env:
+def create_env(env_name: ExampleEnvName | str, **kw: Any) -> Env:
     """Create an environment based on the given name.
+
+    The methods first attempts to find the environment in the `leap-c` registry. If not found, it
+    tries to create it using `gymnasium.make`. If both attempts fail, an exception is raised.
 
     Args:
         env_name: Name of the environment.
@@ -65,11 +68,14 @@ def create_env(env_name: ExampleEnvName, **kw: Any) -> Env:
 
     Returns:
         An instance of the requested environment.
+
+    Raises:
+        Error: If the environment is neither registered in `leap-c` or `gymnasium`.
     """
     if env_name in ENV_REGISTRY:
         return ENV_REGISTRY[env_name](**kw)
-
-    raise ValueError(f"Environment '{env_name}' is not registered.")
+    kw["disable_env_checker"] = True
+    return make(env_name, **kw)
 
 
 def create_controller(

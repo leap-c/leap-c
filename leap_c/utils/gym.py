@@ -19,8 +19,21 @@ def wrap_env(
     Returns:
         gymnasium.Env: The wrapped environment.
     """
-    env = RecordEpisodeStatistics(env, buffer_length=1)
-    env = OrderEnforcing(env)
+    unwrapped_ = env.unwrapped
+    env_ = env
+    already_wrapped_with_record_stats = already_wrapped_with_order_enf = False
+    while env_ is not unwrapped_:
+        if isinstance(env_, RecordEpisodeStatistics) and env_.time_queue.maxlen == 1:
+            already_wrapped_with_record_stats = True
+        if isinstance(env_, OrderEnforcing):
+            already_wrapped_with_order_enf = True
+        env_ = env_.env
+
+    if not already_wrapped_with_record_stats:
+        env = RecordEpisodeStatistics(env, buffer_length=1)
+    if not already_wrapped_with_order_enf:
+        env = OrderEnforcing(env)
+
     if wrappers:
         for wrapper in wrappers:
             env = wrapper(env)
