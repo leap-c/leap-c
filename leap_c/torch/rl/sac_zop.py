@@ -154,7 +154,7 @@ class MpcSacActor(nn.Module):
             return SacZopActorOutput(param, log_prob, dist_stats)
 
         with torch.no_grad():
-            ctx, action = self.controller(obs, param, ctx=ctx)
+            ctx, action, _ = self.controller(obs, param, ctx=ctx)
 
         return SacZopActorOutput(
             param,

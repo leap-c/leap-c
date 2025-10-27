@@ -172,7 +172,7 @@ def init_mlp_params_with_inverse_default(
             # Hope you fail when the default param is dependent on the observation
             # and else everything is fine
             params = controller.default_param(obs=None)
-            params = torch.tensor(params, dtype=mlp.param.dtype, device=mlp.param.device)
+            params = torch.as_tensor(params, dtype=mlp.param.dtype, device=mlp.param.device)
         except Exception as e:
             raise ValueError(
                 "Initializing the parameters with the inverse default only makes sense if the "

@@ -22,9 +22,9 @@ class DummyController(ParameterizedController):
         self._param_dim = param_dim
 
     def forward(
-        self, obs: torch.Tensor, param: torch.Tensor, ctx=None
-    ) -> tuple[DummyCtx, torch.Tensor]:
-        return DummyCtx(), param
+        self, obs: torch.Tensor, param: torch.Tensor, action: torch.Tensor | None = None, ctx=None
+    ) -> tuple[DummyCtx, torch.Tensor, torch.Tensor]:
+        return DummyCtx(), param, torch.zeros(obs.shape[0])
 
     @property
     def parameter_dim(self) -> int:
@@ -36,7 +36,7 @@ class DummyController(ParameterizedController):
     @property
     def param_space(self) -> gym.Space:
         return gym.spaces.Box(
-            low=np.array([-10.0] * self._param_dim), high=np.array([20.0] * self._param_dim)
+            np.full(self._param_dim, -10.0, np.float32), np.full(self._param_dim, 20.0, np.float32)
         )
 
 
@@ -99,7 +99,9 @@ def test_default_param_initialization_foa():
     controller = DummyController(param_dim=param_dim)
     dummy_obs_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(3,))
     extractor = IdentityExtractor(dummy_obs_space)
-    dummy_action_space = gym.spaces.Box(low=np.array([-100.0]), high=np.array([300.0]), shape=(1,))
+    dummy_action_space = gym.spaces.Box(
+        low=np.array([-100.0], np.float32), high=np.array([300.0], np.float32), shape=(1,)
+    )
 
     actor = FoaActor(
         action_space=dummy_action_space,

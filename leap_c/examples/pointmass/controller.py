@@ -1,8 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
 
-import numpy as np
+from torch import Tensor
 
 from leap_c.examples.pointmass.acados_ocp import (
     PointMassAcadosParamInterface,
@@ -10,6 +9,7 @@ from leap_c.examples.pointmass.acados_ocp import (
     export_parametric_ocp,
 )
 from leap_c.ocp.acados.controller import AcadosController
+from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
@@ -86,12 +86,16 @@ class PointMassController(AcadosController):
         diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory)
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
 
-    def forward(self, obs, param, ctx=None) -> tuple[Any, np.ndarray]:
-        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
-            batch_size=obs.shape[0]
-        )
-        # remove wind field from observation, this is only observed by
-        # the network, not used in the MPC
+    def forward(
+        self,
+        obs: Tensor,
+        param: Tensor,
+        action: Tensor | None = None,
+        ctx: AcadosDiffMpcCtx | None = None,
+    ) -> tuple[AcadosDiffMpcCtx, Tensor, Tensor]:
+        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(obs.shape[0])
+
+        # remove wind field from observation, this is only observed by the network, not used in MPC
         x0 = obs[:, :4]
-        ctx, u0, x, u, value = self.diff_mpc(x0, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
-        return ctx, u0
+        ctx, u0, x, u, value = self.diff_mpc(x0, action, param, p_stagewise, ctx=ctx)
+        return ctx, u0, value

@@ -85,7 +85,7 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
 
         param_batched = self.collate_fn([default_param])
 
-        ctx, action = self.controller(obs_batched, param_batched, ctx=state)
+        ctx, action, _ = self.controller(obs_batched, param_batched, ctx=state)
 
         action = action.cpu().numpy()[0]
 

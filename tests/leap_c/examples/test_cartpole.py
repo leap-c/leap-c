@@ -17,14 +17,12 @@ from leap_c.examples.cartpole.env import CartPoleEnv
 
 
 @pytest.fixture(scope="module", params=["EXTERNAL", "NONLINEAR_LS"])
-def cartpole_controller(request):
+def cartpole_controller(request: pytest.FixtureRequest) -> CartPoleController:
     cfg = CartPoleControllerConfig(cost_type=request.param)
     return CartPoleController(cfg)
 
 
-def plot_cart_pole_solution(
-    ocp_solver: AcadosOcpSolver,
-) -> Tuple[plt.Figure, np.ndarray[plt.Axes]]:
+def plot_cart_pole_solution(ocp_solver: AcadosOcpSolver) -> Tuple[plt.Figure, np.ndarray[plt.Axes]]:
     k = np.arange(0, ocp_solver.N + 1)
     u = np.array([ocp_solver.get(stage, "u") for stage in range(ocp_solver.N)])
     x = np.array([ocp_solver.get(stage, "x") for stage in range(ocp_solver.N + 1)])
@@ -45,7 +43,7 @@ def plot_cart_pole_solution(
     return fig, axs
 
 
-def test_solution(cartpole_controller: CartPoleController):
+def test_solution(cartpole_controller: CartPoleController) -> None:
     ocp_solver = cartpole_controller.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
     ocp_solver.solve_for_x0(np.array([0.0, np.pi, 0.0, 0.0]))
 
@@ -55,7 +53,7 @@ def test_solution(cartpole_controller: CartPoleController):
     fig, axs = plot_cart_pole_solution(ocp_solver)
 
 
-def test_env_terminates():
+def test_env_terminates() -> None:
     """Test if the environment terminates correctly when applying minimum
     and maximum control inputs.
 
@@ -78,7 +76,7 @@ def test_env_terminates():
         assert state[0] < -env.cfg.x_threshold or state[0] > env.cfg.x_threshold
 
 
-def test_env_truncates():
+def test_env_truncates() -> None:
     """Test if the environment truncates correctly when applying minimum
     and maximum control inputs.
 
@@ -100,7 +98,7 @@ def test_env_truncates():
     assert trunc
 
 
-def test_env_types():
+def test_env_types() -> None:
     """Test whether the type of the state is and stays np.float32
     for an action from the action space (note that the action space has type np.float32).
     """
@@ -114,9 +112,7 @@ def test_env_types():
     assert x.dtype == np.float32
 
 
-def test_closed_loop_rendering(
-    cartpole_controller: CartPoleController,
-):
+def test_closed_loop_rendering(cartpole_controller: CartPoleController) -> None:
     env = CartPoleEnv()
 
     obs, _ = env.reset(seed=1337)
@@ -137,7 +133,7 @@ def test_closed_loop_rendering(
         os.mkdir(savefile_dir_path)
     while count < 300 and not terminated and not truncated:
         obs = torch.as_tensor(obs, dtype=torch.float32).unsqueeze(0)
-        ctx, a = cartpole_controller(obs, default_param, ctx=ctx)
+        ctx, a, _ = cartpole_controller(obs, default_param, ctx=ctx)
         a = a.squeeze(0).numpy()
         obs_prime, r, terminated, truncated, info = env.step(a)
         frames.append(env.render())

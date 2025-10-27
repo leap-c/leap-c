@@ -6,8 +6,7 @@ from typing import Any, Callable, Union
 
 import gymnasium as gym
 import numpy as np
-import torch
-import torch.nn as nn
+from torch import Tensor, nn
 
 
 class ParameterizedController(nn.Module):
@@ -24,12 +23,13 @@ class ParameterizedController(nn.Module):
     collate_fn_map: dict[Union[type, tuple[type, ...]], Callable] | None = None
 
     @abstractmethod
-    def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
+    def forward(self, obs, param, action=None, ctx=None) -> tuple[Any, Tensor]:
         """Computes action from observation, parameters and internal context.
 
         Args:
             obs: Observation input to the controller (e.g., state vector).
             param: Parameters that define the behavior of the controller.
+            action: Optional initial action.
             ctx: Optional internal context passed between invocations.
 
         Returns:
@@ -38,6 +38,7 @@ class ParameterizedController(nn.Module):
                 Stats to be logged are expected to be passed in the field ctx.log,
                 which should be a dictionary mapping string keys to float values.
             action: The computed action.
+            value: The optimal objective value attained by the optimal solution.
         """
         ...
 

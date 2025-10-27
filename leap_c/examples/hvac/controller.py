@@ -7,6 +7,7 @@ import numpy as np
 import torch
 from acados_template import ACADOS_INFTY, AcadosOcp
 from scipy.constants import convert_temperature
+from torch import Tensor
 
 from leap_c.controller import ParameterizedController
 from leap_c.examples.hvac.config import make_default_hvac_params
@@ -21,8 +22,8 @@ class HvacControllerCtx(NamedTuple):
     """An extension of the AcadosDiffMpcCtx to also store the heater states."""
 
     diff_mpc_ctx: AcadosDiffMpcCtx
-    qh: torch.Tensor
-    dqh: torch.Tensor
+    qh: Tensor
+    dqh: Tensor
 
     @property
     def status(self):
@@ -111,7 +112,13 @@ class HvacController(ParameterizedController):
             self.ocp, **diff_mpc_kwargs, export_directory=export_directory
         )
 
-    def forward(self, obs, param: Any = None, ctx=None) -> tuple[Any, torch.Tensor]:
+    def forward(
+        self,
+        obs: Tensor,
+        param: Tensor,
+        action: Tensor | None = None,
+        ctx: HvacControllerCtx | None = None,
+    ) -> tuple[HvacControllerCtx, Tensor, Tensor]:
         batch_size = obs.shape[0]
 
         if ctx is None:
@@ -128,14 +135,7 @@ class HvacController(ParameterizedController):
 
             diff_mpc_ctx = ctx.diff_mpc_ctx
 
-        x0 = torch.cat(
-            [
-                obs[:, 2:5],
-                qh,
-                dqh,
-            ],
-            dim=1,
-        )
+        x0 = torch.cat((obs[:, 2:5], qh, dqh), dim=1)
 
         N_horizon = self.ocp.solver_options.N_horizon
         quarter_hours = np.array(
@@ -156,10 +156,7 @@ class HvacController(ParameterizedController):
         )
 
         diff_mpc_ctx, u0, x, u, value = self.diff_mpc(
-            x0,
-            p_global=param,
-            p_stagewise=p_stagewise,
-            ctx=diff_mpc_ctx,
+            x0, action, param, p_stagewise, ctx=diff_mpc_ctx
         )
 
         ctx = HvacControllerCtx(
@@ -168,7 +165,7 @@ class HvacController(ParameterizedController):
             dqh=x[:, 1, 4].detach(),
         )
 
-        return ctx, x[:, 1, 3][:, None]
+        return ctx, x[:, 1, 3][:, None], value
 
     def jacobian_action_param(self, ctx: HvacControllerCtx) -> np.ndarray:
         return self.diff_mpc.sensitivity(ctx.diff_mpc_ctx, field_name="du0_dp_global")
@@ -177,7 +174,7 @@ class HvacController(ParameterizedController):
     def param_space(self) -> gym.Space:
         return self.param_manager.get_param_space(dtype=np.float64)
 
-    def default_param(self, obs) -> np.ndarray | None:
+    def default_param(self, obs) -> np.ndarray:
         param = self.param_manager.learnable_parameters(
             self.param_manager.learnable_parameters_default.cat.full().flatten()
         )

@@ -169,7 +169,7 @@ class FopActor(nn.Module):
             *dist_params, deterministic=deterministic
         )
 
-        ctx, action = self.controller(obs, param, ctx=ctx)
+        ctx, action, _ = self.controller(obs, param, ctx=ctx)
 
         if self.correction:
             j = self.controller.jacobian_action_param(ctx)
@@ -270,7 +270,7 @@ class FoaActor(nn.Module):
         mean, log_std = self.mlp(e)
         param = self.parameter_transform(mean)
 
-        ctx, action_mpc = self.controller(obs, param, ctx=ctx)
+        ctx, action_mpc, _ = self.controller(obs, param, ctx=ctx)
         action_unbounded = self.action_transform.inverse(action_mpc)
         action_squashed, log_prob, gaussian_stats = self.squashed_gaussian(
             action_unbounded, log_std, deterministic=deterministic
