@@ -251,8 +251,8 @@ def export_parametric_ocp(
     )
 
     qh = ca.SX.sym("qh")  # Heat input to radiator
-    dqh = ca.SX.sym("dqh")  # Increment Heat input to radiator
-    ddqh = ca.SX.sym("ddqh")  # Increment Heat input to radiator
+    dqh = ca.SX.sym("dqh")  # Velocity of heat input to radiator
+    ddqh = ca.SX.sym("ddqh")  # Acceleration of heat input to radiator
 
     Ad, Bd, Ed = transcribe_discrete_state_space(
         Ad=np.zeros((3, 3)),
@@ -323,7 +323,7 @@ def export_parametric_ocp(
     ocp.cost.zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
     ocp.cost.Zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
 
-    ocp.constraints.lbx = np.array([-5000.0])
+    ocp.constraints.lbx = np.array([0.0])  # Can only consume power
     ocp.constraints.ubx = np.array([5000.0])  # Watt
     ocp.constraints.idxbx = np.array([3])  # qh
 
