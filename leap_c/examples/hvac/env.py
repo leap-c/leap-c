@@ -617,8 +617,22 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         ax = self.axes[0]
         (self.trajectory_plots["Ti"],) = ax.step([], [], where="post", label="Ti")
-        (self.trajectory_plots["Ti_lb"],) = ax.step([], [], where="post", label="Ti_lb")
-        (self.trajectory_plots["Ti_ub"],) = ax.step([], [], where="post", label="Ti_ub")
+        (self.trajectory_plots["Ti_lb"],) = ax.step(
+            [],
+            [],
+            where="post",
+            label="Ti_lb",
+            linestyle="--",
+            color="black",
+        )
+        (self.trajectory_plots["Ti_ub"],) = ax.step(
+            [],
+            [],
+            where="post",
+            label="Ti_ub",
+            linestyle="--",
+            color="black",
+        )
         ax.set_ylim(0, 30)
         ax.set_ylabel("Ti [°C]")
         ax.grid(visible=True, alpha=0.3)
