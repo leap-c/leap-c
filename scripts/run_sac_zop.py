@@ -83,7 +83,8 @@ def run_sac_zop(
     device: str = "cuda",
     reuse_code_dir: Path | None = None,
 ) -> float:
-    """
+    """Run the SAC-ZOP trainer.
+
     Args:
         cfg: The configuration for running the controller.
         output_path: The path to save outputs to.
@@ -101,7 +102,6 @@ def run_sac_zop(
         extractor_cls=cfg.extractor,
     )
     init_run(trainer, cfg, output_path)
-
     return trainer.run()
 
 
