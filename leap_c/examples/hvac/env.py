@@ -570,7 +570,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             while not date_valid and counter < n_max:
                 idx = self.np_random.integers(low=min_start_idx, high=max_start_idx + 1)
                 date = self.data.index[idx]
-                if date.month in [1, 2, 3, 10, 11, 12]:
+                if date.month in [1, 2, 3, 4, 9, 10, 11, 12]:
                     date_valid = True
                     self.idx = idx
 
