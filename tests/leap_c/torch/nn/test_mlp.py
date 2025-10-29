@@ -5,9 +5,39 @@ import torch
 from leap_c.torch.nn.mlp import Mlp, MlpConfig
 
 
+@pytest.mark.parametrize("arg_type", (tuple, list, int, np.int16, np.int32, np.int64))
+@pytest.mark.parametrize("hidden_type", ("empty", "nonempty", "none"))
+def test_nn_mlp__init__with_different_args_combination(arg_type: type, hidden_type: str):
+    rng = np.random.default_rng()
+
+    if arg_type in {tuple, list}:
+        in_dim, out_dim = rng.integers(1, 10, size=2)
+        input_sizes = arg_type(rng.integers(1, 10, size=in_dim))
+        output_sizes = arg_type(rng.integers(1, 10, size=out_dim))
+    else:
+        input_sizes = arg_type(rng.integers(1, 10).item())
+        output_sizes = arg_type(rng.integers(1, 10).item())
+
+    match hidden_type:
+        case "nonempty":
+            ndim = rng.integers(1, 10).item()
+            hidden_dims = rng.integers(1, 10, size=ndim)
+        case "empty":
+            hidden_dims = []
+        case _:  # "none"
+            hidden_dims = None
+
+    cfg = MlpConfig(hidden_dims=hidden_dims)
+    mlp = Mlp(input_sizes, output_sizes, cfg)
+
+    assert (hidden_type == "nonempty" and mlp.mlp is not None and mlp.param is None) or (
+        mlp.mlp is None and mlp.param is not None
+    )
+
+
 @pytest.mark.parametrize("single_output_dim", (True, False))
 @pytest.mark.parametrize("as_tuple", (True, False))
-def test_nn_mlp(single_output_dim: bool, as_tuple: bool):
+def test_nn_mlp__forward__handles_shapes_as_expected(single_output_dim: bool, as_tuple: bool):
     rng = np.random.default_rng()
     in_dim, out_dim, hidden_dims, batch = rng.integers(2, 10, size=4)
     if single_output_dim:
@@ -18,9 +48,6 @@ def test_nn_mlp(single_output_dim: bool, as_tuple: bool):
 
     cfg = MlpConfig(hidden_dims=hidden_dims)
     mlp = Mlp(input_sizes, output_sizes, cfg)
-
-    assert mlp.mlp is not None
-    assert mlp.param is None
 
     x = [torch.randn(batch, sz) for sz in input_sizes]
     if as_tuple:

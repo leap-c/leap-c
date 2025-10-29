@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
 from numbers import Integral
-from typing import Callable, Iterable, Literal
+from typing import Callable, Iterable, Literal, get_args
 
 import torch
 import torch.nn as nn
@@ -38,7 +38,10 @@ def string_to_activation(activation: Activation) -> nn.Module:
         return nn.Sigmoid()
     elif activation == "leaky_relu":
         return nn.LeakyReLU()
-    raise ValueError(f"Activation function {activation} not recognized.")
+    raise ValueError(
+        f"Activation function `{activation}` not recognized; available options are: "
+        f"{', '.join(get_args(Activation))}."
+    )
 
 
 def orthogonal_init(module: nn.Module) -> None:
@@ -68,7 +71,10 @@ def string_to_weight_init(weight_init: WeightInit) -> Callable[[nn.Module], None
     """
     if weight_init == "orthogonal":
         return orthogonal_init
-    raise ValueError(f"Weight initialization {weight_init} not recognized.")
+    raise ValueError(
+        f"Weight initialization `{weight_init}` not recognized; available options are: "
+        f"{', '.join(get_args(WeightInit))}."
+    )
 
 
 @dataclass(kw_only=True)
