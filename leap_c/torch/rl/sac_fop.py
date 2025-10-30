@@ -116,8 +116,8 @@ class FopActor(nn.Module):
         mlp_cfg: MlpConfig,
         controller: ParameterizedController,
         distribution_name: BoundedDistributionName,
-        correction: bool = True,
-        init_param_with_default: bool = True,
+        correction: bool,
+        init_param_with_default: bool,
     ) -> None:
         """Initializes the FOP actor.
 
@@ -374,8 +374,9 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 extractor_cls(observation_space),  # type: ignore
                 cfg.actor_mlp,
                 controller,
-                distribution_name=cfg.distribution_name,
-                correction=cfg.entropy_correction,
+                cfg.distribution_name,
+                cfg.entropy_correction,
+                cfg.init_param_with_default,
             )
         elif cfg.noise == "action":
             if cfg.distribution_name != "squashed_gaussian":
@@ -387,6 +388,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 extractor_cls(observation_space),  # type: ignore
                 cfg.actor_mlp,
                 controller,
+                cfg.init_param_with_default,
             )
         else:
             raise ValueError(f"Unknown noise type: {cfg.noise}")
