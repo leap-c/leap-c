@@ -561,7 +561,26 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         else:
             min_start_idx = 0
             max_start_idx = len(self.data) - self.N_forecast - self.max_steps + 1
-            self.idx = self.np_random.integers(low=min_start_idx, high=max_start_idx + 1)
+
+            self.idx = min_start_idx
+
+            n_max = 1000
+            counter = 0
+            date_valid = False
+            while not date_valid and counter < n_max:
+                idx = self.np_random.integers(low=min_start_idx, high=max_start_idx + 1)
+                date = self.data.index[idx]
+                if date.month in [1, 2, 3, 4, 9, 10, 11, 12]:
+                    date_valid = True
+                    self.idx = idx
+
+                counter += 1
+
+            if not date_valid:
+                raise RuntimeError(
+                    f"Could not find a valid start date in {n_max} attempts. "
+                    "Please check the data and configuration."
+                )
 
         self.step_cnter = 0
 
@@ -617,8 +636,22 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         ax = self.axes[0]
         (self.trajectory_plots["Ti"],) = ax.step([], [], where="post", label="Ti")
-        (self.trajectory_plots["Ti_lb"],) = ax.step([], [], where="post", label="Ti_lb")
-        (self.trajectory_plots["Ti_ub"],) = ax.step([], [], where="post", label="Ti_ub")
+        (self.trajectory_plots["Ti_lb"],) = ax.step(
+            [],
+            [],
+            where="post",
+            label="Ti_lb",
+            linestyle="--",
+            color="black",
+        )
+        (self.trajectory_plots["Ti_ub"],) = ax.step(
+            [],
+            [],
+            where="post",
+            label="Ti_ub",
+            linestyle="--",
+            color="black",
+        )
         ax.set_ylim(0, 30)
         ax.set_ylabel("Ti [°C]")
         ax.grid(visible=True, alpha=0.3)
