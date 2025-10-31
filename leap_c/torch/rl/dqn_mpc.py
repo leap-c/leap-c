@@ -255,25 +255,22 @@ class DqnMpcTrainer(Trainer[DqnMpcTrainerConfig]):
             A tuple containing the action to be taken, the context returned by the controller, and
             a dict of statistics.
         """
-        if not deterministic and self.rng.uniform() < (
-            epsilon := _linear_schedule(
-                self.cfg.start_exploration,
-                self.cfg.end_exploration,
-                self.cfg.exploration_fraction * self.cfg.train_steps,
-                self.state.step,
-            )
+        with torch.inference_mode():
+            output: DqnMpcCriticOutput = self.q(self.buffer.collate((obs,)), None, state)
+        action = output.action.squeeze(0).numpy(force=True).astype(obs.dtype, copy=False)
+        ctx = output.ctx
+        stats = output.stats
+
+        if not deterministic and (epsilon := self.rng.uniform()) < _linear_schedule(
+            self.cfg.start_exploration,
+            self.cfg.end_exploration,
+            self.cfg.exploration_fraction * self.cfg.train_steps,
+            self.state.step,
         ):
             space = self.action_space
-            action = self.rng.uniform(space.low, space.high, size=space.shape)
-            ctx = state  # pass through previous context
-            stats = {"epsilon": epsilon}
-
-        else:
-            with torch.inference_mode():
-                output: DqnMpcCriticOutput = self.q(self.buffer.collate((obs,)), None, state)
-            action = output.action.squeeze(0).numpy(force=True).astype(obs.dtype, copy=False)
-            ctx = output.ctx
-            stats = output.stats
+            action_noisy = self.rng.uniform(space.low, space.high, size=space.shape)
+            action += (action_noisy - action) * epsilon
+            stats["epsilon"] = epsilon
 
         return action, ctx, stats
 
@@ -289,10 +286,8 @@ class DqnMpcTrainer(Trainer[DqnMpcTrainerConfig]):
         terminated = truncated = False
 
         while True:
-            # compute an (possibly random) action for the current observation (HACK: we force the
-            # very first MPC of each episode to be solved so that `ctx` is not `None`; otherwise,
-            # the buffer collate function would fail when trying to collate `None` contexts)
-            action, ctx, stats = self.act(obs, ctx is None, ctx)
+            # compute an (possibly random) action for the current observation
+            action, ctx, stats = self.act(obs, False, ctx)
             self.report_stats("train_trajectory", {"action": action}, True)
             self.report_stats("train_policy_rollout", stats, True)
 
