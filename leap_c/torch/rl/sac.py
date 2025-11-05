@@ -44,7 +44,6 @@ class SacTrainerConfig(TrainerConfig):
             If `None`, it is set automatically depending on dimensions of the action space.
         entropy_reward_bonus: Whether to add an entropy bonus to the reward.
         num_critics: The number of critic networks.
-        report_loss_freq: The frequency of reporting the loss (in steps).
         update_freq: The frequency of updating the networks (in steps).
         distribution_name: The type of bounded distribution to use
             for sampling inside the policy.
@@ -64,7 +63,6 @@ class SacTrainerConfig(TrainerConfig):
     target_entropy: float | None = None
     entropy_reward_bonus: bool = True
     num_critics: int = 2
-    report_loss_freq: int = 100
     update_freq: int = 4
     distribution_name: BoundedDistributionName = "squashed_gaussian"
 
