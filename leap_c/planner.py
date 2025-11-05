@@ -53,9 +53,9 @@ class ParameterizedPlanner(nn.Module):
             u0: The computed initial control action (torch.Tensor). Is `None` if
                 the action is already provided.
             x: The computed sequence of states (torch.Tensor).
-                Expected shape (T+1, *state_dims).
+                Expected shape (N+1, *state_dims).
             u: The computed sequence of controls (torch.Tensor).
-                Expected shape (T, *control_dims).
+                Expected shape (N, *control_dims).
             value: The cost value of the computed trajectory (torch.Tensor).
         """
         ...
