@@ -57,6 +57,10 @@ class AcadosPlanner(ParameterizedPlanner):
             return self.diff_mpc.sensitivity(ctx, "dvalue_dp_global")
         elif name == "dvalue_daction":
             return self.diff_mpc.sensitivity(ctx, "dvalue_du0")
+        elif name == "du0_dx0":
+            return self.diff_mpc.sensitivity(ctx, "du0_dx0")
+        elif name == "dvalue_dx0":
+            return self.diff_mpc.sensitivity(ctx, "dvalue_dx0")
         raise ValueError(f"Unknown sensitivity option: {name}")
 
     @property

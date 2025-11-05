@@ -16,6 +16,8 @@ SensitivityOptions = Literal[
     "du_dp",
     "dvalue_dp",
     "dvalue_daction",
+    "du0_dx0",
+    "dvalue_dx0",
 ]
 
 
