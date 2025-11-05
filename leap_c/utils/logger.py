@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pandas as pd
 
 
 @dataclass(kw_only=True)
@@ -124,17 +123,18 @@ class Logger:
     Attributes:
         cfg: The configuration for the logger.
         output_path: The path to save the logs.
-        state: The state of the logger.
-        writer: The TensorBoard writer.
+        group_trackers: A dictionary of group trackers for smoothing statistics.
     """
 
     cfg: LoggerConfig
     output_path: Path
     group_trackers: dict[str, GroupWindowTracker]
-    writer: Any  # TensorBoard SummaryWriter
 
     def __init__(self, cfg: LoggerConfig, output_path: str | Path) -> None:
-        """Initialize the logger.
+        """Initialize the logger, but does not start it.
+
+        Before using the logger, call `__enter__`, e.g., via a `with` statement. This will ensure
+        that the logger is properly started and stopped.
 
         Args:
             cfg: The configuration for the logger.
@@ -142,24 +142,58 @@ class Logger:
         """
         self.cfg = cfg
         self.output_path = Path(output_path)
-
+        self.output_path.mkdir(parents=True, exist_ok=True)
         self.group_trackers = defaultdict(lambda: GroupWindowTracker(cfg.interval, cfg.window))
 
-        # init wandb
+    def __enter__(self) -> "Logger":
+        """Starts the logger.
+
+        This will initialize the TensorBoard writer, Weights & Biases run, and CSV file.
+
+        Returns:
+            Logger: A reference to the logger itself.
+        """
+        cfg = self.cfg
+
         if cfg.wandb_logger:
             import wandb
 
             if not cfg.wandb_init_kwargs.get("dir", False):  # type:ignore
                 cfg.wandb_init_kwargs["dir"] = str(self.output_path)
             wandb.init(**cfg.wandb_init_kwargs)
+            self._wandb_defined_metrics: dict[str, bool] = {}
 
-        self._wandb_defined_metrics = {}
-
-        # tensorboard
         if cfg.tensorboard_logger:
             from torch.utils.tensorboard import SummaryWriter
 
-            self.writer = SummaryWriter(self.output_path)
+            self._tensorboard_writer = SummaryWriter(self.output_path)
+
+        if cfg.csv_logger:
+            from csv import DictWriter
+            from typing import TextIO
+
+            self._csv_files_and_writers: dict[str, tuple[TextIO, DictWriter]] = {}
+        return self
+
+    def __exit__(self, *_, **__) -> None:
+        """Closes the logger.
+
+        This closes the TensorBoard writer and CSV file, and finishes the Weights & Biases run.
+        """
+        cfg = self.cfg
+
+        if cfg.tensorboard_logger:
+            self._tensorboard_writer.close()
+
+        if cfg.wandb_logger:
+            import wandb
+
+            wandb.finish()
+
+        if cfg.csv_logger:
+            for csv_file, _ in self._csv_files_and_writers.values():
+                if csv_file:
+                    csv_file.close()
 
     def __call__(
         self,
@@ -183,10 +217,21 @@ class Logger:
             with_smoothing: If `True`, the statistics are smoothed with a moving window.
                 This also results in the statistics being only reported at specific intervals.
         """
-        if verbose and not self.cfg.verbose:
+        cfg = self.cfg
+        if (
+            (cfg.tensorboard_logger and not hasattr(self, "_tensorboard_writer"))
+            or (cfg.wandb_logger and not hasattr(self, "_wandb_defined_metrics"))
+            or (cfg.csv_logger and not hasattr(self, "_csv_files_and_writers"))
+        ):
+            raise RuntimeError(
+                "Logger waws not started before calling it. Must be initialized with `__enter__`, "
+                "e.g., via `with Logger(...) as logger:`."
+            )
+
+        if verbose and not cfg.verbose:
             return
 
-        if self.cfg.wandb_logger and not self._wandb_defined_metrics.get(group, False):
+        if cfg.wandb_logger and not self._wandb_defined_metrics.get(group, False):
             import wandb
 
             wandb.define_metric(f"{group}/*", f"{group}/step")
@@ -217,7 +262,7 @@ class Logger:
             report_loop = [(timestamp, stats)]
 
         for report_timestamp, report_stats in report_loop:
-            if self.cfg.wandb_logger:
+            if cfg.wandb_logger:
                 import wandb
 
                 wandb.log(
@@ -227,30 +272,24 @@ class Logger:
                     }
                 )
 
-            if self.cfg.tensorboard_logger:
+            if cfg.tensorboard_logger:
                 for key, value in report_stats.items():
-                    self.writer.add_scalar(f"{group}/{key}", value, report_timestamp)
+                    self._tensorboard_writer.add_scalar(f"{group}/{key}", value, report_timestamp)
 
-            if self.cfg.csv_logger:
+            if cfg.csv_logger:
                 csv_path = self.output_path / f"{group}_log.csv"
 
-                if csv_path.exists():
-                    kw = {"mode": "a", "header": False}
+                if group in self._csv_files_and_writers:
+                    csv_file, csv_writer = self._csv_files_and_writers[group]
                 else:
-                    kw = {"mode": "w", "header": True}
+                    from csv import DictWriter
 
-                df = pd.DataFrame(report_stats, index=[report_timestamp])  # type: ignore
-                df.to_csv(csv_path, **kw)
+                    csv_file = open(csv_path, mode="a", newline="", buffering=1)
+                    csv_writer = DictWriter(csv_file, fieldnames=["timestamp"] + list(report_stats))
+                    if csv_file.tell() == 0:
+                        csv_writer.writeheader()
+                    self._csv_files_and_writers[group] = (csv_file, csv_writer)
 
-    def close(self) -> None:
-        """Close the logger.
-
-        This will close the TensorBoard writer and finish the Weights & Biases run.
-        """
-        if self.cfg.tensorboard_logger:
-            self.writer.close()
-
-        if self.cfg.wandb_logger:
-            import wandb
-
-            wandb.finish()
+                csv_writer.writerow({"timestamp": report_timestamp, **report_stats})
+                csv_writer.writer
+                csv_file.flush()
