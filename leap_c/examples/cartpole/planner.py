@@ -7,14 +7,14 @@ from leap_c.examples.cartpole.acados_ocp import (
     create_cartpole_params,
     export_parametric_ocp,
 )
-from leap_c.ocp.acados.controller import AcadosController
+from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
 @dataclass(kw_only=True)
-class CartPoleControllerConfig:
-    """Configuration for the CartPole controller.
+class CartPolePlannerConfig:
+    """Configuration for the CartPole planner.
 
     Attributes:
         N_horizon: The number of steps in the MPC horizon.
@@ -27,7 +27,7 @@ class CartPoleControllerConfig:
         x_threshold: Bounds of the box constraints of the maximum absolute position
             of the cart [m] (soft/slacked constraint)
         cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
-        param_interface: Determines the exposed parameter interface of the controller.
+        param_interface: Determines the exposed parameter interface of the planner.
     """
 
     N_horizon: int = 5
@@ -39,8 +39,9 @@ class CartPoleControllerConfig:
     param_interface: CartPoleAcadosParamInterface = "global"
 
 
-class CartPoleController(AcadosController):
-    """Acados-based controller for CartPole, aka inverted pendulum.
+class CartPolePlanner(AcadosPlanner):
+    """Acados-based planner for CartPole, aka inverted pendulum.
+
     The state and action correspond to the observation and action of the CartPole environment.
     The cost function takes the form of a weighted least-squares cost on the full state and action,
     and the dynamics correspond to the simulated ODE of the standard CartPole environment
@@ -52,11 +53,11 @@ class CartPoleController(AcadosController):
             such as horizon length.
     """
 
-    cfg: CartPoleControllerConfig
+    cfg: CartPolePlannerConfig
 
     def __init__(
         self,
-        cfg: CartPoleControllerConfig | None = None,
+        cfg: CartPolePlannerConfig | None = None,
         params: list[AcadosParameter] | None = None,
         export_directory: Path | None = None,
     ):
@@ -72,7 +73,7 @@ class CartPoleController(AcadosController):
             export_directory: An optional directory path where the generated
                 `acados` solver code will be exported.
         """
-        self.cfg = CartPoleControllerConfig() if cfg is None else cfg
+        self.cfg = CartPolePlannerConfig() if cfg is None else cfg
         params = (
             create_cartpole_params(
                 param_interface=self.cfg.param_interface,
