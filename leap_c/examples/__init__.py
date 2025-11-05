@@ -6,16 +6,15 @@ from typing import Any, Literal
 from gymnasium import Env
 
 from leap_c.controller import ParameterizedController
-from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
 from leap_c.examples.cartpole.env import CartPoleEnv
-from leap_c.examples.chain.planner import ChainPlanner, ChainControllerConfig
+from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
 from leap_c.examples.chain.env import ChainEnv
+from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
 from leap_c.examples.hvac.controller import HvacController
 from leap_c.examples.hvac.env import StochasticThreeStateRcEnv
-from leap_c.examples.pointmass.planner import PointMassPlanner, PointMassControllerConfig
 from leap_c.examples.pointmass.env import PointMassEnv
+from leap_c.examples.pointmass.planner import PointMassControllerConfig, PointMassPlanner
 from leap_c.planner import ControllerFromPlanner, ParameterizedPlanner
-from leap_c.run import default_controller_code_path
 
 ExampleEnvName = Literal["cartpole", "chain", "pointmass", "hvac"]
 ENV_REGISTRY = {

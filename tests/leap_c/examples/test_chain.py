@@ -2,8 +2,8 @@ import numpy as np
 import pytest
 import torch
 
-from leap_c.examples.chain.planner import ChainPlanner, ChainControllerConfig
 from leap_c.examples.chain.env import ChainEnv, ChainEnvConfig
+from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
 from leap_c.planner import ControllerFromPlanner
 
 

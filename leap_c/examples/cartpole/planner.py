@@ -7,8 +7,8 @@ from leap_c.examples.cartpole.acados_ocp import (
     create_cartpole_params,
     export_parametric_ocp,
 )
-from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
+from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 

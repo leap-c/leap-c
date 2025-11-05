@@ -2,10 +2,10 @@ import gymnasium as gym
 import numpy as np
 import torch
 
-from leap_c.planner import ParameterizedPlanner, SensitivityOptions
 from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx, collate_acados_diff_mpc_ctx
 from leap_c.ocp.acados.parameters import AcadosParameterManager
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+from leap_c.planner import ParameterizedPlanner, SensitivityOptions
 
 
 class AcadosPlanner(ParameterizedPlanner):

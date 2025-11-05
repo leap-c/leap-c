@@ -9,11 +9,11 @@ import torch
 from acados_template import AcadosOcpSolver
 from gymnasium.utils.save_video import save_video
 
+from leap_c.examples.cartpole.env import CartPoleEnv
 from leap_c.examples.cartpole.planner import (
     CartPolePlanner,
     CartPolePlannerConfig,
 )
-from leap_c.examples.cartpole.env import CartPoleEnv
 from leap_c.planner import ControllerFromPlanner
 
 

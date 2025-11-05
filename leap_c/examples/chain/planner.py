@@ -11,8 +11,8 @@ from leap_c.examples.chain.acados_ocp import (
 )
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
-from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
+from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
