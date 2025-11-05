@@ -2,18 +2,20 @@ import numpy as np
 import pytest
 import torch
 
-from leap_c.examples.chain.controller import ChainController, ChainControllerConfig
 from leap_c.examples.chain.env import ChainEnv, ChainEnvConfig
+from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
+from leap_c.planner import ControllerFromPlanner
 
 
 @pytest.fixture(scope="module")
 def chain_controller():
     cfg = ChainControllerConfig(n_mass=3)
-    return ChainController(cfg)
+    planner = ChainPlanner(cfg)
+    return ControllerFromPlanner(planner)
 
 
-def test_chain_policy_evaluation_works(chain_controller: ChainController):
-    x0 = chain_controller.diff_mpc.diff_mpc_fun.ocp.constraints.x0
+def test_chain_policy_evaluation_works(chain_controller):
+    x0 = chain_controller.planner.diff_mpc.diff_mpc_fun.ocp.constraints.x0
 
     # Move the second mass a bit in x direction
     x0[3] += 0.1
@@ -27,7 +29,7 @@ def test_chain_policy_evaluation_works(chain_controller: ChainController):
     assert ctx.status[0] == 0, "Policy evaluation failed"
 
 
-def test_chain_env_mpc_closed_loop(chain_controller: ChainController):
+def test_chain_env_mpc_closed_loop(chain_controller):
     cfg = ChainEnvConfig(n_mass=3)
     env = ChainEnv(cfg=cfg)
 

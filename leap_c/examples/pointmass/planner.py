@@ -9,8 +9,8 @@ from leap_c.examples.pointmass.acados_ocp import (
     create_pointmass_params,
     export_parametric_ocp,
 )
-from leap_c.ocp.acados.controller import AcadosController
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
+from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
@@ -31,7 +31,7 @@ class PointMassControllerConfig:
     param_interface: PointMassAcadosParamInterface = "global"
 
 
-class PointMassController(AcadosController):
+class PointMassPlanner(AcadosPlanner):
     """Acados-based controller for the PointMass system.
     The state corresponds to the observation of the PointMass environment, without the wind force.
     The cost function takes a weighted least-squares form,

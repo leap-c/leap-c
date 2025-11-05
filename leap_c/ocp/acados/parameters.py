@@ -8,8 +8,6 @@ import numpy as np
 from acados_template import AcadosOcp
 from casadi.tools import entry, struct, struct_symMX, struct_symSX
 
-from leap_c.parameters import Parameter as BaseParameter
-
 
 @dataclass
 class AcadosParameter:
@@ -43,28 +41,6 @@ class AcadosParameter:
     interface: Literal["fix", "learnable", "non-learnable"] = "fix"
     # Additional acados-specific field
     end_stages: list[int] = field(default_factory=list)
-
-    @classmethod
-    def from_base_parameter(
-        cls, base_param: BaseParameter, end_stages: list[int] | None = None
-    ) -> "AcadosParameter":
-        """Create an acados Parameter from a base Parameter."""
-        return cls(
-            name=base_param.name,
-            default=base_param.default,
-            space=base_param.space,
-            interface=base_param.interface,
-            end_stages=end_stages or [],
-        )
-
-    def to_base_parameter(self) -> BaseParameter:
-        """Convert to base Parameter (loses `end_stages` information)."""
-        return BaseParameter(
-            name=self.name,
-            default=self.default,
-            space=self.space,
-            interface=self.interface,
-        )
 
 
 class AcadosParameterManager:

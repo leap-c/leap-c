@@ -11,8 +11,8 @@ from leap_c.examples.chain.acados_ocp import (
 )
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
-from leap_c.ocp.acados.controller import AcadosController
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
+from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
@@ -37,7 +37,7 @@ class ChainControllerConfig:
     param_interface: ChainAcadosParamInterface = "global"
 
 
-class ChainController(AcadosController):
+class ChainPlanner(AcadosPlanner):
     """Acados-based controller for the hanging chain system.
     The state and action correspond to the observation and action of the Chain environment.
     The cost function takes the form of a weighted least-squares cost on the full state and action

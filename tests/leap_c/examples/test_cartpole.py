@@ -9,17 +9,19 @@ import torch
 from acados_template import AcadosOcpSolver
 from gymnasium.utils.save_video import save_video
 
-from leap_c.examples.cartpole.controller import (
-    CartPoleController,
-    CartPoleControllerConfig,
-)
 from leap_c.examples.cartpole.env import CartPoleEnv
+from leap_c.examples.cartpole.planner import (
+    CartPolePlanner,
+    CartPolePlannerConfig,
+)
+from leap_c.planner import ControllerFromPlanner
 
 
 @pytest.fixture(scope="module", params=["EXTERNAL", "NONLINEAR_LS"])
 def cartpole_controller(request):
-    cfg = CartPoleControllerConfig(cost_type=request.param)
-    return CartPoleController(cfg)
+    cfg = CartPolePlannerConfig(cost_type=request.param)
+    planner = CartPolePlanner(cfg)
+    return ControllerFromPlanner(planner)
 
 
 def plot_cart_pole_solution(
@@ -45,8 +47,10 @@ def plot_cart_pole_solution(
     return fig, axs
 
 
-def test_solution(cartpole_controller: CartPoleController):
-    ocp_solver = cartpole_controller.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
+def test_solution(cartpole_controller):
+    ocp_solver = cartpole_controller.planner.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[
+        0
+    ]
     ocp_solver.solve_for_x0(np.array([0.0, np.pi, 0.0, 0.0]))
 
     if ocp_solver.status != 0:
@@ -114,9 +118,7 @@ def test_env_types():
     assert x.dtype == np.float32
 
 
-def test_closed_loop_rendering(
-    cartpole_controller: CartPoleController,
-):
+def test_closed_loop_rendering(cartpole_controller):
     env = CartPoleEnv()
 
     obs, _ = env.reset(seed=1337)
