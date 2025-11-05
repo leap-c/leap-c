@@ -1,4 +1,5 @@
 """In this module, we manage all the example environments, controllers and planners."""
+
 from functools import partial
 from pathlib import Path
 from typing import Any, Literal
@@ -23,6 +24,7 @@ ENV_REGISTRY = {
     "pointmass": PointMassEnv,
     "hvac": StochasticThreeStateRcEnv,
 }
+
 
 def create_env(env_name: ExampleEnvName, **kw: Any) -> Env:
     """Create an environment based on the given name.
