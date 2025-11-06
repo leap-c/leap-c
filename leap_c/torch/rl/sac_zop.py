@@ -56,11 +56,12 @@ class SacZopTrainerConfig(SacTrainerConfig):
         init_param_with_default: Whether to initialize the parameters of the controller such that
             the mean of the gaussian transformed by the squashing of the SquashedGaussian
             corresponds to the Parameter default values. Only works if
-            1. the parameters are fixed nn.Parameters, and not predicted by a network
+             1. the parameters are fixed nn.Parameters, and not predicted by a network
             (see MlpConfig hidden_dims).
-            2. a SquashedGaussian distribution is used.
-            If true, the default parameters according to controller.default_param(None)
-            will be used, else the parameters will be initialized to the middle
+             2. a SquashedGaussian distribution is used.
+
+            If `True`, the default parameters according to `controller.default_param(None)` will be
+            used, else the parameters will be initialized to the middle
             of the parameter bounds.
     """
 
@@ -92,21 +93,21 @@ class MpcSacActor(nn.Module):
         mlp_cfg: MlpConfig,
         init_param_with_default: bool,
     ) -> None:
-        """
+        """Instantiates the SAC-ZOP actor.
+
         Args:
             extractor_cls: The class used for extracting features from observations.
             observation_space: The observation space used to configure the extractor.
             controller: The differentiable parameterized controller used to compute actions from
                 parameters.
-            distribution_name: The name of the bounded distribution
-                used to sample parameters.
+            distribution_name: The name of the bounded distribution used to sample parameters.
             mlp_cfg: The configuration for the MLP used to predict parameters.
             init_param_with_default: Whether to initialize the parameters of the mlp such that the
                 parameters transformed by the distribution correspond to the default parameters.
         """
         super().__init__()
 
-        param_space: spaces.Box = controller.param_space  # type:ignore
+        param_space: spaces.Box = controller.param_space
         param_dim = param_space.shape[0]
 
         self.extractor = extractor_cls(observation_space)
@@ -124,8 +125,8 @@ class MpcSacActor(nn.Module):
 
     def forward(
         self,
-        obs,
-        ctx=None,
+        obs: torch.Tensor,
+        ctx: Any = None,
         deterministic: bool = False,
         only_param: bool = False,
     ) -> SacZopActorOutput:
@@ -156,13 +157,10 @@ class MpcSacActor(nn.Module):
         with torch.no_grad():
             ctx, action = self.controller(obs, param, ctx=ctx)
 
-        return SacZopActorOutput(
-            param,
-            log_prob,
-            {**dist_stats, **ctx.log},
-            action,
-            ctx,
-        )
+        stats = dist_stats
+        if ctx.log is not None:
+            stats |= ctx.log
+        return SacZopActorOutput(param, log_prob, stats, action, ctx)
 
 
 class SacZopTrainer(Trainer[SacZopTrainerConfig]):
@@ -221,9 +219,9 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig]):
         """
         super().__init__(cfg, val_env, output_path, device)
 
-        param_space: spaces.Box = controller.param_space  # type: ignore
+        param_space: spaces.Box = controller.param_space
         observation_space = train_env.observation_space
-        action_dim = np.prod(train_env.action_space.shape)  # type: ignore
+        action_dim = np.prod(train_env.action_space.shape)
         param_dim = np.prod(param_space.shape)
 
         self.train_env = wrap_env(train_env)
@@ -232,24 +230,16 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig]):
             extractor_cls = get_extractor_cls(extractor_cls)
 
         self.q = SacCritic(
-            extractor_cls,  # type: ignore
-            param_space,
-            observation_space,
-            cfg.critic_mlp,
-            cfg.num_critics,
+            extractor_cls, param_space, observation_space, cfg.critic_mlp, cfg.num_critics
         )
         self.q_target = SacCritic(
-            extractor_cls,  # type: ignore
-            param_space,
-            observation_space,
-            cfg.critic_mlp,
-            cfg.num_critics,
+            extractor_cls, param_space, observation_space, cfg.critic_mlp, cfg.num_critics
         )
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.lr_q)
 
         self.pi = MpcSacActor(
-            extractor_cls,  # type: ignore
+            extractor_cls,
             observation_space,
             controller,
             cfg.distribution_name,
@@ -258,11 +248,11 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig]):
         )
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(cfg.init_alpha).log())  # type: ignore
+        self.log_alpha = nn.Parameter(torch.tensor(cfg.init_alpha).log())
 
         self.entropy_norm = param_dim / action_dim
         if cfg.lr_alpha is not None:
-            self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)  # type: ignore
+            self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)
             self.target_entropy = -action_dim if cfg.target_entropy is None else cfg.target_entropy
         else:
             self.alpha_optim = None
@@ -284,9 +274,10 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig]):
             obs_batched = self.buffer.collate([obs])
 
             with torch.no_grad():
-                pi_output = self.pi(obs_batched, policy_ctx, deterministic=False)
-                action = pi_output.action.cpu().numpy()[0]
-                param = pi_output.param.cpu().numpy()[0]
+                pi_output: SacZopActorOutput = self.pi(obs_batched, policy_ctx, deterministic=False)
+            assert pi_output.action is not None, "Expected action to be not `None`"
+            action = pi_output.action.cpu().numpy()[0]
+            param = pi_output.param.cpu().numpy()[0]
 
             self.report_stats("train_trajectory", {"action": action, "param": param}, verbose=True)
             self.report_stats("train_policy_rollout", pi_output.stats, verbose=True)
@@ -294,17 +285,9 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig]):
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
 
             if "episode" in info or "task" in info:
-                self.report_stats("train", {**info.get("episode", {}), **info.get("task", {})})
+                self.report_stats("train", info.get("episode", {}) | info.get("task", {}))
 
-            self.buffer.put(
-                (
-                    obs,
-                    param,
-                    reward,
-                    obs_prime,
-                    is_terminated,
-                )
-            )  # type: ignore
+            self.buffer.put((obs, param, reward, obs_prime, is_terminated))
 
             obs = obs_prime
             policy_ctx = pi_output.ctx
@@ -378,15 +361,13 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig]):
             yield 1
 
     def act(
-        self, obs, deterministic: bool = False, state=None
+        self, obs, deterministic: bool = False, state: Any = None
     ) -> tuple[np.ndarray, Any, dict[str, float]]:
         obs = self.buffer.collate([obs])
-
         with torch.no_grad():
-            pi_output = self.pi(obs, state, deterministic=deterministic)
-
+            pi_output: SacZopActorOutput = self.pi(obs, state, deterministic=deterministic)
+        assert pi_output.action is not None, "Expected action to be not `None`"
         action = pi_output.action.cpu().numpy()[0]
-
         return action, pi_output.ctx, pi_output.stats
 
     @property

@@ -38,12 +38,12 @@ class ChainControllerConfig:
 
 
 class ChainPlanner(AcadosPlanner):
-    """Acados-based controller for the hanging chain system.
-    The state and action correspond to the observation and action of the Chain environment.
-    The cost function takes the form of a weighted least-squares cost on the full state and action
-    and the dynamics correspond to the simulated ODE also found
-    in the Chain environment (using RK4). The inequality constraints
-    are box constraints on the action.
+    """Acados-based controller for the hanging `Chain` system.
+
+    The state and action correspond to the observation and action of the `Chain` environment. The
+    cost function takes the form of a weighted least-squares cost on the full state and action and
+    the dynamics correspond to the simulated ODE also found in the `Chain` environment (using RK4).
+    The inequality constraints are box constraints on the action.
 
     Attributes:
         cfg: A configuration object containing high-level settings for the MPC problem,

@@ -40,7 +40,7 @@ class CartPolePlannerConfig:
 
 
 class CartPolePlanner(AcadosPlanner):
-    """Acados-based planner for CartPole, aka inverted pendulum.
+    """Acados-based planner for `CartPole`, aka inverted pendulum.
 
     The state and action correspond to the observation and action of the CartPole environment.
     The cost function takes the form of a weighted least-squares cost on the full state and action,

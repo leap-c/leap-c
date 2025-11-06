@@ -3,7 +3,7 @@
 from collections import defaultdict
 from pathlib import Path
 from timeit import default_timer
-from typing import Callable, Generator
+from typing import Any, Callable, Generator
 
 import numpy as np
 import torch
@@ -17,7 +17,7 @@ from leap_c.utils.gym import seed_env
 
 
 def episode_rollout(
-    policy: Callable[[ndarray], tuple[ndarray, dict[str, float] | None]],
+    policy: Callable[[ndarray], tuple[ndarray, Any, dict[str, float] | None]],
     env: Env,
     episodes: int = 1,
     render_episodes: int = 0,

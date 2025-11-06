@@ -2,7 +2,7 @@
 
 from functools import partial
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 from gymnasium import Env
 
@@ -77,9 +77,7 @@ ExamplePlannerName = Literal[
 
 
 def create_planner(
-    planner_name: ExamplePlannerName,
-    reuse_code_base_dir: Path | None = None,
-    **kw: Any,
+    planner_name: ExamplePlannerName, reuse_code_base_dir: Path | None = None, **kw: Any
 ) -> ParameterizedPlanner:
     """Create a planner.
 
@@ -115,7 +113,7 @@ def create_planner(
 
 CONTROLLER_REGISTRY = {}
 # controllers are a superset of planners
-ExampleControllerName = Literal[*ExamplePlannerName.__args__]
+ExampleControllerName: TypeAlias = ExamplePlannerName
 
 
 def create_controller(

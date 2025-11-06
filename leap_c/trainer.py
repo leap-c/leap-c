@@ -13,7 +13,6 @@ from leap_c.utils.gym import WrapperType, wrap_env
 from leap_c.utils.logger import Logger, LoggerConfig
 from leap_c.utils.rollout import episode_rollout
 
-TrainerConfigType = TypeVar("TrainerConfigType", bound="TrainerConfig")
 ValReportScoreOptions = Literal["cum", "final", "best"]
 
 
@@ -61,6 +60,9 @@ class TrainerConfig:
 
     # logging configuration
     log: LoggerConfig = field(default_factory=LoggerConfig)
+
+
+TrainerConfigType = TypeVar("TrainerConfigType", bound=TrainerConfig)
 
 
 @dataclass(kw_only=True)

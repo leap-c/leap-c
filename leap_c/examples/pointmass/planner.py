@@ -32,12 +32,13 @@ class PointMassControllerConfig:
 
 
 class PointMassPlanner(AcadosPlanner):
-    """Acados-based controller for the PointMass system.
-    The state corresponds to the observation of the PointMass environment, without the wind force.
-    The cost function takes a weighted least-squares form,
-    and the dynamics correspond to the ones in the environment, but without the wind force.
-    The inequality constraints are box constraints on the action (hard)
-    and on the position of the ball, the latter representing the bounds of the world (soft/slacked).
+    """Acados-based controller for the `PointMass` system.
+
+    The state corresponds to the observation of the `PointMass` environment, without the wind force.
+    The cost function takes a weighted least-squares form, and the dynamics correspond to the ones
+    in the environment, but without the wind force. The inequality constraints are box constraints
+    on the action (hard) and on the position of the ball, the latter representing the bounds of the
+    world (soft/slacked).
 
     Attributes:
         cfg: A configuration object containing high-level settings for the MPC problem,
