@@ -113,6 +113,11 @@ class ControllerFromPlanner(ParameterizedController):
         super().__init__()
         self.planner = planner
 
+    @property
+    def collate_fn_map(self) -> dict[Union[type, tuple[type, ...]], Callable] | None:
+        """Fetches the collate function map from the underlying planner."""
+        return self.planner.collate_fn_map
+
     def forward(self, obs, param, ctx=None) -> tuple[Any, torch.Tensor]:
         """Computes the first action from the planner's trajectory.
 
