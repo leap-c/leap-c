@@ -34,9 +34,9 @@ class AcadosPlanner(ParameterizedPlanner):
     def forward(
         self, obs: torch.Tensor, action=None, param=None, ctx: AcadosDiffMpcCtx | None = None
     ) -> tuple[AcadosDiffMpcCtx, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        """Passes obs, param and ctx, as-is to the AcadosDiffMpcTorch object.
+        """Passes obs, action, param and ctx, as-is to the AcadosDiffMpcTorch object.
 
-        This can be subclassed if observations or parameters need to be passed differently.
+        This can be subclassed if observations, actions or parameters need to be passed differently.
 
         Note that param is assumed to be the learnable parameters only, while the
         non-learnable parameters are automatically obtained from the param_manager.
