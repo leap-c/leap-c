@@ -37,7 +37,7 @@ class HvacControllerCtx(NamedTuple):
         return self.diff_mpc_ctx.du0_dp_global
 
 
-class HvacController(ParameterizedController):
+class HvacController(ParameterizedController[HvacControllerCtx]):
     """acados-based controller for the HVAC system.
     The first part of the state corresponds to the first part of the observation of the
     StochasticThreeStateRcEnv environment, i.e., the indoor temperature Ti,

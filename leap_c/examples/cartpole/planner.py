@@ -9,7 +9,7 @@ from leap_c.examples.cartpole.acados_ocp import (
 )
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
-from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
 
 @dataclass(kw_only=True)
@@ -39,7 +39,7 @@ class CartPolePlannerConfig:
     param_interface: CartPoleAcadosParamInterface = "global"
 
 
-class CartPolePlanner(AcadosPlanner):
+class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     """Acados-based planner for `CartPole`, aka inverted pendulum.
 
     The state and action correspond to the observation and action of the CartPole environment.
