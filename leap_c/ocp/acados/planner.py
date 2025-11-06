@@ -1,4 +1,4 @@
-from typing import get_args
+from typing import Generic, TypeVar, get_args
 
 import gymnasium as gym
 import torch
@@ -19,8 +19,11 @@ TO_ACADOS_DIFFMPC_SENSOPTS: dict[SensitivityOptions, AcadosDiffMpcSensitivityOpt
     "dvalue_dx0": "dvalue_dx0",
 }
 
+AcadosCtxType = TypeVar("AcadosCtxType", bound=AcadosDiffMpcCtx)
+# NOTE: `AcadosDiffMpcCtx` satisfies `CtxInterface`, no need to explicitly declare it
 
-class AcadosPlanner(ParameterizedPlanner):
+
+class AcadosPlanner(ParameterizedPlanner[AcadosCtxType], Generic[AcadosCtxType]):
     """acados-based MPC planner.
 
     This class provides a simple standard implementation of the functionalities needed in the
@@ -60,7 +63,7 @@ class AcadosPlanner(ParameterizedPlanner):
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(obs.shape[0])
         return self.diff_mpc(obs, action, param, p_stagewise, ctx=ctx)
 
-    def sensitivity(self, ctx: AcadosDiffMpcCtx, name: SensitivityOptions) -> ndarray:
+    def sensitivity(self, ctx: AcadosCtxType, name: SensitivityOptions) -> ndarray:
         if name not in TO_ACADOS_DIFFMPC_SENSOPTS:
             raise ValueError(
                 f"Unknown sensitivity option `{name}`; available options: "

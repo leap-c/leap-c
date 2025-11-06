@@ -2,14 +2,35 @@
 PyTorch."""
 
 from abc import ABCMeta, abstractmethod
-from typing import Any, Callable, Union
+from typing import Callable, Generic, Protocol, TypeVar, Union
 
 import gymnasium as gym
 from numpy import ndarray
 from torch import Tensor, nn
 
 
-class ParameterizedController(nn.Module, metaclass=ABCMeta):
+class CtxInterface(Protocol):
+    """Minimal interface that context objects are expected to satisfy.
+
+    These objects are meant to allow for backward computations of gradients and to warm-start
+    successive forward computations. See `AcadosDiffMpcCtx` for an example of a concrete
+    implementation.
+
+    Attributes:
+        status (array of ints): The status of the solver after the forward pass. `0` indicates
+            success, non-zero values indicate various errors.
+        log (dict, optional): Statistics from the forward solve containing info like success rates
+            and timings, if any.
+    """
+
+    status: ndarray
+    log: dict[str, float] | None
+
+
+CtxType = TypeVar("CtxType", bound=CtxInterface)
+
+
+class ParameterizedController(nn.Module, Generic[CtxType], metaclass=ABCMeta):
     """Abstract base class for differentiable parameterized controllers.
 
     Attributes:
@@ -22,16 +43,18 @@ class ParameterizedController(nn.Module, metaclass=ABCMeta):
     collate_fn_map: dict[Union[type, tuple[type, ...]], Callable] | None = None
 
     @abstractmethod
-    def forward(self, obs: Tensor, param: Tensor, ctx: Any = None) -> tuple[Any, Tensor]:
+    def forward(
+        self, obs: Tensor, param: Tensor, ctx: CtxType | None = None
+    ) -> tuple[CtxType, Tensor]:
         """Computes action from observation, parameters and internal context.
 
         Args:
             obs (Tensor): Observation input to the controller (e.g., state vector).
             param (Tensor): Parameters that define the behavior of the controller.
-            ctx (Any, optional): Optional internal context passed between invocations.
+            ctx (CtxType, optional): Optional internal context passed between invocations.
 
         Returns:
-            ctx (Any, optional): A context object containing any intermediate values needed for
+            ctx (CtxType, optional): A context object containing any intermediate values needed for
                 backward computation and further invocations.
                 Stats to be logged are expected to be passed in the field `ctx.log`, which should be
                 a dictionary mapping string keys to float values.
@@ -39,13 +62,13 @@ class ParameterizedController(nn.Module, metaclass=ABCMeta):
         """
         ...
 
-    def jacobian_action_param(self, ctx: Any) -> ndarray:
+    def jacobian_action_param(self, ctx: CtxType) -> ndarray:
         """Computes `da/dp`, the Jacobian of the action with respect to the parameters.
 
         This can be used by methods for regularization.
 
         Args:
-            ctx (Any): The context object from the `forward` pass.
+            ctx (CtxType): The context object from the `forward` pass.
 
         Returns:
             array: The Jacobian of the initial action with respect to the parameters.
