@@ -8,6 +8,7 @@ import numpy as np
 import torch
 from yaml import safe_dump
 
+from leap_c.controller import CtxType
 from leap_c.torch.utils.seed import set_seed
 from leap_c.utils.gym import WrapperType, wrap_env
 from leap_c.utils.logger import Logger, LoggerConfig
@@ -80,7 +81,7 @@ class TrainerState:
     max_score: float = float("-inf")
 
 
-class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
+class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
     """A trainer provides the implementation of an algorithm.
 
     It is responsible for training the components of the algorithm and
@@ -158,8 +159,8 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
 
     @abstractmethod
     def act(
-        self, obs: np.ndarray, deterministic: bool = False, state: Any | None = None
-    ) -> tuple[np.ndarray, Any | None, dict[str, float] | None]:
+        self, obs: np.ndarray, deterministic: bool = False, state: CtxType | None = None
+    ) -> tuple[np.ndarray, CtxType | None, dict[str, float] | None]:
         """Act based on the observation.
 
         This is intended for rollouts (= interaction with the environment).
@@ -265,7 +266,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType]):
         """
 
         def create_policy_fn():
-            policy_state = None
+            policy_state: CtxType | None = None
 
             def policy_fn(obs):
                 nonlocal policy_state

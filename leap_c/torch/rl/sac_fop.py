@@ -3,7 +3,7 @@ layer in the policy network."""
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Generator, Literal, NamedTuple, Self, Type
+from typing import Generator, Generic, Literal, NamedTuple, Self, Type
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.controller import ParameterizedController
+from leap_c.controller import CtxType, ParameterizedController
 from leap_c.torch.nn.bounded_distributions import (
     BoundedDistribution,
     BoundedDistributionName,
@@ -76,7 +76,7 @@ class SacFopActorOutput(NamedTuple):
     stats: dict[str, float]
     action: torch.Tensor
     status: torch.Tensor
-    ctx: Any
+    ctx: CtxType
 
     def select(self, mask: torch.Tensor) -> Self:
         """Select a subset of the output based on the given mask. Discards stats and ctx."""
@@ -85,7 +85,7 @@ class SacFopActorOutput(NamedTuple):
         )
 
 
-class FopActor(nn.Module):
+class FopActor(nn.Module, Generic[CtxType]):
     """An actor module for SAC-FOP, containing a differentiable MPC layer and injecting noise in the
     parameter space.
 
@@ -99,7 +99,7 @@ class FopActor(nn.Module):
         bounded_distribution: The bounded distribution used to sample parameters.
     """
 
-    controller: ParameterizedController
+    controller: ParameterizedController[CtxType]
     extractor: Extractor
     mlp: Mlp
     correction: bool
@@ -109,7 +109,7 @@ class FopActor(nn.Module):
         self,
         extractor: Extractor,
         mlp_cfg: MlpConfig,
-        controller: ParameterizedController,
+        controller: ParameterizedController[CtxType],
         distribution_name: BoundedDistributionName,
         correction: bool,
         init_param_with_default: bool,
@@ -144,7 +144,7 @@ class FopActor(nn.Module):
             init_mlp_params_with_inverse_default(self.mlp, self.bounded_distribution, controller)
 
     def forward(
-        self, obs: np.ndarray, ctx: Any = None, deterministic: bool = False
+        self, obs: np.ndarray, ctx: CtxType | None = None, deterministic: bool = False
     ) -> SacFopActorOutput:
         """The given observations are passed to the extractor to obtain features.
         These are used to predict a bounded distribution in the (learnable) parameter space of the
@@ -181,7 +181,7 @@ class FopActor(nn.Module):
         return SacFopActorOutput(param, log_prob, stats, action, ctx.status, ctx)
 
 
-class FoaActor(nn.Module):
+class FoaActor(nn.Module, Generic[CtxType]):
     """An actor module for SAC-FOP, containing a differentiable MPC layer and injecting noise in the
     action space.
 
@@ -197,7 +197,7 @@ class FoaActor(nn.Module):
         squashed_gaussian: The squashed Gaussian distribution used to sample parameters.
     """
 
-    controller: ParameterizedController
+    controller: ParameterizedController[CtxType]
     extractor: Extractor
     mlp: Mlp
     parameter_transform: BoundedTransform
@@ -209,7 +209,7 @@ class FoaActor(nn.Module):
         action_space: gym.spaces.Box,
         extractor: Extractor,
         mlp_cfg: MlpConfig,
-        controller: ParameterizedController,
+        controller: ParameterizedController[CtxType],
         init_param_with_default: bool,
     ) -> None:
         """Instantiate the FOA actor.
@@ -241,7 +241,7 @@ class FoaActor(nn.Module):
             init_mlp_params_with_inverse_default(self.mlp, self.parameter_transform, controller)
 
     def forward(
-        self, obs: np.ndarray, ctx: Any = None, deterministic: bool = False
+        self, obs: np.ndarray, ctx: CtxType | None = None, deterministic: bool = False
     ) -> SacFopActorOutput:
         """The given observations are passed to the extractor to obtain features.
         These are used by the MLP to predict parameters, as well as a standard deviation.
@@ -271,7 +271,7 @@ class FoaActor(nn.Module):
         return SacFopActorOutput(param, log_prob, stats, action_squashed, ctx.status, ctx)
 
 
-class SacFopTrainer(Trainer[SacFopTrainerConfig]):
+class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
     """A trainer implementing Soft Actor-Critic (SAC) that uses a differentiable controller layer in
     the policy network (SAC-FOP).
     Supports variants using parameter noise or action noise. Always uses an action critic.
@@ -297,7 +297,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
     q: SacCritic
     q_target: SacCritic
     q_optim: torch.optim.Optimizer
-    pi: FopActor | FoaActor
+    pi: FopActor[CtxType] | FoaActor[CtxType]
     pi_optim: torch.optim.Optimizer
     log_alpha: nn.Parameter
     alpha_optim: torch.optim.Optimizer | None
@@ -312,7 +312,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         output_path: str | Path,
         device: str,
         train_env: gym.Env,
-        controller: ParameterizedController,
+        controller: ParameterizedController[CtxType],
         extractor_cls: Type[Extractor] | ExtractorName = "identity",
     ) -> None:
         """Initializes the SAC-FOP trainer.
@@ -349,7 +349,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.lr_q)
 
         if cfg.noise == "param":
-            self.pi = FopActor(
+            self.pi = FopActor[CtxType](
                 extractor_cls(observation_space),
                 cfg.actor_mlp,
                 controller,
@@ -362,7 +362,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
                 raise ValueError(
                     "When using action noise, the distribution must be 'squashed_gaussian'."
                 )
-            self.pi = FoaActor(
+            self.pi = FoaActor[CtxType](
                 action_space,
                 extractor_cls(observation_space),
                 cfg.actor_mlp,
@@ -514,8 +514,8 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig]):
             yield 1
 
     def act(
-        self, obs: np.ndarray, deterministic: bool = False, state: Any | None = None
-    ) -> tuple[np.ndarray, Any, dict[str, float]]:
+        self, obs: np.ndarray, deterministic: bool = False, state: CtxType | None = None
+    ) -> tuple[np.ndarray, CtxType, dict[str, float]]:
         obs = self.buffer.collate([obs])
         with torch.no_grad():
             pi_output: SacFopActorOutput = self.pi(obs, state, deterministic)

@@ -3,12 +3,12 @@
 from argparse import ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Generator
+from typing import Any, Generator, Generic
 
 import gymnasium as gym
 from numpy import ndarray
 
-from leap_c.controller import ParameterizedController
+from leap_c.controller import CtxType, ParameterizedController
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
 from leap_c.torch.rl.buffer import ReplayBuffer
@@ -39,7 +39,7 @@ class RunControllerConfig:
     trainer: ControllerTrainerConfig = field(default_factory=ControllerTrainerConfig)
 
 
-class ControllerTrainer(Trainer[ControllerTrainerConfig]):
+class ControllerTrainer(Trainer[ControllerTrainerConfig, CtxType], Generic[CtxType]):
     """A trainer that just runs the controller with default parameters, without any training.
 
     Attributes:
@@ -53,7 +53,7 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
         val_env: gym.Env,
         output_path: str | Path,
         device: str,
-        controller: ParameterizedController,
+        controller: ParameterizedController[CtxType],
     ) -> None:
         """Initializes the trainer.
 
@@ -76,8 +76,8 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig]):
             yield 1
 
     def act(
-        self, obs: ndarray, deterministic: bool = False, state: Any = None
-    ) -> tuple[ndarray, Any, dict[str, float]]:
+        self, obs: ndarray, deterministic: bool = False, state: CtxType | None = None
+    ) -> tuple[ndarray, Any, dict[str, float] | None]:
         """Use the controller with default parameters."""
         obs_batched = self.collate_fn([obs])
         default_param = self.controller.default_param(obs)

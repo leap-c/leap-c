@@ -184,7 +184,7 @@ class SacActor(nn.Module):
         return action, log_prob, stats
 
 
-class SacTrainer(Trainer[SacTrainerConfig]):
+class SacTrainer(Trainer[SacTrainerConfig, Any]):
     """A trainer for Soft Actor-Critic (SAC).
 
     Attributes:

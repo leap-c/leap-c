@@ -3,7 +3,7 @@ layer for the policy network."""
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Generator, NamedTuple, Type
+from typing import Generator, Generic, NamedTuple, Type
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -11,7 +11,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-from leap_c.controller import ParameterizedController
+from leap_c.controller import CtxType, ParameterizedController
 from leap_c.torch.nn.bounded_distributions import (
     BoundedDistribution,
     BoundedDistributionName,
@@ -45,7 +45,7 @@ class SacZopActorOutput(NamedTuple):
     log_prob: torch.Tensor
     stats: dict[str, float]
     action: torch.Tensor | None = None
-    ctx: Any = None
+    ctx: CtxType | None = None
 
 
 @dataclass(kw_only=True)
@@ -68,7 +68,7 @@ class SacZopTrainerConfig(SacTrainerConfig):
     init_param_with_default: bool = True
 
 
-class MpcSacActor(nn.Module):
+class MpcSacActor(nn.Module, Generic[CtxType]):
     """An actor module for SAC-ZOP, containing a ParameterizedController to compute actions, but not
     differentiating through it, and injecting noise in the parameter space.
 
@@ -80,7 +80,7 @@ class MpcSacActor(nn.Module):
     """
 
     extractor: Extractor
-    controller: ParameterizedController
+    controller: ParameterizedController[CtxType]
     mlp: Mlp
     bounded_distribution: BoundedDistribution
 
@@ -88,7 +88,7 @@ class MpcSacActor(nn.Module):
         self,
         extractor_cls: Type[Extractor],
         observation_space: gym.Space,
-        controller: ParameterizedController,
+        controller: ParameterizedController[CtxType],
         distribution_name: BoundedDistributionName,
         mlp_cfg: MlpConfig,
         init_param_with_default: bool,
@@ -126,7 +126,7 @@ class MpcSacActor(nn.Module):
     def forward(
         self,
         obs: torch.Tensor,
-        ctx: Any = None,
+        ctx: CtxType | None = None,
         deterministic: bool = False,
         only_param: bool = False,
     ) -> SacZopActorOutput:
@@ -163,7 +163,7 @@ class MpcSacActor(nn.Module):
         return SacZopActorOutput(param, log_prob, stats, action, ctx)
 
 
-class SacZopTrainer(Trainer[SacZopTrainerConfig]):
+class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
     """A trainer that implements Soft Actor-Critic (SAC) with a controller in the policy network,
     but without differentiating through it (SAC-ZOP). Uses parameter noise and a parameter critic.
 
@@ -188,7 +188,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig]):
     q: SacCritic
     q_target: SacCritic
     q_optim: torch.optim.Optimizer
-    pi: MpcSacActor
+    pi: MpcSacActor[CtxType]
     pi_optim: torch.optim.Optimizer
     log_alpha: nn.Parameter
     alpha_optim: torch.optim.Optimizer | None
@@ -203,7 +203,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig]):
         output_path: str | Path,
         device: str,
         train_env: gym.Env,
-        controller: ParameterizedController,
+        controller: ParameterizedController[CtxType],
         extractor_cls: Type[Extractor] | ExtractorName = "identity",
     ) -> None:
         """Initializes the SAC-ZOP trainer.
@@ -361,8 +361,8 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig]):
             yield 1
 
     def act(
-        self, obs, deterministic: bool = False, state: Any = None
-    ) -> tuple[np.ndarray, Any, dict[str, float]]:
+        self, obs, deterministic: bool = False, state: CtxType | None = None
+    ) -> tuple[np.ndarray, CtxType, dict[str, float]]:
         obs = self.buffer.collate([obs])
         with torch.no_grad():
             pi_output: SacZopActorOutput = self.pi(obs, state, deterministic=deterministic)
