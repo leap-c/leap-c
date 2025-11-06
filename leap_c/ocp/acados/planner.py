@@ -44,7 +44,7 @@ class AcadosPlanner(ParameterizedPlanner):
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )
-        return self.diff_mpc(obs, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
+        return self.diff_mpc(obs, action=action, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
 
     def sensitivity(self, ctx: AcadosDiffMpcCtx, name: SensitivityOptions) -> np.ndarray:
         if name == "du0_dp":
