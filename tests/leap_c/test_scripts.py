@@ -137,6 +137,9 @@ def _run_script(script, tmp_path, env, reuse_code_dir, controller=None):
     cfg = create_cfg(script, env=env, controller=controller)
     cfg.log = False
     cfg.trainer.train_steps = 10
+    cfg.trainer.train_start = 0
+    cfg.trainer.update_freq = 1
+    cfg.trainer.batch_size = 8
     cfg.trainer.val_num_rollouts = 1
     cfg.trainer.val_num_render_rollouts = 0
 
