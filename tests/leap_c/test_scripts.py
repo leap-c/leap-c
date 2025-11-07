@@ -8,7 +8,10 @@ import pytest
 import leap_c
 from leap_c.examples import CONTROLLER_REGISTRY, ENV_REGISTRY, PLANNER_REGISTRY
 
-LEAP_C_ROOT = Path(leap_c.__file__).resolve().parent.parent
+if getattr(leap_c, "__file__", None):
+    LEAP_C_ROOT = Path(leap_c.__file__).resolve().parent.parent
+else:
+    LEAP_C_ROOT = Path(next(iter(leap_c.__path__))).resolve().parent
 LEAP_C_ROOT_SCRIPTS = LEAP_C_ROOT / "scripts"
 CTRL_REGISTRY = CONTROLLER_REGISTRY | PLANNER_REGISTRY
 
@@ -134,6 +137,9 @@ def _run_script(script, tmp_path, env, reuse_code_dir, controller=None):
     cfg = create_cfg(script, env=env, controller=controller)
     cfg.log = False
     cfg.trainer.train_steps = 10
+    cfg.trainer.train_start = 0
+    cfg.trainer.update_freq = 1
+    cfg.trainer.batch_size = 8
     cfg.trainer.val_num_rollouts = 1
     cfg.trainer.val_num_render_rollouts = 0
 
