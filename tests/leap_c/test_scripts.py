@@ -6,10 +6,11 @@ from pathlib import Path
 import pytest
 
 import leap_c
-from leap_c.examples import CONTROLLER_REGISTRY, ENV_REGISTRY
+from leap_c.examples import CONTROLLER_REGISTRY, ENV_REGISTRY, PLANNER_REGISTRY
 
 LEAP_C_ROOT = Path(leap_c.__file__).resolve().parent.parent
 LEAP_C_ROOT_SCRIPTS = LEAP_C_ROOT / "scripts"
+CTRL_REGISTRY = CONTROLLER_REGISTRY | PLANNER_REGISTRY
 
 
 def find_all_scripts():
@@ -106,13 +107,13 @@ def env(request):
     params=[
         (env, controller)
         for env in ENV_REGISTRY.keys()
-        for controller in CONTROLLER_REGISTRY.keys()
+        for controller in CTRL_REGISTRY.keys()
         if controller.startswith(env)
     ],
     ids=[
         f"{env}-{controller}"
         for env in ENV_REGISTRY.keys()
-        for controller in CONTROLLER_REGISTRY.keys()
+        for controller in CTRL_REGISTRY.keys()
         if controller.startswith(env)
     ],
 )
