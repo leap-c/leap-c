@@ -8,7 +8,10 @@ import pytest
 import leap_c
 from leap_c.examples import CONTROLLER_REGISTRY, ENV_REGISTRY, PLANNER_REGISTRY
 
-LEAP_C_ROOT = Path(leap_c.__file__).resolve().parent.parent
+if getattr(leap_c, "__file__", None):
+    LEAP_C_ROOT = Path(leap_c.__file__).resolve().parent.parent
+else:
+    LEAP_C_ROOT = Path(next(iter(leap_c.__path__))).resolve().parent
 LEAP_C_ROOT_SCRIPTS = LEAP_C_ROOT / "scripts"
 CTRL_REGISTRY = CONTROLLER_REGISTRY | PLANNER_REGISTRY
 
