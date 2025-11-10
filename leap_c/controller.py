@@ -2,7 +2,7 @@
 PyTorch."""
 
 from abc import ABCMeta, abstractmethod
-from typing import Callable, Generic, Protocol, TypeVar, Union
+from typing import Any, Callable, Generic, Protocol, TypeVar, Union
 
 import gymnasium as gym
 from numpy import ndarray
@@ -43,14 +43,12 @@ class ParameterizedController(nn.Module, Generic[CtxType], metaclass=ABCMeta):
     collate_fn_map: dict[Union[type, tuple[type, ...]], Callable] | None = None
 
     @abstractmethod
-    def forward(
-        self, obs: Tensor, param: Tensor, ctx: CtxType | None = None
-    ) -> tuple[CtxType, Tensor]:
+    def forward(self, obs: Any, param: Any, ctx: CtxType | None = None) -> tuple[CtxType, Tensor]:
         """Computes action from observation, parameters and internal context.
 
         Args:
-            obs (Tensor): Observation input to the controller (e.g., state vector).
-            param (Tensor): Parameters that define the behavior of the controller.
+            obs: Observation input to the controller (e.g., state vector).
+            param: Parameters that define the behavior of the controller.
             ctx (CtxType, optional): Optional internal context passed between invocations.
 
         Returns:
@@ -91,12 +89,12 @@ class ParameterizedController(nn.Module, Generic[CtxType], metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def default_param(self, obs: ndarray | None) -> ndarray:
+    def default_param(self, obs: Any) -> ndarray:
         """Provides a default parameter configuration for the controller.
 
         Args:
-            obs (array, optional): Observation input to the controller (e.g., state
-                vector), used to condition the default parameters. Can be `None` if not needed.
+            obs: Observation input to the controller (e.g., state vector), used to condition the
+                default parameters. Can be `None` if not needed.
 
         Returns:
             array: A default parameter array matching the expected shape of `param` in `forward`.
