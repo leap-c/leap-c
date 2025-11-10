@@ -1,6 +1,8 @@
 from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Callable, Literal
+from itertools import pairwise
+from numbers import Integral
+from typing import Callable, Iterable, Literal, get_args
 
 import torch
 import torch.nn as nn
@@ -17,6 +19,17 @@ WeightInit = Literal["orthogonal"]
 
 
 def string_to_activation(activation: Activation) -> nn.Module:
+    """Convert a string to an activation.
+
+    Args:
+        activation ({"relu", "tanh", "sigmoid", "leaky_relu"}): The activation function to convert.
+
+    Raises:
+        ValueError: If the activation function is not recognized.
+
+    Returns:
+        nn.Module: The activation function as a torch module.
+    """
     if activation == "relu":
         return nn.ReLU()
     elif activation == "tanh":
@@ -25,21 +38,43 @@ def string_to_activation(activation: Activation) -> nn.Module:
         return nn.Sigmoid()
     elif activation == "leaky_relu":
         return nn.LeakyReLU()
-    else:
-        raise ValueError(f"Activation function {activation} not recognized.")
+    raise ValueError(
+        f"Activation function `{activation}` not recognized; available options are: "
+        f"{', '.join(get_args(Activation))}."
+    )
 
 
 def orthogonal_init(module: nn.Module) -> None:
+    """Initialize the weights of a module using orthogonal initialization.
+
+    Args:
+        module (nn.Module): The module to initialize.
+    """
     if isinstance(module, nn.Linear):
         nn.init.orthogonal_(module.weight.data)
         module.bias.data.fill_(0.0)
 
 
 def string_to_weight_init(weight_init: WeightInit) -> Callable[[nn.Module], None]:
+    """Convert a string to an initializiation method.
+
+    Args:
+        weight_init ({"orthogonal"}): The weight initialization method. For now, only "orthogonal"
+            is supported.
+
+    Raises:
+        ValueError: If the weight initialization method is not recognized.
+
+    Returns:
+        Callable[[nn.Module], None]: The weight initialization function that takes in a module and
+            initializes its weights, returning nothing.
+    """
     if weight_init == "orthogonal":
         return orthogonal_init
-    else:
-        raise ValueError(f"Weight initialization {weight_init} not recognized.")
+    raise ValueError(
+        f"Weight initialization `{weight_init}` not recognized; available options are: "
+        f"{', '.join(get_args(WeightInit))}."
+    )
 
 
 @dataclass(kw_only=True)
@@ -47,12 +82,12 @@ class MlpConfig:
     """Configuration for a multi-layer perceptron (MLP).
 
     Attributes:
-        hidden_dims: A sequence of integers representing the sizes of the hidden
-            layers. If None, no hidden layers will be used, and the MLP will be
-            replaced with a parameter tensor of the output size.
+        hidden_dims: A sequence of integers representing the sizes of the hidden layers. If `None`,
+            no hidden layers will be used, and the MLP will be replaced with a parameter tensor with
+            the given output size.
         activation: The activation function to use in the hidden layers.
-        weight_init: The weight initialization method to use for the hidden layers.
-            If None, no initialization will be applied.
+        weight_init: The weight initialization method to use for the hidden layers. If `None`, no
+            initialization will be applied.
     """
 
     hidden_dims: Sequence[int] | None = (256, 256, 256)
@@ -61,25 +96,23 @@ class MlpConfig:
 
 
 class Mlp(nn.Module):
-    """A base class for a multi-layer perceptron (MLP) with a configurable number of
-    layers and activation functions.
+    """A base class for a multi-layer perceptron (MLP) with a configurable number of layers and
+    activation functions.
 
     Attributes:
-        activation: The activation function to use in the hidden layers.
-        mlp: The multi-layer perceptron model. Is None if no hidden layers were set in the config,
-            and a parameter tensor is used instead.
-        param: A parameter tensor of the output size. Is None if hidden layers were set
-            in the config.
+        mlp: The MLP model. Is `None` if no hidden layers were set in the config (see
+            `MlpConfig.hidden_dims`), in which case the parameter tensor `param` is set instead.
+        param: A parameter tensor with the given output size. Is `None` if hidden layers were set in
+            the config, in which case the MLP model `mlp` is set instead.
     """
 
-    activation: nn.Module
     mlp: nn.Module | None
     param: nn.Parameter | None
 
     def __init__(
         self,
-        input_sizes: int | list[int],
-        output_sizes: int | list[int],
+        input_sizes: int | Iterable[int],
+        output_sizes: int | Iterable[int],
         mlp_cfg: MlpConfig,
     ) -> None:
         """Initializes the MLP.
@@ -92,29 +125,23 @@ class Mlp(nn.Module):
         """
         super().__init__()
 
-        self.activation = string_to_activation(mlp_cfg.activation)
-
-        if isinstance(input_sizes, int):
-            input_sizes = [input_sizes]
-        self._comb_input_dim = sum(input_sizes)
-        self._input_dims = input_sizes
-
-        if isinstance(output_sizes, int):
-            output_sizes = [output_sizes]
-        self._comb_output_dim = sum(output_sizes)
-        self._output_dims = output_sizes
+        comb_input_dim = input_sizes if isinstance(input_sizes, Integral) else sum(input_sizes)
+        if isinstance(output_sizes, Integral):
+            self._output_dims = [output_sizes]
+            comb_output_dim = output_sizes
+        else:
+            self._output_dims = list(output_sizes)
+            comb_output_dim = sum(self._output_dims)
 
         if mlp_cfg.hidden_dims is None or len(mlp_cfg.hidden_dims) == 0:
             self.mlp = None
-            self.param = nn.Parameter(torch.zeros(self._comb_output_dim))
+            self.param = nn.Parameter(torch.zeros(comb_output_dim))
             return
 
-        # mlp
-        layers = []
-        prev_d = self._comb_input_dim
-        for d in [*mlp_cfg.hidden_dims, self._comb_output_dim]:
-            layers.extend([nn.Linear(prev_d, d), self.activation])
-            prev_d = d
+        layers: list[nn.Module] = []
+        activation = string_to_activation(mlp_cfg.activation)
+        for in_sz, out_sz in pairwise((comb_input_dim, *mlp_cfg.hidden_dims, comb_output_dim)):
+            layers.extend((nn.Linear(in_sz, out_sz), activation))
 
         self.mlp = nn.Sequential(*layers[:-1])
         self.param = None
