@@ -41,6 +41,7 @@ class AcadosParameter:
     interface: Literal["fix", "learnable", "non-learnable"] = "fix"
     # Additional acados-specific field
     end_stages: list[int] = field(default_factory=list)
+    stagewise_defaults: list[np.ndarray] = field(default_factory=list)
 
 
 class AcadosParameterManager:
@@ -100,6 +101,20 @@ class AcadosParameterManager:
                     f"but CasADi only supports arrays up to 2 dimensions. "
                     f"Parameter shape: {param.default.shape}"
                 )
+            if param.stagewise_defaults:
+                if len(param.stagewise_defaults) != len(param.end_stages):
+                    raise ValueError(
+                        f"Parameter '{param.name}' has {len(param.stagewise_defaults)} "
+                        f"stagewise default values, but {len(param.end_stages)} end_stages. "
+                        "These lengths must match."
+                    )
+                for i, stage_default in enumerate(param.stagewise_defaults):
+                    if stage_default.shape != param.default.shape:
+                        raise ValueError(
+                            f"Parameter '{param.name}' has inconsistent shape for "
+                            f"stagewise default at index {i}: "
+                            f"expected {param.default.shape}, got {stage_default.shape}."
+                        )
             if isinstance(param.space, gym.spaces.Box):
                 if len(param.space.shape) > 2:
                     raise ValueError(
@@ -174,15 +189,15 @@ class AcadosParameterManager:
         self.learnable_parameters_lb = self.learnable_parameters(0)
         self.learnable_parameters_ub = self.learnable_parameters(0)
 
-        def _extract_parameter_name(key: str) -> str:
+        def _extract_parameter_name(key: str) -> tuple[str, int]:
             """Extract the original parameter name from the template {name}_{start}_{end}."""
             if "_" in key and key.count("_") >= 2:
                 # Split from the right to handle names that contain underscores
                 parts = key.rsplit("_", 2)
-                return parts[0]
+                return parts[0], int(parts[1])
             else:
                 # For parameters without stage variations
-                return key
+                return key, -1
 
         def _fill_learnable_parameter_values(
             struct_dict: dict[str, struct], keys: Iterable[str]
@@ -192,13 +207,17 @@ class AcadosParameterManager:
                 # First check if the key exists directly in parameters (no staging)
                 if key in self.parameters:
                     name = key
+                    i = -1
                 else:
                     # Try to extract the original parameter name from staged key
-                    name = _extract_parameter_name(key)
+                    name, i = _extract_parameter_name(key)
 
                 if name in self.parameters:
                     param = self.parameters[name]
-                    struct_dict["default"][key] = param.default
+                    if i >= 0 and param.stagewise_defaults:
+                        struct_dict["default"][key] = param.stagewise_defaults[i]
+                    else:
+                        struct_dict["default"][key] = param.default
                     if param.space is not None and hasattr(param.space, "low"):
                         struct_dict["lb"][key] = param.space.low
                     else:
