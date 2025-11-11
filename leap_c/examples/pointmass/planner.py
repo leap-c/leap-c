@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-import numpy as np
+import torch
 
 from leap_c.examples.pointmass.acados_ocp import (
     PointMassAcadosParamInterface,
@@ -87,12 +87,13 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory)
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
 
-    def forward(self, obs, param, ctx=None) -> tuple[Any, np.ndarray]:
+    def forward(
+        self, obs, action=None, param=None, ctx=None
+    ) -> tuple[Any, torch.Tensor, torch.Tensor, torch.Tensor | None]:
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]
         )
         # remove wind field from observation, this is only observed by
         # the network, not used in the MPC
         x0 = obs[:, :4]
-        ctx, u0, x, u, value = self.diff_mpc(x0, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
-        return ctx, u0
+        return self.diff_mpc(x0, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
