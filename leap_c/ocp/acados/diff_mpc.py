@@ -396,7 +396,7 @@ class AcadosDiffMpcFunction(DiffFunction):
                 case _:
                     raise ValueError(f"Unexpected `field_name` {field_name} encountered.")
             sens = np.array(
-                [s.eval_and_get_optimal_value_gradient(with_respect_to) for s in active_solvers]
+                [[s.eval_and_get_optimal_value_gradient(with_respect_to)] for s in active_solvers]
             )
         else:
             raise ValueError
