@@ -212,7 +212,7 @@ class AcadosDiffMpcFunction(DiffFunction):
         ctx = AcadosDiffMpcCtx(
             iterate=sol_iterate, log=log, status=status, solver_input=solver_input
         )
-        sol_value = np.array([s.get_cost() for s in active_solvers])
+        sol_value = np.array([[s.get_cost()] for s in active_solvers])
         sol_u0 = sol_iterate.u[:, : self.ocp.dims.nu]
 
         x = sol_iterate.x.reshape(batch_size, self.ocp.dims.N + 1, -1)  # type: ignore
