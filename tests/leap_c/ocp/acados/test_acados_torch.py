@@ -418,7 +418,7 @@ def test_forward(
         )
 
         # Validate value shape (same for both V and Q)
-        expected_value_shape = (n_batch,)
+        expected_value_shape = (n_batch, 1)
         assert value.shape == expected_value_shape, (
             f"{expected_output_type} shape mismatch. Expected: {expected_value_shape}"
             f", Got: {value.shape}"
@@ -514,6 +514,7 @@ def test_sensitivity(
 
         assert results["dvalue_dp_global"].shape == (
             n_batch,
+            1,
             diff_mpc_k.diff_mpc_fun.ocp.dims.np_global,
         ), (
             f"dvalue_dp_global shape mismatch. Expected: \
@@ -523,6 +524,7 @@ def test_sensitivity(
 
         assert results["dvalue_dx0"].shape == (
             n_batch,
+            1,
             diff_mpc_k.diff_mpc_fun.ocp.dims.nx,
         ), (
             "dvalue_dx0 shape mismatch. Expected: "
@@ -536,6 +538,7 @@ def test_sensitivity(
 
         assert results["dvalue_du0"].shape == (
             n_batch,
+            1,
             diff_mpc_k.diff_mpc_fun.ocp.dims.nu,
         ), (
             "dvalue_du0 shape mismatch. Expected: "
