@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 import leap_c
-from leap_c.trainer import Trainer
+from leap_c.trainer import CtxType, Trainer, TrainerConfigType
 from leap_c.utils.cfg import cfg_as_python
 from leap_c.utils.git import log_git_hash_and_diff
 
@@ -46,7 +46,7 @@ def default_controller_code_path() -> Path:
     return OUTPUT_DIR / "controller_code"
 
 
-def init_run(trainer: Trainer, cfg, output_path: str | Path) -> None:
+def init_run(trainer: Trainer[TrainerConfigType, CtxType], cfg, output_path: str | Path) -> None:
     """Init function to run experiments.
 
     If the output path already exists, the run will continue from the last checkpoint.

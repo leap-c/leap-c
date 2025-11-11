@@ -11,13 +11,14 @@ from gymnasium import Env
 from gymnasium.wrappers import RecordVideo
 from numpy import ndarray
 
+from leap_c.controller import CtxType
 from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 from leap_c.torch.utils.seed import RngType, mk_seed
 from leap_c.utils.gym import seed_env
 
 
 def episode_rollout(
-    policy: Callable[[ndarray], tuple[ndarray, dict[str, float] | None]],
+    policy: Callable[[ndarray], tuple[ndarray, CtxType, dict[str, float] | None]],
     env: Env,
     episodes: int = 1,
     render_episodes: int = 0,

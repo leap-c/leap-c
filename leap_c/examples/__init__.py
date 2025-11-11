@@ -2,11 +2,11 @@
 
 from functools import partial
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 from gymnasium import Env
 
-from leap_c.controller import ParameterizedController
+from leap_c.controller import CtxType, ParameterizedController
 from leap_c.examples.cartpole.env import CartPoleEnv
 from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
 from leap_c.examples.chain.env import ChainEnv
@@ -77,10 +77,8 @@ ExamplePlannerName = Literal[
 
 
 def create_planner(
-    planner_name: ExamplePlannerName,
-    reuse_code_base_dir: Path | None = None,
-    **kw: Any,
-) -> ParameterizedPlanner:
+    planner_name: ExamplePlannerName, reuse_code_base_dir: Path | None = None, **kw: Any
+) -> ParameterizedPlanner[CtxType]:
     """Create a planner.
 
     Args:
@@ -115,12 +113,12 @@ def create_planner(
 
 CONTROLLER_REGISTRY = {}
 # controllers are a superset of planners
-ExampleControllerName = Literal[*ExamplePlannerName.__args__]
+ExampleControllerName: TypeAlias = ExamplePlannerName
 
 
 def create_controller(
     controller_name: ExampleControllerName, reuse_code_base_dir: Path | None = None, **kw: Any
-) -> ParameterizedController:
+) -> ParameterizedController[CtxType]:
     """Create a controller or create a planner and wrap it as a controller.
 
     Args:

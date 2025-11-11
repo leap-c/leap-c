@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from leap_c.controller import CtxType
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
 from leap_c.torch.nn.extractor import ExtractorName
@@ -100,7 +101,7 @@ def run_sac_fop(
         device: The device to use.
         reuse_code_dir: The directory to reuse compiled code from, if any.
     """
-    trainer = SacFopTrainer(
+    trainer = SacFopTrainer[CtxType](
         val_env=create_env(cfg.env, render_mode="rgb_array"),
         train_env=create_env(cfg.env),
         controller=create_controller(cfg.controller, reuse_code_dir),

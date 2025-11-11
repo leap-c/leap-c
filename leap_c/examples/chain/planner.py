@@ -13,7 +13,7 @@ from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
-from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
 
 @dataclass(kw_only=True)
@@ -37,13 +37,13 @@ class ChainControllerConfig:
     param_interface: ChainAcadosParamInterface = "global"
 
 
-class ChainPlanner(AcadosPlanner):
-    """Acados-based controller for the hanging chain system.
-    The state and action correspond to the observation and action of the Chain environment.
-    The cost function takes the form of a weighted least-squares cost on the full state and action
-    and the dynamics correspond to the simulated ODE also found
-    in the Chain environment (using RK4). The inequality constraints
-    are box constraints on the action.
+class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
+    """Acados-based controller for the hanging `Chain` system.
+
+    The state and action correspond to the observation and action of the `Chain` environment. The
+    cost function takes the form of a weighted least-squares cost on the full state and action and
+    the dynamics correspond to the simulated ODE also found in the `Chain` environment (using RK4).
+    The inequality constraints are box constraints on the action.
 
     Attributes:
         cfg: A configuration object containing high-level settings for the MPC problem,

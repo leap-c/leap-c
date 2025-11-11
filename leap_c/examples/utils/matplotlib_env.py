@@ -8,13 +8,14 @@ from matplotlib.axes import Axes
 from matplotlib.backends.backend_agg import FigureCanvasAgg as FigureCanvas
 from matplotlib.figure import Figure
 
+from leap_c.controller import CtxType
 from leap_c.utils.latexify import latex_plot_context
 
 ObsType = TypeVar("ObsType")
 ActType = TypeVar("ActType")
 
 
-class MatplotlibRenderEnv(abc.ABC, gym.Env[ObsType, ActType], Generic[ObsType, ActType]):
+class MatplotlibRenderEnv(abc.ABC, gym.Env[ObsType, ActType], Generic[ObsType, ActType, CtxType]):
     """A class for Gymnasium environments to handle Matplotlib rendering.
 
     This mixin provides the boilerplate for `render()` and `close()` methods. To use it, an
@@ -82,7 +83,7 @@ class MatplotlibRenderEnv(abc.ABC, gym.Env[ObsType, ActType], Generic[ObsType, A
             else:
                 raise ValueError(f"Unsupported render mode: {self.render_mode}")
 
-    def set_ctx(self, ctx: Any) -> None:
+    def set_ctx(self, ctx: CtxType) -> None:
         """Sets the context for rendering.
 
         This method can be used to pass additional information to the rendering methods.
