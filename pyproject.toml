@@ -80,11 +80,18 @@ target-version = "py311"
 line-length = 100
 extend-exclude = ["external"]
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ruff.lint]
 ignore = ["E741"]
 extend-select = [
+    "D",
     "I",
     "NPY",
     "UP045",
     "E501",
 ]
+
+[tool.ruff.format]
+docstring-code-line-length = "dynamic"
