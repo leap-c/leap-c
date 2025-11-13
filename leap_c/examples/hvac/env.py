@@ -62,7 +62,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         Args:
             params: Dictionary of thermal parameters
             step_size: Time step for the simulation in seconds
-            start_time: Start time for the historical data
+            start_time: Start time from which to sample from the historical prices and weather data.
+                If None, starts at a random time sampled from the data.
             horizon_hours: Prediction horizon in hours
             max_hours: Maximum simulation time in hours
             render_mode: Render mode for the environment
