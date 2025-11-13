@@ -102,6 +102,3 @@ extend-select = [
     "UP045",
     "E501",
 ]
-
-[tool.ruff.format]
-docstring-code-line-length = "dynamic"
