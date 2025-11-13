@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -52,7 +53,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         horizon_hours: int = 25,
         max_hours: int = 3 * 24,  # 3 days
         render_mode: str | None = None,
-        price_zone: str = "NO_1",
+        price_zone: Literal["NO_1", "NO_2", "NO_3", "DK_1", "DK_2", "DE_LU"] = "NO_1",
         price_data_path: Path | None = None,
         weather_data_path: Path | None = None,
         enable_noise: bool = True,
