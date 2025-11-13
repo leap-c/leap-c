@@ -374,17 +374,6 @@ def decompose_observation(obs: np.ndarray) -> tuple:
             assert forecast.shape[1] == N_forecast, (
                 f"Expected {N_forecast} forecasts, got {forecast.shape[1]}"
             )
-
-        # Cast to appropriate types
-        # quarter_hour = quarter_hour.astype(np.int32)
-        # day_of_year = day_of_year.astype(np.int32)
-        # Ti = Ti.astype(np.float32)
-        # Th = Th.astype(np.float32)
-        # Te = Te.astype(np.float32)
-        # Ta_forecast = Ta_forecast.astype(np.float32)
-        # solar_forecast = solar_forecast.astype(np.float32)
-        # price_forecast = price_forecast.astype(np.float32)
-
     else:
         N_forecast = (len(obs) - 5) // 3
 

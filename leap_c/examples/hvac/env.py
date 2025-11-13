@@ -26,13 +26,6 @@ from .config import (
     BestestParameters,
 )
 
-# Constants
-DAYLIGHT_START_HOUR = 6
-DAYLIGHT_END_HOUR = 18
-MEAN_AMBIENT_TEMPERATURE = convert_temperature(0, "celsius", "kelvin")
-MAGNITUDE_AMBIENT_TEMPERATURE = 5
-MAGNITUDE_SOLAR_RADIATION = 200
-
 
 class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     """Simulator for a three-state RC thermal model with exact discretization of Gaussian noise.
@@ -144,7 +137,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
             ]
             + [convert_temperature(40.0, "celsius", "kelvin")] * N_forecast  # Ambient temperatures
-            + [MAGNITUDE_SOLAR_RADIATION] * N_forecast  # Solar radiation
+            + [200.0] * N_forecast  # Solar radiation
             + [self.price_data_max] * N_forecast,  # Prices
             dtype=np.float32,
         )
@@ -599,27 +592,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         return obs, info
 
-    def get_noise_statistics(self) -> dict:
-        """Get statistics about the noise model.
-
-        Returns:
-            Dictionary with noise statistics
-        """
-        sigma_i = np.exp(self.params["sigmai"])
-        sigma_h = np.exp(self.params["sigmah"])
-        sigma_e = np.exp(self.params["sigmae"])
-
-        return {
-            "continuous_noise_intensities": {
-                "sigma_i": sigma_i,
-                "sigma_h": sigma_h,
-                "sigma_e": sigma_e,
-            },
-            "discrete_noise_covariance": self.Qd,
-            "discrete_noise_std": np.sqrt(np.diag(self.Qd)),
-            "step_size": self.step_size,
-        }
-
     def _init_state(self, options=None):
         if options is not None and "mode" in options and options["mode"] == "train":
             pass
@@ -627,7 +599,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             pass
 
     def _render_setup(self):
-        """Initializes the Matplotlib figure and axes for rendering."""
         if self.render_mode == "human":
             plt.ion()
 
@@ -699,7 +670,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             ax.grid(visible=True, alpha=0.3)
 
     def _render_frame(self) -> np.ndarray | None:
-        """Renders the current frame of the environment."""
         ctx: HvacControllerCtx = self.ctx
 
         if not ctx:
@@ -740,9 +710,4 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.trajectory_plots["solar"].set_data(range(N_horizon), solar_forecast)
 
     def set_ctx(self, ctx: HvacControllerCtx) -> None:
-        """Set the context for rendering.
-
-        Args:
-            ctx: The HvacControllerCtx to set for rendering.
-        """
         self.ctx: HvacControllerCtx = ctx

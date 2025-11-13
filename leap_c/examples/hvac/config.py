@@ -9,29 +9,43 @@ from leap_c.ocp.acados.parameters import AcadosParameter
 
 @dataclass
 class BestestParameters:
-    """Base class for hydronic system parameters."""
+    """Base class for hydronic system parameters.
 
-    # Effective window area [m²]
+    Attributes:
+        gAw: Effective window area [m²]
+        Ch: Heating system thermal capacity [J/K]
+        Ci: Indoor thermal capacity [J/K]
+        Ce: External thermal capacity [J/K]
+        e11: Measurement noise
+        sigmai: Indoor temperature process noise
+        sigmah: Heating system process noise
+        sigmae: External temperature process noise
+        Rea: Resistance external-ambient [K/W]
+        Rhi: Resistance heating-indoor [K/W]
+        Rie: Resistance indoor-external [K/W]
+        eta: Efficiency for electric heater
+    """
+
     gAw: float  # noqa: N815
 
     # Thermal capacitances [J/K]
-    Ch: float  # Heating system thermal capacity
-    Ci: float  # Indoor thermal capacity
-    Ce: float  # External thermal capacity
+    Ch: float
+    Ci: float
+    Ce: float
 
     # Noise parameters
-    e11: float  # Measurement noise
+    e11: float
     sigmai: float
     sigmah: float
     sigmae: float
 
     # Thermal resistances [K/W]
-    Rea: float  # Resistance external-ambient
-    Rhi: float  # Resistance heating-indoor
-    Rie: float  # Resistance indoor-external
+    Rea: float
+    Rhi: float
+    Rie: float
 
     # Heater parameters
-    eta: float  # Efficiency for electric heater
+    eta: float
 
     def to_dict(self) -> dict[str, float]:
         """Convert parameters to a dictionary with string keys and float values."""
@@ -47,7 +61,6 @@ class BestestParameters:
 class BestestHydronicParameters(BestestParameters):
     """Standard hydronic system parameters."""
 
-    # TODO: Wth do these mean?
     gAw: float = 10.1265729225269  # noqa: N815
     Ch: float = 4015.39425109821
     Ci: float = 1914908.30860716
