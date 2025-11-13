@@ -7,8 +7,7 @@ from matplotlib import pyplot as plt
 
 @contextmanager
 def latex_plot_context(**kw: Any) -> Iterator[None]:
-    """
-    A context manager that temporarily applies LaTeX-style settings to Matplotlib plots.
+    """A context manager that temporarily applies LaTeX-style settings to Matplotlib plots.
 
     Parameters:
         **kw: Any additional Matplotlib rcParams to override the LaTeX defaults.
@@ -42,8 +41,7 @@ def latex_plot_context(**kw: Any) -> Iterator[None]:
 
 
 def latex_plot_decorator(**kw: Any):
-    """
-    A decorator that applies LaTeX-style settings to Matplotlib plots within the decorated function.
+    """A decorator that applies LaTeX-style to Matplotlib plots within the decorated function.
 
     Usage:
         @latex_plot_decorator()

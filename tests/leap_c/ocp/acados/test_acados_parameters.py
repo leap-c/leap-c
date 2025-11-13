@@ -760,8 +760,10 @@ def test_empty_parameter_list():
 
 
 def test_parameter_name_with_underscores():
-    """Test parameters with underscores in their names (potential conflict
-    with template for stages: {name}_{start}_{end})."""
+    """Test parameters with underscores in their names.
+
+    Test is due to a potential conflict with template for stages: {name}_{start}_{end}).
+    """
     N_horizon = 5
     params = [
         AcadosParameter(
@@ -1028,9 +1030,9 @@ def test_param_manager_combine_parameter_values(
     nominal_stagewise_params: tuple[AcadosParameter, ...],
     rng: np.random.Generator,
 ) -> None:
-    """
-    Test the addition of parameters to the AcadosParamManager and verify correct
-    retrieval and mapping of dense parameter values.
+    """Test the addition of parameters to the AcadosParamManager.
+
+    Also test and verify correct retrieval and mapping of dense parameter values.
 
     Args:
         acados_test_ocp_with_stagewise_varying_params: AcadosOcp instance
@@ -1114,8 +1116,9 @@ def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
     nominal_stagewise_params: tuple[AcadosParameter, ...],
 ) -> None:
-    """
-    Test that the diff_mpc with stagewise varying parameters is equivalent to the
+    """Test diff_mpc with stagewise varying parameters is equivalent diff_mpc.
+
+    This test verifies that statewise varying diff_mpc is equivalent to the
     diff_mpc with global parameters by comparing the forward pass results under
     the condition that the stagewise varying parameters are set to the nominal values.
     """
@@ -1163,7 +1166,6 @@ def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
 
 def test_casadi_function_with_parameter_manager():
     """Test creating a CasADi function using symbolic variables from AcadosParameterManager."""
-
     for interface in ["learnable", "non-learnable"]:
         default_a = np.array([2.0])
         default_b = np.array([3.0, 4.0])
@@ -1201,7 +1203,8 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     diff_mpc: AcadosDiffMpcTorch,
     rng: np.random.Generator,
 ) -> None:
-    """
+    """Test stagewise solution matches global solver for initial reference change.
+
     Test that setting parameters stagewise has the expected effect by comparing it to
     an ocp_solver with global parameters and nonlinear_ls cost.
     """

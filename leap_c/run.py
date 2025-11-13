@@ -21,8 +21,9 @@ def default_name(seed: int, tags: Iterable[Any] | None = None) -> str:
 
 
 def default_output_path(seed: int, tags: Iterable[Any] | None = None) -> Path:
-    """Returns the default path to store experiment outputs, such as logs. Based on the provided
-    seed and tags, a directory name is created.
+    """Return the default path to store experiment outputs, such as logs.
+
+    Based on the provided seed and tags, a directory name is created.
 
     Args:
         seed: The RNG seed used for the experiment.

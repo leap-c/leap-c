@@ -20,8 +20,7 @@ def create_batch_solver(
     n_batch_max: int = 256,
     num_threads: int = 4,
 ) -> AcadosOcpBatchSolver:
-    """
-    Create an AcadosOcpBatchSolver from an AcadosOcp object.
+    """Create an AcadosOcpBatchSolver from an AcadosOcp object.
 
     Args:
         ocp: Acados optimal control problem formulation.
@@ -98,6 +97,7 @@ def create_forward_backward_batch_solvers(
     num_threads: int = 4,
 ) -> tuple[AcadosOcpBatchSolver, AcadosOcpBatchSolver]:
     """Create a batch solver for solving the MPC problems (forward solver).
+
     If this solver is suitable for computing sensitivities, it will also be returned as backward
     solver (the solver for computing sensitivities). Otherwise,
     a second batch solver will be created, which is suitable for computing sensitivities.

@@ -22,9 +22,7 @@ class CartPoleEnvConfig:
 
 
 class CartPoleEnv(gym.Env):
-    """
-    An environment of a pendulum on a cart meant for swinging
-    the pole into an upright position and holding it there.
+    """An environment of a pendulum on a cart for swinging a pole upright and holding it there.
 
     Observation Space:
     ------------------
@@ -121,7 +119,8 @@ class CartPoleEnv(gym.Env):
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
     def __init__(self, render_mode: str | None = None, cfg: CartPoleEnvConfig | None = None):
-        """
+        """Initialize the CartPole environment.
+
         Args:
             render_mode: The mode to render with. Supported modes are: human, rgb_array, None.
             cfg: Configuration for the environment. If None, default configuration is used.
@@ -249,6 +248,7 @@ class CartPoleEnv(gym.Env):
 
     def include_this_state_trajectory_to_rendering(self, state_trajectory: np.ndarray):
         """Meant for setting a state trajectory for rendering.
+
         If a state trajectory is not set before the next call of render,
         the rendering will not render a state trajectory.
 
@@ -400,8 +400,7 @@ class CartPoleEnv(gym.Env):
 
 
 class CartPoleBalanceEnv(CartPoleEnv):
-    """The same as the CartPoleEnv, but instead of swinging up, the pole starts in an upwards,
-    slightly disbalanced, position and the agent should learn to balance the pole.
+    """The same as the CartPoleEnv, but start at slightly disbalanced upright position.
 
     In more detail, the reward is 1 for every step the pole is balanced, and the episode terminates
     if the pole angle is more than 12 rad away from the upright position (theta = 0).

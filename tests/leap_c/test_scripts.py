@@ -60,7 +60,8 @@ def create_cfg(
 def run_script(script_name: str, cfg, **kw):
     """Runs the script with the given name and arguments.
 
-    We assume that the method is called `run_{script_name}`."""
+    We assume that the method is called `run_{script_name}`.
+    """
     script_module = _create_script_module(script_name)
     run_fn = getattr(script_module, f"run_{script_name}", None)
 

@@ -154,7 +154,6 @@ def nominal_stagewise_params(
     ocp_options: AcadosOcpOptions,
 ) -> tuple[AcadosParameter, ...]:
     """Copy nominal_params and modify specific parameters to be stagewise."""
-
     N_horizon = ocp_options.N_horizon
     # Override specific fields for stage-wise parameters
     # q_diag_e and xref_e are their own parameters, only adding fields up to N_horizon - 1.

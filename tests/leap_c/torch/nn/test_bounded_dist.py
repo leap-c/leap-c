@@ -7,7 +7,6 @@ from leap_c.torch.nn.bounded_distributions import ScaledBeta
 
 def test_scaled_beta():
     """Sanity checks for the ScaledBeta distribution."""
-
     test_space = spaces.Box(
         low=np.array([-10.0, -15.0, 31.0, 3.0]), high=np.array([-5.0, 20.0, 42.0, 4.0])
     )

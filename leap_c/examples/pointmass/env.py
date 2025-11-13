@@ -31,8 +31,7 @@ class PointMassEnvConfig:
 
 
 class PointMassEnv(MatplotlibRenderEnv):
-    """
-    A 2D point mass navigation environment with wind disturbances.
+    """A 2D point mass navigation environment with wind disturbances.
 
     Observation Space:
     ------------------
@@ -122,7 +121,8 @@ class PointMassEnv(MatplotlibRenderEnv):
         render_mode: str | None = None,
         cfg: PointMassEnvConfig | None = None,
     ):
-        """
+        """Initialize the PointMass environment.
+
         Args:
             render_mode: The mode to render with. Supported modes are: human, rgb_array, None.
             cfg: Configuration for the environment. If None, default configuration is used.

@@ -4,14 +4,14 @@ from matplotlib import pyplot as plt
 
 
 def sample_from_ellipsoid_surface(w, Z):
-    """Draws uniform sample from the surface of an ellipsoid with center w and variability matrix Z
+    """Uniformly sample from the surface of an ellipsoid with center w and variability matrix Z.
 
     Parameters
     ----------
     w (numpy.ndarray): Center of the ellipsoid
     Z (numpy.ndarray): Symmetric positive definite variability matrix
 
-    Returns
+    Returns:
     -------
     numpy.ndarray: A point on the surface of the ellipsoid
 
@@ -31,7 +31,7 @@ def sample_from_ellipsoid_surface(w, Z):
 
 
 def sample_from_ellipsoid(w, Z):
-    """Draws uniform sample from ellipsoid with center w and variability matrix Z"""
+    """Sample from ellipsoid with center w and variability matrix Z."""
     n = w.shape[0]  # dimension
     lam, v = np.linalg.eig(Z)
 
@@ -165,7 +165,6 @@ def plot_chain_velocity_traj(simX):
 
 def plot_chain_control_traj(simU):
     plt.figure()
-    # plt.title('Chain control trajectory, velocities of last mass')
     simU = np.vstack((simU[0, :], simU))
 
     t = np.array(range(simU.shape[0]))
@@ -224,8 +223,9 @@ def plot_chain_position(x, xPosFirstMass):
 
 
 def plot_chain_position_3D(X, xPosFirstMass, XNames=None):
-    """X can be either chain state, or tuple of chain states
-    Xnames is a list of strings
+    """X can be either chain state, or tuple of chain states.
+
+    Xnames is a list of strings.
     """
     if not isinstance(X, tuple):
         X = (X,)
@@ -283,9 +283,9 @@ def animate_chain_position(
     yPosWall: np.ndarray | None = None,
 ):
     """Creates animation of the chain, where simX contains the state trajectory.
+
     dt defines the time gap (in seconds) between two succesive entries.
     """
-
     if xPosFirstMass is None:
         xPosFirstMass = np.zeros(3)
 
@@ -376,6 +376,7 @@ def animate_chain_position(
 
 def animate_chain_position_3D(simX, xPosFirstMass, Ts=0.1):
     """Create 3D animation of the chain, where simX contains the state trajectory.
+
     dt defines the time gap (in seconds) between two succesive entries.
     """
     # chain positions
@@ -383,7 +384,6 @@ def animate_chain_position_3D(simX, xPosFirstMass, Ts=0.1):
     nx = simX.shape[1]
     M = int((nx / 3 - 1) / 2)
     pos = simX[:, : 3 * (M + 1)]
-    # import pdb; pdb.set_trace()
     pos_x = np.hstack((xPosFirstMass[0] * np.ones((Nsim, 1)), pos[:, ::3]))
     pos_y = np.hstack((xPosFirstMass[1] * np.ones((Nsim, 1)), pos[:, 1::3]))
     pos_z = np.hstack((xPosFirstMass[2] * np.ones((Nsim, 1)), pos[:, 2::3]))
@@ -394,27 +394,15 @@ def animate_chain_position_3D(simX, xPosFirstMass, Ts=0.1):
 
     fig = plt.figure()
     plt.subplot(111, projection="3d", autoscale_on=False, xlim=xlim, ylim=ylim, zlim=zlim)
-    # ax = fig.add_subplot(111, projection="3d", autoscale_on=False,
-    #   xlim=xlim, ylim=ylim, zlim=zlim)
     plt.xlabel("x")
     plt.ylabel("y")
     plt.gca().set_zlabel("z")
     plt.grid(True)
 
-    # ax.set_xlabel("x")
-    # ax.set_ylabel("y")
-    # ax.set_zlabel("z")
-
-    # ax.set_aspect('equal')
-    # ax.axis('off')
-
-    # create empty plot
-    # line, = ax.plot([], [], [], '.-')
     (line,) = plt.gca().plot(pos_x[0, :], pos_y[1, :], pos_z[2, :], ".-")
 
     def animate(i):
         line.set_data(pos_x[i, :], pos_y[i, :])
-        # line.set_data(pos_x[i,:], pos_y[i,:], pos_z[i,:])
         line.set_3d_properties(pos_z[i, :])
         return (line,)
 

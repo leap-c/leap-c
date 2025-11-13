@@ -11,8 +11,9 @@ from casadi.tools import entry, struct, struct_symMX, struct_symSX
 
 @dataclass
 class AcadosParameter:
-    """High-level parameter class for flexible optimization parameter configuration with acados
-    extensions. It provides an interface for defining parameter sets without requiring knowledge of
+    """High-level parameter class for flexible optimization configuration with acados extensions.
+
+    It provides an interface for defining parameter sets without requiring knowledge of
     internal CasADi tools or acados interface details.
 
     Attributes:
@@ -44,8 +45,8 @@ class AcadosParameter:
 
 
 class AcadosParameterManager:
-    """Manager class for handling acados parameters according to their specifications (e.g.,
-    interface).
+    """Manager class for handling acados parameters according to their specifications.
+
     In particular, this handles stage-varying learnable parameters, which is not available
     out-of-the-box in acados.
 
@@ -228,8 +229,7 @@ class AcadosParameterManager:
     def combine_non_learnable_parameter_values(
         self, batch_size: int | None = None, **overwrite: np.ndarray
     ) -> np.ndarray:
-        """
-        Combine all non-learnable parameters and provided overwrites into a single numpy array.
+        """Combine all non-learnable parameters and provided overwrites into a single numpy array.
 
         Args:
             batch_size: The batch size for the parameters.
@@ -284,6 +284,7 @@ class AcadosParameterManager:
         self, dtype: type[np.floating[Any]] | type[np.integer[Any]] = np.float32
     ) -> gym.Space:
         """Return the combined Gym space for the learnable parameters.
+
         If the parameters do not provide a space themselves, an unbounded Box space with type
         `dtype` will be filled in for them.
 
@@ -377,6 +378,7 @@ class AcadosParameterManager:
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Assign the parameters to the acados ocp object.
+
         NOTE: Overwrites any existing parameter definitions in the ocp object.
         """
         if self.learnable_parameters is not None:

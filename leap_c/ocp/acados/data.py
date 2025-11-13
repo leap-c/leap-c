@@ -8,8 +8,7 @@ from acados_template.acados_ocp_iterate import (
 
 
 class AcadosOcpSolverInput(NamedTuple):
-    """Input for an Acados solver representing a batch of concrete problem instances
-    that should be solved.
+    """Input for an AcadosOcpSolver representing a batch of problem instances to be solved.
 
     Attributes:
         x0: Initial state, shape (batch_size, nx)
@@ -100,7 +99,6 @@ def collate_acados_ocp_solver_input(
     collate_fn_map: dict | None = None,
 ) -> AcadosOcpSolverInput:
     """Collates a batch of AcadosOcpSolverInput objects into a single object."""
-
     return AcadosOcpSolverInput(
         x0=np.stack([input.x0 for input in batch], axis=0),
         u0=_stack_safe("u0", batch),

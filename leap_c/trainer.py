@@ -253,7 +253,9 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
                 return self.state.max_score
 
     def validate(self) -> float:
-        """Do a deterministic validation run of the policy and return the mean of the cumulative
+        """Validate the policy.
+
+        The validation runs the policy deterministically and returns the mean of the cumulative
         reward over all validation episodes.
 
         Returns:

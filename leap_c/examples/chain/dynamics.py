@@ -14,7 +14,7 @@ def define_f_expl_expr(
     p: dict[str, np.ndarray | ca.SX],
     fix_point: ca.SX = ca.SX.zeros(3),
 ) -> ca.SX:
-    """CasADi symbolic chain dynamics.
+    """Define CasADi symbolic chain dynamics.
 
     This version accepts parameters as a dictionary for compatibility with
     the RestingChainSolver.
@@ -23,7 +23,7 @@ def define_f_expl_expr(
         x: State vector containing positions and velocities
         u: Control input (velocity of last mass)
         p: Parameter dictionary with keys ["m", "D", "L", "C", "w"]
-        x0: Fixed point position (anchor)
+        fix_point: Fixed point position (anchor)
 
     Returns:
         State derivative as CasADi expression

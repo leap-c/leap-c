@@ -39,6 +39,7 @@ class HvacControllerCtx(NamedTuple):
 
 class HvacController(ParameterizedController[HvacControllerCtx]):
     """acados-based controller for the HVAC system.
+
     The first part of the state corresponds to the first part of the observation of the
     StochasticThreeStateRcEnv environment, i.e., the indoor temperature Ti,
     the radiator temperature Th, and the envelope temperature Te.
@@ -202,8 +203,7 @@ class HvacController(ParameterizedController[HvacControllerCtx]):
         return param.cat.full().flatten()
 
     def _extract_param_by_prefix(self, structured_param, key_prefix: str) -> np.ndarray:
-        """
-        Extract parameters from structured_param that start with the given key prefix.
+        """Extract parameters from structured_param that start with the given key prefix.
 
         Args:
             structured_param: The structured parameter object
@@ -222,8 +222,7 @@ def export_parametric_ocp(
     name: str = "hvac",
     x0: np.ndarray | None = None,
 ) -> AcadosOcp:
-    """
-    Export the HVAC OCP.
+    """Export the HVAC OCP.
 
     Args:
         param_manager: The parameter manager containing the parameters for the OCP.
@@ -234,7 +233,6 @@ def export_parametric_ocp(
     Returns:
         AcadosOcp: The configured OCP object.
     """
-
     dt: float = 900.0  # Time step in seconds (15 minutes)
 
     ocp = AcadosOcp()
@@ -339,8 +337,7 @@ def export_parametric_ocp(
 
 
 def decompose_observation(obs: np.ndarray) -> tuple:
-    """
-    Decompose the observation vector into its components.
+    """Decompose the observation vector into its components.
 
     Args:
         obs: Observation vector from the environment.
