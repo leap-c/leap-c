@@ -293,9 +293,9 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         return Ad, Bd, Ed, Qd
 
     def _compute_noise_covariance(self, Ac: np.ndarray, Sigma: np.ndarray, dt: float) -> np.ndarray:
-        """TODO: Check if this is correct. See, e.g., Farrell, J. Sec 4.7.2.
+        """Compute the exact discrete-time noise covariance matrix using matrix exponential.
 
-        Compute the exact discrete-time noise covariance matrix using matrix exponential.
+        The discrete-time noise covariance
         Q_d = ∫₀^Δt e^(Aτ) Σ Σᵀ e^(Aᵀτ) dτ.
 
         Args:
