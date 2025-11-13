@@ -65,7 +65,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             start_time: Start time from which to sample from the historical prices and weather data.
                 If None, starts at a random time sampled from the data.
             horizon_hours: Prediction horizon in hours
-            max_hours: Maximum simulation time in hours
+            max_hours: Maximum simulation time in hours. The episode ends after this time.
             render_mode: Render mode for the environment
             price_zone: Price zone for electricity prices
             price_data_path: Path to the price data CSV file
