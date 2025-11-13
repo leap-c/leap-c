@@ -146,7 +146,7 @@ class FopActor(nn.Module, Generic[CtxType]):
     def forward(
         self, obs: np.ndarray, ctx: CtxType | None = None, deterministic: bool = False
     ) -> SacFopActorOutput:
-        """Forward pass.
+        """Sample actions from the policy given observations.
 
         The given observations are passed to the extractor to obtain features.
         These are used to predict a bounded distribution in the (learnable) parameter space of the
@@ -158,6 +158,10 @@ class FopActor(nn.Module, Generic[CtxType]):
             ctx: The optional context object containing information about the previous controller
                 solve. Can be used, e.g., to warm-start the solver.
             deterministic: If `True`, use the mode of the distribution instead of sampling.
+
+        Returns:
+            SacFopActorOutput: The output of the actor containing parameters, log-probability,
+                statistics, actions, solver status, and context.
         """
         e = self.extractor(obs)
         dist_params = self.mlp(e)
@@ -246,7 +250,7 @@ class FoaActor(nn.Module, Generic[CtxType]):
     def forward(
         self, obs: np.ndarray, ctx: CtxType | None = None, deterministic: bool = False
     ) -> SacFopActorOutput:
-        """Forward pass.
+        """Sample actions from the policy given observations.
 
         The given observations are passed to the extractor to obtain features.
         These are used by the MLP to predict parameters, as well as a standard deviation.
@@ -259,6 +263,10 @@ class FoaActor(nn.Module, Generic[CtxType]):
             ctx: The optional context object containing information about the previous controller
                 solve. Can be used, e.g., to warm-start the solver.
             deterministic: If `True`, use the mean of the distribution instead of sampling.
+
+        Returns:
+            SacFopActorOutput: The output of the actor containing parameters, log-probability,
+                statistics, actions, solver status, and context.
         """
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)

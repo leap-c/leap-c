@@ -164,7 +164,7 @@ class SacActor(nn.Module):
     def forward(
         self, obs: torch.Tensor, deterministic: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
-        """Actor forward pass.
+        """Sample actions from the policy given observations.
 
         The given observations are passed to the extractor to obtain features.
         These are used by the MLP to predict parameters used to define a

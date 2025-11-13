@@ -28,7 +28,7 @@ class BoundedDistribution(nn.Module):
     def forward(
         self, *defining_parameters, deterministic: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
-        """Samples from the distribution.
+        """Sample from the distribution.
 
         If `deterministic` is True, the mode of the distribution is used instead of
         sampling.
@@ -163,7 +163,7 @@ class SquashedGaussian(BoundedDistribution):
     def forward(
         self, mean: torch.Tensor, log_std: torch.Tensor, deterministic: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
-        """Forward pass.
+        """Sample from the SquashedGaussian distribution.
 
         Args:
             mean: The mean of the normal distribution.

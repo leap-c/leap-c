@@ -131,7 +131,7 @@ class MpcSacActor(nn.Module, Generic[CtxType]):
         deterministic: bool = False,
         only_param: bool = False,
     ) -> SacZopActorOutput:
-        """Forward pass.
+        """Sample parameters from the policy and (optional) compute actions using the controller.
 
         The given observations are passed to the extractor to obtain features.
         These are used to predict a bounded distribution in the (learnable) parameter space of the
@@ -146,6 +146,10 @@ class MpcSacActor(nn.Module, Generic[CtxType]):
             deterministic: If `True`, use the mode of the distribution instead of sampling.
             only_param: If `True`, only return the predicted parameters and log-probabilities, but
                 do not compute the action using the controller.
+
+        Returns:
+            SacZopActorOutput: The output of the actor containing parameters, log-probability,
+                statistics, actions, and context.
         """
         e = self.extractor(obs)
         dist_params = self.mlp(e)
