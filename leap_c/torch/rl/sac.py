@@ -69,6 +69,7 @@ class SacTrainerConfig(TrainerConfig):
 
 class SacCritic(nn.Module):
     """A critic network for Soft Actor-Critic (SAC).
+
     Consists of multiple Q-networks that estimate the expected return for given state-action pairs.
 
     Attributes:
@@ -163,7 +164,9 @@ class SacActor(nn.Module):
     def forward(
         self, obs: torch.Tensor, deterministic: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
-        """The given observations are passed to the extractor to obtain features.
+        """Sample actions from the policy given observations.
+
+        The given observations are passed to the extractor to obtain features.
         These are used by the MLP to predict parameters used to define a
         bounded distribution in the action space.
         The final actions are then sampled from this distribution.

@@ -1,4 +1,4 @@
-"""This module creates PyTorch autograd functions"""
+"""This module creates PyTorch autograd functions."""
 
 import torch
 
@@ -6,8 +6,7 @@ from leap_c.autograd.function import DiffFunction
 
 
 def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]:
-    """Creates a PyTorch autograd function from an object implementing NumPy-based forward and
-    backward methods.
+    """Creates a PyTorch autograd function from an object implementing forward and backward methods.
 
     The `fun` object must implement the `forward` and `backward` methods as described in the
     `Function` class. During the backward pass, the custom context object gets the information about

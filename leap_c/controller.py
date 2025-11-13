@@ -1,5 +1,4 @@
-"""Module defining the abstract interface for differentiable, parameterized controllers in
-PyTorch."""
+"""Module defining abstract interfaces of differentiable, parameterized controllers in PyTorch."""
 
 from abc import ABCMeta, abstractmethod
 from typing import Any, Callable, Generic, Protocol, TypeVar, Union

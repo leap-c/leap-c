@@ -28,7 +28,8 @@ class BoundedDistribution(nn.Module):
     def forward(
         self, *defining_parameters, deterministic: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
-        """Samples from the distribution.
+        """Sample from the distribution.
+
         If `deterministic` is True, the mode of the distribution is used instead of
         sampling.
 
@@ -39,8 +40,7 @@ class BoundedDistribution(nn.Module):
 
     @abstractmethod
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
-        """Returns the number of parameters required to define the distribution
-        for the given output dimensionality.
+        """Returns param size required to define the distribution for the given output dim.
 
         Args:
             output_dim: The dimensionality of the output space (e.g., action space).
@@ -97,7 +97,9 @@ class BoundedTransform(nn.Module):
         return x * self.scale[None, :] + self.loc[None, :]
 
     def inverse(self, x: torch.Tensor, padding: float = 0.001) -> torch.Tensor:
-        """Applies the inverse transformation to the input tensor, i.e., descale, then arctanh.
+        """Apply the inverse transformation to the input tensor.
+
+        The inverse transformation is a descale and then arctanh.
         For numerical stability, the input is slightly padded away from the bounds
         before applying arctanh.
 
@@ -115,6 +117,7 @@ class BoundedTransform(nn.Module):
 
 class SquashedGaussian(BoundedDistribution):
     """A squashed Gaussian.
+
     Samples the output from a Gaussian distribution specified by the input,
     and then squashes the result with a tanh function.
     Finally, the output of the tanh function is scaled and shifted to match the space.
@@ -160,7 +163,8 @@ class SquashedGaussian(BoundedDistribution):
     def forward(
         self, mean: torch.Tensor, log_std: torch.Tensor, deterministic: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
-        """
+        """Sample from the SquashedGaussian distribution.
+
         Args:
             mean: The mean of the normal distribution.
             log_std: The logarithm of the standard deviation of the normal distribution,
@@ -199,7 +203,9 @@ class SquashedGaussian(BoundedDistribution):
         return (output_dim, output_dim)
 
     def inverse(self, x: torch.Tensor, padding: float = 0.001) -> torch.Tensor:
-        """Applies the inverse transformation to the input tensor, i.e., descale, then arctanh.
+        """Apply the inverse transformation to the input tensor.
+
+        The inverse transformation is a descale and then arctanh.
         For numerical stability, the input is slightly padded away from the bounds
         before applying arctanh.
 
@@ -216,9 +222,11 @@ class SquashedGaussian(BoundedDistribution):
 
 
 class ScaledBeta(BoundedDistribution):
-    """A unimodal (alpha, beta > 1 is enforced) scaled Beta distribution.
+    """A unimodal scaled Beta distribution.
+
     Samples the output from a Beta distribution specified by the input,
-    and then scales and shifts the result to match the space.
+    and then scales and shifts the result to match the space. Unomodality is ensured
+    by enforcing alpha, beta > 1.
 
     Can for example be used to enforce certain action bounds of a stochastic policy.
 
@@ -274,7 +282,10 @@ class ScaledBeta(BoundedDistribution):
     def forward(
         self, log_alpha: torch.Tensor, log_beta: torch.Tensor, deterministic: bool = False
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
-        """Note that alpha and beta are enforced to be > 1 to ensure concavity.
+        """Sample from the ScaledBeta distribution.
+
+        Note that alpha and beta are enforced to be > 1 to ensure concavity.
+
         Args:
             log_alpha: The logarithm of the alpha parameter of the Beta distribution.
             log_beta: The logarithm of the beta parameter of the Beta distribution.

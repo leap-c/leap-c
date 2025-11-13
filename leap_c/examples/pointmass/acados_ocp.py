@@ -26,7 +26,6 @@ def create_pointmass_params(
         x_ref_value: The value for the reference state.
         N_horizon: The number of steps in the MPC horizon.
     """
-
     q_diag_sqrt = np.array([1.0, 1.0, 1.0, 1.0])
     r_diag_sqrt = np.array([0.1, 0.1])
 

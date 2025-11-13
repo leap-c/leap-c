@@ -96,8 +96,9 @@ class MlpConfig:
 
 
 class Mlp(nn.Module):
-    """A base class for a multi-layer perceptron (MLP) with a configurable number of layers and
-    activation functions.
+    """A base class for a multi-layer perceptron (MLP).
+
+    The MLP includes a configurable number of layers and activation functions.
 
     Attributes:
         mlp: The MLP model. Is `None` if no hidden layers were set in the config (see
@@ -169,8 +170,9 @@ def init_mlp_params_with_inverse_default(
     bounded_fun: BoundedDistribution | BoundedTransform,
     controller: ParameterizedController,
 ) -> None:
-    """
-    Sets the parameters of the MLP such that the mean of the gaussian transformed by the squashing
+    """Initialize the parameters of the MLP to produce the default parameters.
+
+    The MLP is initialized such that the mean of the gaussian transformed by the squashing
     of the SquashedGaussian corresponds to the default parameters defined by the controller.
 
     This function assumes

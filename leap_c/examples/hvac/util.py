@@ -58,8 +58,7 @@ class EnergyPriceProfile:
 
 
 def load_price_data(csv_path: str | Path) -> pd.DataFrame:
-    """
-    Load electricity price data from CSV file.
+    """Load electricity price data from CSV file.
 
     Args:
         csv_path: Path to the price CSV file
@@ -94,8 +93,7 @@ def create_price_profile_from_spot_sprices(
     dt_minutes: float = 15.0,
     region: str = "NO_1",
 ) -> EnergyPriceProfile:
-    """
-    Create a price profile from electricity price data using zero-order hold.
+    """Create a price profile from electricity price data using zero-order hold.
 
     Args:
         price_df: Price DataFrame from load_price_data()
@@ -161,8 +159,7 @@ def create_price_profile_from_spot_sprices(
 
 
 def load_weather_data(csv_path: str | Path) -> pd.DataFrame:
-    """
-    Load weather data from CSV file.
+    """Load weather data from CSV file.
 
     Args:
         csv_path: Path to the weather CSV file
@@ -207,8 +204,7 @@ def create_disturbance_from_weather(
     horizon_hours: float = 24.0,
     dt_minutes: float = 15.0,
 ) -> DisturbanceProfile:
-    """
-    Create a disturbance profile from weather data.
+    """Create a disturbance profile from weather data.
 
     Args:
         weather_df: Weather DataFrame from load_weather_data()
@@ -297,11 +293,10 @@ def create_realistic_comfort_bounds(
     day_start_hour: int = 7,
     day_end_hour: int = 22,
 ) -> ComfortBounds:
-    """
-    Create realistic time-varying comfort bounds based on occupancy patterns.
+    """Create realistic time-varying comfort bounds based on occupancy patterns.
 
     Args:
-        n_steps: Number of time steps (N+1 for states)
+        N: Number of time steps in the horizon
         start_time: Start time as string
         dt_minutes: Time step in minutes
         day_temp_range: (lower, upper) temperature bounds during day in Celsius
@@ -356,8 +351,7 @@ def create_time_of_use_energy_costs(
     peak_cost: float = 0.20,
     peak_hours: tuple[int, int] = (17, 21),  # 5 PM to 9 PM
 ) -> EnergyPriceProfile:
-    """
-    Create time-of-use energy cost profile with peak pricing.
+    """Create time-of-use energy cost profile with peak pricing.
 
     Args:
         N: Number of time steps
@@ -399,12 +393,12 @@ def plot_ocp_results(
     figsize: tuple[float, float] = (12, 10),
     save_path: str | None = None,
 ) -> plt.Figure:
-    """
-    Plot the OCP solution results in a figure with three vertically stacked subplots.
+    """Plot the OCP solution results in a figure with three vertically stacked subplots.
 
     Args:
         solution: Solution dictionary from ThermalControlOCP.solve()
         disturbance_profile: Disturbance profile used in optimization
+        energy_prices: Energy price profile used in optimization
         comfort_bounds: Comfort bounds used in optimization
         dt: Time step in seconds
         figsize: Figure size (width, height)
@@ -584,8 +578,7 @@ def plot_comfort_violations(
     dt: float = 15 * 60,
     figsize: tuple[float, float] = (10, 6),
 ) -> plt.Figure:
-    """
-    Plot comfort violations (slack variables) over time.
+    """Plot comfort violations (slack variables) over time.
 
     Args:
         solution: Solution dictionary from ThermalControlOCP.solve()
@@ -639,8 +632,7 @@ def transcribe_continuous_state_space(
     Ec: ca.SX | np.ndarray,
     params: dict[str, float],
 ) -> tuple[ca.SX, ca.SX, ca.SX]:
-    """
-    Create continuous-time state-space matrices Ac, Bc, Ec as per equation (6).
+    """Create continuous-time state-space matrices Ac, Bc, Ec as per equation (6).
 
     Args:
         Ac: State-space matrix (system dynamics)
@@ -702,8 +694,7 @@ def transcribe_discrete_state_space(
     dt: float,
     params: dict[str, float],
 ) -> tuple[ca.SX, ca.SX, ca.SX]:
-    """
-    Create discrete-time state-space matrices Ad, Bd, Ed as per equation (7).
+    """Create discrete-time state-space matrices Ad, Bd, Ed as per equation (7).
 
     Args:
         Ad: State-space matrix (system dynamics)
@@ -751,8 +742,8 @@ def transcribe_discrete_state_space(
 
 
 def resample_prices_to_quarters(price_data: pd.DataFrame) -> pd.DataFrame:
-    """
-    Resample hourly price data to 15-minute intervals.
+    """Resample hourly price data to 15-minute intervals.
+
     Each hour's price is kept constant for the following four 15-minute periods.
 
     Parameters:
@@ -790,8 +781,7 @@ def merge_price_weather_data(
     weather_data: pd.DataFrame,
     merge_type: str = "inner",
 ) -> pd.DataFrame:
-    """
-    Merge price and weather dataframes on their timestamp indices.
+    """Merge price and weather dataframes on their timestamp indices.
 
     Parameters:
     -----------

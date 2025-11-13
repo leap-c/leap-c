@@ -1,5 +1,4 @@
-"""Provides a trainer for a Soft Actor-Critic algorithm that uses a differentiable MPC
-layer in the policy network."""
+"""Provides a trainer for a SAC algorithm that uses a diff. MPC layer in the policy network."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -86,8 +85,9 @@ class SacFopActorOutput(NamedTuple):
 
 
 class FopActor(nn.Module, Generic[CtxType]):
-    """An actor module for SAC-FOP, containing a differentiable MPC layer and injecting noise in the
-    parameter space.
+    """An actor module for SAC-FOP, containing a differentiable MPC layer.
+
+    Injecting noise in param space.
 
     Attributes:
         controller: The differentiable parameterized controller used to compute actions from
@@ -146,7 +146,9 @@ class FopActor(nn.Module, Generic[CtxType]):
     def forward(
         self, obs: np.ndarray, ctx: CtxType | None = None, deterministic: bool = False
     ) -> SacFopActorOutput:
-        """The given observations are passed to the extractor to obtain features.
+        """Sample actions from the policy given observations.
+
+        The given observations are passed to the extractor to obtain features.
         These are used to predict a bounded distribution in the (learnable) parameter space of the
         controller using the MLP. Afterwards, this parameters are sampled from this distribution,
         and passed to the controller, which then computes the final actions.
@@ -156,6 +158,10 @@ class FopActor(nn.Module, Generic[CtxType]):
             ctx: The optional context object containing information about the previous controller
                 solve. Can be used, e.g., to warm-start the solver.
             deterministic: If `True`, use the mode of the distribution instead of sampling.
+
+        Returns:
+            SacFopActorOutput: The output of the actor containing parameters, log-probability,
+                statistics, actions, solver status, and context.
         """
         e = self.extractor(obs)
         dist_params = self.mlp(e)
@@ -182,8 +188,9 @@ class FopActor(nn.Module, Generic[CtxType]):
 
 
 class FoaActor(nn.Module, Generic[CtxType]):
-    """An actor module for SAC-FOP, containing a differentiable MPC layer and injecting noise in the
-    action space.
+    """An actor module for SAC-FOP, containing a differentiable MPC layer.
+
+    Injecting noise in action space.
 
     Attributes:
         controller: The differentiable parameterized controller (MPC) used to compute actions.
@@ -243,7 +250,9 @@ class FoaActor(nn.Module, Generic[CtxType]):
     def forward(
         self, obs: np.ndarray, ctx: CtxType | None = None, deterministic: bool = False
     ) -> SacFopActorOutput:
-        """The given observations are passed to the extractor to obtain features.
+        """Sample actions from the policy given observations.
+
+        The given observations are passed to the extractor to obtain features.
         These are used by the MLP to predict parameters, as well as a standard deviation.
         The parameters are passed to the controller to obtain actions. These actions are used
         together with the standard deviation to define a distribution in the action space.
@@ -254,6 +263,10 @@ class FoaActor(nn.Module, Generic[CtxType]):
             ctx: The optional context object containing information about the previous controller
                 solve. Can be used, e.g., to warm-start the solver.
             deterministic: If `True`, use the mean of the distribution instead of sampling.
+
+        Returns:
+            SacFopActorOutput: The output of the actor containing parameters, log-probability,
+                statistics, actions, solver status, and context.
         """
         e = self.extractor(obs)
         mean, log_std = self.mlp(e)
@@ -272,8 +285,10 @@ class FoaActor(nn.Module, Generic[CtxType]):
 
 
 class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
-    """A trainer implementing Soft Actor-Critic (SAC) that uses a differentiable controller layer in
-    the policy network (SAC-FOP).
+    """A trainer implementing Soft Actor-Critic (SAC) that uses a differentiable controller layer.
+
+    The differentiable controller layer is in the policy network (SAC-FOP).
+
     Supports variants using parameter noise or action noise. Always uses an action critic.
 
     Attributes:

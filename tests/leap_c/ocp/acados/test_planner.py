@@ -8,10 +8,10 @@ from leap_c.ocp.acados.planner import (
 
 
 def test_TO_ACADOS_DIFFMPC_SENSOPTS_is_bijective():
-    """Essentially, tests that we did not forget any sensitivity option in
-    `TO_ACADOS_DIFFMPC_SENSOPTS`, and that mappings are one-to-one without duplicates.
-    """
+    """Test that we did not forget any sensitivity option in `TO_ACADOS_DIFFMPC_SENSOPTS`.
 
+    Also test that mappings are one-to-one without duplicates.
+    """
     this = TO_ACADOS_DIFFMPC_SENSOPTS
     reverse = {v: k for k, v in TO_ACADOS_DIFFMPC_SENSOPTS.items()}
 

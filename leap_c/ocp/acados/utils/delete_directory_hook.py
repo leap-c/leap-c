@@ -16,8 +16,7 @@ class DeleteDirectoryHook:
         obj,
         dir: str | Path,
     ):
-        """Initializes the DeleteDirectoryHook and registers the cleanup
-        function.
+        """Initializes the DeleteDirectoryHook and registers the cleanup function.
 
         Args:
             obj: The object to which this hook is associated. A reference to
@@ -31,8 +30,7 @@ class DeleteDirectoryHook:
         obj.__delete_dir_hook = self
 
     def __del__(self):
-        """Deletes the directory when the object is garbage collected or at
-        exit.
+        """Deletes the directory when the object is garbage collected or at exit.
 
         This method is registered with `atexit`. It attempts to remove the
         directory. Errors during deletion are ignored.

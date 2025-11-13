@@ -1,5 +1,4 @@
-"""Provides a trainer for a Soft Actor-Critic algorithm that uses a differentiable MPC
-layer for the policy network."""
+"""Provides a trainer for a SAC algorithm that sets parameters of a parameterized controller."""
 
 from dataclasses import dataclass
 from pathlib import Path
@@ -69,8 +68,10 @@ class SacZopTrainerConfig(SacTrainerConfig):
 
 
 class MpcSacActor(nn.Module, Generic[CtxType]):
-    """An actor module for SAC-ZOP, containing a ParameterizedController to compute actions, but not
-    differentiating through it, and injecting noise in the parameter space.
+    """An actor module for SAC-ZOP, containing a ParameterizedController.
+
+    The ParameterizedController is used to compute actions, but does not need to support
+    differentiating through it. Noise is injected in the parameter space.
 
     Attributes:
         extractor: The feature extractor module.
@@ -130,7 +131,9 @@ class MpcSacActor(nn.Module, Generic[CtxType]):
         deterministic: bool = False,
         only_param: bool = False,
     ) -> SacZopActorOutput:
-        """The given observations are passed to the extractor to obtain features.
+        """Sample parameters from the policy and (optional) compute actions using the controller.
+
+        The given observations are passed to the extractor to obtain features.
         These are used to predict a bounded distribution in the (learnable) parameter space of the
         controller using the MLP. Afterwards, this parameters are sampled from this distribution,
         and passed to the controller, which then computes the final actions.
@@ -143,6 +146,10 @@ class MpcSacActor(nn.Module, Generic[CtxType]):
             deterministic: If `True`, use the mode of the distribution instead of sampling.
             only_param: If `True`, only return the predicted parameters and log-probabilities, but
                 do not compute the action using the controller.
+
+        Returns:
+            SacZopActorOutput: The output of the actor containing parameters, log-probability,
+                statistics, actions, and context.
         """
         e = self.extractor(obs)
         dist_params = self.mlp(e)
@@ -164,8 +171,10 @@ class MpcSacActor(nn.Module, Generic[CtxType]):
 
 
 class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
-    """A trainer that implements Soft Actor-Critic (SAC) with a controller in the policy network,
-    but without differentiating through it (SAC-ZOP). Uses parameter noise and a parameter critic.
+    """A trainer that implements SAC with a controller in the policy network.
+
+    The controller is used to compute actions but without differentiating through it (SAC-ZOP).
+    Uses parameter noise and a parameter critic.
 
     Attributes:
         train_env: The training environment.

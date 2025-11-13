@@ -60,15 +60,16 @@ def test_solution(cartpole_controller):
 
 
 def test_env_terminates():
-    """Test if the environment terminates correctly when applying minimum
-    and maximum control inputs.
+    """Test if the environment terminates correctly when exceeding valid states.
+
+    The test applies minimum and maximum control inputs to drive the cart
+    beyond the position thresholds.
 
     This test ensures that the environment terminates properly
     when applying either minimum or maximum control
     inputs continuously. It checks both termination conditions
     and verifies that the episode ends with a termination rather than a truncation.
     """
-
     env = CartPoleEnv()
 
     for action in [env.action_space.low, env.action_space.high]:  # type:ignore
@@ -83,15 +84,16 @@ def test_env_terminates():
 
 
 def test_env_truncates():
-    """Test if the environment truncates correctly when applying minimum
-    and maximum control inputs.
+    """Test if the environment truncates correctly when time limit is reached.
+
+    The test applies zero control inputs to keep the cart within valid states
+    until the time limit is reached.
 
     This test ensures that the environment truncates properly when doing nothing
     (i.e. it cannot come from termination).
     It checks both termination conditions and verifies that the episode ends with a truncation
     rather than a termination.
     """
-
     env = CartPoleEnv()
     env.reset(seed=0)
 
@@ -105,10 +107,11 @@ def test_env_truncates():
 
 
 def test_env_types():
-    """Test whether the type of the state is and stays np.float32
-    for an action from the action space (note that the action space has type np.float32).
-    """
+    """Test whether the type of the state is and stays np.float32.
 
+    This test is for an action from the action space.
+    Note that the action space has type np.float32.
+    """
     env = CartPoleEnv()
 
     x, _ = env.reset(seed=0)

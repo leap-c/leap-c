@@ -6,8 +6,7 @@ from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
 
 
 def test_trainer_checkpointing():
-    """
-    Test the checkpointing functionality of the Trainer class.
+    """Test the checkpointing functionality of the Trainer class.
 
     This test verifies that the Trainer class can correctly save and load
     checkpoints, including the state of the model, optimizer, and other

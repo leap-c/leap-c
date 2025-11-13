@@ -34,7 +34,7 @@ def mk_seed(rng: np.random.Generator) -> int:
     Args:
         rng: A `numpy.random.Generator` instance.
 
-    Returns
+    Returns:
         int: A random integer in the range [0, 2**32).
     """
     return int(rng.integers(MAX_SEED))

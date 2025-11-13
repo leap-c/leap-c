@@ -46,6 +46,7 @@ class ChainEnvConfig:
 
 class ChainEnv(MatplotlibRenderEnv, gym.Env):
     """An environment of a chain of masses, connected by "springs".
+
     The first mass is fixed at a given point,
     and the last mass can be controlled by setting its velocity.
     The goal is to move the chain to a target position while minimizing mass velocity.
@@ -139,7 +140,8 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
         render_mode: str | None = None,
         cfg: ChainEnvConfig | None = None,
     ):
-        """
+        """Initialize the Chain environment.
+
         Args:
             render_mode: The mode to render with. Supported modes are: human, rgb_array, None.
             cfg: Configuration for the environment. If None, default configuration is used.

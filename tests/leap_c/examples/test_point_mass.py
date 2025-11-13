@@ -10,15 +10,13 @@ from leap_c.planner import ControllerFromPlanner
 def test_run_closed_loop(
     n_iter: int = 200,
 ) -> None:
-    """
-    Test the closed-loop performance of a learnable point mass MPC.
+    """Test the closed-loop performance of a learnable point mass MPC.
 
     Asserts:
     - The final position of the point mass is close to the origin.
     - The final velocity of the point mass is close to zero.
 
     """
-
     env = PointMassEnv()
     obs, _ = env.reset()
 

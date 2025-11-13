@@ -41,6 +41,7 @@ def episode_rollout(
             video in this folder. Can not be set if `render_human` is `True`.
         name_prefix (str, optional): The prefix for the video file names. Must be provided if
             `video_folder` is provided.
+        rng (RngType, optional): The random number generator or seed for seeding the environment.
 
     Yields:
         The first dictionary containing the information about the rollout, at least containing the

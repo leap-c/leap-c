@@ -76,8 +76,9 @@ class ReplayBuffer(torch.nn.Module):
         self.buffer.append(data)
 
     def sample(self, n: int) -> Any:
-        """Sample a mini-batch from the replay buffer, and collate it according to the `collate`
-        function.
+        """Sample a mini-batch from the replay buffer, and collate it.
+
+        The collate is according to the `collate` function of this class.
 
         Args:
             n: The number of samples to draw.
@@ -86,8 +87,10 @@ class ReplayBuffer(torch.nn.Module):
         return self.collate(mini_batch)
 
     def collate(self, batch: Any) -> Any:
-        """Collate a batch of data according to the collate function map, and move and cast all
-        tensors in the collated batch (must be a pytree structure)
+        """Collate a batch of data according to the collate function map.
+
+        After collating, move and cast all tensors in the
+        collated batch (must be a pytree structure).
 
         Args:
             batch: The batch of data to collate.

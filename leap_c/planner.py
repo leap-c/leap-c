@@ -34,7 +34,9 @@ class ParameterizedPlanner(nn.Module, Generic[CtxType], metaclass=ABCMeta):
         param: Tensor | None = None,
         ctx: CtxType | None = None,
     ) -> tuple[CtxType, Tensor | None, Tensor, Tensor | None]:
-        """Computes state and control trajectories from an initial observation, optional initial
+        """Computes state and control trajectories from an observation.
+
+        State and control trajectories are computation can be given optional initial
         action, parameters, and internal context.
 
         Args:

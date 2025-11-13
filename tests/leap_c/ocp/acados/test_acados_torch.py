@@ -14,10 +14,7 @@ from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 def test_initialization_with_stagewise_varying_params(
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
 ) -> None:
-    """
-    Test the initialization of the AcadosImplicitLayer with stagewise varying
-    parameters.
-    """
+    """Test the initialization of the AcadosImplicitLayer with stagewise varying parameters."""
     assert diff_mpc_with_stagewise_varying_params is not None, (
         "AcadosImplicitLayer with stagewise varying parameters should not be None."
     )
@@ -28,9 +25,7 @@ def test_initialization(diff_mpc: AcadosDiffMpcTorch) -> None:
 
 
 def test_file_management(diff_mpc: AcadosDiffMpcTorch, tol: float = 1e-5) -> None:
-    """
-    Tests the file management behavior of AcadosDiffMpcTorch during solver
-    reloading and code export.
+    """Test the file management behavior of AcadosDiffMpcTorch for solver reloading and code export.
 
     Args:
         diff_mpc: The differentiable mpc object containing
@@ -85,10 +80,10 @@ def test_file_management(diff_mpc: AcadosDiffMpcTorch, tol: float = 1e-5) -> Non
 
 
 def test_statelessness(diff_mpc: AcadosDiffMpcTorch) -> None:
-    """
-    Test the statelessness of AcadosDiffMpcTorch by verifying that the
-    layer produces consistent outputs for identical inputs and different outputs
-    for modified parameters.
+    """Test the statelessness of AcadosDiffMpcTorch.
+
+    The test verifies that the layer produces consistent outputs for identical inputs and
+    different outputs for modified parameters.
 
     This test ensures that:
     1. The layer's output changes when global and stagewise parameters are modified.
@@ -165,8 +160,7 @@ def test_statelessness(diff_mpc: AcadosDiffMpcTorch) -> None:
 
 
 def test_backup_functionality(diff_mpc: AcadosDiffMpcTorch) -> None:
-    """
-    Test the backup functionality of AcadosDiffMpcTorch.
+    """Test the backup functionality of AcadosDiffMpcTorch.
 
     This test verifies that the backup mechanism in the implicit layer can
     restore a corrupted iterate to a valid state and produce consistent
@@ -219,8 +213,7 @@ def test_closed_loop(
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
     tol: float = 1e-1,
 ) -> None:
-    """
-    Tests the closed-loop behavior of a system controlled by AcadosDiffMpcTorch.
+    """Tests the closed-loop behavior of a system controlled by AcadosDiffMpcTorch.
 
     This function simulates a closed-loop system for 100 steps, where the control
     inputs are computed using the provided implicit layer. It verifies that the
@@ -228,9 +221,10 @@ def test_closed_loop(
     inputs stabilize within a specified threshold.
 
     Args:
-        diff_mpc: The implicit layer representing the
-            control system, which includes the solver and problem definition.
-        tol: The tolerance for checking the stabilization of states and
+        diff_mpc: The implicit layer representing the control system, which includes the solver
+        and problem definition.
+        diff_mpc_with_stagewise_varying_params: The implicit layer with stagewise varying parameters
+        tol: The tolerance for checking the stabilization of states and control inputs.
 
     Raises:
         AssertionError: If the solver fails to converge at any step or if the
@@ -361,11 +355,11 @@ def test_forward(
     noise_scale: float = 0.05,
     verbosity: int = 0,
 ) -> None:
-    """
-    Test the forward method of AcadosDiffMpcTorch with different input combinations.
+    """Test the forward method of AcadosDiffMpcTorch with different input combinations.
 
     Args:
         diff_mpc: The differentiable mpc to test
+        diff_mpc_with_stagewise_varying_params: The differentiable mpc with stagewise varying params
         n_batch: Number of batch samples
         dtype: PyTorch data type for tensors
         noise_scale: Scale factor for noise added to parameters
@@ -480,11 +474,11 @@ def test_sensitivity(
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
 ) -> None:
-    """
-    Test sensitivity of AcadosDiffMpcTorch to changes in parameters.
+    """Test sensitivity of AcadosDiffMpcTorch to changes in parameters.
 
     Args:
         diff_mpc: The differentiable mpc to test
+        diff_mpc_with_stagewise_varying_params: The differentiable mpc with stagewise varying params
         n_batch: Number of batch samples to generate
         max_batch_size: Maximum allowed batch size for performance
         dtype: PyTorch data type for tensors
@@ -556,11 +550,11 @@ def test_backward(
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
 ) -> None:
-    """
-    Test backward pass of AcadosDiffMpcTorch using finite differences.
+    """Test backward pass of AcadosDiffMpcTorch using finite differences.
 
     Args:
         diff_mpc: The differentiable mpc to test
+        diff_mpc_with_stagewise_varying_params: The differentiable mpc with stagewise varying params
         n_batch: Number of batch samples to generate
         max_batch_size: Maximum allowed batch size for performance
         dtype: PyTorch data type for tensors

@@ -163,13 +163,23 @@ def export_parametric_ocp(
 
 
 class ChainInitializer(AcadosDiffMpcInitializer):
-    """Initializes the state variables in the iterate of the controller with the reference state
-    and all other variables in the iterate with zeros."""
+    """Initializer for the chain controller."""
 
     def __init__(self, ocp: AcadosOcp, x_ref: np.ndarray):
+        """Initialize the state variables in the iterate of the controller.
+
+        The state variables are initialized with the state set to the reference state.
+        All other variables in the iterate are set to zero.
+
+        Args:
+            ocp: The acados OCP object.
+            x_ref: The reference state used to initialize the state variables.
+
+        """
         iterate = ocp.create_default_initial_iterate().flatten()
         iterate.x = np.tile(x_ref, ocp.solver_options.N_horizon + 1)  # type:ignore
         self.default_iterate = iterate
 
     def single_iterate(self, solver_input: AcadosOcpSolverInput) -> AcadosOcpFlattenedIterate:
+        """Returns a single iterate for the given solver input. Using the default iterate."""
         return deepcopy(self.default_iterate)

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -52,19 +53,24 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         horizon_hours: int = 25,
         max_hours: int = 3 * 24,  # 3 days
         render_mode: str | None = None,
-        price_zone: str = "NO_1",
+        price_zone: Literal["NO_1", "NO_2", "NO_3", "DK_1", "DK_2", "DE_LU"] = "NO_1",
         price_data_path: Path | None = None,
         weather_data_path: Path | None = None,
         enable_noise: bool = True,
     ) -> None:
-        """
-        Initialize the stochastic environment.
+        """Initialize the stochastic environment.
 
         Args:
             params: Dictionary of thermal parameters
             step_size: Time step for the simulation in seconds
-            ambient_temperature_function: Function for ambient temperature
-            solar_radiation_function: Function for solar radiation
+            start_time: Start time from which to sample from the historical prices and weather data.
+                If None, starts at a random time sampled from the data.
+            horizon_hours: Prediction horizon in hours
+            max_hours: Maximum simulation time in hours. The episode ends after this time.
+            render_mode: Render mode for the environment
+            price_zone: Price zone for electricity prices
+            price_data_path: Path to the price data CSV file
+            weather_data_path: Path to the weather data CSV file
             enable_noise: Whether to include stochastic noise
         """
         super().__init__(render_mode=render_mode)
@@ -175,9 +181,10 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.trajectory_plots = None
 
     def _get_observation(self) -> np.ndarray:
-        """
-        Get the current observation including time, state, ambient temperatures,
-        solar radiation, and prices.
+        """Get the current observation.
+
+        The observation includes time, state, ambient temperatures, solar radiation, and prices
+        up to the prediction horizon.
 
         Returns:
             np.ndarray: Observation vector containing temporal, state, and forecast information
@@ -252,8 +259,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     def _compute_discrete_matrices(
         self,
     ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Compute discrete-time matrices using exact discretization via matrix exponential.
+        """Compute discrete-time matrices using exact discretization via matrix exponential.
+
         This includes both deterministic dynamics and noise covariance.
         """
         # Create noise intensity matrix Σ from parameters
@@ -288,9 +295,9 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         return Ad, Bd, Ed, Qd
 
     def _compute_noise_covariance(self, Ac: np.ndarray, Sigma: np.ndarray, dt: float) -> np.ndarray:
-        """
-        TODO: Check if this is correct. See, e.g., Farrell, J. Sec 4.7.2
-        Compute the exact discrete-time noise covariance matrix using matrix exponential.
+        """Compute the exact discrete-time noise covariance matrix using matrix exponential.
+
+        The discrete-time noise covariance
         Q_d = ∫₀^Δt e^(Aτ) Σ Σᵀ e^(Aᵀτ) dτ.
 
         Args:
@@ -335,15 +342,15 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         return eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
 
     def _reward_function(self, state: np.ndarray, action: np.ndarray):
-        """
-        Compute the reward based on the current state and action.
+        """Compute the reward based on the current state and action.
 
         Args:
-            action: Control input (heat input to radiator)
+            state: Current state
+            action: Control input
+
         Returns:
             float: Reward value
         """
-
         quarter_hour = self.data["quarter_hour"].iloc[self.idx]
         lb, ub = set_temperature_limits(quarter_hours=quarter_hour)
 
@@ -371,8 +378,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         return reward, reward_info
 
     def _is_terminated(self) -> bool:
-        """
-        Check if the current state is terminal.
+        """Check if the current state is terminal.
 
         Returns:
             bool: True if terminal, False otherwise
@@ -386,13 +392,12 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     def _load_uncertainty_params(self):
         """Load the uncertainty parameters.
 
-        Returns
+        Returns:
         -------
         uncertainty_params : dict
             Uncertainty parameters
 
         """
-
         return {
             "temperature": {
                 "low": {
@@ -445,9 +450,10 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     def _predict_temperature_error_AR1(
         self, hp: int, F0: float, K0: float, F: float, K: float, mu: float
     ) -> np.ndarray:
-        """
-        Generates an error for the temperature forecast with an AR model with
-        normal distribution in the hp points of the predictions horizon.
+        """Generates an error for the temperature forecast.
+
+        The error is samples from  an AR model with normal distribution in the hp points of the
+        predictions horizon.
 
         Parameters
         ----------
@@ -464,13 +470,12 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         mu :
             Mean value of the distribution function integrated in the AR error model.
 
-        Returns
+        Returns:
         -------
         error : 1D array
             Array containing the error values in the hp points.
 
         """
-
         error = np.zeros(hp)
         error[0] = self.np_random.normal(F0, K0)
         for i_c in range(hp - 1):
@@ -481,9 +486,10 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     def _predict_solar_error_AR1(
         self, hp: int, ag0: float, bg0: float, phi: float, ag: float, bg: float
     ) -> np.ndarray:
-        """
-        Generates an error for the solar forecast based on the specified parameters
-        using an AR model with Laplace distribution in the hp points of the predictions horizon.
+        """Generates an error for the solar forecast based on the specified parameters.
+
+        The error is generated using an AR model with Laplace distribution in the hp points of the
+        predictions horizon.
 
         Parameters
         ----------
@@ -492,13 +498,12 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         ag0, bg0, phi, ag, bg :
             Parameters for the AR1 model.
 
-        Returns
+        Returns:
         -------
         error : 1D numpy array
             Contains the error values in the hp points.
 
         """
-
         error = np.zeros(hp)
         error[0] = self.np_random.laplace(ag0, bg0)
         for i_c in range(1, hp):
@@ -595,8 +600,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         return obs, info
 
     def get_noise_statistics(self) -> dict:
-        """
-        Get statistics about the noise model.
+        """Get statistics about the noise model.
 
         Returns:
             Dictionary with noise statistics
@@ -696,7 +700,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
     def _render_frame(self) -> np.ndarray | None:
         """Renders the current frame of the environment."""
-
         ctx: HvacControllerCtx = self.ctx
 
         if not ctx:
@@ -737,8 +740,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.trajectory_plots["solar"].set_data(range(N_horizon), solar_forecast)
 
     def set_ctx(self, ctx: HvacControllerCtx) -> None:
-        """
-        Set the context for rendering.
+        """Set the context for rendering.
 
         Args:
             ctx: The HvacControllerCtx to set for rendering.

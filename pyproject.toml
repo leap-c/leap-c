@@ -80,9 +80,23 @@ target-version = "py311"
 line-length = 100
 extend-exclude = ["external"]
 
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
 [tool.ruff.lint]
-ignore = ["E741"]
+ignore = [
+  "E741",
+  "D100",  # Ignore missing docstrings
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D106",
+  "D107",
+]
 extend-select = [
+    "D",
     "I",
     "NPY",
     "UP045",
