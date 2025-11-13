@@ -84,7 +84,17 @@ extend-exclude = ["external"]
 convention = "google"
 
 [tool.ruff.lint]
-ignore = ["E741"]
+ignore = [
+  "E741",
+  "D100",  # Ignore missing docstrings
+  "D101",
+  "D102",
+  "D103",
+  "D104",
+  "D105",
+  "D106",
+  "D107",
+]
 extend-select = [
     "D",
     "I",
