@@ -137,7 +137,7 @@ class MpcSacActor(nn.Module, Generic[CtxType]):
         These are used to predict a bounded distribution in the (learnable) parameter space of the
         controller using the MLP. Afterwards, this parameters are sampled from this distribution,
         and passed to the controller, which then computes the final actions.
-        This forward pass does NOT support differentiation through the controller.
+        This forward pass does **NOT** support differentiation through the controller.
 
         Args:
             obs: The observations to compute the actions for.

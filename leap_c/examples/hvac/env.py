@@ -10,7 +10,7 @@ import scipy
 from gymnasium import spaces
 from scipy.constants import convert_temperature
 
-from leap_c.examples.hvac.controller import HvacControllerCtx
+from leap_c.examples.hvac.planner import HvacPlannerCtx
 from leap_c.examples.hvac.util import (
     load_price_data,
     load_weather_data,
@@ -69,7 +69,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         super().__init__(render_mode=render_mode)
         N_forecast = 4 * horizon_hours  # Number of forecasted ambient temperatures
 
-        self.ctx: HvacControllerCtx | None = None
+        self.ctx: HvacPlannerCtx | None = None
 
         self.N_forecast = N_forecast
         self.max_steps = int(max_hours * 3600 / step_size)
@@ -670,7 +670,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             ax.grid(visible=True, alpha=0.3)
 
     def _render_frame(self) -> np.ndarray | None:
-        ctx: HvacControllerCtx = self.ctx
+        ctx: HvacPlannerCtx = self.ctx
 
         if not ctx:
             raise ValueError("Context (ctx) not set for rendering.")
@@ -709,5 +709,5 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.trajectory_plots["Ta"].set_data(range(N_horizon), convert_temperature(Ta, "k", "c"))
         self.trajectory_plots["solar"].set_data(range(N_horizon), solar_forecast)
 
-    def set_ctx(self, ctx: HvacControllerCtx) -> None:
-        self.ctx: HvacControllerCtx = ctx
+    def set_ctx(self, ctx: HvacPlannerCtx) -> None:
+        self.ctx: HvacPlannerCtx = ctx
