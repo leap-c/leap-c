@@ -242,91 +242,10 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         if not self.stagewise or obs is None:
             return param.cat.full().flatten()
 
-        Ta_forecast, solar_forecast, price_forecast = decompose_observation(obs)[5:]
-
-        if isinstance(Ta_forecast, torch.Tensor):
-            Ta_forecast = Ta_forecast.cpu().numpy().flatten()
-        if isinstance(solar_forecast, torch.Tensor):
-            solar_forecast = solar_forecast.cpu().numpy().flatten()
-        if isinstance(price_forecast, torch.Tensor):
-            price_forecast = price_forecast.cpu().numpy().flatten()
-
-        N_horizon = self.diff_mpc.ocp.solver_options.N_horizon
-        for stage in range(N_horizon + 1):
-            param[f"Ta_{stage}_{stage}"] = Ta_forecast[stage]
-            param[f"Phi_s_{stage}_{stage}"] = solar_forecast[stage]
-            param[f"price_{stage}_{stage}"] = price_forecast[stage]
+        forecasts = obs[5:].reshape(3, -1).T
+        for stage in range(self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1):
+            param[f"Ta_{stage}_{stage}"] = forecasts[stage, 0]
+            param[f"Phi_s_{stage}_{stage}"] = forecasts[stage, 1]
+            param[f"price_{stage}_{stage}"] = forecasts[stage, 2]
 
         return param.cat.full().flatten()
-
-
-def decompose_observation(obs: np.ndarray) -> tuple:
-    """Decompose the observation vector into its components.
-
-    Args:
-        obs: Observation vector from the environment.
-
-    Returns:
-        Tuple containing:
-        - quarter_hour: Current quarter hour of the day (0-95)
-        - day_of_year: Current day of the year (1-365)
-        - Ti: Indoor air temperature in Kelvin
-        - Th: Radiator temperature in Kelvin
-        - Te: Envelope temperature in Kelvin
-        - Ta_forecast: Ambient temperature forecast for the next N steps
-        - solar_forecast: Solar radiation forecast for the next N steps
-        - price_forecast: Electricity price forecast for the next N steps
-    """
-    if obs.ndim > 1:
-        N_forecast = (obs.shape[1] - 5) // 3
-
-        quarter_hour = obs[:, 0]
-        day_of_year = obs[:, 1]
-        Ti = obs[:, 2]
-        Th = obs[:, 3]
-        Te = obs[:, 4]
-
-        Ta_forecast = obs[:, 5 : 5 + 1 * N_forecast]
-        solar_forecast = obs[:, 5 + 1 * N_forecast : 5 + 2 * N_forecast]
-        price_forecast = obs[:, 5 + 2 * N_forecast : 5 + 3 * N_forecast]
-
-        for forecast in [
-            Ta_forecast,
-            solar_forecast,
-            price_forecast,
-        ]:
-            assert forecast.shape[1] == N_forecast, (
-                f"Expected {N_forecast} forecasts, got {forecast.shape[1]}"
-            )
-    else:
-        N_forecast = (len(obs) - 5) // 3
-
-        quarter_hour = obs[0]
-        day_of_year = obs[1]
-        Ti = obs[2]
-        Th = obs[3]
-        Te = obs[4]
-
-        Ta_forecast = obs[5 : 5 + 1 * N_forecast]
-        solar_forecast = obs[5 + 1 * N_forecast : 5 + 2 * N_forecast]
-        price_forecast = obs[5 + 2 * N_forecast : 5 + 3 * N_forecast]
-
-        for forecast in [
-            Ta_forecast,
-            solar_forecast,
-            price_forecast,
-        ]:
-            assert len(forecast) == N_forecast, (
-                f"Expected {N_forecast} forecasts, got {len(forecast)}"
-            )
-
-    return (
-        quarter_hour,
-        day_of_year,
-        Ti,
-        Th,
-        Te,
-        Ta_forecast,
-        solar_forecast,
-        price_forecast,
-    )
