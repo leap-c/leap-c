@@ -239,12 +239,41 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         )
 
         if not self.stagewise or obs is None:
+            default_param = param.cat.full().flatten()
+            # If obs is batched, repeat default params for each batch
+            if obs is not None and obs.ndim == 2:
+                n_batch = obs.shape[0]
+                return np.tile(default_param, (n_batch, 1))
+            return default_param
+
+        if obs.ndim == 1:
+            # Single observation case
+            forecasts = obs[5:].reshape(3, -1).T
+            for stage in range(self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1):
+                param[f"Ta_{stage}_{stage}"] = forecasts[stage, 0]
+                param[f"Phi_s_{stage}_{stage}"] = forecasts[stage, 1]
+                param[f"price_{stage}_{stage}"] = forecasts[stage, 2]
+
             return param.cat.full().flatten()
+        else:
+            # Batched observation case: obs has shape (n_batch, obs_dim)
+            n_batch = obs.shape[0]
+            forecasts = obs[:, 5:].reshape(n_batch, 3, -1).transpose(0, 2, 1)
 
-        forecasts = obs[5:].reshape(3, -1).T
-        for stage in range(self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1):
-            param[f"Ta_{stage}_{stage}"] = forecasts[stage, 0]
-            param[f"Phi_s_{stage}_{stage}"] = forecasts[stage, 1]
-            param[f"price_{stage}_{stage}"] = forecasts[stage, 2]
+            # Get n_param from the flattened default parameters
+            n_param = len(param.cat.full().flatten())
+            batch_param = np.zeros((n_batch, n_param))
 
-        return param.cat.full().flatten()
+            for i in range(n_batch):
+                param = self.param_manager.learnable_parameters(
+                    self.param_manager.learnable_parameters_default.cat.full().flatten()
+                )
+                # forecasts now has shape (n_batch, N_stages, 3)
+                for stage in range(self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1):
+                    param[f"Ta_{stage}_{stage}"] = forecasts[i, stage, 0]
+                    param[f"Phi_s_{stage}_{stage}"] = forecasts[i, stage, 1]
+                    param[f"price_{stage}_{stage}"] = forecasts[i, stage, 2]
+
+                batch_param[i, :] = param.cat.full().flatten()
+
+            return batch_param
