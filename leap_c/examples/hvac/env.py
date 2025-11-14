@@ -10,7 +10,11 @@ import scipy
 from gymnasium import spaces
 from scipy.constants import convert_temperature
 
-from leap_c.examples.hvac.controller import HvacControllerCtx
+from leap_c.examples.hvac.config import (
+    BestestHydronicParameters,
+    BestestParameters,
+)
+from leap_c.examples.hvac.planner import HvacPlannerCtx
 from leap_c.examples.hvac.util import (
     load_price_data,
     load_weather_data,
@@ -21,24 +25,64 @@ from leap_c.examples.hvac.util import (
 )
 from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 
-from .config import (
-    BestestHydronicParameters,
-    BestestParameters,
-)
-
-# Constants
-DAYLIGHT_START_HOUR = 6
-DAYLIGHT_END_HOUR = 18
-MEAN_AMBIENT_TEMPERATURE = convert_temperature(0, "celsius", "kelvin")
-MAGNITUDE_AMBIENT_TEMPERATURE = 5
-MAGNITUDE_SOLAR_RADIATION = 200
-
 
 class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     """Simulator for a three-state RC thermal model with exact discretization of Gaussian noise.
 
     This environment uses the matrix exponential approach to exactly discretize both the
     deterministic dynamics and the stochastic noise terms.
+
+    Observation Space:
+    ------------------
+
+    The observation is a `ndarray` with shape `(5 + 3*15*horizon_hours,)` and dtype `np.float32`,
+    where 3*5*horizon_hours includes forecasts for ambient temperature, solar irradiation, and
+    electricity prices. The observation space looks as follows:
+
+    | Num  | Observation                                  | Min | Max          |
+    |------|----------------------------------------------|-----|--------------|
+    | 0    | quarter hour of the day                      | 0   | 95           |
+    | 1    | day of year                                  | 0   | 365          |
+    | 2    | indoor air temperature Ti [K]                | 0   | 303.15       |
+    | 3    | radiator temperature Th [K]                  | 0   | 773.15       |
+    | 4    | envelope temperature Te [K]                  | 0   | 303.15       |
+    | 5    | ambient temperature forecast t+0 [K]         | 0   | 313.15       |
+    | 6    | ambient temperature forecast t+1 [K]         | 0   | 313.15       |
+    | ...  | ambient temperature forecast t+N-1 [K]       | 0   | 313.15       |
+    | 5+N  | solar radiation forecast t+0 [W/m²]          | 0   | 200.0        |
+    | 6+N  | solar radiation forecast t+1 [W/m²]          | 0   | 200.0        |
+    | ...  | solar radiation forecast t+N-1 [W/m²]        | 0   | 200.0        |
+    | 5+2N | electricity price forecast t+0 [EUR/kWh]     | 0   | max(dataset) |
+    | 6+2N | electricity price forecast t+1 [EUR/kWh]     | 0   | max(dataset) |
+    | ...  | electricity price forecast t+N-1 [EUR/kWh]   | 0   | max(dataset) |
+
+    Action Space:
+    -------------
+
+    The action is a `ndarray` with shape `(1,)` which can take values in the range (0, 5000)
+    representing the electric power to the radiators of the hvac system.
+
+    Reward:
+    -------
+    The reward is a combination of comfort (r_comfort) and energy costs (r_costs)
+
+    For specified lower and upper bound on comfort temperature, lb, and ub:
+        r_comfort =
+        +1 if lb <= Ti <= ub
+        0  else
+
+    The normalized energy costs reward is computed as
+        r_costs = -(action/action_max) * (price/price_max)
+
+
+    Terminates:
+    -----------
+    Does not terminate.
+
+    Truncates:
+    ----------
+    Truncates after max_hours is reached in simulated time or when the historical data ends.
+
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
@@ -76,7 +120,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         super().__init__(render_mode=render_mode)
         N_forecast = 4 * horizon_hours  # Number of forecasted ambient temperatures
 
-        self.ctx: HvacControllerCtx | None = None
+        self.ctx: HvacPlannerCtx | None = None
 
         self.N_forecast = N_forecast
         self.max_steps = int(max_hours * 3600 / step_size)
@@ -144,13 +188,13 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
             ]
             + [convert_temperature(40.0, "celsius", "kelvin")] * N_forecast  # Ambient temperatures
-            + [MAGNITUDE_SOLAR_RADIATION] * N_forecast  # Solar radiation
+            + [200.0] * N_forecast  # Solar radiation
             + [self.price_data_max] * N_forecast,  # Prices
             dtype=np.float32,
         )
         self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
 
-        self.action_low = np.array([-5000.0], dtype=np.float32)
+        self.action_low = np.array([0.0], dtype=np.float32)
         self.action_high = np.array([5000.0], dtype=np.float32)
         self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
 
@@ -377,11 +421,11 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         return reward, reward_info
 
-    def _is_terminated(self) -> bool:
-        """Check if the current state is terminal.
+    def _is_truncated(self) -> bool:
+        """Check if the episode should be truncated.
 
         Returns:
-            bool: True if terminal, False otherwise
+            bool: True if truncated, False otherwise
         """
         reached_max_steps = self.step_cnter >= self.max_steps
         reached_end_of_data = self.idx >= len(self.data) - self.N_forecast
@@ -546,8 +590,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         obs = self._get_observation()
         reward, reward_info = self._reward_function(state=self.state, action=action)
-        truncated = self._is_terminated()
-        terminated = False  # We do not truncate based on time steps
+        truncated = self._is_truncated()
+        terminated = False  # We do not terminate
         info = {"time_forecast": time_forecast, "task": reward_info}
 
         return obs, reward, terminated, truncated, info
@@ -599,27 +643,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         return obs, info
 
-    def get_noise_statistics(self) -> dict:
-        """Get statistics about the noise model.
-
-        Returns:
-            Dictionary with noise statistics
-        """
-        sigma_i = np.exp(self.params["sigmai"])
-        sigma_h = np.exp(self.params["sigmah"])
-        sigma_e = np.exp(self.params["sigmae"])
-
-        return {
-            "continuous_noise_intensities": {
-                "sigma_i": sigma_i,
-                "sigma_h": sigma_h,
-                "sigma_e": sigma_e,
-            },
-            "discrete_noise_covariance": self.Qd,
-            "discrete_noise_std": np.sqrt(np.diag(self.Qd)),
-            "step_size": self.step_size,
-        }
-
     def _init_state(self, options=None):
         if options is not None and "mode" in options and options["mode"] == "train":
             pass
@@ -627,7 +650,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             pass
 
     def _render_setup(self):
-        """Initializes the Matplotlib figure and axes for rendering."""
         if self.render_mode == "human":
             plt.ion()
 
@@ -699,11 +721,10 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             ax.grid(visible=True, alpha=0.3)
 
     def _render_frame(self) -> np.ndarray | None:
-        """Renders the current frame of the environment."""
-        ctx: HvacControllerCtx = self.ctx
-
-        if not ctx:
+        if not self.ctx:
             raise ValueError("Context (ctx) not set for rendering.")
+
+        ctx: HvacPlannerCtx = self.ctx
 
         x = ctx.diff_mpc_ctx.iterate.x.reshape(-1, 5)
         Ti = x[:, 0].flatten()
@@ -739,10 +760,5 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.trajectory_plots["Ta"].set_data(range(N_horizon), convert_temperature(Ta, "k", "c"))
         self.trajectory_plots["solar"].set_data(range(N_horizon), solar_forecast)
 
-    def set_ctx(self, ctx: HvacControllerCtx) -> None:
-        """Set the context for rendering.
-
-        Args:
-            ctx: The HvacControllerCtx to set for rendering.
-        """
-        self.ctx: HvacControllerCtx = ctx
+    def set_ctx(self, ctx: HvacPlannerCtx) -> None:
+        self.ctx: HvacPlannerCtx = ctx
