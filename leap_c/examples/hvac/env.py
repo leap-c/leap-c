@@ -32,6 +32,58 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
     This environment uses the matrix exponential approach to exactly discretize both the
     deterministic dynamics and the stochastic noise terms.
+
+    Observation Space:
+    ------------------
+
+    The observation is a `ndarray` with shape `(5 + 3*15*horizon_hours,)` and dtype `np.float32`,
+    where 3*5*horizon_hours includes forecasts for ambient temperature, solar irradiation, and
+    electricity prices. The observation space looks as follows:
+
+    | Num  | Observation                                  | Min | Max          |
+    |------|----------------------------------------------|-----|--------------|
+    | 0    | quarter hour of the day                      | 0   | 95           |
+    | 1    | day of year                                  | 0   | 365          |
+    | 2    | indoor air temperature Ti [K]                | 0   | 303.15       |
+    | 3    | radiator temperature Th [K]                  | 0   | 773.15       |
+    | 4    | envelope temperature Te [K]                  | 0   | 303.15       |
+    | 5    | ambient temperature forecast t+0 [K]         | 0   | 313.15       |
+    | 6    | ambient temperature forecast t+1 [K]         | 0   | 313.15       |
+    | ...  | ambient temperature forecast t+N-1 [K]       | 0   | 313.15       |
+    | 5+N  | solar radiation forecast t+0 [W/m²]          | 0   | 200.0        |
+    | 6+N  | solar radiation forecast t+1 [W/m²]          | 0   | 200.0        |
+    | ...  | solar radiation forecast t+N-1 [W/m²]        | 0   | 200.0        |
+    | 5+2N | electricity price forecast t+0 [EUR/kWh]     | 0   | max(dataset) |
+    | 6+2N | electricity price forecast t+1 [EUR/kWh]     | 0   | max(dataset) |
+    | ...  | electricity price forecast t+N-1 [EUR/kWh]   | 0   | max(dataset) |
+
+    Action Space:
+    -------------
+
+    The action is a `ndarray` with shape `(1,)` which can take values in the range (0, 5000)
+    representing the electric power to the radiators of the hvac system.
+
+    Reward:
+    -------
+    The reward is a combination of comfort (r_comfort) and energy costs (r_costs)
+
+    For specified lower and upper bound on comfort temperature, lb, and ub:
+        r_comfort =
+        +1 if lb <= Ti <= ub
+        0  else
+
+    The normalized energy costs reward is computed as
+        r_costs = -(action/action_max) * (price/price_max)
+
+
+    Terminates:
+    -----------
+    Terminates after max_hours is reached in simulated time or when the historical data ends.
+
+    Truncates:
+    ----------
+    Same as termination.
+
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
@@ -143,7 +195,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         )
         self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
 
-        self.action_low = np.array([-5000.0], dtype=np.float32)
+        self.action_low = np.array([0.0], dtype=np.float32)
         self.action_high = np.array([5000.0], dtype=np.float32)
         self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
 
