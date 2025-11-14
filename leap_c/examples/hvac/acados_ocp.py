@@ -6,7 +6,7 @@ import numpy as np
 from acados_template import ACADOS_INFTY, AcadosOcp
 from scipy.constants import convert_temperature
 
-from leap_c.examples.hvac.env import BestestHydronicParameters
+from leap_c.examples.hvac.config import BestestHydronicParameters
 from leap_c.examples.hvac.util import transcribe_discrete_state_space
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
