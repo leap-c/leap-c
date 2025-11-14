@@ -670,10 +670,10 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             ax.grid(visible=True, alpha=0.3)
 
     def _render_frame(self) -> np.ndarray | None:
-        ctx: HvacPlannerCtx = self.ctx
-
-        if not ctx:
+        if not self.ctx:
             raise ValueError("Context (ctx) not set for rendering.")
+
+        ctx: HvacPlannerCtx = self.ctx
 
         x = ctx.diff_mpc_ctx.iterate.x.reshape(-1, 5)
         Ti = x[:, 0].flatten()
