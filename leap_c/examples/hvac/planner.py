@@ -221,7 +221,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             dqh=x[:, 1, 4].detach(),
         )
 
-        return ctx, u0, x, u, value
+        return ctx, qh, x, u, value
 
     def default_param(self, obs: np.ndarray | None) -> np.ndarray:
         """Provides default parameters for the HVAC planner.
