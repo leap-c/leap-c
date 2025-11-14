@@ -226,8 +226,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
     def default_param(self, obs: np.ndarray | None) -> np.ndarray:
         """Provides default parameters for the HVAC planner.
 
-        If stagewise=True and obs is provided with forecasts, uses the forecasts
-        for ambient temperature, solar radiation, and prices.
+        If stagewise=True the forecast parameters will be set from obs.
 
         Args:
             obs: Optional observation array containing forecasts.
