@@ -78,11 +78,11 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
     Terminates:
     -----------
-    Terminates after max_hours is reached in simulated time or when the historical data ends.
+    Does not terminate.
 
     Truncates:
     ----------
-    Same as termination.
+    Truncates after max_hours is reached in simulated time or when the historical data ends.
 
     """
 
@@ -422,11 +422,11 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         return reward, reward_info
 
-    def _is_terminated(self) -> bool:
-        """Check if the current state is terminal.
+    def _is_truncated(self) -> bool:
+        """Check if the episode should be truncated.
 
         Returns:
-            bool: True if terminal, False otherwise
+            bool: True if truncated, False otherwise
         """
         reached_max_steps = self.step_cnter >= self.max_steps
         reached_end_of_data = self.idx >= len(self.data) - self.N_forecast
@@ -591,8 +591,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         obs = self._get_observation()
         reward, reward_info = self._reward_function(state=self.state, action=action)
-        truncated = self._is_terminated()
-        terminated = False  # We do not truncate based on time steps
+        truncated = self._is_truncated()
+        terminated = False  # We do not terminate
         info = {"time_forecast": time_forecast, "task": reward_info}
 
         return obs, reward, terminated, truncated, info
