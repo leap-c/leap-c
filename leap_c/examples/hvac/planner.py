@@ -6,7 +6,7 @@ import numpy as np
 import torch
 
 from leap_c.examples.hvac.acados_ocp import export_parametric_ocp, make_default_hvac_params
-from leap_c.examples.hvac.util import set_temperature_limits
+from leap_c.examples.hvac.utils import set_temperature_limits
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch

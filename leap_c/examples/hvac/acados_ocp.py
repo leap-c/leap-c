@@ -6,8 +6,10 @@ import numpy as np
 from acados_template import ACADOS_INFTY, AcadosOcp
 from scipy.constants import convert_temperature
 
-from leap_c.examples.hvac.config import BestestHydronicParameters
-from leap_c.examples.hvac.util import transcribe_discrete_state_space
+from leap_c.examples.hvac.dynamics import (
+    HydronicParameters,
+    transcribe_discrete_state_space,
+)
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 HvacAcadosParamInterface = Literal["global", "stagewise"]
@@ -30,7 +32,7 @@ def make_default_hvac_params(
     Returns:
         Tuple of AcadosParameter objects for the HVAC system.
     """
-    hydronic_params = BestestHydronicParameters().to_dict()
+    hydronic_params = HydronicParameters().to_dict()
 
     # NOTE: Only include parameters that are relevant for the parametric OCP.
     params = [

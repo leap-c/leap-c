@@ -1,29 +1,44 @@
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Literal
+from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
 import numpy as np
-import pandas as pd
-import scipy
 from gymnasium import spaces
 from scipy.constants import convert_temperature
 
-from leap_c.examples.hvac.config import (
-    BestestHydronicParameters,
-    BestestParameters,
+from leap_c.examples.hvac.dataset import HvacDataset
+from leap_c.examples.hvac.dynamics import (
+    HydronicParameters,
+    compute_discrete_matrices,
 )
+from leap_c.examples.hvac.forecast import Forecaster
 from leap_c.examples.hvac.planner import HvacPlannerCtx
-from leap_c.examples.hvac.util import (
-    load_price_data,
-    load_weather_data,
-    merge_price_weather_data,
-    set_temperature_limits,
-    transcribe_continuous_state_space,
-    transcribe_discrete_state_space,
-)
+from leap_c.examples.hvac.utils import set_temperature_limits
 from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
+
+
+@dataclass(kw_only=True)
+class HvacEnvConfig:
+    """Configuration for the HVAC environment.
+    
+    Attributes:
+        thermal_params: Thermal model parameters.
+        step_size: Simulation time step in seconds.
+        max_hours: Maximum simulation time in hours.
+        enable_noise: Whether to include stochastic noise.
+        randomize_params: Whether to randomize thermal parameters.
+        param_noise_scale: Scale for parameter randomization.
+        random_seed: Seed for parameter randomization.
+    """
+
+    thermal_params: HydronicParameters | None = None
+    step_size: float = 900.0
+    max_hours: int = 3 * 24
+    enable_noise: bool = True
+    randomize_params: bool = True
+    param_noise_scale: float = 0.3
+    random_seed: int = 0
 
 
 class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
@@ -56,6 +71,11 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     | 6+2N | electricity price forecast t+1 [EUR/kWh]     | 0   | max(dataset) |
     | ...  | electricity price forecast t+N-1 [EUR/kWh]   | 0   | max(dataset) |
 
+    Additional notes:
+    - Quarter hour: 0=00:00, 1=00:15, 2=00:30, 3=00:45, ..., 95=23:45
+    - All forecasts are at 15-minute intervals starting from current time
+    - N_forecast (or N) is the prediction horizon length (typically 96 for 24h)
+
     Action Space:
     -------------
 
@@ -83,89 +103,68 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     ----------
     Truncates after max_hours is reached in simulated time or when the historical data ends.
 
+    Attributes:
+        cfg: Configuration for the environment.
+        ctx: Context for the HVAC planner (used for rendering).
+        dataset: HVAC dataset containing price, weather, and time features.
+        N_forecast: Number of forecast steps.
+        max_steps: Maximum number of simulation steps.
+        params: Thermal parameters dictionary.
+        state: Current system state [Ti, Th, Te].
+        idx: Current index in the data.
+        step_counter: Current step counter.
+        Ad, Bd, Ed, Qd: Discrete-time system matrices.
+        trajectory_plots: Dictionary of matplotlib line plots for rendering.
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
 
+    cfg: HvacEnvConfig
+    dataset: HvacDataset
+    forecaster: Forecaster
+    ctx: HvacPlannerCtx | None
     trajectory_plots: dict[str, plt.Line2D] | None
 
     def __init__(
         self,
-        params: None | BestestParameters = None,
-        step_size: float = 900.0,  # Default 15 minutes
-        start_time: pd.Timestamp | None = None,
-        horizon_hours: int = 25,
-        max_hours: int = 3 * 24,  # 3 days
         render_mode: str | None = None,
-        price_zone: Literal["NO_1", "NO_2", "NO_3", "DK_1", "DK_2", "DE_LU"] = "NO_1",
-        price_data_path: Path | None = None,
-        weather_data_path: Path | None = None,
-        enable_noise: bool = True,
+        cfg: HvacEnvConfig | None = None,
+        dataset: HvacDataset | None = None,
+        forecaster: Forecaster | None = None,
     ) -> None:
         """Initialize the stochastic environment.
 
         Args:
-            params: Dictionary of thermal parameters
-            step_size: Time step for the simulation in seconds
-            start_time: Start time from which to sample from the historical prices and weather data.
-                If None, starts at a random time sampled from the data.
-            horizon_hours: Prediction horizon in hours
-            max_hours: Maximum simulation time in hours. The episode ends after this time.
-            render_mode: Render mode for the environment
-            price_zone: Price zone for electricity prices
-            price_data_path: Path to the price data CSV file
-            weather_data_path: Path to the weather data CSV file
-            enable_noise: Whether to include stochastic noise
+            render_mode: Render mode for the environment.
+            cfg: Configuration for the environment. If None, default configuration is used.
+            dataset: Dataset for weather and price data. If None, default dataset is created.
+            forecaster: Forecaster for generating predictions. If None, default forecaster
+                is created.
         """
         super().__init__(render_mode=render_mode)
-        N_forecast = 4 * horizon_hours  # Number of forecasted ambient temperatures
 
-        self.ctx: HvacPlannerCtx | None = None
+        self.cfg = HvacEnvConfig() if cfg is None else cfg
 
-        self.N_forecast = N_forecast
-        self.max_steps = int(max_hours * 3600 / step_size)
+        # Use default thermal params if not provided
+        if self.cfg.thermal_params is None:
+            self.cfg.thermal_params = HydronicParameters()
 
-        if price_data_path is None:
-            price_data_path = Path(__file__).parent / "spot_prices.csv"
-        if weather_data_path is None:
-            weather_data_path = Path(__file__).parent / "weather.csv"
+        # Use provided dataset or create default
+        self.dataset = HvacDataset() if dataset is None else dataset
 
-        price_data = load_price_data(csv_path=price_data_path).resample("15T").ffill()
-        self.price_data_max = price_data.max(axis=None)
+        # Use provided forecaster or create default
+        self.forecaster = Forecaster() if forecaster is None else forecaster
 
-        weather_data = (
-            load_weather_data(csv_path=weather_data_path)
-            .resample("15T")
-            .interpolate(method="linear")
-        )
-
-        data = merge_price_weather_data(
-            price_data=price_data, weather_data=weather_data, merge_type="inner"
-        )
-
+        # Setup forecast and simulation parameters
+        self.ctx = None
+        self.N_forecast = 4 * self.forecaster.cfg.horizon_hours
+        self.max_steps = int(self.cfg.max_hours * 3600 / self.cfg.step_size)
         self.render_mode = render_mode
-        self.data = data
-
-        # Rename NO1 to price
-        self.data.rename(
-            columns={price_zone: "price", "Tout_K": "Ta", "SolGlob": "solar"},
-            inplace=True,
-        )
-
-        # Drop all columns except the ones we need
-        self.data = self.data[["price", "Ta", "solar"]].copy()
-        self.data["price"] = self.data["price"].astype(np.float32)
-        self.data["Ta"] = self.data["Ta"].astype(np.float32)
-        self.data["solar"] = self.data["solar"].astype(np.float32)
-        self.data["time"] = self.data.index.to_numpy(dtype="datetime64[m]")
-        self.data["quarter_hour"] = (self.data.index.hour * 4 + self.data.index.minute // 15) % (
-            24 * 4
-        )
-        self.data["day"] = self.data["time"].dt.dayofyear % 366
 
         print("env N_forecast: ", self.N_forecast)
 
-        self.obs_low = np.array(
+        # Setup observation and action spaces
+        obs_low = np.array(
             [
                 0.0,  # quarter hour within a day
                 0.0,  # day within a year
@@ -173,13 +172,13 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 0.0,  # Radiator temperature
                 0.0,  # Envelope temperature
             ]
-            + [0.0] * N_forecast  # Ambient temperatures
-            + [0.0] * N_forecast  # Solar radiation
-            + [0.0] * N_forecast,  # Prices  TODO: Allow negative prices
+            + [0.0] * self.N_forecast  # Ambient temperatures
+            + [0.0] * self.N_forecast  # Solar radiation
+            + [0.0] * self.N_forecast,  # Prices  TODO: Allow negative prices
             dtype=np.float32,
         )
 
-        self.obs_high = np.array(
+        obs_high = np.array(
             [
                 24 * 4 - 1,  # quarter hour within a day
                 365,  # day within a year
@@ -187,40 +186,39 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 convert_temperature(500.0, "celsius", "kelvin"),  # Radiator temperature
                 convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
             ]
-            + [convert_temperature(40.0, "celsius", "kelvin")] * N_forecast  # Ambient temperatures
-            + [200.0] * N_forecast  # Solar radiation
-            + [self.price_data_max] * N_forecast,  # Prices
+            + [convert_temperature(40.0, "celsius", "kelvin")]
+            * self.N_forecast  # Ambient temperatures
+            + [200.0] * self.N_forecast  # Solar radiation
+            + [self.dataset.price_max] * self.N_forecast,  # Prices
             dtype=np.float32,
         )
-        self.observation_space = spaces.Box(low=self.obs_low, high=self.obs_high)
+        self.observation_space = spaces.Box(low=obs_low, high=obs_high)
 
-        self.action_low = np.array([0.0], dtype=np.float32)
-        self.action_high = np.array([5000.0], dtype=np.float32)
-        self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
+        # Action space: electric power to radiators in Watts
+        self.max_power = 5000.0  # Maximum power in Watts
+        self.action_space = spaces.Box(
+            low=np.array([0.0], dtype=np.float32),
+            high=np.array([self.max_power], dtype=np.float32),
+        )
 
-        # Store parameters
-        self.params = params if params is not None else BestestHydronicParameters().to_dict()
+        # Store thermal parameters as dictionary and randomize if enabled
+        self.params = self.cfg.thermal_params.to_dict()
+        if self.cfg.randomize_params:
+            rng = np.random.default_rng(self.cfg.random_seed)
+            for k, v in self.params.items():
+                self.params[k] = rng.normal(
+                    loc=v, scale=self.cfg.param_noise_scale * np.sqrt(v**2)
+                )
 
-        self.step_size = step_size
-        self.enable_noise = enable_noise
+        # Precompute discrete-time system matrices
+        self.Ad, self.Bd, self.Ed, self.Qd = compute_discrete_matrices(
+            params=self.params,
+            dt=self.cfg.step_size,
+        )
 
-        # TODO: Make this configurable
-        rng = np.random.default_rng(0)
-        for k, v in self.params.items():
-            self.params[k] = rng.normal(loc=v, scale=0.3 * np.sqrt(v**2))
-
-        # Initial state variables [K]
-        self.Ti = convert_temperature(20.0, "celsius", "kelvin")
-        self.Th = convert_temperature(20.0, "celsius", "kelvin")
-        self.Te = convert_temperature(20.0, "celsius", "kelvin")
-        self.state_0 = np.array([self.Ti, self.Th, self.Te])
-
-        # Precompute discrete-time matrices including noise covariance
-        self.Ad, self.Bd, self.Ed, self.Qd = self._compute_discrete_matrices()
-
-        self.start_time = start_time
-
-        self.uncertainty_params = self._load_uncertainty_params()
+        # Initialize step counter and data index
+        self.step_counter = 0
+        self.idx = 0
 
         self.trajectory_plots = None
 
@@ -233,62 +231,22 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         Returns:
             np.ndarray: Observation vector containing temporal, state, and forecast information
 
-        | Num | Observation                                     |
-        | --- | ------------------------------------------------|
-        | 0   | quarter hour of day (0-95, 15-min intervals)    |
-        | 1   | day of year (0-365)                         |
-        | 2   | indoor air temperature Ti [K]                   |
-        | 3   | radiator temperature Th [K]                     |
-        | 4   | envelope temperature Te [K]                     |
-        | 5   | ambient temperature forecast t+0 [K]            |
-        | 6   | ambient temperature forecast t+1 [K]            |
-        | ... | ambient temperature forecast t+N-1 [K]          |
-        | 5+N | solar radiation forecast t+0 [W/m²]             |
-        | 6+N | solar radiation forecast t+1 [W/m²]             |
-        | ... | solar radiation forecast t+N-1 [W/m²]           |
-        | 5+2N| electricity price forecast t+0 [EUR/kWh]        |
-        | 6+2N| electricity price forecast t+1 [EUR/kWh]        |
-        | ... | electricity price forecast t+N-1 [EUR/kWh]      |
-
-        Total observation size: 5 + 3*N_forecast
-
         Notes:
-            - Quarter hour: 0=00:00, 1=00:15, 2=00:30, 3=00:45, ..., 95=23:45
-            - All forecasts are at 15-minute intervals starting from current time
-            - N_forecast is the prediction horizon length (typically 96 for 24h)
+            The observation structure is described in the class docstring.
         """
-        quarter_hour = self.data["quarter_hour"].iloc[self.idx]
-        day_of_year = self.data["day"].iloc[self.idx]
+        quarter_hour, day_of_year = self.dataset.get_time_features(self.idx)
 
-        price_forecast = self.data["price"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
+        price_forecast = self.dataset.get_price(self.idx, self.N_forecast)
 
-        # Step the temperature and solar forecasting errors via the AR1 models
-        uncertainty_level = "high"  # TODO: Make this configurable
-        error_forecast_temp = self._predict_temperature_error_AR1(
-            hp=self.N_forecast,
-            F0=self.uncertainty_params["temperature"][uncertainty_level]["F0"],
-            K0=self.uncertainty_params["temperature"][uncertainty_level]["K0"],
-            F=self.uncertainty_params["temperature"][uncertainty_level]["F"],
-            K=self.uncertainty_params["temperature"][uncertainty_level]["K"],
-            mu=self.uncertainty_params["temperature"][uncertainty_level]["mu"],
+        # Get forecasts from forecaster
+        forecasts = self.forecaster.get_forecast(
+            idx=self.idx,
+            data=self.dataset.data,
+            N_forecast=self.N_forecast,
+            np_random=self.np_random,
         )
-
-        ambient_temperature_forecast = (
-            self.data["Ta"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
-        ) + error_forecast_temp
-
-        # TODO: Currently not using solar forecast error.
-        # Implement a better model that accounts for night time.
-        # error_forecast_solar = self._predict_solar_error_AR1(
-        #     hp=self.N_forecast,
-        #     ag0=self.uncertainty_params["solar"][uncertainty_level]["ag0"],
-        #     bg0=self.uncertainty_params["solar"][uncertainty_level]["bg0"],
-        #     phi=self.uncertainty_params["solar"][uncertainty_level]["phi"],
-        #     ag=self.uncertainty_params["solar"][uncertainty_level]["ag"],
-        #     bg=self.uncertainty_params["solar"][uncertainty_level]["bg"],
-        # )
-
-        solar_forecast = self.data["solar"].iloc[self.idx : self.idx + self.N_forecast].to_numpy()
+        ambient_temperature_forecast = forecasts["Ta"]
+        solar_forecast = forecasts["solar"]
 
         return np.concatenate(
             [
@@ -300,112 +258,29 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             ]
         )
 
-    def _compute_discrete_matrices(
-        self,
-    ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-        """Compute discrete-time matrices using exact discretization via matrix exponential.
-
-        This includes both deterministic dynamics and noise covariance.
-        """
-        # Create noise intensity matrix Σ from parameters
-        # The stochastic terms are σᵢω̇ᵢ, σₕω̇ₕ, σₑω̇ₑ
-        sigma_i = np.exp(self.params["sigmai"])
-        sigma_h = np.exp(self.params["sigmah"])
-        sigma_e = np.exp(self.params["sigmae"])
-
-        # Compute continuous-time Ac
-        Ac, _, _ = transcribe_continuous_state_space(
-            Ac=np.zeros((3, 3)),
-            Bc=np.zeros((3, 1)),
-            Ec=np.zeros((3, 2)),
-            params=self.params,
-        )
-
-        Qd = self._compute_noise_covariance(
-            Ac=Ac,
-            Sigma=np.diag([sigma_i, sigma_h, sigma_e]),
-            dt=self.step_size,
-        )
-
-        # Compute discrete-time state-space matrices
-        Ad, Bd, Ed = transcribe_discrete_state_space(
-            Ad=np.zeros((3, 3)),
-            Bd=np.zeros((3, 1)),
-            Ed=np.zeros((3, 2)),
-            dt=self.step_size,
-            params=self.params,
-        )
-
-        return Ad, Bd, Ed, Qd
-
-    def _compute_noise_covariance(self, Ac: np.ndarray, Sigma: np.ndarray, dt: float) -> np.ndarray:
-        """Compute the exact discrete-time noise covariance matrix using matrix exponential.
-
-        The discrete-time noise covariance
-        Q_d = ∫₀^Δt e^(Aτ) Σ Σᵀ e^(Aᵀτ) dτ.
-
-        Args:
-            Ac: Continuous-time system matrix
-            Sigma: Noise intensity matrix (diagonal)
-            dt: Sampling time
-
-        Returns:
-            Qd: Discrete-time noise covariance matrix
-        """
-        n = Ac.shape[0]  # State dimension (3)
-
-        # Create the augmented matrix for computing the noise covariance integral
-        # [ A    Σ Σᵀ ]
-        # [ 0      -Aᵀ ]
-        SigmaSigmaT = Sigma @ Sigma.T
-
-        # Augmented matrix (6x6)
-        M = np.block([[Ac, SigmaSigmaT], [np.zeros((n, n)), -Ac.T]])
-
-        # Matrix exponential of augmented system
-        exp_M = scipy.linalg.expm(M * dt)
-
-        # Extract the noise covariance from the upper-right block
-        # Qd = e^(A*dt) * (upper-right block of exp_M)
-        Ad = exp_M[:n, :n]
-        Phi = exp_M[:n, n:]
-
-        # The discrete-time covariance is Qd = Ad @ Phi
-        matrix = Ad @ Phi
-
-        # Make symmetric by averaging with transpose
-        symmetric_matrix = 0.5 * (matrix + matrix.T)
-
-        # Eigenvalue decomposition
-        eigenvalues, eigenvectors = np.linalg.eigh(symmetric_matrix)
-
-        # Clip negative eigenvalues to zero (or small positive value)
-        eigenvalues = np.maximum(eigenvalues, 0.0)
-
-        # Reconstruct the matrix
-        return eigenvectors @ np.diag(eigenvalues) @ eigenvectors.T
-
     def _reward_function(self, state: np.ndarray, action: np.ndarray):
         """Compute the reward based on the current state and action.
 
         Args:
-            state: Current state
-            action: Control input
+            state: Current state vector [Ti, Th, Te].
+            action: Control input (electric power to radiators).
 
         Returns:
-            float: Reward value
+            Tuple containing:
+                - reward: Combined comfort and energy cost reward.
+                - reward_info: Dictionary with detailed reward components.
         """
-        quarter_hour = self.data["quarter_hour"].iloc[self.idx]
+        quarter_hour, _ = self.dataset.get_time_features(self.idx)
         lb, ub = set_temperature_limits(quarter_hours=quarter_hour)
 
         # Reward for comfort zone compliance
         comfort_reward = int(lb <= state[0] <= ub)
 
         # Reward for energy saving
-        price = self.data["price"].iloc[self.idx]
-        energy_consumption_normalized = np.abs(action[0]) / self.action_high[0]
+        price = self.dataset.get_price(self.idx)[0]
+        energy_consumption_normalized = np.abs(action[0]) / self.max_power
 
-        price_normalized = price / self.price_data_max
+        price_normalized = price / self.dataset.price_max
         energy_reward = -price_normalized * energy_consumption_normalized
 
         # scale energy_reward
@@ -421,149 +296,28 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         return reward, reward_info
 
-    def _is_truncated(self) -> bool:
-        """Check if the episode should be truncated.
-
-        Returns:
-            bool: True if truncated, False otherwise
-        """
-        reached_max_steps = self.step_cnter >= self.max_steps
-        reached_end_of_data = self.idx >= len(self.data) - self.N_forecast
-
-        # return reached_max_time or reached_end_of_data
-        return reached_end_of_data or reached_max_steps
-
-    def _load_uncertainty_params(self):
-        """Load the uncertainty parameters.
-
-        Returns:
-        -------
-        uncertainty_params : dict
-            Uncertainty parameters
-
-        """
-        return {
-            "temperature": {
-                "low": {
-                    "F0": 0,
-                    "K0": 0.6,
-                    "F": 0.92,
-                    "K": 0.4,
-                    "mu": 0,
-                },
-                "medium": {
-                    "F0": 0.15,
-                    "K0": 1.2,
-                    "F": 0.93,
-                    "K": 0.6,
-                    "mu": 0,
-                },
-                "high": {
-                    "F0": -0.58,
-                    "K0": 1.5,
-                    "F": 0.95,
-                    "K": 0.7,
-                    "mu": -0.015,
-                },
-            },
-            "solar": {
-                "low": {
-                    "ag0": 4.44,
-                    "bg0": 57.42,
-                    "phi": 0.62,
-                    "ag": 1.86,
-                    "bg": 45.64,
-                },
-                "medium": {
-                    "ag0": 15.02,
-                    "bg0": 122.6,
-                    "phi": 0.63,
-                    "ag": 4.44,
-                    "bg": 91.97,
-                },
-                "high": {
-                    "ag0": 32.09,
-                    "bg0": 119.94,
-                    "phi": 0.67,
-                    "ag": 10.63,
-                    "bg": 87.44,
-                },
-            },
-        }
-
-    def _predict_temperature_error_AR1(
-        self, hp: int, F0: float, K0: float, F: float, K: float, mu: float
-    ) -> np.ndarray:
-        """Generates an error for the temperature forecast.
-
-        The error is samples from  an AR model with normal distribution in the hp points of the
-        predictions horizon.
-
-        Parameters
-        ----------
-        hp :
-            Number of points in the prediction horizon.
-        F0 :
-            Mean of the initial error model.
-        K0 :
-            Standard deviation of the initial error model.
-        F :
-            Autocorrelation factor of the AR error model, value should be between 0 and 1.
-        K :
-            Standard deviation of the AR error model.
-        mu :
-            Mean value of the distribution function integrated in the AR error model.
-
-        Returns:
-        -------
-        error : 1D array
-            Array containing the error values in the hp points.
-
-        """
-        error = np.zeros(hp)
-        error[0] = self.np_random.normal(F0, K0)
-        for i_c in range(hp - 1):
-            error[i_c + 1] = self.np_random.normal(error[i_c] * F + mu, K)
-
-        return error
-
-    def _predict_solar_error_AR1(
-        self, hp: int, ag0: float, bg0: float, phi: float, ag: float, bg: float
-    ) -> np.ndarray:
-        """Generates an error for the solar forecast based on the specified parameters.
-
-        The error is generated using an AR model with Laplace distribution in the hp points of the
-        predictions horizon.
-
-        Parameters
-        ----------
-        hp :
-            Number of points in the prediction horizon.
-        ag0, bg0, phi, ag, bg :
-            Parameters for the AR1 model.
-
-        Returns:
-        -------
-        error : 1D numpy array
-            Contains the error values in the hp points.
-
-        """
-        error = np.zeros(hp)
-        error[0] = self.np_random.laplace(ag0, bg0)
-        for i_c in range(1, hp):
-            error[i_c] = self.np_random.laplace(error[i_c - 1] * phi + ag, bg)
-
-        return error
-
     def step(
         self,
         action: np.ndarray,
     ) -> tuple[np.ndarray, float, bool, bool, dict]:
+        """Execute one time step within the environment.
+
+        Args:
+            action: Control input (electric power to radiators in Watts).
+
+        Returns:
+            Tuple containing:
+                - observation: Next observation.
+                - reward: Reward for this step.
+                - terminated: Whether the episode terminated (always False).
+                - truncated: Whether the episode was truncated.
+                - info: Dictionary with 'time_forecast' and 'task' info.
+        """
         # Get exogenous inputs
         exog = np.array(
             [
-                self.data["Ta"].iloc[self.idx],  # Ambient temperature
-                self.data["solar"].iloc[self.idx],  # Solar radiation
+                self.dataset.get_temperature(self.idx)[0],  # Ambient temperature
+                self.dataset.get_solar(self.idx)[0],  # Solar radiation
             ]
         )
 
@@ -571,26 +325,25 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         x_next = self.Ad @ self.state + self.Bd @ action + self.Ed @ exog
 
         # Add Gaussian noise if enabled
-        if self.enable_noise:
+        if self.cfg.enable_noise:
             # Sample from multivariate normal distribution with exact covariance
             noise = self.np_random.multivariate_normal(mean=np.zeros(3), cov=self.Qd)
             x_next += noise
 
         self.state = x_next
         self.idx += 1
-        self.step_cnter += 1
+        self.step_counter += 1
 
-        self.Ti, self.Th, self.Te = self.state[0], self.state[1], self.state[2]
-
-        time_forecast = (
-            self.data["time"]
-            .iloc[self.idx : self.idx + self.N_forecast + 1]
-            .to_numpy(dtype="datetime64[m]")
-        )
+        time_forecast = self.dataset.get_time_forecast(self.idx, self.N_forecast)
 
         obs = self._get_observation()
         reward, reward_info = self._reward_function(state=self.state, action=action)
-        truncated = self._is_truncated()
+
+        # Check if episode should be truncated
+        reached_max_steps = self.step_counter >= self.max_steps
+        reached_end_of_data = self.idx >= len(self.dataset) - self.N_forecast
+        truncated = reached_end_of_data or reached_max_steps
+        
         terminated = False  # We do not terminate
         info = {"time_forecast": time_forecast, "task": reward_info}
 
@@ -599,17 +352,30 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     def reset(
         self, state_0: np.ndarray | None = None, seed=None, options=None
     ) -> tuple[np.ndarray, dict]:
+        """Reset the environment to an initial state.
+
+        Args:
+            state_0: Initial state [Ti, Th, Te] in Kelvin. If None, uses default (293.15 K = 20°C).
+            seed: Random seed for reproducibility.
+            options: Additional reset options (unused).
+
+        Returns:
+            Tuple containing:
+                - observation: Initial observation.
+                - info: Dictionary with 'time_forecast' array.
+        """
         super().reset(seed=seed)
 
         if state_0 is None:
-            state_0 = self.state_0
+            # Default initial state: 20°C (293.15 K) for all temperatures
+            state_0 = np.array([293.15, 293.15, 293.15])
         self.state = state_0.copy()
 
-        if self.start_time is not None:
-            self.idx = self.data.index.get_loc(self.start_time)
+        if self.dataset.cfg.start_time is not None:
+            self.idx = self.dataset.index.get_loc(self.dataset.cfg.start_time)
         else:
             min_start_idx = 0
-            max_start_idx = len(self.data) - self.N_forecast - self.max_steps + 1
+            max_start_idx = len(self.dataset) - self.N_forecast - self.max_steps + 1
 
             self.idx = min_start_idx
 
@@ -618,7 +384,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             date_valid = False
             while not date_valid and counter < n_max:
                 idx = self.np_random.integers(low=min_start_idx, high=max_start_idx + 1)
-                date = self.data.index[idx]
+                date = self.dataset.index[idx]
                 if date.month in [1, 2, 3, 4, 9, 10, 11, 12]:
                     date_valid = True
                     self.idx = idx
@@ -631,23 +397,13 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                     "Please check the data and configuration."
                 )
 
-        self.step_cnter = 0
+        self.step_counter = 0
 
         obs = self._get_observation()
-        time_forecast = (
-            self.data["time"]
-            .iloc[self.idx : self.idx + self.N_forecast + 1]
-            .to_numpy(dtype="datetime64[m]")
-        )
+        time_forecast = self.dataset.get_time_forecast(self.idx, self.N_forecast)
         info = {"time_forecast": time_forecast}
 
         return obs, info
-
-    def _init_state(self, options=None):
-        if options is not None and "mode" in options and options["mode"] == "train":
-            pass
-        else:
-            pass
 
     def _render_setup(self):
         if self.render_mode == "human":
@@ -734,7 +490,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         N_horizon = len(Ti)
 
-        quarter_hours = self.data["quarter_hour"].iloc[self.idx : self.idx + N_horizon]
+        quarter_hours = self.dataset.get_quarter_hours(self.idx, N_horizon)
 
         Ti_lb, Ti_ub = set_temperature_limits(quarter_hours=quarter_hours)
 
