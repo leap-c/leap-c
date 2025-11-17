@@ -1,5 +1,6 @@
 """Thermal dynamics and state-space utilities for HVAC environment."""
-from dataclasses import asdict, dataclass
+
+from dataclasses import asdict, dataclass, fields
 
 import casadi as ca
 import numpy as np
@@ -27,6 +28,8 @@ class HydronicParameters:
         eta: Efficiency for electric heater
     """
 
+    # TODO (Dirk): From where are those parameters?
+
     gAw: float = 10.1265729225269  # noqa: N815
 
     # Thermal capacitances [J/K]
@@ -48,21 +51,30 @@ class HydronicParameters:
     # Heater parameters
     eta: float = 0.98
 
-    def to_dict(self) -> dict[str, float]:
-        """Convert parameters to a dictionary with string keys and float values."""
-        return {k: float(v) for k, v in asdict(self).items()}
+    def randomize(self, rng: np.random.Generator, noise_scale: float = 0.3) -> "HydronicParameters":
+        """Generate a new HydronicParameters instance with randomized values.
 
-    @classmethod
-    def from_dict(cls, params_dict: dict[str, float]) -> "HydronicParameters":
-        """Create an instance from a dictionary."""
-        return cls(**params_dict)
+        Args:
+            rng: NumPy random generator for reproducibility.
+            noise_scale: Scale for parameter randomization (default: 0.3).
+
+        Returns:
+            New HydronicParameters instance with randomized values.
+        """
+        randomized_values = {}
+        for field in fields(self):
+            value = getattr(self, field.name)
+            randomized_values[field.name] = rng.normal(
+                loc=value, scale=noise_scale * np.sqrt(value**2)
+            )
+        return HydronicParameters(**randomized_values)
 
 
 def transcribe_continuous_state_space(
     Ac: ca.SX | np.ndarray,
     Bc: ca.SX | np.ndarray,
     Ec: ca.SX | np.ndarray,
-    params: dict[str, float],
+    params: HydronicParameters,
 ) -> tuple[ca.SX, ca.SX, ca.SX]:
     """Create continuous-time state-space matrices Ac, Bc, Ec as per equation (6).
 
@@ -70,20 +82,20 @@ def transcribe_continuous_state_space(
         Ac: State-space matrix (system dynamics)
         Bc: State-space matrix (control input)
         Ec: State-space matrix (disturbances)
-        params: Dictionary with thermal parameters
+        params: Hydronic thermal parameters
 
     Returns:
         Ac, Bc, Ec: State-space matrices
 
     """
     # Extract parameters
-    Ch = params["Ch"]  # Radiator thermal capacitance
-    Ci = params["Ci"]  # Indoor air thermal capacitance
-    Ce = params["Ce"]  # Envelope thermal capacitance
-    Rhi = params["Rhi"]  # Radiator to indoor air resistance
-    Rie = params["Rie"]  # Indoor air to envelope resistance
-    Rea = params["Rea"]  # Envelope to outdoor resistance
-    gAw = params["gAw"]  # Effective window area
+    Ch = params.Ch  # Radiator thermal capacitance
+    Ci = params.Ci  # Indoor air thermal capacitance
+    Ce = params.Ce  # Envelope thermal capacitance
+    Rhi = params.Rhi  # Radiator to indoor air resistance
+    Rie = params.Rie  # Indoor air to envelope resistance
+    Rea = params.Rea  # Envelope to outdoor resistance
+    gAw = params.gAw  # Effective window area
 
     # Create Ac matrix (system dynamics)
     # Indoor air temperature equation coefficients [Ti, Th, Te]
@@ -124,7 +136,7 @@ def transcribe_discrete_state_space(
     Bd: ca.SX | np.ndarray,
     Ed: ca.SX | np.ndarray,
     dt: float,
-    params: dict[str, float],
+    params: HydronicParameters,
 ) -> tuple[ca.SX, ca.SX, ca.SX]:
     """Create discrete-time state-space matrices Ad, Bd, Ed as per equation (7).
 
@@ -133,7 +145,7 @@ def transcribe_discrete_state_space(
         Bd: State-space matrix (control input)
         Ed: State-space matrix (disturbances)
         dt: Sampling time
-        params: Dictionary with thermal parameters
+        params: Hydronic thermal parameters
 
     Returns:
         Ad, Bd, Ed: Discrete-time state-space matrices
@@ -222,7 +234,7 @@ def compute_noise_covariance(Ac: np.ndarray, Sigma: np.ndarray, dt: float) -> np
 
 
 def compute_discrete_matrices(
-    params: dict[str, float],
+    params: HydronicParameters,
     dt: float,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Compute discrete-time matrices using exact discretization via matrix exponential.
@@ -230,7 +242,7 @@ def compute_discrete_matrices(
     This includes both deterministic dynamics and noise covariance.
 
     Args:
-        params: Dictionary with thermal parameters
+        params: Hydronic thermal parameters
             (Ch, Ci, Ce, Rhi, Rie, Rea, gAw, sigmai, sigmah, sigmae).
         dt: Sampling time in seconds.
 
@@ -243,9 +255,9 @@ def compute_discrete_matrices(
     """
     # Create noise intensity matrix Σ from parameters
     # The stochastic terms are σᵢω̇ᵢ, σₕω̇ₕ, σₑω̇ₑ
-    sigma_i = np.exp(params["sigmai"])
-    sigma_h = np.exp(params["sigmah"])
-    sigma_e = np.exp(params["sigmae"])
+    sigma_i = np.exp(params.sigmai)
+    sigma_h = np.exp(params.sigmah)
+    sigma_e = np.exp(params.sigmae)
 
     # Compute continuous-time Ac
     Ac, _, _ = transcribe_continuous_state_space(

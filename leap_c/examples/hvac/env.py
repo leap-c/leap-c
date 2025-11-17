@@ -21,7 +21,7 @@ from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 @dataclass(kw_only=True)
 class HvacEnvConfig:
     """Configuration for the HVAC environment.
-    
+
     Attributes:
         thermal_params: Thermal model parameters.
         step_size: Simulation time step in seconds.
@@ -159,7 +159,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.ctx = None
         self.N_forecast = 4 * self.forecaster.cfg.horizon_hours
         self.max_steps = int(self.cfg.max_hours * 3600 / self.cfg.step_size)
-        self.render_mode = render_mode
 
         print("env N_forecast: ", self.N_forecast)
 
@@ -201,14 +200,12 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             high=np.array([self.max_power], dtype=np.float32),
         )
 
-        # Store thermal parameters as dictionary and randomize if enabled
-        self.params = self.cfg.thermal_params.to_dict()
+        # Randomize thermal parameters if enabled
         if self.cfg.randomize_params:
             rng = np.random.default_rng(self.cfg.random_seed)
-            for k, v in self.params.items():
-                self.params[k] = rng.normal(
-                    loc=v, scale=self.cfg.param_noise_scale * np.sqrt(v**2)
-                )
+            self.params = self.cfg.thermal_params.randomize(rng, self.cfg.param_noise_scale)
+        else:
+            self.params = self.cfg.thermal_params
 
         # Precompute discrete-time system matrices
         self.Ad, self.Bd, self.Ed, self.Qd = compute_discrete_matrices(
@@ -238,7 +235,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         price_forecast = self.dataset.get_price(self.idx, self.N_forecast)
 
-        # Get forecasts from forecaster
         forecasts = self.forecaster.get_forecast(
             idx=self.idx,
             data=self.dataset.data,
@@ -343,7 +339,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         reached_max_steps = self.step_counter >= self.max_steps
         reached_end_of_data = self.idx >= len(self.dataset) - self.N_forecast
         truncated = reached_end_of_data or reached_max_steps
-        
+
         terminated = False  # We do not terminate
         info = {"time_forecast": time_forecast, "task": reward_info}
 

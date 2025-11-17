@@ -14,7 +14,7 @@ from scipy.constants import convert_temperature
 @dataclass(kw_only=True)
 class DataConfig:
     """Configuration for price and weather data.
-    
+
     Attributes:
         price_zone: Electricity price zone.
         price_data_path: Path to the price data CSV file.
