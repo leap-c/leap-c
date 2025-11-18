@@ -251,10 +251,10 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         if obs.ndim == 1:
             # Single observation case
             forecasts = obs[5:].reshape(3, -1).T
-            for stage in range(self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1):
-                param[f"Ta_{stage}_{stage}"] = forecasts[stage, 0]
-                param[f"Phi_s_{stage}_{stage}"] = forecasts[stage, 1]
-                param[f"price_{stage}_{stage}"] = forecasts[stage, 2]
+            for j, key in enumerate(["Ta", "Phi_s", "price"]):
+                if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
+                    for stage in range(self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1):
+                        param[f"{key}_{stage}_{stage}"] = forecasts[stage, j]
 
             return param.cat.full().flatten()
         else:
@@ -271,10 +271,12 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                     self.param_manager.learnable_parameters_default.cat.full().flatten()
                 )
                 # forecasts now has shape (n_batch, N_stages, 3)
-                for stage in range(self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1):
-                    param[f"Ta_{stage}_{stage}"] = forecasts[i, stage, 0]
-                    param[f"Phi_s_{stage}_{stage}"] = forecasts[i, stage, 1]
-                    param[f"price_{stage}_{stage}"] = forecasts[i, stage, 2]
+                for j, key in enumerate(["Ta", "Phi_s", "price"]):
+                    if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
+                        for stage in range(
+                            self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1
+                        ):
+                            param[f"{key}_{stage}_{stage}"] = forecasts[i, stage, j]
 
                 batch_param[i, :] = param.cat.full().flatten()
 

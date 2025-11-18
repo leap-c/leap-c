@@ -414,6 +414,29 @@ class AcadosParameterManager:
                 raise ValueError(f"Parameter '{field_name}' not found in parameter manager.")
         return cls(**field_values)
 
+    def has_learnable_param_pattern(self, pattern: str) -> bool:
+        """Check if any parameter names match the given pattern.
+
+        Supports glob-style wildcards where '*' matches any characters.
+        For example, 'Ta_*_*' matches 'Ta_0_0', 'Ta_1_1', etc.
+
+        Args:
+            pattern: Pattern string with wildcards (*) to match against parameter names.
+
+        Returns:
+            True if any learnable parameter names match the pattern, False otherwise.
+
+        Example:
+            >>> planner.has_param_pattern('Ta_*_*')
+            True  # if parameters like Ta_0_0, Ta_1_1, etc. exist
+            >>> planner.has_param_pattern('nonexistent_*')
+            False
+        """
+        import fnmatch
+
+        learnable_param_names = self.learnable_parameters.keys()
+        return any(fnmatch.fnmatch(name, pattern) for name in learnable_param_names)
+
 
 def _define_starts_and_ends(end_stages: list[int], N_horizon: int) -> tuple[list[int], list[int]]:
     """Define the start and end indices for stage-varying parameters."""
