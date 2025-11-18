@@ -397,6 +397,23 @@ class AcadosParameterManager:
                 else np.array([])
             )
 
+    def recreate_dataclass(self, cls):
+        """Recreate a dataclass instance of type cls with current parameter values.
+
+        Args:
+            cls: The dataclass type to recreate.
+
+        Returns:
+            An instance of cls with fields populated from the current parameter values.
+        """
+        field_values = {}
+        for field_name in cls.__dataclass_fields__.keys():
+            if field_name in self.parameters:
+                field_values[field_name] = self.get(field_name)
+            else:
+                raise ValueError(f"Parameter '{field_name}' not found in parameter manager.")
+        return cls(**field_values)
+
 
 def _define_starts_and_ends(end_stages: list[int], N_horizon: int) -> tuple[list[int], list[int]]:
     """Define the start and end indices for stage-varying parameters."""

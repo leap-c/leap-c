@@ -1,3 +1,4 @@
+from dataclasses import asdict
 from typing import Literal
 
 import casadi as ca
@@ -7,6 +8,7 @@ from acados_template import ACADOS_INFTY, AcadosOcp
 from scipy.constants import convert_temperature
 
 from leap_c.examples.hvac.dynamics import (
+    HydronicDynamicsParameters,
     HydronicParameters,
     transcribe_discrete_state_space,
 )
@@ -20,7 +22,7 @@ while "stagewise" means that learnable parameters can vary between stages.
 
 
 def make_default_hvac_params(
-    stagewise: bool = False, N_horizon: int = 96
+    stagewise: bool = False, N_horizon: int = 96, hydronic_params: HydronicParameters | None = None
 ) -> tuple[AcadosParameter, ...]:
     """Return a tuple of default parameters for the hvac planner.
 
@@ -28,13 +30,15 @@ def make_default_hvac_params(
         stagewise: If True, learnable parameters can vary between stages.
         N_horizon: The number of steps in the MPC horizon
             (default: 96, i.e., 24 hours in 15-minute steps).
+        hydronic_params: Optional HydronicParameters object.
 
     Returns:
         Tuple of AcadosParameter objects for the HVAC system.
     """
-    hydronic_params = HydronicParameters().to_dict()
+    hydronic_params = HydronicParameters() if hydronic_params is None else hydronic_params
 
     # NOTE: Only include parameters that are relevant for the parametric OCP.
+    # TODO (Dirk): I removed the filter for now.
     params = [
         AcadosParameter(
             name=k,
@@ -44,18 +48,7 @@ def make_default_hvac_params(
             ),
             interface="fix",
         )
-        for k, v in hydronic_params.items()
-        if k
-        in [
-            "gAw",  # Effective window area
-            "Ch",  # Heating system thermal capacity
-            "Ci",  # Indoor thermal capacity
-            "Ce",  # External thermal capacity
-            "Rea",  # Resistance external-ambient
-            "Rhi",  # Resistance heating-indoor
-            "Rie",  # Resistance indoor-external
-            "eta",  # Efficiency for electric heater
-        ]
+        for k, v in asdict(hydronic_params.dynamics).items()
     ]
 
     params.extend(
@@ -199,18 +192,7 @@ def export_parametric_ocp(
         Bd=np.zeros((3, 1)),
         Ed=np.zeros((3, 2)),
         dt=dt,
-        params={
-            key: param_manager.get(key)
-            for key in [
-                "Ch",
-                "Ci",
-                "Ce",
-                "Rhi",
-                "Rie",
-                "Rea",
-                "gAw",
-            ]
-        },
+        params=param_manager.recreate_dataclass(HydronicDynamicsParameters),
     )
 
     d = ca.vertcat(

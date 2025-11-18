@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, NamedTuple
+from typing import Any
 
 import numpy as np
 import torch
@@ -12,26 +12,16 @@ from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
 
-class HvacPlannerCtx(NamedTuple):
+class HvacPlannerCtx(AcadosDiffMpcCtx):
     """An extension of the AcadosDiffMpcCtx to also store the heater states.
 
     Attributes:
-        diff_mpc_ctx: The underlying AcadosDiffMpcCtx from the MPC solver.
         qh: Current heating power of the radiator [W].
         dqh: Current rate of change of heating power [W/s].
     """
 
-    diff_mpc_ctx: AcadosDiffMpcCtx
     qh: torch.Tensor
     dqh: torch.Tensor
-
-    @property
-    def status(self):
-        return self.diff_mpc_ctx.status
-
-    @property
-    def log(self):
-        return self.diff_mpc_ctx.log
 
 
 @dataclass(kw_only=True)
@@ -69,6 +59,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
     and the acceleration of the heating power.
 
     The dynamics correspond partly to the dynamics also found in the environment.
+
     The differences are:
     - The dynamics here do not include the noise.
     - In case the ambient temperature, the solar radiation and the prices are not learned,
@@ -109,7 +100,6 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                 `acados` solver code will be exported.
         """
         self.cfg = HvacPlannerConfig() if cfg is None else cfg
-        self.stagewise = self.cfg.stagewise
 
         params = (
             make_default_hvac_params(
@@ -221,7 +211,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             dqh=x[:, 1, 4].detach(),
         )
 
-        return ctx, qh, x, u, value
+        return ctx, x[:, 1, 3], x, u, value
 
     def default_param(self, obs: np.ndarray | None) -> np.ndarray:
         """Provides default parameters for the HVAC planner.
@@ -238,7 +228,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             self.param_manager.learnable_parameters_default.cat.full().flatten()
         )
 
-        if not self.stagewise or obs is None:
+        if not self.cfg.stagewise or obs is None:
             default_param = param.cat.full().flatten()
             # If obs is batched, repeat default params for each batch
             if obs is not None and obs.ndim == 2:

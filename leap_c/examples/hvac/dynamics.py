@@ -1,55 +1,81 @@
 """Thermal dynamics and state-space utilities for HVAC environment."""
 
-from dataclasses import asdict, dataclass, fields
+from dataclasses import dataclass, fields
 
 import casadi as ca
 import numpy as np
 import scipy.linalg
 
 
-@dataclass
+@dataclass(kw_only=True)
+class HydronicDynamicsParameters:
+    """Deterministic HVAC dynamics parameters.
+
+    Attributes:
+        Ch: Heating system thermal capacity [J/K]
+        Ci: Indoor thermal capacity [J/K]
+        Ce: External thermal capacity [J/K]
+        Rhi: Resistance heating-indoor [K/W]
+        Rie: Resistance indoor-external [K/W]
+        Rea: Resistance external-ambient [K/W]
+        gAw: Effective window area [m²]
+    """
+
+    # TODO (Dirk): From where are those parameters?
+
+    gAw: float | ca.SX = 10.1265729225269
+    Ch: float | ca.SX = 4015.39425109821
+    Ci: float | ca.SX = 1914908.30860716
+    Ce: float | ca.SX = 15545663.6743828
+    Rea: float | ca.SX = 0.00751396226986365
+    Rhi: float | ca.SX = 0.0761996125919563
+    Rie: float | ca.SX = 0.00135151763922409
+
+
+@dataclass(kw_only=True)
+class HydronicNoiseParameters:
+    """Noise parameters for the hydronic system.
+
+    Attributes:
+        e11: Measurement noise
+        sigmai: Indoor temperature process noise
+        sigmah: Heating system process noise
+        sigmae: External temperature process noise
+    """
+
+    # TODO (Dirk): From where are those parameters?
+
+    e11: float | ca.SX = -9.49409438095981
+    sigmai: float | ca.SX = -37.8538482163307
+    sigmah: float | ca.SX = -50.4867241844347
+    sigmae: float | ca.SX = -5.57887704511886
+
+
+@dataclass(kw_only=True)
 class HydronicParameters:
     """Hydronic system thermal parameters.
 
     Default values are from the BESTEST hydronic system standard configuration.
 
     Attributes:
-        gAw: Effective window area [m²]
-        Ch: Heating system thermal capacity [J/K]
-        Ci: Indoor thermal capacity [J/K]
-        Ce: External thermal capacity [J/K]
-        e11: Measurement noise
-        sigmai: Indoor temperature process noise
-        sigmah: Heating system process noise
-        sigmae: External temperature process noise
-        Rea: Resistance external-ambient [K/W]
-        Rhi: Resistance heating-indoor [K/W]
-        Rie: Resistance indoor-external [K/W]
+        deterministic: Deterministic thermal parameters
+        noise: Noise parameters
         eta: Efficiency for electric heater
     """
 
-    # TODO (Dirk): From where are those parameters?
-
-    gAw: float = 10.1265729225269  # noqa: N815
-
-    # Thermal capacitances [J/K]
-    Ch: float = 4015.39425109821
-    Ci: float = 1914908.30860716
-    Ce: float = 15545663.6743828
-
-    # Noise parameters
-    e11: float = -9.49409438095981
-    sigmai: float = -37.8538482163307
-    sigmah: float = -50.4867241844347
-    sigmae: float = -5.57887704511886
-
-    # Thermal resistances [K/W]
-    Rea: float = 0.00751396226986365
-    Rhi: float = 0.0761996125919563
-    Rie: float = 0.00135151763922409
+    dynamics: HydronicDynamicsParameters = None
+    noise: HydronicNoiseParameters = None
 
     # Heater parameters
-    eta: float = 0.98
+    # TODO (Dirk): Where is this used?
+    eta: float | ca.SX = 0.98
+
+    def __post_init__(self):
+        """Initialize default values for nested dataclasses if None."""
+        if self.dynamics is None:
+            self.dynamics = HydronicDynamicsParameters()
+        if self.noise is None:
+            self.noise = HydronicNoiseParameters()
 
     def randomize(self, rng: np.random.Generator, noise_scale: float = 0.3) -> "HydronicParameters":
         """Generate a new HydronicParameters instance with randomized values.
@@ -61,20 +87,34 @@ class HydronicParameters:
         Returns:
             New HydronicParameters instance with randomized values.
         """
-        randomized_values = {}
-        for field in fields(self):
-            value = getattr(self, field.name)
-            randomized_values[field.name] = rng.normal(
+        # Randomize deterministic parameters
+        randomized_det = {}
+        for field in fields(self.dynamics):
+            value = getattr(self.dynamics, field.name)
+            randomized_det[field.name] = rng.normal(
                 loc=value, scale=noise_scale * np.sqrt(value**2)
             )
-        return HydronicParameters(**randomized_values)
+
+        # Randomize noise parameters
+        randomized_noise = {}
+        for field in fields(self.noise):
+            value = getattr(self.noise, field.name)
+            randomized_noise[field.name] = rng.normal(
+                loc=value, scale=noise_scale * np.sqrt(value**2)
+            )
+
+        return HydronicParameters(
+            dynamics=HydronicDynamicsParameters(**randomized_det),
+            noise=HydronicNoiseParameters(**randomized_noise),
+            eta=self.eta,
+        )
 
 
 def transcribe_continuous_state_space(
     Ac: ca.SX | np.ndarray,
     Bc: ca.SX | np.ndarray,
     Ec: ca.SX | np.ndarray,
-    params: HydronicParameters,
+    params: HydronicDynamicsParameters,
 ) -> tuple[ca.SX, ca.SX, ca.SX]:
     """Create continuous-time state-space matrices Ac, Bc, Ec as per equation (6).
 
@@ -136,7 +176,7 @@ def transcribe_discrete_state_space(
     Bd: ca.SX | np.ndarray,
     Ed: ca.SX | np.ndarray,
     dt: float,
-    params: HydronicParameters,
+    params: HydronicDynamicsParameters,
 ) -> tuple[ca.SX, ca.SX, ca.SX]:
     """Create discrete-time state-space matrices Ad, Bd, Ed as per equation (7).
 
@@ -255,16 +295,16 @@ def compute_discrete_matrices(
     """
     # Create noise intensity matrix Σ from parameters
     # The stochastic terms are σᵢω̇ᵢ, σₕω̇ₕ, σₑω̇ₑ
-    sigma_i = np.exp(params.sigmai)
-    sigma_h = np.exp(params.sigmah)
-    sigma_e = np.exp(params.sigmae)
+    sigma_i = np.exp(params.noise.sigmai)
+    sigma_h = np.exp(params.noise.sigmah)
+    sigma_e = np.exp(params.noise.sigmae)
 
     # Compute continuous-time Ac
     Ac, _, _ = transcribe_continuous_state_space(
         Ac=np.zeros((3, 3)),
         Bc=np.zeros((3, 1)),
         Ec=np.zeros((3, 2)),
-        params=params,
+        params=params.dynamics,
     )
 
     Qd = compute_noise_covariance(
@@ -279,7 +319,7 @@ def compute_discrete_matrices(
         Bd=np.zeros((3, 1)),
         Ed=np.zeros((3, 2)),
         dt=dt,
-        params=params,
+        params=params.dynamics,
     )
 
     return Ad, Bd, Ed, Qd
