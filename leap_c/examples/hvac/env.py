@@ -351,7 +351,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         """Reset the environment to an initial state.
 
         Args:
-            state_0: Initial state [Ti, Th, Te] in Kelvin. If None, uses default (293.15 K = 20°C).
+            state_0: Initial state [Ti, Th, Te] in Kelvin. If None, samples a random Ti
+            (between 19 and 23 deg Celsius) and computes Th and Te steady-state values.
             seed: Random seed for reproducibility.
             options: Additional reset options. Supported keys:
                 - "split": Dataset split to use ("train", "test", or "all"). Defaults to "all".
