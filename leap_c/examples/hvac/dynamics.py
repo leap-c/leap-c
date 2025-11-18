@@ -11,6 +11,10 @@ import scipy.linalg
 class HydronicDynamicsParameters:
     """Deterministic HVAC dynamics parameters.
 
+    The parameters are from a CSTMR hydronic system model to be used as a control model
+    in the BOPTEST BestestHydronic test case
+    (https://ibpsa.github.io/project1-boptest/testcases/ibpsa/testcases_ibpsa_bestest_hydronic/).
+
     Attributes:
         Ch: Heating system thermal capacity [J/K]
         Ci: Indoor thermal capacity [J/K]
@@ -20,8 +24,6 @@ class HydronicDynamicsParameters:
         Rea: Resistance external-ambient [K/W]
         gAw: Effective window area [m²]
     """
-
-    # TODO (Dirk): From where are those parameters?
 
     gAw: float | ca.SX = 10.1265729225269
     Ch: float | ca.SX = 4015.39425109821
