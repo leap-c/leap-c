@@ -38,14 +38,16 @@ class HydronicDynamicsParameters:
 class HydronicNoiseParameters:
     """Noise parameters for the hydronic system.
 
+    The parameters are from a CSTMR hydronic system model to be used as a control model
+    in the BOPTEST BestestHydronic test case
+    (https://ibpsa.github.io/project1-boptest/testcases/ibpsa/testcases_ibpsa_bestest_hydronic/).
+
     Attributes:
         e11: Measurement noise
         sigmai: Indoor temperature process noise
         sigmah: Heating system process noise
         sigmae: External temperature process noise
     """
-
-    # TODO (Dirk): From where are those parameters?
 
     e11: float | ca.SX = -9.49409438095981
     sigmai: float | ca.SX = -37.8538482163307
@@ -69,9 +71,6 @@ class HydronicParameters:
     noise: HydronicNoiseParameters = None
 
     # Heater parameters
-    # TODO (Dirk): Where is this used?
-    eta: float | ca.SX = 0.98
-
     def __post_init__(self):
         """Initialize default values for nested dataclasses if None."""
         if self.dynamics is None:
@@ -108,7 +107,6 @@ class HydronicParameters:
         return HydronicParameters(
             dynamics=HydronicDynamicsParameters(**randomized_det),
             noise=HydronicNoiseParameters(**randomized_noise),
-            eta=self.eta,
         )
 
 
