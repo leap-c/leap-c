@@ -1,17 +1,22 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable, Sequence
 
 import numpy as np
 import torch
 
 from leap_c.examples.hvac.acados_ocp import export_parametric_ocp, make_default_hvac_params
 from leap_c.examples.hvac.utils import set_temperature_limits
+from leap_c.ocp.acados.data import (
+    collate_acados_flattened_batch_iterate_fn,
+    collate_acados_ocp_solver_input,
+)
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
 
+@dataclass(kw_only=True)
 class HvacPlannerCtx(AcadosDiffMpcCtx):
     """An extension of the AcadosDiffMpcCtx to also store the heater states.
 
@@ -22,6 +27,21 @@ class HvacPlannerCtx(AcadosDiffMpcCtx):
 
     qh: torch.Tensor
     dqh: torch.Tensor
+
+
+def collate_acados_diff_mpc_ctx(
+    batch: Sequence[AcadosDiffMpcCtx],
+    collate_fn_map: dict[str, Callable] | None = None,
+) -> AcadosDiffMpcCtx:
+    """Collates a batch of AcadosDiffMpcCtx objects into a single object."""
+    return AcadosDiffMpcCtx(
+        iterate=collate_acados_flattened_batch_iterate_fn([ctx.iterate for ctx in batch]),
+        log=None,
+        status=np.array([ctx.status for ctx in batch]),
+        solver_input=collate_acados_ocp_solver_input([ctx.solver_input for ctx in batch]),
+        qh=torch.stack([ctx.qh for ctx in batch], dim=0),
+        dqh=torch.stack([ctx.dqh for ctx in batch], dim=0),
+    )
 
 
 @dataclass(kw_only=True)
@@ -157,16 +177,9 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         if ctx is None:
             qh = torch.zeros((batch_size, 1), dtype=torch.float64, device=obs.device)
             dqh = torch.zeros((batch_size, 1), dtype=torch.float64, device=obs.device)
-            diff_mpc_ctx = None
         else:
             qh = ctx.qh
             dqh = ctx.dqh
-            if qh.ndim == 1:
-                qh = qh.unsqueeze(0)
-            if dqh.ndim == 1:
-                dqh = dqh.unsqueeze(0)
-
-            diff_mpc_ctx = ctx.diff_mpc_ctx
 
         # Construct initial state for MPC: [Ti, Th, Te, qh, dqh]
         x0 = torch.cat(
@@ -178,11 +191,10 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             dim=1,
         )
 
-        N_horizon = self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon
         quarter_hours = np.array(
             [
-                np.arange(obs[i, 0].cpu().numpy(), obs[i, 0].cpu().numpy() + N_horizon + 1)
-                % N_horizon
+                np.arange(obs[i, 0].cpu().numpy(), obs[i, 0].cpu().numpy() + self.cfg.N_horizon + 1)
+                % self.cfg.N_horizon
                 for i in range(batch_size)
             ]
         )
@@ -197,21 +209,21 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             ub_Ti=ub.reshape(batch_size, -1, 1),
         )
 
-        diff_mpc_ctx, u0, x, u, value = self.diff_mpc(
+        diff_mpc_ctx, _, x, u, value = self.diff_mpc(
             x0,
             action,
             param,
             p_stagewise,
-            ctx=diff_mpc_ctx,
+            ctx=ctx,
         )
 
         ctx = HvacPlannerCtx(
-            diff_mpc_ctx,
-            qh=x[:, 1, 3].detach(),
-            dqh=x[:, 1, 4].detach(),
+            **vars(diff_mpc_ctx),
+            qh=x[:, 1, 3].detach()[:, None],
+            dqh=x[:, 1, 4].detach()[:, None],
         )
 
-        return ctx, x[:, 1, 3], x, u, value
+        return ctx, x[:, 1, 3][:, None], x, u, value
 
     def default_param(self, obs: np.ndarray | None) -> np.ndarray:
         """Provides default parameters for the HVAC planner.

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
@@ -20,12 +20,30 @@ class DataConfig:
         price_data_path: Path to the price data CSV file.
         weather_data_path: Path to the weather data CSV file.
         start_time: Simulation start time. If None, samples randomly from data.
+        valid_months: List of valid months (1-12) for random sampling.
+            Default is heating season months (Jan-Apr, Sep-Dec).
+            Set to None to allow all months.
+        max_hours: Maximum simulation time in hours for episodes.
+        train_months: Months assigned to training split.
+        test_months: Months assigned to test split.
     """
 
     price_zone: Literal["NO_1", "NO_2", "NO_3", "DK_1", "DK_2", "DE_LU"] = "NO_1"
     price_data_path: Path | None = None
     weather_data_path: Path | None = None
     start_time: pd.Timestamp | None = None  # if None, samples randomly from data
+
+    # train / test split configuration
+    max_hours: int = 3 * 24  # Maximum episode length in hours
+    valid_months: list[int] | None = field(
+        default_factory=lambda: [1, 2, 3, 4, 9, 10, 11, 12]
+    )  # Heating season months: Jan-Apr, Sep-Dec
+    train_months: list[int] | None = field(
+        default_factory=lambda: [1, 2, 3, 9, 10, 11]
+    )  # 6 months for training
+    test_months: list[int] | None = field(
+        default_factory=lambda: [4, 12]
+    )  # 2 months for testing
 
 
 class HvacDataset:
@@ -167,6 +185,71 @@ class HvacDataset:
             True if valid, False otherwise.
         """
         return 0 <= idx < len(self.data) - horizon
+
+    def sample_start_index(
+        self,
+        rng: np.random.Generator,
+        horizon: int,
+        max_steps: int,
+        split: Literal["train", "test", "all"] = "all",
+        max_attempts: int = 1000,
+    ) -> int:
+        """Sample a valid start index for episode initialization.
+
+        Args:
+            rng: NumPy random generator for reproducibility.
+            horizon: Forecast horizon length.
+            max_steps: Maximum number of simulation steps.
+            split: Data split to sample from ('train', 'test', 'all').
+            max_attempts: Maximum number of sampling attempts.
+
+        Returns:
+            Valid starting index.
+
+        Raises:
+            RuntimeError: If no valid start date found within max_attempts.
+        """
+        if self.cfg.start_time is not None:
+            return self.index.get_loc(self.cfg.start_time)
+
+        min_start_idx = 0
+        max_start_idx = len(self.data) - horizon - max_steps + 1
+
+        if max_start_idx <= min_start_idx:
+            raise ValueError(
+                f"Dataset too small: need at least {horizon + max_steps} steps, "
+                f"but dataset has only {len(self.data)} steps."
+            )
+
+        # Determine which months to sample from based on split
+        if split == "all":
+            allowed_months = self.cfg.valid_months
+        elif split == "train":
+            allowed_months = self.cfg.train_months
+        elif split == "test":
+            allowed_months = self.cfg.test_months
+        else:
+            raise ValueError(
+                f"Invalid split value: {split}. "
+                "Must be 'train', 'test', or 'all'."
+            )
+
+        # If no month filtering, return random index directly
+        if allowed_months is None:
+            return rng.integers(low=min_start_idx, high=max_start_idx + 1)
+
+        # Sample with month filtering
+        for _ in range(max_attempts):
+            idx = rng.integers(low=min_start_idx, high=max_start_idx + 1)
+            date = self.index[idx]
+            if date.month in allowed_months:
+                return idx
+
+        raise RuntimeError(
+            f"Could not find a valid start date in {max_attempts} attempts. "
+            f"Split: {split}, Allowed months: {allowed_months}. "
+            "Please check the data and configuration."
+        )
 
 
 # ============================================================================

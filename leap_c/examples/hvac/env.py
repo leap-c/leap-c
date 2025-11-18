@@ -25,7 +25,6 @@ class HvacEnvConfig:
     Attributes:
         thermal_params: Thermal model parameters.
         step_size: Simulation time step in seconds.
-        max_hours: Maximum simulation time in hours.
         enable_noise: Whether to include stochastic noise.
         randomize_params: Whether to randomize thermal parameters.
         param_noise_scale: Scale for parameter randomization.
@@ -34,7 +33,6 @@ class HvacEnvConfig:
 
     thermal_params: HydronicParameters | None = None
     step_size: float = 900.0
-    max_hours: int = 3 * 24
     enable_noise: bool = True
     randomize_params: bool = True
     param_noise_scale: float = 0.3
@@ -101,7 +99,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
     Truncates:
     ----------
-    Truncates after max_hours is reached in simulated time or when the historical data ends.
+    Truncates after dataset's max_hours is reached in simulated time or when the
+    historical data ends.
 
     Attributes:
         cfg: Configuration for the environment.
@@ -158,7 +157,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         # Setup forecast and simulation parameters
         self.ctx = None
         self.N_forecast = 4 * self.forecaster.cfg.horizon_hours
-        self.max_steps = int(self.cfg.max_hours * 3600 / self.cfg.step_size)
+        self.max_steps = int(self.dataset.cfg.max_hours * 3600 / self.cfg.step_size)
 
         print("env N_forecast: ", self.N_forecast)
 
@@ -353,7 +352,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         Args:
             state_0: Initial state [Ti, Th, Te] in Kelvin. If None, uses default (293.15 K = 20°C).
             seed: Random seed for reproducibility.
-            options: Additional reset options (unused).
+            options: Additional reset options. Supported keys:
+                - "split": Dataset split to use ("train", "test", or "all"). Defaults to "all".
 
         Returns:
             Tuple containing:
@@ -367,31 +367,18 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             state_0 = np.array([293.15, 293.15, 293.15])
         self.state = state_0.copy()
 
-        if self.dataset.cfg.start_time is not None:
-            self.idx = self.dataset.index.get_loc(self.dataset.cfg.start_time)
+        # Sample start index from dataset
+        if options is not None and "mode" in options and options["mode"] == "train":
+            split = "train"
         else:
-            min_start_idx = 0
-            max_start_idx = len(self.dataset) - self.N_forecast - self.max_steps + 1
+            split = "test"
 
-            self.idx = min_start_idx
-
-            n_max = 1000
-            counter = 0
-            date_valid = False
-            while not date_valid and counter < n_max:
-                idx = self.np_random.integers(low=min_start_idx, high=max_start_idx + 1)
-                date = self.dataset.index[idx]
-                if date.month in [1, 2, 3, 4, 9, 10, 11, 12]:
-                    date_valid = True
-                    self.idx = idx
-
-                counter += 1
-
-            if not date_valid:
-                raise RuntimeError(
-                    f"Could not find a valid start date in {n_max} attempts. "
-                    "Please check the data and configuration."
-                )
+        self.idx = self.dataset.sample_start_index(
+            rng=self.np_random,
+            horizon=self.N_forecast,
+            max_steps=self.max_steps,
+            split=split,
+        )
 
         self.step_counter = 0
 
