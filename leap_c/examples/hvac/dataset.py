@@ -41,9 +41,7 @@ class DataConfig:
     train_months: list[int] | None = field(
         default_factory=lambda: [1, 2, 3, 9, 10, 11]
     )  # 6 months for training
-    test_months: list[int] | None = field(
-        default_factory=lambda: [4, 12]
-    )  # 2 months for testing
+    test_months: list[int] | None = field(default_factory=lambda: [4, 12])  # 2 months for testing
 
 
 class HvacDataset:
@@ -229,10 +227,7 @@ class HvacDataset:
         elif split == "test":
             allowed_months = self.cfg.test_months
         else:
-            raise ValueError(
-                f"Invalid split value: {split}. "
-                "Must be 'train', 'test', or 'all'."
-            )
+            raise ValueError(f"Invalid split value: {split}. Must be 'train', 'test', or 'all'.")
 
         # If no month filtering, return random index directly
         if allowed_months is None:
