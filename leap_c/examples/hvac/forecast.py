@@ -10,7 +10,7 @@ import pandas as pd
 
 
 @dataclass(kw_only=True)
-class UncertaintyConfig:
+class TemperatureUncertaintyConfig:
     """Configuration for temperature forecast uncertainty parameters (AR1 with Normal).
 
     Attributes:
@@ -62,20 +62,27 @@ class ForecastConfig:
     """
 
     horizon_hours: int = 25  # prediction horizon in hours
-    temp_uncertainty: UncertaintyConfig | Literal["low", "medium", "high"] | None = "high"
-    # TODO (Dirk): Should we activate the solar uncertainty by default?
-    solar_uncertainty: SolarUncertaintyConfig | Literal["low", "medium", "high"] | None = None
+    temp_uncertainty: TemperatureUncertaintyConfig | Literal["low", "medium", "high"] | None = (
+        "high"
+    )
+    solar_uncertainty: SolarUncertaintyConfig | Literal["low", "medium", "high"] | None = "medium"
 
     def __post_init__(self):
         """Resolve string literals to actual config objects."""
         # TODO (Dirk): Where are those parameters from?
 
         if self.temp_uncertainty == "low":
-            self.temp_uncertainty = UncertaintyConfig(F0=0.0, K0=0.6, F=0.92, mu=0.0, K=0.4)
+            self.temp_uncertainty = TemperatureUncertaintyConfig(
+                F0=0.0, K0=0.6, F=0.92, mu=0.0, K=0.4
+            )
         elif self.temp_uncertainty == "medium":
-            self.temp_uncertainty = UncertaintyConfig(F0=0.15, K0=1.2, F=0.93, mu=0.0, K=0.6)
+            self.temp_uncertainty = TemperatureUncertaintyConfig(
+                F0=0.15, K0=1.2, F=0.93, mu=0.0, K=0.6
+            )
         elif self.temp_uncertainty == "high":
-            self.temp_uncertainty = UncertaintyConfig(F0=-0.58, K0=1.5, F=0.95, mu=-0.015, K=0.7)
+            self.temp_uncertainty = TemperatureUncertaintyConfig(
+                F0=-0.58, K0=1.5, F=0.95, mu=-0.015, K=0.7
+            )
 
         # Resolve solar uncertainty string to config
         if self.solar_uncertainty == "low":
