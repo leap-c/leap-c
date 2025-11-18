@@ -389,7 +389,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 Ti_ss=Ti_ss,
                 Ta_ss=self.dataset.get_temperature(self.idx)[0],
                 Phi_ss=self.dataset.get_solar(self.idx)[0],
-                params=self.params,
+                params=self.params.dynamics,
             )
 
             self.state = np.array([Ti_ss, Th_ss, Te_ss])

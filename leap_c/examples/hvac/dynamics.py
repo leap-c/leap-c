@@ -329,7 +329,7 @@ def compute_steady_state(
     Ti_ss: float,
     Ta_ss: float,
     Phi_ss: float,
-    params: HydronicParameters,
+    params: HydronicDynamicsParameters,
 ) -> tuple[float, float, float]:
     """Compute steady-state values for HVAC system.
 
