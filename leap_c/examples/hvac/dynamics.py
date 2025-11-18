@@ -349,7 +349,7 @@ def compute_steady_state(
         Ac=np.zeros((3, 3)),
         Bc=np.zeros((3, 1)),
         Ec=np.zeros((3, 2)),
-        params=params,
+        params=params.dynamics,
     )
 
     A = np.hstack([Bc, Ac[:, 1:]])
