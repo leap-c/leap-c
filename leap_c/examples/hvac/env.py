@@ -11,6 +11,7 @@ from leap_c.examples.hvac.dataset import HvacDataset
 from leap_c.examples.hvac.dynamics import (
     HydronicParameters,
     compute_discrete_matrices,
+    compute_steady_state,
 )
 from leap_c.examples.hvac.forecast import Forecaster
 from leap_c.examples.hvac.planner import HvacPlannerCtx
@@ -362,11 +363,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         """
         super().reset(seed=seed)
 
-        if state_0 is None:
-            # Default initial state: 20°C (293.15 K) for all temperatures
-            state_0 = np.array([293.15, 293.15, 293.15])
-        self.state = state_0.copy()
-
         # Sample start index from dataset
         if options is not None and "mode" in options and options["mode"] == "train":
             split = "train"
@@ -382,7 +378,23 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         self.step_counter = 0
 
+        if state_0 is None:
+            Ti_ss = self.np_random.uniform(
+                low=convert_temperature(19.0, "celsius", "kelvin"),
+                high=convert_temperature(23.0, "celsius", "kelvin"),
+            )
+
+            _, Th_ss, Te_ss = compute_steady_state(
+                Ti_ss=Ti_ss,
+                Ta_ss=self.dataset.get_temperature(self.idx)[0],
+                Phi_ss=self.dataset.get_solar(self.idx)[0],
+                params=self.params,
+            )
+
+            self.state = np.array([Ti_ss, Th_ss, Te_ss])
+
         obs = self._get_observation()
+
         time_forecast = self.dataset.get_time_forecast(self.idx, self.N_forecast)
         info = {"time_forecast": time_forecast}
 

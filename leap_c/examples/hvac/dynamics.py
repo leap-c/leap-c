@@ -323,3 +323,42 @@ def compute_discrete_matrices(
     )
 
     return Ad, Bd, Ed, Qd
+
+
+def compute_steady_state(
+    Ti_ss: float,
+    Ta_ss: float,
+    Phi_ss: float,
+    params: HydronicParameters,
+) -> tuple[float, float, float]:
+    """Compute steady-state values for HVAC system.
+
+    Args:
+        Ti_ss: Indoor temperature steady-state value in Kelvin.
+        Ta_ss: Outdoor temperature steady-state value in Kelvin.
+        Phi_ss: Solar radiation steady-state value in W/m^2.
+        params: Hydronic system parameters.
+
+    Returns:
+        Tuple of (qh_ss, Th_ss, Te_ss) where:
+            - qh_ss: Steady-state heating power in W, clipped to be non-negative
+            - Th_ss: Steady-state radiator temperature in Kelvin
+            - Te_ss: Steady-state envelope temperature in Kelvin
+    """
+    Ac, Bc, Ec = transcribe_continuous_state_space(
+        Ac=np.zeros((3, 3)),
+        Bc=np.zeros((3, 1)),
+        Ec=np.zeros((3, 2)),
+        params=params,
+    )
+
+    A = np.hstack([Bc, Ac[:, 1:]])
+    b = -(Ac[:, 0] * Ti_ss + Ec[:, 0] * Ta_ss + Ec[:, 1] * Phi_ss).reshape(-1, 1)
+
+    ss = np.linalg.solve(A, b).flatten()
+
+    qh_ss = max(0, ss[0])
+    Th_ss = ss[1]  # Temperature in Kelvin
+    Te_ss = ss[2]  # Temperature in Kelvin
+
+    return qh_ss, Th_ss, Te_ss
