@@ -201,7 +201,7 @@ class Forecaster:
                 np_random=np_random,
                 distribution="laplace",
             )
-            return base_forecast + error
+            return np.maximum(0, base_forecast + error)
 
         return base_forecast
 
