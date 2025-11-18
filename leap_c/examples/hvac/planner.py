@@ -235,6 +235,10 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
 
         Returns:
             Default parameter array.
+
+        NOTE: For stagewise parameters, we *assume* that the forecast stages
+        match the stages in the parameters. No block-wise varying parameters
+        are supported here.
         """
         param = self.param_manager.learnable_parameters(
             self.param_manager.learnable_parameters_default.cat.full().flatten()
@@ -254,7 +258,12 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             for j, key in enumerate(["Ta", "Phi_s", "price"]):
                 if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
                     for stage in range(self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1):
-                        param[f"{key}_{stage}_{stage}"] = forecasts[stage, j]
+                        try:
+                            param[f"{key}_{stage}_{stage}"] = forecasts[stage, j]
+                        except KeyError as e:
+                            raise KeyError(
+                                f"Learnable parameter '{key}_{stage}_{stage}' not found."
+                            ) from e
 
             return param.cat.full().flatten()
         else:
@@ -276,7 +285,12 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                         for stage in range(
                             self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1
                         ):
-                            param[f"{key}_{stage}_{stage}"] = forecasts[i, stage, j]
+                            try:
+                                param[f"{key}_{stage}_{stage}"] = forecasts[i, stage, j]
+                            except KeyError as e:
+                                raise KeyError(
+                                    f"Learnable parameter '{key}_{stage}_{stage}' not found."
+                                ) from e
 
                 batch_param[i, :] = param.cat.full().flatten()
 
