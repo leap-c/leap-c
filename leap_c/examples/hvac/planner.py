@@ -208,15 +208,15 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
 
         if not self.param_manager.has_learnable_param_pattern("Ta_*_*"):
             start_idx = 5
-            overwrites["Ta" : obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]]
+            overwrites["Ta"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]
 
         if not self.param_manager.has_learnable_param_pattern("Phi_s_*_*"):
             start_idx = 5 + self.cfg.N_horizon + 1
-            overwrites["Phi_s" : obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]]
+            overwrites["Phi_s"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]
 
         if not self.param_manager.has_learnable_param_pattern("price_*_*"):
             start_idx = 5 + 2 * (self.cfg.N_horizon + 1)
-            overwrites["price" : obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]]
+            overwrites["price"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]
 
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(**overwrites)
 

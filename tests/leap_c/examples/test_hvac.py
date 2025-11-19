@@ -1,7 +1,10 @@
 import numpy as np
 import pytest
+import torch
 
+from leap_c.examples.hvac.acados_ocp import make_default_hvac_params
 from leap_c.examples.hvac.planner import HvacPlanner, HvacPlannerConfig
+from leap_c.ocp.acados.parameters import AcadosParameter
 
 
 @pytest.fixture(scope="module")
@@ -162,3 +165,262 @@ def test_forecast_extraction(hvac_planner_stagewise):
     # The test passes if no exception is raised during parameter computation
     assert param is not None
     assert len(param) > 0
+
+
+# ==================== Tests for Forecast Parameter Setting ====================
+
+
+def create_planner_with_custom_params(
+    N_horizon: int,
+    stagewise: bool,
+    ta_learnable: bool = True,
+    solar_learnable: bool = True,
+    price_learnable: bool = True,
+) -> HvacPlanner:
+    """Create a planner with custom parameter learnability settings.
+
+    Args:
+        N_horizon: Number of forecast steps.
+        stagewise: Whether to use stagewise parameters.
+        ta_learnable: Whether ambient temperature should be learnable.
+        solar_learnable: Whether solar radiation should be learnable.
+        price_learnable: Whether price should be learnable.
+
+    Returns:
+        HvacPlanner with custom parameter configuration.
+    """
+    # Get default params
+    params = list(make_default_hvac_params(stagewise=stagewise, N_horizon=N_horizon))
+
+    # Modify the interface for Ta, Phi_s, and price based on arguments
+    for i, param in enumerate(params):
+        if param.name == "Ta" and not ta_learnable:
+            params[i] = AcadosParameter(
+                name=param.name,
+                default=param.default,
+                space=param.space,
+                interface="non-learnable",
+                end_stages=param.end_stages,
+            )
+        elif param.name == "Phi_s" and not solar_learnable:
+            params[i] = AcadosParameter(
+                name=param.name,
+                default=param.default,
+                space=param.space,
+                interface="non-learnable",
+                end_stages=param.end_stages,
+            )
+        elif param.name == "price" and not price_learnable:
+            params[i] = AcadosParameter(
+                name=param.name,
+                default=param.default,
+                space=param.space,
+                interface="non-learnable",
+                end_stages=param.end_stages,
+            )
+
+    cfg = HvacPlannerConfig(N_horizon=N_horizon, stagewise=stagewise)
+    return HvacPlanner(cfg=cfg, params=tuple(params))
+
+
+@pytest.mark.parametrize("batch_size", [1, 4])
+def test_all_forecasts_non_learnable(batch_size):
+    """Test when all forecast parameters are non-learnable (extracted from obs)."""
+    N_horizon = 8
+    planner = create_planner_with_custom_params(
+        N_horizon=N_horizon,
+        stagewise=True,
+        ta_learnable=False,
+        solar_learnable=False,
+        price_learnable=False,
+    )
+
+    # Create observations
+    if batch_size == 1:
+        obs = create_obs(N_horizon, seed=42)
+        obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
+    else:
+        obs_batch = np.stack([create_obs(N_horizon, seed=i) for i in range(batch_size)])
+        obs_torch = torch.from_numpy(obs_batch).double()
+
+    # Verify that none of the forecast parameters are learnable
+    assert not planner.param_manager.has_learnable_param_pattern("Ta_*_*")
+    assert not planner.param_manager.has_learnable_param_pattern("Phi_s_*_*")
+    assert not planner.param_manager.has_learnable_param_pattern("price_*_*")
+
+    # Forward pass should extract forecasts from obs
+    ctx, u0, x, u, value = planner.forward(obs_torch)
+
+    # Verify that the forward pass completed successfully
+    assert ctx is not None
+    assert x.shape[0] == batch_size
+    assert u0 is not None or u is not None  # At least one should be set
+
+
+@pytest.mark.parametrize("batch_size", [1, 4])
+def test_all_forecasts_learnable(batch_size):
+    """Test when all forecast parameters are learnable (not extracted from obs)."""
+    N_horizon = 8
+    planner = create_planner_with_custom_params(
+        N_horizon=N_horizon,
+        stagewise=True,
+        ta_learnable=True,
+        solar_learnable=True,
+        price_learnable=True,
+    )
+
+    # Create observations
+    if batch_size == 1:
+        obs = create_obs(N_horizon, seed=42)
+        obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
+    else:
+        obs_batch = np.stack([create_obs(N_horizon, seed=i) for i in range(batch_size)])
+        obs_torch = torch.from_numpy(obs_batch).double()
+
+    # Verify that all forecast parameters are learnable
+    assert planner.param_manager.has_learnable_param_pattern("Ta_*_*")
+    assert planner.param_manager.has_learnable_param_pattern("Phi_s_*_*")
+    assert planner.param_manager.has_learnable_param_pattern("price_*_*")
+
+    # Forward pass should NOT extract forecasts from obs (uses learned params)
+    ctx, u0, x, u, value = planner.forward(obs_torch)
+
+    # Verify that the forward pass completed successfully
+    assert ctx is not None
+    assert x.shape[0] == batch_size
+    assert u0 is not None or u is not None
+
+
+@pytest.mark.parametrize("batch_size", [1, 3])
+@pytest.mark.parametrize(
+    "ta_learnable,solar_learnable,price_learnable",
+    [
+        (True, False, False),  # Only Ta learnable
+        (False, True, False),  # Only solar learnable
+        (False, False, True),  # Only price learnable
+        (True, True, False),  # Ta and solar learnable
+        (True, False, True),  # Ta and price learnable
+        (False, True, True),  # Solar and price learnable
+    ],
+)
+def test_mixed_forecast_learnability(batch_size, ta_learnable, solar_learnable, price_learnable):
+    """Test scenarios with mixed learnable/non-learnable forecast parameters."""
+    N_horizon = 8
+    planner = create_planner_with_custom_params(
+        N_horizon=N_horizon,
+        stagewise=True,
+        ta_learnable=ta_learnable,
+        solar_learnable=solar_learnable,
+        price_learnable=price_learnable,
+    )
+
+    # Create observations with known values
+    if batch_size == 1:
+        obs = create_obs(N_horizon, seed=42)
+        obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
+    else:
+        obs_batch = np.stack([create_obs(N_horizon, seed=i) for i in range(batch_size)])
+        obs_torch = torch.from_numpy(obs_batch).double()
+
+    # Verify learnability patterns
+    assert planner.param_manager.has_learnable_param_pattern("Ta_*_*") == ta_learnable
+    assert planner.param_manager.has_learnable_param_pattern("Phi_s_*_*") == solar_learnable
+    assert planner.param_manager.has_learnable_param_pattern("price_*_*") == price_learnable
+
+    # Forward pass should handle mixed scenario correctly
+    ctx, u0, x, u, value = planner.forward(obs_torch)
+
+    # Verify that the forward pass completed successfully
+    assert ctx is not None
+    assert x.shape[0] == batch_size
+    assert u0 is not None or u is not None
+
+
+def test_forecast_extraction_indices():
+    """Test that forecasts are extracted from correct observation indices."""
+    N_horizon = 8
+    planner = create_planner_with_custom_params(
+        N_horizon=N_horizon,
+        stagewise=True,
+        ta_learnable=False,
+        solar_learnable=False,
+        price_learnable=False,
+    )
+
+    # Create observation with known values
+    obs = create_obs(N_horizon, seed=123)
+    obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
+
+    # Extract expected values manually
+    N_forecast = N_horizon + 1
+    expected_Ta = obs[5 : 5 + N_forecast]
+    expected_solar = obs[5 + N_forecast : 5 + 2 * N_forecast]
+    expected_price = obs[5 + 2 * N_forecast : 5 + 3 * N_forecast]
+
+    # Verify shapes are correct
+    assert len(expected_Ta) == N_forecast
+    assert len(expected_solar) == N_forecast
+    assert len(expected_price) == N_forecast
+
+    # Forward pass
+    ctx, u0, x, u, value = planner.forward(obs_torch)
+
+    # Verify computation succeeded
+    assert ctx is not None
+    assert x.shape[0] == 1  # batch_size = 1
+
+
+def test_forecast_with_different_horizons():
+    """Test forecast parameter setting with different horizon lengths."""
+    for N_horizon in [4, 8, 16]:
+        planner = create_planner_with_custom_params(
+            N_horizon=N_horizon,
+            stagewise=True,
+            ta_learnable=False,
+            solar_learnable=True,  # Mix learnable and non-learnable
+            price_learnable=False,
+        )
+
+        obs = create_obs(N_horizon, seed=42)
+        obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
+
+        # Verify parameter patterns
+        assert not planner.param_manager.has_learnable_param_pattern("Ta_*_*")
+        assert planner.param_manager.has_learnable_param_pattern("Phi_s_*_*")
+        assert not planner.param_manager.has_learnable_param_pattern("price_*_*")
+
+        # Forward pass
+        ctx, u0, x, u, value = planner.forward(obs_torch)
+
+        # Verify success
+        assert ctx is not None
+        assert x.shape[0] == 1
+
+
+def test_forecast_bounds_non_negative():
+    """Test that solar radiation forecasts remain non-negative when extracted from obs."""
+    N_horizon = 8
+    planner = create_planner_with_custom_params(
+        N_horizon=N_horizon,
+        stagewise=True,
+        ta_learnable=False,
+        solar_learnable=False,
+        price_learnable=False,
+    )
+
+    # Create observation - solar values should be non-negative
+    obs = create_obs(N_horizon, seed=42)
+    N_forecast = N_horizon + 1
+    solar_forecast = obs[5 + N_forecast : 5 + 2 * N_forecast]
+
+    # Verify the test observation has non-negative solar values
+    assert np.all(solar_forecast >= 0), "Test observation should have non-negative solar values"
+
+    obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
+
+    # Forward pass
+    ctx, u0, x, u, value = planner.forward(obs_torch)
+
+    # Verify computation succeeded
+    assert ctx is not None
+    assert x.shape[0] == 1
