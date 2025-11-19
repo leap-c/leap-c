@@ -479,12 +479,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         ctx: HvacPlannerCtx = self.ctx
 
         x = ctx.diff_mpc_ctx.iterate.x.reshape(-1, 5)
-        Ti = x[:, 0].flatten()
-        Th = x[:, 1].flatten()
-        Te = x[:, 2].flatten()
-        qh = x[:-1, 3].flatten()
 
-        N_horizon = len(Ti)
+        N_horizon = len(x.shape[0])
 
         quarter_hours = self.dataset.get_quarter_hours(self.idx, N_horizon)
 
@@ -495,7 +491,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         solar_forecast = obs[5 + self.N_forecast : 5 + 2 * self.N_forecast][:N_horizon]
         price_forecast = obs[5 + 2 * self.N_forecast : 5 + 3 * self.N_forecast][:N_horizon]
 
-        self.trajectory_plots["Ti"].set_data(range(N_horizon), convert_temperature(Ti, "k", "c"))
         self.trajectory_plots["Ti_lb"].set_data(
             range(N_horizon), convert_temperature(Ti_lb, "k", "c")
         )
@@ -503,10 +498,20 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             range(N_horizon), convert_temperature(Ti_ub, "k", "c")
         )
 
-        self.trajectory_plots["Th"].set_data(range(N_horizon), convert_temperature(Th, "k", "c"))
-        self.trajectory_plots["Te"].set_data(range(N_horizon), convert_temperature(Te, "k", "c"))
+        self.trajectory_plots["Ti"].set_data(
+            range(N_horizon),
+            convert_temperature(x[:, 0].flatten(), "k", "c"),
+        )
+        self.trajectory_plots["Th"].set_data(
+            range(N_horizon),
+            convert_temperature(x[:, 1].flatten(), "k", "c"),
+        )
+        self.trajectory_plots["Te"].set_data(
+            range(N_horizon),
+            convert_temperature(x[:, 2].flatten(), "k", "c"),
+        )
 
-        self.trajectory_plots["qh"].set_data(range(N_horizon - 1), qh)
+        self.trajectory_plots["qh"].set_data(range(N_horizon - 1), x[:-1, 3].flatten())
 
         self.trajectory_plots["price"].set_data(range(N_horizon), price_forecast)
         self.trajectory_plots["temperature"].set_data(
