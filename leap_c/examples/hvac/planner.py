@@ -206,17 +206,23 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             "ub_Ti": ub.reshape(batch_size, -1, 1),
         }
 
-        if not self.param_manager.has_learnable_param_pattern("temperature_*_*"):
+        if not self.param_manager.has_learnable_param_pattern("temperature*"):
             start_idx = 5
-            overwrites["temperature"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]
+            overwrites["temperature"] = obs[
+                :, start_idx : start_idx + self.cfg.N_horizon + 1
+            ].reshape(batch_size, -1, 1)
 
-        if not self.param_manager.has_learnable_param_pattern("solar_*_*"):
+        if not self.param_manager.has_learnable_param_pattern("solar*"):
             start_idx = 5 + self.cfg.N_horizon + 1
-            overwrites["solar"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]
+            overwrites["solar"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1].reshape(
+                batch_size, -1, 1
+            )
 
-        if not self.param_manager.has_learnable_param_pattern("price_*_*"):
+        if not self.param_manager.has_learnable_param_pattern("price*"):
             start_idx = 5 + 2 * (self.cfg.N_horizon + 1)
-            overwrites["price"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]
+            overwrites["price"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1].reshape(
+                batch_size, -1, 1
+            )
 
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(**overwrites)
 
