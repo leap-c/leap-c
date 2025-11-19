@@ -130,15 +130,15 @@ class Forecaster:
 
         Args:
             idx: Current data index.
-            data: Full dataset containing 'Ta' and 'solar'.
+            data: Full dataset containing 'temperature' and 'solar'.
             N_forecast: Number of forecast steps.
             np_random: Random number generator.
 
         Returns:
-            Dictionary with 'Ta' and 'solar' forecast arrays.
+            Dictionary with 'temperature' and 'solar' forecast arrays.
         """
         return {
-            "Ta": self.get_temperature_forecast(idx, data, N_forecast, np_random),
+            "temperature": self.get_temperature_forecast(idx, data, N_forecast, np_random),
             "solar": self.get_solar_forecast(idx, data, N_forecast, np_random),
         }
 
@@ -153,7 +153,7 @@ class Forecaster:
 
         Args:
             idx: Current data index.
-            data: Full dataset containing 'Ta' (ambient temperature).
+            data: Full dataset containing 'temperature' (ambient temperature).
             N_forecast: Number of forecast steps.
             np_random: Random number generator.
 
@@ -172,7 +172,7 @@ class Forecaster:
             distribution="normal",
         )
 
-        base_forecast = data["Ta"].iloc[idx : idx + N_forecast].to_numpy()
+        base_forecast = data["temperature"].iloc[idx : idx + N_forecast].to_numpy()
         return base_forecast + error
 
     def get_solar_forecast(

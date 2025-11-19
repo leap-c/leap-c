@@ -418,7 +418,7 @@ class AcadosParameterManager:
         """Check if any parameter names match the given pattern.
 
         Supports glob-style wildcards where '*' matches any characters.
-        For example, 'Ta_*_*' matches 'Ta_0_0', 'Ta_1_1', etc.
+        For example, 'temperature_*_*' matches 'temperature_0_0', 'temperature_1_1', etc.
 
         Args:
             pattern: Pattern string with wildcards (*) to match against parameter names.
@@ -427,8 +427,8 @@ class AcadosParameterManager:
             True if any learnable parameter names match the pattern, False otherwise.
 
         Example:
-            >>> planner.has_param_pattern('Ta_*_*')
-            True  # if parameters like Ta_0_0, Ta_1_1, etc. exist
+            >>> planner.has_param_pattern('temperature_*_*')
+            True  # if parameters like temperature_0_0, temperature_1_1, etc. exist
             >>> planner.has_param_pattern('nonexistent_*')
             False
         """

@@ -327,16 +327,16 @@ def compute_discrete_matrices(
 
 def compute_steady_state(
     Ti_ss: float,
-    Ta_ss: float,
-    Phi_ss: float,
+    temperature_ss: float,
+    solar_ss: float,
     params: HydronicDynamicsParameters,
 ) -> tuple[float, float, float]:
     """Compute steady-state values for HVAC system.
 
     Args:
         Ti_ss: Indoor temperature steady-state value in Kelvin.
-        Ta_ss: Outdoor temperature steady-state value in Kelvin.
-        Phi_ss: Solar radiation steady-state value in W/m^2.
+        temperature_ss: Outdoor temperature steady-state value in Kelvin.
+        solar_ss: Solar radiation steady-state value in W/m^2.
         params: Hydronic system parameters.
 
     Returns:
@@ -353,7 +353,7 @@ def compute_steady_state(
     )
 
     A = np.hstack([Bc, Ac[:, 1:]])
-    b = -(Ac[:, 0] * Ti_ss + Ec[:, 0] * Ta_ss + Ec[:, 1] * Phi_ss).reshape(-1, 1)
+    b = -(Ac[:, 0] * Ti_ss + Ec[:, 0] * temperature_ss + Ec[:, 1] * solar_ss).reshape(-1, 1)
 
     ss = np.linalg.solve(A, b).flatten()
 

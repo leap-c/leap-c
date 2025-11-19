@@ -206,13 +206,13 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             "ub_Ti": ub.reshape(batch_size, -1, 1),
         }
 
-        if not self.param_manager.has_learnable_param_pattern("Ta_*_*"):
+        if not self.param_manager.has_learnable_param_pattern("temperature_*_*"):
             start_idx = 5
-            overwrites["Ta"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]
+            overwrites["temperature"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]
 
-        if not self.param_manager.has_learnable_param_pattern("Phi_s_*_*"):
+        if not self.param_manager.has_learnable_param_pattern("solar_*_*"):
             start_idx = 5 + self.cfg.N_horizon + 1
-            overwrites["Phi_s"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]
+            overwrites["solar"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]
 
         if not self.param_manager.has_learnable_param_pattern("price_*_*"):
             start_idx = 5 + 2 * (self.cfg.N_horizon + 1)
@@ -266,7 +266,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         if obs.ndim == 1:
             # Single observation case
             forecasts = obs[5:].reshape(3, -1).T
-            for j, key in enumerate(["Ta", "Phi_s", "price"]):
+            for j, key in enumerate(["temperature", "solar", "price"]):
                 if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
                     for stage in range(self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1):
                         try:
@@ -291,7 +291,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                     self.param_manager.learnable_parameters_default.cat.full().flatten()
                 )
                 # forecasts now has shape (n_batch, N_stages, 3)
-                for j, key in enumerate(["Ta", "Phi_s", "price"]):
+                for j, key in enumerate(["temperature", "solar", "price"]):
                     if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
                         for stage in range(
                             self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1

@@ -54,7 +54,7 @@ def make_default_hvac_params(
     params.extend(
         [
             AcadosParameter(
-                name="Ta",  # Ambient temperature in Kelvin
+                name="temperature",  # Ambient temperature in Kelvin
                 default=np.array([convert_temperature(20.0, "celsius", "kelvin")]),
                 space=gym.spaces.Box(
                     low=np.array([convert_temperature(-20.0, "celsius", "kelvin")]),
@@ -65,7 +65,7 @@ def make_default_hvac_params(
                 end_stages=list(range(N_horizon + 1)) if stagewise else [],
             ),
             AcadosParameter(
-                name="Phi_s",
+                name="solar",
                 default=np.array([200.0]),  # Solar radiation in W/m²
                 space=gym.spaces.Box(low=np.array([0.0]), high=np.array([400.0]), dtype=np.float64),
                 interface="learnable",
@@ -196,8 +196,8 @@ def export_parametric_ocp(
     )
 
     d = ca.vertcat(
-        param_manager.get("Ta"),  # Ambient temperature
-        param_manager.get("Phi_s"),  # Solar radiation
+        param_manager.get("temperature"),  # Ambient temperature
+        param_manager.get("solar"),  # Solar radiation
     )
     ocp.model.disc_dyn_expr = Ad @ ocp.model.x + Bd @ qh + Ed @ d
 

@@ -241,7 +241,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             N_forecast=self.N_forecast,
             np_random=self.np_random,
         )
-        ambient_temperature_forecast = forecasts["Ta"]
+        ambient_temperature_forecast = forecasts["temperature"]
         solar_forecast = forecasts["solar"]
 
         return np.concatenate(
@@ -387,8 +387,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
             _, Th_ss, Te_ss = compute_steady_state(
                 Ti_ss=Ti_ss,
-                Ta_ss=self.dataset.get_temperature(self.idx)[0],
-                Phi_ss=self.dataset.get_solar(self.idx)[0],
+                temperature_ss=self.dataset.get_temperature(self.idx)[0],
+                solar_ss=self.dataset.get_solar(self.idx)[0],
                 params=self.params.dynamics,
             )
 
@@ -459,9 +459,9 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         ax.set_ylabel("price [NOK/kWh]")
 
         ax = self.axes[5]
-        (self.trajectory_plots["Ta"],) = ax.step([], [], where="post", label="Ta")
+        (self.trajectory_plots["temperature"],) = ax.step([], [], where="post", label="temperature")
         ax.set_ylim(-30, 30)
-        ax.set_ylabel("Ta [°C]")
+        ax.set_ylabel("temperature [°C]")
 
         ax = self.axes[6]
         (self.trajectory_plots["solar"],) = ax.step([], [], where="post", label="solar")
@@ -491,7 +491,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         Ti_lb, Ti_ub = set_temperature_limits(quarter_hours=quarter_hours)
 
         obs = self._get_observation()
-        Ta = obs[5 : 5 + self.N_forecast][:N_horizon]
+        temperature = obs[5 : 5 + self.N_forecast][:N_horizon]
         solar_forecast = obs[5 + self.N_forecast : 5 + 2 * self.N_forecast][:N_horizon]
         price_forecast = obs[5 + 2 * self.N_forecast : 5 + 3 * self.N_forecast][:N_horizon]
 
@@ -509,7 +509,9 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.trajectory_plots["qh"].set_data(range(N_horizon - 1), qh)
 
         self.trajectory_plots["price"].set_data(range(N_horizon), price_forecast)
-        self.trajectory_plots["Ta"].set_data(range(N_horizon), convert_temperature(Ta, "k", "c"))
+        self.trajectory_plots["temperature"].set_data(
+            range(N_horizon), convert_temperature(temperature, "k", "c")
+        )
         self.trajectory_plots["solar"].set_data(range(N_horizon), solar_forecast)
 
     def set_ctx(self, ctx: HvacPlannerCtx) -> None:

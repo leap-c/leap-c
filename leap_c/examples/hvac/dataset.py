@@ -121,7 +121,7 @@ class HvacDataset:
         Returns:
             Temperature array of shape (horizon,).
         """
-        return self.data["Ta"].iloc[idx : idx + horizon].to_numpy()
+        return self.data["temperature"].iloc[idx : idx + horizon].to_numpy()
 
     def get_solar(self, idx: int, horizon: int = 1) -> np.ndarray:
         """Get solar radiation from index.
@@ -426,14 +426,14 @@ def load_and_prepare_data(
 
     # Rename and select columns
     data.rename(
-        columns={price_zone: "price", "Tout_K": "Ta", "SolGlob": "solar"},
+        columns={price_zone: "price", "Tout_K": "temperature", "SolGlob": "solar"},
         inplace=True,
     )
-    data = data[["price", "Ta", "solar"]].copy()
+    data = data[["price", "temperature", "solar"]].copy()
 
     # Convert to float32 and add time features
     data["price"] = data["price"].astype(np.float32)
-    data["Ta"] = data["Ta"].astype(np.float32)
+    data["temperature"] = data["temperature"].astype(np.float32)
     data["solar"] = data["solar"].astype(np.float32)
     data["time"] = data.index.to_numpy(dtype="datetime64[m]")
     data["quarter_hour"] = (data.index.hour * 4 + data.index.minute // 15) % (24 * 4)
