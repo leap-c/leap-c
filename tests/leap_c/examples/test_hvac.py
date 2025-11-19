@@ -48,7 +48,7 @@ def create_obs(N_horizon: int, seed: int = 42) -> np.ndarray:
     return obs
 
 
-def test_default_param_single_obs(hvac_planner_stagewise):
+def test_default_param_single_obs(hvac_planner_stagewise: HvacPlanner) -> None:
     """Test default_param with a single observation."""
     N_horizon = hvac_planner_stagewise.cfg.N_horizon
     obs = create_obs(N_horizon, seed=42)
@@ -63,7 +63,7 @@ def test_default_param_single_obs(hvac_planner_stagewise):
     assert isinstance(param, np.ndarray)
 
 
-def test_default_param_batched_obs(hvac_planner_stagewise):
+def test_default_param_batched_obs(hvac_planner_stagewise: HvacPlanner) -> None:
     """Test default_param with batched observations."""
     N_horizon = hvac_planner_stagewise.cfg.N_horizon
     n_batch = 4
@@ -86,7 +86,7 @@ def test_default_param_batched_obs(hvac_planner_stagewise):
     assert isinstance(param_batch, np.ndarray)
 
 
-def test_default_param_batch_consistency(hvac_planner_stagewise):
+def test_default_param_batch_consistency(hvac_planner_stagewise: HvacPlanner) -> None:
     """Test that batched and individual calls produce consistent results."""
     N_horizon = hvac_planner_stagewise.cfg.N_horizon
     n_batch = 3
@@ -111,7 +111,7 @@ def test_default_param_batch_consistency(hvac_planner_stagewise):
         )
 
 
-def test_default_param_non_stagewise(hvac_planner_non_stagewise):
+def test_default_param_non_stagewise(hvac_planner_non_stagewise: HvacPlanner) -> None:
     """Test default_param without stagewise parameters (forecasts ignored)."""
     N_horizon = hvac_planner_non_stagewise.cfg.N_horizon
 
@@ -131,7 +131,7 @@ def test_default_param_non_stagewise(hvac_planner_non_stagewise):
     assert param_batch.shape[1] == len(param_single)
 
 
-def test_default_param_none_obs(hvac_planner_stagewise):
+def test_default_param_none_obs(hvac_planner_stagewise: HvacPlanner) -> None:
     """Test default_param with None observation."""
     param = hvac_planner_stagewise.default_param(None)
 
@@ -141,7 +141,7 @@ def test_default_param_none_obs(hvac_planner_stagewise):
     assert isinstance(param, np.ndarray)
 
 
-def test_forecast_extraction(hvac_planner_stagewise):
+def test_forecast_extraction(hvac_planner_stagewise: HvacPlanner) -> None:
     """Test that forecasts are correctly extracted and set in parameters."""
     N_horizon = hvac_planner_stagewise.cfg.N_horizon
 
@@ -224,7 +224,7 @@ def create_planner_with_custom_params(
 
 
 @pytest.mark.parametrize("batch_size", [1, 4])
-def test_all_forecasts_non_learnable(batch_size):
+def test_all_forecasts_non_learnable(batch_size: int) -> None:
     """Test when all forecast parameters are non-learnable (extracted from obs)."""
     N_horizon = 8
     planner = create_planner_with_custom_params(
@@ -258,7 +258,7 @@ def test_all_forecasts_non_learnable(batch_size):
 
 
 @pytest.mark.parametrize("batch_size", [1, 4])
-def test_all_forecasts_learnable(batch_size):
+def test_all_forecasts_learnable(batch_size: int) -> None:
     """Test when all forecast parameters are learnable (not extracted from obs)."""
     N_horizon = 8
     planner = create_planner_with_custom_params(
@@ -303,7 +303,9 @@ def test_all_forecasts_learnable(batch_size):
         (False, True, True),  # Solar and price learnable
     ],
 )
-def test_mixed_forecast_learnability(batch_size, ta_learnable, solar_learnable, price_learnable):
+def test_mixed_forecast_learnability(
+    batch_size: int, ta_learnable: bool, solar_learnable: bool, price_learnable: bool
+) -> None:
     """Test scenarios with mixed learnable/non-learnable forecast parameters."""
     N_horizon = 8
     planner = create_planner_with_custom_params(
@@ -336,7 +338,7 @@ def test_mixed_forecast_learnability(batch_size, ta_learnable, solar_learnable, 
     assert u0 is not None or u is not None
 
 
-def test_forecast_extraction_indices():
+def test_forecast_extraction_indices() -> None:
     """Test that forecasts are extracted from correct observation indices."""
     N_horizon = 8
     planner = create_planner_with_custom_params(
@@ -370,7 +372,7 @@ def test_forecast_extraction_indices():
     assert x.shape[0] == 1  # batch_size = 1
 
 
-def test_forecast_with_different_horizons():
+def test_forecast_with_different_horizons() -> None:
     """Test forecast parameter setting with different horizon lengths."""
     for N_horizon in [4, 8, 16]:
         planner = create_planner_with_custom_params(
@@ -397,7 +399,7 @@ def test_forecast_with_different_horizons():
         assert x.shape[0] == 1
 
 
-def test_forecast_bounds_non_negative():
+def test_forecast_bounds_non_negative() -> None:
     """Test that solar radiation forecasts remain non-negative when extracted from obs."""
     N_horizon = 8
     planner = create_planner_with_custom_params(
