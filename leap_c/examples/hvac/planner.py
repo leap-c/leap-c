@@ -181,43 +181,41 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             qh = ctx.qh
             dqh = ctx.dqh
 
-        # Construct initial state for MPC: [Ti, Th, Te, qh, dqh]
-        x0 = torch.cat([obs[:, 2:5], qh, dqh], dim=1)
-
-        quarter_hours = np.array(
-            [
-                np.arange(obs[i, 0].cpu().numpy(), obs[i, 0].cpu().numpy() + self.cfg.N_horizon + 1)
-                % self.cfg.N_horizon
-                for i in range(batch_size)
-            ]
+        # Set time-varying temperature comfort bounds. Reconstruct quarter hours
+        # from observation.
+        # TODO: Should we pass the quarter hours with an info dict instead?
+        lb, ub = set_temperature_limits(
+            quarter_hours=np.array(
+                [
+                    np.arange(
+                        obs[i, 0].cpu().numpy(), obs[i, 0].cpu().numpy() + self.cfg.N_horizon + 1
+                    )
+                    % self.cfg.N_horizon
+                    for i in range(batch_size)
+                ]
+            )
         )
 
-        ##################
-        # Set default values for non-learnable forecast parameters
-        ##################
-
-        # Set time-varying temperature comfort bounds
-        lb, ub = set_temperature_limits(quarter_hours=quarter_hours)
-
-        # NOTE: In case we want to pass the data of exogenous influences to the planner,
-        # we can do it here
         overwrites = {
             "lb_Ti": lb.reshape(batch_size, -1, 1),
             "ub_Ti": ub.reshape(batch_size, -1, 1),
         }
 
+        # Set temperature forecasts if they are not learned
         if not self.param_manager.has_learnable_param_pattern("temperature*"):
             start_idx = 5
             overwrites["temperature"] = obs[
                 :, start_idx : start_idx + self.cfg.N_horizon + 1
             ].reshape(batch_size, -1, 1)
 
+        # Set solar radiation forecasts if they are not learned
         if not self.param_manager.has_learnable_param_pattern("solar*"):
             start_idx = 5 + self.cfg.N_horizon + 1
             overwrites["solar"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1].reshape(
                 batch_size, -1, 1
             )
 
+        # Set price forecasts if they are not learned
         if not self.param_manager.has_learnable_param_pattern("price*"):
             start_idx = 5 + 2 * (self.cfg.N_horizon + 1)
             overwrites["price"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1].reshape(
@@ -227,7 +225,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(**overwrites)
 
         diff_mpc_ctx, _, x, u, value = self.diff_mpc(
-            x0,
+            torch.cat([obs[:, 2:5], qh, dqh], dim=1),  # [Ti, Th, Te, qh, dqh]
             action,
             param,
             p_stagewise,
@@ -253,7 +251,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         Returns:
             Default parameter array.
 
-        NOTE: For stagewise parameters, we *assume* that the forecast stages
+        NOTE: For stagewise parameters, we assume that the forecast stages
         match the stages in the parameters. No block-wise varying parameters
         are supported here.
         """
@@ -273,14 +271,25 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             # Single observation case
             forecasts = obs[5:].reshape(3, -1).T
             for j, key in enumerate(["temperature", "solar", "price"]):
-                if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
-                    for stage in range(self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1):
+                if self.param_manager.has_learnable_param_pattern(f"{key}"):
+                    # Check if parameter is stagewise by checking if stagewise version exists
+                    if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
+                        # Stagewise parameter
+                        for stage in range(
+                            self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1
+                        ):
+                            try:
+                                param[f"{key}_{stage}_{stage}"] = forecasts[stage, j]
+                            except KeyError as e:
+                                raise KeyError(
+                                    f"Learnable parameter '{key}_{stage}_{stage}' not found."
+                                ) from e
+                    else:
+                        # Non-stagewise parameter - set single value
                         try:
-                            param[f"{key}_{stage}_{stage}"] = forecasts[stage, j]
+                            param[f"{key}"] = forecasts[0, j]
                         except KeyError as e:
-                            raise KeyError(
-                                f"Learnable parameter '{key}_{stage}_{stage}' not found."
-                            ) from e
+                            raise KeyError(f"Learnable parameter '{key}' not found.") from e
 
             return param.cat.full().flatten()
         else:
@@ -298,16 +307,25 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                 )
                 # forecasts now has shape (n_batch, N_stages, 3)
                 for j, key in enumerate(["temperature", "solar", "price"]):
-                    if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
-                        for stage in range(
-                            self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1
-                        ):
+                    if self.param_manager.has_learnable_param_pattern(f"{key}"):
+                        # Check if parameter is stagewise by checking if stagewise version exists
+                        if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
+                            # Stagewise parameter
+                            for stage in range(
+                                self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1
+                            ):
+                                try:
+                                    param[f"{key}_{stage}_{stage}"] = forecasts[i, stage, j]
+                                except KeyError as e:
+                                    raise KeyError(
+                                        f"Learnable parameter '{key}_{stage}_{stage}' not found."
+                                    ) from e
+                        else:
+                            # Non-stagewise parameter - set single value
                             try:
-                                param[f"{key}_{stage}_{stage}"] = forecasts[i, stage, j]
+                                param[f"{key}"] = forecasts[i, 0, j]
                             except KeyError as e:
-                                raise KeyError(
-                                    f"Learnable parameter '{key}_{stage}_{stage}' not found."
-                                ) from e
+                                raise KeyError(f"Learnable parameter '{key}' not found.") from e
 
                 batch_param[i, :] = param.cat.full().flatten()
 
