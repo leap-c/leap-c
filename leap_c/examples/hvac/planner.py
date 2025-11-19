@@ -174,7 +174,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         """
         batch_size = obs.shape[0]
 
-        if ctx is None or not hasattr(ctx, "qh") or not hasattr(ctx, "dqh"):
+        if not isinstance(ctx, HvacPlannerCtx):
             qh = torch.zeros((batch_size, 1), dtype=torch.float64, device=obs.device)
             dqh = torch.zeros((batch_size, 1), dtype=torch.float64, device=obs.device)
         else:
