@@ -182,14 +182,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             dqh = ctx.dqh
 
         # Construct initial state for MPC: [Ti, Th, Te, qh, dqh]
-        x0 = torch.cat(
-            [
-                obs[:, 2:5],  # [Ti, Th, Te]
-                qh,
-                dqh,
-            ],
-            dim=1,
-        )
+        x0 = torch.cat([obs[:, 2:5], qh, dqh], dim=1)
 
         quarter_hours = np.array(
             [
@@ -199,15 +192,33 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             ]
         )
 
+        ##################
+        # Set default values for non-learnable forecast parameters
+        ##################
+
         # Set time-varying temperature comfort bounds
         lb, ub = set_temperature_limits(quarter_hours=quarter_hours)
 
         # NOTE: In case we want to pass the data of exogenous influences to the planner,
         # we can do it here
-        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
-            lb_Ti=lb.reshape(batch_size, -1, 1),
-            ub_Ti=ub.reshape(batch_size, -1, 1),
-        )
+        overwrites = {
+            "lb_Ti": lb.reshape(batch_size, -1, 1),
+            "ub_Ti": ub.reshape(batch_size, -1, 1),
+        }
+
+        if not self.param_manager.has_learnable_param_pattern("Ta_*_*"):
+            start_idx = 5
+            overwrites["Ta" : obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]]
+
+        if not self.param_manager.has_learnable_param_pattern("Phi_s_*_*"):
+            start_idx = 5 + self.cfg.N_horizon + 1
+            overwrites["Phi_s" : obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]]
+
+        if not self.param_manager.has_learnable_param_pattern("price_*_*"):
+            start_idx = 5 + 2 * (self.cfg.N_horizon + 1)
+            overwrites["price" : obs[:, start_idx : start_idx + self.cfg.N_horizon + 1]]
+
+        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(**overwrites)
 
         diff_mpc_ctx, _, x, u, value = self.diff_mpc(
             x0,
