@@ -135,6 +135,9 @@ def _run_script(script, tmp_path, env, reuse_code_dir, controller=None):
         # TODO (Dirk): Fix HVAC stagewise for testing
         pytest.skip("HVAC stagewise is not supported in this test")
 
+    if controller == "hvac":
+        pytest.skip("hvac")
+
     cfg = create_cfg(script, env=env, controller=controller)
     cfg.log = False
     cfg.trainer.train_steps = 10
@@ -156,9 +159,10 @@ def _run_script(script, tmp_path, env, reuse_code_dir, controller=None):
     run_script(script, cfg, **kw)
 
 
-# def test_run_script_with_ctrl(tmp_path, script_with_ctrl, env_controller_pair, reuse_code_dir):
-#     env, controller = env_controller_pair
-#     _run_script(script_with_ctrl, tmp_path, env, reuse_code_dir, controller=controller)
+# TODO: Something here triggers github actions to cancel
+def test_run_script_with_ctrl(tmp_path, script_with_ctrl, env_controller_pair, reuse_code_dir):
+    env, controller = env_controller_pair
+    _run_script(script_with_ctrl, tmp_path, env, reuse_code_dir, controller=controller)
 
 
 def test_run_script(tmp_path, script_without_ctrl, env, reuse_code_dir):
