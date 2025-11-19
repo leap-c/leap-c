@@ -161,5 +161,5 @@ def _run_script(script, tmp_path, env, reuse_code_dir, controller=None):
 #     _run_script(script_with_ctrl, tmp_path, env, reuse_code_dir, controller=controller)
 
 
-# def test_run_script(tmp_path, script_without_ctrl, env, reuse_code_dir):
-#     _run_script(script_without_ctrl, tmp_path, env, reuse_code_dir)
+def test_run_script(tmp_path, script_without_ctrl, env, reuse_code_dir):
+    _run_script(script_without_ctrl, tmp_path, env, reuse_code_dir)
