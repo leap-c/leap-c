@@ -133,7 +133,7 @@ def test_find_all_scripts(script, scripts_dict):
 def _run_script(script, tmp_path, env, reuse_code_dir, controller=None):
     if controller in [
         # "cartpole",
-        "cartpole_stagewise",
+        # "cartpole_stagewise",
         "chain",
         "chain_stagewise",
         # "pointmass",
