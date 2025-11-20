@@ -1,6 +1,6 @@
 """Thermal dynamics and state-space utilities for HVAC environment."""
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 
 import casadi as ca
 import numpy as np
@@ -67,16 +67,8 @@ class HydronicParameters:
         eta: Efficiency for electric heater
     """
 
-    dynamics: HydronicDynamicsParameters = None
-    noise: HydronicNoiseParameters = None
-
-    # Heater parameters
-    def __post_init__(self):
-        """Initialize default values for nested dataclasses if None."""
-        if self.dynamics is None:
-            self.dynamics = HydronicDynamicsParameters()
-        if self.noise is None:
-            self.noise = HydronicNoiseParameters()
+    dynamics: HydronicDynamicsParameters = field(default_factory=HydronicDynamicsParameters) 
+    noise: HydronicNoiseParameters = field(default_factory=HydronicNoiseParameters)
 
     def randomize(self, rng: np.random.Generator, noise_scale: float = 0.3) -> "HydronicParameters":
         """Generate a new HydronicParameters instance with randomized values.
@@ -90,17 +82,17 @@ class HydronicParameters:
         """
         # Randomize deterministic parameters
         randomized_det = {}
-        for field in fields(self.dynamics):
-            value = getattr(self.dynamics, field.name)
-            randomized_det[field.name] = rng.normal(
+        for field_name in fields(self.dynamics):
+            value = getattr(self.dynamics, field_name.name)
+            randomized_det[field_name.name] = rng.normal(
                 loc=value, scale=noise_scale * np.sqrt(value**2)
             )
 
         # Randomize noise parameters
         randomized_noise = {}
-        for field in fields(self.noise):
-            value = getattr(self.noise, field.name)
-            randomized_noise[field.name] = rng.normal(
+        for field_name in fields(self.noise):
+            value = getattr(self.noise, field_name.name)
+            randomized_noise[field_name.name] = rng.normal(
                 loc=value, scale=noise_scale * np.sqrt(value**2)
             )
 
