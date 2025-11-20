@@ -139,7 +139,7 @@ def _run_script(script, tmp_path, env, reuse_code_dir, controller=None):
         # "pointmass",
         # "pointmass_stagewise",
         # "hvac",
-        "hvac_stagewise",
+        # "hvac_stagewise",
     ]:
         pytest.skip(f"{controller} controller")
 
