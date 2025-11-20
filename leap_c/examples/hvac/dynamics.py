@@ -67,7 +67,7 @@ class HydronicParameters:
         eta: Efficiency for electric heater
     """
 
-    dynamics: HydronicDynamicsParameters = field(default_factory=HydronicDynamicsParameters) 
+    dynamics: HydronicDynamicsParameters = field(default_factory=HydronicDynamicsParameters)
     noise: HydronicNoiseParameters = field(default_factory=HydronicNoiseParameters)
 
     def randomize(self, rng: np.random.Generator, noise_scale: float = 0.3) -> "HydronicParameters":
