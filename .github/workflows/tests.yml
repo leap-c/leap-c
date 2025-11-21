@@ -14,6 +14,7 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ["3.12"]
+        configuration: ["Debug"]
 
     steps:
 
@@ -79,7 +80,7 @@ jobs:
     - name: Run leap_c tests
       working-directory: ${{github.workspace}}/leap_c
       run: |
-        pytest -vv -s --cov=leap_c --cov-report=xml --cov-report=term
+        pytest --cov=leap_c --cov-report=xml --cov-report=term
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
