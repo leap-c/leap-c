@@ -81,7 +81,7 @@ jobs:
     - name: Run leap_c tests
       working-directory: ${{github.workspace}}/leap_c
       run: |
-        pytest tests/leap_c/test_scripts.py -v --cov=leap_c --cov-report=xml --cov-report=term
+        pytest tests/leap_c/test_scripts.py -v -s --cov=leap_c --cov-report=xml --cov-report=term
 
     - name: Upload test logs on failure
       if: failure()
