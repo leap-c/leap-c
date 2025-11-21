@@ -121,13 +121,25 @@ def transcribe_continuous_state_space(
 
     """
     # Extract parameters
-    Ch = params.Ch  # Radiator thermal capacitance
-    Ci = params.Ci  # Indoor air thermal capacitance
-    Ce = params.Ce  # Envelope thermal capacitance
-    Rhi = params.Rhi  # Radiator to indoor air resistance
-    Rie = params.Rie  # Indoor air to envelope resistance
-    Rea = params.Rea  # Envelope to outdoor resistance
-    gAw = params.gAw  # Effective window area
+    # Convert to scalar for numpy arrays to avoid scalar conversion deprecation
+    if isinstance(Ac, np.ndarray):
+        # Use .item() for numpy arrays/scalars, otherwise use value directly
+        Ch = params.Ch.item() if hasattr(params.Ch, "item") else params.Ch
+        Ci = params.Ci.item() if hasattr(params.Ci, "item") else params.Ci
+        Ce = params.Ce.item() if hasattr(params.Ce, "item") else params.Ce
+        Rhi = params.Rhi.item() if hasattr(params.Rhi, "item") else params.Rhi
+        Rie = params.Rie.item() if hasattr(params.Rie, "item") else params.Rie
+        Rea = params.Rea.item() if hasattr(params.Rea, "item") else params.Rea
+        gAw = params.gAw.item() if hasattr(params.gAw, "item") else params.gAw
+    else:
+        # Keep as-is for CasADi symbolic expressions
+        Ch = params.Ch  # Radiator thermal capacitance
+        Ci = params.Ci  # Indoor air thermal capacitance
+        Ce = params.Ce  # Envelope thermal capacitance
+        Rhi = params.Rhi  # Radiator to indoor air resistance
+        Rie = params.Rie  # Indoor air to envelope resistance
+        Rea = params.Rea  # Envelope to outdoor resistance
+        gAw = params.gAw  # Effective window area
 
     # Create Ac matrix (system dynamics)
     # Indoor air temperature equation coefficients [Ti, Th, Te]

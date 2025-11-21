@@ -243,7 +243,7 @@ class Logger:
                 continue
 
             if value.size == 1:
-                stats[key] = float(value)
+                stats[key] = value.item()
                 continue
 
             assert value.ndim == 1, "Only 1D arrays are supported."
