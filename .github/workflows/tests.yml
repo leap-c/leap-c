@@ -94,23 +94,13 @@ jobs:
         TEST_ENV: ${{ matrix.test-group.env }}
         TEST_SCRIPT: ${{ matrix.test-group.script }}
       run: |
-        pytest tests/leap_c/test_scripts.py -v -s --cov=leap_c --cov-report=xml --cov-report=term
-
-    - name: Upload test logs on failure
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-logs-script-${{ matrix.test-group.env }}
-        path: |
-          ${{github.workspace}}/leap_c/**/*.log
-          ${{github.workspace}}/leap_c/pytest.log
-        retention-days: 7
+        pytest tests/leap_c/test_scripts.py -v -s --cov=leap_c --cov-report=xml:coverage-${{ matrix.test-group.env }}.xml --cov-report=term
 
     - name: Upload coverage artifact
       uses: actions/upload-artifact@v4
       with:
         name: coverage-script-${{ matrix.test-group.env }}
-        path: ${{github.workspace}}/leap_c/coverage.xml
+        path: ${{github.workspace}}/leap_c/coverage-${{ matrix.test-group.env }}.xml
         retention-days: 1
 
   unit_tests:
@@ -185,23 +175,13 @@ jobs:
     - name: Run unit tests
       working-directory: ${{github.workspace}}/leap_c
       run: |
-        pytest tests/leap_c/ -v --ignore=tests/leap_c/test_scripts.py --cov=leap_c --cov-report=xml --cov-report=term
-
-    - name: Upload test logs on failure
-      if: failure()
-      uses: actions/upload-artifact@v4
-      with:
-        name: test-logs-unit
-        path: |
-          ${{github.workspace}}/leap_c/**/*.log
-          ${{github.workspace}}/leap_c/pytest.log
-        retention-days: 7
+        pytest tests/leap_c/ -v --ignore=tests/leap_c/test_scripts.py --cov=leap_c --cov-report=xml:coverage-unit.xml --cov-report=term
 
     - name: Upload coverage artifact
       uses: actions/upload-artifact@v4
       with:
         name: coverage-unit
-        path: ${{github.workspace}}/leap_c/coverage.xml
+        path: ${{github.workspace}}/leap_c/coverage-unit.xml
         retention-days: 1
 
   coverage:
@@ -216,16 +196,24 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         pattern: coverage-*
-        path: coverage-files
+        path: coverage-artifacts
 
     - name: Display structure of downloaded files
-      run: ls -R coverage-files
+      run: ls -R coverage-artifacts
+
+    - name: Merge coverage files
+      run: |
+        mkdir -p coverage-reports
+        find coverage-artifacts -name "*.xml" -exec cp {} coverage-reports/ \;
+        ls -la coverage-reports/
 
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        directory: ./coverage-files
+        directory: ./coverage-reports
         fail_ci_if_error: false
+        flags: unittests
+        name: combined-coverage
 
 
