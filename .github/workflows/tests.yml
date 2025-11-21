@@ -8,7 +8,8 @@ on:
 
 jobs:
 
-  run_tests:
+  script_tests:
+    name: Script Tests (${{ matrix.test-group.env }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -101,16 +102,132 @@ jobs:
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: test-logs-py${{ matrix.python-version }}-${{ matrix.test-group.env }}
+        name: test-logs-script-${{ matrix.test-group.env }}
         path: |
           ${{github.workspace}}/leap_c/**/*.log
           ${{github.workspace}}/leap_c/pytest.log
         retention-days: 7
 
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-script-${{ matrix.test-group.env }}
+        path: ${{github.workspace}}/leap_c/coverage.xml
+        retention-days: 1
+
+  unit_tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12"]
+
+    steps:
+
+    - name: Checkout leap-c
+      uses: actions/checkout@v4
+      with:
+        path: ${{github.workspace}}/leap_c
+        submodules: 'recursive'
+
+    - name: Download acados artifacts (build, lib, include) into acados repository
+      uses: actions/download-artifact@v4
+      with:
+        path: ${{github.workspace}}/leap_c/external/acados
+        repository: acados/acados
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        run-id: 18498966498
+
+    - name: Rename artifact directories
+      working-directory: ${{github.workspace}}/leap_c/external/acados
+      shell: bash
+      run: for dir in *-build-*; do mv "$dir" "${dir%%-build-*}"; done
+
+    - name: Install Tera
+      working-directory: ${{github.workspace}}/leap_c/external/acados
+      shell: bash
+      run: |
+        .github/linux/install_tera.sh
+
+    - name: Export Paths
+      working-directory: ${{github.workspace}}
+      shell: bash
+      run: |
+        echo "ACADOS_SOURCE_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
+        echo "ACADOS_INSTALL_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=${{github.workspace}}/leap_c/external/acados/lib" >> $GITHUB_ENV
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-py${{ matrix.python-version }}-pip-${{ hashFiles('**/pyproject.toml') }}
+        restore-keys: |
+          ${{ runner.os }}-py${{ matrix.python-version }}-pip-
+
+    - name: Install Python interface
+      working-directory: ${{github.workspace}}/leap_c/external/acados
+      run: |
+        pip install --upgrade pip
+        pip install interfaces/acados_template
+
+    - name: Install leap_c
+      working-directory: ${{github.workspace}}/leap_c
+      run: |
+        pip install -e .[test]
+        pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+
+    - name: Run unit tests
+      working-directory: ${{github.workspace}}/leap_c
+      run: |
+        pytest tests/leap_c/ -v --ignore=tests/leap_c/test_scripts.py --cov=leap_c --cov-report=xml --cov-report=term
+
+    - name: Upload test logs on failure
+      if: failure()
+      uses: actions/upload-artifact@v4
+      with:
+        name: test-logs-unit
+        path: |
+          ${{github.workspace}}/leap_c/**/*.log
+          ${{github.workspace}}/leap_c/pytest.log
+        retention-days: 7
+
+    - name: Upload coverage artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: coverage-unit
+        path: ${{github.workspace}}/leap_c/coverage.xml
+        retention-days: 1
+
+  coverage:
+    name: Upload Coverage
+    needs: [script_tests, unit_tests]
+    runs-on: ubuntu-latest
+    if: always()
+
+    steps:
+
+    - name: Download all coverage artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: coverage-*
+        path: coverage-files
+
+    - name: Display structure of downloaded files
+      run: ls -R coverage-files
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: coverage.xml
+        directory: ./coverage-files
+        fail_ci_if_error: false
 
 
