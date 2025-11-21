@@ -16,6 +16,17 @@ jobs:
       matrix:
         python-version: ["3.12"]
         configuration: ["Debug"]
+        test-group:
+          - env: "cartpole"
+            script: "sac_zop,sac_fop,controller"
+          - env: "chain"
+            script: "sac_zop,sac_fop,controller"
+          - env: "pointmass"
+            script: "sac_zop,sac_fop,controller"
+          - env: "hvac"
+            script: "sac_zop,sac_fop,controller"
+          - env: "cartpole,chain,pointmass,hvac"
+            script: "sac"
 
     steps:
 
@@ -80,6 +91,9 @@ jobs:
 
     - name: Run leap_c tests
       working-directory: ${{github.workspace}}/leap_c
+      env:
+        TEST_ENV: ${{ matrix.test-group.env }}
+        TEST_SCRIPT: ${{ matrix.test-group.script }}
       run: |
         pytest tests/leap_c/test_scripts.py -v -s --cov=leap_c --cov-report=xml --cov-report=term
 
@@ -87,7 +101,7 @@ jobs:
       if: failure()
       uses: actions/upload-artifact@v4
       with:
-        name: test-logs-py${{ matrix.python-version }}
+        name: test-logs-py${{ matrix.python-version }}-${{ matrix.test-group.env }}
         path: |
           ${{github.workspace}}/leap_c/**/*.log
           ${{github.workspace}}/leap_c/pytest.log

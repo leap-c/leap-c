@@ -1,3 +1,4 @@
+import os
 import shutil
 import tempfile
 import types
@@ -72,17 +73,26 @@ def run_script(script_name: str, cfg, **kw):
     return run_fn(cfg, **kw)
 
 
-@pytest.fixture(params=["sac", "sac_zop", "sac_fop", "controller"])
+def _filter_scripts(scripts):
+    """Filter scripts based on TEST_SCRIPT environment variable."""
+    test_script_env = os.environ.get("TEST_SCRIPT", "")
+    test_script_filter = test_script_env.split(",") if test_script_env else None
+    if test_script_filter:
+        return [s for s in scripts if s in test_script_filter]
+    return scripts
+
+
+@pytest.fixture(params=_filter_scripts(["sac", "sac_zop", "sac_fop", "controller"]))
 def script(request):
     return request.param
 
 
-@pytest.fixture(params=["sac"])
+@pytest.fixture(params=_filter_scripts(["sac"]))
 def script_without_ctrl(request):
     return request.param
 
 
-@pytest.fixture(params=["sac_zop", "sac_fop", "controller"])
+@pytest.fixture(params=_filter_scripts(["sac_zop", "sac_fop", "controller"]))
 def script_with_ctrl(request):
     return request.param
 
@@ -102,24 +112,48 @@ def scripts_dict():
     return find_all_scripts()
 
 
-@pytest.fixture(params=ENV_REGISTRY.keys())
+def _get_envs():
+    """Get environments, optionally filtered by TEST_ENV environment variable."""
+    test_env = os.environ.get("TEST_ENV", "")
+    test_env_filter = test_env.split(",") if test_env else None
+
+    envs = list(ENV_REGISTRY.keys())
+    if test_env_filter:
+        envs = [e for e in envs if e in test_env_filter]
+
+    return envs
+
+
+@pytest.fixture(params=_get_envs())
 def env(request):
     return request.param
 
 
+def _get_env_controller_pairs():
+    """Generate env-controller pairs, optionally filtered by environment variables."""
+    # Get filter from environment variables (comma-separated for multiple values)
+    test_env = os.environ.get("TEST_ENV", "")
+    test_env_filter = test_env.split(",") if test_env else None
+    test_ctrl = os.environ.get("TEST_CONTROLLER", "")
+    test_controller_filter = test_ctrl.split(",") if test_ctrl else None
+
+    pairs = []
+    for env in ENV_REGISTRY.keys():
+        for controller in CTRL_REGISTRY.keys():
+            if controller.startswith(env):
+                # Apply filters if set
+                if test_env_filter and env not in test_env_filter:
+                    continue
+                if test_controller_filter and controller not in test_controller_filter:
+                    continue
+                pairs.append((env, controller))
+
+    return pairs
+
+
 @pytest.fixture(
-    params=[
-        (env, controller)
-        for env in ENV_REGISTRY.keys()
-        for controller in CTRL_REGISTRY.keys()
-        if controller.startswith(env)
-    ],
-    ids=[
-        f"{env}-{controller}"
-        for env in ENV_REGISTRY.keys()
-        for controller in CTRL_REGISTRY.keys()
-        if controller.startswith(env)
-    ],
+    params=_get_env_controller_pairs(),
+    ids=[f"{env}-{controller}" for env, controller in _get_env_controller_pairs()],
 )
 def env_controller_pair(request):
     """Yields (env, controller) pairs where controller matches the env prefix."""
