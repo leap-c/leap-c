@@ -412,11 +412,11 @@ def load_and_prepare_data(
         weather_data_path = Path(__file__).parent / "assets" / "weather.csv"
 
     # Load raw data
-    price_data = load_price_data(csv_path=price_data_path).resample("15T").ffill()
+    price_data = load_price_data(csv_path=price_data_path).resample("15min").ffill()
     price_data_max = price_data.max(axis=None)
 
     weather_data = (
-        load_weather_data(csv_path=weather_data_path).resample("15T").interpolate(method="linear")
+        load_weather_data(csv_path=weather_data_path).resample("15min").interpolate(method="linear")
     )
 
     # Merge datasets
