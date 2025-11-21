@@ -9,7 +9,7 @@ on:
 jobs:
 
   script_tests:
-    name: Script Tests (${{ matrix.test-group.env }})
+    name: Integration Tests (${{ matrix.test-group.env }})
     runs-on: ubuntu-latest
     timeout-minutes: 60
     strategy:
@@ -19,15 +19,13 @@ jobs:
         configuration: ["Debug"]
         test-group:
           - env: "cartpole"
-            script: "sac_zop,sac_fop,controller"
+            script: "sac,sac_zop,sac_fop,controller"
           - env: "chain"
-            script: "sac_zop,sac_fop,controller"
+            script: "sac,sac_zop,sac_fop,controller"
           - env: "pointmass"
-            script: "sac_zop,sac_fop,controller"
+            script: "sac,sac_zop,sac_fop,controller"
           - env: "hvac"
-            script: "sac_zop,sac_fop,controller"
-          - env: "cartpole,chain,pointmass,hvac"
-            script: "sac"
+            script: "sac,sac_zop,sac_fop,controller"
 
     steps:
 
