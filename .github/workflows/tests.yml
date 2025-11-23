@@ -11,12 +11,10 @@ jobs:
   script_tests:
     name: Integration Tests (${{ matrix.test-group.env }})
     runs-on: ubuntu-latest
-    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.12"]
-        configuration: ["Debug"]
         test-group:
           - env: "cartpole"
             script: "sac,sac_zop,sac_fop,controller"
@@ -29,64 +27,16 @@ jobs:
 
     steps:
 
-
     - name: Checkout leap-c
       uses: actions/checkout@v4
       with:
         path: ${{github.workspace}}/leap_c
         submodules: 'recursive'
 
-    - name: Download acados artifacts (build, lib, include) into acados repository
-      uses: actions/download-artifact@v4
-      with:
-        path: ${{github.workspace}}/leap_c/external/acados
-        repository: acados/acados
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        run-id: 18498966498
-
-    - name: Rename artifact directories
-      working-directory: ${{github.workspace}}/leap_c/external/acados
-      shell: bash
-      run: for dir in *-build-*; do mv "$dir" "${dir%%-build-*}"; done
-
-    - name: Install Tera
-      working-directory: ${{github.workspace}}/leap_c/external/acados
-      shell: bash
-      run: |
-        .github/linux/install_tera.sh
-
-    - name: Export Paths
-      working-directory: ${{github.workspace}}
-      shell: bash
-      run: |
-        echo "ACADOS_SOURCE_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
-        echo "ACADOS_INSTALL_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
-        echo "LD_LIBRARY_PATH=${{github.workspace}}/leap_c/external/acados/lib" >> $GITHUB_ENV
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+    - name: Setup leap-c environment
+      uses: ./leap_c/.github/actions/setup-leap-c
       with:
         python-version: ${{ matrix.python-version }}
-
-    - name: Cache pip dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-py${{ matrix.python-version }}-pip-${{ hashFiles('**/pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-py${{ matrix.python-version }}-pip-
-
-    - name: Install Python interface
-      working-directory: ${{github.workspace}}/leap_c/external/acados
-      run: |
-        pip install --upgrade pip
-        pip install interfaces/acados_template
-
-    - name: Install leap_c
-      working-directory: ${{github.workspace}}/leap_c
-      run: |
-        pip install -e .[test]
-        pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
     - name: Run leap_c tests
       working-directory: ${{github.workspace}}/leap_c
@@ -119,57 +69,10 @@ jobs:
         path: ${{github.workspace}}/leap_c
         submodules: 'recursive'
 
-    - name: Download acados artifacts (build, lib, include) into acados repository
-      uses: actions/download-artifact@v4
-      with:
-        path: ${{github.workspace}}/leap_c/external/acados
-        repository: acados/acados
-        github-token: ${{ secrets.GITHUB_TOKEN }}
-        run-id: 18498966498
-
-    - name: Rename artifact directories
-      working-directory: ${{github.workspace}}/leap_c/external/acados
-      shell: bash
-      run: for dir in *-build-*; do mv "$dir" "${dir%%-build-*}"; done
-
-    - name: Install Tera
-      working-directory: ${{github.workspace}}/leap_c/external/acados
-      shell: bash
-      run: |
-        .github/linux/install_tera.sh
-
-    - name: Export Paths
-      working-directory: ${{github.workspace}}
-      shell: bash
-      run: |
-        echo "ACADOS_SOURCE_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
-        echo "ACADOS_INSTALL_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
-        echo "LD_LIBRARY_PATH=${{github.workspace}}/leap_c/external/acados/lib" >> $GITHUB_ENV
-
-    - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+    - name: Setup leap-c environment
+      uses: ./leap_c/.github/actions/setup-leap-c
       with:
         python-version: ${{ matrix.python-version }}
-
-    - name: Cache pip dependencies
-      uses: actions/cache@v4
-      with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-py${{ matrix.python-version }}-pip-${{ hashFiles('**/pyproject.toml') }}
-        restore-keys: |
-          ${{ runner.os }}-py${{ matrix.python-version }}-pip-
-
-    - name: Install Python interface
-      working-directory: ${{github.workspace}}/leap_c/external/acados
-      run: |
-        pip install --upgrade pip
-        pip install interfaces/acados_template
-
-    - name: Install leap_c
-      working-directory: ${{github.workspace}}/leap_c
-      run: |
-        pip install -e .[test]
-        pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 
     - name: Run unit tests
       working-directory: ${{github.workspace}}/leap_c
