@@ -23,8 +23,8 @@ jobs:
             # script: "sac,sac_zop,sac_fop,controller"
           # - env: "chain"
           #   script: "sac,sac_zop,sac_fop,controller"
-          # - env: "pointmass"
-          #   script: "sac,sac_zop,sac_fop,controller"
+          - env: "pointmass"
+            script: "sac,sac_zop,sac_fop,controller"
           # - env: "hvac"
           #   script: "sac,sac_zop,sac_fop,controller"
 
