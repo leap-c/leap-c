@@ -103,21 +103,13 @@ jobs:
         flags: integration-tests
         name: ${{ matrix.test-group.env }}-${{ matrix.test-group.script }}
 
-    # - name: Upload coverage artifact
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: coverage-script-${{ matrix.test-group.env }}
-    #     path: ${{github.workspace}}/leap_c/coverage-${{ matrix.test-group.env }}.xml
-    #     retention-days: 1
-
   unit_tests:
     name: Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.12"]
+        python-version: ["3.11","3.12","3.13"]
 
     steps:
 
@@ -188,65 +180,5 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+        name: unit-tests-${{ matrix.python-version }}
         flags: unit-tests
-
-    # - name: Upload coverage artifact
-    #   uses: actions/upload-artifact@v4
-    #   with:
-    #     name: coverage-unit
-    #     path: ${{github.workspace}}/leap_c/coverage-unit.xml
-    #     retention-days: 1
-
-  # coverage:
-  #   name: Upload Coverage
-  #   # needs: [script_tests, unit_tests]
-  #   needs: [script_tests]
-  #   runs-on: ubuntu-latest
-  #   if: always()
-
-
-  #   steps:
-
-  #   - name: Download all coverage artifacts
-  #     uses: actions/download-artifact@v4
-  #     with:
-  #       pattern: coverage-*
-  #       path: coverage-artifacts
-
-  #   - name: Display structure of downloaded files
-  #     run: ls -R coverage-artifacts
-
-  #   - name: Merge coverage files
-  #     run: |
-  #       find coverage-artifacts -name "*.xml" -exec cp {} . \;
-  #       ls -la *.xml
-
-  #   - name: Remove coverage-artifacts directory
-  #     run: rm -rf coverage-artifacts
-
-  #   - name: Combine coverage reports
-  #     run: |
-  #       pip install coverage xmltodict
-
-  #   - name: Check files and directory
-  #     run: pwd && ls -la ./coverage*.xml
-
-  #   - name: Rename cartpole-coverage.xml to coverage.xml
-  #     run: |
-  #       if [ -f coverage-cartpole.xml ]; then
-  #         mv ./coverage-cartpole.xml ./coverage.xml
-  #       fi
-
-  #   - name: Check files and directory again
-  #     run: pwd && ls -la ./coverage*.xml
-
-  #   - name: Upload coverage to Codecov
-  #     uses: codecov/codecov-action@v4
-  #     with:
-  #       token: ${{ secrets.CODECOV_TOKEN }}
-  #       # files: ./coverage*.xml
-  #       # fail_ci_if_error: true
-  #       # flags: unittests
-  #       # name: combined-coverage
-
-
