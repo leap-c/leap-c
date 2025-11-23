@@ -208,6 +208,9 @@ jobs:
         find coverage-artifacts -name "*.xml" -exec cp {} . \;
         ls -la *.xml
 
+    - name: Remove coverage-artifacts directory
+      run: rm -rf coverage-artifacts
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
