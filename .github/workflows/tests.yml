@@ -214,8 +214,6 @@ jobs:
     - name: Combine coverage reports
       run: |
         pip install coverage xmltodict
-        coverage combine
-        coverage xml -o coverage-cartpole.xml
 
     - name: Check files and directory
       run: pwd && ls -la ./coverage*.xml
