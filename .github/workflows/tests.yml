@@ -233,7 +233,7 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
         files: ./coverage*.xml
         fail_ci_if_error: true
-        flags: unittests
-        name: combined-coverage
+        # flags: unittests
+        # name: combined-coverage
 
 
