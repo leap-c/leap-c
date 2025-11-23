@@ -38,7 +38,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Run leap_c tests
+    - name: Run tests
       working-directory: ${{github.workspace}}/leap_c
       env:
         TEST_ENV: ${{ matrix.test-group.env }}
@@ -50,8 +50,8 @@ jobs:
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        flags: integration-tests
         name: ${{ matrix.test-group.env }}-${{ matrix.test-group.script }}
+        flags: integration-tests
 
   unit_tests:
     name: Unit Tests
@@ -74,7 +74,7 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    - name: Run unit tests
+    - name: Run tests
       working-directory: ${{github.workspace}}/leap_c
       run: |
         pytest tests/leap_c/ -v --ignore=tests/leap_c/test_scripts.py --cov=leap_c --cov-report=xml:coverage-unit.xml --cov-report=term
