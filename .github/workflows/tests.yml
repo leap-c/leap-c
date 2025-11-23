@@ -211,12 +211,21 @@ jobs:
     - name: Remove coverage-artifacts directory
       run: rm -rf coverage-artifacts
 
+    - name: Combine coverage reports
+      run: |
+        pip install coverage xmltodict
+        coverage combine
+        coverage xml -o coverage-cartpole.xml
+
+    - name: Check files and directory
+      run: pwd && ls -la ./coverage*.xml
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        files: ./coverage-*.xml
-        fail_ci_if_error: false
+        files: ./coverage*.xml
+        fail_ci_if_error: true
         flags: unittests
         name: combined-coverage
 
