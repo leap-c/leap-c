@@ -104,6 +104,11 @@ jobs:
         path: ${{github.workspace}}/leap_c/coverage-${{ matrix.test-group.env }}.xml
         retention-days: 1
 
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+
   # unit_tests:
   #   name: Unit Tests
   #   runs-on: ubuntu-latest
@@ -185,55 +190,56 @@ jobs:
   #       path: ${{github.workspace}}/leap_c/coverage-unit.xml
   #       retention-days: 1
 
-  coverage:
-    name: Upload Coverage
-    # needs: [script_tests, unit_tests]
-    needs: [script_tests]
-    runs-on: ubuntu-latest
-    if: always()
+  # coverage:
+  #   name: Upload Coverage
+  #   # needs: [script_tests, unit_tests]
+  #   needs: [script_tests]
+  #   runs-on: ubuntu-latest
+  #   if: always()
 
-    steps:
 
-    - name: Download all coverage artifacts
-      uses: actions/download-artifact@v4
-      with:
-        pattern: coverage-*
-        path: coverage-artifacts
+  #   steps:
 
-    - name: Display structure of downloaded files
-      run: ls -R coverage-artifacts
+  #   - name: Download all coverage artifacts
+  #     uses: actions/download-artifact@v4
+  #     with:
+  #       pattern: coverage-*
+  #       path: coverage-artifacts
 
-    - name: Merge coverage files
-      run: |
-        find coverage-artifacts -name "*.xml" -exec cp {} . \;
-        ls -la *.xml
+  #   - name: Display structure of downloaded files
+  #     run: ls -R coverage-artifacts
 
-    - name: Remove coverage-artifacts directory
-      run: rm -rf coverage-artifacts
+  #   - name: Merge coverage files
+  #     run: |
+  #       find coverage-artifacts -name "*.xml" -exec cp {} . \;
+  #       ls -la *.xml
 
-    - name: Combine coverage reports
-      run: |
-        pip install coverage xmltodict
+  #   - name: Remove coverage-artifacts directory
+  #     run: rm -rf coverage-artifacts
 
-    - name: Check files and directory
-      run: pwd && ls -la ./coverage*.xml
+  #   - name: Combine coverage reports
+  #     run: |
+  #       pip install coverage xmltodict
 
-    - name: Rename cartpole-coverage.xml to coverage.xml
-      run: |
-        if [ -f coverage-cartpole.xml ]; then
-          mv ./coverage-cartpole.xml ./coverage.xml
-        fi
+  #   - name: Check files and directory
+  #     run: pwd && ls -la ./coverage*.xml
 
-    - name: Check files and directory again
-      run: pwd && ls -la ./coverage*.xml
+  #   - name: Rename cartpole-coverage.xml to coverage.xml
+  #     run: |
+  #       if [ -f coverage-cartpole.xml ]; then
+  #         mv ./coverage-cartpole.xml ./coverage.xml
+  #       fi
 
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v4
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        # files: ./coverage*.xml
-        # fail_ci_if_error: true
-        # flags: unittests
-        # name: combined-coverage
+  #   - name: Check files and directory again
+  #     run: pwd && ls -la ./coverage*.xml
+
+  #   - name: Upload coverage to Codecov
+  #     uses: codecov/codecov-action@v4
+  #     with:
+  #       token: ${{ secrets.CODECOV_TOKEN }}
+  #       # files: ./coverage*.xml
+  #       # fail_ci_if_error: true
+  #       # flags: unittests
+  #       # name: combined-coverage
 
 
