@@ -218,6 +218,12 @@ jobs:
     - name: Check files and directory
       run: pwd && ls -la ./coverage*.xml
 
+    - name: Rename cartpole-coverage.xml to coverage.xml
+      run: |
+        if [ -f coverage-cartpole.xml ]; then
+          mv coverage-cartpole.xml coverage.xml
+        fi
+
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
