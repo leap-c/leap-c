@@ -203,26 +203,28 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             "ub_Ti": ub.reshape(batch_size, -1, 1),
         }
 
-        # Set temperature forecasts if they are not learned
-        if not self.param_manager.has_learnable_param_pattern("temperature*"):
-            start_idx = 5
-            overwrites["temperature"] = obs[
-                :, start_idx : start_idx + self.cfg.N_horizon + 1
-            ].reshape(batch_size, -1, 1)
+        obs_idx = {
+            "quarter_hour": 0,
+            "day_of_year": 1,
+            "Ti": 2,
+            "Th": 3,
+            "Te": 4,
+            "temperature": slice(5, 5 + self.cfg.N_horizon + 1),
+            "solar": slice(5 + self.cfg.N_horizon + 1, 5 + 2 * (self.cfg.N_horizon + 1)),
+            "price": slice(5 + 2 * (self.cfg.N_horizon + 1), 5 + 3 * (self.cfg.N_horizon + 1)),
+        }
 
-        # Set solar radiation forecasts if they are not learned
-        if not self.param_manager.has_learnable_param_pattern("solar*"):
-            start_idx = 5 + self.cfg.N_horizon + 1
-            overwrites["solar"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1].reshape(
-                batch_size, -1, 1
-            )
+        sub_param = {}
 
-        # Set price forecasts if they are not learned
-        if not self.param_manager.has_learnable_param_pattern("price*"):
-            start_idx = 5 + 2 * (self.cfg.N_horizon + 1)
-            overwrites["price"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1].reshape(
-                batch_size, -1, 1
-            )
+        for key in ["temperature", "solar", "price"]:
+            if not self.param_manager.has_learnable_param_pattern(f"{key}*"):
+                # If the forecast parameter is not learned, set it from the observation
+                overwrites[key] = obs[:, obs_idx[key]].reshape(batch_size, -1, 1)
+            else:
+                # If the forecast parameter is learned, extract its structured representation
+                sub_param[key] = self.param_manager.get_labeled_learnable_parameters(
+                    param, label=key
+                )
 
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(**overwrites)
 
