@@ -214,7 +214,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             "price": slice(5 + 2 * (self.cfg.N_horizon + 1), 5 + 3 * (self.cfg.N_horizon + 1)),
         }
 
-        sub_param = {}
+        sub_param: dict[str, torch.Tensor] = {}
 
         for key in ["temperature", "solar", "price"]:
             if not self.param_manager.has_learnable_param_pattern(f"{key}*"):
@@ -252,6 +252,12 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                             render_info[param_name] = param[:, idx].detach().cpu().numpy()
             except Exception:
                 pass  # If parameter extraction fails, just skip
+
+            for key in ["temperature", "solar", "price"]:
+                if key in overwrites:
+                    render_info[f"{key}_forecast"] = overwrites[key]
+                else:
+                    render_info[f"{key}_forecast"] = sub_param[key].detach().cpu().numpy()
 
         ctx = HvacPlannerCtx(
             **vars(diff_mpc_ctx),
