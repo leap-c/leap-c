@@ -1,6 +1,5 @@
 """In this module, we manage all the example environments, controllers and planners."""
 
-from functools import partial
 from pathlib import Path
 from typing import Any, Literal, TypeAlias
 
@@ -11,8 +10,8 @@ from leap_c.examples.cartpole.env import CartPoleEnv
 from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
 from leap_c.examples.chain.env import ChainEnv
 from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
-from leap_c.examples.hvac.controller import HvacController
 from leap_c.examples.hvac.env import StochasticThreeStateRcEnv
+from leap_c.examples.hvac.planner import HvacPlanner, HvacPlannerConfig
 from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pointmass.planner import PointMassControllerConfig, PointMassPlanner
 from leap_c.planner import ControllerFromPlanner, ParameterizedPlanner
@@ -61,8 +60,8 @@ PLANNER_REGISTRY = {
         PointMassControllerConfig,
         {"param_interface": "stagewise"},
     ),
-    "hvac": HvacController,
-    "hvac_stagewise": partial(HvacController, stagewise=True),
+    "hvac": (HvacPlanner, HvacPlannerConfig, dict()),
+    "hvac_stagewise": (HvacPlanner, HvacPlannerConfig, {"stagewise": True}),
 }
 ExamplePlannerName = Literal[
     "cartpole",
@@ -92,13 +91,9 @@ def create_planner(
     if planner_name not in PLANNER_REGISTRY:
         raise ValueError(f"Planner '{planner_name}' is not registered or does not exist.")
 
-    # TODO: Remove this distinction when hvac provides the same interface as the other examples
-    if planner_name == "hvac" or planner_name == "hvac_stagewise":
-        planner_class = PLANNER_REGISTRY[planner_name]
-    else:
-        planner_class, config_class, default_cfg_kwargs = PLANNER_REGISTRY[planner_name]
-        cfg = config_class(**{**default_cfg_kwargs, **kw})
-        kw = {"cfg": cfg}
+    planner_class, config_class, default_cfg_kwargs = PLANNER_REGISTRY[planner_name]
+    cfg = config_class(**{**default_cfg_kwargs, **kw})
+    kw = {"cfg": cfg}
 
     if reuse_code_base_dir is not None:
         export_directory = reuse_code_base_dir / planner_name

@@ -279,7 +279,7 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
 
         while True:
             if is_terminated or is_truncated:
-                obs, _ = seed_env(self.train_env, mk_seed(self.rng))
+                obs, _ = seed_env(self.train_env, mk_seed(self.rng), {"mode": "train"})
                 is_terminated = is_truncated = False
 
             action, _, stats = self.act(obs)
