@@ -23,10 +23,12 @@ class HvacPlannerCtx(AcadosDiffMpcCtx):
     Attributes:
         qh: Current heating power of the radiator [W].
         dqh: Current rate of change of heating power [W/s].
+        render_info: Optional dictionary containing data for rendering (parameters, actions, etc.).
     """
 
     qh: torch.Tensor
     dqh: torch.Tensor
+    render_info: dict[str, Any] | None = None
 
 
 def collate_acados_diff_mpc_ctx(
@@ -232,10 +234,29 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             ctx=ctx,
         )
 
+        # Prepare render info if parameters are available
+        render_info = None
+        if param is not None:
+            render_info = {
+                "ddqh": u[:, 0, 0].detach().cpu().numpy(),  # First action (acceleration)
+                "u_trajectory": u.detach().cpu().numpy(),  # Full action trajectory
+            }
+            import pdb; pdb.set_trace()
+            # Extract learnable parameters if they exist
+            try:
+                for param_name in ["q_Ti", "q_dqh", "q_ddqh", "ref_Ti"]:
+                    if self.param_manager.has_learnable_param_pattern(param_name):
+                        idx = self.param_manager.get_learnable_param_index(param_name)
+                        if idx is not None:
+                            render_info[param_name] = param[:, idx].detach().cpu().numpy()
+            except Exception:
+                pass  # If parameter extraction fails, just skip
+
         ctx = HvacPlannerCtx(
             **vars(diff_mpc_ctx),
             qh=x[:, 1, 3].detach()[:, None],
             dqh=x[:, 1, 4].detach()[:, None],
+            render_info=render_info,
         )
 
         return ctx, x[:, 1, 3][:, None], x, u, value

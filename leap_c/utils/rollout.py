@@ -102,11 +102,12 @@ def episode_rollout(
                     for key, value in info["task"].items():
                         episode_stats[key].append(value)
 
-                if render_human and render_trigger(episode):
+                if render_trigger(episode):
                     if isinstance(env.unwrapped, MatplotlibRenderEnv):
                         env.unwrapped.set_ctx(ctx)
 
-                    env.render()
+                    if render_human:
+                        env.render()
 
                 o = o_prime
 

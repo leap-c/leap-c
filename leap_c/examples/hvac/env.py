@@ -405,8 +405,15 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         if self.render_mode == "human":
             plt.ion()
 
-        self._fig, self.axes = plt.subplots(7, 1, figsize=plt.rcParams["figure.figsize"])
-        self._fig.canvas.manager.full_screen_toggle()
+        # Create figure with 2 columns: left for states, right for params/actions
+        self._fig, axes_array = plt.subplots(
+            7, 2, figsize=(16, 10), gridspec_kw={"width_ratios": [2, 1]}
+        )
+        self.axes = axes_array[:, 0]  # Left column for existing plots
+        self.param_axes = axes_array[:, 1]  # Right column for parameters/actions
+        
+        # Adjust spacing
+        self._fig.subplots_adjust(hspace=0.4, wspace=0.3, top=0.95, bottom=0.05)
         self._fig.suptitle("HVAC Controller Analysis", fontsize=14)
 
         # Initialize empty lines for each subplot
@@ -472,15 +479,56 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             ax.set_xlim(0, self.N_forecast)
             ax.grid(visible=True, alpha=0.3)
 
+        # Setup parameter/action plots in right column
+        # Plot 0: ddqh (acceleration)
+        self.param_axes[0].set_ylabel("ddqh [W/s²]")
+        self.param_axes[0].grid(visible=True, alpha=0.3)
+        (self.trajectory_plots["ddqh"],) = self.param_axes[0].step(
+            [], [], where="post", label="ddqh", color="purple"
+        )
+
+        # Plot 1: q_Ti (weight)
+        self.param_axes[1].set_ylabel("q_Ti")
+        self.param_axes[1].grid(visible=True, alpha=0.3)
+        (self.trajectory_plots["q_Ti"],) = self.param_axes[1].step(
+            [], [], where="post", label="q_Ti", color="green"
+        )
+
+        # Plot 2: ref_Ti (reference temperature)
+        self.param_axes[2].set_ylabel("ref_Ti [°C]")
+        self.param_axes[2].grid(visible=True, alpha=0.3)
+        (self.trajectory_plots["ref_Ti"],) = self.param_axes[2].step(
+            [], [], where="post", label="ref_Ti", color="red"
+        )
+
+        # Plot 3: q_dqh (weight)
+        self.param_axes[3].set_ylabel("q_dqh")
+        self.param_axes[3].grid(visible=True, alpha=0.3)
+        (self.trajectory_plots["q_dqh"],) = self.param_axes[3].step(
+            [], [], where="post", label="q_dqh", color="orange"
+        )
+
+        # Plot 4: q_ddqh (weight)
+        self.param_axes[4].set_ylabel("q_ddqh")
+        self.param_axes[4].grid(visible=True, alpha=0.3)
+        (self.trajectory_plots["q_ddqh"],) = self.param_axes[4].step(
+            [], [], where="post", label="q_ddqh", color="brown"
+        )
+
+        # Plots 5-6: Empty for now
+        self.param_axes[5].axis("off")
+        self.param_axes[6].axis("off")
+
+        # Set x-limits for parameter plots
+        for ax in self.param_axes[:5]:
+            ax.set_xlim(0, self.N_forecast)
+
     def _render_frame(self) -> np.ndarray | None:
-        if not self.ctx:
-            raise ValueError("Context (ctx) not set for rendering.")
 
         ctx: HvacPlannerCtx = self.ctx
 
-        x = ctx.diff_mpc_ctx.iterate.x.reshape(-1, 5)
 
-        N_horizon = len(x.shape[0])
+        N_horizon = self.N_forecast
 
         quarter_hours = self.dataset.get_quarter_hours(self.idx, N_horizon)
 
@@ -498,26 +546,52 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             range(N_horizon), convert_temperature(Ti_ub, "k", "c")
         )
 
-        self.trajectory_plots["Ti"].set_data(
-            range(N_horizon),
-            convert_temperature(x[:, 0].flatten(), "k", "c"),
-        )
-        self.trajectory_plots["Th"].set_data(
-            range(N_horizon),
-            convert_temperature(x[:, 1].flatten(), "k", "c"),
-        )
-        self.trajectory_plots["Te"].set_data(
-            range(N_horizon),
-            convert_temperature(x[:, 2].flatten(), "k", "c"),
-        )
+        if ctx is not None:
+            x = ctx.iterate.x.reshape(-1, 5)
+            self.trajectory_plots["Ti"].set_data(
+                range(N_horizon - 3),
+                convert_temperature(x[:, 0].flatten(), "k", "c"),
+            )
+            self.trajectory_plots["Th"].set_data(
+                range(N_horizon - 3),
+                convert_temperature(x[:, 1].flatten(), "k", "c"),
+            )
+            self.trajectory_plots["Te"].set_data(
+                range(N_horizon - 3),
+                convert_temperature(x[:, 2].flatten(), "k", "c"),
+            )
 
-        self.trajectory_plots["qh"].set_data(range(N_horizon - 1), x[:-1, 3].flatten())
+            self.trajectory_plots["qh"].set_data(range(N_horizon - 1 - 3), x[:-1, 3].flatten())
 
         self.trajectory_plots["price"].set_data(range(N_horizon), price_forecast)
         self.trajectory_plots["temperature"].set_data(
             range(N_horizon), convert_temperature(temperature, "k", "c")
         )
         self.trajectory_plots["solar"].set_data(range(N_horizon), solar_forecast)
+
+        # Update parameter/action plots if render_info is available
+        if hasattr(ctx, "render_info") and ctx.render_info is not None:
+            import pdb; pdb.set_trace()
+            render_info = ctx.render_info
+            
+            # Plot action trajectory (ddqh)
+            if "u_trajectory" in render_info:
+                # First batch, all steps, first action
+                u_traj = render_info["u_trajectory"][0, :, 0]
+                self.trajectory_plots["ddqh"].set_data(range(len(u_traj)), u_traj)
+            
+            # Plot parameters if available (they're scalar, so repeat for visualization)
+            param_names = ["q_Ti", "ref_Ti", "q_dqh", "q_ddqh"]
+            for param_name in param_names:
+                if param_name in render_info and param_name in self.trajectory_plots:
+                    value = render_info[param_name][0]  # First batch element
+                    # Convert ref_Ti from Kelvin to Celsius if it exists
+                    if param_name == "ref_Ti":
+                        value = convert_temperature(value, "k", "c")
+                    # Plot as horizontal line to show constant parameter
+                    self.trajectory_plots[param_name].set_data(
+                        [0, N_horizon], [value, value]
+                    )
 
     def set_ctx(self, ctx: HvacPlannerCtx) -> None:
         self.ctx: HvacPlannerCtx = ctx

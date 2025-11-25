@@ -100,7 +100,7 @@ def create_cfg(env: str, controller: str, seed: int) -> RunControllerConfig:
     cfg.trainer.val_freq = 10  # Validate immediately
     cfg.trainer.val_num_rollouts = 20
     cfg.trainer.val_deterministic = True
-    cfg.trainer.val_num_render_rollouts = 0
+    cfg.trainer.val_num_render_rollouts = 1
     cfg.trainer.val_render_mode = "rgb_array"
     cfg.trainer.val_report_score = "cum"
     cfg.trainer.ckpt_modus = "none"  # No checkpoints needed
