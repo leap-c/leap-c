@@ -5,6 +5,7 @@ from warnings import warn
 import casadi as ca
 import gymnasium as gym
 import numpy as np
+import torch
 from acados_template import AcadosOcp
 from casadi.tools import entry, struct, struct_symMX, struct_symSX
 
@@ -436,6 +437,30 @@ class AcadosParameterManager:
 
         learnable_param_names = self.learnable_parameters.keys()
         return any(fnmatch.fnmatch(name, pattern) for name in learnable_param_names)
+
+    def get_structured_learnable_parameters(
+        self,
+        param_values: np.ndarray | torch.Tensor,
+        label=None,
+    ) -> struct:
+        """Get a structured representation of the learnable parameters from flat values.
+
+        Args:
+            param_values: Flat numpy array of learnable parameter values.
+            label: Optional substring to filter parameters by name.
+
+        Returns:
+            A CasADi struct with the learnable parameters populated from param_values.
+        """
+        # Get indices of learnable parameters that include the substring 'label' if provided
+        if label is not None:
+            matching_keys = [key for key in self.learnable_parameters.keys() if label in key]
+        else:
+            matching_keys = list(self.learnable_parameters.keys())
+
+        print(matching_keys)
+
+        return None
 
 
 def _define_starts_and_ends(end_stages: list[int], N_horizon: int) -> tuple[list[int], list[int]]:
