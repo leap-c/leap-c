@@ -411,7 +411,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         )
         self.axes = axes_array[:, 0]  # Left column for existing plots
         self.param_axes = axes_array[:, 1]  # Right column for parameters/actions
-        
+
         # Adjust spacing
         self._fig.subplots_adjust(hspace=0.4, wspace=0.3, top=0.95, bottom=0.05)
         self._fig.suptitle("HVAC Controller Analysis", fontsize=14)
@@ -419,7 +419,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         # Initialize empty lines for each subplot
         self.trajectory_plots = {}
 
-        ax = self.axes[0]
+        ax: plt.Axes = self.axes[0]
         (self.trajectory_plots["Ti"],) = ax.step([], [], where="post", label="Ti")
         (self.trajectory_plots["Ti_lb"],) = ax.step(
             [],
@@ -441,36 +441,36 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         ax.set_ylabel("Ti [°C]")
         ax.grid(visible=True, alpha=0.3)
 
-        ax = self.axes[1]
+        ax: plt.Axes = self.axes[1]
         (self.trajectory_plots["Th"],) = ax.step([], [], where="post", label="Th")
         ax.set_ylim(-400, 400)
         ax.set_ylabel("Th [°C]")
         ax.grid(visible=True, alpha=0.3)
 
-        ax = self.axes[2]
+        ax: plt.Axes = self.axes[2]
         (self.trajectory_plots["Te"],) = ax.step([], [], where="post", label="Te")
         ax.set_ylim(0, 30)
         ax.set_ylabel("Te [°C]")
         ax.grid(visible=True, alpha=0.3)
 
         # Heating power subplot
-        ax = self.axes[3]
+        ax: plt.Axes = self.axes[3]
         (self.trajectory_plots["qh"],) = ax.step([], [], where="post", label="qh")
         ax.set_ylim(-5.05e3, 5.05e3)
         ax.set_ylabel("qh [kW]")
         ax.grid(visible=True, alpha=0.3)
 
-        ax = self.axes[4]
+        ax: plt.Axes = self.axes[4]
         (self.trajectory_plots["price"],) = ax.step([], [], where="post", label="price")
         ax.set_ylim(0, 0.2)
         ax.set_ylabel("price [NOK/kWh]")
 
-        ax = self.axes[5]
+        ax: plt.Axes = self.axes[5]
         (self.trajectory_plots["temperature"],) = ax.step([], [], where="post", label="temperature")
         ax.set_ylim(-30, 30)
         ax.set_ylabel("temperature [°C]")
 
-        ax = self.axes[6]
+        ax: plt.Axes = self.axes[6]
         (self.trajectory_plots["solar"],) = ax.step([], [], where="post", label="solar")
         ax.set_ylim(0.0, 600.0)
         ax.set_ylabel("solar [W/m²]")
@@ -524,9 +524,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             ax.set_xlim(0, self.N_forecast)
 
     def _render_frame(self) -> np.ndarray | None:
-
         ctx: HvacPlannerCtx = self.ctx
-
 
         N_horizon = self.N_forecast
 
@@ -571,15 +569,14 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         # Update parameter/action plots if render_info is available
         if hasattr(ctx, "render_info") and ctx.render_info is not None:
-            import pdb; pdb.set_trace()
             render_info = ctx.render_info
-            
+
             # Plot action trajectory (ddqh)
             if "u_trajectory" in render_info:
                 # First batch, all steps, first action
                 u_traj = render_info["u_trajectory"][0, :, 0]
                 self.trajectory_plots["ddqh"].set_data(range(len(u_traj)), u_traj)
-            
+
             # Plot parameters if available (they're scalar, so repeat for visualization)
             param_names = ["q_Ti", "ref_Ti", "q_dqh", "q_ddqh"]
             for param_name in param_names:
@@ -589,9 +586,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                     if param_name == "ref_Ti":
                         value = convert_temperature(value, "k", "c")
                     # Plot as horizontal line to show constant parameter
-                    self.trajectory_plots[param_name].set_data(
-                        [0, N_horizon], [value, value]
-                    )
+                    self.trajectory_plots[param_name].set_data([0, N_horizon], [value, value])
 
     def set_ctx(self, ctx: HvacPlannerCtx) -> None:
         self.ctx: HvacPlannerCtx = ctx
