@@ -241,7 +241,6 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                 "ddqh": u[:, 0, 0].detach().cpu().numpy(),  # First action (acceleration)
                 "u_trajectory": u.detach().cpu().numpy(),  # Full action trajectory
             }
-            import pdb; pdb.set_trace()
             # Extract learnable parameters if they exist
             try:
                 for param_name in ["q_Ti", "q_dqh", "q_ddqh", "ref_Ti"]:
