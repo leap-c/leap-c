@@ -138,6 +138,9 @@ class ControllerFromPlanner(ParameterizedController[CtxType], Generic[CtxType]):
         """
         return self.planner.forward(obs, param=param, ctx=ctx)[:2]
 
+    def jacobian_action_param(self, ctx: CtxType) -> ndarray:
+        return self.planner.sensitivity(ctx, "du0_dp")
+
     @property
     def param_space(self) -> gym.Space:
         """Describes the parameter space of the underlying planner.

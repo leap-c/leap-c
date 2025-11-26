@@ -87,6 +87,7 @@ class SquashedGaussian(BoundedDistribution):
         space: spaces.Box,
         log_std_min: float = -4,
         log_std_max: float = 2.0,
+        padding: float = 0.001,
     ):
         """Initializes the SquashedGaussian module.
 
@@ -94,10 +95,14 @@ class SquashedGaussian(BoundedDistribution):
             space: Space the output should fit to.
             log_std_min: The minimum value for the logarithm of the standard deviation.
             log_std_max: The maximum value for the logarithm of the standard deviation.
+            padding: The amount of padding to distance the action of the bounds, when
+                using the inverse transformation for the anchoring. This improves numerical
+                stability.
         """
         super().__init__()
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
+        self.padding = padding
 
         loc = (space.high + space.low) / 2.0
         scale = (space.high - space.low) / 2.0
@@ -147,7 +152,7 @@ class SquashedGaussian(BoundedDistribution):
             # Convert anchor to tensor if it's a numpy array
             if not isinstance(anchor, torch.Tensor):
                 anchor = torch.from_numpy(anchor).to(mean.device, dtype=mean.dtype)
-            inv_anchor = torch.atanh((anchor - self.loc[None, :]) / self.scale[None, :])
+            inv_anchor = self.inverse(anchor)
             y = y + inv_anchor  # Use out-of-place operation to avoid modifying view
 
         if std is not None:
@@ -172,7 +177,7 @@ class SquashedGaussian(BoundedDistribution):
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
         return (output_dim, output_dim)
 
-    def inverse(self, x: torch.Tensor, padding: float = 0.001) -> torch.Tensor:
+    def inverse(self, x: torch.Tensor) -> torch.Tensor:
         """Apply the inverse transformation to the input tensor.
 
         The inverse transformation is a descale and then arctanh.
@@ -181,12 +186,11 @@ class SquashedGaussian(BoundedDistribution):
 
         Args:
             x: The input tensor.
-            padding: The amount of padding to distance the action of the bounds.
 
         Returns:
             The inverse squashed tensor, scaled and shifted to match the action space.
         """
-        abs_padding = self.scale[None, :] * padding
+        abs_padding = self.scale[None, :] * self.padding
         x = (x - self.loc[None, :]) / (self.scale[None, :] + 2 * abs_padding)
         return torch.arctanh(x)
 
