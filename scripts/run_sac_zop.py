@@ -51,8 +51,6 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacZopConfig:
     cfg.trainer.entropy_reward_bonus = True
     cfg.trainer.num_critics = 2
     cfg.trainer.update_freq = 4
-    cfg.trainer.distribution_name = "squashed_gaussian"
-    cfg.trainer.init_param_with_default = True
 
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
@@ -68,10 +66,17 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacZopConfig:
     cfg.trainer.critic_mlp.activation = "relu"
     cfg.trainer.critic_mlp.weight_init = "orthogonal"
 
-    # ---- Section: cfg.trainer.actor_mlp ----
-    cfg.trainer.actor_mlp.hidden_dims = (256, 256, 256)
-    cfg.trainer.actor_mlp.activation = "relu"
-    cfg.trainer.actor_mlp.weight_init = "orthogonal"
+    # ---- Section: cfg.trainer.actor ----
+    cfg.trainer.actor.noise = "param"
+    cfg.trainer.actor.extractor_name = cfg.extractor
+    cfg.trainer.actor.distribution_name = "squashed_gaussian"
+    cfg.trainer.actor.residual = True if env == "hvac" else False
+    cfg.trainer.actor.entropy_correction = False
+
+    # ---- Section: cfg.trainer.actor.mlp ----
+    cfg.trainer.actor.mlp.hidden_dims = (256, 256, 256)
+    cfg.trainer.actor.mlp.activation = "relu"
+    cfg.trainer.actor.mlp.weight_init = "orthogonal"
 
     return cfg
 

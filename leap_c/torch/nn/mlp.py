@@ -7,13 +7,6 @@ from typing import Callable, Iterable, Literal, get_args
 import torch
 import torch.nn as nn
 
-from leap_c.controller import ParameterizedController
-from leap_c.torch.nn.bounded_distributions import (
-    BoundedDistribution,
-    BoundedTransform,
-    SquashedGaussian,
-)
-
 Activation = Literal["relu", "tanh", "sigmoid", "leaky_relu"]
 WeightInit = Literal["orthogonal"]
 
@@ -163,53 +156,3 @@ class Mlp(nn.Module):
             return y
 
         return torch.split(y, self._output_dims, dim=-1)
-
-
-def init_mlp_params_with_inverse_default(
-    mlp: Mlp,
-    bounded_fun: BoundedDistribution | BoundedTransform,
-    controller: ParameterizedController,
-) -> None:
-    """Initialize the parameters of the MLP to produce the default parameters.
-
-    The MLP is initialized such that the mean of the gaussian transformed by the squashing
-    of the SquashedGaussian corresponds to the default parameters defined by the controller.
-
-    This function assumes
-        1. that the MLP is used to predict Mean and Std of a
-        SquashedGaussian over the parameters of a ParameterizedController.
-        2. that the MLP uses only a nn.Parameter for the mean.
-        3. that the default parameters can be obtained by controller.default_param(None)
-
-    Args:
-        mlp: The MLP used to predict the parameters.
-        bounded_fun: The bounded distribution or the bounded transform
-            that are applied such that the mlp output corresponds to values within
-            the parameter space.
-        controller: The parameterized controller needed to obtain the default parameters.
-    """
-    if mlp.param is not None:
-        if not isinstance(bounded_fun, SquashedGaussian) and not isinstance(
-            bounded_fun, BoundedTransform
-        ):
-            raise ValueError(
-                "Initializing the parameters with the inverse default "
-                "only works for SquashedGaussian or BoundedTransform, "
-                f"but got {type(bounded_fun)}."
-            )
-        try:
-            # Hope you fail when the default param is dependent on the observation
-            # and else everything is fine
-            params = controller.default_param(obs=None)
-            params = torch.tensor(params, dtype=mlp.param.dtype, device=mlp.param.device)
-        except Exception as e:
-            raise ValueError(
-                "Initializing the parameters with the inverse default only makes sense if the "
-                "default parameters of the controller do not depend on the "
-                "observation. Could it be that this is not the case here?"
-            ) from e
-        param_dim = params.shape[0]
-        with torch.no_grad():
-            params_untransformed = bounded_fun.inverse(x=params[None, :], padding=0)
-            mlp.param[:param_dim] = params_untransformed.flatten()
-    # NOTE Do nothing if the mlp uses hidden layers

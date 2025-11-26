@@ -28,12 +28,16 @@ class RunSacFopConfig:
     extractor: ExtractorName = "identity"
 
 
-def create_cfg(env: str, controller: str, seed: int) -> RunSacFopConfig:
+def create_cfg(env: str, controller: str, seed: int, variant: str = "fop") -> RunSacFopConfig:
     # ---- Configuration ----
     cfg = RunSacFopConfig()
     cfg.env = env
     cfg.controller = controller if controller is not None else env
     cfg.extractor = "identity" if env != "hvac" else "scaling"
+
+    # Validate variant
+    if variant not in ["fop", "fopc", "foa"]:
+        raise ValueError(f"Invalid variant '{variant}'. Must be one of: fop, fopc, foa")
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = seed
@@ -59,10 +63,6 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacFopConfig:
     cfg.trainer.entropy_reward_bonus = True
     cfg.trainer.num_critics = 2
     cfg.trainer.update_freq = 4
-    cfg.trainer.noise = "param"
-    cfg.trainer.entropy_correction = False
-    cfg.trainer.distribution_name = "squashed_gaussian"
-    cfg.trainer.init_param_with_default = True
 
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
@@ -78,10 +78,26 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacFopConfig:
     cfg.trainer.critic_mlp.activation = "relu"
     cfg.trainer.critic_mlp.weight_init = "orthogonal"
 
-    # ---- Section: cfg.trainer.actor_mlp ----
-    cfg.trainer.actor_mlp.hidden_dims = (256, 256, 256)
-    cfg.trainer.actor_mlp.activation = "relu"
-    cfg.trainer.actor_mlp.weight_init = "orthogonal"
+    # ---- Section: cfg.trainer.actor ----
+    # Configure based on variant:
+    # - fop: normal parameter noise, no entropy correction
+    # - fopc: parameter noise with entropy correction
+    # - foa: action noise (deterministic parameters, stochastic actions)
+    if variant == "foa":
+        cfg.trainer.actor.noise = "action"
+        cfg.trainer.actor.entropy_correction = False
+    else:
+        cfg.trainer.actor.noise = "param"
+        cfg.trainer.actor.entropy_correction = True if variant == "fopc" else False
+
+    cfg.trainer.actor.extractor_name = cfg.extractor
+    cfg.trainer.actor.distribution_name = "squashed_gaussian"
+    cfg.trainer.actor.residual = True if env == "hvac" else False
+
+    # ---- Section: cfg.trainer.actor.mlp ----
+    cfg.trainer.actor.mlp.hidden_dims = (256, 256, 256)
+    cfg.trainer.actor.mlp.activation = "relu"
+    cfg.trainer.actor.mlp.weight_init = "orthogonal"
 
     return cfg
 
@@ -122,6 +138,13 @@ if __name__ == "__main__":
     parser.add_argument("--env", type=str, default="cartpole")
     parser.add_argument("--controller", type=str, default=None)
     parser.add_argument(
+        "--variant",
+        type=str,
+        default="fop",
+        choices=["fop", "fopc", "foa"],
+        help="SAC-FOP variant: fop (normal), fopc (with entropy correction), foa (action noise)",
+    )
+    parser.add_argument(
         "-r",
         "--reuse_code",
         action="store_true",
@@ -133,7 +156,10 @@ if __name__ == "__main__":
     parser.add_argument("--wandb-project", type=str, default="leap-c")
     args = parser.parse_args()
 
-    cfg = create_cfg(args.env, args.controller, args.seed)
+    cfg = create_cfg(args.env, args.controller, args.seed, args.variant)
+
+    # Include variant in tags
+    tags = [f"sac_{args.variant}", args.env, args.controller]
 
     if args.use_wandb:
         config_dict = asdict(cfg)
@@ -141,14 +167,12 @@ if __name__ == "__main__":
         cfg.trainer.log.wandb_init_kwargs = {
             "entity": args.wandb_entity,
             "project": args.wandb_project,
-            "name": default_name(args.seed, tags=["sac_fop", args.env, args.controller]),
+            "name": default_name(args.seed, tags=tags),
             "config": config_dict,
         }
 
     if args.output_path is None:
-        output_path = default_output_path(
-            seed=args.seed, tags=["sac_fop", args.env, args.controller]
-        )
+        output_path = default_output_path(seed=args.seed, tags=tags)
     else:
         output_path = args.output_path
 
