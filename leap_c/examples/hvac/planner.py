@@ -177,6 +177,13 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         """
         batch_size = obs.shape[0]
 
+        # Use default parameters if none provided and there are learnable parameters
+        if param is None and self.param_manager.learnable_parameters.size > 0:
+            default_flat = torch.from_numpy(
+                self.param_manager.learnable_parameters_default.cat.full().flatten()
+            ).to(obs.device)
+            param = default_flat.unsqueeze(0).expand(batch_size, -1)
+
         if not isinstance(ctx, HvacPlannerCtx):
             qh = torch.zeros((batch_size, 1), dtype=torch.float64, device=obs.device)
             dqh = torch.zeros((batch_size, 1), dtype=torch.float64, device=obs.device)
