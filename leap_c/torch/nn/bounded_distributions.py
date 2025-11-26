@@ -87,7 +87,7 @@ class SquashedGaussian(BoundedDistribution):
         space: spaces.Box,
         log_std_min: float = -4,
         log_std_max: float = 2.0,
-        padding: float = 0.001,
+        padding: float = 0.0001,
     ):
         """Initializes the SquashedGaussian module.
 
@@ -296,6 +296,7 @@ class ScaledBeta(BoundedDistribution):
 
         # If anchor is provided, center the distribution around it
         if anchor is not None:
+            # TODO (Jasper): Check whether we want to do it differently?
             # Convert anchor to tensor if it's a numpy array
             if not isinstance(anchor, torch.Tensor):
                 anchor = torch.from_numpy(anchor).to(y_scaled.device, dtype=y_scaled.dtype)
