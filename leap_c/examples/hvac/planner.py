@@ -315,7 +315,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         else:
             # Batched observation case: obs has shape (n_batch, obs_dim)
             n_batch = obs.shape[0]
-            forecasts = obs[:, 5:].reshape(n_batch, 3, -1).transpose(2, 1)
+            forecasts = np.asarray(obs[:, 5:]).reshape(n_batch, 3, -1).transpose(0, 2, 1)
 
             # Get n_param from the flattened default parameters
             n_param = len(param.cat.full().flatten())
