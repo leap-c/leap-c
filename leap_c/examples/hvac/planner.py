@@ -4,6 +4,7 @@ from typing import Any, Callable, Sequence
 
 import numpy as np
 import torch
+from scipy.constants import convert_temperature
 
 from leap_c.examples.hvac.acados_ocp import export_parametric_ocp, make_default_hvac_params
 from leap_c.examples.hvac.utils import set_temperature_limits
@@ -216,15 +217,30 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
 
         sub_param: dict[str, torch.Tensor] = {}
 
-        for key in ["temperature", "solar", "price"]:
+        render_info = {
+            "lb_Ti": overwrites["lb_Ti"],
+            "ub_Ti": overwrites["ub_Ti"],
+        }
+
+        for key in [
+            "temperature",
+            "solar",
+            "price",
+            "ref_Ti",
+            "q_Ti",
+            "q_dqh",
+            "q_ddqh",
+        ]:
             if not self.param_manager.has_learnable_param_pattern(f"{key}*"):
                 # If the forecast parameter is not learned, set it from the observation
                 overwrites[key] = obs[:, obs_idx[key]].reshape(batch_size, -1, 1)
+                render_info[key] = overwrites[key]
             else:
                 # If the forecast parameter is learned, extract its structured representation
                 sub_param[key] = self.param_manager.get_labeled_learnable_parameters(
                     param, label=key
                 )
+                render_info[key] = sub_param[key].detach().cpu().numpy()
 
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(**overwrites)
 
@@ -236,31 +252,18 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             ctx=ctx,
         )
 
+        for key in ["temperature", "ref_Ti", "lb_Ti", "ub_Ti"]:
+            render_info[key] = convert_temperature(
+                val=render_info[key],
+                old_scale="kelvin",
+                new_scale="celsius",
+            )
+
         # Prepare render info if parameters are available
-        render_info = None
-        if param is not None:
-            render_info = {
-                "ddqh": u[:, 0, 0].detach().cpu().numpy(),  # First action (acceleration)
-                "u_trajectory": u.detach().cpu().numpy(),  # Full action trajectory
-            }
-            # Extract learnable parameters if they exist
-            for param_name in ["ref_Ti"]:
-                # for param_name in ["q_Ti", "q_dqh", "q_ddqh", "ref_Ti"]:
-                if self.param_manager.has_learnable_param_pattern(f"{param_name}*"):
-                    sub_param[param_name] = (
-                        self.param_manager.get_labeled_learnable_parameters(param, label=param_name)
-                        .detach()
-                        .cpu()
-                        .numpy()
-                    )
-
-            render_info["ref_Ti"] = sub_param["ref_Ti"]
-
-            for key in ["temperature", "solar", "price"]:
-                if key in overwrites:
-                    render_info[f"{key}_parameter"] = overwrites[key]
-                else:
-                    render_info[f"{key}_parameter"] = sub_param[key].detach().cpu().numpy()
+        render_info["qh"] = x[:, :, 3].detach().cpu().numpy()  # Heater power trajectory
+        render_info["dqh"] = x[:, :, 4].detach().cpu().numpy()  # Heater power trajectory
+        render_info["u_trajectory"] = u.detach().cpu().numpy()  # Full action trajectory
+        render_info["ddqh"] = render_info["u_trajectory"]
 
         ctx = HvacPlannerCtx(
             **vars(diff_mpc_ctx),
