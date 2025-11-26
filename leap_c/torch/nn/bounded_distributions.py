@@ -142,18 +142,18 @@ class SquashedGaussian(BoundedDistribution):
         else:
             std = None
 
-        if deterministic or std is None:
-            y = mean
-        else:
-            # reparameterization trick
-            y = mean + std * torch.randn_like(mean)
-
         if anchor is not None:
             # Convert anchor to tensor if it's a numpy array
             if not isinstance(anchor, torch.Tensor):
                 anchor = torch.from_numpy(anchor).to(mean.device, dtype=mean.dtype)
             inv_anchor = self.inverse(anchor)
-            y = y + inv_anchor  # Use out-of-place operation to avoid modifying view
+            mean = mean + inv_anchor  # Use out-of-place operation to avoid modifying view
+
+        if deterministic or std is None:
+            y = mean
+        else:
+            # reparameterization trick
+            y = mean + std * torch.randn_like(mean)
 
         if std is not None:
             log_prob = -0.5 * ((y - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)

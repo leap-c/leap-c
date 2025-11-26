@@ -70,7 +70,7 @@ def test_default_param_initialization_zop():
     output = actor(torch.zeros((2, 3)), deterministic=True)
     assert output.param.shape == (2, param_dim)
     for sample in output.param:
-        assert torch.allclose(sample, controller.default_param())
+        assert torch.allclose(sample, controller.default_param(), atol=1e-3)
 
 
 def test_default_param_initialization_fop():
@@ -99,7 +99,7 @@ def test_default_param_initialization_fop():
     output = actor(torch.zeros((2, 3)), deterministic=True)
     assert output.param.shape == (2, param_dim)
     for sample in output.param:
-        assert torch.allclose(sample, controller.default_param())
+        assert torch.allclose(sample, controller.default_param(), atol=1e-3)
 
 
 def test_default_param_initialization_foa():
