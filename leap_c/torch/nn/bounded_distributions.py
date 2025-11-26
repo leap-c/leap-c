@@ -297,19 +297,7 @@ class ScaledBeta(BoundedDistribution):
         # If anchor is provided, center the distribution around it
         if anchor is not None:
             # TODO (Jasper): Check whether we want to do it differently?
-            # Convert anchor to tensor if it's a numpy array
-            if not isinstance(anchor, torch.Tensor):
-                anchor = torch.from_numpy(anchor).to(y_scaled.device, dtype=y_scaled.dtype)
-            # Compute the current mode in the scaled space
-            mode = (alpha - 1) / (alpha + beta - 2)
-            mode_scaled = mode * self.scale[None, :] + self.loc[None, :]
-            # Shift the output so that the mode aligns with the anchor
-            y_scaled = y_scaled - mode_scaled + anchor
-
-            # Clamp to ensure we stay within bounds
-            low = self.loc[None, :]
-            high = self.loc[None, :] + self.scale[None, :]
-            y_scaled = torch.clamp(y_scaled, low, high)
+            raise NotImplementedError("Anchor functionality not implemented for ScaledBeta yet.")
 
         log_prob -= torch.log(self.scale[None, :])
         log_prob = log_prob.sum(dim=-1, keepdim=True)
