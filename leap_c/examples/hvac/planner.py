@@ -244,20 +244,23 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                 "u_trajectory": u.detach().cpu().numpy(),  # Full action trajectory
             }
             # Extract learnable parameters if they exist
-            try:
-                for param_name in ["q_Ti", "q_dqh", "q_ddqh", "ref_Ti"]:
-                    if self.param_manager.has_learnable_param_pattern(param_name):
-                        idx = self.param_manager.get_learnable_param_index(param_name)
-                        if idx is not None:
-                            render_info[param_name] = param[:, idx].detach().cpu().numpy()
-            except Exception:
-                pass  # If parameter extraction fails, just skip
+            for param_name in ["ref_Ti"]:
+                # for param_name in ["q_Ti", "q_dqh", "q_ddqh", "ref_Ti"]:
+                if self.param_manager.has_learnable_param_pattern(f"{param_name}*"):
+                    sub_param[param_name] = (
+                        self.param_manager.get_labeled_learnable_parameters(param, label=param_name)
+                        .detach()
+                        .cpu()
+                        .numpy()
+                    )
+
+            render_info["ref_Ti"] = sub_param["ref_Ti"]
 
             for key in ["temperature", "solar", "price"]:
                 if key in overwrites:
-                    render_info[f"{key}_forecast"] = overwrites[key]
+                    render_info[f"{key}_parameter"] = overwrites[key]
                 else:
-                    render_info[f"{key}_forecast"] = sub_param[key].detach().cpu().numpy()
+                    render_info[f"{key}_parameter"] = sub_param[key].detach().cpu().numpy()
 
         ctx = HvacPlannerCtx(
             **vars(diff_mpc_ctx),
