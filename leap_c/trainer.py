@@ -281,10 +281,10 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
             return policy_fn
 
         rollouts = episode_rollout(
-            create_policy_fn(),
-            self.eval_env,
-            self.cfg.val_num_rollouts,
-            self.cfg.val_num_render_rollouts,
+            policy=create_policy_fn(),
+            env=self.eval_env,
+            episodes=self.cfg.val_num_rollouts,
+            render_episodes=self.cfg.val_num_render_rollouts,
             render_human=self.cfg.val_render_mode == "human",
             video_folder=self.output_path / "video",
             name_prefix=f"{self.state.step}",

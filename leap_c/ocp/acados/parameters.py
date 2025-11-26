@@ -5,6 +5,7 @@ from warnings import warn
 import casadi as ca
 import gymnasium as gym
 import numpy as np
+import torch
 from acados_template import AcadosOcp
 from casadi.tools import entry, struct, struct_symMX, struct_symSX
 
@@ -396,6 +397,70 @@ class AcadosParameterManager:
                 if self.non_learnable_parameters_default
                 else np.array([])
             )
+
+    def recreate_dataclass(self, cls):
+        """Recreate a dataclass instance of type cls with current parameter values.
+
+        Args:
+            cls: The dataclass type to recreate.
+
+        Returns:
+            An instance of cls with fields populated from the current parameter values.
+        """
+        field_values = {}
+        for field_name in cls.__dataclass_fields__.keys():
+            if field_name in self.parameters:
+                field_values[field_name] = self.get(field_name)
+            else:
+                raise ValueError(f"Parameter '{field_name}' not found in parameter manager.")
+        return cls(**field_values)
+
+    def has_learnable_param_pattern(self, pattern: str) -> bool:
+        """Check if any parameter names match the given pattern.
+
+        Supports glob-style wildcards where '*' matches any characters.
+        For example, 'temperature_*_*' matches 'temperature_0_0', 'temperature_1_1', etc.
+
+        Args:
+            pattern: Pattern string with wildcards (*) to match against parameter names.
+
+        Returns:
+            True if any learnable parameter names match the pattern, False otherwise.
+
+        Example:
+            >>> planner.has_param_pattern('temperature_*_*')
+            True  # if parameters like temperature_0_0, temperature_1_1, etc. exist
+            >>> planner.has_param_pattern('nonexistent_*')
+            False
+        """
+        import fnmatch
+
+        learnable_param_names = self.learnable_parameters.keys()
+        return any(fnmatch.fnmatch(name, pattern) for name in learnable_param_names)
+
+    def get_structured_learnable_parameters(
+        self,
+        param_values: np.ndarray | torch.Tensor,
+        label=None,
+    ) -> struct:
+        """Get a structured representation of the learnable parameters from flat values.
+
+        Args:
+            param_values: Flat numpy array of learnable parameter values.
+            label: Optional substring to filter parameters by name.
+
+        Returns:
+            A CasADi struct with the learnable parameters populated from param_values.
+        """
+        # Get indices of learnable parameters that include the substring 'label' if provided
+        if label is not None:
+            matching_keys = [key for key in self.learnable_parameters.keys() if label in key]
+        else:
+            matching_keys = list(self.learnable_parameters.keys())
+
+        print(matching_keys)
+
+        return None
 
 
 def _define_starts_and_ends(end_stages: list[int], N_horizon: int) -> tuple[list[int], list[int]]:
