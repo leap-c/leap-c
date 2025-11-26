@@ -1,8 +1,8 @@
 """Provides a trainer for a SAC algorithm that sets parameters of a parameterized controller."""
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Generator, Generic, NamedTuple, Type
+from typing import Generator, Generic
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
@@ -11,14 +11,13 @@ import torch
 import torch.nn as nn
 
 from leap_c.controller import CtxType, ParameterizedController
-from leap_c.torch.nn.bounded_distributions import (
-    BoundedDistribution,
-    BoundedDistributionName,
-    get_bounded_distribution,
-)
-from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
-from leap_c.torch.nn.mlp import Mlp, MlpConfig, init_mlp_params_with_inverse_default
+from leap_c.torch.nn.extractor import ExtractorName, get_extractor_cls
 from leap_c.torch.rl.buffer import ReplayBuffer
+from leap_c.torch.rl.mpc_actor import (
+    HierachicalMPCActor,
+    HierachicalMPCActorConfig,
+    StochasticMPCActorOutput,
+)
 from leap_c.torch.rl.sac import SacCritic, SacTrainerConfig
 from leap_c.torch.rl.utils import soft_target_update
 from leap_c.torch.utils.seed import mk_seed
@@ -26,148 +25,17 @@ from leap_c.trainer import Trainer
 from leap_c.utils.gym import seed_env, wrap_env
 
 
-class SacZopActorOutput(NamedTuple):
-    """Output of the SAC-ZOP actor's forward pass.
-
-    Attributes:
-        param: The predicted parameters (which have been input into the controller).
-        log_prob: The log-probability of the distribution that led to the action.
-            NOTE: This log-probability is just a proxy for the true log-probability of the action,
-            it is actually the log probability of the parameters that were input into the
-            controller.
-        stats: A dictionary containing several statistics of internal modules.
-        action: The action output by the controller.
-        ctx: The context object containing information about the MPC solve.
-    """
-
-    param: torch.Tensor
-    log_prob: torch.Tensor
-    stats: dict[str, float]
-    action: torch.Tensor | None = None
-    ctx: CtxType | None = None
-
-
 @dataclass(kw_only=True)
 class SacZopTrainerConfig(SacTrainerConfig):
     """Specific settings for the Zop trainer.
 
     Attributes:
-        init_param_with_default: Whether to initialize the parameters of the controller such that
-            the mean of the gaussian transformed by the squashing of the SquashedGaussian
-            corresponds to the Parameter default values. Only works if
-             1. the parameters are fixed nn.Parameters, and not predicted by a network
-            (see MlpConfig hidden_dims).
-             2. a SquashedGaussian distribution is used.
-
-            If `True`, the default parameters according to `controller.default_param(None)` will be
-            used, else the parameters will be initialized to the middle
-            of the parameter bounds.
+        actor: Configuration for the HierachicalMPCActor.
     """
 
-    init_param_with_default: bool = True
-
-
-class MpcSacActor(nn.Module, Generic[CtxType]):
-    """An actor module for SAC-ZOP, containing a ParameterizedController.
-
-    The ParameterizedController is used to compute actions, but does not need to support
-    differentiating through it. Noise is injected in the parameter space.
-
-    Attributes:
-        extractor: The feature extractor module.
-        controller: The parameterized controller.
-        mlp: The MLP module that predicts the parameters of the Gaussian distribution.
-        bounded_distribution: The bounded distribution module.
-    """
-
-    extractor: Extractor
-    controller: ParameterizedController[CtxType]
-    mlp: Mlp
-    bounded_distribution: BoundedDistribution
-
-    def __init__(
-        self,
-        extractor_cls: Type[Extractor],
-        observation_space: gym.Space,
-        controller: ParameterizedController[CtxType],
-        distribution_name: BoundedDistributionName,
-        mlp_cfg: MlpConfig,
-        init_param_with_default: bool,
-    ) -> None:
-        """Instantiates the SAC-ZOP actor.
-
-        Args:
-            extractor_cls: The class used for extracting features from observations.
-            observation_space: The observation space used to configure the extractor.
-            controller: The differentiable parameterized controller used to compute actions from
-                parameters.
-            distribution_name: The name of the bounded distribution used to sample parameters.
-            mlp_cfg: The configuration for the MLP used to predict parameters.
-            init_param_with_default: Whether to initialize the parameters of the mlp such that the
-                parameters transformed by the distribution correspond to the default parameters.
-        """
-        super().__init__()
-
-        param_space: spaces.Box = controller.param_space
-        param_dim = param_space.shape[0]
-
-        self.extractor = extractor_cls(observation_space)
-        self.controller = controller
-        self.bounded_distribution = get_bounded_distribution(
-            distribution_name, space=controller.param_space
-        )
-        self.mlp = Mlp(
-            input_sizes=self.extractor.output_size,
-            output_sizes=list(self.bounded_distribution.parameter_size(param_dim)),
-            mlp_cfg=mlp_cfg,
-        )
-        if init_param_with_default:
-            init_mlp_params_with_inverse_default(self.mlp, self.bounded_distribution, controller)
-
-    def forward(
-        self,
-        obs: torch.Tensor,
-        ctx: CtxType | None = None,
-        deterministic: bool = False,
-        only_param: bool = False,
-    ) -> SacZopActorOutput:
-        """Sample parameters from the policy and (optional) compute actions using the controller.
-
-        The given observations are passed to the extractor to obtain features.
-        These are used to predict a bounded distribution in the (learnable) parameter space of the
-        controller using the MLP. Afterwards, this parameters are sampled from this distribution,
-        and passed to the controller, which then computes the final actions.
-        This forward pass does NOT support differentiation through the controller.
-
-        Args:
-            obs: The observations to compute the actions for.
-            ctx: The optional context object containing information about the previous controller
-                solve. Can be used, e.g., to warm-start the solver.
-            deterministic: If `True`, use the mode of the distribution instead of sampling.
-            only_param: If `True`, only return the predicted parameters and log-probabilities, but
-                do not compute the action using the controller.
-
-        Returns:
-            SacZopActorOutput: The output of the actor containing parameters, log-probability,
-                statistics, actions, and context.
-        """
-        e = self.extractor(obs)
-        dist_params = self.mlp(e)
-
-        param, log_prob, dist_stats = self.bounded_distribution(
-            *dist_params, deterministic=deterministic
-        )
-
-        if only_param:
-            return SacZopActorOutput(param, log_prob, dist_stats)
-
-        with torch.no_grad():
-            ctx, action = self.controller(obs, param, ctx=ctx)
-
-        stats = dist_stats
-        if ctx.log is not None:
-            stats |= ctx.log
-        return SacZopActorOutput(param, log_prob, stats, action, ctx)
+    actor: HierachicalMPCActorConfig = field(
+        default_factory=lambda: HierachicalMPCActorConfig(residual=False)
+    )
 
 
 class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
@@ -197,7 +65,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
     q: SacCritic
     q_target: SacCritic
     q_optim: torch.optim.Optimizer
-    pi: MpcSacActor[CtxType]
+    pi: HierachicalMPCActor[CtxType]
     pi_optim: torch.optim.Optimizer
     log_alpha: nn.Parameter
     alpha_optim: torch.optim.Optimizer | None
@@ -213,7 +81,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
         device: str,
         train_env: gym.Env,
         controller: ParameterizedController[CtxType],
-        extractor_cls: Type[Extractor] | ExtractorName = "identity",
+        extractor_cls: ExtractorName | None = None,
     ) -> None:
         """Initializes the SAC-ZOP trainer.
 
@@ -224,37 +92,35 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
             device: The device on which the trainer is running.
             train_env: The training environment.
             controller: The controller to use in the policy.
-            extractor_cls: The class used for extracting features from observations.
+            extractor_cls: Deprecated. Use cfg.actor.extractor_name instead.
         """
         super().__init__(cfg, val_env, output_path, device)
 
         param_space: spaces.Box = controller.param_space
         observation_space = train_env.observation_space
-        action_dim = np.prod(train_env.action_space.shape)
+        action_space = train_env.action_space
+        action_dim = np.prod(action_space.shape)
         param_dim = np.prod(param_space.shape)
 
         self.train_env = wrap_env(train_env)
 
-        if isinstance(extractor_cls, str):
-            extractor_cls = get_extractor_cls(extractor_cls)
+        # Handle deprecated extractor_cls parameter
+        if extractor_cls is not None:
+            cfg.actor.extractor_name = extractor_cls
+
+        # Get extractor class for critic
+        critic_extractor_cls = get_extractor_cls(cfg.actor.extractor_name)
 
         self.q = SacCritic(
-            extractor_cls, param_space, observation_space, cfg.critic_mlp, cfg.num_critics
+            critic_extractor_cls, param_space, observation_space, cfg.critic_mlp, cfg.num_critics
         )
         self.q_target = SacCritic(
-            extractor_cls, param_space, observation_space, cfg.critic_mlp, cfg.num_critics
+            critic_extractor_cls, param_space, observation_space, cfg.critic_mlp, cfg.num_critics
         )
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.lr_q)
 
-        self.pi = MpcSacActor(
-            extractor_cls,
-            observation_space,
-            controller,
-            cfg.distribution_name,
-            cfg.actor_mlp,
-            cfg.init_param_with_default,
-        )
+        self.pi = HierachicalMPCActor(cfg.actor, observation_space, action_space, controller)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
 
         self.log_alpha = nn.Parameter(torch.tensor(cfg.init_alpha).log())
@@ -283,7 +149,9 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
             obs_batched = self.buffer.collate([obs])
 
             with torch.no_grad():
-                pi_output: SacZopActorOutput = self.pi(obs_batched, policy_ctx, deterministic=False)
+                pi_output: StochasticMPCActorOutput = self.pi(
+                    obs_batched, policy_ctx, deterministic=False
+                )
             assert pi_output.action is not None, "Expected action to be not `None`"
             action = pi_output.action.cpu().numpy()[0]
             param = pi_output.param.cpu().numpy()[0]
@@ -374,7 +242,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
     ) -> tuple[np.ndarray, CtxType, dict[str, float]]:
         obs = self.buffer.collate([obs])
         with torch.no_grad():
-            pi_output: SacZopActorOutput = self.pi(obs, state, deterministic=deterministic)
+            pi_output: StochasticMPCActorOutput = self.pi(obs, state, deterministic=deterministic)
         assert pi_output.action is not None, "Expected action to be not `None`"
         action = pi_output.action.cpu().numpy()[0]
         return action, pi_output.ctx, pi_output.stats

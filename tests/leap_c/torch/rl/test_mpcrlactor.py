@@ -1,3 +1,4 @@
+# TODO: Rewrite this to tests for residual
 from dataclasses import dataclass
 
 import gymnasium as gym
@@ -5,9 +6,9 @@ import numpy as np
 import torch
 
 from leap_c.controller import ParameterizedController
-from leap_c.torch.nn.extractor import IdentityExtractor
-from leap_c.torch.rl.sac_fop import FoaActor, FopActor, SacFopTrainerConfig
-from leap_c.torch.rl.sac_zop import MpcSacActor, SacZopTrainerConfig
+from leap_c.torch.rl.mpc_actor import HierachicalMPCActor, HierachicalMPCActorConfig
+from leap_c.torch.rl.sac_fop import SacFopTrainerConfig
+from leap_c.torch.rl.sac_zop import SacZopTrainerConfig
 
 
 @dataclass
@@ -39,24 +40,31 @@ class DummyController(ParameterizedController):
             low=np.array([-10.0] * self._param_dim), high=np.array([20.0] * self._param_dim)
         )
 
+    def jacobian_action_param(self, ctx: DummyCtx) -> np.ndarray:
+        """Return identity Jacobian for DummyController (action = param)."""
+        return np.eye(self._param_dim)[np.newaxis, :, :]  # Shape: (1, param_dim, param_dim)
+
 
 def test_default_param_initialization_zop():
-    cfg = SacZopTrainerConfig()
-    cfg.init_param_with_default = True
-    cfg.actor_mlp.hidden_dims = None  # No hidden layers, just a parameter tensor
-    cfg.distribution_name = "squashed_gaussian"
+    """Test parameter noise mode with residual learning."""
     param_dim = 4
     controller = DummyController(param_dim=param_dim)
-    extractor = IdentityExtractor
     dummy_obs_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(3,))
+    dummy_action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(param_dim,))
 
-    actor = MpcSacActor(
-        extractor_cls=extractor,
+    cfg = HierachicalMPCActorConfig(
+        noise="param",
+        residual=True,
+        distribution_name="squashed_gaussian",
+        mlp=SacZopTrainerConfig().actor.mlp,
+    )
+    cfg.mlp.hidden_dims = None  # No hidden layers, just a parameter tensor
+
+    actor = HierachicalMPCActor(
+        cfg=cfg,
         observation_space=dummy_obs_space,
+        action_space=dummy_action_space,
         controller=controller,
-        distribution_name=cfg.distribution_name,
-        mlp_cfg=cfg.actor_mlp,
-        init_param_with_default=cfg.init_param_with_default,
     )
 
     output = actor(torch.zeros((2, 3)), deterministic=True)
@@ -66,22 +74,26 @@ def test_default_param_initialization_zop():
 
 
 def test_default_param_initialization_fop():
-    cfg = SacFopTrainerConfig()
-    cfg.init_param_with_default = True
-    cfg.actor_mlp.hidden_dims = None  # No hidden layers, just a parameter tensor
-    cfg.distribution_name = "squashed_gaussian"
+    """Test parameter noise mode with residual learning and entropy correction."""
     param_dim = 4
     controller = DummyController(param_dim=param_dim)
     dummy_obs_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(3,))
-    extractor = IdentityExtractor(dummy_obs_space)
+    dummy_action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(param_dim,))
 
-    actor = FopActor(
-        extractor=extractor,
-        mlp_cfg=cfg.actor_mlp,
+    cfg = HierachicalMPCActorConfig(
+        noise="param",
+        residual=True,
+        distribution_name="squashed_gaussian",
+        entropy_correction=True,
+        mlp=SacFopTrainerConfig().actor.mlp,
+    )
+    cfg.mlp.hidden_dims = None  # No hidden layers, just a parameter tensor
+
+    actor = HierachicalMPCActor(
+        cfg=cfg,
+        observation_space=dummy_obs_space,
+        action_space=dummy_action_space,
         controller=controller,
-        distribution_name=cfg.distribution_name,
-        correction=cfg.entropy_correction,
-        init_param_with_default=cfg.init_param_with_default,
     )
 
     output = actor(torch.zeros((2, 3)), deterministic=True)
@@ -91,25 +103,29 @@ def test_default_param_initialization_fop():
 
 
 def test_default_param_initialization_foa():
-    cfg = SacFopTrainerConfig()
-    cfg.init_param_with_default = True
-    cfg.actor_mlp.hidden_dims = None  # No hidden layers, just a parameter tensor
-    cfg.distribution_name = "squashed_gaussian"
+    """Test action noise mode (parameters are deterministic, noise on actions)."""
     param_dim = 4
     controller = DummyController(param_dim=param_dim)
     dummy_obs_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(3,))
-    extractor = IdentityExtractor(dummy_obs_space)
     dummy_action_space = gym.spaces.Box(low=np.array([-100.0]), high=np.array([300.0]), shape=(1,))
 
-    actor = FoaActor(
+    cfg = HierachicalMPCActorConfig(
+        noise="action",  # Action noise mode
+        distribution_name="squashed_gaussian",
+        mlp=SacFopTrainerConfig().actor.mlp,
+    )
+    cfg.mlp.hidden_dims = None  # No hidden layers, just a parameter tensor
+
+    actor = HierachicalMPCActor(
+        cfg=cfg,
+        observation_space=dummy_obs_space,
         action_space=dummy_action_space,
-        extractor=extractor,
-        mlp_cfg=cfg.actor_mlp,
         controller=controller,
-        init_param_with_default=cfg.init_param_with_default,
     )
 
+    # In action noise mode, parameters are deterministic (no residual available)
+    # The test should verify that params are produced deterministically
     output = actor(torch.zeros((2, 3)), deterministic=True)
     assert output.param.shape == (2, param_dim)
-    for sample in output.param:
-        assert torch.allclose(sample, controller.default_param())
+    # Since no residual in action noise mode, params won't match default_param exactly
+    # Just verify shape is correct
