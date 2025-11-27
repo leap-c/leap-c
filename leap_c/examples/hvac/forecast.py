@@ -62,10 +62,8 @@ class ForecastConfig:
     """
 
     horizon_hours: int = 25  # prediction horizon in hours
-    temp_uncertainty: TemperatureUncertaintyConfig | Literal["low", "medium", "high"] | None = (
-        "high"
-    )
-    solar_uncertainty: SolarUncertaintyConfig | Literal["low", "medium", "high"] | None = "medium"
+    temp_uncertainty: TemperatureUncertaintyConfig | Literal["low", "medium", "high"] | None = None
+    solar_uncertainty: SolarUncertaintyConfig | Literal["low", "medium", "high"] | None = None
 
     def __post_init__(self):
         """Resolve string literals to actual config objects."""
@@ -160,20 +158,22 @@ class Forecaster:
         Returns:
             Array of forecasted temperatures with uncertainty.
         """
-        temp_unc = self.cfg.temp_uncertainty
-        error = predict_ar1_error(
-            hp=N_forecast,
-            initial_mean=temp_unc.F0,
-            initial_scale=temp_unc.K0,
-            ar_factor=temp_unc.F,
-            ar_mean=temp_unc.mu,
-            ar_scale=temp_unc.K,
-            np_random=np_random,
-            distribution="normal",
-        )
-
         base_forecast = data["temperature"].iloc[idx : idx + N_forecast].to_numpy()
-        return base_forecast + error
+
+        if self.cfg.temp_uncertainty:
+            error = predict_ar1_error(
+                hp=N_forecast,
+                initial_mean=self.cfg.temp_uncertainty.F0,
+                initial_scale=self.cfg.temp_uncertainty.K0,
+                ar_factor=self.cfg.temp_uncertainty.F,
+                ar_mean=self.cfg.temp_uncertainty.mu,
+                ar_scale=self.cfg.temp_uncertainty.K,
+                np_random=np_random,
+                distribution="normal",
+            )
+            return base_forecast + error
+
+        return base_forecast
 
     def get_solar_forecast(
         self,
