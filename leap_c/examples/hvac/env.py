@@ -484,7 +484,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             where="post",
             label="price parameter",
         )
-        ax.set_ylim(0, 0.2)
+        ax.set_ylim(0, self.dataset.price_max)
         ax.set_ylabel("price [NOK/kWh]")
 
         ax: plt.Axes = self.axes[5, 0]

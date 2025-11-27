@@ -103,6 +103,7 @@ class SquashedGaussian(BoundedDistribution):
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
         self.padding = padding
+        self.space = space
 
         loc = (space.high + space.low) / 2.0
         scale = (space.high - space.low) / 2.0
@@ -146,6 +147,7 @@ class SquashedGaussian(BoundedDistribution):
             # Convert anchor to tensor if it's a numpy array
             if not isinstance(anchor, torch.Tensor):
                 anchor = torch.from_numpy(anchor).to(mean.device, dtype=mean.dtype)
+            assert anchor in self.space, f"Anchor {anchor} not in space {self.space}"
             inv_anchor = self.inverse(anchor)
             mean = mean + inv_anchor  # Use out-of-place operation to avoid modifying view
 
