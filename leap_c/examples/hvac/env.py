@@ -628,8 +628,5 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                     render_info[key].flatten(),
                 )
 
-            plt.show()
-            print("")
-
     def set_ctx(self, ctx: HvacPlannerCtx) -> None:
         self.ctx: HvacPlannerCtx = ctx
