@@ -1,3 +1,4 @@
+import gymnasium as gym
 import numpy as np
 import pytest
 import torch
@@ -426,3 +427,40 @@ def test_forecast_bounds_non_negative() -> None:
     # Verify computation succeeded
     assert ctx is not None
     assert x.shape[0] == 1
+
+
+def test_default_param_in_param_space(hvac_planner_stagewise: HvacPlanner) -> None:
+    """Test that default_param returns parameters within the defined param_space."""
+    N_horizon = hvac_planner_stagewise.cfg.N_horizon
+    obs = create_obs(N_horizon, seed=42)
+
+    param = hvac_planner_stagewise.default_param(obs)
+
+    # Check that each parameter is within the defined space
+    param_space = hvac_planner_stagewise.param_space
+
+    # TODO: This is a nice function to have for debugging. Move to utils?
+    def check_params_not_in_space(
+        param: np.ndarray,
+        param_space: gym.spaces.Box,
+    ) -> list[tuple[int, float, float, float]]:
+        """Check which parameters are not within the param_space bounds.
+
+        Args:
+            param: Array of parameter values
+            param_space: Parameter space with bounds
+
+        Returns:
+            List of tuples (index, param_value, low_bound, high_bound) for out-of-bounds params
+        """
+        out_of_bounds = []
+        low = param_space.low
+        high = param_space.high
+
+        for i, (p, l, h) in enumerate(zip(param, low, high)):
+            if p < l or p > h:
+                out_of_bounds.append((i, p, l, h))
+
+        return out_of_bounds
+
+    assert param_space.contains(param), "Default parameters are not within the defined param space"
