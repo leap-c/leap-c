@@ -171,9 +171,9 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 0.0,  # Radiator temperature
                 0.0,  # Envelope temperature
             ]
-            + [0.0] * self.N_forecast  # Ambient temperatures
-            + [0.0] * self.N_forecast  # Solar radiation
-            + [0.0] * self.N_forecast,  # Prices  TODO: Allow negative prices
+            + [self.dataset.min["temperature"]] * self.N_forecast  # Ambient temperatures
+            + [self.dataset.min["solar"]] * self.N_forecast  # Solar radiation
+            + [self.dataset.min["price"]] * self.N_forecast,  # Prices  TODO: Allow negative prices
             dtype=np.float32,
         )
 
@@ -185,10 +185,9 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 convert_temperature(500.0, "celsius", "kelvin"),  # Radiator temperature
                 convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
             ]
-            + [convert_temperature(40.0, "celsius", "kelvin")]
-            * self.N_forecast  # Ambient temperatures
-            + [200.0] * self.N_forecast  # Solar radiation
-            + [self.dataset.price_max] * self.N_forecast,  # Prices
+            + [self.dataset.max["temperature"]] * self.N_forecast  # Ambient temperatures
+            + [self.dataset.max["solar"]] * self.N_forecast  # Solar radiation
+            + [self.dataset.max["price"]] * self.N_forecast,  # Prices
             dtype=np.float32,
         )
         self.observation_space = spaces.Box(low=obs_low, high=obs_high)
@@ -276,7 +275,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         price = self.dataset.get_price(self.idx)[0]
         energy_consumption_normalized = np.abs(action[0]) / self.max_power
 
-        price_normalized = price / self.dataset.price_max
+        price_normalized = price / self.dataset.max["price"]
         energy_reward = -price_normalized * energy_consumption_normalized
 
         # scale energy_reward
@@ -484,7 +483,10 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             where="post",
             label="price parameter",
         )
-        ax.set_ylim(0, 0.2)
+        ax.set_ylim(
+            bottom=self.dataset.min["price"],
+            top=self.dataset.max["price"],
+        )
         ax.set_ylabel("price [NOK/kWh]")
 
         ax: plt.Axes = self.axes[5, 0]
@@ -500,7 +502,18 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             where="post",
             label="temperature parameter",
         )
-        ax.set_ylim(-30, 30)
+        ax.set_ylim(
+            bottom=convert_temperature(
+                val=self.dataset.min["temperature"],
+                old_scale="k",
+                new_scale="c",
+            ),
+            top=convert_temperature(
+                val=self.dataset.max["temperature"],
+                old_scale="k",
+                new_scale="c",
+            ),
+        )
         ax.set_ylabel("temperature [°C]")
 
         ax: plt.Axes = self.axes[6, 0]
@@ -516,7 +529,10 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             where="post",
             label="solar parameter",
         )
-        ax.set_ylim(0.0, 600.0)
+        ax.set_ylim(
+            bottom=self.dataset.min["solar"],
+            top=self.dataset.max["solar"],
+        )
         ax.set_ylabel("solar [W/m²]")
 
         # Setup parameter/action plots in right column

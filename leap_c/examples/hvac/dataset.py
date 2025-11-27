@@ -59,7 +59,6 @@ class HvacDataset:
     def __init__(
         self,
         data: pd.DataFrame | None = None,
-        price_max: float | None = None,
         cfg: DataConfig | None = None,
     ):
         """Initialize HvacDataset.
@@ -67,28 +66,28 @@ class HvacDataset:
         Args:
             data: Combined DataFrame with price, weather, and time features.
                 If None, loads from cfg paths.
-            price_max: Maximum price value in the dataset.
-                If None, computed from loaded data.
             cfg: Data configuration. If None, uses default DataConfig.
                 If data is None, cfg is used to load data from files.
 
         Note:
-            If data and price_max are provided, they are used directly.
+            If data is provided, it is used directly.
             Otherwise, data is loaded from cfg paths (or default paths if cfg is None).
         """
         self.cfg = cfg or DataConfig()
 
-        if data is not None and price_max is not None:
+        if data is not None:
             # Direct injection of prepared data
             self.data = data
-            self.price_max = price_max
         else:
             # Load from configuration
-            self.data, self.price_max = load_and_prepare_data(
+            self.data = load_and_prepare_data(
                 price_zone=self.cfg.price_zone,
                 price_data_path=self.cfg.price_data_path,
                 weather_data_path=self.cfg.weather_data_path,
             )
+
+        self.min = {key: self.data[key].min() for key in self.data.columns}
+        self.max = {key: self.data[key].max() for key in self.data.columns}
 
     def __len__(self) -> int:
         """Total number of timesteps in dataset."""
@@ -392,7 +391,7 @@ def load_and_prepare_data(
     price_zone: str,
     price_data_path: Path | None = None,
     weather_data_path: Path | None = None,
-) -> tuple[pd.DataFrame, float]:
+) -> pd.DataFrame:
     """Load and prepare price and weather data.
 
     Args:
@@ -413,7 +412,6 @@ def load_and_prepare_data(
 
     # Load raw data
     price_data = load_price_data(csv_path=price_data_path).resample("15min").ffill()
-    price_data_max = price_data.max(axis=None)
 
     weather_data = (
         load_weather_data(csv_path=weather_data_path).resample("15min").interpolate(method="linear")
@@ -439,4 +437,4 @@ def load_and_prepare_data(
     data["quarter_hour"] = (data.index.hour * 4 + data.index.minute // 15) % (24 * 4)
     data["day"] = data["time"].dt.dayofyear % 366
 
-    return data, price_data_max
+    return data
