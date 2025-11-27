@@ -9,6 +9,8 @@ import torch.nn as nn
 from gymnasium import spaces
 from torch.distributions.beta import Beta
 
+from leap_c.utils.gym import check_params_not_in_space
+
 BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta"]
 
 
@@ -147,7 +149,14 @@ class SquashedGaussian(BoundedDistribution):
             # Convert anchor to tensor if it's a numpy array
             if not isinstance(anchor, torch.Tensor):
                 anchor = torch.from_numpy(anchor).to(mean.device, dtype=mean.dtype)
-            assert anchor in self.space, f"Anchor {anchor} not in space {self.space}"
+
+            out_of_space = check_params_not_in_space(
+                anchor.cpu().numpy().flatten(),
+                self.space,
+            )
+            assert anchor in self.space, (
+                f"Anchor {anchor} not in space {self.space}. Out of space: {out_of_space}"
+            )
 
             inv_anchor = self.inverse(anchor)
             mean = mean + inv_anchor  # Use out-of-place operation to avoid modifying view
