@@ -66,8 +66,6 @@ class HvacDataset:
         Args:
             data: Combined DataFrame with price, weather, and time features.
                 If None, loads from cfg paths.
-            price_max: Maximum price value in the dataset.
-                If None, computed from loaded data.
             cfg: Data configuration. If None, uses default DataConfig.
                 If data is None, cfg is used to load data from files.
 
