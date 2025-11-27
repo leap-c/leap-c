@@ -348,7 +348,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                 )
                 # forecasts now has shape (n_batch, N_stages, 3)
                 for j, key in enumerate(["temperature", "solar", "price"]):
-                    if self.param_manager.has_learnable_param_pattern(f"{key}"):
+                    if self.param_manager.has_learnable_param_pattern(f"{key}*"):
                         # Check if parameter is stagewise by checking if stagewise version exists
                         if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
                             # Stagewise parameter
