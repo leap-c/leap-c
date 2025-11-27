@@ -132,7 +132,7 @@ def make_default_hvac_params(
         [
             AcadosParameter(
                 name="q_Ti",
-                default=np.array([0.001]),  # weight for indoor temperature residuals
+                default=np.array([0.0005]),  # weight for indoor temperature residuals
                 space=gym.spaces.Box(
                     low=np.array([0.0001]), high=np.array([0.001]), dtype=np.float64
                 ),
