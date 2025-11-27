@@ -426,3 +426,16 @@ def test_forecast_bounds_non_negative() -> None:
     # Verify computation succeeded
     assert ctx is not None
     assert x.shape[0] == 1
+
+
+def test_default_param_in_param_space(hvac_planner_stagewise: HvacPlanner) -> None:
+    """Test that default_param returns parameters within the defined param_space."""
+    N_horizon = hvac_planner_stagewise.cfg.N_horizon
+    obs = create_obs(N_horizon, seed=42)
+
+    param = hvac_planner_stagewise.default_param(obs)
+
+    # Check that each parameter is within the defined space
+    param_space = hvac_planner_stagewise.param_space
+
+    assert param_space.contains(param), "Default parameters are not within the defined param space"

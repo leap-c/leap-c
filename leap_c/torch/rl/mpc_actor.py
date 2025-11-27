@@ -39,6 +39,14 @@ class StochasticMPCActorOutput(NamedTuple):
     status: torch.Tensor | None = None
     ctx: CtxType | None = None
 
+    def __post_init__(self) -> None:
+        if torch.isnan(self.param).any():
+            raise ValueError("NaN detected in StochasticMPCActorOutput.param")
+        if torch.isnan(self.log_prob).any():
+            raise ValueError("NaN detected in StochasticMPCActorOutput.log_prob")
+        if self.action is not None and torch.isnan(self.action).any():
+            raise ValueError("NaN detected in StochasticMPCActorOutput.action")
+
     def select(self, mask: torch.Tensor) -> Self:
         """Select a subset of the output based on the given mask. Discards stats and ctx."""
         return StochasticMPCActorOutput(

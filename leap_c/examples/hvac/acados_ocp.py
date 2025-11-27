@@ -67,14 +67,22 @@ def make_default_hvac_params(
             AcadosParameter(
                 name="solar",
                 default=np.array([200.0]),  # Solar radiation in W/m²
-                space=gym.spaces.Box(low=np.array([0.0]), high=np.array([400.0]), dtype=np.float64),
+                space=gym.spaces.Box(
+                    low=np.array([0.0]),
+                    high=np.array([2000.0]),
+                    dtype=np.float64,
+                ),
                 interface="learnable",
                 end_stages=list(range(N_horizon + 1)) if stagewise else [],
             ),
             AcadosParameter(
                 name="price",
                 default=np.array([0.15]),  # Electricity price in €/kWh
-                space=gym.spaces.Box(low=np.array([0.00]), high=np.array([0.30]), dtype=np.float64),
+                space=gym.spaces.Box(
+                    low=np.array([0.00]),
+                    high=np.array([10.0]),
+                    dtype=np.float64,
+                ),
                 interface="learnable",
                 end_stages=list(range(N_horizon + 1)) if stagewise else [],
             ),
@@ -124,7 +132,7 @@ def make_default_hvac_params(
         [
             AcadosParameter(
                 name="q_Ti",
-                default=np.array([0.001]),  # weight for indoor temperature residuals
+                default=np.array([0.0005]),  # weight for indoor temperature residuals
                 space=gym.spaces.Box(
                     low=np.array([0.0001]), high=np.array([0.001]), dtype=np.float64
                 ),
