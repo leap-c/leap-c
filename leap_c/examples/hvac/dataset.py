@@ -70,7 +70,7 @@ class HvacDataset:
                 If data is None, cfg is used to load data from files.
 
         Note:
-            If data and price_max are provided, they are used directly.
+            If data is provided, it is used directly.
             Otherwise, data is loaded from cfg paths (or default paths if cfg is None).
         """
         self.cfg = cfg or DataConfig()
