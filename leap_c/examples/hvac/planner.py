@@ -312,7 +312,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             # Single observation case
             forecasts = obs[5:].reshape(3, -1).T
             for j, key in enumerate(["temperature", "solar", "price"]):
-                if self.param_manager.has_learnable_param_pattern(f"{key}"):
+                if self.param_manager.has_learnable_param_pattern(f"{key}*"):
                     # Check if parameter is stagewise by checking if stagewise version exists
                     if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
                         # Stagewise parameter
