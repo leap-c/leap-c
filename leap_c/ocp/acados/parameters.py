@@ -438,29 +438,31 @@ class AcadosParameterManager:
         learnable_param_names = self.learnable_parameters.keys()
         return any(fnmatch.fnmatch(name, pattern) for name in learnable_param_names)
 
-    def get_structured_learnable_parameters(
+    def get_labeled_learnable_parameters(
         self,
         param_values: np.ndarray | torch.Tensor,
-        label=None,
-    ) -> struct:
+        label: str,
+    ) -> np.ndarray | torch.Tensor:
         """Get a structured representation of the learnable parameters from flat values.
 
         Args:
             param_values: Flat numpy array of learnable parameter values.
-            label: Optional substring to filter parameters by name.
+            label: Substring to filter parameters by name.
 
         Returns:
-            A CasADi struct with the learnable parameters populated from param_values.
+            A numpy array or torch Tensor corresponding to the parameters
+            matching the label.
         """
-        # Get indices of learnable parameters that include the substring 'label' if provided
-        if label is not None:
-            matching_keys = [key for key in self.learnable_parameters.keys() if label in key]
-        else:
-            matching_keys = list(self.learnable_parameters.keys())
+        if label is None:
+            raise ValueError("Label must be provided to filter learnable parameters.")
 
-        print(matching_keys)
+        keys = [key for key in self.learnable_parameters.keys() if label in key]
 
-        return None
+        if keys == []:
+            raise ValueError(f"No learnable parameters found with label '{label}'.")
+
+        idx = [self.learnable_parameters.f[key] for key in keys]
+        return param_values[..., idx].reshape(-1, len(keys))
 
 
 def _define_starts_and_ends(end_stages: list[int], N_horizon: int) -> tuple[list[int], list[int]]:

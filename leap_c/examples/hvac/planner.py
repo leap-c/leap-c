@@ -4,6 +4,7 @@ from typing import Any, Callable, Sequence
 
 import numpy as np
 import torch
+from scipy.constants import convert_temperature
 
 from leap_c.examples.hvac.acados_ocp import export_parametric_ocp, make_default_hvac_params
 from leap_c.examples.hvac.utils import set_temperature_limits
@@ -176,6 +177,13 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         """
         batch_size = obs.shape[0]
 
+        # Use default parameters if none provided and there are learnable parameters
+        if param is None and self.param_manager.learnable_parameters.size > 0:
+            default_flat = torch.from_numpy(
+                self.param_manager.learnable_parameters_default.cat.full().flatten()
+            ).to(obs.device)
+            param = default_flat.unsqueeze(0).expand(batch_size, -1)
+
         if not isinstance(ctx, HvacPlannerCtx):
             qh = torch.zeros((batch_size, 1), dtype=torch.float64, device=obs.device)
             dqh = torch.zeros((batch_size, 1), dtype=torch.float64, device=obs.device)
@@ -203,26 +211,43 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             "ub_Ti": ub.reshape(batch_size, -1, 1),
         }
 
-        # Set temperature forecasts if they are not learned
-        if not self.param_manager.has_learnable_param_pattern("temperature*"):
-            start_idx = 5
-            overwrites["temperature"] = obs[
-                :, start_idx : start_idx + self.cfg.N_horizon + 1
-            ].reshape(batch_size, -1, 1)
+        obs_idx = {
+            "quarter_hour": 0,
+            "day_of_year": 1,
+            "Ti": 2,
+            "Th": 3,
+            "Te": 4,
+            "temperature": slice(5, 5 + self.cfg.N_horizon + 1),
+            "solar": slice(5 + self.cfg.N_horizon + 1, 5 + 2 * (self.cfg.N_horizon + 1)),
+            "price": slice(5 + 2 * (self.cfg.N_horizon + 1), 5 + 3 * (self.cfg.N_horizon + 1)),
+        }
 
-        # Set solar radiation forecasts if they are not learned
-        if not self.param_manager.has_learnable_param_pattern("solar*"):
-            start_idx = 5 + self.cfg.N_horizon + 1
-            overwrites["solar"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1].reshape(
-                batch_size, -1, 1
-            )
+        sub_param: dict[str, torch.Tensor] = {}
 
-        # Set price forecasts if they are not learned
-        if not self.param_manager.has_learnable_param_pattern("price*"):
-            start_idx = 5 + 2 * (self.cfg.N_horizon + 1)
-            overwrites["price"] = obs[:, start_idx : start_idx + self.cfg.N_horizon + 1].reshape(
-                batch_size, -1, 1
-            )
+        render_info = {
+            "lb_Ti": overwrites["lb_Ti"],
+            "ub_Ti": overwrites["ub_Ti"],
+        }
+
+        for key in [
+            "temperature",
+            "solar",
+            "price",
+            "ref_Ti",
+            "q_Ti",
+            "q_dqh",
+            "q_ddqh",
+        ]:
+            if not self.param_manager.has_learnable_param_pattern(f"{key}*"):
+                # If the forecast parameter is not learned, set it from the observation
+                overwrites[key] = obs[:, obs_idx[key]].reshape(batch_size, -1, 1)
+                render_info[key] = overwrites[key]
+            else:
+                # If the forecast parameter is learned, extract its structured representation
+                sub_param[key] = self.param_manager.get_labeled_learnable_parameters(
+                    param, label=key
+                )
+                render_info[key] = sub_param[key].detach().cpu().numpy()
 
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(**overwrites)
 
@@ -234,22 +259,18 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             ctx=ctx,
         )
 
+        for key in ["temperature", "ref_Ti", "lb_Ti", "ub_Ti"]:
+            render_info[key] = convert_temperature(
+                val=render_info[key],
+                old_scale="kelvin",
+                new_scale="celsius",
+            )
+
         # Prepare render info if parameters are available
-        render_info = None
-        if param is not None:
-            render_info = {
-                "ddqh": u[:, 0, 0].detach().cpu().numpy(),  # First action (acceleration)
-                "u_trajectory": u.detach().cpu().numpy(),  # Full action trajectory
-            }
-            # Extract learnable parameters if they exist
-            try:
-                for param_name in ["q_Ti", "q_dqh", "q_ddqh", "ref_Ti"]:
-                    if self.param_manager.has_learnable_param_pattern(param_name):
-                        idx = self.param_manager.get_learnable_param_index(param_name)
-                        if idx is not None:
-                            render_info[param_name] = param[:, idx].detach().cpu().numpy()
-            except Exception:
-                pass  # If parameter extraction fails, just skip
+        render_info["qh"] = x[:, :, 3].detach().cpu().numpy()  # Heater power trajectory
+        render_info["dqh"] = x[:, :, 4].detach().cpu().numpy()  # Heater power trajectory
+        render_info["u_trajectory"] = u.detach().cpu().numpy()  # Full action trajectory
+        render_info["ddqh"] = render_info["u_trajectory"]
 
         ctx = HvacPlannerCtx(
             **vars(diff_mpc_ctx),
@@ -291,7 +312,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             # Single observation case
             forecasts = obs[5:].reshape(3, -1).T
             for j, key in enumerate(["temperature", "solar", "price"]):
-                if self.param_manager.has_learnable_param_pattern(f"{key}"):
+                if self.param_manager.has_learnable_param_pattern(f"{key}*"):
                     # Check if parameter is stagewise by checking if stagewise version exists
                     if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
                         # Stagewise parameter
@@ -327,7 +348,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                 )
                 # forecasts now has shape (n_batch, N_stages, 3)
                 for j, key in enumerate(["temperature", "solar", "price"]):
-                    if self.param_manager.has_learnable_param_pattern(f"{key}"):
+                    if self.param_manager.has_learnable_param_pattern(f"{key}*"):
                         # Check if parameter is stagewise by checking if stagewise version exists
                         if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
                             # Stagewise parameter
