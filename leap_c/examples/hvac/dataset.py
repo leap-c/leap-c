@@ -271,7 +271,8 @@ class HvacDataset:
 
         raise RuntimeError(
             f"Could not find a valid start date in {max_attempts} attempts. "
-            f"Split: {split}, Allowed weeks: {allowed_weeks}, Valid months: {self.cfg.valid_months}. "
+            f"Split: {split}, Allowed weeks: {allowed_weeks}, "
+            f"Valid months: {self.cfg.valid_months}. "
             "Please check the data and configuration."
         )
 
