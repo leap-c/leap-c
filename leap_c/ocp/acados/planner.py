@@ -75,8 +75,8 @@ class AcadosPlanner(ParameterizedPlanner[CtxType], Generic[CtxType]):
         return self.param_manager.get_param_space()
 
     def default_param(self, obs: ndarray) -> ndarray:
-        if obs.ndim <= 1:
-            raise ValueError("obs must have a batch dimension")
-        batch_size = obs.shape[0]
         default = self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore
+        if obs.ndim <= 1:
+            return default
+        batch_size = obs.shape[0]
         return np.tile(default, (batch_size, 1)) if batch_size > 1 else default[None, :]
