@@ -232,8 +232,8 @@ class AcadosParameterManager:
     ) -> np.ndarray:
         """Combine all learnable parameters and provided overwrites into a single numpy array.
 
-        This can be used to create a batch of default learnable parameter values, which can be used
-        to load for example forecasts into the ocp.
+        This can be used to create a batch of default learnable parameter values. An example would
+        be to load forecasts into the ocp, which depend on the current observation.
 
         Args:
             batch_size: The batch size for the parameters.
