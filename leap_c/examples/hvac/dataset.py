@@ -86,7 +86,7 @@ class HvacDataset:
 
         self.min = {key: self.data[key].min() for key in self.data.columns}
         self.max = {key: self.data[key].max() for key in self.data.columns}
-        
+
         # Generate reproducible train/test split based on week numbers
         self._train_weeks, self._test_weeks = self._generate_week_split()
 
@@ -192,15 +192,15 @@ class HvacDataset:
         """
         # Get all unique week numbers in the dataset
         all_weeks = sorted(set(self.index.isocalendar().week))
-        
+
         # Reproducibly shuffle and split
         rng = np.random.default_rng(self.cfg.split_seed)
         shuffled_weeks = rng.permutation(all_weeks)
-        
+
         n_test = max(1, int(len(all_weeks) * self.cfg.test_ratio))
         test_weeks = set(shuffled_weeks[:n_test])
         train_weeks = set(shuffled_weeks[n_test:])
-        
+
         return train_weeks, test_weeks
 
     def sample_start_index(
@@ -256,17 +256,17 @@ class HvacDataset:
         for _ in range(max_attempts):
             idx = rng.integers(low=min_start_idx, high=max_start_idx + 1)
             date = self.index[idx]
-            
+
             # Check month constraint if specified
             if self.cfg.valid_months is not None and date.month not in self.cfg.valid_months:
                 continue
-            
+
             # Check week constraint if specified
             if allowed_weeks is not None:
                 week_of_year = date.isocalendar()[1]  # ISO week number (1-53)
                 if week_of_year not in allowed_weeks:
                     continue
-            
+
             return idx
 
         raise RuntimeError(
