@@ -24,8 +24,8 @@ class DataConfig:
             Default is heating season months (Jan-Apr, Sep-Dec).
             Set to None to allow all months.
         max_hours: Maximum simulation time in hours for episodes.
-        train_months: Months assigned to training split.
-        test_months: Months assigned to test split.
+        test_ratio: Ratio of weeks to use for testing (0.0 to 1.0).
+        split_seed: Random seed for reproducible train/test split.
     """
 
     price_zone: Literal["NO_1", "NO_2", "NO_3", "DK_1", "DK_2", "DE_LU"] = "NO_1"
@@ -38,10 +38,8 @@ class DataConfig:
     valid_months: list[int] | None = field(
         default_factory=lambda: [1, 2, 3, 4, 9, 10, 11, 12]
     )  # Heating season months: Jan-Apr, Sep-Dec
-    train_months: list[int] | None = field(
-        default_factory=lambda: [1, 2, 3, 9, 10, 11]
-    )  # 6 months for training
-    test_months: list[int] | None = field(default_factory=lambda: [4, 12])  # 2 months for testing
+    test_ratio: float = 0.2  # 20% of weeks for testing
+    split_seed: int = 42  # Seed for reproducible train/test split
 
 
 class HvacDataset:
@@ -88,6 +86,9 @@ class HvacDataset:
 
         self.min = {key: self.data[key].min() for key in self.data.columns}
         self.max = {key: self.data[key].max() for key in self.data.columns}
+        
+        # Generate reproducible train/test split based on week numbers
+        self._train_weeks, self._test_weeks = self._generate_week_split()
 
     def __len__(self) -> int:
         """Total number of timesteps in dataset."""
@@ -183,6 +184,25 @@ class HvacDataset:
         """
         return 0 <= idx < len(self.data) - horizon
 
+    def _generate_week_split(self) -> tuple[set[int], set[int]]:
+        """Generate reproducible train/test split by week numbers.
+
+        Returns:
+            Tuple of (train_weeks, test_weeks) as sets of ISO week numbers.
+        """
+        # Get all unique week numbers in the dataset
+        all_weeks = sorted(set(self.index.isocalendar().week))
+        
+        # Reproducibly shuffle and split
+        rng = np.random.default_rng(self.cfg.split_seed)
+        shuffled_weeks = rng.permutation(all_weeks)
+        
+        n_test = max(1, int(len(all_weeks) * self.cfg.test_ratio))
+        test_weeks = set(shuffled_weeks[:n_test])
+        train_weeks = set(shuffled_weeks[n_test:])
+        
+        return train_weeks, test_weeks
+
     def sample_start_index(
         self,
         rng: np.random.Generator,
@@ -218,30 +238,40 @@ class HvacDataset:
                 f"but dataset has only {len(self.data)} steps."
             )
 
-        # Determine which months to sample from based on split
+        # Determine which weeks to sample from based on split
         if split == "all":
-            allowed_months = self.cfg.valid_months
+            allowed_weeks = None
         elif split == "train":
-            allowed_months = self.cfg.train_months
+            allowed_weeks = self._train_weeks
         elif split == "test":
-            allowed_months = self.cfg.test_months
+            allowed_weeks = self._test_weeks
         else:
             raise ValueError(f"Invalid split value: {split}. Must be 'train', 'test', or 'all'.")
 
-        # If no month filtering, return random index directly
-        if allowed_months is None:
+        # If no filtering at all, return random index directly
+        if allowed_weeks is None and self.cfg.valid_months is None:
             return rng.integers(low=min_start_idx, high=max_start_idx + 1)
 
-        # Sample with month filtering
+        # Sample with week and/or month filtering
         for _ in range(max_attempts):
             idx = rng.integers(low=min_start_idx, high=max_start_idx + 1)
             date = self.index[idx]
-            if date.month in allowed_months:
-                return idx
+            
+            # Check month constraint if specified
+            if self.cfg.valid_months is not None and date.month not in self.cfg.valid_months:
+                continue
+            
+            # Check week constraint if specified
+            if allowed_weeks is not None:
+                week_of_year = date.isocalendar()[1]  # ISO week number (1-53)
+                if week_of_year not in allowed_weeks:
+                    continue
+            
+            return idx
 
         raise RuntimeError(
             f"Could not find a valid start date in {max_attempts} attempts. "
-            f"Split: {split}, Allowed months: {allowed_months}. "
+            f"Split: {split}, Allowed weeks: {allowed_weeks}, Valid months: {self.cfg.valid_months}. "
             "Please check the data and configuration."
         )
 
