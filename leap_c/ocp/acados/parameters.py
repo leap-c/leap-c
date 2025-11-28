@@ -227,6 +227,136 @@ class AcadosParameterManager:
             if self.parameters[key].interface == "non-learnable":
                 self.non_learnable_parameters_default[key] = self.parameters[key].default
 
+    def combine_default_learnable_parameter_values(
+        self, batch_size: int | None = None, **overwrites: np.ndarray
+    ) -> np.ndarray:
+        """Combine all learnable parameters and provided overwrites into a single numpy array.
+
+        This can be used to create a batch of default learnable parameter values, which can be used
+        to load for example forecasts into the ocp.
+
+        Args:
+            batch_size: The batch size for the parameters.
+                Not needed if overwrites is provided.
+            **overwrites: Overwrite values for specific parameters.
+                The keys should correspond to the parameter names to overwrite.
+                For stage-varying parameters (those with end_stages), the values need to be
+                np.ndarray with shape `(batch_size, N_horizon + 1)` or
+                `(batch_size, N_horizon + 1, pdim)`.
+                For non-stage-varying parameters, shape `(batch_size,)` or `(batch_size, pdim)`.
+
+        Returns:
+            np.ndarray: shape `(batch_size, N_learnable)` with `N_learnable` being the total
+            number of learnable parameter values.
+        """
+        # Infer batch size from overwrites if not provided
+        inferred_batch_size = (
+            next(iter(overwrites.values())).shape[0] if overwrites else None
+        )
+        
+        # Validate batch_size consistency
+        if batch_size is not None and inferred_batch_size is not None:
+            if batch_size != inferred_batch_size:
+                raise ValueError(
+                    f"Provided batch_size={batch_size} does not match "
+                    f"inferred batch_size={inferred_batch_size} from overwrites."
+                )
+        
+        batch_size = inferred_batch_size if inferred_batch_size is not None else batch_size or 1
+
+        # Get default parameter array and tile for batch
+        default_flat = self.learnable_parameters_default.cat.full().flatten()
+        batch_param = np.tile(default_flat, (batch_size, 1))
+
+        if not overwrites:
+            return batch_param
+
+        # Build index mappings for efficient vectorized assignment
+        for param_name, values in overwrites.items():
+            if param_name not in self.parameters:
+                raise ValueError(
+                    f"Parameter '{param_name}' not found. "
+                    f"Available parameters: {list(self.parameters.keys())}"
+                )
+
+            param = self.parameters[param_name]
+
+            if param.interface != "learnable":
+                raise ValueError(
+                    f"Parameter '{param_name}' has interface '{param.interface}', "
+                    "but only 'learnable' parameters can be used in this method."
+                )
+
+            # Ensure values has correct batch dimension
+            if values.shape[0] != batch_size:
+                raise ValueError(
+                    f"Parameter '{param_name}' values have batch size {values.shape[0]}, "
+                    f"but expected {batch_size}."
+                )
+
+            if param.end_stages:
+                # Stage-varying parameter
+                Np1 = self.N_horizon + 1
+                starts, ends = _define_starts_and_ends(
+                    end_stages=param.end_stages, N_horizon=self.N_horizon
+                )
+
+                # Expected shape: (batch_size, N_horizon + 1) or (batch_size, N_horizon + 1, pdim)
+                if values.shape[1] != Np1:
+                    raise ValueError(
+                        f"Parameter '{param_name}' is stage-varying and requires shape "
+                        f"(batch_size, {Np1}, ...), but got shape {values.shape}."
+                    )
+
+                # Reshape to (batch_size, N_horizon + 1, -1) for consistent handling
+                values_reshaped = values.reshape(batch_size, Np1, -1)
+
+                # Assign each block separately (blocks share the same parameter value)
+                for start, end in zip(starts, ends):
+                    param_key = f"{param_name}_{start}_{end}"
+                    try:
+                        param_idx = self.learnable_parameters.f[param_key]
+                    except KeyError as e:
+                        raise KeyError(
+                            f"Learnable parameter '{param_key}' not found."
+                        ) from e
+
+                    # All stages in this block use the value from the start stage
+                    block_value = values_reshaped[:, start, :]
+                    # Handle scalar vs vector parameters
+                    if isinstance(param_idx, (list, np.ndarray)):
+                        # Vector parameter
+                        batch_param[:, param_idx] = block_value
+                    else:
+                        # Scalar parameter
+                        if block_value.shape[-1] == 1:
+                            batch_param[:, param_idx] = block_value.squeeze(-1)
+                        else:
+                            batch_param[:, param_idx] = block_value
+
+            else:
+                # Non-stage-varying parameter - single value per batch
+                param_key = param_name
+                try:
+                    param_idx = self.learnable_parameters.f[param_key]
+                except KeyError as e:
+                    raise KeyError(f"Learnable parameter '{param_key}' not found.") from e
+
+                # Reshape to handle both scalar and vector parameters
+                values_reshaped = values.reshape(batch_size, -1)
+                # Handle the parameter index which might be scalar or vector
+                if isinstance(param_idx, (list, np.ndarray)):
+                    # Vector parameter
+                    batch_param[:, param_idx] = values_reshaped
+                else:
+                    # Scalar parameter - need to flatten
+                    if values_reshaped.shape[-1] == 1:
+                        batch_param[:, param_idx] = values_reshaped.squeeze(-1)
+                    else:
+                        batch_param[:, param_idx] = values_reshaped
+
+        return batch_param
+
     def combine_non_learnable_parameter_values(
         self, batch_size: int | None = None, **overwrite: np.ndarray
     ) -> np.ndarray:
@@ -334,6 +464,7 @@ class AcadosParameterManager:
             # Multiple spaces
             tuple_space = gym.spaces.Tuple(learnable_spaces)
             return gym.spaces.utils.flatten_space(tuple_space)
+        
 
     def get(self, name: str) -> ca.SX | ca.MX | np.ndarray:
         """Get the variable of a given name.

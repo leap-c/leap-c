@@ -1196,6 +1196,153 @@ def test_casadi_function_with_parameter_manager():
         np.testing.assert_allclose(float(result), expected_result, rtol=1e-6)
 
 
+def test_combine_default_learnable_parameter_values_basic():
+    """Test combine_default_learnable_parameter_values with basic parameters."""
+    N_horizon = 5
+    params = [
+        AcadosParameter(name="scalar", default=np.array([1.0]), interface="learnable"),
+        AcadosParameter(name="vector", default=np.array([2.0, 3.0]), interface="learnable"),
+    ]
+
+    manager = AcadosParameterManager(params, N_horizon=N_horizon)
+
+    # Test default values without overwrites
+    batch_size = 3
+    result = manager.combine_default_learnable_parameter_values(batch_size=batch_size)
+
+    # Expected: tiled default values
+    default_flat = manager.learnable_parameters_default.cat.full().flatten()
+    expected = np.tile(default_flat, (batch_size, 1))
+
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (batch_size, len(default_flat))
+
+
+def test_combine_default_learnable_parameter_values_with_overwrites():
+    """Test combine_default_learnable_parameter_values with overwrites for non-stagewise params."""
+    N_horizon = 5
+    params = [
+        AcadosParameter(name="scalar", default=np.array([1.0]), interface="learnable"),
+        AcadosParameter(name="vector", default=np.array([2.0, 3.0]), interface="learnable"),
+    ]
+
+    manager = AcadosParameterManager(params, N_horizon=N_horizon)
+
+    batch_size = 3
+    # Overwrite scalar with custom values
+    scalar_values = np.array([[10.0], [20.0], [30.0]])
+
+    result = manager.combine_default_learnable_parameter_values(
+        batch_size=batch_size, scalar=scalar_values
+    )
+
+    # Check that scalar was overwritten
+    scalar_idx = manager.learnable_parameters.f["scalar"]
+    np.testing.assert_array_equal(result[:, scalar_idx], scalar_values)
+
+    # Check that vector kept default values
+    vector_idx = manager.learnable_parameters.f["vector"]
+    expected_vector = np.tile([[2.0], [3.0]], (1, batch_size)).T
+    np.testing.assert_array_equal(result[:, vector_idx], expected_vector)
+
+
+def test_combine_default_learnable_parameter_values_stagewise():
+    """Test combine_default_learnable_parameter_values with stagewise parameters."""
+    N_horizon = 5
+    params = [
+        AcadosParameter(
+            name="temperature",
+            default=np.array([20.0]),
+            interface="learnable",
+            end_stages=[2, N_horizon],
+        ),
+        AcadosParameter(
+            name="price",
+            default=np.array([10.0]),
+            interface="learnable",
+            end_stages=[N_horizon],
+        ),
+    ]
+
+    manager = AcadosParameterManager(params, N_horizon=N_horizon)
+
+    batch_size = 2
+    # Provide stage-varying forecasts: shape (batch_size, N_horizon + 1)
+    temperature_forecast = np.array(
+        [[15.0, 16.0, 17.0, 18.0, 19.0, 20.0], [25.0, 26.0, 27.0, 28.0, 29.0, 30.0]]
+    )
+
+    price_forecast = np.array(
+        [[5.0, 6.0, 7.0, 8.0, 9.0, 10.0], [15.0, 16.0, 17.0, 18.0, 19.0, 20.0]]
+    )
+
+    result = manager.combine_default_learnable_parameter_values(
+        batch_size=batch_size, temperature=temperature_forecast, price=price_forecast
+    )
+
+    # Verify temperature stages
+    temp_0_2_idx = manager.learnable_parameters.f["temperature_0_2"]
+    temp_3_5_idx = manager.learnable_parameters.f["temperature_3_5"]
+
+    # For batch 0: stages 0-2 should all have first block value, stages 3-5 second block
+    np.testing.assert_array_equal(result[0, temp_0_2_idx], temperature_forecast[0, 0])
+    np.testing.assert_array_equal(result[0, temp_3_5_idx], temperature_forecast[0, 3])
+
+    # For batch 1
+    np.testing.assert_array_equal(result[1, temp_0_2_idx], temperature_forecast[1, 0])
+    np.testing.assert_array_equal(result[1, temp_3_5_idx], temperature_forecast[1, 3])
+
+    # Verify price (single stage block 0-5)
+    price_0_5_idx = manager.learnable_parameters.f["price_0_5"]
+    np.testing.assert_array_equal(result[0, price_0_5_idx], price_forecast[0, 0])
+    np.testing.assert_array_equal(result[1, price_0_5_idx], price_forecast[1, 0])
+
+
+def test_combine_default_learnable_parameter_values_errors():
+    """Test error handling in combine_default_learnable_parameter_values."""
+    N_horizon = 5
+    params = [
+        AcadosParameter(name="scalar", default=np.array([1.0]), interface="learnable"),
+        AcadosParameter(
+            name="temperature",
+            default=np.array([20.0]),
+            interface="learnable",
+            end_stages=[2, N_horizon],
+        ),
+    ]
+
+    manager = AcadosParameterManager(params, N_horizon=N_horizon)
+
+    # Test error for unknown parameter
+    with pytest.raises(ValueError, match="Parameter 'unknown' not found"):
+        manager.combine_default_learnable_parameter_values(
+            batch_size=2, unknown=np.array([[1.0], [2.0]])
+        )
+
+    # Test error for non-learnable parameter
+    params_non_learnable = [
+        AcadosParameter(name="non_learn", default=np.array([1.0]), interface="non-learnable")
+    ]
+    manager2 = AcadosParameterManager(params_non_learnable, N_horizon=N_horizon)
+
+    with pytest.raises(ValueError, match="has interface 'non-learnable'"):
+        manager2.combine_default_learnable_parameter_values(
+            batch_size=2, non_learn=np.array([[1.0], [2.0]])
+        )
+
+    # Test error for wrong batch size
+    with pytest.raises(ValueError, match="batch_size=2 does not match.*batch_size=3"):
+        manager.combine_default_learnable_parameter_values(
+            batch_size=2, scalar=np.array([[1.0], [2.0], [3.0]])
+        )
+
+    # Test error for wrong shape in stagewise parameter
+    with pytest.raises(ValueError, match="requires shape \\(batch_size, 6"):
+        manager.combine_default_learnable_parameter_values(
+            batch_size=2, temperature=np.array([[1.0], [2.0]])  # Should be (2, 6)
+        )
+
+
 def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     nominal_stagewise_params: tuple[AcadosParameter, ...],
     acados_test_ocp_no_p_global: AcadosOcp,

@@ -296,78 +296,40 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         match the stages in the parameters. No block-wise varying parameters
         are supported here.
         """
-        param = self.param_manager.learnable_parameters(
-            self.param_manager.learnable_parameters_default.cat.full().flatten()
+        if not self.cfg.stagewise or obs is None:
+            # Use parameter manager's method for defaults
+            if obs is None:
+                return self.param_manager.learnable_parameters_default.cat.full().flatten()
+            batch_size = obs.shape[0] if obs.ndim == 2 else 1
+            return self.param_manager.combine_default_learnable_parameter_values(
+                batch_size=batch_size
+            )
+
+        # Handle both single and batched observations uniformly
+        # Ensure obs is 2D: (n_batch, obs_dim)
+        obs_2d = obs if obs.ndim == 2 else obs[np.newaxis, :]
+        n_batch = obs_2d.shape[0]
+        
+        # Extract forecasts: shape (n_batch, n_stages, 3)
+        n_stages = self.cfg.N_horizon + 1
+        forecasts = np.asarray(obs_2d[:, 5:]).reshape(n_batch, 3, -1).transpose(0, 2, 1)
+        
+        # Truncate forecasts to match the horizon length
+        forecasts = forecasts[:, :n_stages, :]
+
+        # Prepare overwrites dict for learnable forecast parameters
+        overwrites = {}
+        forecast_keys = ["temperature", "solar", "price"]
+        
+        for j, key in enumerate(forecast_keys):
+            if self.param_manager.has_learnable_param_pattern(f"{key}*"):
+                # This parameter is learnable, add to overwrites
+                overwrites[key] = forecasts[:, :, j]
+
+        # Use parameter manager's efficient method
+        batch_param = self.param_manager.combine_default_learnable_parameter_values(
+            batch_size=n_batch, **overwrites
         )
 
-        if not self.cfg.stagewise or obs is None:
-            default_param = param.cat.full().flatten()
-            # If obs is batched, repeat default params for each batch
-            if obs is not None and obs.ndim == 2:
-                n_batch = obs.shape[0]
-                return np.tile(default_param, (n_batch, 1))
-            return default_param
-
-        if obs.ndim == 1:
-            # Single observation case
-            forecasts = obs[5:].reshape(3, -1).T
-            for j, key in enumerate(["temperature", "solar", "price"]):
-                if self.param_manager.has_learnable_param_pattern(f"{key}*"):
-                    # Check if parameter is stagewise by checking if stagewise version exists
-                    if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
-                        # Stagewise parameter
-                        for stage in range(
-                            self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1
-                        ):
-                            try:
-                                param[f"{key}_{stage}_{stage}"] = forecasts[stage, j]
-                            except KeyError as e:
-                                raise KeyError(
-                                    f"Learnable parameter '{key}_{stage}_{stage}' not found."
-                                ) from e
-                    else:
-                        # Non-stagewise parameter - set single value
-                        try:
-                            param[f"{key}"] = forecasts[0, j]
-                        except KeyError as e:
-                            raise KeyError(f"Learnable parameter '{key}' not found.") from e
-
-            return param.cat.full().flatten()
-        else:
-            # Batched observation case: obs has shape (n_batch, obs_dim)
-            n_batch = obs.shape[0]
-            forecasts = np.asarray(obs[:, 5:]).reshape(n_batch, 3, -1).transpose(0, 2, 1)
-
-            # Get n_param from the flattened default parameters
-            n_param = len(param.cat.full().flatten())
-            batch_param = np.zeros((n_batch, n_param))
-
-            for i in range(n_batch):
-                param = self.param_manager.learnable_parameters(
-                    self.param_manager.learnable_parameters_default.cat.full().flatten()
-                )
-                # forecasts now has shape (n_batch, N_stages, 3)
-                for j, key in enumerate(["temperature", "solar", "price"]):
-                    if self.param_manager.has_learnable_param_pattern(f"{key}*"):
-                        # Check if parameter is stagewise by checking if stagewise version exists
-                        if self.param_manager.has_learnable_param_pattern(f"{key}_*_*"):
-                            # Stagewise parameter
-                            for stage in range(
-                                self.diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1
-                            ):
-                                try:
-                                    param[f"{key}_{stage}_{stage}"] = forecasts[i, stage, j]
-                                except KeyError as e:
-                                    raise KeyError(
-                                        f"Learnable parameter '{key}_{stage}_{stage}' not found."
-                                    ) from e
-                        else:
-                            # Non-stagewise parameter - set single value
-                            try:
-                                param[f"{key}"] = forecasts[i, 0, j]
-                            except KeyError as e:
-                                raise KeyError(f"Learnable parameter '{key}' not found.") from e
-
-                batch_param[i, :] = param.cat.full().flatten()
-
-            return batch_param
+        # Return single array if input was single observation
+        return batch_param[0] if obs.ndim == 1 else batch_param
