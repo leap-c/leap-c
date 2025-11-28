@@ -194,7 +194,7 @@ def create_planner_with_custom_params(
 
     # Modify the interface for temperature, solar, and price based on arguments
     for i, param in enumerate(params):
-        if param.name == "temperature" and ta_learnable:
+        if param.name == "temperature":
             params[i] = AcadosParameter(
                 name=param.name,
                 default=param.default,
@@ -202,7 +202,7 @@ def create_planner_with_custom_params(
                 interface="learnable" if ta_learnable else "non-learnable",
                 end_stages=param.end_stages,
             )
-        elif param.name == "solar" and solar_learnable:
+        elif param.name == "solar":
             params[i] = AcadosParameter(
                 name=param.name,
                 default=param.default,
@@ -210,7 +210,7 @@ def create_planner_with_custom_params(
                 interface="learnable" if solar_learnable else "non-learnable",
                 end_stages=param.end_stages,
             )
-        elif param.name == "price" and price_learnable:
+        elif param.name == "price":
             params[i] = AcadosParameter(
                 name=param.name,
                 default=param.default,
