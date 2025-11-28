@@ -116,9 +116,9 @@ def test_default_param_non_stagewise(hvac_planner_non_stagewise: HvacPlanner) ->
     N_horizon = hvac_planner_non_stagewise.cfg.N_horizon
 
     # Single observation
-    obs_single = create_obs(N_horizon, seed=42)
+    obs_single = np.stack([create_obs(N_horizon, seed=42)])
     param_single = hvac_planner_non_stagewise.default_param(obs_single)
-    assert param_single.ndim == 1
+    assert param_single.ndim == 2
 
     # Batched observation
     n_batch = 3
@@ -128,7 +128,7 @@ def test_default_param_non_stagewise(hvac_planner_non_stagewise: HvacPlanner) ->
     # When stagewise=False, all params should be the same (default)
     assert param_batch.ndim == 2
     assert param_batch.shape[0] == n_batch
-    assert param_batch.shape[1] == len(param_single)
+    assert param_batch.shape[1] == len(param_single[0])
 
 
 def test_default_param_none_obs(hvac_planner_stagewise: HvacPlanner) -> None:
@@ -173,9 +173,9 @@ def test_forecast_extraction(hvac_planner_stagewise: HvacPlanner) -> None:
 def create_planner_with_custom_params(
     N_horizon: int,
     stagewise: bool,
-    ta_learnable: bool = True,
-    solar_learnable: bool = True,
-    price_learnable: bool = True,
+    ta_learnable: bool = False,
+    solar_learnable: bool = False,
+    price_learnable: bool = False,
 ) -> HvacPlanner:
     """Create a planner with custom parameter learnability settings.
 
@@ -189,33 +189,33 @@ def create_planner_with_custom_params(
     Returns:
         HvacPlanner with custom parameter configuration.
     """
-    # Get default params
+    # Get default params (now temperature, solar, price are non-learnable by default)
     params = list(make_default_hvac_params(stagewise=stagewise, N_horizon=N_horizon))
 
     # Modify the interface for temperature, solar, and price based on arguments
     for i, param in enumerate(params):
-        if param.name == "temperature" and not ta_learnable:
+        if param.name == "temperature" and ta_learnable:
             params[i] = AcadosParameter(
                 name=param.name,
                 default=param.default,
                 space=param.space,
-                interface="non-learnable",
+                interface="learnable" if ta_learnable else "non-learnable",
                 end_stages=param.end_stages,
             )
-        elif param.name == "solar" and not solar_learnable:
+        elif param.name == "solar" and solar_learnable:
             params[i] = AcadosParameter(
                 name=param.name,
                 default=param.default,
                 space=param.space,
-                interface="non-learnable",
+                interface="learnable" if solar_learnable else "non-learnable",
                 end_stages=param.end_stages,
             )
-        elif param.name == "price" and not price_learnable:
+        elif param.name == "price" and price_learnable:
             params[i] = AcadosParameter(
                 name=param.name,
                 default=param.default,
                 space=param.space,
-                interface="non-learnable",
+                interface="learnable" if price_learnable else "non-learnable",
                 end_stages=param.end_stages,
             )
 
@@ -230,9 +230,9 @@ def test_all_forecasts_non_learnable(batch_size: int) -> None:
     planner = create_planner_with_custom_params(
         N_horizon=N_horizon,
         stagewise=True,
-        ta_learnable=False,
-        solar_learnable=False,
-        price_learnable=False,
+        ta_learnable=False,  # default, but explicit for clarity
+        solar_learnable=False,  # default, but explicit for clarity
+        price_learnable=False,  # default, but explicit for clarity
     )
 
     # Create observations
@@ -344,9 +344,9 @@ def test_forecast_extraction_indices() -> None:
     planner = create_planner_with_custom_params(
         N_horizon=N_horizon,
         stagewise=True,
-        ta_learnable=False,
-        solar_learnable=False,
-        price_learnable=False,
+        ta_learnable=False,  # default
+        solar_learnable=False,  # default
+        price_learnable=False,  # default
     )
 
     # Create observation with known values
@@ -378,9 +378,9 @@ def test_forecast_with_different_horizons() -> None:
         planner = create_planner_with_custom_params(
             N_horizon=N_horizon,
             stagewise=True,
-            ta_learnable=False,
-            solar_learnable=True,  # Mix learnable and non-learnable
-            price_learnable=False,
+            ta_learnable=False,  # default
+            solar_learnable=True,  # Make this learnable to test mixed scenario
+            price_learnable=False,  # default
         )
 
         obs = create_obs(N_horizon, seed=42)
@@ -405,9 +405,9 @@ def test_forecast_bounds_non_negative() -> None:
     planner = create_planner_with_custom_params(
         N_horizon=N_horizon,
         stagewise=True,
-        ta_learnable=False,
-        solar_learnable=False,
-        price_learnable=False,
+        ta_learnable=False,  # default
+        solar_learnable=False,  # default
+        price_learnable=False,  # default
     )
 
     # Create observation - solar values should be non-negative
