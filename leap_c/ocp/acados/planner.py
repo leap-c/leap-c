@@ -1,6 +1,7 @@
 from typing import Generic, get_args
 
 import gymnasium as gym
+import numpy as np
 import torch
 from numpy import ndarray
 
@@ -73,5 +74,9 @@ class AcadosPlanner(ParameterizedPlanner[CtxType], Generic[CtxType]):
     def param_space(self) -> gym.Space:
         return self.param_manager.get_param_space()
 
-    def default_param(self, obs: ndarray | None) -> ndarray:
-        return self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore
+    def default_param(self, obs: ndarray) -> ndarray:
+        if obs.ndim <= 1:
+            raise ValueError("obs must have a batch dimension")
+        batch_size = obs.shape[0]
+        default = self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore
+        return np.tile(default, (batch_size, 1)) if batch_size > 1 else default[None, :]
