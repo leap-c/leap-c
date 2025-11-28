@@ -309,18 +309,18 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         # Ensure obs is 2D: (n_batch, obs_dim)
         obs_2d = obs if obs.ndim == 2 else obs[np.newaxis, :]
         n_batch = obs_2d.shape[0]
-        
+
         # Extract forecasts: shape (n_batch, n_stages, 3)
         n_stages = self.cfg.N_horizon + 1
         forecasts = np.asarray(obs_2d[:, 5:]).reshape(n_batch, 3, -1).transpose(0, 2, 1)
-        
+
         # Truncate forecasts to match the horizon length
         forecasts = forecasts[:, :n_stages, :]
 
         # Prepare overwrites dict for learnable forecast parameters
         overwrites = {}
         forecast_keys = ["temperature", "solar", "price"]
-        
+
         for j, key in enumerate(forecast_keys):
             if self.param_manager.has_learnable_param_pattern(f"{key}*"):
                 # This parameter is learnable, add to overwrites

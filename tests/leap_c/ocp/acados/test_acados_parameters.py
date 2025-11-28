@@ -1339,7 +1339,8 @@ def test_combine_default_learnable_parameter_values_errors():
     # Test error for wrong shape in stagewise parameter
     with pytest.raises(ValueError, match="requires shape \\(batch_size, 6"):
         manager.combine_default_learnable_parameter_values(
-            batch_size=2, temperature=np.array([[1.0], [2.0]])  # Should be (2, 6)
+            batch_size=2,
+            temperature=np.array([[1.0], [2.0]]),  # Should be (2, 6)
         )
 
 

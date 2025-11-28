@@ -250,10 +250,8 @@ class AcadosParameterManager:
             number of learnable parameter values.
         """
         # Infer batch size from overwrites if not provided
-        inferred_batch_size = (
-            next(iter(overwrites.values())).shape[0] if overwrites else None
-        )
-        
+        inferred_batch_size = next(iter(overwrites.values())).shape[0] if overwrites else None
+
         # Validate batch_size consistency
         if batch_size is not None and inferred_batch_size is not None:
             if batch_size != inferred_batch_size:
@@ -261,7 +259,7 @@ class AcadosParameterManager:
                     f"Provided batch_size={batch_size} does not match "
                     f"inferred batch_size={inferred_batch_size} from overwrites."
                 )
-        
+
         batch_size = inferred_batch_size if inferred_batch_size is not None else batch_size or 1
 
         # Get default parameter array and tile for batch
@@ -317,9 +315,7 @@ class AcadosParameterManager:
                     try:
                         param_idx = self.learnable_parameters.f[param_key]
                     except KeyError as e:
-                        raise KeyError(
-                            f"Learnable parameter '{param_key}' not found."
-                        ) from e
+                        raise KeyError(f"Learnable parameter '{param_key}' not found.") from e
 
                     # All stages in this block use the value from the start stage
                     block_value = values_reshaped[:, start, :]
@@ -464,7 +460,6 @@ class AcadosParameterManager:
             # Multiple spaces
             tuple_space = gym.spaces.Tuple(learnable_spaces)
             return gym.spaces.utils.flatten_space(tuple_space)
-        
 
     def get(self, name: str) -> ca.SX | ca.MX | np.ndarray:
         """Get the variable of a given name.
