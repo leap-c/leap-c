@@ -22,7 +22,7 @@ def test_chain_policy_evaluation_works(chain_controller):
 
     obs = torch.tensor(x0, dtype=torch.float32).unsqueeze(0)
     default_param = chain_controller.default_param(obs)
-    default_param = torch.as_tensor(default_param, dtype=torch.float32).unsqueeze(0)
+    default_param = torch.as_tensor(default_param, dtype=torch.float32)
 
     ctx, _ = chain_controller(obs, default_param)
 
