@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Generator, Generic
 
 import gymnasium as gym
+import torch
 from numpy import ndarray
 
 from leap_c.controller import CtxType, ParameterizedController
@@ -80,9 +81,9 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig, CtxType], Generic[CtxTy
     ) -> tuple[ndarray, Any, dict[str, float] | None]:
         """Use the controller with default parameters."""
         obs_batched = self.collate_fn([obs])
-        default_param = self.controller.default_param(obs)
-        param_batched = self.collate_fn([default_param])
-        ctx, action = self.controller(obs_batched, param_batched, ctx=state)
+        default_param = self.controller.default_param(obs_batched)
+        default_param = torch.from_numpy(default_param).to(self.device)
+        ctx, action = self.controller(obs_batched, default_param, ctx=state)
         action = action.cpu().numpy()[0]
         return action, ctx, ctx.log
 
