@@ -58,7 +58,7 @@ class HvacPlannerConfig:
             (ambient temperature, solar radiation, prices).
     """
 
-    N_horizon: int = 96  # 24 hours in 15 minutes time steps
+    N_horizon: int = 24 * 4 - 1  # 24 hours in 15 minutes time steps
     stagewise: bool = False
 
 

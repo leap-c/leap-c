@@ -61,7 +61,7 @@ class ForecastConfig:
             ('low', 'medium', 'high'), or None to disable.
     """
 
-    horizon_hours: int = 25  # prediction horizon in hours
+    horizon_hours: int = 24  # prediction horizon in hours
     temp_uncertainty: TemperatureUncertaintyConfig | Literal["low", "medium", "high"] | None = None
     solar_uncertainty: SolarUncertaintyConfig | Literal["low", "medium", "high"] | None = None
 
