@@ -7,7 +7,11 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
+import openmeteo_requests
 import pandas as pd
+import requests
+import requests_cache
+from retry_requests import retry
 from scipy.constants import convert_temperature
 
 
@@ -282,75 +286,140 @@ class HvacDataset:
 # ============================================================================
 
 
-def load_price_data(csv_path: str | Path, price_zone: str = "NO_1") -> pd.DataFrame:
+def load_price_data(
+    csv_path: str | Path,
+    price_zone: str = "NO1",
+    start_date: str = "2017-01-01",
+    end_date: str = "2017-11-30",
+) -> pd.DataFrame:
     """Load electricity price data from CSV file.
 
     Args:
         csv_path: Path to the price CSV file
         price_zone: Electricity price zone.
+        start_date: Start date for filtering price data.
+        end_date: End date for filtering price data.
 
     Returns:
         DataFrame with processed price data
-    """
-    price_data = []
 
-    for file in csv_path.iterdir():
-        if (
-            file.is_file()
-            and file.name.startswith(
-                "energy-charts_Electricity_production_and_spot_prices_in_Norway"
-            )
-            and file.suffix == ".csv"
-        ):
-            # price_data_path.append(file)
-            price_data.append(
-                load_and_preprocess_energy_chart(
-                    file_path=file,
-                    price_zone=price_zone,
-                )
-            )
-    price_data = pd.concat(price_data).sort_index().resample("15min").ffill()
+    """
+    # Check if file exists
+    csv_path = Path(csv_path)
+    try:
+        price_data = pd.read_csv(csv_path)
+        # TODO: Need to take care that the price zone exists in the data.
+        # If not, download separately and append it to the existing dataset.
+    except FileNotFoundError:
+        print(f"WARNING: Price data file not found: {csv_path}")
+        price_data = get_energy_charts_data(
+            price_zone=price_zone,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        price_data.to_csv(csv_path, index=True)
 
     return price_data
 
 
-def load_and_preprocess_energy_chart(file_path: str, price_zone: str = "NO_1") -> pd.DataFrame:
-    """Load and preprocess energy chart data for a given price zone.
+def get_energy_charts_data(
+    price_zone: str,
+    start_date: str,
+    end_date: str,
+) -> pd.DataFrame:
+    """Download and preprocess energy chart data for a given price zone.
 
     The data file is available for, e.g., 2020, at:
     https://energy-charts.info/charts/price_spot_market/chart.htm?l=en&c=NO&year=2020&interval=year&minuteInterval=60min
     """
-    # Load the dataset, skipping the second row which contains units
-    df = pd.read_csv(file_path, skiprows=[0, 2])
+    # API endpoint and parameters
 
-    # Parse the date column and set it as index
-    df["Date (GMT+1)"] = pd.to_datetime(df["Date (GMT+1)"], utc=True)
-
-    # Rename to Timestamp
-    df.rename(columns={"Date (GMT+1)": "Timestamp"}, inplace=True)
-    df.rename(
-        columns={
-            f"Day Ahead Auction ({price_zone.replace('_', '')})": price_zone,
+    # Make the request
+    response = requests.get(
+        url="https://api.energy-charts.info/price",
+        params={
+            "bzn": price_zone.replace("_", ""),
+            "start": f"{start_date}T00:00",
+            "end": f"{end_date}T00:00",
         },
-        inplace=True,
     )
 
+    # Check if request was successful
+    if response.status_code == 200:
+        print("Data downloaded successfully!")
+    else:
+        print(f"Error: {response.status_code}")
+        print(response.text)
+
+    df = pd.DataFrame(response.json())[["unix_seconds", "price", "unit"]]
+
+    df["Timestamp"] = pd.to_datetime(df["unix_seconds"], unit="s", utc=True).dt.tz_convert(
+        "Europe/Oslo"
+    )
+
+    # Set datetime as index and sort
     df.set_index("Timestamp", inplace=True)
 
-    # Select relevant column and convert to EUR/kWh
-    df = df[[price_zone]] * 1e-3
+    df = df.drop(columns=["unix_seconds", "unit"])
+
+    # Assume unit is EUR/MWh, convert to EUR/kWh
+    df["price"] = df["price"] / 1000.0
 
     return df
 
 
-def load_and_preprocess_open_meteo(csv_path: str) -> pd.DataFrame:
-    """Load and preprocess weather data from Open-Meteo.
+def get_open_meteo_data(
+    latitude: float = 59.91387,
+    longitude: float = 10.7522,
+    start_date: str = "2017-01-01",
+    end_date: str = "2017-11-26",
+    timezone: str = "Europe/Berlin",
+) -> pd.DataFrame:
+    """Download and preprocess Oslo weather data from Open-Meteo.
 
     The data file is available at:
     https://open-meteo.com/en/docs/historical-forecast-api
     """
-    # Load the dataset
-    dataframe = pd.read_csv(csv_path)
+    cache_session = requests_cache.CachedSession(".cache", expire_after=3600)
+    retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
+    openmeteo = openmeteo_requests.Client(session=retry_session)
+
+    # Make sure all required weather variables are listed here
+    # The order of variables in hourly or daily is important to assign them correctly below
+    responses = openmeteo.weather_api(
+        url="https://historical-forecast-api.open-meteo.com/v1/forecast",
+        params={
+            "latitude": latitude,
+            "longitude": longitude,
+            "start_date": start_date,
+            "end_date": end_date,
+            "minutely_15": ["temperature_2m", "shortwave_radiation"],
+            "timezone": timezone,
+        },
+    )
+
+    # Process first location. Add a for-loop for multiple locations or weather models
+    response = responses[0]
+    print(f"Coordinates: {response.Latitude()}°N {response.Longitude()}°E")
+    print(f"Elevation: {response.Elevation()} m asl")
+    print(f"Timezone: {response.Timezone()}{response.TimezoneAbbreviation()}")
+    print(f"Timezone difference to GMT+0: {response.UtcOffsetSeconds()}s")
+
+    # Process minutely_15 data. The order of variables needs to be the same as requested.
+    minutely_15 = response.Minutely15()
+
+    dataframe = pd.DataFrame(
+        data={
+            "date": pd.date_range(
+                start=pd.to_datetime(minutely_15.Time(), unit="s", utc=True),
+                end=pd.to_datetime(minutely_15.TimeEnd(), unit="s", utc=True),
+                freq=pd.Timedelta(seconds=minutely_15.Interval()),
+                inclusive="left",
+            ),
+            "temperature_2m": minutely_15.Variables(0).ValuesAsNumpy(),
+            "shortwave_radiation": minutely_15.Variables(1).ValuesAsNumpy(),
+        }
+    )
 
     # Parse the date column and set it as index
     dataframe["Timestamp"] = pd.to_datetime(dataframe["date"])
@@ -370,23 +439,46 @@ def load_and_preprocess_open_meteo(csv_path: str) -> pd.DataFrame:
 
     dataframe["Tout_K"] = convert_temperature(dataframe["Tout_C"], "C", "K")
 
-    print(
-        f"Loaded weather data: {len(dataframe)} records from "
-        f"{dataframe.index[0]} to {dataframe.index[-1]}"
-    )
-    print(
-        f"Temperature range: {dataframe['Tout_C'].min():.1f}°C to {dataframe['Tout_C'].max():.1f}°C"
-    )
-    print(
-        f"Solar radiation range: {dataframe['SolGlob_W_m2'].min():.1f} "
-        f"to {dataframe['SolGlob_W_m2'].max():.1f} W/m²"
-    )
-
     return dataframe
 
 
+def load_weather_data(
+    csv_path: Path,
+    latitude: float = 59.91387,
+    longitude: float = 10.7522,
+    timezone: str = "Europe/Berlin",
+    start_date: str = "2017-01-01",
+    end_date: str = "2025-11-30",
+) -> pd.DataFrame:
+    """Load and preprocess weather data from Open-Meteo.
+
+    The data file is available at:
+    https://open-meteo.com/en/docs/historical-forecast-api
+    """
+    # Load the dataset
+
+    try:
+        weather_data = pd.read_csv(csv_path)
+        # TODO: Need to take care that the price zone exists in the data.
+        # If not, download separately and append it to the existing dataset.
+    except FileNotFoundError:
+        print(f"WARNING: Price data file not found: {csv_path}")
+        weather_data = get_open_meteo_data(
+            latitude=latitude,
+            longitude=longitude,
+            start_date=start_date,
+            end_date=end_date,
+            timezone=timezone,
+        )
+        weather_data.to_csv(csv_path, index=True)
+
+    return weather_data
+
+
 def load_and_prepare_data(
-    price_zone: str,
+    price_zone: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     price_data_path: Path | None = None,
     weather_data_path: Path | None = None,
 ) -> pd.DataFrame:
@@ -394,6 +486,8 @@ def load_and_prepare_data(
 
     Args:
         price_zone: Electricity price zone (e.g., "NO_1", "NO_2", "DK_1", etc.).
+        start_date: Start date for filtering data (e.g., "2017-01-01").
+        end_date: End date for filtering data (e.g., "2017-11-30").
         price_data_path: Path to the price data CSV file. If None, uses default path.
         weather_data_path: Path to the weather data CSV file. If None, uses default path.
 
@@ -404,19 +498,29 @@ def load_and_prepare_data(
     """
     # Determine data paths
     if price_data_path is None:
-        price_data_path = Path(__file__).parent / "assets" / "energy_charts"
+        price_data_path = Path(__file__).parent / "assets" / "prices.csv"
     if weather_data_path is None:
-        weather_data_path = (
-            Path(__file__).parent
-            / "assets"
-            / "open_meteo"
-            / "oslo_weather_minutely_15_2017_2025.csv"
-        )
+        weather_data_path = Path(__file__).parent / "assets" / "weather.csv"
+    if price_zone is None:
+        price_zone = "NO1"
+    if start_date is None:
+        start_date = "2017-01-01"
+    if end_date is None:
+        end_date = "2017-11-30"
 
     # Load raw data
     data = {
-        "price": load_price_data(csv_path=price_data_path, price_zone=price_zone),
-        "weather": load_and_preprocess_open_meteo(csv_path=weather_data_path),
+        "price": load_price_data(
+            csv_path=price_data_path,
+            price_zone=price_zone,
+            start_date=start_date,
+            end_date=end_date,
+        ),
+        "weather": load_weather_data(
+            csv_path=weather_data_path,
+            start_date=start_date,
+            end_date=end_date,
+        ),
     }
 
     data = pd.merge(data["price"], data["weather"], left_index=True, right_index=True)
@@ -449,22 +553,3 @@ def load_and_prepare_data(
     print(f"  Total records: {len(data)} from {data.index[0]} to {data.index[-1]}")
 
     return data
-
-
-if __name__ == "__main__":
-    # Example usage
-    dataset = HvacDataset()
-    print(f"Dataset length: {len(dataset)}")
-    sample_idx = dataset.sample_start_index(
-        rng=np.random.default_rng(0),
-        horizon=4,
-        max_steps=72,
-        split="train",
-    )
-    print(f"Sampled start index: {sample_idx}, Date: {dataset.index[sample_idx]}")
-    price_forecast = dataset.get_price(sample_idx, horizon=4)
-    temperature_forecast = dataset.get_temperature(sample_idx, horizon=4)
-    solar_forecast = dataset.get_solar(sample_idx, horizon=4)
-    print(f"Price forecast: {price_forecast}")
-    print(f"Temperature forecast: {temperature_forecast}")
-    print(f"Solar forecast: {solar_forecast}")
