@@ -307,7 +307,8 @@ def load_price_data(
     # Check if file exists
     csv_path = Path(csv_path)
     try:
-        price_data = pd.read_csv(csv_path)
+        price_data = pd.read_csv(csv_path, index_col=0, parse_dates=True)
+        price_data.index = pd.to_datetime(price_data.index, utc=True)
         # TODO: Need to take care that the price zone exists in the data.
         # If not, download separately and append it to the existing dataset.
     except FileNotFoundError:
@@ -317,6 +318,14 @@ def load_price_data(
             start_date=start_date,
             end_date=end_date,
         )
+
+        # Set datetime as index and sort
+        price_data.set_index("Timestamp", inplace=True)
+
+        # Resample price data to 15-minute intervals with zero-order hold
+        price_data = price_data.resample("15min").ffill()
+
+        # Save to CSV for future use
         price_data.to_csv(csv_path, index=True)
 
     return price_data
@@ -353,12 +362,7 @@ def get_energy_charts_data(
 
     df = pd.DataFrame(response.json())[["unix_seconds", "price", "unit"]]
 
-    df["Timestamp"] = pd.to_datetime(df["unix_seconds"], unit="s", utc=True).dt.tz_convert(
-        "Europe/Oslo"
-    )
-
-    # Set datetime as index and sort
-    df.set_index("Timestamp", inplace=True)
+    df["Timestamp"] = pd.to_datetime(df["unix_seconds"], unit="s", utc=True)
 
     df = df.drop(columns=["unix_seconds", "unit"])
 
@@ -373,7 +377,6 @@ def get_open_meteo_data(
     longitude: float = 10.7522,
     start_date: str = "2017-01-01",
     end_date: str = "2017-11-26",
-    timezone: str = "Europe/Berlin",
 ) -> pd.DataFrame:
     """Download and preprocess Oslo weather data from Open-Meteo.
 
@@ -394,7 +397,6 @@ def get_open_meteo_data(
             "start_date": start_date,
             "end_date": end_date,
             "minutely_15": ["temperature_2m", "shortwave_radiation"],
-            "timezone": timezone,
         },
     )
 
@@ -446,7 +448,6 @@ def load_weather_data(
     csv_path: Path,
     latitude: float = 59.91387,
     longitude: float = 10.7522,
-    timezone: str = "Europe/Berlin",
     start_date: str = "2017-01-01",
     end_date: str = "2025-11-30",
 ) -> pd.DataFrame:
@@ -458,7 +459,8 @@ def load_weather_data(
     # Load the dataset
 
     try:
-        weather_data = pd.read_csv(csv_path)
+        weather_data = pd.read_csv(csv_path, index_col=0, parse_dates=True)
+        weather_data.index = pd.to_datetime(weather_data.index, utc=True)
         # TODO: Need to take care that the price zone exists in the data.
         # If not, download separately and append it to the existing dataset.
     except FileNotFoundError:
@@ -468,7 +470,6 @@ def load_weather_data(
             longitude=longitude,
             start_date=start_date,
             end_date=end_date,
-            timezone=timezone,
         )
         weather_data.to_csv(csv_path, index=True)
 
@@ -490,6 +491,7 @@ def load_and_prepare_data(
         end_date: End date for filtering data (e.g., "2017-11-30").
         price_data_path: Path to the price data CSV file. If None, uses default path.
         weather_data_path: Path to the weather data CSV file. If None, uses default path.
+        time_zone: Timezone for the data (e.g., "Europe/Berlin"). If None, uses "Europe/Berlin".
 
     Returns:
         Tuple containing:
@@ -508,22 +510,25 @@ def load_and_prepare_data(
     if end_date is None:
         end_date = "2017-11-30"
 
-    # Load raw data
-    data = {
-        "price": load_price_data(
-            csv_path=price_data_path,
-            price_zone=price_zone,
-            start_date=start_date,
-            end_date=end_date,
-        ),
-        "weather": load_weather_data(
-            csv_path=weather_data_path,
-            start_date=start_date,
-            end_date=end_date,
-        ),
-    }
+    price = load_price_data(
+        csv_path=price_data_path,
+        price_zone=price_zone,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
-    data = pd.merge(data["price"], data["weather"], left_index=True, right_index=True)
+    weather = load_weather_data(
+        csv_path=weather_data_path,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    # Load raw data
+    data: pd.DataFrame = pd.merge(
+        left=price,
+        right=weather,
+        left_index=True,
+        right_index=True,
+    )
 
     # Rename and select columns
     data.rename(
@@ -534,15 +539,15 @@ def load_and_prepare_data(
         },
         inplace=True,
     )
-    data = data[["price", "temperature", "solar"]].copy()
 
     # Convert to float32 and add time features
-    data["price"] = data["price"].astype(np.float32)
-    data["temperature"] = data["temperature"].astype(np.float32)
-    data["solar"] = data["solar"].astype(np.float32)
     data["time"] = data.index.to_numpy(dtype="datetime64[m]")
     data["quarter_hour"] = (data.index.hour * 4 + data.index.minute // 15) % (24 * 4)
     data["day"] = data["time"].dt.dayofyear % 366
+
+    data["price"] = data["price"].astype(np.float32)
+    data["temperature"] = data["temperature"].astype(np.float32)
+    data["solar"] = data["solar"].astype(np.float32)
 
     print("Prepared combined dataset:")
     print(f"  Price range: {data['price'].min():.3f} to {data['price'].max():.3f} EUR/kWh")
@@ -553,3 +558,9 @@ def load_and_prepare_data(
     print(f"  Total records: {len(data)} from {data.index[0]} to {data.index[-1]}")
 
     return data
+
+
+if __name__ == "__main__":
+    # Test loading and preparing data
+    dataset = HvacDataset()
+    print(f"Dataset length: {len(dataset)}")
