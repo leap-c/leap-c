@@ -599,12 +599,10 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     def _render_frame(self) -> np.ndarray | None:
         ctx: HvacPlannerCtx = self.ctx
 
-        N_horizon = self.N_forecast
-
         obs = self._get_observation()
-        temperature = obs[5 : 5 + self.N_forecast][:N_horizon]
-        solar_forecast = obs[5 + self.N_forecast : 5 + 2 * self.N_forecast][:N_horizon]
-        price_forecast = obs[5 + 2 * self.N_forecast : 5 + 3 * self.N_forecast][:N_horizon]
+        temperature = obs[5 : 5 + self.N_forecast]
+        solar_forecast = obs[5 + self.N_forecast : 5 + 2 * self.N_forecast]
+        price_forecast = obs[5 + 2 * self.N_forecast : 5 + 3 * self.N_forecast]
 
         if ctx is not None:
             x = ctx.iterate.x.reshape(-1, 5)
@@ -614,14 +612,14 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                     convert_temperature(x[:, i].flatten(), "k", "c"),
                 )
 
-            self.trajectory_plots["qh"].set_data(range(N_horizon - 1 - 3), x[:-1, 3].flatten())
+            self.trajectory_plots["qh"].set_data(range(self.N_forecast - 1), x[:-1, 3].flatten())
 
-        self.trajectory_plots["price_observation"].set_data(range(N_horizon), price_forecast)
+        self.trajectory_plots["price_observation"].set_data(range(self.N_forecast), price_forecast)
         self.trajectory_plots["temperature_observation"].set_data(
-            range(N_horizon),
+            range(self.N_forecast),
             convert_temperature(temperature, "k", "c"),
         )
-        self.trajectory_plots["solar_observation"].set_data(range(N_horizon), solar_forecast)
+        self.trajectory_plots["solar_observation"].set_data(range(self.N_forecast), solar_forecast)
 
         # Update parameter/action plots if render_info is available
         if hasattr(ctx, "render_info") and ctx.render_info is not None:
