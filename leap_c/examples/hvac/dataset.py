@@ -321,7 +321,7 @@ def load_and_preprocess_energy_chart(file_path: str, price_zone: str = "NO_1") -
     https://energy-charts.info/charts/price_spot_market/chart.htm?l=en&c=NO&year=2020&interval=year&minuteInterval=60min
     """
     # Load the dataset, skipping the second row which contains units
-    df = pd.read_csv(file_path, skiprows=[1])
+    df = pd.read_csv(file_path, skiprows=[0, 2])
 
     # Parse the date column and set it as index
     df["Date (GMT+1)"] = pd.to_datetime(df["Date (GMT+1)"], utc=True)
@@ -449,3 +449,22 @@ def load_and_prepare_data(
     print(f"  Total records: {len(data)} from {data.index[0]} to {data.index[-1]}")
 
     return data
+
+
+if __name__ == "__main__":
+    # Example usage
+    dataset = HvacDataset()
+    print(f"Dataset length: {len(dataset)}")
+    sample_idx = dataset.sample_start_index(
+        rng=np.random.default_rng(0),
+        horizon=4,
+        max_steps=72,
+        split="train",
+    )
+    print(f"Sampled start index: {sample_idx}, Date: {dataset.index[sample_idx]}")
+    price_forecast = dataset.get_price(sample_idx, horizon=4)
+    temperature_forecast = dataset.get_temperature(sample_idx, horizon=4)
+    solar_forecast = dataset.get_solar(sample_idx, horizon=4)
+    print(f"Price forecast: {price_forecast}")
+    print(f"Temperature forecast: {temperature_forecast}")
+    print(f"Solar forecast: {solar_forecast}")
