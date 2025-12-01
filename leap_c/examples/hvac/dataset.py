@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Literal
 
@@ -32,7 +33,7 @@ class DataConfig:
         split_seed: Random seed for reproducible train/test split.
     """
 
-    price_zone: Literal["NO_1", "NO_2", "NO_3", "DK_1", "DK_2", "DE_LU"] = "NO_1"
+    price_zone: Literal["NO1", "NO2", "NO3", "DK1", "DK2", "DE-AT-LU"] = "NO1"
     price_data_path: Path | None = None
     weather_data_path: Path | None = None
     start_time: pd.Timestamp | None = None  # if None, samples randomly from data
@@ -508,7 +509,7 @@ def load_and_prepare_data(
     if start_date is None:
         start_date = "2017-01-01"
     if end_date is None:
-        end_date = "2017-11-30"
+        end_date = date.today().strftime("%Y-%m-%d")
 
     price = load_price_data(
         csv_path=price_data_path,
