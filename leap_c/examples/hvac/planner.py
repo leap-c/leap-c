@@ -10,7 +10,7 @@ from leap_c.examples.hvac.acados_ocp import export_parametric_ocp, make_default_
 from leap_c.examples.hvac.utils import set_temperature_limits
 from leap_c.ocp.acados.data import (
     collate_acados_flattened_batch_iterate_fn,
-collate_acados_ocp_solver_input,
+    collate_acados_ocp_solver_input,
 )
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
