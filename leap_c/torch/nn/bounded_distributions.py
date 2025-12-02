@@ -313,3 +313,206 @@ class ScaledBeta(BoundedDistribution):
 
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
         return (output_dim, output_dim)
+
+
+class ModeConcentrationBeta(Beta):
+    """Beta distribution parameterized by mode and total concentration."""
+
+    @staticmethod
+    def compute_alpha_beta(
+        mode: torch.Tensor | float,
+        concentration: torch.Tensor | float,
+    ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Compute alpha and beta parameters from mode and concentration.
+
+        Args:
+            mode: Mode parameter (must be in [0, 1])
+            concentration: Total concentration parameter (must be > 2)
+
+        Returns:
+            Tuple of (alpha, beta) parameters for Beta distribution
+        """
+        mode = torch.as_tensor(mode)
+        concentration = torch.as_tensor(concentration)
+
+        # Compute alpha, beta from mode and total concentration c
+        alpha = 1.0 + mode * (concentration - 2.0)
+        beta = 1.0 + (1.0 - mode) * (concentration - 2.0)
+
+        return alpha, beta
+
+    def __init__(
+        self,
+        mode: torch.Tensor | float,
+        concentration: torch.Tensor | float,
+        lb: torch.Tensor | float | None = None,
+        ub: torch.Tensor | float | None = None,
+        validate_args: bool | None = None,
+    ) -> None:
+        """Initialize ModeConcentrationBeta distribution.
+
+        Args:
+            mode: Mode parameter (must be in [lb, ub])
+            concentration: Total concentration parameter (must be > 2)
+            lb: Lower bound for sample rescaling (default: 0)
+            ub: Upper bound for sample rescaling (default: 1)
+            validate_args: Whether to validate input arguments
+        """
+        mode = torch.as_tensor(mode)
+        concentration = torch.as_tensor(concentration)
+
+        self._lb = torch.tensor(0.0) if lb is None else torch.as_tensor(lb).clone()
+        self._ub = torch.tensor(1.0) if ub is None else torch.as_tensor(ub).clone()
+
+        # Convert mode from [lb, ub] space to [0, 1] space
+        mode_01 = (mode - self._lb) / (self._ub - self._lb)
+
+        # Compute alpha, beta from mode in [0, 1] space and total concentration
+        alpha, beta = ModeConcentrationBeta.compute_alpha_beta(
+            mode=mode_01, concentration=concentration
+        )
+
+        # Initialize parent Beta distribution first
+        super().__init__(
+            concentration1=alpha,
+            concentration0=beta,
+            validate_args=validate_args,
+        )
+
+        self._mode = mode
+        self._concentration = concentration
+
+    @property
+    def mode(self) -> torch.Tensor:
+        """The mode parameter m used in the constructor."""
+        return self._mode
+
+    @property
+    def concentration(self) -> torch.Tensor:
+        """The total concentration c = alpha + beta."""
+        return self._concentration
+
+    @property
+    def lb(self) -> torch.Tensor:
+        """Lower bound for sample rescaling."""
+        return self._lb
+
+    @property
+    def ub(self) -> torch.Tensor:
+        """Upper bound for sample rescaling."""
+        return self._ub
+
+    def rsample(self, sample_shape: torch.Size = torch.Size()) -> torch.Tensor:
+        """Sample using reparameterization trick and rescale from [0, 1] to [lb, ub].
+
+        This method uses the reparameterization trick, allowing gradients to flow
+        through the samples. The rescaling transformation is differentiable, so
+        gradient flow is maintained.
+
+        Args:
+            sample_shape: Shape of samples to draw
+
+        Returns:
+            Samples rescaled to [lb, ub] range with gradient support
+        """
+        # Get reparameterized samples from parent Beta distribution (in [0, 1])
+        samples_01 = super().rsample(sample_shape=sample_shape)
+
+        return self._lb + samples_01 * (self._ub - self._lb)
+
+    def log_prob(self, value: torch.Tensor) -> torch.Tensor:
+        """Compute log probability of samples in [lb, ub] range.
+
+        Args:
+            value: Sample values in [lb, ub] range
+
+        Returns:
+            Log probabilities adjusted for the transformation
+        """
+        # Transform samples from [lb, ub] back to [0, 1]
+        value_01 = torch.clamp(
+            input=(value - self._lb) / (self._ub - self._lb),
+            min=0.0,
+            max=1.0,
+        )
+
+        # Compute log_prob in [0, 1] space
+        log_prob_01 = super().log_prob(value=value_01)
+
+        # Adjust for Jacobian of transformation: dx/dy = 1 / (ub - lb)
+        # log_prob_rescaled = log_prob_01 - log|ub - lb|
+        log_jacobian = -torch.log(self._ub - self._lb)
+        log_prob_rescaled = log_prob_01 + log_jacobian
+
+        return log_prob_rescaled
+
+    def update_parameters(
+        self,
+        mode: torch.Tensor | float,
+        concentration: torch.Tensor | float,
+    ) -> None:
+        """Update the mode and concentration parameters of the distribution.
+
+        Args:
+            mode: New mode parameter in [lb, ub] space
+            concentration: New concentration parameter
+        """
+        mode = torch.as_tensor(mode)
+        concentration = torch.as_tensor(concentration)
+
+        # Convert mode from [lb, ub] space to [0, 1] space
+        mode_01 = (mode - self._lb) / (self._ub - self._lb)
+
+        # Compute new alpha, beta from mode in [0, 1] space and concentration
+        alpha, beta = ModeConcentrationBeta.compute_alpha_beta(
+            mode=mode_01, concentration=concentration
+        )
+
+        # Reinitialize the parent Beta distribution with new parameters
+        Beta.__init__(self, concentration1=alpha, concentration0=beta)
+
+        # Update stored mode and concentration (in [lb, ub] space)
+        self._mode = mode
+        self._concentration = concentration
+
+    def forward(
+        self, *defining_parameters, deterministic: bool = False
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
+        """Sample from the distribution.
+
+        If `deterministic` is True, the mode of the distribution is used instead of
+        sampling.
+
+        Returns:
+            A tuple containing the samples, their log_prob and a dictionary of stats.
+        """
+        sample = self.rsample() if not deterministic else self._mode
+
+        log_prob = self.log_prob(sample)
+        return sample, log_prob, {}
+
+    @abstractmethod
+    def parameter_size(self, output_dim: int) -> tuple[int, ...]:
+        """Returns param size required to define the distribution for the given output dim.
+
+        Args:
+            output_dim: The dimensionality of the output space (e.g., action space).
+
+        Returns:
+            A tuple of integers, each integer specifying the size of one
+            parameter required to define the distribution in the forward pass.
+        """
+        return (output_dim, output_dim)
+
+    @abstractmethod
+    def inverse(self, normalized_x: torch.Tensor) -> torch.Tensor:
+        """Apply the inverse transformation to the input tensor.
+
+        Args:
+            normalized_x: The input tensor.
+
+        Returns:
+            The inverse transformed tensor.
+        """
+        # TODO: Check where this is used and whether it's needed, makes sense
+        return self._lb + normalized_x * (self._ub - self._lb)
