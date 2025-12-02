@@ -1,7 +1,5 @@
 """Dataset management for HVAC environment."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -544,7 +542,7 @@ def load_and_prepare_data(
     # Convert to float32 and add time features
     data["time"] = data.index.to_numpy(dtype="datetime64[m]")
     data["quarter_hour"] = (data.index.hour * 4 + data.index.minute // 15) % (24 * 4)
-    data["day"] = data["time"].dt.dayofyear % 366
+    data["day"] = data["time"].dt.dayofyear % 366  # 366 to account for leap years
 
     data["price"] = data["price"].astype(np.float32)
     data["temperature"] = data["temperature"].astype(np.float32)
