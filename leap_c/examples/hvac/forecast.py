@@ -62,8 +62,8 @@ class ForecastConfig:
     """
 
     horizon_hours: int = 24  # prediction horizon in hours
-    temp_uncertainty: TemperatureUncertaintyConfig | Literal["low", "medium", "high"] | None = None
-    solar_uncertainty: SolarUncertaintyConfig | Literal["low", "medium", "high"] | None = None
+    temp_uncertainty: TemperatureUncertaintyConfig | Literal["low", "medium", "high"] | None = "low"
+    solar_uncertainty: SolarUncertaintyConfig | Literal["low", "medium", "high"] | None = "low"
 
     def __post_init__(self):
         """Resolve string literals to actual config objects."""

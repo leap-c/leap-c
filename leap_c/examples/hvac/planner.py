@@ -6,7 +6,12 @@ import numpy as np
 import torch
 from scipy.constants import convert_temperature
 
-from leap_c.examples.hvac.acados_ocp import export_parametric_ocp, make_default_hvac_params
+from leap_c.examples.hvac.acados_ocp import (
+    HvacAcadosParamGranularity,
+    HvacAcadosParamInterface,
+    export_parametric_ocp,
+    make_default_hvac_params,
+)
 from leap_c.examples.hvac.utils import set_temperature_limits
 from leap_c.ocp.acados.data import (
     collate_acados_flattened_batch_iterate_fn,
@@ -54,12 +59,13 @@ class HvacPlannerConfig:
     Attributes:
         N_horizon: The number of steps in the MPC horizon
             (default: 96, i.e., 24 hours in 15-minute steps).
-        stagewise: Whether to use stage-wise parameters for forecasts
-            (ambient temperature, solar radiation, prices).
+        param_interface: Determines the exposed parameter interface of the planner.
+        param_granularity: Determines the granularity of the parameters
     """
 
     N_horizon: int = 24 * 4 - 1  # 24 hours in 15 minutes time steps
-    stagewise: bool = False
+    param_interface: HvacAcadosParamInterface = "reference"
+    param_granularity: HvacAcadosParamGranularity = "global"
 
 
 class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
@@ -126,7 +132,8 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
 
         params = (
             make_default_hvac_params(
-                stagewise=self.cfg.stagewise,
+                interface=self.cfg.param_interface,
+                granularity=self.cfg.param_granularity,
                 N_horizon=self.cfg.N_horizon,
             )
             if params is None
@@ -218,8 +225,8 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             "Th": 3,
             "Te": 4,
             "temperature": slice(5, 5 + self.cfg.N_horizon + 1),
-            "solar": slice(5 + self.cfg.N_horizon + 1, 5 + 2 * (self.cfg.N_horizon + 1)),
-            "price": slice(5 + 2 * (self.cfg.N_horizon + 1), 5 + 3 * (self.cfg.N_horizon + 1)),
+            "solar": slice(5 + self.cfg.N_horizon + 1, 5 + 2 * self.cfg.N_horizon + 2),
+            "price": slice(5 + 2 * self.cfg.N_horizon + 2, 5 + 3 * self.cfg.N_horizon + 3),
         }
 
         sub_param: dict[str, torch.Tensor] = {}
@@ -284,6 +291,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
     def default_param(self, obs: np.ndarray | None) -> np.ndarray:
         """Provides default parameters for the HVAC planner.
 
+        # TODO (Jasper)
         If stagewise=True the forecast parameters will be set from obs.
 
         Args:
@@ -296,15 +304,6 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         match the stages in the parameters. No block-wise varying parameters
         are supported here.
         """
-        if not self.cfg.stagewise or obs is None:
-            # Use parameter manager's method for defaults
-            if obs is None:
-                return self.param_manager.learnable_parameters_default.cat.full().flatten()
-            batch_size = obs.shape[0] if obs.ndim == 2 else 1
-            return self.param_manager.combine_default_learnable_parameter_values(
-                batch_size=batch_size
-            )
-
         # Handle both single and batched observations uniformly
         # Ensure obs is 2D: (n_batch, obs_dim)
         obs_2d = obs if obs.ndim == 2 else obs[np.newaxis, :]
