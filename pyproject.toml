@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "leap-c"
 version = "2025.0.0"
 dependencies = [
-  "casadi==3.7.0",
+  "casadi",
   "gymnasium==1.1.1",
   "scipy==1.15.2",
   "pandas==2.3.0",
