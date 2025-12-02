@@ -384,12 +384,12 @@ class ModeConcentrationBeta(Beta):
 
     @property
     def mode(self) -> torch.Tensor:
-        """The mode parameter m used in the constructor."""
+        """The mode of the distribution."""
         return self._mode
 
     @property
     def concentration(self) -> torch.Tensor:
-        """The total concentration c = alpha + beta."""
+        """The concentration of the distribution (c = alpha + beta)."""
         return self._concentration
 
     @property
@@ -404,10 +404,6 @@ class ModeConcentrationBeta(Beta):
 
     def rsample(self, sample_shape: torch.Size = torch.Size()) -> torch.Tensor:
         """Sample using reparameterization trick and rescale from [0, 1] to [lb, ub].
-
-        This method uses the reparameterization trick, allowing gradients to flow
-        through the samples. The rescaling transformation is differentiable, so
-        gradient flow is maintained.
 
         Args:
             sample_shape: Shape of samples to draw
@@ -476,7 +472,10 @@ class ModeConcentrationBeta(Beta):
         self._concentration = concentration
 
     def forward(
-        self, *defining_parameters, deterministic: bool = False
+        self,
+        log_mode: torch.Tensor,
+        log_concentration: torch.Tensor,
+        deterministic: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Sample from the distribution.
 
@@ -486,6 +485,11 @@ class ModeConcentrationBeta(Beta):
         Returns:
             A tuple containing the samples, their log_prob and a dictionary of stats.
         """
+        self.update_parameters(
+            mode=torch.exp(log_mode),
+            concentration=torch.exp(log_concentration),
+        )
+
         sample = self.rsample() if not deterministic else self._mode
 
         log_prob = self.log_prob(sample)
@@ -503,16 +507,3 @@ class ModeConcentrationBeta(Beta):
             parameter required to define the distribution in the forward pass.
         """
         return (output_dim, output_dim)
-
-    @abstractmethod
-    def inverse(self, normalized_x: torch.Tensor) -> torch.Tensor:
-        """Apply the inverse transformation to the input tensor.
-
-        Args:
-            normalized_x: The input tensor.
-
-        Returns:
-            The inverse transformed tensor.
-        """
-        # TODO: Check where this is used and whether it's needed, makes sense
-        return self._lb + normalized_x * (self._ub - self._lb)
