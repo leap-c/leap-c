@@ -1,13 +1,16 @@
 """Dataset management for HVAC environment."""
 
-from __future__ import annotations
-
 from dataclasses import dataclass, field
+from datetime import date
 from pathlib import Path
 from typing import Literal
 
 import numpy as np
+import openmeteo_requests
 import pandas as pd
+import requests
+import requests_cache
+from retry_requests import retry
 from scipy.constants import convert_temperature
 
 
@@ -28,7 +31,7 @@ class DataConfig:
         split_seed: Random seed for reproducible train/test split.
     """
 
-    price_zone: Literal["NO_1", "NO_2", "NO_3", "DK_1", "DK_2", "DE_LU"] = "NO_1"
+    price_zone: Literal["NO1", "NO2", "NO3", "DK1", "DK2", "DE-AT-LU"] = "NO1"
     price_data_path: Path | None = None
     weather_data_path: Path | None = None
     start_time: pd.Timestamp | None = None  # if None, samples randomly from data
@@ -282,144 +285,200 @@ class HvacDataset:
 # ============================================================================
 
 
-def load_price_data(csv_path: str | Path) -> pd.DataFrame:
+def load_price_data(
+    csv_path: str | Path,
+    price_zone: str = "NO1",
+    start_date: str = "2017-01-01",
+    end_date: str = "2017-11-30",
+) -> pd.DataFrame:
     """Load electricity price data from CSV file.
 
     Args:
         csv_path: Path to the price CSV file
+        price_zone: Electricity price zone.
+        start_date: Start date for filtering price data.
+        end_date: End date for filtering price data.
 
     Returns:
         DataFrame with processed price data
+
     """
-    # Load CSV with comma separator and first column as index
-    price_data = pd.read_csv(csv_path, index_col=0, parse_dates=True)
+    # Check if file exists
+    csv_path = Path(csv_path)
+    try:
+        price_data = pd.read_csv(csv_path, index_col=0, parse_dates=True)
+        price_data.index = pd.to_datetime(price_data.index, utc=True)
+        # TODO: Need to take care that the price zone exists in the data.
+        # If not, download separately and append it to the existing dataset.
+    except FileNotFoundError:
+        print(f"WARNING: Price data file not found: {csv_path}")
+        price_data = get_energy_charts_data(
+            price_zone=price_zone,
+            start_date=start_date,
+            end_date=end_date,
+        )
 
-    # Ensure all price values are non-negative (handle any data quality issues)
-    price_columns = price_data.columns
-    for col in price_columns:
-        price_data[col] = np.maximum(0, price_data[col])
+        # Set datetime as index and sort
+        price_data.set_index("Timestamp", inplace=True)
 
-    print(
-        f"Loaded price data: {len(price_data)} records from "
-        f"{price_data.index[0]} to {price_data.index[-1]}"
-    )
-    print(f"Price regions: {', '.join(price_data.columns)}")
-    print(
-        "Price range across all regions: "
-        f"{price_data.min().min():.5f} to {price_data.max().max():.5f}"
-    )
+        # Resample price data to 15-minute intervals with zero-order hold
+        price_data = price_data.resample("15min").ffill()
+
+        # Save to CSV for future use
+        price_data.to_csv(csv_path, index=True)
 
     return price_data
 
 
-def load_weather_data(csv_path: str | Path) -> pd.DataFrame:
-    """Load weather data from CSV file.
+def get_energy_charts_data(
+    price_zone: str,
+    start_date: str,
+    end_date: str,
+) -> pd.DataFrame:
+    """Download and preprocess energy chart data for a given price zone.
 
-    Args:
-        csv_path: Path to the weather CSV file
-
-    Returns:
-        DataFrame with processed weather data
+    The data file is available for, e.g., 2020, at:
+    https://energy-charts.info/charts/price_spot_market/chart.htm?l=en&c=NO&year=2020&interval=year&minuteInterval=60min
     """
-    # Load CSV with semicolon separator
-    weather_data = pd.read_csv(csv_path, sep=";")
+    # API endpoint and parameters
 
-    # Parse timestamp
-    weather_data["TimeStamp"] = pd.to_datetime(weather_data["TimeStamp"])
-
-    # Convert temperature from Celsius to Kelvin
-    weather_data["Tout_K"] = convert_temperature(weather_data["Tout"], "c", "k")
-
-    # Ensure solar radiation is non-negative (handle numerical precision issues)
-    weather_data["SolGlob"] = np.maximum(0, weather_data["SolGlob"])
-
-    # Set timestamp as index for easier time-based operations
-    weather_data.set_index("TimeStamp", inplace=True)
-
-    print(
-        f"Loaded weather data: {len(weather_data)} records from "
-        f"{weather_data.index[0]} to {weather_data.index[-1]}"
+    # Make the request
+    response = requests.get(
+        url="https://api.energy-charts.info/price",
+        params={
+            "bzn": price_zone.replace("_", ""),
+            "start": f"{start_date}T00:00",
+            "end": f"{end_date}T00:00",
+        },
     )
-    print(
-        f"Temperature range: {weather_data['Tout'].min():.1f}°C "
-        f"to {weather_data['Tout'].max():.1f}°C"
+
+    # Check if request was successful
+    if response.status_code == 200:
+        print("Data downloaded successfully!")
+    else:
+        print(f"Error: {response.status_code}")
+        print(response.text)
+
+    df = pd.DataFrame(response.json())[["unix_seconds", "price", "unit"]]
+
+    df["Timestamp"] = pd.to_datetime(df["unix_seconds"], unit="s", utc=True)
+
+    df = df.drop(columns=["unix_seconds", "unit"])
+
+    # Assume unit is EUR/MWh, convert to EUR/kWh
+    df["price"] = df["price"] / 1000.0
+
+    return df
+
+
+def get_open_meteo_data(
+    latitude: float = 59.91387,
+    longitude: float = 10.7522,
+    start_date: str = "2017-01-01",
+    end_date: str = "2017-11-26",
+) -> pd.DataFrame:
+    """Download and preprocess Oslo weather data from Open-Meteo.
+
+    The data file is available at:
+    https://open-meteo.com/en/docs/historical-forecast-api
+    """
+    cache_session = requests_cache.CachedSession(".cache", expire_after=3600)
+    retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
+    openmeteo = openmeteo_requests.Client(session=retry_session)
+
+    # Make sure all required weather variables are listed here
+    # The order of variables in hourly or daily is important to assign them correctly below
+    responses = openmeteo.weather_api(
+        url="https://historical-forecast-api.open-meteo.com/v1/forecast",
+        params={
+            "latitude": latitude,
+            "longitude": longitude,
+            "start_date": start_date,
+            "end_date": end_date,
+            "minutely_15": ["temperature_2m", "shortwave_radiation"],
+        },
     )
-    print(
-        f"Solar radiation range: {weather_data['SolGlob'].min():.1f} "
-        f"to {weather_data['SolGlob'].max():.1f} W/m²"
+
+    # Process first location. Add a for-loop for multiple locations or weather models
+    response = responses[0]
+    print(f"Coordinates: {response.Latitude()}°N {response.Longitude()}°E")
+    print(f"Elevation: {response.Elevation()} m asl")
+    print(f"Timezone: {response.Timezone()}{response.TimezoneAbbreviation()}")
+    print(f"Timezone difference to GMT+0: {response.UtcOffsetSeconds()}s")
+
+    # Process minutely_15 data. The order of variables needs to be the same as requested.
+    minutely_15 = response.Minutely15()
+
+    dataframe = pd.DataFrame(
+        data={
+            "date": pd.date_range(
+                start=pd.to_datetime(minutely_15.Time(), unit="s", utc=True),
+                end=pd.to_datetime(minutely_15.TimeEnd(), unit="s", utc=True),
+                freq=pd.Timedelta(seconds=minutely_15.Interval()),
+                inclusive="left",
+            ),
+            "temperature_2m": minutely_15.Variables(0).ValuesAsNumpy(),
+            "shortwave_radiation": minutely_15.Variables(1).ValuesAsNumpy(),
+        }
     )
+
+    # Parse the date column and set it as index
+    dataframe["Timestamp"] = pd.to_datetime(dataframe["date"])
+    dataframe.set_index("Timestamp", inplace=True)
+
+    # Rename columns for clarity
+    dataframe.rename(
+        columns={
+            "temperature_2m": "Tout_C",
+            "shortwave_radiation": "SolGlob_W_m2",
+        },
+        inplace=True,
+    )
+
+    # Select relevant columns
+    dataframe = dataframe[["Tout_C", "SolGlob_W_m2"]]
+
+    dataframe["Tout_K"] = convert_temperature(dataframe["Tout_C"], "C", "K")
+
+    return dataframe
+
+
+def load_weather_data(
+    csv_path: Path,
+    latitude: float = 59.91387,
+    longitude: float = 10.7522,
+    start_date: str = "2017-01-01",
+    end_date: str = "2025-11-30",
+) -> pd.DataFrame:
+    """Load and preprocess weather data from Open-Meteo.
+
+    The data file is available at:
+    https://open-meteo.com/en/docs/historical-forecast-api
+    """
+    # Load the dataset
+
+    try:
+        weather_data = pd.read_csv(csv_path, index_col=0, parse_dates=True)
+        weather_data.index = pd.to_datetime(weather_data.index, utc=True)
+        # TODO: Need to take care that the price zone exists in the data.
+        # If not, download separately and append it to the existing dataset.
+    except FileNotFoundError:
+        print(f"WARNING: Price data file not found: {csv_path}")
+        weather_data = get_open_meteo_data(
+            latitude=latitude,
+            longitude=longitude,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        weather_data.to_csv(csv_path, index=True)
 
     return weather_data
 
 
-def merge_price_weather_data(
-    price_data: pd.DataFrame,
-    weather_data: pd.DataFrame,
-    merge_type: str = "inner",
-) -> pd.DataFrame:
-    """Merge price and weather dataframes on their timestamp indices.
-
-    Args:
-        price_data: DataFrame with price data indexed by timestamp.
-        weather_data: DataFrame with weather data indexed by timestamp.
-        merge_type: Type of merge ('inner', 'outer', 'left', 'right').
-
-    Returns:
-        Merged dataframe.
-    """
-    print(f"Price data time range: {price_data.index.min()} to {price_data.index.max()}")
-    print(f"Weather data time range: {weather_data.index.min()} to {weather_data.index.max()}")
-    print(f"Price data shape: {price_data.shape}")
-    print(f"Weather data shape: {weather_data.shape}")
-
-    # Ensure both indices are datetime and timezone-aware
-    if not isinstance(price_data.index, pd.DatetimeIndex):
-        price_data.index = pd.to_datetime(price_data.index)
-    if not isinstance(weather_data.index, pd.DatetimeIndex):
-        weather_data.index = pd.to_datetime(weather_data.index)
-
-    # Perform the merge based on the timestamp index
-    if merge_type == "inner":
-        # Only keep timestamps that exist in both dataframes
-        merged_df = price_data.join(weather_data, how="inner")
-        print(f"\nInner join: {merged_df.shape[0]} overlapping timestamps")
-
-    elif merge_type == "outer":
-        # Keep all timestamps from both dataframes
-        merged_df = price_data.join(weather_data, how="outer")
-        print(f"\nOuter join: {merged_df.shape[0]} total timestamps")
-
-    elif merge_type == "left":
-        # Keep all price data timestamps, add weather where available
-        merged_df = price_data.join(weather_data, how="left")
-        print(f"\nLeft join: {merged_df.shape[0]} timestamps (all price data)")
-
-    elif merge_type == "right":
-        # Keep all weather data timestamps, add price where available
-        merged_df = price_data.join(weather_data, how="right")
-        print(f"\nRight join: {merged_df.shape[0]} timestamps (all weather data)")
-
-    else:
-
-        class MergeTypeError(ValueError):
-            def __init__(self) -> None:
-                super().__init__("merge_type must be one of: 'inner', 'outer', 'left', 'right'")
-
-        raise MergeTypeError
-
-    # Print information about missing values
-    print("\nMissing values per column:")
-    missing_counts = merged_df.isnull().sum()
-    for col, count in missing_counts.items():
-        if count > 0:
-            print(f"  {col}: {count} missing ({count / len(merged_df) * 100:.1f}%)")
-
-    # Sort by index to ensure chronological order
-    return merged_df.sort_index()
-
-
 def load_and_prepare_data(
-    price_zone: str,
+    price_zone: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     price_data_path: Path | None = None,
     weather_data_path: Path | None = None,
 ) -> pd.DataFrame:
@@ -427,8 +486,11 @@ def load_and_prepare_data(
 
     Args:
         price_zone: Electricity price zone (e.g., "NO_1", "NO_2", "DK_1", etc.).
+        start_date: Start date for filtering data (e.g., "2017-01-01").
+        end_date: End date for filtering data (e.g., "2017-11-30").
         price_data_path: Path to the price data CSV file. If None, uses default path.
         weather_data_path: Path to the weather data CSV file. If None, uses default path.
+        time_zone: Timezone for the data (e.g., "Europe/Berlin"). If None, uses "Europe/Berlin".
 
     Returns:
         Tuple containing:
@@ -437,35 +499,67 @@ def load_and_prepare_data(
     """
     # Determine data paths
     if price_data_path is None:
-        price_data_path = Path(__file__).parent / "assets" / "spot_prices.csv"
+        price_data_path = Path(__file__).parent / "assets" / "prices.csv"
     if weather_data_path is None:
         weather_data_path = Path(__file__).parent / "assets" / "weather.csv"
+    if price_zone is None:
+        price_zone = "NO1"
+    if start_date is None:
+        start_date = "2017-01-01"
+    if end_date is None:
+        end_date = date.today().strftime("%Y-%m-%d")
 
-    # Load raw data
-    price_data = load_price_data(csv_path=price_data_path).resample("15min").ffill()
-
-    weather_data = (
-        load_weather_data(csv_path=weather_data_path).resample("15min").interpolate(method="linear")
+    price = load_price_data(
+        csv_path=price_data_path,
+        price_zone=price_zone,
+        start_date=start_date,
+        end_date=end_date,
     )
 
-    # Merge datasets
-    data = merge_price_weather_data(
-        price_data=price_data, weather_data=weather_data, merge_type="inner"
+    weather = load_weather_data(
+        csv_path=weather_data_path,
+        start_date=start_date,
+        end_date=end_date,
+    )
+    # Load raw data
+    data: pd.DataFrame = pd.merge(
+        left=price,
+        right=weather,
+        left_index=True,
+        right_index=True,
     )
 
     # Rename and select columns
     data.rename(
-        columns={price_zone: "price", "Tout_K": "temperature", "SolGlob": "solar"},
+        columns={
+            price_zone: "price",
+            "Tout_K": "temperature",
+            "SolGlob_W_m2": "solar",
+        },
         inplace=True,
     )
-    data = data[["price", "temperature", "solar"]].copy()
 
     # Convert to float32 and add time features
+    data["time"] = data.index.to_numpy(dtype="datetime64[m]")
+    data["quarter_hour"] = (data.index.hour * 4 + data.index.minute // 15) % (24 * 4)
+    data["day"] = data["time"].dt.dayofyear % 366  # 366 to account for leap years
+
     data["price"] = data["price"].astype(np.float32)
     data["temperature"] = data["temperature"].astype(np.float32)
     data["solar"] = data["solar"].astype(np.float32)
-    data["time"] = data.index.to_numpy(dtype="datetime64[m]")
-    data["quarter_hour"] = (data.index.hour * 4 + data.index.minute // 15) % (24 * 4)
-    data["day"] = data["time"].dt.dayofyear % 366
+
+    print("Prepared combined dataset:")
+    print(f"  Price range: {data['price'].min():.3f} to {data['price'].max():.3f} EUR/kWh")
+    print(
+        f"  Temperature range: {data['temperature'].min():.1f}K to {data['temperature'].max():.1f}K"
+    )
+    print(f"  Solar radiation range: {data['solar'].min():.1f} to {data['solar'].max():.1f} W/m²")
+    print(f"  Total records: {len(data)} from {data.index[0]} to {data.index[-1]}")
 
     return data
+
+
+if __name__ == "__main__":
+    # Test loading and preparing data
+    dataset = HvacDataset()
+    print(f"Dataset length: {len(dataset)}")

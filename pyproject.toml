@@ -63,7 +63,11 @@ dev = [
   "ruff==0.12.12"
 ]
 wandb = ["wandb==0.20.1"]
-
+hvac = [
+  "openmeteo-requests==1.7.4",
+  "retry-requests==2.0.0",
+  "requests-cache==1.2.1"
+]
 
 [tool.setuptools]
 packages = ["leap_c"]
