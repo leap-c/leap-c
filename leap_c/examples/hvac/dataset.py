@@ -126,6 +126,18 @@ class HvacDataset:
         """
         return self.data["temperature"].iloc[idx : idx + horizon].to_numpy()
 
+    def get_temperature_forecast(self, idx: int, horizon: int = 1) -> np.ndarray:
+        """Get ambient temperature forecastfrom index.
+
+        Args:
+            idx: Starting index.
+            horizon: Number of steps to retrieve.
+
+        Returns:
+            Temperature forecast array of shape (horizon,).
+        """
+        return self.data["temperature_forecast"].iloc[idx : idx + horizon].to_numpy()
+
     def get_solar(self, idx: int, horizon: int = 1) -> np.ndarray:
         """Get solar radiation from index.
 
@@ -137,6 +149,18 @@ class HvacDataset:
             Solar radiation array of shape (horizon,).
         """
         return self.data["solar"].iloc[idx : idx + horizon].to_numpy()
+
+    def get_solar_forecast(self, idx: int, horizon: int = 1) -> np.ndarray:
+        """Get solar radiation forecast from index.
+
+        Args:
+            idx: Starting index.
+            horizon: Number of steps to retrieve.
+
+        Returns:
+            Solar radiation array of shape (horizon,).
+        """
+        return self.data["solar_forecast"].iloc[idx : idx + horizon].to_numpy()
 
     def get_time_features(self, idx: int) -> tuple[int, int]:
         """Get time features (quarter hour, day of year).
@@ -563,7 +587,6 @@ def load_and_prepare_data(
     # Drop date column
     data.drop(
         columns=[
-            "time",
             "date",
             "temperature_2m",
             "apparent_temperature",
