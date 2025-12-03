@@ -61,7 +61,11 @@ PLANNER_REGISTRY = {
         {"param_interface": "stagewise"},
     ),
     "hvac": (HvacPlanner, HvacPlannerConfig, dict()),
-    "hvac_stagewise": (HvacPlanner, HvacPlannerConfig, {"stagewise": True}),
+    "hvac_stagewise": (
+        HvacPlanner,
+        HvacPlannerConfig,
+        {"param_interface": "reference", "param_granularity": "stagewise"},
+    ),
 }
 ExamplePlannerName = Literal[
     "cartpole",
