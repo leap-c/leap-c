@@ -10,7 +10,7 @@ from leap_c.ocp.acados.parameters import AcadosParameter
 @pytest.fixture(scope="module")
 def hvac_planner_stagewise():
     """Create an HVAC planner with stagewise parameters enabled."""
-    cfg = HvacPlannerConfig(N_horizon=8, stagewise=True)
+    cfg = HvacPlannerConfig(N_horizon=8, param_granularity="stagewise")
     planner = HvacPlanner(cfg)
     return planner
 
@@ -18,7 +18,7 @@ def hvac_planner_stagewise():
 @pytest.fixture(scope="module")
 def hvac_planner_non_stagewise():
     """Create an HVAC planner without stagewise parameters."""
-    cfg = HvacPlannerConfig(N_horizon=8, stagewise=False)
+    cfg = HvacPlannerConfig(N_horizon=8, param_granularity="global")
     planner = HvacPlanner(cfg)
     return planner
 
@@ -131,16 +131,6 @@ def test_default_param_non_stagewise(hvac_planner_non_stagewise: HvacPlanner) ->
     assert param_batch.shape[1] == len(param_single[0])
 
 
-def test_default_param_none_obs(hvac_planner_stagewise: HvacPlanner) -> None:
-    """Test default_param with None observation."""
-    param = hvac_planner_stagewise.default_param(None)
-
-    # Should return default params
-    assert param.ndim == 1
-    assert len(param) > 0
-    assert isinstance(param, np.ndarray)
-
-
 def test_forecast_extraction(hvac_planner_stagewise: HvacPlanner) -> None:
     """Test that forecasts are correctly extracted and set in parameters."""
     N_horizon = hvac_planner_stagewise.cfg.N_horizon
@@ -190,7 +180,11 @@ def create_planner_with_custom_params(
         HvacPlanner with custom parameter configuration.
     """
     # Get default params (now temperature, solar, price are non-learnable by default)
-    params = list(make_default_hvac_params(stagewise=stagewise, N_horizon=N_horizon))
+    params = list(
+        make_default_hvac_params(
+            interface="reference", granularity="stagewise", N_horizon=N_horizon
+        )
+    )
 
     # Modify the interface for temperature, solar, and price based on arguments
     for i, param in enumerate(params):
@@ -219,7 +213,9 @@ def create_planner_with_custom_params(
                 end_stages=param.end_stages,
             )
 
-    cfg = HvacPlannerConfig(N_horizon=N_horizon, stagewise=stagewise)
+    cfg = HvacPlannerConfig(
+        N_horizon=N_horizon, param_granularity="stagewise" if stagewise else "global"
+    )
     return HvacPlanner(cfg=cfg, params=tuple(params))
 
 

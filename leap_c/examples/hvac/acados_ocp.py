@@ -14,20 +14,27 @@ from leap_c.examples.hvac.dynamics import (
 )
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
-HvacAcadosParamInterface = Literal["global", "stagewise"]
+HvacAcadosParamInterface = Literal["reference", "reference_dynamics"]
 """Determines the exposed parameter interface of the planner.
-"global" means that learnable parameters are the same for all stages of the horizon,
-while "stagewise" means that learnable parameters can vary between stages.
+- "reference": Only reference parameters are exposed (e.g., ambient temperature,
+  solar radiation, electricity price, comfort bounds, etc.).
+- "reference_dynamics": Both reference parameters and dynamics parameters are exposed.
 """
+
+HvacAcadosParamGranularity = Literal["global", "stagewise"] | int
 
 
 def make_default_hvac_params(
-    stagewise: bool = False, N_horizon: int = 96, hydronic_params: HydronicParameters | None = None
+    interface: HvacAcadosParamInterface,
+    granularity: HvacAcadosParamGranularity,
+    N_horizon: int = 96,
+    hydronic_params: HydronicParameters | None = None,
 ) -> tuple[AcadosParameter, ...]:
     """Return a tuple of default parameters for the hvac planner.
 
     Args:
-        stagewise: If True, learnable parameters can vary between stages.
+        interface: The parameter interface type.
+        granularity: The granularity of the parameters.
         N_horizon: The number of steps in the MPC horizon
             (default: 96, i.e., 24 hours in 15-minute steps).
         hydronic_params: Optional HydronicParameters object.
@@ -37,8 +44,6 @@ def make_default_hvac_params(
     """
     hydronic_params = HydronicParameters() if hydronic_params is None else hydronic_params
 
-    # NOTE: Only include parameters that are relevant for the parametric OCP.
-    # TODO (Dirk): I removed the filter for now.
     params = [
         AcadosParameter(
             name=k,
@@ -46,10 +51,21 @@ def make_default_hvac_params(
             space=gym.spaces.Box(
                 low=0.95 * np.array([v]), high=1.05 * np.array([v]), dtype=np.float64
             ),
-            interface="fix",
+            interface="fix" if "dynamics" not in interface else "learnable",
         )
         for k, v in asdict(hydronic_params.dynamics).items()
     ]
+
+    if isinstance(granularity, int):
+        assert 1 <= granularity <= N_horizon, (
+            "Granularity must be between 0 and N_horizon (inclusive) when specified as an integer."
+        )
+        step = max(1, N_horizon // granularity)
+        end_stages = list(range(0, N_horizon + 1, step))
+        if end_stages[-1] != N_horizon:
+            end_stages.append(N_horizon)
+    else:
+        end_stages = list(range(N_horizon + 1)) if granularity == "stagewise" else []
 
     params.extend(
         [
@@ -61,8 +77,8 @@ def make_default_hvac_params(
                     high=np.array([convert_temperature(40.0, "celsius", "kelvin")]),
                     dtype=np.float64,
                 ),
-                interface="learnable",
-                end_stages=list(range(N_horizon + 1)) if stagewise else [],
+                interface="non-learnable",
+                end_stages=list(range(N_horizon + 1)),
             ),
             AcadosParameter(
                 name="solar",
@@ -72,8 +88,8 @@ def make_default_hvac_params(
                     high=np.array([2000.0]),
                     dtype=np.float64,
                 ),
-                interface="learnable",
-                end_stages=list(range(N_horizon + 1)) if stagewise else [],
+                interface="non-learnable",
+                end_stages=list(range(N_horizon + 1)),
             ),
             AcadosParameter(
                 name="price",
@@ -83,8 +99,8 @@ def make_default_hvac_params(
                     high=np.array([10.0]),
                     dtype=np.float64,
                 ),
-                interface="learnable",
-                end_stages=list(range(N_horizon + 1)) if stagewise else [],
+                interface="non-learnable",
+                end_stages=list(range(N_horizon + 1)),
             ),
         ]
     )
@@ -101,7 +117,7 @@ def make_default_hvac_params(
                     dtype=np.float64,
                 ),
                 interface="non-learnable",
-                end_stages=list(range(N_horizon + 1)) if stagewise else [],
+                end_stages=list(range(N_horizon + 1)),
             ),
             AcadosParameter(
                 name="ub_Ti",  # Upper bound on indoor temperature in Kelvin
@@ -112,7 +128,7 @@ def make_default_hvac_params(
                     dtype=np.float64,
                 ),
                 interface="non-learnable",
-                end_stages=list(range(N_horizon + 1)) if stagewise else [],
+                end_stages=list(range(N_horizon + 1)),
             ),
             AcadosParameter(
                 name="ref_Ti",  # Reference indoor temperature in Kelvin
@@ -123,7 +139,7 @@ def make_default_hvac_params(
                     dtype=np.float64,
                 ),
                 interface="learnable",
-                end_stages=list(range(N_horizon + 1)) if stagewise else [],
+                end_stages=end_stages,
             ),
         ]
     )
@@ -132,26 +148,24 @@ def make_default_hvac_params(
         [
             AcadosParameter(
                 name="q_Ti",
-                default=np.array([0.0005]),  # weight for indoor temperature residuals
-                space=gym.spaces.Box(
-                    low=np.array([0.0001]), high=np.array([0.001]), dtype=np.float64
-                ),
+                default=np.array([10]),  # weight for indoor temperature residuals
+                space=gym.spaces.Box(low=np.array([1]), high=np.array([100]), dtype=np.float64),
                 interface="learnable",
-                end_stages=list(range(N_horizon + 1)) if stagewise else [],
+                end_stages=end_stages,
             ),
             AcadosParameter(
                 name="q_dqh",
                 default=np.array([1.0]),  # weight for residuals of rate of change of heater power
                 space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64),
                 interface="learnable",
-                end_stages=list(range(N_horizon + 1)) if stagewise else [],
+                end_stages=end_stages,
             ),
             AcadosParameter(
                 name="q_ddqh",
                 default=np.array([1.0]),  # weight for residuals of acceleration of heater power
                 space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64),
                 interface="learnable",
-                end_stages=list(range(N_horizon)) if stagewise else [],
+                end_stages=end_stages,
             ),
         ]
     )
