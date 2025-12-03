@@ -68,9 +68,8 @@ class CartPoleDynamicsParams:
                 noise_scale=noise_scale,
                 skip_names=skip_names,
             )
-            new_self = CartPoleDynamicsParams(**new_params)
-            new_self._clamp_params()
-            return new_self
+            new_params._clamp_params()
+            return new_params
         return self
 
 
