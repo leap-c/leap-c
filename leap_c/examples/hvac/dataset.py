@@ -87,6 +87,12 @@ class HvacDataset:
                 weather_data_path=self.cfg.weather_data_path,
             )
 
+        # Check for NaN values in the dataset
+        assert not self.data.isnull().any().any(), (
+            f"Dataset contains NaN values in columns: "
+            f"{self.data.columns[self.data.isnull().any()].tolist()}"
+        )
+
         self.min = {key: self.data[key].min() for key in self.data.columns}
         self.max = {key: self.data[key].max() for key in self.data.columns}
 
