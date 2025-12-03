@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any, Callable, Literal
 
 import gymnasium as gym
 import matplotlib.pyplot as plt
@@ -13,23 +13,29 @@ from leap_c.examples.chain.dynamics import (
 from leap_c.examples.chain.utils.ellipsoid import Ellipsoid
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
 from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
+from leap_c.examples.utils.randomize_params import randomize_normal
+
+SimToRealGap = Literal["none", "small", "medium", "large"]
 
 
-@dataclass
-class ChainEnvConfig:
-    """Configuration for the Chain environment."""
+@dataclass(kw_only=True)
+class ChainDynamicsParams:
+    """Dynamics parameters for the Chain environment.
 
-    n_mass: int = 5  # number of masses in the chain
-    dt: float = 0.05  # simulation time step [s]
-    max_time: float = 10.0  # maximum simulation time after which the episode is truncated [s]
-    vmax: float = 1.0  # maximum velocity of the last mass [m/s]
+    Attributes:
+        L: List of rest lengths of the springs [m].
+        D: List of spring stiffnesses [N/m].
+        C: List of damping coefficients [Ns/m].
+        m: List of masses [kg].
+        w: List of disturbances on intermediate balls [N].
+    """
 
-    # dynamics parameters (dependent defaults)
-    L: list[float] = field(default_factory=list)  # rest length of spring [m]
-    D: list[float] = field(default_factory=list)  # spring stiffness [N/m]
-    C: list[float] = field(default_factory=list)  # damping coefficient [Ns/m]
-    m: list[float] = field(default_factory=list)  # mass of the balls [kg]
-    w: list[float] = field(default_factory=list)  # disturbance on intermediate balls [N]
+    n_mass: int = 5
+    L: list[float] = field(default_factory=list)
+    D: list[float] = field(default_factory=list)
+    C: list[float] = field(default_factory=list)
+    m: list[float] = field(default_factory=list)
+    w: list[float] = field(default_factory=list)
 
     def __post_init__(self):
         if not self.L:
@@ -42,6 +48,60 @@ class ChainEnvConfig:
             self.m = [0.033] * (self.n_mass - 1)
         if not self.w:
             self.w = [0.0, 0.0, 0.0] * (self.n_mass - 2)
+
+
+def sim_to_real_gap_to_stddev(gap: SimToRealGap) -> tuple[float, list[str]]:
+    """Maps the sim-to-real gap level to standard deviations for dynamics parameter randomization.
+
+    Args:
+        gap: The sim-to-real gap level.
+
+    Returns:
+        The standard deviation for dynamics parameter randomization.
+        The list of parameter names to skip during randomization.
+    """
+    skip_names = ["n_mass", "w"]
+    if gap == "none":
+        return 0.0, skip_names
+    elif gap == "small":
+        return 0.05, skip_names
+    elif gap == "medium":
+        return 0.1, skip_names
+    elif gap == "large":
+        return 0.2, skip_names
+
+
+def clamp_params(params: ChainDynamicsParams) -> ChainDynamicsParams:
+    """Clamps the dynamics parameters to plausible ranges (50% variation)."""
+    params.L = np.clip(params.L, 0.0165, 0.0495).tolist()
+    params.D = np.clip(params.D, 0.5, 1.5).tolist()
+    params.C = np.clip(params.C, 0.05, 0.15).tolist()
+    params.m = np.clip(params.m, 0.0165, 0.0495).tolist()
+    # Dont clip w
+    # Dont clip n_mass
+    return params
+
+
+@dataclass
+class ChainEnvConfig:
+    """Configuration for the Chain environment.
+
+    Attributes:
+        dynamics: Dynamics parameters for the chain.
+        sim_to_real_gap: Level of sim-to-real gap for dynamics randomization.
+            Will be applied when calling reset() of the environment
+            with a seed argument.
+        dt: Simulation time step [s].
+        max_time: Maximum simulation time after which the episode is truncated [s].
+        vmax: Maximum velocity of the last mass [m/s].
+    """
+
+    dynamics: ChainDynamicsParams = field(default_factory=ChainDynamicsParams)
+    sim_to_real_gap: SimToRealGap = "none"
+
+    dt: float = 0.05
+    max_time: float = 10.0
+    vmax: float = 1.0
 
 
 class ChainEnv(MatplotlibRenderEnv, gym.Env):
@@ -154,18 +214,21 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
         self.init_phi_range = np.array([np.pi / 6, np.pi / 3])
         self.init_theta_range = np.array([-np.pi / 4, np.pi / 4])
 
-        length = self.cfg.L[0]
-        pos_last_mass_ref = self.fix_point + np.array([length * (self.cfg.n_mass - 1), 0.0, 0.0])
+        length = self.cfg.dynamics.L[0]
+        pos_last_mass_ref = self.fix_point + np.array(
+            [length * (self.cfg.dynamics.n_mass - 1), 0.0, 0.0]
+        )
 
-        self.nx_pos = 3 * (self.cfg.n_mass - 1)
-        self.nx_vel = 3 * (self.cfg.n_mass - 2)
-
+        self.nx_pos = 3 * (self.cfg.dynamics.n_mass - 1)
+        self.nx_vel = 3 * (self.cfg.dynamics.n_mass - 2)
         self.pos_last_ref = pos_last_mass_ref
 
         # Compute observation space
-        pos_max = np.array(self.cfg.L) * (self.cfg.n_mass - 1)
+        pos_max = np.array(self.cfg.dynamics.L) * (self.cfg.dynamics.n_mass - 1)
         pos_min = -pos_max
-        vel_max = np.array([self.cfg.vmax, self.cfg.vmax, self.cfg.vmax] * (self.cfg.n_mass - 2))
+        vel_max = np.array(
+            [self.cfg.vmax, self.cfg.vmax, self.cfg.vmax] * (self.cfg.dynamics.n_mass - 2)
+        )
         vel_min = -vel_max
         self.observation_space = spaces.Box(
             low=np.concatenate([pos_min, vel_min], dtype=np.float32),
@@ -180,17 +243,19 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
         self.trajectory = []
 
         self.dyn_param_dict = {
-            "L": np.array(self.cfg.L),
-            "D": np.array(self.cfg.D),
-            "C": np.array(self.cfg.C),
-            "m": np.array(self.cfg.m),
-            "w": np.array(self.cfg.w),
+            "L": np.array(self.cfg.dynamics.L),
+            "D": np.array(self.cfg.dynamics.D),
+            "C": np.array(self.cfg.dynamics.C),
+            "m": np.array(self.cfg.dynamics.m),
+            "w": np.array(self.cfg.dynamics.w),
         }
 
-        self.discrete_dynamics = create_discrete_casadi_dynamics(self.cfg.n_mass, self.cfg.dt)
+        self.discrete_dynamics = create_discrete_casadi_dynamics(
+            self.cfg.dynamics.n_mass, self.cfg.dt
+        )
 
         self.resting_chain_solver = RestingChainSolver(
-            n_mass=self.cfg.n_mass,
+            n_mass=self.cfg.dynamics.n_mass,
             f_expl=define_f_expl_expr,
             fix_point=self.fix_point,
             **self.dyn_param_dict,
@@ -243,6 +308,28 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
             super().reset(seed=seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
+            noise_scale, skip_names = sim_to_real_gap_to_stddev(self.cfg.sim_to_real_gap)
+            if noise_scale > 0.0:
+                self.cfg.dynamics = randomize_normal(
+                    params=self.cfg.dynamics,
+                    rng=self.np_random,
+                    noise_scale=noise_scale,
+                    skip_names=skip_names,
+                )
+                self.dyn_param_dict = {
+                    "L": np.array(self.cfg.dynamics.L),
+                    "D": np.array(self.cfg.dynamics.D),
+                    "C": np.array(self.cfg.dynamics.C),
+                    "m": np.array(self.cfg.dynamics.m),
+                    "w": np.array(self.cfg.dynamics.w),
+                }
+                self.resting_chain_solver = RestingChainSolver(
+                    n_mass=self.cfg.dynamics.n_mass,
+                    f_expl=define_f_expl_expr,
+                    fix_point=self.fix_point,
+                    **self.dyn_param_dict,
+                )
+                self.x_ref, self.u_ref = self.resting_chain_solver(p_last=self.pos_last_ref)
         self.state_trajectory = None
         self.state, self.action = self._init_state_and_action()
         self.time = 0.0
@@ -277,8 +364,8 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
         for k, ax_k in enumerate(self._ax):
             ax_k.plot(ref_pos[:, k], "ro--", label="Reference")
             ax_k.grid()
-            ax_k.set_xticks(range(self.cfg.n_mass + 1))
-            ax_k.set_xlim(0, self.cfg.n_mass + 1)
+            ax_k.set_xticks(range(self.cfg.dynamics.n_mass + 1))
+            ax_k.set_xlim(0, self.cfg.dynamics.n_mass + 1)
             ax_k.set_ylim(low_ylim[k], high_ylim[k])
             ax_k.set_ylabel(labels[k])
             self.lines.append(

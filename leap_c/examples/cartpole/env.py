@@ -45,11 +45,11 @@ def sim_to_real_gap_to_stddev(gap: SimToRealGap) -> tuple[float, list[str]]:
 
 
 def clamp_params(params: CartPoleDynamicsParams) -> CartPoleDynamicsParams:
-    """Clamps the dynamics parameters to plausible ranges."""
-    params.gravity = np.clip(params.gravity, 1.0, 20.0)
-    params.masscart = np.clip(params.masscart, 0.1, 10.0)
-    params.masspole = np.clip(params.masspole, 0.01, 1.0)
-    params.length = np.clip(params.length, 0.1, 2.0)
+    """Clamps the dynamics parameters to plausible ranges (50% variation)."""
+    params.gravity = np.clip(params.gravity, 5, 15.0).item()
+    params.masscart = np.clip(params.masscart, 0.5, 1.5).item()
+    params.masspole = np.clip(params.masspole, 0.005, 0.15).item()
+    params.length = np.clip(params.length, 0.4, 1.2).item()
     return params
 
 
