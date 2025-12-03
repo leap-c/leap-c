@@ -171,8 +171,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 0.0,  # Radiator temperature
                 0.0,  # Envelope temperature
             ]
-            + [self.dataset.min["temperature"]] * self.N_forecast  # Ambient temperatures
-            + [self.dataset.min["solar"]] * self.N_forecast  # Solar radiation
+            + [self.dataset.min["temperature_forecast"]] * self.N_forecast  # Ambient temperatures
+            + [self.dataset.min["solar_forecast"]] * self.N_forecast  # Solar radiation
             + [self.dataset.min["price"]] * self.N_forecast,  # Prices  TODO: Allow negative prices
             dtype=np.float32,
         )
@@ -185,8 +185,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 convert_temperature(500.0, "celsius", "kelvin"),  # Radiator temperature
                 convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
             ]
-            + [self.dataset.max["temperature"]] * self.N_forecast  # Ambient temperatures
-            + [self.dataset.max["solar"]] * self.N_forecast  # Solar radiation
+            + [self.dataset.max["temperature_forecast"]] * self.N_forecast  # Ambient temperatures
+            + [self.dataset.max["solar_forecast"]] * self.N_forecast  # Solar radiation
             + [self.dataset.max["price"]] * self.N_forecast,  # Prices
             dtype=np.float32,
         )
@@ -240,8 +240,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             N_forecast=self.N_forecast,
             np_random=self.np_random,
         )
-        ambient_temperature_forecast = forecasts["temperature"]
-        solar_forecast = forecasts["solar"]
+        ambient_temperature_forecast = forecasts["temperature_forecast"]
+        solar_forecast = forecasts["solar_forecast"]
 
         return np.concatenate(
             [
@@ -600,7 +600,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         ctx: HvacPlannerCtx = self.ctx
 
         obs = self._get_observation()
-        temperature = obs[5 : 5 + self.N_forecast]
+        temperature_forecast = obs[5 : 5 + self.N_forecast]
         solar_forecast = obs[5 + self.N_forecast : 5 + 2 * self.N_forecast]
         price_forecast = obs[5 + 2 * self.N_forecast : 5 + 3 * self.N_forecast]
 
@@ -617,7 +617,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.trajectory_plots["price_observation"].set_data(range(self.N_forecast), price_forecast)
         self.trajectory_plots["temperature_observation"].set_data(
             range(self.N_forecast),
-            convert_temperature(temperature, "k", "c"),
+            convert_temperature(temperature_forecast, "k", "c"),
         )
         self.trajectory_plots["solar_observation"].set_data(range(self.N_forecast), solar_forecast)
 

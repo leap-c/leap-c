@@ -395,7 +395,12 @@ def get_open_meteo_data(
             "longitude": longitude,
             "start_date": start_date,
             "end_date": end_date,
-            "minutely_15": ["temperature_2m", "shortwave_radiation"],
+            "minutely_15": [
+                "temperature_2m",
+                "apparent_temperature",
+                "shortwave_radiation",
+                "direct_normal_irradiance",
+            ],
         },
     )
 
@@ -418,7 +423,9 @@ def get_open_meteo_data(
                 inclusive="left",
             ),
             "temperature_2m": minutely_15.Variables(0).ValuesAsNumpy(),
-            "shortwave_radiation": minutely_15.Variables(1).ValuesAsNumpy(),
+            "apparent_temperature": minutely_15.Variables(1).ValuesAsNumpy(),
+            "shortwave_radiation": minutely_15.Variables(2).ValuesAsNumpy(),
+            "direct_normal_irradiance": minutely_15.Variables(3).ValuesAsNumpy(),
         }
     )
 
@@ -427,18 +434,21 @@ def get_open_meteo_data(
     dataframe.set_index("Timestamp", inplace=True)
 
     # Rename columns for clarity
-    dataframe.rename(
-        columns={
-            "temperature_2m": "Tout_C",
-            "shortwave_radiation": "SolGlob_W_m2",
-        },
-        inplace=True,
-    )
+    # dataframe.rename(
+    #     columns={
+    #         "temperature_2m": "Tout_C",
+    #         "shortwave_radiation": "SolGlob_W_m2",
+    #     },
+    #     inplace=True,
+    # )
 
-    # Select relevant columns
-    dataframe = dataframe[["Tout_C", "SolGlob_W_m2"]]
+    # # Select relevant columns
+    # dataframe = dataframe[["Tout_C", "SolGlob_W_m2"]]
 
-    dataframe["Tout_K"] = convert_temperature(dataframe["Tout_C"], "C", "K")
+    # dataframe["Tout_K"] = convert_temperature(dataframe["Tout_C"], "C", "K")
+
+    for key in ["temperature_2m", "apparent_temperature"]:
+        dataframe[key] = convert_temperature(dataframe[key], "C", "K")
 
     return dataframe
 
@@ -530,14 +540,14 @@ def load_and_prepare_data(
     )
 
     # Rename and select columns
-    data.rename(
-        columns={
-            price_zone: "price",
-            "Tout_K": "temperature",
-            "SolGlob_W_m2": "solar",
-        },
-        inplace=True,
-    )
+    # data.rename(
+    #     columns={
+    #         price_zone: "price",
+    #         "Tout_K": "temperature",
+    #         "SolGlob_W_m2": "solar",
+    #     },
+    #     inplace=True,
+    # )
 
     # Convert to float32 and add time features
     data["time"] = data.index.to_numpy(dtype="datetime64[m]")
@@ -545,8 +555,23 @@ def load_and_prepare_data(
     data["day"] = data["time"].dt.dayofyear % 366  # 366 to account for leap years
 
     data["price"] = data["price"].astype(np.float32)
-    data["temperature"] = data["temperature"].astype(np.float32)
-    data["solar"] = data["solar"].astype(np.float32)
+    data["temperature"] = data["temperature_2m"].astype(np.float32)
+    data["temperature_forecast"] = data["apparent_temperature"].astype(np.float32)
+    data["solar"] = data["shortwave_radiation"].astype(np.float32)
+    data["solar_forecast"] = data["direct_normal_irradiance"].astype(np.float32)
+
+    # Drop date column
+    data.drop(
+        columns=[
+            "time",
+            "date",
+            "temperature_2m",
+            "apparent_temperature",
+            "shortwave_radiation",
+            "direct_normal_irradiance",
+        ],
+        inplace=True,
+    )
 
     print("Prepared combined dataset:")
     print(f"  Price range: {data['price'].min():.3f} to {data['price'].max():.3f} EUR/kWh")
