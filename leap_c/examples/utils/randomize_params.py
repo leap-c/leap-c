@@ -15,6 +15,8 @@ def randomize_normal(
 
     The randomization is done by sampling from a normal distribution centered
     at the original parameter value with a standard deviation noise_scale*|value|.
+    Raises an error when |value| is zero, in which case the parameter is probably unsuited to be
+    randomized this way.
 
     Args:
         params: Instance of a dataclass containing parameters to randomize.
@@ -38,6 +40,12 @@ def randomize_normal(
             randomized_params[field_name.name] = getattr(params, field_name.name)
             continue
         value = getattr(params, field_name.name)
+        if value == 0:
+            raise ValueError(
+                f"This kind of randomization is uneffective for parameter '{field_name.name}' "
+                "with value zero. "
+                "Consider skipping it or using a different randomization method."
+            )
         scale = override_noise_scale.get(field_name.name, noise_scale)
         randomized_params[field_name.name] = rng.normal(loc=value, scale=scale * np.abs(value))
     return type(params)(**randomized_params)
