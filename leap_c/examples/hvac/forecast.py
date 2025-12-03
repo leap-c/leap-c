@@ -61,16 +61,23 @@ class ForecastConfig:
         solar_uncertainty: Solar uncertainty configuration.
             Can be a SolarUncertaintyConfig object, a preset level string
             ('low', 'medium', 'high'), or None to disable.
+
+    Note:
+        Source for forecast params can be found at:
+        https://github.com/ibpsa/project1-boptest/blob/master/forecast/
+        forecast_uncertainty_params.json
     """
 
     horizon_hours: int = 24  # prediction horizon in hours
-    temp_uncertainty: TemperatureUncertaintyConfig | Literal["low", "medium", "high"] | None = "low"
-    solar_uncertainty: SolarUncertaintyConfig | Literal["low", "medium", "high"] | None = "low"
+    temp_uncertainty: (
+        TemperatureUncertaintyConfig | Literal["low", "medium", "high", "negative_bias"] | None
+    ) = "negative_bias"
+    solar_uncertainty: (
+        SolarUncertaintyConfig | Literal["low", "medium", "high", "negative_bias"] | None
+    ) = "negative_bias"
 
     def __post_init__(self):
         """Resolve string literals to actual config objects."""
-        # TODO (Dirk): Where are those parameters from?
-
         if self.temp_uncertainty == "low":
             self.temp_uncertainty = TemperatureUncertaintyConfig(
                 F0=0.0, K0=0.6, F=0.92, mu=0.0, K=0.4
@@ -82,6 +89,10 @@ class ForecastConfig:
         elif self.temp_uncertainty == "high":
             self.temp_uncertainty = TemperatureUncertaintyConfig(
                 F0=-0.58, K0=1.5, F=0.95, mu=-0.015, K=0.7
+            )
+        elif self.temp_uncertainty == "negative_bias":
+            self.temp_uncertainty = TemperatureUncertaintyConfig(
+                F0=0.0, K0=0.0, F=0.2, mu=-0.8, K=0.2
             )
 
         # Resolve solar uncertainty string to config
@@ -97,6 +108,10 @@ class ForecastConfig:
             self.solar_uncertainty = SolarUncertaintyConfig(
                 ag0=32.09, bg0=119.94, phi=0.67, ag=10.63, bg=87.44
             )
+        elif self.solar_uncertainty == "negative_bias":
+            self.solar_uncertainty = SolarUncertaintyConfig(
+                ag0=0.0, bg0=1.0, phi=0.7, ag=-5.0, bg=1.8
+            )
 
 
 class Forecaster:
@@ -110,7 +125,7 @@ class Forecaster:
         horizon_hours: Prediction horizon in hours (for convenience).
     """
 
-    def __init__(self, cfg: ForecastConfig | None = None):
+    def __init__(self, cfg: ForecastConfig | None = None) -> None:
         """Initialize the forecaster.
 
         Args:
@@ -125,7 +140,7 @@ class Forecaster:
         dataset: HvacDataset,
         N_forecast: int,
         np_random,
-        historical_data_bias: bool = True,
+        historical_data_bias: bool = False,
     ) -> dict[str, np.ndarray]:
         """Generate both temperature and solar forecasts.
 
