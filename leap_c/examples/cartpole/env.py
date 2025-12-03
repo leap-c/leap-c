@@ -362,7 +362,7 @@ class CartPoleEnv(gym.Env):
         center = (int(self.screen_width / 2), int(self.screen_height / 2))
         scale = self.screen_width / world_width
         polewidth = 10.0
-        polelen = scale * self.cfg.length
+        polelen = scale * self.cfg.dynamics.length
         cartwidth = 50.0
         cartheight = 30.0
         axleoffset = cartheight / 4.0
