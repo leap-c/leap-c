@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 import matplotlib.pyplot as plt
@@ -11,18 +11,76 @@ from matplotlib.lines import Line2D
 from matplotlib.patches import FancyArrowPatch
 
 from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
+from leap_c.examples.utils.randomize_params import randomize_normal
 
 DifficultyLevel = Literal["easy", "hard"]
+
+SimToRealGap = Literal["none", "small", "medium", "large"]
+"""Specifies the amount of sim-to-real gap to introduce by randomizing dynamics parameters.
+"""
+
+
+@dataclass(kw_only=True)
+class PointMassDynamicsParams:
+    """Dynamics parameters for the PointMass environment."""
+
+    m: float = 1.0  # mass [kg]
+    cx: float = 15  # damping coefficient in x direction [kg/s]
+    cy: float = 15  # damping coefficient in y direction [kg/s]
+
+
+def sim_to_real_gap_to_stddev(gap: SimToRealGap) -> tuple[float, list[str]]:
+    """Maps the sim-to-real gap level to standard deviations for dynamics parameter randomization.
+
+    Args:
+        gap: The sim-to-real gap level.
+
+    Returns:
+        The standard deviation for dynamics parameter randomization.
+        The list of parameter names to skip during randomization.
+    """
+    skip_names = []
+    if gap == "none":
+        return 0.0, skip_names
+    elif gap == "small":
+        return 0.05, skip_names
+    elif gap == "medium":
+        return 0.1, skip_names
+    elif gap == "large":
+        return 0.2, skip_names
+
+
+def clamp_params(params: PointMassDynamicsParams) -> PointMassDynamicsParams:
+    """Clamps the dynamics parameters to plausible ranges (50% variation)."""
+    params.m = np.clip(params.m, 0.5, 1.5).item()
+    params.cx = np.clip(params.cx, 7.5, 22.5).item()
+    params.cy = np.clip(params.cy, 7.5, 22.5).item()
+    return params
 
 
 @dataclass(kw_only=True)
 class PointMassEnvConfig:
-    """Configuration for the PointMass environment."""
+    """Configuration for the PointMass environment.
+
+    Attributes:
+        dynamics: Dynamics parameters for the PointMass environment
+        sim_to_real_gap: Amount of sim-to-real gap to introduce by randomizing dynamics parameters.
+            Will be applied when calling reset() of the environment
+            with a seed argument.
+
+        m: Mass of the point mass [kg].
+        dt: Time discretization [s].
+        Fmax: Maximum force applied in each direction [N].
+        max_time: Maximum time for an episode [s].
+        difficulty: Difficulty level for the wind field.
+        max_wind_force: Maximum wind force [N].
+        max_v: Maximum velocity [m/s] (only used for observation space limits).
+    """
+
+    dynamics: PointMassDynamicsParams = field(default_factory=PointMassDynamicsParams)
+    sim_to_real_gap: SimToRealGap = "none"
 
     dt: float = 0.1  # time discretization [s]
-    m: float = 1.0  # mass [kg]
-    cx: float = 15  # damping coefficient in x direction [kg/s]
-    cy: float = 15  # damping coefficient in y direction [kg/s]
     Fmax: float = 10.0  # maximum force [N]
     max_time: float = 10.0  # maximum time for an episode [s]
     difficulty: DifficultyLevel = "hard"  # difficulty level for the wind field
@@ -145,7 +203,7 @@ class PointMassEnv(MatplotlibRenderEnv):
 
         # env logic
         self.A, self.B = define_transition_matrices(
-            m=self.cfg.m, cx=self.cfg.cx, cy=self.cfg.cy, dt=self.cfg.dt
+            m=self.cfg.dynamics.m, cx=self.cfg.dynamics.cx, cy=self.cfg.dynamics.cy, dt=self.cfg.dt
         )
         self.start = Circle(pos=np.array([0.25, 0.8]), radius=0.15)
         self.goal = Circle(pos=np.array([3.75, 0.2]), radius=0.15)
@@ -197,6 +255,18 @@ class PointMassEnv(MatplotlibRenderEnv):
         return self._observation(), float(r), bool(term), bool(trunc), info
 
     def reset(self, *, seed: int | None = None, options: dict | None = None) -> tuple[Any, dict]:
+        if seed is not None:
+            super().reset(seed=seed)
+            self.observation_space.seed(seed)
+            self.action_space.seed(seed)
+            noise_scale, skip_names = sim_to_real_gap_to_stddev(self.cfg.sim_to_real_gap)
+            if noise_scale > 0.0:
+                self.cfg.dynamics = randomize_normal(
+                    params=self.cfg.dynamics,
+                    rng=self.np_random,
+                    noise_scale=noise_scale,
+                    skip_names=skip_names,
+                )
         super().reset(seed=seed)
         self.time = 0.0
         self.state = self._init_state(options=options)
