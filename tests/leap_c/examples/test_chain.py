@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from leap_c.examples.chain.env import ChainEnv, ChainEnvConfig
+from leap_c.examples.chain.env import ChainDynamicsParams, ChainEnv, ChainEnvConfig
 from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
 from leap_c.planner import ControllerFromPlanner
 
@@ -30,7 +30,8 @@ def test_chain_policy_evaluation_works(chain_controller):
 
 
 def test_chain_env_mpc_closed_loop(chain_controller):
-    cfg = ChainEnvConfig(n_mass=3)
+    dynamics = ChainDynamicsParams(n_mass=3)
+    cfg = ChainEnvConfig(dynamics=dynamics)
     env = ChainEnv(cfg=cfg)
 
     obs, _ = env.reset()
