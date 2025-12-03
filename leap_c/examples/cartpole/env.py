@@ -8,8 +8,8 @@ from gymnasium.envs.classic_control import utils as gym_utils
 
 from leap_c.examples.utils.randomize_params import randomize_normal
 
-SimToRealGap = Literal["none", "small", "medium", "large"]
-"""Specifies the amount of sim-to-real gap to introduce by randomizing dynamics parameters.
+DomainRandomizationLevel = Literal["none", "small", "medium", "large"]
+"""Specifies the amount of domain randomization to introduce by randomizing dynamics parameters.
 """
 
 
@@ -22,35 +22,56 @@ class CartPoleDynamicsParams:
     masspole: float = 0.1  # mass of the pole [kg]
     length: float = 0.8  # length of the pole [m]
 
+    def _domain_randomization_to_stddev(
+        self, level: DomainRandomizationLevel
+    ) -> tuple[float, list[str]]:
+        """Maps the domain randomization level to standard deviations for dynamics randomization.
 
-def sim_to_real_gap_to_stddev(gap: SimToRealGap) -> tuple[float, list[str]]:
-    """Maps the sim-to-real gap level to standard deviations for dynamics parameter randomization.
+        Args:
+            level: The domain randomization level.
 
-    Args:
-        gap: The sim-to-real gap level.
+        Returns:
+            The standard deviation for dynamics parameter randomization.
+            The list of parameter names to skip during randomization.
+        """
+        skip_names = []
+        if level == "none":
+            return 0.0, skip_names
+        elif level == "small":
+            return 0.05, skip_names
+        elif level == "medium":
+            return 0.1, skip_names
+        elif level == "large":
+            return 0.2, skip_names
 
-    Returns:
-        The standard deviation for dynamics parameter randomization.
-        The list of parameter names to skip during randomization.
-    """
-    skip_names = []
-    if gap == "none":
-        return 0.0, skip_names
-    elif gap == "small":
-        return 0.05, skip_names
-    elif gap == "medium":
-        return 0.1, skip_names
-    elif gap == "large":
-        return 0.2, skip_names
+    def _clamp_params(self):
+        """Clamps the dynamics parameters to plausible ranges (50% variation)."""
+        self.gravity = np.clip(self.gravity, 5, 15.0).item()
+        self.masscart = np.clip(self.masscart, 0.5, 1.5).item()
+        self.masspole = np.clip(self.masspole, 0.005, 0.15).item()
+        self.length = np.clip(self.length, 0.4, 1.2).item()
 
+    def randomize(
+        self, level: DomainRandomizationLevel, rng: np.random.Generator
+    ) -> "CartPoleDynamicsParams":
+        """Randomizes the parameters according to the specified domain randomization level.
 
-def clamp_params(params: CartPoleDynamicsParams) -> CartPoleDynamicsParams:
-    """Clamps the dynamics parameters to plausible ranges (50% variation)."""
-    params.gravity = np.clip(params.gravity, 5, 15.0).item()
-    params.masscart = np.clip(params.masscart, 0.5, 1.5).item()
-    params.masspole = np.clip(params.masspole, 0.005, 0.15).item()
-    params.length = np.clip(params.length, 0.4, 1.2).item()
-    return params
+        Args:
+            level: The domain randomization level.
+            rng: Random number generator.
+        """
+        noise_scale, skip_names = self._domain_randomization_to_stddev(level)
+        if noise_scale > 0.0:
+            new_params = randomize_normal(
+                params=self,
+                rng=rng,
+                noise_scale=noise_scale,
+                skip_names=skip_names,
+            )
+            new_self = CartPoleDynamicsParams(**new_params)
+            new_self._clamp_params()
+            return new_self
+        return self
 
 
 @dataclass(kw_only=True)
@@ -59,8 +80,8 @@ class CartPoleEnvConfig:
 
     Attributes:
         dynamics: The dynamics parameters of the cartpole system.
-        sim_to_real_gap: The amount of sim-to-real gap to introduce by randomizing dynamics
-            parameters. Will be applied when calling reset() of the environment
+        domain_randomization: The amount of domain randomization to introduce by randomizing
+            dynamics parameters. Will be applied when calling reset() of the environment
             with a seed argument.
         Fmax: Maximum force that can be applied to the cart [N].
         dt: Simulation time step [s].
@@ -69,7 +90,7 @@ class CartPoleEnvConfig:
     """
 
     dynamics: CartPoleDynamicsParams = field(default_factory=CartPoleDynamicsParams)
-    sim_to_real_gap: SimToRealGap = "none"
+    domain_randomization: DomainRandomizationLevel = "none"
 
     Fmax: float = 80.0
     dt: float = 0.05
@@ -298,14 +319,9 @@ class CartPoleEnv(gym.Env):
             super().reset(seed=seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
-            noise_scale, skip_names = sim_to_real_gap_to_stddev(self.cfg.sim_to_real_gap)
-            if noise_scale > 0.0:
-                self.cfg.dynamics = randomize_normal(
-                    params=self.cfg.dynamics,
-                    rng=self.np_random,
-                    noise_scale=noise_scale,
-                    skip_names=skip_names,
-                )
+            self.cfg.dynamics = self.cfg.dynamics.randomize(
+                self.cfg.domain_randomization, self.np_random
+            )
         self.t = 0
         self.x = self.init_state(options)
         self.reset_needed = False
@@ -336,7 +352,9 @@ class CartPoleEnv(gym.Env):
         self.pole_end_trajectory = []
         for x in state_trajectory:
             self.pos_trajectory.append(x[0])
-            self.pole_end_trajectory.append(self.calc_pole_end(x[0], x[1], self.cfg.length))
+            self.pole_end_trajectory.append(
+                self.calc_pole_end(x[0], x[1], self.cfg.dynamics.length)
+            )
 
     def calc_pole_end(self, x_coord: float, theta: float, length: float) -> tuple[float, float]:
         # NOTE: The minus is necessary because theta is seen as counterclockwise

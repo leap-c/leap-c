@@ -15,7 +15,8 @@ from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
 from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 from leap_c.examples.utils.randomize_params import randomize_normal
 
-SimToRealGap = Literal["none", "small", "medium", "large"]
+DomainRandomizationLevel = Literal["none", "small", "medium", "large"]
+"""Specifies the amount of domain randomization to introduce by randomizing dynamics parameters."""
 
 
 @dataclass(kw_only=True)
@@ -49,37 +50,59 @@ class ChainDynamicsParams:
         if not self.w:
             self.w = [0.0, 0.0, 0.0] * (self.n_mass - 2)
 
+    def domain_randomization_to_stddev(
+        self, level: DomainRandomizationLevel
+    ) -> tuple[float, list[str]]:
+        """Maps the domain randomization level to standard deviations for dynamics randomization.
 
-def sim_to_real_gap_to_stddev(gap: SimToRealGap) -> tuple[float, list[str]]:
-    """Maps the sim-to-real gap level to standard deviations for dynamics parameter randomization.
+        Args:
+            level: The domain randomization level.
 
-    Args:
-        gap: The sim-to-real gap level.
+        Returns:
+            The standard deviation for dynamics parameter randomization.
+            The list of parameter names to skip during randomization.
+        """
+        skip_names = ["n_mass", "w"]
+        if level == "none":
+            return 0.0, skip_names
+        elif level == "small":
+            return 0.05, skip_names
+        elif level == "medium":
+            return 0.1, skip_names
+        elif level == "large":
+            return 0.2, skip_names
 
-    Returns:
-        The standard deviation for dynamics parameter randomization.
-        The list of parameter names to skip during randomization.
-    """
-    skip_names = ["n_mass", "w"]
-    if gap == "none":
-        return 0.0, skip_names
-    elif gap == "small":
-        return 0.05, skip_names
-    elif gap == "medium":
-        return 0.1, skip_names
-    elif gap == "large":
-        return 0.2, skip_names
+    def _clamp_params(self):
+        """Clamps the dynamics parameters to plausible ranges (50% variation)."""
+        self.L = np.clip(self.L, 0.0165, 0.0495).tolist()
+        self.D = np.clip(self.D, 0.5, 1.5).tolist()
+        self.C = np.clip(self.C, 0.05, 0.15).tolist()
+        self.m = np.clip(self.m, 0.0165, 0.0495).tolist()
+        # Dont clip w
+        # Dont clip n_mass
+        return self
 
+    def randomize(
+        self, level: DomainRandomizationLevel, rng: np.random.Generator
+    ) -> "ChainDynamicsParams":
+        """Randomizes the parameters according to the specified domain randomization level.
 
-def clamp_params(params: ChainDynamicsParams) -> ChainDynamicsParams:
-    """Clamps the dynamics parameters to plausible ranges (50% variation)."""
-    params.L = np.clip(params.L, 0.0165, 0.0495).tolist()
-    params.D = np.clip(params.D, 0.5, 1.5).tolist()
-    params.C = np.clip(params.C, 0.05, 0.15).tolist()
-    params.m = np.clip(params.m, 0.0165, 0.0495).tolist()
-    # Dont clip w
-    # Dont clip n_mass
-    return params
+        Args:
+            level: The domain randomization level.
+            rng: Random number generator.
+        """
+        noise_scale, skip_names = self.domain_randomization_to_stddev(level)
+        if noise_scale > 0.0:
+            new_params = randomize_normal(
+                params=self,
+                rng=rng,
+                noise_scale=noise_scale,
+                skip_names=skip_names,
+            )
+            new_self = ChainDynamicsParams(**new_params)
+            new_self._clamp_params()
+            return new_self
+        return self
 
 
 @dataclass
@@ -88,16 +111,15 @@ class ChainEnvConfig:
 
     Attributes:
         dynamics: Dynamics parameters for the chain.
-        sim_to_real_gap: Level of sim-to-real gap for dynamics randomization.
-            Will be applied when calling reset() of the environment
-            with a seed argument.
+        domain_randomization: Level of domain randomization for dynamics randomization.
+            Will be applied when calling reset() of the environment with a seed argument.
         dt: Simulation time step [s].
         max_time: Maximum simulation time after which the episode is truncated [s].
         vmax: Maximum velocity of the last mass [m/s].
     """
 
     dynamics: ChainDynamicsParams = field(default_factory=ChainDynamicsParams)
-    sim_to_real_gap: SimToRealGap = "none"
+    domain_randomization_level: DomainRandomizationLevel = "none"
 
     dt: float = 0.05
     max_time: float = 10.0
@@ -117,7 +139,7 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
     System Design, 2006 IEEE International Conference on Control Applications,
     2006 IEEE International Symposium on Intelligent Control, pp. 591–596, IEEE,
     2006.
-    NOTE: An additoinal damping term has been added to the dynamics.
+    NOTE: An additional damping term has been added to the dynamics.
 
     Observation Space:
     ------------------
@@ -308,28 +330,23 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
             super().reset(seed=seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
-            noise_scale, skip_names = sim_to_real_gap_to_stddev(self.cfg.sim_to_real_gap)
-            if noise_scale > 0.0:
-                self.cfg.dynamics = randomize_normal(
-                    params=self.cfg.dynamics,
-                    rng=self.np_random,
-                    noise_scale=noise_scale,
-                    skip_names=skip_names,
-                )
-                self.dyn_param_dict = {
-                    "L": np.array(self.cfg.dynamics.L),
-                    "D": np.array(self.cfg.dynamics.D),
-                    "C": np.array(self.cfg.dynamics.C),
-                    "m": np.array(self.cfg.dynamics.m),
-                    "w": np.array(self.cfg.dynamics.w),
-                }
-                self.resting_chain_solver = RestingChainSolver(
-                    n_mass=self.cfg.dynamics.n_mass,
-                    f_expl=define_f_expl_expr,
-                    fix_point=self.fix_point,
-                    **self.dyn_param_dict,
-                )
-                self.x_ref, self.u_ref = self.resting_chain_solver(p_last=self.pos_last_ref)
+            self.cfg.dynamics = self.cfg.dynamics.randomize(
+                level=self.cfg.domain_randomization_level, rng=self.np_random
+            )
+            self.dyn_param_dict = {
+                "L": np.array(self.cfg.dynamics.L),
+                "D": np.array(self.cfg.dynamics.D),
+                "C": np.array(self.cfg.dynamics.C),
+                "m": np.array(self.cfg.dynamics.m),
+                "w": np.array(self.cfg.dynamics.w),
+            }
+            self.resting_chain_solver = RestingChainSolver(
+                n_mass=self.cfg.dynamics.n_mass,
+                f_expl=define_f_expl_expr,
+                fix_point=self.fix_point,
+                **self.dyn_param_dict,
+            )
+            self.x_ref, self.u_ref = self.resting_chain_solver(p_last=self.pos_last_ref)
         self.state_trajectory = None
         self.state, self.action = self._init_state_and_action()
         self.time = 0.0

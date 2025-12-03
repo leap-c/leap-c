@@ -15,8 +15,8 @@ from leap_c.examples.utils.randomize_params import randomize_normal
 
 DifficultyLevel = Literal["easy", "hard"]
 
-SimToRealGap = Literal["none", "small", "medium", "large"]
-"""Specifies the amount of sim-to-real gap to introduce by randomizing dynamics parameters.
+DomainRandomizationLevel = Literal["none", "small", "medium", "large"]
+"""Specifies the amount of domain randomization to introduce by randomizing dynamics parameters.
 """
 
 
@@ -28,24 +28,26 @@ class PointMassDynamicsParams:
     cx: float = 15  # damping coefficient in x direction [kg/s]
     cy: float = 15  # damping coefficient in y direction [kg/s]
 
-    def _sim_to_real_gap_to_stddev(self, gap: SimToRealGap) -> tuple[float, list[str]]:
-        """Maps the sim-to-real gap level to standard deviations for dynamics randomization.
+    def _domain_randomization_to_stddev(
+        self, level: DomainRandomizationLevel
+    ) -> tuple[float, list[str]]:
+        """Maps the domain randomization level to standard deviations for dynamics randomization.
 
         Args:
-            gap: The sim-to-real gap level.
+            level: The domain randomization level.
 
         Returns:
             The standard deviation for dynamics parameter randomization.
             The list of parameter names to skip during randomization.
         """
         skip_names = []
-        if gap == "none":
+        if level == "none":
             return 0.0, skip_names
-        elif gap == "small":
+        elif level == "small":
             return 0.05, skip_names
-        elif gap == "medium":
+        elif level == "medium":
             return 0.1, skip_names
-        elif gap == "large":
+        elif level == "large":
             return 0.2, skip_names
 
     def _clamp_params(self):
@@ -54,14 +56,16 @@ class PointMassDynamicsParams:
         self.cx = np.clip(self.cx, 7.5, 22.5).item()
         self.cy = np.clip(self.cy, 7.5, 22.5).item()
 
-    def randomize(self, gap: SimToRealGap, rng: np.random.Generator) -> "PointMassDynamicsParams":
-        """Randomizes the parameters according to the specified sim-to-real gap.
+    def randomize(
+        self, level: DomainRandomizationLevel, rng: np.random.Generator
+    ) -> "PointMassDynamicsParams":
+        """Randomizes the parameters according to the specified domain randomization level.
 
         Args:
-            gap: The sim-to-real gap level.
+            level: The domain randomization level.
             rng: Random number generator.
         """
-        noise_scale, skip_names = self._sim_to_real_gap_to_stddev(gap)
+        noise_scale, skip_names = self._domain_randomization_to_stddev(level)
         if noise_scale > 0.0:
             new_params = randomize_normal(
                 params=self,
@@ -81,10 +85,9 @@ class PointMassEnvConfig:
 
     Attributes:
         dynamics: Dynamics parameters for the PointMass environment
-        sim_to_real_gap: Amount of sim-to-real gap to introduce by randomizing dynamics parameters.
-            Will be applied when calling reset() of the environment
-            with a seed argument.
-
+        domain_randomization_level: Amount of domain randomization to introduce by randomizing
+            dynamics parameters. Will be applied when calling reset() of the environment
+            with a seed argument
         m: Mass of the point mass [kg].
         dt: Time discretization [s].
         Fmax: Maximum force applied in each direction [N].
@@ -95,7 +98,7 @@ class PointMassEnvConfig:
     """
 
     dynamics: PointMassDynamicsParams = field(default_factory=PointMassDynamicsParams)
-    sim_to_real_gap: SimToRealGap = "none"
+    domain_randomization_level: DomainRandomizationLevel = "none"
 
     dt: float = 0.1  # time discretization [s]
     Fmax: float = 10.0  # maximum force [N]
@@ -277,7 +280,7 @@ class PointMassEnv(MatplotlibRenderEnv):
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
             self.cfg.dynamics = self.cfg.dynamics.randomize(
-                gap=self.cfg.sim_to_real_gap, rng=self.np_random
+                level=self.cfg.domain_randomization_level, rng=self.np_random
             )
             self.A, self.B = define_transition_matrices(
                 m=self.cfg.dynamics.m,
