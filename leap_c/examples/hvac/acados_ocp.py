@@ -56,17 +56,14 @@ def make_default_hvac_params(
         for k, v in asdict(hydronic_params.dynamics).items()
     ]
 
-    end_stages = []
     if isinstance(granularity, int):
-        assert 0 <= granularity <= N_horizon, (
+        assert 1 <= granularity <= N_horizon, (
             "Granularity must be between 0 and N_horizon (inclusive) when specified as an integer."
         )
-        if granularity > 0:
-            step = max(1, N_horizon // granularity)
-            end_stages = list(range(0, N_horizon + 1, step))
+        step = max(1, N_horizon // granularity)
+        end_stages = list(range(0, N_horizon + 1, step))
+        if end_stages[-1] != N_horizon:
             end_stages.append(N_horizon)
-        else:
-            end_stages = []
     else:
         end_stages = list(range(N_horizon + 1)) if granularity == "stagewise" else []
 
