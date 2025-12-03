@@ -247,7 +247,9 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         ]:
             if not self.param_manager.has_learnable_param_pattern(f"{key}*"):
                 # If the forecast parameter is not learned, set it from the observation
-                overwrites[key] = obs[:, obs_idx[key]].reshape(batch_size, -1, 1).detach().cpu().numpy()
+                overwrites[key] = (
+                    obs[:, obs_idx[key]].reshape(batch_size, -1, 1).detach().cpu().numpy()
+                )
                 render_info[key] = overwrites[key]
             else:
                 # If the forecast parameter is learned, extract its structured representation
