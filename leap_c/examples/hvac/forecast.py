@@ -8,6 +8,8 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
+from leap_c.examples.hvac.dataset import HvacDataset
+
 
 @dataclass(kw_only=True)
 class TemperatureUncertaintyConfig:
@@ -120,24 +122,36 @@ class Forecaster:
     def get_forecast(
         self,
         idx: int,
-        data: pd.DataFrame,
+        dataset: HvacDataset,
         N_forecast: int,
         np_random,
+        historical_data_bias: bool = True,
     ) -> dict[str, np.ndarray]:
         """Generate both temperature and solar forecasts.
 
         Args:
             idx: Current data index.
-            data: Full dataset containing 'temperature' and 'solar'.
+            dataset: Full dataset containing 'price', 'temperature' and 'solar'.
             N_forecast: Number of forecast steps.
             np_random: Random number generator.
+            historical_data_bias: If True, use historical data without uncertainty.
 
         Returns:
-            Dictionary with 'temperature' and 'solar' forecast arrays.
+            Dictionary with 'price', 'temperature' and 'solar' forecast arrays.
         """
+        price_forecast = dataset.get_price(idx=idx, horizon=N_forecast)
+
+        if historical_data_bias:
+            return {
+                "price": price_forecast,
+                "temperature": dataset.get_temperature_forecast(idx, N_forecast),
+                "solar": dataset.get_solar_forecast(idx, N_forecast),
+            }
+
         return {
-            "temperature": self.get_temperature_forecast(idx, data, N_forecast, np_random),
-            "solar": self.get_solar_forecast(idx, data, N_forecast, np_random),
+            "price": price_forecast,
+            "temperature": self.get_temperature_forecast(idx, dataset.data, N_forecast, np_random),
+            "solar": self.get_solar_forecast(idx, dataset.data, N_forecast, np_random),
         }
 
     def get_temperature_forecast(

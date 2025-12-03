@@ -232,33 +232,20 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         """
         quarter_hour, day_of_year = self.dataset.get_time_features(self.idx)
 
-        # forecasts = self.forecaster.get_forecast(
-        #     idx=self.idx,
-        #     data=self.dataset.data,
-        #     N_forecast=self.N_forecast,
-        #     np_random=self.np_random,
-        # )
-
-        price_forecast = self.dataset.get_price(
+        forecasts = self.forecaster.get_forecast(
             idx=self.idx,
-            horizon=self.N_forecast,
-        )
-        ambient_temperature_forecast = self.dataset.get_temperature_forecast(
-            idx=self.idx,
-            horizon=self.N_forecast,
-        )
-        solar_forecast = self.dataset.get_solar_forecast(
-            idx=self.idx,
-            horizon=self.N_forecast,
+            dataset=self.dataset,
+            N_forecast=self.N_forecast,
+            np_random=self.np_random,
         )
 
         return np.concatenate(
             [
                 np.array([quarter_hour, day_of_year], dtype=np.float32),
                 self.state.astype(np.float32),
-                ambient_temperature_forecast.astype(np.float32),
-                solar_forecast.astype(np.float32),
-                price_forecast.astype(np.float32),
+                forecasts["temperature"].astype(np.float32),
+                forecasts["solar"].astype(np.float32),
+                forecasts["price"].astype(np.float32),
             ]
         )
 
