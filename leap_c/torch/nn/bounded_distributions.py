@@ -352,7 +352,7 @@ class ModeConcentrationBeta(Beta):
         """Initialize ModeConcentrationBeta distribution.
 
         Args:
-            mode: Mode parameter (must be in [lb, ub])
+            mode: Mode parameter (must be in [0, 1])
             concentration: Total concentration parameter (must be > 2)
             lb: Lower bound for sample rescaling (default: 0)
             ub: Upper bound for sample rescaling (default: 1)
@@ -367,11 +367,9 @@ class ModeConcentrationBeta(Beta):
         self._mode = mode
         self._concentration = concentration
 
-        mode_01 = self.inverse(mode)
-
         # Compute alpha, beta from mode in [0, 1] space and total concentration
         alpha, beta = ModeConcentrationBeta.compute_alpha_beta(
-            mode=mode_01, concentration=concentration
+            mode=mode, concentration=concentration
         )
 
         # Initialize parent Beta distribution first
@@ -383,7 +381,7 @@ class ModeConcentrationBeta(Beta):
 
     @property
     def mode(self) -> torch.Tensor:
-        """The mode of the distribution in [lb, ub] space."""
+        """The mode of the distribution in [0, 1] space."""
         return self._mode
 
     @property
@@ -448,7 +446,7 @@ class ModeConcentrationBeta(Beta):
         """Update the mode and concentration parameters of the distribution.
 
         Args:
-            mode: New mode parameter in [lb, ub] space
+            mode: New mode parameter in [0, 1] space
             concentration: New concentration parameter
         """
         mode = torch.as_tensor(mode)
@@ -456,14 +454,14 @@ class ModeConcentrationBeta(Beta):
 
         # Compute new alpha, beta from mode in [0, 1] space and concentration
         alpha, beta = ModeConcentrationBeta.compute_alpha_beta(
-            mode=self.inverse(mode),
+            mode=mode,
             concentration=concentration,
         )
 
         # Reinitialize the parent Beta distribution with new parameters
         Beta.__init__(self, concentration1=alpha, concentration0=beta)
 
-        # Update stored mode and concentration (in [lb, ub] space)
+        # Update stored mode and concentration (in [0, 1] space)
         self._mode = mode
         self._concentration = concentration
 
