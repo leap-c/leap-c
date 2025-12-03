@@ -28,34 +28,51 @@ class PointMassDynamicsParams:
     cx: float = 15  # damping coefficient in x direction [kg/s]
     cy: float = 15  # damping coefficient in y direction [kg/s]
 
+    def _sim_to_real_gap_to_stddev(self, gap: SimToRealGap) -> tuple[float, list[str]]:
+        """Maps the sim-to-real gap level to standard deviations for dynamics randomization.
 
-def sim_to_real_gap_to_stddev(gap: SimToRealGap) -> tuple[float, list[str]]:
-    """Maps the sim-to-real gap level to standard deviations for dynamics parameter randomization.
+        Args:
+            gap: The sim-to-real gap level.
 
-    Args:
-        gap: The sim-to-real gap level.
+        Returns:
+            The standard deviation for dynamics parameter randomization.
+            The list of parameter names to skip during randomization.
+        """
+        skip_names = []
+        if gap == "none":
+            return 0.0, skip_names
+        elif gap == "small":
+            return 0.05, skip_names
+        elif gap == "medium":
+            return 0.1, skip_names
+        elif gap == "large":
+            return 0.2, skip_names
 
-    Returns:
-        The standard deviation for dynamics parameter randomization.
-        The list of parameter names to skip during randomization.
-    """
-    skip_names = []
-    if gap == "none":
-        return 0.0, skip_names
-    elif gap == "small":
-        return 0.05, skip_names
-    elif gap == "medium":
-        return 0.1, skip_names
-    elif gap == "large":
-        return 0.2, skip_names
+    def _clamp_params(self):
+        """Clamps the dynamics parameters to plausible ranges (50% variation)."""
+        self.m = np.clip(self.m, 0.5, 1.5).item()
+        self.cx = np.clip(self.cx, 7.5, 22.5).item()
+        self.cy = np.clip(self.cy, 7.5, 22.5).item()
 
+    def randomize(self, gap: SimToRealGap, rng: np.random.Generator) -> "PointMassDynamicsParams":
+        """Randomizes the parameters according to the specified sim-to-real gap.
 
-def clamp_params(params: PointMassDynamicsParams) -> PointMassDynamicsParams:
-    """Clamps the dynamics parameters to plausible ranges (50% variation)."""
-    params.m = np.clip(params.m, 0.5, 1.5).item()
-    params.cx = np.clip(params.cx, 7.5, 22.5).item()
-    params.cy = np.clip(params.cy, 7.5, 22.5).item()
-    return params
+        Args:
+            gap: The sim-to-real gap level.
+            rng: Random number generator.
+        """
+        noise_scale, skip_names = self._sim_to_real_gap_to_stddev(gap)
+        if noise_scale > 0.0:
+            new_params = randomize_normal(
+                params=self,
+                rng=rng,
+                noise_scale=noise_scale,
+                skip_names=skip_names,
+            )
+            new_self = PointMassDynamicsParams(**new_params)
+            new_self._clamp_params()
+            return new_self
+        return self
 
 
 @dataclass(kw_only=True)
@@ -259,14 +276,16 @@ class PointMassEnv(MatplotlibRenderEnv):
             super().reset(seed=seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
-            noise_scale, skip_names = sim_to_real_gap_to_stddev(self.cfg.sim_to_real_gap)
-            if noise_scale > 0.0:
-                self.cfg.dynamics = randomize_normal(
-                    params=self.cfg.dynamics,
-                    rng=self.np_random,
-                    noise_scale=noise_scale,
-                    skip_names=skip_names,
-                )
+            self.cfg.dynamics = self.cfg.dynamics.randomize(
+                gap=self.cfg.sim_to_real_gap, rng=self.np_random
+            )
+            self.A, self.B = define_transition_matrices(
+                m=self.cfg.dynamics.m,
+                cx=self.cfg.dynamics.cx,
+                cy=self.cfg.dynamics.cy,
+                dt=self.cfg.dt,
+            )
+
         super().reset(seed=seed)
         self.time = 0.0
         self.state = self._init_state(options=options)
