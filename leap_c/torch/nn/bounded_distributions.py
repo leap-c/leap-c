@@ -363,9 +363,11 @@ class ModeConcentrationBeta(Beta):
 
         self._lb = torch.tensor(0.0) if lb is None else torch.as_tensor(lb).clone()
         self._ub = torch.tensor(1.0) if ub is None else torch.as_tensor(ub).clone()
+        self._scale = self._ub - self._lb
+        self._mode = mode
+        self._concentration = concentration
 
-        # Convert mode from [lb, ub] space to [0, 1] space
-        mode_01 = (mode - self._lb) / (self._ub - self._lb)
+        mode_01 = self.inverse(mode)
 
         # Compute alpha, beta from mode in [0, 1] space and total concentration
         alpha, beta = ModeConcentrationBeta.compute_alpha_beta(
@@ -379,12 +381,9 @@ class ModeConcentrationBeta(Beta):
             validate_args=validate_args,
         )
 
-        self._mode = mode
-        self._concentration = concentration
-
     @property
     def mode(self) -> torch.Tensor:
-        """The mode of the distribution."""
+        """The mode of the distribution in [lb, ub] space."""
         return self._mode
 
     @property
@@ -403,7 +402,7 @@ class ModeConcentrationBeta(Beta):
         return self._ub
 
     def rsample(self, sample_shape: torch.Size = torch.Size()) -> torch.Tensor:
-        """Sample using reparameterization trick and rescale from [0, 1] to [lb, ub].
+        """Sample using reparameterization trick in [0, 1] and rescale to [lb, ub].
 
         Args:
             sample_shape: Shape of samples to draw
@@ -414,7 +413,7 @@ class ModeConcentrationBeta(Beta):
         # Get reparameterized samples from parent Beta distribution (in [0, 1])
         samples_01 = super().rsample(sample_shape=sample_shape)
 
-        return self._lb + samples_01 * (self._ub - self._lb)
+        return self._lb + samples_01 * (self._scale)
 
     def log_prob(self, value: torch.Tensor) -> torch.Tensor:
         """Compute log probability of samples in [lb, ub] range.
@@ -425,19 +424,18 @@ class ModeConcentrationBeta(Beta):
         Returns:
             Log probabilities adjusted for the transformation
         """
-        # Transform samples from [lb, ub] back to [0, 1]
-        value_01 = torch.clamp(
-            input=(value - self._lb) / (self._ub - self._lb),
-            min=0.0,
-            max=1.0,
-        )
-
         # Compute log_prob in [0, 1] space
-        log_prob_01 = super().log_prob(value=value_01)
+        log_prob_01 = super().log_prob(
+            value=torch.clamp(
+                input=self.inverse(value),
+                min=0.0,
+                max=1.0,
+            )
+        )
 
         # Adjust for Jacobian of transformation: dx/dy = 1 / (ub - lb)
         # log_prob_rescaled = log_prob_01 - log|ub - lb|
-        log_jacobian = -torch.log(self._ub - self._lb)
+        log_jacobian = -torch.log(self._scale).sum()
         log_prob_rescaled = log_prob_01 + log_jacobian
 
         return log_prob_rescaled
@@ -456,12 +454,10 @@ class ModeConcentrationBeta(Beta):
         mode = torch.as_tensor(mode)
         concentration = torch.as_tensor(concentration)
 
-        # Convert mode from [lb, ub] space to [0, 1] space
-        mode_01 = (mode - self._lb) / (self._ub - self._lb)
-
         # Compute new alpha, beta from mode in [0, 1] space and concentration
         alpha, beta = ModeConcentrationBeta.compute_alpha_beta(
-            mode=mode_01, concentration=concentration
+            mode=self.inverse(mode),
+            concentration=concentration,
         )
 
         # Reinitialize the parent Beta distribution with new parameters
@@ -495,7 +491,6 @@ class ModeConcentrationBeta(Beta):
         log_prob = self.log_prob(sample)
         return sample, log_prob, {}
 
-    @abstractmethod
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
         """Returns param size required to define the distribution for the given output dim.
 
@@ -507,3 +502,14 @@ class ModeConcentrationBeta(Beta):
             parameter required to define the distribution in the forward pass.
         """
         return (output_dim, output_dim)
+
+    def inverse(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the inverse transformation from [lb, ub] to [0, 1].
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The inverse scaled tensor.
+        """
+        return (x - self._lb[None, :]) / self._scale[None, :]
