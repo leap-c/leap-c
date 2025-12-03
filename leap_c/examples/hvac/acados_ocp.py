@@ -64,6 +64,7 @@ def make_default_hvac_params(
         if granularity > 0:
             step = max(1, N_horizon // granularity)
             end_stages = list(range(0, N_horizon + 1, step))
+            end_stages.append(N_horizon)
         else:
             end_stages = []
     else:
