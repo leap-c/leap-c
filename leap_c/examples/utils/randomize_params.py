@@ -4,6 +4,14 @@ from typing import Any
 import numpy as np
 
 
+def raise_value_zero_exception(field_name):
+    raise ValueError(
+        f"This kind of randomization is uneffective for parameter '{field_name}' "
+        "containing zero values. "
+        "Consider skipping it or using a different randomization method."
+    )
+
+
 def randomize_normal(
     params: Any,
     rng: np.random.Generator,
@@ -40,12 +48,26 @@ def randomize_normal(
             randomized_params[field_name.name] = getattr(params, field_name.name)
             continue
         value = getattr(params, field_name.name)
-        if value == 0:
-            raise ValueError(
-                f"This kind of randomization is uneffective for parameter '{field_name.name}' "
-                "with value zero. "
-                "Consider skipping it or using a different randomization method."
-            )
         scale = override_noise_scale.get(field_name.name, noise_scale)
-        randomized_params[field_name.name] = rng.normal(loc=value, scale=scale * np.abs(value))
+        if isinstance(value, (int, float)):
+            if value == 0:
+                raise_value_zero_exception(field_name.name)
+            randomized_params[field_name.name] = rng.normal(loc=value, scale=scale * np.abs(value))
+        elif isinstance(value, list):
+            new_list = []
+            for v in value:
+                if v == 0:
+                    raise_value_zero_exception(field_name.name)
+                new_v = rng.normal(loc=v, scale=scale * np.abs(v))
+                new_list.append(new_v)
+            randomized_params[field_name.name] = new_list
+        elif isinstance(value, np.ndarray):
+            if np.any(value == 0):
+                raise_value_zero_exception(field_name.name)
+            randomized_params[field_name.name] = rng.normal(loc=value, scale=scale * np.abs(value))
+        else:
+            raise Exception(
+                "Only list and np.ndarray fields are currently supported "
+                f"for randomization, but got {type(value)}."
+            )
     return type(params)(**randomized_params)
