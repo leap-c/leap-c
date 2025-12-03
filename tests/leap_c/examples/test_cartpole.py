@@ -162,12 +162,13 @@ def test_closed_loop_rendering(cartpole_controller):
 
 
 def test_domain_randomization():
+    rng = np.random.default_rng(0)
     cfg = CartPoleEnvConfig(domain_randomization="large")
-    env = CartPoleEnv(cfg=cfg)
-    dynamics_previous = env.cfg.dynamics
-    obs, info = env.reset()
-    dynamics_after = info["dynamics"]
-    assert dynamics_previous == dynamics_after
-    obs, info = env.reset(seed=1337)
-    dynamics_after = info["dynamics"]
-    assert dynamics_previous != dynamics_after
+    cfg_without = CartPoleEnvConfig(domain_randomization="none")
+    dynamics_before = cfg.dynamics
+    cfg.dynamics = cfg.dynamics.randomize(level=cfg.domain_randomization, rng=rng)
+    cfg_without.dynamics = cfg_without.dynamics.randomize(
+        level=cfg_without.domain_randomization, rng=rng
+    )
+    assert dynamics_before == cfg_without.dynamics
+    assert cfg.dynamics != cfg_without.dynamics

@@ -179,8 +179,6 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
     - "task": {"violation": bool, "success": bool}
       - violation: Always False.
       - success: True if goal reached
-    The info dictionary of reset contains:
-    - "dynamics": The dynamics parameter config of the environment.
 
     Attributes:
         cfg: Configuration for the environment.
@@ -331,29 +329,12 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
             super().reset(seed=seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
-            self.cfg.dynamics = self.cfg.dynamics.randomize(
-                level=self.cfg.domain_randomization, rng=self.np_random
-            )
-            self.dyn_param_dict = {
-                "L": np.array(self.cfg.dynamics.L),
-                "D": np.array(self.cfg.dynamics.D),
-                "C": np.array(self.cfg.dynamics.C),
-                "m": np.array(self.cfg.dynamics.m),
-                "w": np.array(self.cfg.dynamics.w),
-            }
-            self.resting_chain_solver = RestingChainSolver(
-                n_mass=self.cfg.dynamics.n_mass,
-                f_expl=define_f_expl_expr,
-                fix_point=self.fix_point,
-                **self.dyn_param_dict,
-            )
-            self.x_ref, self.u_ref = self.resting_chain_solver(p_last=self.pos_last_ref)
         self.state_trajectory = None
         self.state, self.action = self._init_state_and_action()
         self.time = 0.0
         self.trajectory = []
 
-        return self.state.copy(), {"dynamics": self.cfg.dynamics}
+        return self.state.copy(), {}
 
     def _init_state_and_action(self):
         phi = self.np_random.uniform(low=self.init_phi_range[0], high=self.init_phi_range[1])

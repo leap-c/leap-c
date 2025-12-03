@@ -195,8 +195,6 @@ class CartPoleEnv(gym.Env):
     - "task": {"violation": bool, "success": bool}
       - violation: True if out of bounds
       - success: True if the pole was upright in the last 10 steps.
-    The info dictionary of reset contains:
-    - "dynamics": The dynamics parameter config of the environment.
 
     Attributes:
         cfg: Configuration for the environment.
@@ -318,9 +316,6 @@ class CartPoleEnv(gym.Env):
             super().reset(seed=seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
-            self.cfg.dynamics = self.cfg.dynamics.randomize(
-                self.cfg.domain_randomization, self.np_random
-            )
         self.t = 0
         self.x = self.init_state(options)
         self.reset_needed = False
@@ -328,7 +323,7 @@ class CartPoleEnv(gym.Env):
         self.x_trajectory = []
         self.pos_trajectory = None
         self.pole_end_trajectory = None
-        return self.x, {"dynamics": self.cfg.dynamics}
+        return self.x, {}
 
     def init_state(self, options: dict | None) -> np.ndarray:
         return np.array([0.0, np.pi, 0.0, 0.0], dtype=np.float32)

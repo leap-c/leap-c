@@ -55,12 +55,13 @@ def test_chain_env_mpc_closed_loop(chain_controller):
 
 
 def test_domain_randomization():
+    rng = np.random.default_rng(0)
     cfg = ChainEnvConfig(domain_randomization="large")
-    env = ChainEnv(cfg=cfg)
-    dynamics_previous = env.cfg.dynamics
-    obs, info = env.reset()
-    dynamics_after = info["dynamics"]
-    assert dynamics_previous == dynamics_after
-    obs, info = env.reset(seed=1337)
-    dynamics_after = info["dynamics"]
-    assert dynamics_previous != dynamics_after
+    cfg_without = ChainEnvConfig(domain_randomization="none")
+    dynamics_before = cfg.dynamics
+    cfg.dynamics = cfg.dynamics.randomize(level=cfg.domain_randomization, rng=rng)
+    cfg_without.dynamics = cfg_without.dynamics.randomize(
+        level=cfg_without.domain_randomization, rng=rng
+    )
+    assert dynamics_before == cfg_without.dynamics
+    assert cfg.dynamics != cfg_without.dynamics

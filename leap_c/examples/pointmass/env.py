@@ -153,8 +153,6 @@ class PointMassEnv(MatplotlibRenderEnv):
     - "task": {"violation": bool, "success": bool}
       - violation: True if out of bounds
       - success: True if goal reached
-    The info dictionary of reset contains:
-    - "dynamics": The dynamics parameter config of the environment.
 
     Attributes:
         cfg: Configuration object for the environment.
@@ -280,15 +278,6 @@ class PointMassEnv(MatplotlibRenderEnv):
             super().reset(seed=seed)
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
-            self.cfg.dynamics = self.cfg.dynamics.randomize(
-                level=self.cfg.domain_randomization, rng=self.np_random
-            )
-            self.A, self.B = define_transition_matrices(
-                m=self.cfg.dynamics.m,
-                cx=self.cfg.dynamics.cx,
-                cy=self.cfg.dynamics.cy,
-                dt=self.cfg.dt,
-            )
 
         super().reset(seed=seed)
         self.time = 0.0
@@ -296,7 +285,7 @@ class PointMassEnv(MatplotlibRenderEnv):
         self.action = np.zeros(self.action_space.shape, dtype=np.float32)  # type: ignore
         self.trajectory = [self.state.copy()]
 
-        return self._observation(), {"dynamics": self.cfg.dynamics}
+        return self._observation(), {}
 
     def _observation(self) -> np.ndarray:
         ode_state = self.state.copy().astype(np.float32)  # type: ignore
