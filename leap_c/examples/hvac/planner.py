@@ -247,7 +247,9 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         ]:
             if not self.param_manager.has_learnable_param_pattern(f"{key}*"):
                 # If the forecast parameter is not learned, set it from the observation
-                overwrites[key] = obs[:, obs_idx[key]].reshape(batch_size, -1, 1)
+                overwrites[key] = (
+                    obs[:, obs_idx[key]].reshape(batch_size, -1, 1).detach().cpu().numpy()
+                )
                 render_info[key] = overwrites[key]
             else:
                 # If the forecast parameter is learned, extract its structured representation
@@ -304,9 +306,12 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         match the stages in the parameters. No block-wise varying parameters
         are supported here.
         """
+        if isinstance(obs, torch.Tensor):
+            obs = obs.detach().cpu().numpy()
+
         # Handle both single and batched observations uniformly
         # Ensure obs is 2D: (n_batch, obs_dim)
-        obs_2d = obs if obs.ndim == 2 else obs[np.newaxis, :]
+        obs_2d = obs if obs.ndim == 2 else obs[None, :]
         n_batch = obs_2d.shape[0]
 
         # Extract forecasts: shape (n_batch, n_stages, 3)
