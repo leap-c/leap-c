@@ -1,7 +1,6 @@
 """Dataset management for HVAC environment."""
 
 from dataclasses import dataclass, field
-from datetime import date
 from pathlib import Path
 from typing import Literal
 
@@ -86,6 +85,12 @@ class HvacDataset:
                 price_data_path=self.cfg.price_data_path,
                 weather_data_path=self.cfg.weather_data_path,
             )
+
+        # Check for NaN values in the dataset
+        assert not self.data.isnull().any().any(), (
+            f"Dataset contains NaN values in columns: "
+            f"{self.data.columns[self.data.isnull().any()].tolist()}"
+        )
 
         self.min = {key: self.data[key].min() for key in self.data.columns}
         self.max = {key: self.data[key].max() for key in self.data.columns}
@@ -480,7 +485,7 @@ def load_weather_data(
         # TODO: Need to take care that the price zone exists in the data.
         # If not, download separately and append it to the existing dataset.
     except FileNotFoundError:
-        print(f"WARNING: Price data file not found: {csv_path}")
+        print(f"WARNING: Weather data file not found: {csv_path}")
         weather_data = get_open_meteo_data(
             latitude=latitude,
             longitude=longitude,
@@ -524,7 +529,7 @@ def load_and_prepare_data(
     if start_date is None:
         start_date = "2017-01-01"
     if end_date is None:
-        end_date = date.today().strftime("%Y-%m-%d")
+        end_date = "2025-02-15"  # After this, the price data is missing in large parts
 
     price = load_price_data(
         csv_path=price_data_path,
@@ -572,6 +577,25 @@ def load_and_prepare_data(
         inplace=True,
     )
 
+    # Check for NaN values and apply zero-order hold (forward fill)
+    nan_counts = data.isnull().sum()
+    if nan_counts.any():
+        print("NaN values detected before forward fill:")
+        for col, count in nan_counts[nan_counts > 0].items():
+            print(f"  {col}: {count} NaN values")
+
+        # Apply zero-order hold (forward fill) to replace NaNs
+        data = data.ffill()
+
+        # Check if any NaNs remain (e.g., at the beginning of the dataset)
+        remaining_nans = data.isnull().sum()
+        if remaining_nans.any():
+            print("NaN values remaining after forward fill (filling with backward fill):")
+            for col, count in remaining_nans[remaining_nans > 0].items():
+                print(f"  {col}: {count} NaN values")
+            # Use backward fill for any remaining NaNs at the start
+            data = data.bfill()
+
     print("Prepared combined dataset:")
     print(f"  Price range: {data['price'].min():.3f} to {data['price'].max():.3f} EUR/kWh")
     print(
@@ -587,3 +611,14 @@ if __name__ == "__main__":
     # Test loading and preparing data
     dataset = HvacDataset()
     print(f"Dataset length: {len(dataset)}")
+
+    # Plot all price data
+    import matplotlib.pyplot as plt
+
+    plt.figure(figsize=(12, 6))
+    plt.plot(dataset.data.index, dataset.data["price"], label="Price (EUR/kWh)")
+    plt.xlabel("Time")
+    plt.ylabel("Price (EUR/kWh)")
+    plt.title("Electricity Price Over Time")
+    plt.legend()
+    plt.show()
