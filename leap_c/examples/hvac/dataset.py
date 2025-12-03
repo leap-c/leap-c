@@ -457,23 +457,6 @@ def get_open_meteo_data(
     dataframe["Timestamp"] = pd.to_datetime(dataframe["date"])
     dataframe.set_index("Timestamp", inplace=True)
 
-    # Rename columns for clarity
-    # dataframe.rename(
-    #     columns={
-    #         "temperature_2m": "Tout_C",
-    #         "shortwave_radiation": "SolGlob_W_m2",
-    #     },
-    #     inplace=True,
-    # )
-
-    # # Select relevant columns
-    # dataframe = dataframe[["Tout_C", "SolGlob_W_m2"]]
-
-    # dataframe["Tout_K"] = convert_temperature(dataframe["Tout_C"], "C", "K")
-
-    for key in ["temperature_2m", "apparent_temperature"]:
-        dataframe[key] = convert_temperature(dataframe[key], "C", "K")
-
     return dataframe
 
 
@@ -563,16 +546,6 @@ def load_and_prepare_data(
         right_index=True,
     )
 
-    # Rename and select columns
-    # data.rename(
-    #     columns={
-    #         price_zone: "price",
-    #         "Tout_K": "temperature",
-    #         "SolGlob_W_m2": "solar",
-    #     },
-    #     inplace=True,
-    # )
-
     # Convert to float32 and add time features
     data["time"] = data.index.to_numpy(dtype="datetime64[m]")
     data["quarter_hour"] = (data.index.hour * 4 + data.index.minute // 15) % (24 * 4)
@@ -583,6 +556,9 @@ def load_and_prepare_data(
     data["temperature_forecast"] = data["apparent_temperature"].astype(np.float32)
     data["solar"] = data["shortwave_radiation"].astype(np.float32)
     data["solar_forecast"] = data["direct_normal_irradiance"].astype(np.float32)
+
+    for key in ["temperature", "temperature_forecast"]:
+        data[key] = convert_temperature(data[key], "C", "K")
 
     # Drop date column
     data.drop(
