@@ -8,6 +8,8 @@ from typing import Literal
 import numpy as np
 import pandas as pd
 
+from leap_c.examples.hvac.dataset import HvacDataset
+
 
 @dataclass(kw_only=True)
 class TemperatureUncertaintyConfig:
@@ -59,16 +61,23 @@ class ForecastConfig:
         solar_uncertainty: Solar uncertainty configuration.
             Can be a SolarUncertaintyConfig object, a preset level string
             ('low', 'medium', 'high'), or None to disable.
+
+    Note:
+        Source for forecast params can be found at:
+        https://github.com/ibpsa/project1-boptest/blob/master/forecast/
+        forecast_uncertainty_params.json
     """
 
     horizon_hours: int = 24  # prediction horizon in hours
-    temp_uncertainty: TemperatureUncertaintyConfig | Literal["low", "medium", "high"] | None = "low"
-    solar_uncertainty: SolarUncertaintyConfig | Literal["low", "medium", "high"] | None = "low"
+    temp_uncertainty: (
+        TemperatureUncertaintyConfig | Literal["low", "medium", "high", "negative_bias"] | None
+    ) = "negative_bias"
+    solar_uncertainty: (
+        SolarUncertaintyConfig | Literal["low", "medium", "high", "negative_bias"] | None
+    ) = "negative_bias"
 
     def __post_init__(self):
         """Resolve string literals to actual config objects."""
-        # TODO (Dirk): Where are those parameters from?
-
         if self.temp_uncertainty == "low":
             self.temp_uncertainty = TemperatureUncertaintyConfig(
                 F0=0.0, K0=0.6, F=0.92, mu=0.0, K=0.4
@@ -80,6 +89,10 @@ class ForecastConfig:
         elif self.temp_uncertainty == "high":
             self.temp_uncertainty = TemperatureUncertaintyConfig(
                 F0=-0.58, K0=1.5, F=0.95, mu=-0.015, K=0.7
+            )
+        elif self.temp_uncertainty == "negative_bias":
+            self.temp_uncertainty = TemperatureUncertaintyConfig(
+                F0=0.0, K0=0.0, F=0.2, mu=-0.8, K=0.2
             )
 
         # Resolve solar uncertainty string to config
@@ -95,6 +108,10 @@ class ForecastConfig:
             self.solar_uncertainty = SolarUncertaintyConfig(
                 ag0=32.09, bg0=119.94, phi=0.67, ag=10.63, bg=87.44
             )
+        elif self.solar_uncertainty == "negative_bias":
+            self.solar_uncertainty = SolarUncertaintyConfig(
+                ag0=0.0, bg0=1.0, phi=0.7, ag=-5.0, bg=1.8
+            )
 
 
 class Forecaster:
@@ -108,7 +125,7 @@ class Forecaster:
         horizon_hours: Prediction horizon in hours (for convenience).
     """
 
-    def __init__(self, cfg: ForecastConfig | None = None):
+    def __init__(self, cfg: ForecastConfig | None = None) -> None:
         """Initialize the forecaster.
 
         Args:
@@ -120,24 +137,36 @@ class Forecaster:
     def get_forecast(
         self,
         idx: int,
-        data: pd.DataFrame,
+        dataset: HvacDataset,
         N_forecast: int,
         np_random,
+        historical_data_bias: bool = False,
     ) -> dict[str, np.ndarray]:
         """Generate both temperature and solar forecasts.
 
         Args:
             idx: Current data index.
-            data: Full dataset containing 'temperature' and 'solar'.
+            dataset: Full dataset containing 'price', 'temperature' and 'solar'.
             N_forecast: Number of forecast steps.
             np_random: Random number generator.
+            historical_data_bias: If True, use historical data without uncertainty.
 
         Returns:
-            Dictionary with 'temperature' and 'solar' forecast arrays.
+            Dictionary with 'price', 'temperature' and 'solar' forecast arrays.
         """
+        price_forecast = dataset.get_price(idx=idx, horizon=N_forecast)
+
+        if historical_data_bias:
+            return {
+                "price": price_forecast,
+                "temperature": dataset.get_temperature_forecast(idx, N_forecast),
+                "solar": dataset.get_solar_forecast(idx, N_forecast),
+            }
+
         return {
-            "temperature": self.get_temperature_forecast(idx, data, N_forecast, np_random),
-            "solar": self.get_solar_forecast(idx, data, N_forecast, np_random),
+            "price": price_forecast,
+            "temperature": self.get_temperature_forecast(idx, dataset.data, N_forecast, np_random),
+            "solar": self.get_solar_forecast(idx, dataset.data, N_forecast, np_random),
         }
 
     def get_temperature_forecast(
