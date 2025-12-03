@@ -119,7 +119,7 @@ class ChainEnvConfig:
     """
 
     dynamics: ChainDynamicsParams = field(default_factory=ChainDynamicsParams)
-    domain_randomization_level: DomainRandomizationLevel = "none"
+    domain_randomization: DomainRandomizationLevel = "none"
 
     dt: float = 0.05
     max_time: float = 10.0
@@ -176,10 +176,12 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
 
     Info:
     -----
-    The info dictionary contains:
+    The info dictionary of step contains:
     - "task": {"violation": bool, "success": bool}
       - violation: Always False.
       - success: True if goal reached
+    The info dictionary of reset contains:
+    - "dynamics": The dynamics parameter config of the environment.
 
     Attributes:
         cfg: Configuration for the environment.
@@ -331,7 +333,7 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
             self.cfg.dynamics = self.cfg.dynamics.randomize(
-                level=self.cfg.domain_randomization_level, rng=self.np_random
+                level=self.cfg.domain_randomization, rng=self.np_random
             )
             self.dyn_param_dict = {
                 "L": np.array(self.cfg.dynamics.L),
@@ -352,7 +354,7 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
         self.time = 0.0
         self.trajectory = []
 
-        return self.state.copy(), {}
+        return self.state.copy(), {"dynamics": self.cfg.dynamics}
 
     def _init_state_and_action(self):
         phi = self.np_random.uniform(low=self.init_phi_range[0], high=self.init_phi_range[1])

@@ -9,7 +9,7 @@ import torch
 from acados_template import AcadosOcpSolver
 from gymnasium.utils.save_video import save_video
 
-from leap_c.examples.cartpole.env import CartPoleEnv
+from leap_c.examples.cartpole.env import CartPoleEnv, CartPoleEnvConfig
 from leap_c.examples.cartpole.planner import (
     CartPolePlanner,
     CartPolePlannerConfig,
@@ -159,3 +159,15 @@ def test_closed_loop_rendering(cartpole_controller):
     )
 
     shutil.rmtree(savefile_dir_path)
+
+
+def test_domain_randomization():
+    cfg = CartPoleEnvConfig(domain_randomization="large")
+    env = CartPoleEnv(cfg=cfg)
+    dynamics_previous = env.cfg.dynamics
+    obs, info = env.reset()
+    dynamics_after = info["dynamics"]
+    assert dynamics_previous == dynamics_after
+    obs, info = env.reset(seed=1337)
+    dynamics_after = info["dynamics"]
+    assert dynamics_previous != dynamics_after

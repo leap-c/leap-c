@@ -51,3 +51,15 @@ def test_chain_env_mpc_closed_loop(chain_controller):
     error_norm = np.linalg.norm(x_ref - obs)
 
     assert error_norm < 1e-2, "Error norm is too high"
+
+
+def test_domain_randomization():
+    cfg = ChainEnvConfig(domain_randomization="large")
+    env = ChainEnv(cfg=cfg)
+    dynamics_previous = env.cfg.dynamics
+    obs, info = env.reset()
+    dynamics_after = info["dynamics"]
+    assert dynamics_previous == dynamics_after
+    obs, info = env.reset(seed=1337)
+    dynamics_after = info["dynamics"]
+    assert dynamics_previous != dynamics_after

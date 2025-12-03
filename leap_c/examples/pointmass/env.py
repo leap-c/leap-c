@@ -85,7 +85,7 @@ class PointMassEnvConfig:
 
     Attributes:
         dynamics: Dynamics parameters for the PointMass environment
-        domain_randomization_level: Amount of domain randomization to introduce by randomizing
+        domain_randomization: Amount of domain randomization to introduce by randomizing
             dynamics parameters. Will be applied when calling reset() of the environment
             with a seed argument
         m: Mass of the point mass [kg].
@@ -98,7 +98,7 @@ class PointMassEnvConfig:
     """
 
     dynamics: PointMassDynamicsParams = field(default_factory=PointMassDynamicsParams)
-    domain_randomization_level: DomainRandomizationLevel = "none"
+    domain_randomization: DomainRandomizationLevel = "none"
 
     dt: float = 0.1  # time discretization [s]
     Fmax: float = 10.0  # maximum force [N]
@@ -150,10 +150,12 @@ class PointMassEnv(MatplotlibRenderEnv):
 
     Info:
     -----
-    The info dictionary contains:
+    The info dictionary of step contains:
     - "task": {"violation": bool, "success": bool}
       - violation: True if out of bounds
       - success: True if goal reached
+    The info dictionary of reset contains:
+    - "dynamics": The dynamics parameter config of the environment.
 
     Attributes:
         cfg: Configuration object for the environment.
@@ -280,7 +282,7 @@ class PointMassEnv(MatplotlibRenderEnv):
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
             self.cfg.dynamics = self.cfg.dynamics.randomize(
-                level=self.cfg.domain_randomization_level, rng=self.np_random
+                level=self.cfg.domain_randomization, rng=self.np_random
             )
             self.A, self.B = define_transition_matrices(
                 m=self.cfg.dynamics.m,
@@ -295,7 +297,7 @@ class PointMassEnv(MatplotlibRenderEnv):
         self.action = np.zeros(self.action_space.shape, dtype=np.float32)  # type: ignore
         self.trajectory = [self.state.copy()]
 
-        return self._observation(), {}
+        return self._observation(), {"dynamics": self.cfg.dynamics}
 
     def _observation(self) -> np.ndarray:
         ode_state = self.state.copy().astype(np.float32)  # type: ignore
