@@ -171,8 +171,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 0.0,  # Radiator temperature
                 0.0,  # Envelope temperature
             ]
-            + [self.dataset.min["temperature"]] * self.N_forecast  # Ambient temperatures
-            + [self.dataset.min["solar"]] * self.N_forecast  # Solar radiation
+            + [self.dataset.min["temperature_forecast"]] * self.N_forecast  # Ambient temperatures
+            + [self.dataset.min["solar_forecast"]] * self.N_forecast  # Solar radiation
             + [self.dataset.min["price"]] * self.N_forecast,  # Prices  TODO: Allow negative prices
             dtype=np.float32,
         )
@@ -185,8 +185,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 convert_temperature(500.0, "celsius", "kelvin"),  # Radiator temperature
                 convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
             ]
-            + [self.dataset.max["temperature"]] * self.N_forecast  # Ambient temperatures
-            + [self.dataset.max["solar"]] * self.N_forecast  # Solar radiation
+            + [self.dataset.max["temperature_forecast"]] * self.N_forecast  # Ambient temperatures
+            + [self.dataset.max["solar_forecast"]] * self.N_forecast  # Solar radiation
             + [self.dataset.max["price"]] * self.N_forecast,  # Prices
             dtype=np.float32,
         )
@@ -232,24 +232,20 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         """
         quarter_hour, day_of_year = self.dataset.get_time_features(self.idx)
 
-        price_forecast = self.dataset.get_price(self.idx, self.N_forecast)
-
         forecasts = self.forecaster.get_forecast(
             idx=self.idx,
-            data=self.dataset.data,
+            dataset=self.dataset,
             N_forecast=self.N_forecast,
             np_random=self.np_random,
         )
-        ambient_temperature_forecast = forecasts["temperature"]
-        solar_forecast = forecasts["solar"]
 
         return np.concatenate(
             [
                 np.array([quarter_hour, day_of_year], dtype=np.float32),
                 self.state.astype(np.float32),
-                ambient_temperature_forecast.astype(np.float32),
-                solar_forecast.astype(np.float32),
-                price_forecast.astype(np.float32),
+                forecasts["temperature"].astype(np.float32),
+                forecasts["solar"].astype(np.float32),
+                forecasts["price"].astype(np.float32),
             ]
         )
 
@@ -600,7 +596,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         ctx: HvacPlannerCtx = self.ctx
 
         obs = self._get_observation()
-        temperature = obs[5 : 5 + self.N_forecast]
+        temperature_forecast = obs[5 : 5 + self.N_forecast]
         solar_forecast = obs[5 + self.N_forecast : 5 + 2 * self.N_forecast]
         price_forecast = obs[5 + 2 * self.N_forecast : 5 + 3 * self.N_forecast]
 
@@ -617,7 +613,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.trajectory_plots["price_observation"].set_data(range(self.N_forecast), price_forecast)
         self.trajectory_plots["temperature_observation"].set_data(
             range(self.N_forecast),
-            convert_temperature(temperature, "k", "c"),
+            convert_temperature(temperature_forecast, "k", "c"),
         )
         self.trajectory_plots["solar_observation"].set_data(range(self.N_forecast), solar_forecast)
 

@@ -126,6 +126,18 @@ class HvacDataset:
         """
         return self.data["temperature"].iloc[idx : idx + horizon].to_numpy()
 
+    def get_temperature_forecast(self, idx: int, horizon: int = 1) -> np.ndarray:
+        """Get ambient temperature forecastfrom index.
+
+        Args:
+            idx: Starting index.
+            horizon: Number of steps to retrieve.
+
+        Returns:
+            Temperature forecast array of shape (horizon,).
+        """
+        return self.data["temperature_forecast"].iloc[idx : idx + horizon].to_numpy()
+
     def get_solar(self, idx: int, horizon: int = 1) -> np.ndarray:
         """Get solar radiation from index.
 
@@ -137,6 +149,18 @@ class HvacDataset:
             Solar radiation array of shape (horizon,).
         """
         return self.data["solar"].iloc[idx : idx + horizon].to_numpy()
+
+    def get_solar_forecast(self, idx: int, horizon: int = 1) -> np.ndarray:
+        """Get solar radiation forecast from index.
+
+        Args:
+            idx: Starting index.
+            horizon: Number of steps to retrieve.
+
+        Returns:
+            Solar radiation array of shape (horizon,).
+        """
+        return self.data["solar_forecast"].iloc[idx : idx + horizon].to_numpy()
 
     def get_time_features(self, idx: int) -> tuple[int, int]:
         """Get time features (quarter hour, day of year).
@@ -395,7 +419,12 @@ def get_open_meteo_data(
             "longitude": longitude,
             "start_date": start_date,
             "end_date": end_date,
-            "minutely_15": ["temperature_2m", "shortwave_radiation"],
+            "minutely_15": [
+                "temperature_2m",
+                "apparent_temperature",
+                "shortwave_radiation",
+                "direct_normal_irradiance",
+            ],
         },
     )
 
@@ -418,27 +447,15 @@ def get_open_meteo_data(
                 inclusive="left",
             ),
             "temperature_2m": minutely_15.Variables(0).ValuesAsNumpy(),
-            "shortwave_radiation": minutely_15.Variables(1).ValuesAsNumpy(),
+            "apparent_temperature": minutely_15.Variables(1).ValuesAsNumpy(),
+            "shortwave_radiation": minutely_15.Variables(2).ValuesAsNumpy(),
+            "direct_normal_irradiance": minutely_15.Variables(3).ValuesAsNumpy(),
         }
     )
 
     # Parse the date column and set it as index
     dataframe["Timestamp"] = pd.to_datetime(dataframe["date"])
     dataframe.set_index("Timestamp", inplace=True)
-
-    # Rename columns for clarity
-    dataframe.rename(
-        columns={
-            "temperature_2m": "Tout_C",
-            "shortwave_radiation": "SolGlob_W_m2",
-        },
-        inplace=True,
-    )
-
-    # Select relevant columns
-    dataframe = dataframe[["Tout_C", "SolGlob_W_m2"]]
-
-    dataframe["Tout_K"] = convert_temperature(dataframe["Tout_C"], "C", "K")
 
     return dataframe
 
@@ -529,24 +546,31 @@ def load_and_prepare_data(
         right_index=True,
     )
 
-    # Rename and select columns
-    data.rename(
-        columns={
-            price_zone: "price",
-            "Tout_K": "temperature",
-            "SolGlob_W_m2": "solar",
-        },
-        inplace=True,
-    )
-
     # Convert to float32 and add time features
     data["time"] = data.index.to_numpy(dtype="datetime64[m]")
     data["quarter_hour"] = (data.index.hour * 4 + data.index.minute // 15) % (24 * 4)
     data["day"] = data["time"].dt.dayofyear % 366  # 366 to account for leap years
 
     data["price"] = data["price"].astype(np.float32)
-    data["temperature"] = data["temperature"].astype(np.float32)
-    data["solar"] = data["solar"].astype(np.float32)
+    data["temperature"] = data["temperature_2m"].astype(np.float32)
+    data["temperature_forecast"] = data["apparent_temperature"].astype(np.float32)
+    data["solar"] = data["shortwave_radiation"].astype(np.float32)
+    data["solar_forecast"] = data["direct_normal_irradiance"].astype(np.float32)
+
+    for key in ["temperature", "temperature_forecast"]:
+        data[key] = convert_temperature(data[key], "C", "K")
+
+    # Drop date column
+    data.drop(
+        columns=[
+            "date",
+            "temperature_2m",
+            "apparent_temperature",
+            "shortwave_radiation",
+            "direct_normal_irradiance",
+        ],
+        inplace=True,
+    )
 
     print("Prepared combined dataset:")
     print(f"  Price range: {data['price'].min():.3f} to {data['price'].max():.3f} EUR/kWh")
