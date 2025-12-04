@@ -33,7 +33,7 @@ def create_cfg(env: str, controller: str, seed: int, variant: str = "fop") -> Ru
     cfg = RunSacFopConfig()
     cfg.env = env
     cfg.controller = controller if controller is not None else env
-    cfg.extractor = "identity" if env != "hvac" else "scaling"
+    cfg.extractor = "identity" if env != "hvac" else "hvac"
 
     # Validate variant
     if variant not in ["fop", "fopc", "foa"]:

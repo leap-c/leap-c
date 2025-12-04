@@ -24,7 +24,7 @@ def create_cfg(env: str, seed: int) -> RunSacConfig:
     # ---- Configuration ----
     cfg = RunSacConfig()
     cfg.env = env
-    cfg.extractor = "identity" if env != "hvac" else "scaling"
+    cfg.extractor = "identity" if env != "hvac" else "hvac"
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = seed
