@@ -30,8 +30,8 @@ def create_cfg(env: str, seed: int) -> RunSacConfig:
     cfg.trainer.seed = seed
     cfg.trainer.train_steps = 1_000_000 if env == "pointmass" else 200_000
     cfg.trainer.train_start = 0
-    cfg.trainer.val_freq = 10_000
-    cfg.trainer.val_num_rollouts = 20
+    cfg.trainer.val_freq = 10_000 if env != "hvac" else 50_000
+    cfg.trainer.val_num_rollouts = 20 if env != "hvac" else 100
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
