@@ -25,7 +25,7 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacZopConfig:
     cfg = RunSacZopConfig()
     cfg.env = env
     cfg.controller = controller if controller is not None else env
-    cfg.extractor = "identity" if env != "hvac" else "scaling"
+    cfg.extractor = "identity" if env != "hvac" else "hvac"
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = seed
