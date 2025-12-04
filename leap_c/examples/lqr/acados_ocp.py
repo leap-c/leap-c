@@ -41,25 +41,10 @@ def make_default_lqr_params(N_horizon: int = 96) -> tuple[AcadosParameter, ...]:
             ),
             AcadosParameter(
                 name="P",
-                default=np.array(
-                    [
-                        [5.0, 1.0],
-                        [1.0, 0.5],
-                    ]
-                ),
+                default=np.array([5.0, 1.0, 1.0, 0.5]),
                 space=gym.spaces.Box(
-                    low=np.array(
-                        [
-                            [1.0, 0.5],
-                            [0.5, 0.1],
-                        ]
-                    ),
-                    high=np.array(
-                        [
-                            [10.0, 1.5],
-                            [1.5, 1.0],
-                        ]
-                    ),
+                    low=np.array([1.0, 0.5, 0.5, 0.1]),
+                    high=np.array([10.0, 1.5, 1.5, 1.0]),
                     dtype=np.float64,
                 ),
                 interface="learnable",
@@ -115,8 +100,10 @@ def export_parametric_ocp(
     ocp.model.cost_y_expr = ca.vertcat(ocp.model.x, ocp.model.u)
     ocp.cost.yref = np.zeros((ocp.cost.W.shape[0],))
 
+    P_matrix = ca.reshape(param_manager.get("P"), (2, 2))
+
     ocp.cost.cost_type_e = "NONLINEAR_LS"
-    ocp.cost.W_e = param_manager.get("P")
+    ocp.cost.W_e = P_matrix
     ocp.model.cost_y_expr_e = ocp.model.x
     ocp.cost.yref_e = np.zeros((ocp.cost.W_e.shape[0],))
 
