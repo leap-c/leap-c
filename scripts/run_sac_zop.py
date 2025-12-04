@@ -1,7 +1,6 @@
 """Main script to run SAC-ZOP experiments."""
 
 from argparse import ArgumentParser
-from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
