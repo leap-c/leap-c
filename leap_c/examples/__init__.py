@@ -12,14 +12,17 @@ from leap_c.examples.chain.env import ChainEnv
 from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
 from leap_c.examples.hvac.env import StochasticThreeStateRcEnv
 from leap_c.examples.hvac.planner import HvacPlanner, HvacPlannerConfig
+from leap_c.examples.lqr.env import LqrEnv
+from leap_c.examples.lqr.planner import LqrPlanner, LqrPlannerConfig
 from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pointmass.planner import PointMassControllerConfig, PointMassPlanner
 from leap_c.planner import ControllerFromPlanner, ParameterizedPlanner
 
-ExampleEnvName = Literal["cartpole", "chain", "pointmass", "hvac"]
+ExampleEnvName = Literal["cartpole", "chain", "lqr", "pointmass", "hvac"]
 ENV_REGISTRY = {
     "cartpole": CartPoleEnv,
     "chain": ChainEnv,
+    "lqr": LqrEnv,
     "pointmass": PointMassEnv,
     "hvac": StochasticThreeStateRcEnv,
 }
@@ -54,6 +57,7 @@ PLANNER_REGISTRY = {
         ChainControllerConfig,
         {"param_interface": "stagewise"},
     ),
+    "lqr": (LqrPlanner, LqrPlannerConfig, dict()),
     "pointmass": (PointMassPlanner, PointMassControllerConfig, dict()),
     "pointmass_stagewise": (
         PointMassPlanner,
@@ -72,6 +76,7 @@ ExamplePlannerName = Literal[
     "cartpole_stagewise",
     "chain",
     "chain_stagewise",
+    "lqr",
     "pointmass",
     "pointmass_stagewise",
     "hvac",
