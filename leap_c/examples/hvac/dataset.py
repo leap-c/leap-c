@@ -36,7 +36,7 @@ class DataConfig:
     start_time: pd.Timestamp | None = None  # if None, samples randomly from data
 
     # train / test split configuration
-    max_hours: int = 3 * 24  # Maximum episode length in hours
+    max_hours: int = 1.5 * 24  # Maximum episode length in hours
     valid_months: list[int] | None = field(
         default_factory=lambda: [1, 2, 3, 4, 9, 10, 11, 12]
     )  # Heating season months: Jan-Apr, Sep-Dec
