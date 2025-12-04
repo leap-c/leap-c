@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
 from matplotlib.lines import Line2D
+from scipy.linalg import solve_discrete_are
 
 from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 
@@ -318,3 +319,134 @@ class LqrEnv(MatplotlibRenderEnv):
         if len(self.actions) > 0:
             actions_array = np.array(self.actions)
             self.action_plot.set_data(np.arange(len(actions_array)), actions_array[:, 0])
+
+
+def plot_optimal_value_and_policy(
+    env: LqrEnv | None = None,
+    A: np.ndarray | None = None,
+    B: np.ndarray | None = None,
+    Q: np.ndarray | None = None,
+    R: np.ndarray | None = None,
+    x_min: float = -2.0,
+    x_max: float = 2.0,
+    v_min: float = -2.0,
+    v_max: float = 2.0,
+    n_points: int = 101,
+) -> tuple[plt.Figure, np.ndarray]:
+    """Plot heatmaps of the optimal LQR value function and policy.
+
+    This function solves the discrete-time algebraic Riccati equation (DARE)
+    to compute the optimal value function V(x) = x^T P x and the optimal
+    policy u*(x) = -K x, then visualizes them as 2D heatmaps.
+
+    Args:
+        env: LQR environment to extract matrices from. If None, must provide A, B, Q, R.
+        A: State transition matrix (2x2). If None, extracted from env.
+        B: Control input matrix (2x1). If None, extracted from env.
+        Q: State cost matrix (2x2). If None, extracted from env.
+        R: Control cost matrix (1x1). If None, extracted from env.
+        x_min: Minimum position value for the grid.
+        x_max: Maximum position value for the grid.
+        v_min: Minimum velocity value for the grid.
+        v_max: Maximum velocity value for the grid.
+        n_points: Number of grid points in each dimension.
+
+    Returns:
+        Tuple of (figure, axes) containing the heatmap plots.
+
+    Raises:
+        ValueError: If neither env nor all matrices (A, B, Q, R) are provided.
+    """
+    # Extract matrices from environment or use provided ones
+    if env is not None:
+        A = env.A if A is None else A
+        B = env.B if B is None else B
+        Q = env.cfg.Q if Q is None else Q
+        R = env.cfg.R if R is None else R
+        x_min = env.cfg.x_min if x_min == -2.0 else x_min
+        x_max = env.cfg.x_max if x_max == 2.0 else x_max
+        v_min = env.cfg.v_min if v_min == -2.0 else v_min
+        v_max = env.cfg.v_max if v_max == 2.0 else v_max
+    elif A is None or B is None or Q is None or R is None:
+        raise ValueError("Must provide either env or all matrices (A, B, Q, R)")
+
+    # Solve discrete-time algebraic Riccati equation
+    P = solve_discrete_are(A, B, Q, R)
+
+    # Compute optimal feedback gain K
+    K = np.linalg.inv(B.T @ P @ B + R) @ (B.T @ P @ A)
+
+    # Create grid in state space
+    x_vals = np.linspace(x_min, x_max, n_points)
+    v_vals = np.linspace(v_min, v_max, n_points)
+
+    # Initialize arrays for value function and policy
+    V = np.zeros((n_points, n_points))  # Value function
+    U = np.zeros((n_points, n_points))  # Optimal control
+
+    # Compute value function and optimal policy at each grid point
+    for i, v in enumerate(v_vals):
+        for j, x in enumerate(x_vals):
+            state = np.array([[x], [v]])
+            # Value function: V(x) = x^T P x
+            V[i, j] = float(state.T @ P @ state)
+            # Optimal policy: u*(x) = -K x
+            U[i, j] = float(-K @ state)
+
+    # Create figure with horizontal subplots
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Plot value function heatmap
+    im1 = axes[0].imshow(
+        V,
+        extent=[x_min, x_max, v_min, v_max],
+        origin="lower",
+        aspect="auto",
+        cmap="viridis",
+    )
+    axes[0].set_xlabel("Position x")
+    axes[0].set_ylabel("Velocity v")
+    axes[0].set_title("Optimal Value Function V(x) = x^T P x")
+    cbar1 = plt.colorbar(im1, ax=axes[0])
+    cbar1.set_label("Value")
+
+    # Plot optimal policy heatmap
+    im2 = axes[1].imshow(
+        U,
+        extent=[x_min, x_max, v_min, v_max],
+        origin="lower",
+        aspect="auto",
+        cmap="RdBu_r",
+        vmin=-np.max(np.abs(U)),
+        vmax=np.max(np.abs(U)),
+    )
+    axes[1].set_xlabel("Position x")
+    axes[1].set_ylabel("Velocity v")
+    axes[1].set_title("Optimal Policy u*(x) = -K x")
+    cbar2 = plt.colorbar(im2, ax=axes[1])
+    cbar2.set_label("Control Force")
+
+    # Add zero contours
+    axes[0].contour(
+        x_vals,
+        v_vals,
+        V,
+        levels=[1.0, 2.0, 5.0, 10.0],
+        colors="white",
+        alpha=0.4,
+        linewidths=1,
+    )
+    axes[1].contour(x_vals, v_vals, U, levels=[0.0], colors="black", linewidths=2)
+
+    fig.suptitle("LQR Optimal Value Function and Policy", fontsize=14, y=1.00)
+    fig.tight_layout()
+
+    return fig, axes
+
+
+if __name__ == "__main__":
+    env = LqrEnv()
+
+    fig, axes = plot_optimal_value_and_policy(env=env)
+
+    plt.show()
