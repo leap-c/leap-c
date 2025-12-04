@@ -99,7 +99,7 @@ def create_cfg(env: str, controller: str, seed: int) -> RunControllerConfig:
     cfg.trainer.train_steps = 1  # No training
     cfg.trainer.train_start = 0
     cfg.trainer.val_freq = 10  # Validate immediately
-    cfg.trainer.val_num_rollouts = 20 if env != "hvac" else 200
+    cfg.trainer.val_num_rollouts = 20 if env != "hvac" else 100
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
