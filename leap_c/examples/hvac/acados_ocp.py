@@ -148,23 +148,23 @@ def make_default_hvac_params(
         [
             AcadosParameter(
                 name="q_Ti",
-                default=np.array([10]),  # weight for indoor temperature residuals
+                default=np.array([30]),  # weight for indoor temperature residuals
                 space=gym.spaces.Box(low=np.array([1]), high=np.array([100]), dtype=np.float64),
-                interface="learnable",
+                interface="fix",
                 end_stages=end_stages,
             ),
             AcadosParameter(
                 name="q_dqh",
                 default=np.array([1.0]),  # weight for residuals of rate of change of heater power
                 space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64),
-                interface="learnable",
+                interface="fix",
                 end_stages=end_stages,
             ),
             AcadosParameter(
                 name="q_ddqh",
                 default=np.array([1.0]),  # weight for residuals of acceleration of heater power
                 space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64),
-                interface="learnable",
+                interface="fix",
                 end_stages=end_stages,
             ),
         ]
