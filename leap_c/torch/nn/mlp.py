@@ -166,8 +166,6 @@ class BetaParameterNetwork(nn.Module):
         input_dim: int,
         output_dim: int = 3,
         hidden_dim: int = 64,
-        lb: torch.Tensor | None = None,
-        ub: torch.Tensor | None = None,
     ) -> None:
         super().__init__()
         self.network = nn.Sequential(
@@ -176,8 +174,14 @@ class BetaParameterNetwork(nn.Module):
             nn.Linear(in_features=hidden_dim, out_features=hidden_dim),
             nn.ReLU(),
         )
-        self.mode_head = nn.Linear(in_features=hidden_dim, out_features=output_dim)
-        self.concentration_head = nn.Linear(in_features=hidden_dim, out_features=output_dim)
+        self.mode_head = nn.Linear(
+            in_features=hidden_dim,
+            out_features=output_dim,
+        )
+        self.concentration_head = nn.Linear(
+            in_features=hidden_dim,
+            out_features=output_dim,
+        )
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
         """Forward call.
