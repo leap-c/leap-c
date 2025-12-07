@@ -265,24 +265,32 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         lb, ub = set_temperature_limits(quarter_hours=quarter_hour)
 
         # Reward for comfort zone compliance
-        comfort_reward = int(lb <= state[0] <= ub)
+        success = int(lb <= state[0] <= ub)
+        constraint_violation = 0.0
+        if state[0] < lb:
+            constraint_violation += lb - state[0]
+        elif state[0] > ub:
+            constraint_violation += state[0] - ub
+
+        comfort_reward = 1.0 * success - 1.0 * constraint_violation
 
         # Reward for energy saving
         price = self.dataset.get_price(self.idx)[0]
         energy_consumption_normalized = np.abs(action[0]) / self.max_power
 
         price_normalized = price / self.dataset.max["price"]
-        energy_reward = -price_normalized * energy_consumption_normalized
+        energy_reward = -50 * price_normalized * energy_consumption_normalized
 
         # scale energy_reward
-        reward = 0.5 * (comfort_reward + energy_reward)
+        reward = comfort_reward + energy_reward
 
         reward_info = {
             "prize": price,
             "energy": np.abs(action[0]),
             "comfort_reward": comfort_reward,
             "energy_reward": energy_reward,
-            "success": comfort_reward,
+            "success": success,
+            "constraint_violation": constraint_violation,
         }
 
         return reward, reward_info
