@@ -95,6 +95,10 @@ class ControllerTuner:
         self.env = create_env(cfg.env)
         self.controller = create_controller(cfg.controller, reuse_code_base_dir=reuse_code_dir)
 
+        # Random number generator for evaluation seeds (different each trial to avoid overfitting)
+        self.eval_rng = np.random.default_rng(cfg.seed)
+        self.trial_counter = 0
+
         # Get parameter space from controller
         self.param_space = self.controller.param_space
 
@@ -151,7 +155,8 @@ class ControllerTuner:
 
         Args:
             config: SMAC configuration to evaluate.
-            seed: Random seed for this evaluation.
+            seed: Random seed for this evaluation (used as base, but we add randomness
+                  to avoid overfitting to specific scenarios).
 
         Returns:
             The negative mean reward (SMAC minimizes, so we negate).
@@ -160,9 +165,14 @@ class ControllerTuner:
 
         total_reward = 0.0
         n_successful = 0
+        
+        # Generate random seeds for this trial to avoid overfitting to specific scenarios
+        # Each trial gets different random scenarios
+        self.trial_counter += 1
+        trial_seeds = self.eval_rng.integers(0, 2**31, size=self.cfg.n_rollouts)
 
         for rollout_idx in range(self.cfg.n_rollouts):
-            rollout_seed = seed + rollout_idx
+            rollout_seed = int(trial_seeds[rollout_idx])
             obs, info = self.env.reset(seed=rollout_seed)
             
             done = False
@@ -203,6 +213,61 @@ class ControllerTuner:
         # SMAC minimizes, so return negative reward
         return -mean_reward
 
+    def _validate_with_fixed_seeds(
+        self, config: dict[str, float], n_rollouts: int, base_seed: int
+    ) -> float:
+        """Validate a configuration with fixed seeds for reproducibility.
+
+        Unlike evaluate(), this uses deterministic seeds for fair comparison.
+
+        Args:
+            config: SMAC configuration to validate.
+            n_rollouts: Number of rollouts to run.
+            base_seed: Base seed for reproducible evaluation.
+
+        Returns:
+            The mean reward over all rollouts.
+        """
+        param = self._config_to_param(config)
+
+        total_reward = 0.0
+        n_successful = 0
+
+        for rollout_idx in range(n_rollouts):
+            rollout_seed = base_seed + rollout_idx
+            obs, info = self.env.reset(seed=rollout_seed)
+
+            done = False
+            truncated = False
+            episode_reward = 0.0
+            step = 0
+            ctx = None
+
+            while not (done or truncated):
+                obs_tensor = torch.from_numpy(obs).unsqueeze(0).to(self.device)
+
+                try:
+                    ctx, action = self.controller(obs_tensor, param, ctx=ctx)
+                    action = action.cpu().numpy()[0]
+                except Exception as e:
+                    print(f"Controller error: {e}")
+                    break
+
+                obs, reward, done, truncated, info = self.env.step(action)
+                episode_reward += reward
+                step += 1
+
+                if self.cfg.max_steps is not None and step >= self.cfg.max_steps:
+                    break
+
+            total_reward += episode_reward
+            n_successful += 1
+
+        if n_successful == 0:
+            return -1e10  # Return large negative reward if all rollouts failed
+
+        return total_reward / n_successful
+
     def run(self) -> dict[str, Any]:
         """Run the SMAC optimization.
 
@@ -231,23 +296,29 @@ class ControllerTuner:
 
         # Run optimization
         print(f"\nStarting SMAC optimization with {self.cfg.n_trials} trials...")
+        print(f"Using random seeds per trial to avoid overfitting to specific scenarios.")
         incumbent = smac.optimize()
 
         # Get best configuration
         best_config = dict(incumbent)
         best_param = self._config_to_param(best_config)
 
-        # Evaluate best configuration with more rollouts for final score
-        print("\nEvaluating best configuration...")
-        final_cost = self.evaluate(best_config, seed=self.cfg.seed + 10000)
-        final_reward = -final_cost
+        # Final validation with FIXED seeds for reproducibility (different from training)
+        # Use more rollouts for reliable final estimate
+        print("\nFinal validation with fixed seeds (for reproducibility)...")
+        n_val_rollouts = max(self.cfg.n_rollouts * 5, 50)  # Use more rollouts for final validation
+        final_reward = self._validate_with_fixed_seeds(
+            best_config, 
+            n_rollouts=n_val_rollouts,
+            base_seed=self.cfg.seed + 100000  # Different seed range than training
+        )
 
         print(f"\n{'='*60}")
         print("SMAC Optimization Complete!")
         print(f"{'='*60}")
         print(f"Best configuration: {best_config}")
         print(f"Best parameter tensor: {best_param}")
-        print(f"Best reward: {final_reward:.4f}")
+        print(f"Best validation reward (over {n_val_rollouts} rollouts): {final_reward:.4f}")
         print(f"Results saved to: {self.cfg.output_dir}")
 
         # Log best result to wandb
