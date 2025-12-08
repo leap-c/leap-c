@@ -25,7 +25,7 @@ def episode_rollout(
     render_human: bool = False,
     video_folder: str | Path | None = None,
     name_prefix: str | None = None,
-    rng: RngType | None = None,
+    rng: RngType | None = 1042,
 ) -> Generator[tuple[dict[str, float | bool | list], dict[str, list]], None, None]:
     """Rollout episodes with the given policy.
 
@@ -72,12 +72,18 @@ def episode_rollout(
         )
 
     rng = np.random.default_rng(rng)
+    first_episode = True
 
     with torch.inference_mode():
         for episode in range(episodes):
             policy_stats = defaultdict(list)
             episode_stats = defaultdict(list)
-            o, _ = seed_env(env, mk_seed(rng))
+
+            if first_episode:
+                o, _ = seed_env(env, mk_seed(rng))
+                first_episode = False
+            else:
+                o, _ = env.reset()
 
             terminated = False
             truncated = False

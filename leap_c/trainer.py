@@ -288,7 +288,6 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
             render_human=self.cfg.val_render_mode == "human",
             video_folder=self.output_path / "video",
             name_prefix=f"{self.state.step}",
-            rng=self.rng,
         )
 
         parts_rollout = []
