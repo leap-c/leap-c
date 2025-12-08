@@ -1,5 +1,6 @@
 import copy
 import platform
+import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -745,6 +746,7 @@ def test_backward(
         # Run gradient checks
         for test_name, test_func, test_input, config in test_cases:
             try:
+                start_time = time.time()
                 print(f"{test_name} gradient check running")
                 torch.autograd.gradcheck(
                     func=test_func,
@@ -753,6 +755,9 @@ def test_backward(
                     rtol=config.rtol,
                     eps=config.eps,
                     raise_exception=True,
+                )
+                print(
+                    f"Time taken: {time.time() - start_time:.2f} seconds for batch_size {n_batch}."
                 )
                 print(f"✓ {test_name} gradient check passed")
             except Exception as e:
