@@ -248,34 +248,33 @@ class AcadosDiffMpcFunction(DiffFunction):
                 return None
 
             # check if x_seed and u_seed are all zeros
-            # TODO (Jasper): Optimize this such that we also
-            #   filter out individual stages
             dx_zero = np.all(x_seed == 0) if x_seed is not None else True
             du_zero = np.all(u_seed == 0) if u_seed is not None else True
             if dx_zero and du_zero:
                 return None
 
-            take_stages = np.abs(x_seed).sum(axis=(0, 2)) > 0
-            x_seed_with_stage = (
-                [
+            if x_seed is not None and not dx_zero:
+                # Sum over batch dim and state dim to know which stages to seed
+                take_stages = np.abs(x_seed).sum(axis=(0, 2)) > 0
+                x_seed_with_stage = [
                     (stage_idx, x_seed[:, stage_idx][..., None])
                     for stage_idx in range(0, self.ocp.solver_options.N_horizon + 1)  # type: ignore
                     if take_stages[stage_idx]
                 ]
-                if x_seed is not None and not dx_zero
-                else []
-            )
+            else:
+                x_seed_with_stage = []
 
-            take_stages = np.abs(u_seed).sum(axis=(0, 2)) > 0
-            u_seed_with_stage = (
-                [
+            if u_seed is not None and not du_zero:
+                # Sum over batch dim and control dim to know which stages to seed
+                take_stages = np.abs(u_seed).sum(axis=(0, 2)) > 0
+                u_seed_with_stage = [
                     (stage_idx, u_seed[:, stage_idx][..., None])
                     for stage_idx in range(self.ocp.solver_options.N_horizon)  # type: ignore
                     if take_stages[stage_idx]
                 ]
-                if u_seed is not None and not du_zero
-                else []
-            )
+            else:
+                u_seed_with_stage = []
+
             grad = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
                 seed_x=x_seed_with_stage,
                 seed_u=u_seed_with_stage,
