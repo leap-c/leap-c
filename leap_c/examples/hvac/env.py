@@ -364,6 +364,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             split = "train"
         else:
             split = "test"
+            if seed is not None:
+                self.dataset.reset_test_counter()
 
         self.idx = self.dataset.sample_start_index(
             rng=self.np_random,
