@@ -197,6 +197,11 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
                 # Only use samples where the MPC solver was successful for both
                 # current and next action.
                 mask_status = (pi_o.status == 0) & (pi_o_prime.status == 0)
+
+                # Log the gradients of the solution map wrt. params
+                dudp = self.pi.controller.jacobian_action_param(ctx=pi_o.ctx)
+                zero_grads = np.abs(dudp[mask_status]).sum(axis=(-2, -1)) > 0
+
                 o = o[mask_status]
                 a = a[mask_status]
                 r = r[mask_status]
@@ -255,6 +260,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
                     "q": q.mean().item(),
                     "q_target": target.mean().item(),
                     "masked_samples_perc": 1 - float(mask_status.mean().item()),
+                    "zero_dudp_perc": 1 - float(zero_grads.mean().item()),
                     "entropy": -log_p.mean().item(),
                 }
                 self.report_stats("loss", loss_stats)
