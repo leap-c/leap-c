@@ -345,6 +345,9 @@ class HvacDataset:
             self._test_indices = self._generate_stratified_test_episodes(horizon, max_steps)
             self._test_episode_counter = 0
 
+        # Episode length for overlap calculation
+        episode_length = horizon + max_steps
+
         if split == "test":
             # Return fixed test episodes in order (cycling if needed)
             idx = self._test_indices[self._test_episode_counter % len(self._test_indices)]
@@ -352,19 +355,31 @@ class HvacDataset:
             return idx
 
         # For 'train' or 'all', sample randomly from valid months
-        # For 'train', exclude the fixed test indices
-        test_indices_set = set(self._test_indices) if split == "train" else set()
+        # For 'train', create exclusion zones around test indices to prevent overlap
+        if split == "train":
+            # Build exclusion set: for each test index, exclude indices that would overlap
+            # An episode starting at idx overlaps with test episode at test_idx if:
+            # idx < test_idx + episode_length AND idx + episode_length > test_idx
+            # Simplified: |idx - test_idx| < episode_length
+            test_exclusion_set: set[int] = set()
+            for test_idx in self._test_indices:
+                # Exclude range [test_idx - episode_length + 1, test_idx + episode_length - 1]
+                start_exclude = max(0, test_idx - episode_length + 1)
+                end_exclude = min(max_start_idx, test_idx + episode_length - 1)
+                test_exclusion_set.update(range(start_exclude, end_exclude + 1))
+        else:
+            test_exclusion_set = set()
 
         # If no month filtering and not excluding test indices, return random
-        if self.cfg.valid_months is None and not test_indices_set:
+        if self.cfg.valid_months is None and not test_exclusion_set:
             return rng.integers(low=min_start_idx, high=max_start_idx + 1)
 
         # Sample with month filtering and test exclusion
         for _ in range(max_attempts):
             idx = rng.integers(low=min_start_idx, high=max_start_idx + 1)
 
-            # Exclude test indices for train split
-            if idx in test_indices_set:
+            # Exclude overlapping indices for train split
+            if idx in test_exclusion_set:
                 continue
 
             # Check month constraint if specified
