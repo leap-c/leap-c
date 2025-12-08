@@ -215,8 +215,8 @@ class AcadosDiffMpcFunction(DiffFunction):
         sol_value = np.array([[s.get_cost()] for s in active_solvers])
         sol_u0 = sol_iterate.u[:, : self.ocp.dims.nu]
 
-        x = sol_iterate.x.reshape(batch_size, self.ocp.dims.N + 1, -1)  # type: ignore
-        u = sol_iterate.u.reshape(batch_size, self.ocp.dims.N, -1)  # type: ignore
+        x = sol_iterate.x.reshape(batch_size, self.ocp.solver_options.N_horizon + 1, -1)  # type: ignore
+        u = sol_iterate.u.reshape(batch_size, self.ocp.solver_options.N_horizon, -1)  # type: ignore
 
         return ctx, sol_u0, x, u, sol_value
 
@@ -255,19 +255,23 @@ class AcadosDiffMpcFunction(DiffFunction):
             if dx_zero and du_zero:
                 return None
 
+            take_stages = np.abs(x_seed).sum(axis=(0, 2)) > 0
             x_seed_with_stage = (
                 [
                     (stage_idx, x_seed[:, stage_idx][..., None])
-                    for stage_idx in range(0, self.ocp.dims.N + 1)  # type: ignore
+                    for stage_idx in range(0, self.ocp.solver_options.N_horizon + 1)  # type: ignore
+                    if take_stages[stage_idx]
                 ]
                 if x_seed is not None and not dx_zero
                 else []
             )
 
+            take_stages = np.abs(u_seed).sum(axis=(0, 2)) > 0
             u_seed_with_stage = (
                 [
                     (stage_idx, u_seed[:, stage_idx][..., None])
-                    for stage_idx in range(self.ocp.dims.N)  # type: ignore
+                    for stage_idx in range(self.ocp.solver_options.N_horizon)  # type: ignore
+                    if take_stages[stage_idx]
                 ]
                 if u_seed is not None and not du_zero
                 else []
@@ -357,7 +361,9 @@ class AcadosDiffMpcFunction(DiffFunction):
         elif field_name == "dx_dp_global":
             single_seed = np.eye(self.ocp.dims.nx)  # type: ignore
             seed_vec = np.repeat(single_seed[None, :, :], batch_size, axis=0)
-            seed_x = [(stage_idx, seed_vec) for stage_idx in range(self.ocp.dims.N + 1)]  # type: ignore
+            seed_x = [
+                (stage_idx, seed_vec) for stage_idx in range(self.ocp.solver_options.N_horizon + 1)
+            ]  # type: ignore
             sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
                 seed_x=seed_x,
                 seed_u=[],
@@ -367,7 +373,9 @@ class AcadosDiffMpcFunction(DiffFunction):
         elif field_name == "du_dp_global":
             single_seed = np.eye(self.ocp.dims.nu)  # type: ignore
             seed_vec = np.repeat(single_seed[None, :, :], batch_size, axis=0)
-            seed_u = [(stage_idx, seed_vec) for stage_idx in range(self.ocp.dims.N)]  # type: ignore
+            seed_u = [
+                (stage_idx, seed_vec) for stage_idx in range(self.ocp.solver_options.N_horizon)
+            ]  # type: ignore
             sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
                 seed_x=[],
                 seed_u=seed_u,
