@@ -242,6 +242,9 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
 
                 self.pi_optim.zero_grad()
                 pi_loss.backward()
+                # Log the gradients of the solution map wrt. params
+                dudp = self.pi.controller.jacobian_action_param(ctx=pi_o.ctx)
+                zero_grads = np.abs(dudp).sum(axis=(-2, -1)) > 0
                 self.pi_optim.step()
 
                 # soft updates
@@ -255,6 +258,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
                     "q": q.mean().item(),
                     "q_target": target.mean().item(),
                     "masked_samples_perc": 1 - float(mask_status.mean().item()),
+                    "zero_dudp_perc": 1 - float(zero_grads.mean().item()),
                     "entropy": -log_p.mean().item(),
                 }
                 self.report_stats("loss", loss_stats)
