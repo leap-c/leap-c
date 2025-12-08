@@ -744,6 +744,7 @@ def test_backward(
         ]
 
         # Run gradient checks
+        times = dict()
         for test_name, test_func, test_input, config in test_cases:
             try:
                 start_time = time.time()
@@ -756,13 +757,14 @@ def test_backward(
                     eps=config.eps,
                     raise_exception=True,
                 )
-                print(
-                    f"Time taken: {time.time() - start_time:.2f} seconds for batch_size {n_batch}."
-                )
+                times[test_name] = time.time() - start_time
+                if test_name == "dx/dp_global" or test_name == "du/dp_global":
+                    pass
                 print(f"✓ {test_name} gradient check passed")
             except Exception as e:
                 print(f"✗ {test_name} gradient check failed: {e}")
                 raise
+        print(f"Times taken in seconds for batch_size {n_batch}: {times}.")
 
 
 # NOTE: Useful for debugging the sensitivities.
