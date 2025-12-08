@@ -26,7 +26,9 @@ class DataConfig:
             Default is heating season months (Jan-Apr, Sep-Dec).
             Set to None to allow all months.
         max_hours: Maximum simulation time in hours for episodes.
-        test_ratio: Ratio of weeks to use for testing (0.0 to 1.0).
+        total_test_episodes: Exact number of fixed test episodes, stratified
+            evenly across all (year, month) combinations in the dataset.
+            These episodes are always the same for reproducible evaluation.
         split_seed: Random seed for reproducible train/test split.
     """
 
@@ -40,7 +42,7 @@ class DataConfig:
     valid_months: list[int] | None = field(
         default_factory=lambda: [1, 2, 3, 4, 9, 10, 11, 12]
     )  # Heating season months: Jan-Apr, Sep-Dec
-    test_ratio: float = 0.2  # 20% of weeks for testing
+    total_test_episodes: int = 100  # Exact number of test episodes (stratified across months/years)
     split_seed: int = 42  # Seed for reproducible train/test split
 
 
@@ -95,8 +97,9 @@ class HvacDataset:
         self.min = {key: self.data[key].min() for key in self.data.columns}
         self.max = {key: self.data[key].max() for key in self.data.columns}
 
-        # Generate reproducible train/test split based on week numbers
-        self._train_weeks, self._test_weeks = self._generate_week_split()
+        # Generate fixed stratified test episodes
+        self._test_indices: list[int] = []
+        self._test_episode_counter: int = 0
 
     def __len__(self) -> int:
         """Total number of timesteps in dataset."""
@@ -216,24 +219,84 @@ class HvacDataset:
         """
         return 0 <= idx < len(self.data) - horizon
 
-    def _generate_week_split(self) -> tuple[set[int], set[int]]:
-        """Generate reproducible train/test split by week numbers.
+    def _generate_stratified_test_episodes(
+        self,
+        horizon: int,
+        max_steps: int,
+    ) -> list[int]:
+        """Generate exactly total_test_episodes stratified across months and years.
+
+        Distributes episodes evenly across all (year, month) combinations in the
+        valid months. This ensures consistent evaluation with low variance.
+
+        Args:
+            horizon: Forecast horizon length.
+            max_steps: Maximum number of simulation steps per episode.
 
         Returns:
-            Tuple of (train_weeks, test_weeks) as sets of ISO week numbers.
+            List of exactly total_test_episodes start indices.
         """
-        # Get all unique week numbers in the dataset
-        all_weeks = sorted(set(self.index.isocalendar().week))
-
-        # Reproducibly shuffle and split
         rng = np.random.default_rng(self.cfg.split_seed)
-        shuffled_weeks = rng.permutation(all_weeks)
+        test_indices = []
 
-        n_test = max(1, int(len(all_weeks) * self.cfg.test_ratio))
-        test_weeks = set(shuffled_weeks[:n_test])
-        train_weeks = set(shuffled_weeks[n_test:])
+        # Determine valid months
+        valid_months = self.cfg.valid_months or list(range(1, 13))
 
-        return train_weeks, test_weeks
+        # Group indices by (year, month)
+        min_idx = 0
+        max_idx = len(self.data) - horizon - max_steps + 1
+
+        if max_idx <= min_idx:
+            raise ValueError(
+                f"Dataset too small: need at least {horizon + max_steps} steps, "
+                f"but dataset has only {len(self.data)} steps."
+            )
+
+        # Build a mapping of (year, month) -> list of valid start indices
+        year_month_indices: dict[tuple[int, int], list[int]] = {}
+
+        for idx in range(min_idx, max_idx + 1):
+            date = self.index[idx]
+            if date.month in valid_months:
+                key = (date.year, date.month)
+                if key not in year_month_indices:
+                    year_month_indices[key] = []
+                year_month_indices[key].append(idx)
+
+        # Get all (year, month) keys sorted for reproducibility
+        all_keys = sorted(year_month_indices.keys())
+        n_buckets = len(all_keys)
+
+        if n_buckets == 0:
+            raise ValueError("No valid (year, month) combinations found in dataset.")
+
+        # Distribute total_test_episodes across all buckets evenly
+        # Use a strided approach to spread remainder across all buckets
+        base_per_bucket = self.cfg.total_test_episodes // n_buckets
+        remainder = self.cfg.total_test_episodes % n_buckets
+
+        # Calculate which buckets get an extra episode (spread evenly)
+        if remainder > 0:
+            # Spread the remainder evenly across the buckets
+            step = n_buckets / remainder
+            extra_indices = {int(i * step) for i in range(remainder)}
+        else:
+            extra_indices = set()
+
+        for i, key in enumerate(all_keys):
+            available_indices = year_month_indices[key]
+            n_samples = base_per_bucket + (1 if i in extra_indices else 0)
+            n_samples = min(n_samples, len(available_indices))
+
+            if n_samples > 0:
+                sampled = rng.choice(available_indices, size=n_samples, replace=False)
+                test_indices.extend(sampled.tolist())
+
+        # Shuffle the final list for variety in evaluation order
+        rng2 = np.random.default_rng(self.cfg.split_seed)
+        rng2.shuffle(test_indices)
+
+        return test_indices
 
     def sample_start_index(
         self,
@@ -244,6 +307,13 @@ class HvacDataset:
         max_attempts: int = 1000,
     ) -> int:
         """Sample a valid start index for episode initialization.
+
+        For 'test' split, returns episodes from a fixed pre-generated set
+        (stratified across months and years) in sequential order to ensure
+        reproducible evaluation.
+
+        For 'train' split, randomly samples from valid months excluding
+        the fixed test episodes.
 
         Args:
             rng: NumPy random generator for reproducibility.
@@ -270,43 +340,64 @@ class HvacDataset:
                 f"but dataset has only {len(self.data)} steps."
             )
 
-        # Determine which weeks to sample from based on split
-        if split == "all":
-            allowed_weeks = None
-        elif split == "train":
-            allowed_weeks = self._train_weeks
-        elif split == "test":
-            allowed_weeks = self._test_weeks
-        else:
-            raise ValueError(f"Invalid split value: {split}. Must be 'train', 'test', or 'all'.")
+        # Generate test indices lazily (only when needed)
+        if not self._test_indices:
+            self._test_indices = self._generate_stratified_test_episodes(horizon, max_steps)
+            self._test_episode_counter = 0
 
-        # If no filtering at all, return random index directly
-        if allowed_weeks is None and self.cfg.valid_months is None:
+        if split == "test":
+            # Return fixed test episodes in order (cycling if needed)
+            idx = self._test_indices[self._test_episode_counter % len(self._test_indices)]
+            self._test_episode_counter += 1
+            return idx
+
+        # For 'train' or 'all', sample randomly from valid months
+        # For 'train', exclude the fixed test indices
+        test_indices_set = set(self._test_indices) if split == "train" else set()
+
+        # If no month filtering and not excluding test indices, return random
+        if self.cfg.valid_months is None and not test_indices_set:
             return rng.integers(low=min_start_idx, high=max_start_idx + 1)
 
-        # Sample with week and/or month filtering
+        # Sample with month filtering and test exclusion
         for _ in range(max_attempts):
             idx = rng.integers(low=min_start_idx, high=max_start_idx + 1)
-            date = self.index[idx]
 
-            # Check month constraint if specified
-            if self.cfg.valid_months is not None and date.month not in self.cfg.valid_months:
+            # Exclude test indices for train split
+            if idx in test_indices_set:
                 continue
 
-            # Check week constraint if specified
-            if allowed_weeks is not None:
-                week_of_year = date.isocalendar()[1]  # ISO week number (1-53)
-                if week_of_year not in allowed_weeks:
+            # Check month constraint if specified
+            if self.cfg.valid_months is not None:
+                date = self.index[idx]
+                if date.month not in self.cfg.valid_months:
                     continue
 
             return idx
 
         raise RuntimeError(
             f"Could not find a valid start date in {max_attempts} attempts. "
-            f"Split: {split}, Allowed weeks: {allowed_weeks}, "
-            f"Valid months: {self.cfg.valid_months}. "
+            f"Split: {split}, Valid months: {self.cfg.valid_months}. "
             "Please check the data and configuration."
         )
+
+    def get_num_test_episodes(self, horizon: int, max_steps: int) -> int:
+        """Get the total number of fixed test episodes.
+
+        Args:
+            horizon: Forecast horizon length.
+            max_steps: Maximum number of simulation steps.
+
+        Returns:
+            Number of test episodes.
+        """
+        if not self._test_indices:
+            self._test_indices = self._generate_stratified_test_episodes(horizon, max_steps)
+        return len(self._test_indices)
+
+    def reset_test_counter(self) -> None:
+        """Reset the test episode counter to start from the first episode."""
+        self._test_episode_counter = 0
 
 
 # ============================================================================
@@ -608,17 +699,138 @@ def load_and_prepare_data(
 
 
 if __name__ == "__main__":
+    import matplotlib.pyplot as plt
+
     # Test loading and preparing data
     dataset = HvacDataset()
     print(f"Dataset length: {len(dataset)}")
 
-    # Plot all price data
-    import matplotlib.pyplot as plt
+    # Generate test episodes and plot distribution
+    horizon = 96  # 24 hours at 15-min intervals
+    max_steps = int(1.5 * 24 * 4)  # 1.5 days
 
-    plt.figure(figsize=(12, 6))
-    plt.plot(dataset.data.index, dataset.data["price"], label="Price (EUR/kWh)")
-    plt.xlabel("Time")
-    plt.ylabel("Price (EUR/kWh)")
-    plt.title("Electricity Price Over Time")
-    plt.legend()
+    test_indices = dataset._generate_stratified_test_episodes(horizon, max_steps)
+    print(f"Total test episodes: {len(test_indices)}")
+
+    # Get (year, month) for each test episode
+    test_dates = [dataset.index[idx] for idx in test_indices]
+    test_year_months = [(d.year, d.month) for d in test_dates]
+
+    # Count episodes per (year, month)
+    from collections import Counter
+
+    counts = Counter(test_year_months)
+
+    # Create a heatmap-style visualization
+    years = sorted(set(ym[0] for ym in counts.keys()))
+    months = sorted(set(ym[1] for ym in counts.keys()))
+
+    fig, axes = plt.subplots(1, 2, figsize=(14, 5))
+
+    # Plot 1: Bar chart by year
+    ax1 = axes[0]
+    year_counts = Counter(d.year for d in test_dates)
+    ax1.bar(year_counts.keys(), year_counts.values(), color="steelblue", edgecolor="black")
+    ax1.set_xlabel("Year")
+    ax1.set_ylabel("Number of Test Episodes")
+    ax1.set_title("Test Episodes Distribution by Year")
+    ax1.set_xticks(list(year_counts.keys()))
+
+    # Plot 2: Heatmap by (year, month)
+    ax2 = axes[1]
+    heatmap_data = np.zeros((len(years), len(months)))
+    for i, year in enumerate(years):
+        for j, month in enumerate(months):
+            heatmap_data[i, j] = counts.get((year, month), 0)
+
+    im = ax2.imshow(heatmap_data, aspect="auto", cmap="Blues")
+    ax2.set_xticks(range(len(months)))
+    ax2.set_xticklabels([f"{m}" for m in months])
+    ax2.set_yticks(range(len(years)))
+    ax2.set_yticklabels(years)
+    ax2.set_xlabel("Month")
+    ax2.set_ylabel("Year")
+    ax2.set_title("Test Episodes per (Year, Month)")
+
+    # Add text annotations
+    for i in range(len(years)):
+        for j in range(len(months)):
+            val = int(heatmap_data[i, j])
+            if val > 0:
+                ax2.text(j, i, str(val), ha="center", va="center", fontsize=8)
+
+    plt.colorbar(im, ax=ax2, label="Episodes")
+    plt.tight_layout()
+    plt.savefig("test_episodes_distribution.png", dpi=150)
     plt.show()
+
+    print("\nTest episodes per (year, month):")
+    for key in sorted(counts.keys()):
+        print(f"  {key[0]}-{key[1]:02d}: {counts[key]} episodes")
+
+    # Plot historic data for 10 sample test episodes (overlaid in 3 subplots)
+    from scipy.constants import convert_temperature
+
+    n_episodes = len(test_indices)
+    episode_length = horizon + max_steps  # Total steps per episode
+
+    fig2, axes2 = plt.subplots(1, 3, figsize=(15, 5))
+    fig2.suptitle("Test Episodes: Price, Temperature, Solar (10 sample episodes)", fontsize=14)
+
+    time_hours = np.arange(episode_length) * 0.25  # 15-min intervals to hours
+
+    # Sample 10 evenly spaced episodes
+    sample_indices = [test_indices[i] for i in range(0, n_episodes, n_episodes // 10)][:10]
+
+    # Different line styles and colors for each episode
+    colors = plt.cm.tab10.colors  # 10 distinct colors
+    linestyles = ["-", "--", "-.", ":", "-", "--", "-.", ":", "-", "--"]
+
+    for i, idx in enumerate(sample_indices):
+        # Get data for this episode
+        prices = dataset.get_price(idx, episode_length)
+        temps = dataset.get_temperature(idx, episode_length)
+        temps_celsius = convert_temperature(temps, "K", "C")
+        solar = dataset.get_solar(idx, episode_length)
+
+        start_date = dataset.index[idx]
+        label = start_date.strftime("%Y-%m-%d")
+        color = colors[i % len(colors)]
+        linestyle = linestyles[i % len(linestyles)]
+
+        # Price plot
+        axes2[0].plot(
+            time_hours, prices, color=color, linewidth=1.0, linestyle=linestyle, label=label
+        )
+
+        # Temperature plot
+        axes2[1].plot(
+            time_hours, temps_celsius, color=color, linewidth=1.0, linestyle=linestyle, label=label
+        )
+
+        # Solar plot
+        axes2[2].plot(
+            time_hours, solar, color=color, linewidth=1.0, linestyle=linestyle, label=label
+        )
+
+    axes2[0].set_xlabel("Hours")
+    axes2[0].set_ylabel("Price [EUR/kWh]")
+    axes2[0].set_title("Price")
+    axes2[0].grid(True, alpha=0.3)
+    axes2[0].legend(fontsize=7, loc="upper right")
+
+    axes2[1].set_xlabel("Hours")
+    axes2[1].set_ylabel("Temperature [°C]")
+    axes2[1].set_title("Temperature")
+    axes2[1].grid(True, alpha=0.3)
+
+    axes2[2].set_xlabel("Hours")
+    axes2[2].set_ylabel("Solar [W/m²]")
+    axes2[2].set_title("Solar Radiation")
+    axes2[2].grid(True, alpha=0.3)
+
+    plt.tight_layout()
+    plt.savefig("test_episodes_data.png", dpi=150, bbox_inches="tight")
+    plt.show()
+
+    print("\nSaved test_episodes_data.png")
