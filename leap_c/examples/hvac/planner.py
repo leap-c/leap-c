@@ -279,6 +279,16 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         render_info["u_trajectory"] = u.detach().cpu().numpy()  # Full action trajectory
         render_info["ddqh"] = render_info["u_trajectory"]
 
+        # TODO: Assuming ref_Ti and q_Ti are the only parameters that are learnable
+        render_info["ref_Ti_min"] = convert_temperature(
+            self.param_manager.parameters["ref_Ti"].space.low, "kelvin", "celsius"
+        )
+        render_info["ref_Ti_max"] = convert_temperature(
+            self.param_manager.parameters["ref_Ti"].space.high, "kelvin", "celsius"
+        )
+        render_info["q_Ti_min"] = self.param_manager.parameters["q_Ti"].space.low
+        render_info["q_Ti_max"] = self.param_manager.parameters["q_Ti"].space.high
+
         for key in ["temperature", "ref_Ti", "lb_Ti", "ub_Ti", "Ti", "Th", "Te"]:
             render_info[key] = convert_temperature(
                 val=render_info[key],

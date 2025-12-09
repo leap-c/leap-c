@@ -236,6 +236,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             "q_Ti": deque(maxlen=self.history_length),
         }
 
+        self.param_axes_limits_set = False
+
     def _get_observation(self) -> np.ndarray:
         """Get the current observation.
 
@@ -603,8 +605,18 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             label="q_ddqh",
         )
 
-        # Plots 4-6: Empty for now
-        self.axes[4, 1].axis("off")
+        # Plot 4: 2D plot of ref_Ti vs q_Ti
+        ax: plt.Axes = self.axes[4, 1]
+        (self.trajectory_plots["ref_Ti_over_q_Ti"],) = ax.plot(
+            [], [], "o-", markersize=3, label="ref_Ti vs q_Ti"
+        )
+        ax.set_xlabel("ref_Ti [°C]")
+        ax.set_ylabel("q_Ti [-]")
+        ax.set_title("Reference Temperature vs Weight")
+        ax.grid(visible=True, alpha=0.3)
+        ax.legend(loc="upper right")
+
+        # Plots 5-6: Empty for now
         self.axes[5, 1].axis("off")
         self.axes[6, 1].axis("off")
 
@@ -702,6 +714,27 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                         np.concatenate([hist_x, future_x]),
                         np.concatenate([hist_y, future_y]),
                     )
+
+            # Update 2D plot: ref_Ti vs q_Ti
+            if "ref_Ti" in render_info and "q_Ti" in render_info:
+                if not self.param_axes_limits_set:
+                    self.axes[4, 1].set_xlim(render_info["ref_Ti_min"], render_info["ref_Ti_max"])
+                    self.axes[4, 1].set_ylim(render_info["q_Ti_min"], render_info["q_Ti_max"])
+                    self.param_axes_limits_set = True
+
+                # Historical data
+                hist_ref_Ti = np.array(list(self.history["ref_Ti"]))
+                hist_q_Ti = np.array(list(self.history["q_Ti"]))
+
+                # Future predictions
+                future_ref_Ti = render_info["ref_Ti"].flatten()
+                future_q_Ti = render_info["q_Ti"].flatten()
+
+                # Combine history and future
+                combined_ref_Ti = np.concatenate([hist_ref_Ti, future_ref_Ti])
+                combined_q_Ti = np.concatenate([hist_q_Ti, future_q_Ti])
+
+                self.trajectory_plots["ref_Ti_over_q_Ti"].set_data(combined_ref_Ti, combined_q_Ti)
 
     def set_ctx(self, ctx: HvacPlannerCtx) -> None:
         self.ctx: HvacPlannerCtx = ctx
