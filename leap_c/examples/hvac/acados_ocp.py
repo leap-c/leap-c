@@ -141,6 +141,17 @@ def make_default_hvac_params(
                 interface="learnable",
                 end_stages=end_stages,
             ),
+            AcadosParameter(
+                name="backoff_Ti",  # Backoff temperature for indoor temperature in Kelvin
+                default=np.array([0.7]),
+                space=gym.spaces.Box(
+                    low=np.array([0.0]),
+                    high=np.array([2.0]),
+                    dtype=np.float64,
+                ),
+                interface="fix",
+                end_stages=end_stages,
+            ),
         ]
     )
 
@@ -148,8 +159,8 @@ def make_default_hvac_params(
         [
             AcadosParameter(
                 name="q_Ti",
-                default=np.array([10]),  # weight for indoor temperature residuals
-                space=gym.spaces.Box(low=np.array([1]), high=np.array([100]), dtype=np.float64),
+                default=np.array([0.2]),  # weight for indoor temperature residuals
+                space=gym.spaces.Box(low=np.array([0.01]), high=np.array([0.55]), dtype=np.float64),
                 interface="learnable",
                 end_stages=end_stages,
             ),
@@ -157,14 +168,14 @@ def make_default_hvac_params(
                 name="q_dqh",
                 default=np.array([1.0]),  # weight for residuals of rate of change of heater power
                 space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64),
-                interface="learnable",
+                interface="fix",
                 end_stages=end_stages,
             ),
             AcadosParameter(
                 name="q_ddqh",
                 default=np.array([1.0]),  # weight for residuals of acceleration of heater power
                 space=gym.spaces.Box(low=np.array([0.5]), high=np.array([1.5]), dtype=np.float64),
-                interface="learnable",
+                interface="fix",
                 end_stages=end_stages,
             ),
         ]
@@ -255,17 +266,17 @@ def export_parametric_ocp(
 
     # Comfort constraints
     ocp.model.con_h_expr = ca.vertcat(
-        ocp.model.x[0] - param_manager.get("lb_Ti"),
-        param_manager.get("ub_Ti") - ocp.model.x[0],
+        ocp.model.x[0] - param_manager.get("lb_Ti") - param_manager.get("backoff_Ti"),
+        param_manager.get("ub_Ti") - ocp.model.x[0] - param_manager.get("backoff_Ti"),
     )
     ocp.constraints.lh = np.array([0.0, 0.0])
     ocp.constraints.uh = np.array([ACADOS_INFTY, ACADOS_INFTY])
 
     ocp.constraints.idxsh = np.array([0, 1])
-    ocp.cost.zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
-    ocp.cost.Zl = 1e2 * np.ones((ocp.constraints.idxsh.size,))
-    ocp.cost.zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
-    ocp.cost.Zu = 1e2 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.zl = 1e3 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.Zl = 1e3 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.zu = 1e3 * np.ones((ocp.constraints.idxsh.size,))
+    ocp.cost.Zu = 1e3 * np.ones((ocp.constraints.idxsh.size,))
 
     ocp.constraints.lbx = np.array([0.0])  # Can only consume power
     ocp.constraints.ubx = np.array([5000.0])  # Watt

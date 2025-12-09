@@ -245,6 +245,9 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             "q_dqh",
             "q_ddqh",
         ]:
+            if self.param_manager.parameters[key].interface == "fix":
+                continue
+
             if not self.param_manager.has_learnable_param_pattern(f"{key}*"):
                 # If the forecast parameter is not learned, set it from the observation
                 overwrites[key] = (
