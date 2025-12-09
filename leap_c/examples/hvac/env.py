@@ -640,8 +640,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 "solar",
                 "ddqh",
                 "q_Ti",
-                "q_dqh",
-                "q_ddqh",
+                # "q_dqh",
+                # "q_ddqh",
             ]:
                 self.trajectory_plots[key].set_data(
                     range(len(render_info[key].flatten())),
