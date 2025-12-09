@@ -271,18 +271,20 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             ctx=ctx,
         )
 
-        for key in ["temperature", "ref_Ti", "lb_Ti", "ub_Ti"]:
+        render_info["Ti"] = x[:, :, 0].detach().cpu().numpy()  # Indoor temperature trajectory
+        render_info["Th"] = x[:, :, 1].detach().cpu().numpy()  # Radiator temperature trajectory
+        render_info["Te"] = x[:, :, 2].detach().cpu().numpy()  # Envelope temperature trajectory
+        render_info["qh"] = x[:, :, 3].detach().cpu().numpy()  # Heater power trajectory
+        render_info["dqh"] = x[:, :, 4].detach().cpu().numpy()
+        render_info["u_trajectory"] = u.detach().cpu().numpy()  # Full action trajectory
+        render_info["ddqh"] = render_info["u_trajectory"]
+
+        for key in ["temperature", "ref_Ti", "lb_Ti", "ub_Ti", "Ti", "Th", "Te"]:
             render_info[key] = convert_temperature(
                 val=render_info[key],
                 old_scale="kelvin",
                 new_scale="celsius",
             )
-
-        # Prepare render info if parameters are available
-        render_info["qh"] = x[:, :, 3].detach().cpu().numpy()  # Heater power trajectory
-        render_info["dqh"] = x[:, :, 4].detach().cpu().numpy()  # Heater power trajectory
-        render_info["u_trajectory"] = u.detach().cpu().numpy()  # Full action trajectory
-        render_info["ddqh"] = render_info["u_trajectory"]
 
         ctx = HvacPlannerCtx(
             **vars(diff_mpc_ctx),

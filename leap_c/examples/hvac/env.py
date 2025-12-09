@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
@@ -217,6 +218,23 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.idx = 0
 
         self.trajectory_plots = None
+
+        # Initialize history buffers for rendering (FIFO with max 100 steps)
+        self.history_length = 100
+        self.history = {
+            "Ti": deque(maxlen=self.history_length),
+            "Th": deque(maxlen=self.history_length),
+            "Te": deque(maxlen=self.history_length),
+            "qh": deque(maxlen=self.history_length),
+            "ref_Ti": deque(maxlen=self.history_length),
+            "lb_Ti": deque(maxlen=self.history_length),
+            "ub_Ti": deque(maxlen=self.history_length),
+            "temperature": deque(maxlen=self.history_length),
+            "solar": deque(maxlen=self.history_length),
+            "price": deque(maxlen=self.history_length),
+            "ddqh": deque(maxlen=self.history_length),
+            "q_Ti": deque(maxlen=self.history_length),
+        }
 
     def _get_observation(self) -> np.ndarray:
         """Get the current observation.
@@ -592,15 +610,19 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         # Set x-limits and legend for trajectory plots
         for ax in self.axes[:, 0]:
-            ax.set_xlim(0, self.N_forecast)
+            ax.set_xlim(-self.history_length, self.N_forecast)
             ax.grid(visible=True, alpha=0.3)
-            ax.legend()
+            ax.legend(loc="upper right")
+            # Add vertical line at x=0 to mark current time
+            ax.axvline(x=0, color="black", linestyle="-", linewidth=1.5, alpha=0.7)
 
         # Set x-limits for parameter plots
         for ax in self.axes[:4, 1]:
-            ax.set_xlim(0, self.N_forecast)
+            ax.set_xlim(-self.history_length, self.N_forecast)
             ax.grid(visible=True, alpha=0.3)
-            ax.legend()
+            ax.legend(loc="upper right")
+            # Add vertical line at x=0 to mark current time
+            ax.axvline(x=0, color="black", linestyle="-", linewidth=1.5, alpha=0.7)
 
     def _render_frame(self) -> np.ndarray | None:
         ctx: HvacPlannerCtx = self.ctx
@@ -610,16 +632,36 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         solar_forecast = obs[5 + self.N_forecast : 5 + 2 * self.N_forecast]
         price_forecast = obs[5 + 2 * self.N_forecast : 5 + 3 * self.N_forecast]
 
-        if ctx is not None:
-            x = ctx.iterate.x.reshape(-1, 5)
-            for i, key in enumerate(["Ti", "Th", "Te"]):
-                self.trajectory_plots[key].set_data(
-                    range(len(x[:, i].flatten())),
-                    convert_temperature(x[:, i].flatten(), "k", "c"),
-                )
+        # Update history buffers with current values (at time step -1)
+        # Get current state for history
+        if ctx is not None and hasattr(ctx, "render_info") and ctx.render_info is not None:
+            render_info: dict[str, np.ndarray] = ctx.render_info
 
-            self.trajectory_plots["qh"].set_data(range(self.N_forecast - 1), x[:-1, 3].flatten())
+            # Add current values to history (these will appear at position -1)
+            self.history["Ti"].append(convert_temperature(self.state[0], "k", "c"))
+            self.history["Th"].append(convert_temperature(self.state[1], "k", "c"))
+            self.history["Te"].append(convert_temperature(self.state[2], "k", "c"))
 
+            if "ref_Ti" in render_info:
+                self.history["ref_Ti"].append(render_info["ref_Ti"].flatten()[0])
+            if "lb_Ti" in render_info:
+                self.history["lb_Ti"].append(render_info["lb_Ti"].flatten()[0])
+            if "ub_Ti" in render_info:
+                self.history["ub_Ti"].append(render_info["ub_Ti"].flatten()[0])
+            if "temperature" in render_info:
+                self.history["temperature"].append(render_info["temperature"].flatten()[0])
+            if "solar" in render_info:
+                self.history["solar"].append(render_info["solar"].flatten()[0])
+            if "price" in render_info:
+                self.history["price"].append(render_info["price"].flatten()[0])
+            if "ddqh" in render_info:
+                self.history["ddqh"].append(render_info["ddqh"].flatten()[0])
+            if "q_Ti" in render_info:
+                self.history["q_Ti"].append(render_info["q_Ti"].flatten()[0])
+            if "qh" in render_info:
+                self.history["qh"].append(render_info["qh"].flatten()[0])
+
+        # Plot forecast observations (future only, from 0 to N_forecast)
         self.trajectory_plots["price_observation"].set_data(range(self.N_forecast), price_forecast)
         self.trajectory_plots["temperature_observation"].set_data(
             range(self.N_forecast),
@@ -640,13 +682,26 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 "solar",
                 "ddqh",
                 "q_Ti",
+                "qh",
+                "Ti",
+                "Th",
+                "Te",
                 # "q_dqh",
                 # "q_ddqh",
             ]:
-                self.trajectory_plots[key].set_data(
-                    range(len(render_info[key].flatten())),
-                    render_info[key].flatten(),
-                )
+                if key in render_info:
+                    # Future predictions
+                    future_x = np.arange(0, len(render_info[key].flatten()))
+                    future_y = render_info[key].flatten()
+
+                    # Historical data
+                    hist_x = np.arange(-len(self.history[key]), 0)
+                    hist_y = np.array(list(self.history[key]))
+
+                    self.trajectory_plots[key].set_data(
+                        np.concatenate([hist_x, future_x]),
+                        np.concatenate([hist_y, future_y]),
+                    )
 
     def set_ctx(self, ctx: HvacPlannerCtx) -> None:
         self.ctx: HvacPlannerCtx = ctx
