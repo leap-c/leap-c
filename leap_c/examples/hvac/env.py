@@ -315,10 +315,12 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         # True energy reward (for reporting)
         energy_reward_true = -50 * price_normalized * energy_consumption_normalized
         
-        # Apply control variate if enabled (subtract mean price for variance reduction)
+        # Apply control variate if enabled (subtract baseline for variance reduction)
+        # Uses fixed energy consumption (0.5 = 50% of max) so baseline doesn't depend on action
         if self.cfg.normalize_energy_reward:
-            centered_price = price_normalized - self.mean_price_normalized
-            energy_reward = -50 * centered_price * energy_consumption_normalized
+            fixed_energy_baseline = 0.5  # Fixed normalized energy consumption for baseline
+            baseline = 50 * self.mean_price_normalized * fixed_energy_baseline
+            energy_reward = energy_reward_true + baseline
         else:
             energy_reward = energy_reward_true
 
