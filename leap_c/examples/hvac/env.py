@@ -761,7 +761,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 self.axes[1, 1].set(
                     xlabel="ref_Ti [°C]",
                     ylabel="Frequency",
-                    title="ref_Ti Distribution",
                 )
                 self.axes[1, 1].grid(visible=True, alpha=0.3, axis="y")
 
@@ -787,7 +786,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 self.axes[2, 1].set(
                     xlabel="q_Ti [-]",
                     ylabel="Frequency",
-                    title="q_Ti Distribution",
                 )
                 self.axes[2, 1].grid(visible=True, alpha=0.3, axis="y")
 
