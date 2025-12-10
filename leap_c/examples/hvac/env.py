@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 
+import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
@@ -432,17 +433,30 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             plt.ion()
 
         # Create figure with 2 columns: left for states, right for params/actions
-        self._fig, axes_array = plt.subplots(
-            nrows=7,
-            ncols=2,
-            figsize=(16, 10),
-            # gridspec_kw={"width_ratios": [1, 1]},
-        )
+        self._fig = plt.figure(figsize=(16, 10))
 
-        self.axes = axes_array
+        gs = gridspec.GridSpec(7, 2, figure=self._fig)
 
-        # self.axes = axes_array[:, 0]  # Left column for existing plots
-        # self.param_axes = axes_array[:, 1]  # Right column for parameters/actions
+        # Create left column axes (7 rows: (Ti, Th, Te, qh, price, temperature, solar))
+        left_axes = [self._fig.add_subplot(gs[i, 0]) for i in range(7)]
+
+        # Create right column axes (3 evenly spaced rows spanning full height)
+        right_axes = [
+            self._fig.add_subplot(gs[0:3, 1]),
+            self._fig.add_subplot(gs[3:5, 1]),
+            self._fig.add_subplot(gs[5:7, 1]),
+        ]
+
+        # Combine into 2D array structure for compatibility
+        self.axes = np.empty((7, 2), dtype=object)
+        for i in range(7):
+            self.axes[i, 0] = left_axes[i]
+        for i in range(3):
+            self.axes[i, 1] = right_axes[i]
+
+        # Fill remaining right column slots with None
+        for i in range(3, 7):
+            self.axes[i, 1] = None
 
         # Adjust spacing
         self._fig.subplots_adjust(hspace=0.4, wspace=0.3, top=0.95, bottom=0.05)
@@ -477,27 +491,23 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             linestyle="--",
             color="black",
         )
-        ax.set_ylim(0, 30)
-        ax.set_ylabel("Ti [°C]")
+        ax.set(ylim=(0, 30), ylabel="Ti [°C]")
         ax.grid(visible=True, alpha=0.3)
 
         ax: plt.Axes = self.axes[1, 0]
         (self.trajectory_plots["Th"],) = ax.step([], [], where="post", label="Th")
-        ax.set_ylim(-400, 400)
-        ax.set_ylabel("Th [°C]")
+        ax.set(ylim=(-400, 400), ylabel="Th [°C]")
         ax.grid(visible=True, alpha=0.3)
 
         ax: plt.Axes = self.axes[2, 0]
         (self.trajectory_plots["Te"],) = ax.step([], [], where="post", label="Te")
-        ax.set_ylim(0, 30)
-        ax.set_ylabel("Te [°C]")
+        ax.set(ylim=(0, 30), ylabel="Te [°C]")
         ax.grid(visible=True, alpha=0.3)
 
         # Heating power subplot
         ax: plt.Axes = self.axes[3, 0]
         (self.trajectory_plots["qh"],) = ax.step([], [], where="post", label="qh")
-        ax.set_ylim(-5.05e3, 5.05e3)
-        ax.set_ylabel("qh [kW]")
+        ax.set(ylim=(0.0, 5.10e3), ylabel="qh [kW]")
         ax.grid(visible=True, alpha=0.3)
 
         ax: plt.Axes = self.axes[4, 0]
@@ -513,11 +523,10 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             where="post",
             label="price parameter",
         )
-        ax.set_ylim(
-            bottom=self.dataset.min["price"],
-            top=self.dataset.max["price"],
+        ax.set(
+            ylim=(self.dataset.min["price"], self.dataset.max["price"]),
+            ylabel="price [NOK/kWh]",
         )
-        ax.set_ylabel("price [NOK/kWh]")
 
         ax: plt.Axes = self.axes[5, 0]
         (self.trajectory_plots["temperature_observation"],) = ax.step(
@@ -532,19 +541,21 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             where="post",
             label="temperature parameter",
         )
-        ax.set_ylim(
-            bottom=convert_temperature(
-                val=self.dataset.min["temperature"],
-                old_scale="k",
-                new_scale="c",
+        ax.set(
+            ylim=(
+                convert_temperature(
+                    val=self.dataset.min["temperature"],
+                    old_scale="k",
+                    new_scale="c",
+                ),
+                convert_temperature(
+                    val=self.dataset.max["temperature"],
+                    old_scale="k",
+                    new_scale="c",
+                ),
             ),
-            top=convert_temperature(
-                val=self.dataset.max["temperature"],
-                old_scale="k",
-                new_scale="c",
-            ),
+            ylabel="temperature [°C]",
         )
-        ax.set_ylabel("temperature [°C]")
 
         ax: plt.Axes = self.axes[6, 0]
         (self.trajectory_plots["solar_observation"],) = ax.step(
@@ -559,92 +570,45 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             where="post",
             label="solar parameter",
         )
-        ax.set_ylim(
-            bottom=self.dataset.min["solar"],
-            top=self.dataset.max["solar"],
+        ax.set(
+            ylim=(self.dataset.min["solar"], self.dataset.max["solar"]),
+            ylabel="solar [W/m²]",
         )
-        ax.set_ylabel("solar [W/m²]")
 
-        # Setup parameter/action plots in right column
-        # Plot 0: ddqh (acceleration)
+        # 2D plot of ref_Ti vs q_Ti
         ax: plt.Axes = self.axes[0, 1]
-        ax.set_ylabel("ddqh [W/s²]")
-        ax.grid(visible=True, alpha=0.3)
-        (self.trajectory_plots["ddqh"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="ddqh",
-        )
-
-        # Plot 1: q_Ti (weight)
-        ax: plt.Axes = self.axes[1, 1]
-        ax.set_ylabel("q_Ti [-]")
-        (self.trajectory_plots["q_Ti"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="q_Ti",
-        )
-
-        # Plot 2: q_dqh (weight)
-        ax: plt.Axes = self.axes[2, 1]
-        ax.set_ylim(0.0, 10.0)
-        ax.set_ylabel("q_dqh [-]")
-        (self.trajectory_plots["q_dqh"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="q_dqh",
-        )
-
-        # Plot 3: q_ddqh (weight)
-        ax: plt.Axes = self.axes[3, 1]
-        ax.set_ylim(0.0, 10.0)
-        ax.set_ylabel("q_ddqh [-]")
-        (self.trajectory_plots["q_ddqh"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="q_ddqh",
-        )
-
-        # Plot 4: 2D plot of ref_Ti vs q_Ti
-        ax: plt.Axes = self.axes[4, 1]
         (self.trajectory_plots["ref_Ti_over_q_Ti"],) = ax.plot(
             [], [], "o-", markersize=3, label="ref_Ti vs q_Ti"
         )
-        ax.set_xlabel("ref_Ti [°C]")
-        ax.set_ylabel("q_Ti [-]")
-        ax.set_title("Reference Temperature vs Weight")
+        ax.set(
+            xlabel="ref_Ti [°C]",
+            ylabel="q_Ti [-]",
+            title="Reference Temperature vs Weight",
+        )
         ax.grid(visible=True, alpha=0.3)
         ax.legend(loc="upper right")
 
-        # Plot 5: Histogram of ref_Ti
-        ax: plt.Axes = self.axes[5, 1]
-        ax.set_xlabel("ref_Ti [°C]")
-        ax.set_ylabel("Frequency")
-        ax.set_title("ref_Ti Distribution")
+        # Histogram of ref_Ti
+        ax: plt.Axes = self.axes[1, 1]
+        ax.set(
+            xlabel="ref_Ti [°C]",
+            ylabel="Frequency",
+            title="ref_Ti Distribution",
+        )
         ax.grid(visible=True, alpha=0.3, axis="y")
 
-        # Plot 6: Histogram of q_Ti
-        ax: plt.Axes = self.axes[6, 1]
-        ax.set_xlabel("q_Ti [-]")
-        ax.set_ylabel("Frequency")
-        ax.set_title("q_Ti Distribution")
+        # Histogram of q_Ti
+        ax: plt.Axes = self.axes[2, 1]
+        ax.set(
+            xlabel="q_Ti [-]",
+            ylabel="Frequency",
+            title="q_Ti Distribution",
+        )
         ax.grid(visible=True, alpha=0.3, axis="y")
 
         # Set x-limits and legend for trajectory plots
         for ax in self.axes[:, 0]:
-            ax.set_xlim(-self.history_length, self.N_forecast)
-            ax.grid(visible=True, alpha=0.3)
-            ax.legend(loc="upper right")
-            # Add vertical line at x=0 to mark current time
-            ax.axvline(x=0, color="black", linestyle="-", linewidth=1.5, alpha=0.7)
-
-        # Set x-limits for parameter plots
-        for ax in self.axes[:4, 1]:
-            ax.set_xlim(-self.history_length, self.N_forecast)
+            ax.set(xlim=(-self.history_length, self.N_forecast))
             ax.grid(visible=True, alpha=0.3)
             ax.legend(loc="upper right")
             # Add vertical line at x=0 to mark current time
@@ -700,20 +664,15 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             render_info: dict[str, np.ndarray] = ctx.render_info
 
             for key in [
-                "ref_Ti",
                 "lb_Ti",
                 "ub_Ti",
                 "temperature",
                 "price",
                 "solar",
-                "ddqh",
-                "q_Ti",
                 "qh",
                 "Ti",
                 "Th",
                 "Te",
-                # "q_dqh",
-                # "q_ddqh",
             ]:
                 if key in render_info:
                     # Future predictions
@@ -735,7 +694,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                     # Draw black rectangle showing the valid parameter region
                     width = render_info["ref_Ti_max"] - render_info["ref_Ti_min"]
                     height = render_info["q_Ti_max"] - render_info["q_Ti_min"]
-                    self.axes[4, 1].add_patch(
+                    self.axes[0, 1].add_patch(
                         mpatches.Rectangle(
                             xy=(render_info["ref_Ti_min"], render_info["q_Ti_min"]),
                             width=width,
@@ -747,14 +706,18 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                         )
                     )
 
-                    self.axes[4, 1].set_xlim(
+                    self.axes[0, 1].set_xlim(
                         render_info["ref_Ti_min"] - 0.05 * width,
                         render_info["ref_Ti_max"] + 0.05 * width,
                     )
-                    self.axes[4, 1].set_ylim(
+                    self.axes[0, 1].set_ylim(
                         render_info["q_Ti_min"] - 0.05 * height,
                         render_info["q_Ti_max"] + 0.05 * height,
                     )
+
+                    # Set histogram x-limits (only once)
+                    self.axes[1, 1].set_xlim(render_info["ref_Ti_min"], render_info["ref_Ti_max"])
+                    self.axes[2, 1].set_xlim(render_info["q_Ti_min"], render_info["q_Ti_max"])
 
                     self.param_axes_limits_set = True
 
@@ -774,7 +737,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
                 # Update histograms
                 # Histogram for ref_Ti
-                self.axes[5, 1].clear()
+                self.axes[1, 1].clear()
                 if len(combined_ref_Ti) > 0:
                     # Flatten to ensure 1D array and convert to numpy
                     data_ref_Ti = np.asarray(combined_ref_Ti).flatten()
@@ -783,7 +746,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                         render_info["ref_Ti_max"] > render_info["ref_Ti_min"]
                         and len(data_ref_Ti) > 0
                     ):
-                        self.axes[5, 1].hist(
+                        self.axes[1, 1].hist(
                             data_ref_Ti,
                             bins=20,
                             range=(
@@ -794,20 +757,22 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                             alpha=0.7,
                             edgecolor="black",
                         )
-                self.axes[5, 1].set_xlabel("ref_Ti [°C]")
-                self.axes[5, 1].set_ylabel("Frequency")
-                self.axes[5, 1].set_title("ref_Ti Distribution")
-                self.axes[5, 1].grid(visible=True, alpha=0.3, axis="y")
-                self.axes[5, 1].set_xlim(render_info["ref_Ti_min"], render_info["ref_Ti_max"])
+                # Re-apply formatting after clear (clear() removes all properties)
+                self.axes[1, 1].set(
+                    xlabel="ref_Ti [°C]",
+                    ylabel="Frequency",
+                    title="ref_Ti Distribution",
+                )
+                self.axes[1, 1].grid(visible=True, alpha=0.3, axis="y")
 
                 # Histogram for q_Ti
-                self.axes[6, 1].clear()
+                self.axes[2, 1].clear()
                 if len(combined_q_Ti) > 0:
                     # Flatten to ensure 1D array and convert to numpy
                     data_q_Ti = np.asarray(combined_q_Ti).flatten()
                     # Check if range is valid
                     if render_info["q_Ti_max"] > render_info["q_Ti_min"] and len(data_q_Ti) > 0:
-                        self.axes[6, 1].hist(
+                        self.axes[2, 1].hist(
                             data_q_Ti,
                             bins=20,
                             range=(
@@ -818,11 +783,13 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                             alpha=0.7,
                             edgecolor="black",
                         )
-                self.axes[6, 1].set_xlabel("q_Ti [-]")
-                self.axes[6, 1].set_ylabel("Frequency")
-                self.axes[6, 1].set_title("q_Ti Distribution")
-                self.axes[6, 1].grid(visible=True, alpha=0.3, axis="y")
-                self.axes[6, 1].set_xlim(render_info["q_Ti_min"], render_info["q_Ti_max"])
+                # Re-apply formatting after clear (clear() removes all properties)
+                self.axes[2, 1].set(
+                    xlabel="q_Ti [-]",
+                    ylabel="Frequency",
+                    title="q_Ti Distribution",
+                )
+                self.axes[2, 1].grid(visible=True, alpha=0.3, axis="y")
 
     def set_ctx(self, ctx: HvacPlannerCtx) -> None:
         self.ctx: HvacPlannerCtx = ctx
