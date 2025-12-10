@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import deque
 from dataclasses import dataclass
 
+import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
@@ -432,7 +433,10 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         # Create figure with 2 columns: left for states, right for params/actions
         self._fig, axes_array = plt.subplots(
-            7, 2, figsize=(16, 10), gridspec_kw={"width_ratios": [2, 1]}
+            nrows=7,
+            ncols=2,
+            figsize=(16, 10),
+            # gridspec_kw={"width_ratios": [1, 1]},
         )
 
         self.axes = axes_array
@@ -616,9 +620,19 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         ax.grid(visible=True, alpha=0.3)
         ax.legend(loc="upper right")
 
-        # Plots 5-6: Empty for now
-        self.axes[5, 1].axis("off")
-        self.axes[6, 1].axis("off")
+        # Plot 5: Histogram of ref_Ti
+        ax: plt.Axes = self.axes[5, 1]
+        ax.set_xlabel("ref_Ti [°C]")
+        ax.set_ylabel("Frequency")
+        ax.set_title("ref_Ti Distribution")
+        ax.grid(visible=True, alpha=0.3, axis="y")
+
+        # Plot 6: Histogram of q_Ti
+        ax: plt.Axes = self.axes[6, 1]
+        ax.set_xlabel("q_Ti [-]")
+        ax.set_ylabel("Frequency")
+        ax.set_title("q_Ti Distribution")
+        ax.grid(visible=True, alpha=0.3, axis="y")
 
         # Set x-limits and legend for trajectory plots
         for ax in self.axes[:, 0]:
@@ -718,8 +732,30 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             # Update 2D plot: ref_Ti vs q_Ti
             if "ref_Ti" in render_info and "q_Ti" in render_info:
                 if not self.param_axes_limits_set:
-                    self.axes[4, 1].set_xlim(render_info["ref_Ti_min"], render_info["ref_Ti_max"])
-                    self.axes[4, 1].set_ylim(render_info["q_Ti_min"], render_info["q_Ti_max"])
+                    # Draw black rectangle showing the valid parameter region
+                    width = render_info["ref_Ti_max"] - render_info["ref_Ti_min"]
+                    height = render_info["q_Ti_max"] - render_info["q_Ti_min"]
+                    self.axes[4, 1].add_patch(
+                        mpatches.Rectangle(
+                            xy=(render_info["ref_Ti_min"], render_info["q_Ti_min"]),
+                            width=width,
+                            height=height,
+                            linewidth=2,
+                            edgecolor="black",
+                            facecolor="none",
+                            linestyle="-",
+                        )
+                    )
+
+                    self.axes[4, 1].set_xlim(
+                        render_info["ref_Ti_min"] - 0.05 * width,
+                        render_info["ref_Ti_max"] + 0.05 * width,
+                    )
+                    self.axes[4, 1].set_ylim(
+                        render_info["q_Ti_min"] - 0.05 * height,
+                        render_info["q_Ti_max"] + 0.05 * height,
+                    )
+
                     self.param_axes_limits_set = True
 
                 # Historical data
@@ -735,6 +771,58 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 combined_q_Ti = np.concatenate([hist_q_Ti, future_q_Ti])
 
                 self.trajectory_plots["ref_Ti_over_q_Ti"].set_data(combined_ref_Ti, combined_q_Ti)
+
+                # Update histograms
+                # Histogram for ref_Ti
+                self.axes[5, 1].clear()
+                if len(combined_ref_Ti) > 0:
+                    # Flatten to ensure 1D array and convert to numpy
+                    data_ref_Ti = np.asarray(combined_ref_Ti).flatten()
+                    # Check if range is valid
+                    if (
+                        render_info["ref_Ti_max"] > render_info["ref_Ti_min"]
+                        and len(data_ref_Ti) > 0
+                    ):
+                        self.axes[5, 1].hist(
+                            data_ref_Ti,
+                            bins=20,
+                            range=(
+                                float(render_info["ref_Ti_min"]),
+                                float(render_info["ref_Ti_max"]),
+                            ),
+                            color="blue",
+                            alpha=0.7,
+                            edgecolor="black",
+                        )
+                self.axes[5, 1].set_xlabel("ref_Ti [°C]")
+                self.axes[5, 1].set_ylabel("Frequency")
+                self.axes[5, 1].set_title("ref_Ti Distribution")
+                self.axes[5, 1].grid(visible=True, alpha=0.3, axis="y")
+                self.axes[5, 1].set_xlim(render_info["ref_Ti_min"], render_info["ref_Ti_max"])
+
+                # Histogram for q_Ti
+                self.axes[6, 1].clear()
+                if len(combined_q_Ti) > 0:
+                    # Flatten to ensure 1D array and convert to numpy
+                    data_q_Ti = np.asarray(combined_q_Ti).flatten()
+                    # Check if range is valid
+                    if render_info["q_Ti_max"] > render_info["q_Ti_min"] and len(data_q_Ti) > 0:
+                        self.axes[6, 1].hist(
+                            data_q_Ti,
+                            bins=20,
+                            range=(
+                                float(render_info["q_Ti_min"]),
+                                float(render_info["q_Ti_max"]),
+                            ),
+                            color="blue",
+                            alpha=0.7,
+                            edgecolor="black",
+                        )
+                self.axes[6, 1].set_xlabel("q_Ti [-]")
+                self.axes[6, 1].set_ylabel("Frequency")
+                self.axes[6, 1].set_title("q_Ti Distribution")
+                self.axes[6, 1].grid(visible=True, alpha=0.3, axis="y")
+                self.axes[6, 1].set_xlim(render_info["q_Ti_min"], render_info["q_Ti_max"])
 
     def set_ctx(self, ctx: HvacPlannerCtx) -> None:
         self.ctx: HvacPlannerCtx = ctx
