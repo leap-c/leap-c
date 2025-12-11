@@ -217,6 +217,14 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             # get action from controller
             ctx, action = self.controller(obs, param, ctx=ctx)
 
+            # Store distribution info in context for rendering/debugging
+            ctx.param_distribution_info = {
+                "distribution": self.param_distribution,
+                "dist_params": dist_params,
+                "deterministic": deterministic,
+                "anchor": anchor,
+            }
+
             # apply entropy correction if enabled
             if self.entropy_correction:
                 j = self.controller.jacobian_action_param(ctx)
