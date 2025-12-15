@@ -121,7 +121,7 @@ def make_default_hvac_params(
             ),
             AcadosParameter(
                 name="ub_Ti",  # Upper bound on indoor temperature in Kelvin
-                default=np.array([convert_temperature(23.0, "celsius", "kelvin")]),
+                default=np.array([convert_temperature(30.0, "celsius", "kelvin")]),
                 space=gym.spaces.Box(
                     low=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
                     high=np.array([convert_temperature(25.0, "celsius", "kelvin")]),
