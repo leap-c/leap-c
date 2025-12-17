@@ -14,8 +14,8 @@ from leap_c.torch.rl.sac_zop import SacZopTrainer, SacZopTrainerConfig
 class RunSacZopConfig:
     """Configuration for running SAC-ZOP experiments."""
 
-    env: ExampleEnvName = "cartpole"
-    controller: ExampleControllerName = "cartpole"
+    env: ExampleEnvName = "hvac"
+    controller: ExampleControllerName = "hvac"
     trainer: SacZopTrainerConfig = field(default_factory=SacZopTrainerConfig)
     extractor: ExtractorName = "identity"
 
@@ -34,7 +34,7 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacZopConfig:
     cfg.trainer.val_freq = 10_000 if env != "hvac" else 50_000
     cfg.trainer.val_num_rollouts = 20 if env != "hvac" else 100
     cfg.trainer.val_deterministic = True
-    cfg.trainer.val_num_render_rollouts = 0
+    cfg.trainer.val_num_render_rollouts = 1
     cfg.trainer.val_render_mode = "rgb_array"
     cfg.trainer.val_report_score = "cum"
     cfg.trainer.ckpt_modus = "best"
@@ -70,7 +70,8 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacZopConfig:
     cfg.trainer.actor.noise = "param"
     cfg.trainer.actor.extractor_name = cfg.extractor
     cfg.trainer.actor.distribution_name = "mode_concentration_beta"
-    cfg.trainer.actor.residual = True if env == "hvac" else False
+    # cfg.trainer.actor.residual = True if env == "hvac" else False
+    cfg.trainer.actor.residual = False
     cfg.trainer.actor.entropy_correction = False
 
     # ---- Section: cfg.trainer.actor.mlp ----
@@ -114,7 +115,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_path", type=Path, default=None)
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--env", type=str, default="cartpole")
+    parser.add_argument("--env", type=str, default="hvac")
     parser.add_argument("--controller", type=str, default=None)
     parser.add_argument(
         "-r",
