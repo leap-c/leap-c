@@ -158,29 +158,20 @@ class Mlp(nn.Module):
         return torch.split(y, self._output_dims, dim=-1)
 
 
-class BetaParameterNetwork(nn.Module):
+class BetaParameterNetwork(Mlp):
     """Neural network that outputs mode and concentration parameters for Beta distribution."""
 
     def __init__(
         self,
-        input_dim: int,
-        output_dim: int = 3,
-        hidden_dim: int = 64,
+        input_sizes: int | Iterable[int],
+        output_sizes: int | Iterable[int],
+        mlp_cfg: MlpConfig,
     ) -> None:
-        super().__init__()
-        self.network = nn.Sequential(
-            nn.Linear(in_features=input_dim, out_features=hidden_dim),
-            nn.ReLU(),
-            nn.Linear(in_features=hidden_dim, out_features=hidden_dim),
-            nn.ReLU(),
-        )
-        self.mode_head = nn.Linear(
-            in_features=hidden_dim,
-            out_features=output_dim,
-        )
-        self.concentration_head = nn.Linear(
-            in_features=hidden_dim,
-            out_features=output_dim,
+        # Initialize parent with input_dim, two outputs of output_dim each (mode and concentration)
+        super().__init__(
+            input_sizes=input_sizes,
+            output_sizes=(output_sizes, output_sizes),
+            mlp_cfg=mlp_cfg,
         )
 
     def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
@@ -193,15 +184,13 @@ class BetaParameterNetwork(nn.Module):
             mode: Mode parameter in [0, 1], shape (..., output_dim)
             concentration: Concentration parameter > 2, shape (..., output_dim)
         """
-        features = self.network(x)
+        # Get raw outputs from parent MLP
+        mode_raw, concentration_raw = super().forward(x)
 
         # Mode must be in [0, 1]
-        mode = torch.sigmoid(input=self.mode_head(input=features))
+        mode = torch.sigmoid(input=mode_raw)
 
         # Concentration must be > 2 for valid parameterization
-        # Using softplus + 2 ensures concentration >= 2
-        concentration = (
-            torch.nn.functional.softplus(input=self.concentration_head(input=features)) + 2.0
-        )
+        concentration = torch.nn.functional.softplus(input=concentration_raw) + 2.0
 
         return mode, concentration

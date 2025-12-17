@@ -411,6 +411,7 @@ class ModeConcentrationBeta(Beta):
         # Get reparameterized samples from parent Beta distribution (in [0, 1])
         samples_01 = super().rsample(sample_shape=sample_shape)
 
+        # Rescale samples to [lb, ub]
         return self._lb + samples_01 * (self._scale)
 
     def log_prob(self, value: torch.Tensor) -> torch.Tensor:
@@ -452,7 +453,7 @@ class ModeConcentrationBeta(Beta):
         mode = torch.as_tensor(mode)
         concentration = torch.as_tensor(concentration)
 
-        # Compute new alpha, beta from mode in [0, 1] space and concentration
+        # Compute new alpha, beta from mode in [0, 1] space and concentration > 2
         alpha, beta = ModeConcentrationBeta.compute_alpha_beta(
             mode=mode,
             concentration=concentration,
