@@ -156,3 +156,41 @@ class Mlp(nn.Module):
             return y
 
         return torch.split(y, self._output_dims, dim=-1)
+
+
+class BetaParameterNetwork(Mlp):
+    """Neural network that outputs mode and concentration parameters for Beta distribution."""
+
+    def __init__(
+        self,
+        input_sizes: int | Iterable[int],
+        output_sizes: int | Iterable[int],
+        mlp_cfg: MlpConfig,
+    ) -> None:
+        # Initialize parent with input_dim, two outputs of output_dim each (mode and concentration)
+        super().__init__(
+            input_sizes=input_sizes,
+            output_sizes=output_sizes,
+            mlp_cfg=mlp_cfg,
+        )
+
+    def forward(self, x: torch.Tensor) -> tuple[torch.Tensor, torch.Tensor]:
+        """Forward call.
+
+        Args:
+            x: Input tensor of shape (..., input_dim)
+
+        Returns:
+            mode: Mode parameter in [0, 1], shape (..., output_dim)
+            concentration: Concentration parameter > 2, shape (..., output_dim)
+        """
+        # Get raw outputs from parent MLP
+        mode_raw, concentration_raw = super().forward(x)
+
+        # Mode must be in [0, 1]
+        mode = torch.sigmoid(input=mode_raw)
+
+        # Concentration must be > 2 for valid parameterization
+        concentration = torch.nn.functional.softplus(input=concentration_raw) + 2.0
+
+        return mode, concentration

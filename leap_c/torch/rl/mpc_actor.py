@@ -16,7 +16,7 @@ from leap_c.torch.nn.bounded_distributions import (
     get_bounded_distribution,
 )
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
-from leap_c.torch.nn.mlp import Mlp, MlpConfig
+from leap_c.torch.nn.mlp import BetaParameterNetwork, Mlp, MlpConfig
 
 
 class StochasticMPCActorOutput(NamedTuple):
@@ -159,6 +159,7 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             self.param_distribution = get_bounded_distribution(
                 cfg.distribution_name, space=param_space
             )
+
             self.action_distribution = None
             # MLP outputs: param distribution parameters
             output_sizes = list(self.param_distribution.parameter_size(param_dim))
@@ -176,7 +177,14 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             action_param_size = self.action_distribution.parameter_size(action_dim)
             output_sizes = (param_dim,) + action_param_size
 
-        self.mlp = Mlp(
+        self.cfg = cfg
+
+        self.beta_distribution_initalized = False
+        mlp_cls = (
+            BetaParameterNetwork if cfg.distribution_name == "mode_concentration_beta" else Mlp
+        )
+
+        self.mlp = mlp_cls(
             input_sizes=self.extractor.output_size,
             output_sizes=output_sizes,
             mlp_cfg=cfg.mlp,
@@ -207,9 +215,24 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             # parameter noise mode
             dist_params = self.mlp(e)
             anchor = self.controller.default_param(obs) if self.residual else None
-            param, log_prob, stats = self.param_distribution(
-                *dist_params, deterministic=deterministic, anchor=anchor
-            )
+
+            if self.cfg.distribution_name == "mode_concentration_beta":
+                if not self.beta_distribution_initalized:
+                    self.param_distribution.set_mode_from_nominal_parameters(
+                        self.controller.default_param(obs)
+                    )
+                    self.beta_distribution_initalized = True
+
+                param, log_prob, stats = self.param_distribution(
+                    *dist_params,
+                    deterministic=deterministic,
+                )
+            else:
+                param, log_prob, stats = self.param_distribution(
+                    *dist_params,
+                    deterministic=deterministic,
+                    anchor=anchor,
+                )
 
             if only_param:
                 return StochasticMPCActorOutput(param, log_prob, stats)
