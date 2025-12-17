@@ -401,6 +401,9 @@ class ModeConcentrationBeta(Beta):
         """Upper bound for sample rescaling."""
         return self._ub
 
+    def set_mode_from_nominal_parameters(self, mode: torch.Tensor | float) -> None:
+        self._mode = self.inverse(mode)
+
     def rsample(self, sample_shape: torch.Size = torch.Size()) -> torch.Tensor:
         """Sample using reparameterization trick in [0, 1] and rescale to [lb, ub].
 
@@ -468,10 +471,35 @@ class ModeConcentrationBeta(Beta):
         self._mode = mode
         self._concentration = concentration
 
+    def __call__(
+        self,
+        mode: torch.Tensor,
+        concentration: torch.Tensor,
+        deterministic: bool = False,
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
+        """Sample from the distribution.
+
+        If `deterministic` is True, the mode of the distribution is used instead of
+        sampling.
+
+        Args:
+            mode: Mode parameter in [0, 1] space
+            concentration: Concentration parameter > 2
+            deterministic: If True, the output will just be mode, no sampling is taking place.
+
+        Returns:
+            A tuple containing the samples, their log_prob and a dictionary of stats.
+        """
+        return self.forward(
+            mode=mode,
+            concentration=concentration,
+            deterministic=deterministic,
+        )
+
     def forward(
         self,
-        log_mode: torch.Tensor,
-        log_concentration: torch.Tensor,
+        mode: torch.Tensor,
+        concentration: torch.Tensor,
         deterministic: bool = False,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Sample from the distribution.
@@ -482,10 +510,7 @@ class ModeConcentrationBeta(Beta):
         Returns:
             A tuple containing the samples, their log_prob and a dictionary of stats.
         """
-        self.update_parameters(
-            mode=torch.exp(log_mode),
-            concentration=torch.exp(log_concentration),
-        )
+        self.update_parameters(mode=mode, concentration=concentration)
 
         sample = self.rsample() if not deterministic else self._mode
 
@@ -513,4 +538,6 @@ class ModeConcentrationBeta(Beta):
         Returns:
             The inverse scaled tensor.
         """
+        x = torch.as_tensor(x) if not isinstance(x, torch.Tensor) else x
+
         return (x - self._lb[None, :]) / self._scale[None, :]
