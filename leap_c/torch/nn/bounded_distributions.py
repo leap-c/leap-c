@@ -9,7 +9,7 @@ import torch.nn as nn
 from gymnasium import spaces
 from torch.distributions.beta import Beta
 
-BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta"]
+BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta", "mode_concentration_beta"]
 
 
 def get_bounded_distribution(name: BoundedDistributionName, **init_kwargs) -> "BoundedDistribution":
@@ -17,6 +17,8 @@ def get_bounded_distribution(name: BoundedDistributionName, **init_kwargs) -> "B
         return SquashedGaussian(**init_kwargs)
     elif name == "scaled_beta":
         return ScaledBeta(**init_kwargs)
+    elif name == "mode_concentration_beta":
+        return ModeConcentrationBeta(**init_kwargs)
     raise ValueError(f"Unknown bounded distribution: {name}")
 
 
@@ -343,26 +345,26 @@ class ModeConcentrationBeta(Beta):
 
     def __init__(
         self,
-        mode: torch.Tensor | float,
-        concentration: torch.Tensor | float,
-        lb: torch.Tensor | float | None = None,
-        ub: torch.Tensor | float | None = None,
+        space: spaces.Box,
+        mode: torch.Tensor | float | None = None,
+        concentration: torch.Tensor | float | None = None,
         validate_args: bool | None = None,
     ) -> None:
         """Initialize ModeConcentrationBeta distribution.
 
         Args:
+            space: Space the output should fit to.
             mode: Mode parameter (must be in [0, 1])
             concentration: Total concentration parameter (must be > 2)
-            lb: Lower bound for sample rescaling (default: 0)
-            ub: Upper bound for sample rescaling (default: 1)
             validate_args: Whether to validate input arguments
         """
-        mode = torch.as_tensor(mode)
-        concentration = torch.as_tensor(concentration)
+        mode = torch.tensor(0.5) if mode is None else torch.as_tensor(mode).clone()
+        concentration = (
+            torch.tensor(5.0) if concentration is None else torch.as_tensor(concentration).clone()
+        )
 
-        self._lb = torch.tensor(0.0) if lb is None else torch.as_tensor(lb).clone()
-        self._ub = torch.tensor(1.0) if ub is None else torch.as_tensor(ub).clone()
+        self._lb = torch.tensor(space.low, dtype=torch.float32)
+        self._ub = torch.tensor(space.high, dtype=torch.float32)
         self._scale = self._ub - self._lb
         self._mode = mode
         self._concentration = concentration
