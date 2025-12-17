@@ -170,7 +170,7 @@ class BetaParameterNetwork(Mlp):
         # Initialize parent with input_dim, two outputs of output_dim each (mode and concentration)
         super().__init__(
             input_sizes=input_sizes,
-            output_sizes=(output_sizes, output_sizes),
+            output_sizes=output_sizes,
             mlp_cfg=mlp_cfg,
         )
 
