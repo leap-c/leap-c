@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 import torch
 
-from leap_c.examples.chain.env import ChainEnv, ChainEnvConfig
+from leap_c.examples.chain.env import ChainDynamicsParams, ChainEnv, ChainEnvConfig
 from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
 from leap_c.planner import ControllerFromPlanner
 
@@ -30,7 +30,8 @@ def test_chain_policy_evaluation_works(chain_controller):
 
 
 def test_chain_env_mpc_closed_loop(chain_controller):
-    cfg = ChainEnvConfig(n_mass=3)
+    dynamics = ChainDynamicsParams(n_mass=3)
+    cfg = ChainEnvConfig(dynamics=dynamics)
     env = ChainEnv(cfg=cfg)
 
     obs, _ = env.reset()
@@ -51,3 +52,16 @@ def test_chain_env_mpc_closed_loop(chain_controller):
     error_norm = np.linalg.norm(x_ref - obs)
 
     assert error_norm < 1e-2, "Error norm is too high"
+
+
+def test_domain_randomization():
+    rng = np.random.default_rng(0)
+    cfg = ChainEnvConfig(domain_randomization="large")
+    cfg_without = ChainEnvConfig(domain_randomization="none")
+    dynamics_before = cfg.dynamics
+    cfg.dynamics = cfg.dynamics.randomize(level=cfg.domain_randomization, rng=rng)
+    cfg_without.dynamics = cfg_without.dynamics.randomize(
+        level=cfg_without.domain_randomization, rng=rng
+    )
+    assert dynamics_before == cfg_without.dynamics
+    assert cfg.dynamics != cfg_without.dynamics
