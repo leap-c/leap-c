@@ -190,7 +190,27 @@ class BetaParameterNetwork(Mlp):
         # Mode must be in [0, 1]
         mode = torch.sigmoid(input=mode_raw)
 
+        # Clamp mode to avoid numerical issues (NaN or boundary values)
+        # Use small epsilon to keep values strictly in (eps, 1-eps)
+        eps = 1e-6
+        mode = torch.clamp(mode, min=eps, max=1.0 - eps)
+
+        # Replace any NaN values with 0.5 (middle of valid range)
+        mode = torch.where(
+            torch.isnan(mode), torch.tensor(0.5, device=mode.device, dtype=mode.dtype), mode
+        )
+
         # Concentration must be > 2 for valid parameterization
         concentration = torch.nn.functional.softplus(input=concentration_raw) + 2.0
+
+        # Clamp concentration to reasonable range [2 + eps, 100]
+        concentration = torch.clamp(concentration, min=2.0 + eps, max=100.0)
+
+        # Replace any NaN values with 3.0 (safe default)
+        concentration = torch.where(
+            torch.isnan(concentration),
+            torch.tensor(3.0, device=concentration.device, dtype=concentration.dtype),
+            concentration,
+        )
 
         return mode, concentration
