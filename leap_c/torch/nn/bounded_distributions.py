@@ -343,22 +343,18 @@ class ModeConcentrationBeta(Beta):
         concentration = torch.clamp(concentration, min=2.0 + eps, max=100.0)
 
         # Replace any NaN values with safe defaults
-        mode = torch.where(
-            torch.isnan(mode), torch.tensor(0.5, device=mode.device, dtype=mode.dtype), mode
-        )
-        concentration = torch.where(
-            torch.isnan(concentration),
-            torch.tensor(3.0, device=concentration.device, dtype=concentration.dtype),
-            concentration,
-        )
+        # mode = torch.where(
+        #     torch.isnan(mode), torch.tensor(0.5, device=mode.device, dtype=mode.dtype), mode
+        # )
+        # concentration = torch.where(
+        #     torch.isnan(concentration),
+        #     torch.tensor(3.0, device=concentration.device, dtype=concentration.dtype),
+        #     concentration,
+        # )
 
         # Compute alpha, beta from mode and total concentration c
         alpha = 1.0 + mode * (concentration - 2.0)
         beta = 1.0 + (1.0 - mode) * (concentration - 2.0)
-
-        # Final safety check on outputs
-        alpha = torch.clamp(alpha, min=eps)
-        beta = torch.clamp(beta, min=eps)
 
         return alpha, beta
 
