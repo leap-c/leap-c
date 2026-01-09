@@ -7,6 +7,7 @@ import numpy as np
 import pytest
 from acados_template import AcadosOcp, AcadosOcpOptions
 
+from leap_c.examples.cartpole.planner import CartPolePlanner
 from leap_c.ocp.acados.parameters import (
     AcadosParameter,
     AcadosParameterManager,
@@ -485,6 +486,11 @@ def acados_test_ocp_with_stagewise_varying_params(
     define_constraints(ocp, param_manager)
 
     return ocp
+
+
+@pytest.fixture(scope="session")
+def diff_mpc_indefinite_hess() -> AcadosDiffMpcTorch:
+    return CartPolePlanner().diff_mpc
 
 
 @pytest.fixture(scope="session")
