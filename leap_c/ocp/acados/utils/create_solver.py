@@ -195,7 +195,7 @@ def _set_discount_factor(
 def make_ocp_sensitivity_compatible(sensitivity_ocp: AcadosOcp):
     """Make the given ocp compatible with sensitivity computation."""
     sensitivity_ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    sensitivity_ocp.solver_options.qp_solver_ric_alg = 1
+    sensitivity_ocp.solver_options.qp_solver_ric_alg = 0
     sensitivity_ocp.solver_options.qp_solver_cond_N = sensitivity_ocp.solver_options.N_horizon
     sensitivity_ocp.solver_options.hessian_approx = "EXACT"
     sensitivity_ocp.solver_options.regularize_method = "NO_REGULARIZE"
