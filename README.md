@@ -11,7 +11,7 @@
 
 ## Installation
 
-`leap-c` can be set up up by following the [installation guide](https://leap-c.github.io/leap-c/installation.html).
+`leap-c` can be set up by following the [installation guide](https://leap-c.github.io/leap-c/installation.html).
 
 ## Usage
 
