@@ -673,13 +673,13 @@ def check_gradients(
             "dV/dx0",
             _create_dVdx0_test(diff_mpc),
             test_inputs.x0,
-            GradCheckConfig(atol=1e-1, eps=1e-2),
+            GradCheckConfig(atol=1e-2, eps=1e-2),
         ),
         (
             "du0/dx0",
             _create_du0dx0_test(diff_mpc),
             test_inputs.x0,
-            GradCheckConfig(atol=1e-1, eps=1e-4),
+            GradCheckConfig(atol=1e-2, eps=1e-4),
         ),
         (
             "dQ/dx0",
@@ -691,7 +691,7 @@ def check_gradients(
             "du0/dp_global",
             _create_du0dp_global_test(diff_mpc, test_inputs.x0),
             test_inputs.p_global,
-            GradCheckConfig(atol=1e-1, eps=1e-4),
+            GradCheckConfig(atol=1e-2, eps=1e-4),
         ),
         (
             "dV/dp_global",
@@ -709,7 +709,7 @@ def check_gradients(
             "dQ/du0",
             _create_dQdu0_test(diff_mpc, test_inputs.x0, test_inputs.p_global),
             test_inputs.u0,
-            GradCheckConfig(atol=1e-1, eps=1e-2),
+            GradCheckConfig(atol=2 * 1e-2, eps=1e-2),
         ),
         (
             "dx/dp_global",
@@ -721,7 +721,7 @@ def check_gradients(
             "du/dp_global",
             _create_dudp_global_test(diff_mpc, test_inputs.x0),
             test_inputs.p_global,
-            GradCheckConfig(atol=4 * 1e-2, eps=1e-4),
+            GradCheckConfig(atol=2 * 1e-2, eps=1e-4),
         ),
     ]
 
