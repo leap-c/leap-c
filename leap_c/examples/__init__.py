@@ -10,6 +10,7 @@ from leap_c.examples.cartpole.env import CartPoleEnv
 from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
 from leap_c.examples.chain.env import ChainEnv
 from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
+from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
 from leap_c.examples.hvac.env import StochasticThreeStateRcEnv
 from leap_c.examples.hvac.planner import HvacPlanner, HvacPlannerConfig
 from leap_c.examples.lqr.env import LqrEnv
@@ -18,13 +19,16 @@ from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pointmass.planner import PointMassControllerConfig, PointMassPlanner
 from leap_c.planner import ControllerFromPlanner, ParameterizedPlanner
 
-ExampleEnvName = Literal["cartpole", "chain", "lqr", "pointmass", "hvac"]
+ExampleEnvName = Literal["cartpole", "chain", "lqr", "pointmass", "hvac", "hvac_continual"]
 ENV_REGISTRY = {
     "cartpole": CartPoleEnv,
     "chain": ChainEnv,
     "lqr": LqrEnv,
     "pointmass": PointMassEnv,
     "hvac": StochasticThreeStateRcEnv,
+    "hvac_continual": lambda **kw: StochasticThreeStateRcEnv(
+        dataset=HvacDataset(cfg=DataConfig(mode="continual")), **kw
+    ),
 }
 
 
