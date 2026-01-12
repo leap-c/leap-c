@@ -435,3 +435,78 @@ def test_default_param_in_param_space(hvac_planner_stagewise: HvacPlanner) -> No
     param_space = hvac_planner_stagewise.param_space
 
     assert param_space.contains(param), "Default parameters are not within the defined param space"
+
+
+def test_continual_episodes_only_valid_months() -> None:
+    """Test that continual learning episodes only contain dates from valid months."""
+    from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
+
+    # Create dataset with continual mode
+    cfg = DataConfig(mode="continual")
+    dataset = HvacDataset(cfg=cfg)
+
+    valid_months = cfg.valid_months
+    assert valid_months is not None
+
+    horizon = 96  # 24 hours at 15-min intervals
+
+    # Reset continual index
+    dataset.reset_continual_index()
+
+    # Sample multiple episodes and check all dates
+    n_episodes = 20
+    invalid_dates_found = []
+
+    for ep in range(n_episodes):
+        start_idx, max_steps = dataset._sample_continual(horizon)
+
+        # Check all steps in the episode
+        for step in range(max_steps):
+            idx = start_idx + step
+            date = dataset.index[idx]
+
+            if date.month not in valid_months:
+                invalid_dates_found.append(
+                    f"Episode {ep}, step {step}: {date} (month {date.month})"
+                )
+
+    assert len(invalid_dates_found) == 0, (
+        f"Found {len(invalid_dates_found)} dates in invalid months:\n"
+        + "\n".join(invalid_dates_found[:10])  # Show first 10
+    )
+
+
+def test_continual_episodes_sequential_coverage() -> None:
+    """Test that continual episodes cover the dataset sequentially."""
+    from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
+
+    cfg = DataConfig(mode="continual")
+    dataset = HvacDataset(cfg=cfg)
+
+    horizon = 96
+    dataset.reset_continual_index()
+
+    # Collect episode boundaries
+    episodes = []
+    initial_idx = None
+
+    for i in range(50):  # Sample up to 50 episodes
+        start_idx, max_steps = dataset._sample_continual(horizon)
+
+        if initial_idx is None:
+            initial_idx = start_idx
+        elif start_idx == initial_idx:
+            # Wrapped around, stop
+            break
+
+        episodes.append((start_idx, max_steps))
+
+    # Check that episodes are sequential (each starts after previous ends)
+    for i in range(1, len(episodes)):
+        prev_end = episodes[i - 1][0] + episodes[i - 1][1]
+        curr_start = episodes[i][0]
+
+        # Current episode should start at or after previous episode ended
+        assert curr_start >= prev_end, (
+            f"Episode {i} starts at {curr_start} but episode {i - 1} ended at {prev_end}"
+        )

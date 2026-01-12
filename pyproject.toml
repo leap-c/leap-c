@@ -54,19 +54,20 @@ docs = [
   "sphinx_rtd_theme==3.0.2",
   "myst-parser==4.0.1"
 ]
-dev = [
-  "leap_c[rendering]",
-  "leap_c[docs]",
-  "leap_c[test]",
-  "pre-commit==4.3.0",
-  "ruff==0.12.12"
-]
-wandb = ["wandb==0.20.1"]
 hvac = [
   "openmeteo-requests==1.7.4",
   "retry-requests==2.0.0",
   "requests-cache==1.2.1"
 ]
+dev = [
+  "leap_c[rendering]",
+  "leap_c[docs]",
+  "leap_c[test]",
+  "leap_c[hvac]",
+  "pre-commit==4.3.0",
+  "ruff==0.12.12"
+]
+wandb = ["wandb==0.20.1"]
 
 [tool.setuptools]
 packages = ["leap_c"]
