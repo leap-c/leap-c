@@ -743,10 +743,13 @@ def check_gradients(
             if test_name == "dx/dp_global" or test_name == "du/dp_global":
                 pass
             print(f"✓ {test_name} gradient check passed")
-        except Exception as e:
-            print(f"✗ {test_name} gradient check failed: {e}")
+        except Exception:
             raise
     print(f"Times taken in seconds for batch_size {n_batch}: {times}.")
+
+
+def create_grid(offset, num):
+    return 1e-3 * np.linspace(0, 1, num=num) + offset - 5 * 1e-4
 
 
 # NOTE: Useful for debugging the sensitivities.
@@ -774,6 +777,51 @@ def check_gradients(
 #         else:
 #             print("Nonzero indices match")
 
+# NOTE: Adjust this for plotting of single entries of partial derivatives. Insert, e.g.,
+# in except-block of check_gradients
+#
+# sample_idx = 1
+# dim_idx = 1
+# num = 100
+
+# sample = test_inputs.x0[[sample_idx]].detach().cpu().numpy()
+
+# samples = np.tile(sample, (num, 1))
+# samples[:, dim_idx] = 1e-3*np.linspace(0, 1, num=num) + sample[:, dim_idx] - 5*1e-4
+# samples = torch.tensor(samples)
+# samples.requires_grad = True
+# u0 = torch.tile(test_inputs.u0[[sample_idx]], (100, 1))
+# test_func = _create_dQdx0_test(diff_mpc, u0)
+
+# fwd_out, status = test_func(samples)
+# assert torch.all(status == 0)
+# fwd_out.sum().backward()
+# partial_der_entry = samples.grad[:, dim_idx]
+
+# import matplotlib.pyplot as plt
+# # Create figure with two subplots (1 row, 2 columns)
+# fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+# x = samples[:, dim_idx].detach().numpy()
+# ax1.plot(x, partial_der_entry.detach().numpy(), 'b-', linewidth=2)
+# ax1.scatter(sample[0, dim_idx], 1.8537e-02, s=2, c="green", marker="+")
+# ax1.set_title('partial der')
+# ax1.set_xlabel('x')
+# ax1.set_ylabel('partial der')
+# ax1.grid(True, alpha=0.3)
+
+# ax2.plot(x, fwd_out.detach().numpy(), 'r-', linewidth=2)
+# ax2.set_title('Q-func')
+# ax2.set_xlabel('x')
+# ax2.set_ylabel('Q-func')
+# ax2.grid(True, alpha=0.3)
+
+# # Adjust layout to prevent overlap
+# plt.tight_layout()
+
+# # Show the plot
+# plt.savefig("inspect_derivatives")
+
 
 def test_backward_lmpc(
     diff_mpc: AcadosDiffMpcTorch,
@@ -796,9 +844,10 @@ def test_backward_lmpc(
     """
     print("Check non-stagewise diff_mpc===========================")
     check_gradients(diff_mpc, n_batch, max_batch_size, dtype, noise_scale)
-    # print("Check stagewise diff_mpc===============================")
-    # check_gradients(diff_mpc_with_stagewise_varying_params,
-    #                 n_batch, max_batch_size, dtype, noise_scale)
+    print("Check stagewise diff_mpc===============================")
+    check_gradients(
+        diff_mpc_with_stagewise_varying_params, n_batch, max_batch_size, dtype, noise_scale
+    )
 
 
 def test_backward_nmpc(

@@ -360,7 +360,7 @@ def define_discrete_dynamics(ocp: AcadosOcp, param_manager: AcadosParameterManag
 
 def define_constraints(ocp: AcadosOcp, param_manager: AcadosParameterManager) -> None:
     """Define constraints for the OCP."""
-    ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
+    ocp.constraints.x0 = np.array([1.0, 0.5, 0.0, 0.0])
 
     Fmax = 10.0
     # Box constraints on u
