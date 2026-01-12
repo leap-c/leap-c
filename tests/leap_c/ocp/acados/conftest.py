@@ -7,7 +7,7 @@ import numpy as np
 import pytest
 from acados_template import AcadosOcp, AcadosOcpOptions
 
-from leap_c.examples.cartpole.planner import CartPolePlanner
+from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
 from leap_c.ocp.acados.parameters import (
     AcadosParameter,
     AcadosParameterManager,
@@ -488,9 +488,32 @@ def acados_test_ocp_with_stagewise_varying_params(
     return ocp
 
 
-@pytest.fixture(scope="session")
-def diff_mpc_indefinite_hess() -> AcadosDiffMpcTorch:
-    return CartPolePlanner().diff_mpc
+@pytest.fixture(scope="session", params=["external", "nonlinear_ls"])
+def diff_mpc_indefinite_hess(
+    request: pytest.FixtureRequest,
+) -> AcadosDiffMpcTorch:
+    if request.param == "external":
+        cfg = CartPolePlannerConfig(cost_type="EXTERNAL")
+        return CartPolePlanner(cfg=cfg).diff_mpc
+    elif request.param == "nonlinear_ls":
+        cfg = CartPolePlannerConfig(cost_type="NONLINEAR_LS")
+        return CartPolePlanner(cfg=cfg).diff_mpc
+    else:
+        raise ValueError("Unknown request parameter.")
+
+
+@pytest.fixture(scope="session", params=["external", "nonlinear_ls"])
+def diff_mpc_indefinite_hess_stagewise(
+    request: pytest.FixtureRequest,
+) -> AcadosDiffMpcTorch:
+    if request.param == "external":
+        cfg = CartPolePlannerConfig(cost_type="EXTERNAL", param_interface="stagewise")
+        return CartPolePlanner(cfg=cfg).diff_mpc
+    elif request.param == "nonlinear_ls":
+        cfg = CartPolePlannerConfig(cost_type="NONLINEAR_LS", param_interface="stagewise")
+        return CartPolePlanner(cfg=cfg).diff_mpc
+    else:
+        raise ValueError("Unknown request parameter.")
 
 
 @pytest.fixture(scope="session")

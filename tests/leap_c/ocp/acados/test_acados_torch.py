@@ -801,8 +801,9 @@ def test_backward_lmpc(
     #                 n_batch, max_batch_size, dtype, noise_scale)
 
 
-def test_backward_indefinite_hess(
+def test_backward_nmpc(
     diff_mpc_indefinite_hess: AcadosDiffMpcTorch,
+    diff_mpc_indefinite_hess_stagewise: AcadosDiffMpcTorch,
     n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
@@ -812,9 +813,17 @@ def test_backward_indefinite_hess(
 
     Args:
         diff_mpc_indefinite_hess: Differentiable mpc containing an indefinite full hessian.
+        diff_mpc_indefinite_hess_stagewise: Like the above mpc, but with stagewise parameters.
         n_batch: Number of batch samples to generate
         max_batch_size: Maximum allowed batch size for performance
         dtype: PyTorch data type for tensors
         noise_scale: Scale factor for noise added to parameters
     """
+    print("Check non-stagewise diff_mpc===========================")
     check_gradients(diff_mpc_indefinite_hess, n_batch, max_batch_size, dtype, noise_scale)
+    # print("Check stagewise diff_mpc===============================")
+    # check_gradients(diff_mpc_indefinite_hess_stagewise, n_batch,
+    #                 max_batch_size, dtype, noise_scale)
+    # print("Check stagewise diff_mpc===============================")
+    # check_gradients(diff_mpc_with_stagewise_varying_params,
+    #                 n_batch, max_batch_size, dtype, noise_scale)
