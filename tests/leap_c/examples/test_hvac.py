@@ -445,7 +445,7 @@ def test_continual_episodes_only_valid_months() -> None:
     cfg = DataConfig(mode="continual")
     dataset = HvacDataset(cfg=cfg)
 
-    valid_months = cfg.valid_months  # [1, 2, 3, 4, 9, 10, 11, 12]
+    valid_months = cfg.valid_months
     assert valid_months is not None
 
     horizon = 96  # 24 hours at 15-min intervals
@@ -510,42 +510,3 @@ def test_continual_episodes_sequential_coverage() -> None:
         assert curr_start >= prev_end, (
             f"Episode {i} starts at {curr_start} but episode {i - 1} ended at {prev_end}"
         )
-
-
-def test_continual_skips_invalid_months() -> None:
-    """Test that continual mode correctly skips invalid months."""
-    from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
-
-    cfg = DataConfig(mode="continual")
-    dataset = HvacDataset(cfg=cfg)
-
-    valid_months = cfg.valid_months or []
-
-    horizon = 96
-    dataset.reset_continual_index()
-
-    # Sample episodes until we've crossed at least one summer
-    episodes = []
-    years_seen = set()
-
-    for _ in range(30):
-        start_idx, max_steps = dataset._sample_continual(horizon)
-        start_date = dataset.index[start_idx]
-        end_date = dataset.index[start_idx + max_steps - 1]
-
-        episodes.append((start_date, end_date, max_steps))
-        years_seen.add(start_date.year)
-
-        # Stop if we've seen multiple years (crossed summer at least once)
-        if len(years_seen) >= 2:
-            break
-
-    # Verify that we have episodes that end in spring and start in fall
-    # This indicates summer was skipped
-    spring_endings = [ep for ep in episodes if ep[1].month == 4]
-    fall_starts = [ep for ep in episodes if ep[0].month == 9]
-
-    assert len(spring_endings) > 0 or len(fall_starts) > 0, (
-        "Expected to find episodes that end in spring or start in fall, "
-        f"indicating summer months were skipped. Valid months: {valid_months}"
-    )

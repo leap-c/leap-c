@@ -1040,7 +1040,7 @@ if __name__ == "__main__":
     # Use a reference non-leap year for consistent x-axis labels
     from datetime import date as dt_date
 
-    def get_month_starts(year: int = 2023) -> list[int]:
+    def get_month_starts(year) -> list[int]:
         """Get day-of-year for the first day of each month."""
         return [dt_date(year, m, 1).timetuple().tm_yday for m in range(1, 13)]
 
