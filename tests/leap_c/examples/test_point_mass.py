@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from leap_c.examples.pointmass.acados_ocp import create_pointmass_params
-from leap_c.examples.pointmass.env import PointMassEnv
+from leap_c.examples.pointmass.env import PointMassEnv, PointMassEnvConfig
 from leap_c.examples.pointmass.planner import PointMassPlanner
 from leap_c.planner import ControllerFromPlanner
 
@@ -48,3 +48,16 @@ def test_run_closed_loop(
         "Final position is not close to the goal"
     )  # Check that the final position is close to the goal
     assert np.linalg.norm(obs[2:4]) < 0.1  # Check that the final velocity is close to zero
+
+
+def test_domain_randomization():
+    rng = np.random.default_rng(0)
+    cfg = PointMassEnvConfig(domain_randomization="large")
+    cfg_without = PointMassEnvConfig(domain_randomization="none")
+    dynamics_before = cfg.dynamics
+    cfg.dynamics = cfg.dynamics.randomize(level=cfg.domain_randomization, rng=rng)
+    cfg_without.dynamics = cfg_without.dynamics.randomize(
+        level=cfg_without.domain_randomization, rng=rng
+    )
+    assert dynamics_before == cfg_without.dynamics
+    assert cfg.dynamics != cfg_without.dynamics

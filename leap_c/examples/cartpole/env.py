@@ -1,24 +1,141 @@
-from dataclasses import dataclass
-from typing import Any, Callable
+from dataclasses import dataclass, field
+from typing import Any, Callable, Literal
 
 import gymnasium as gym
 import numpy as np
 from gymnasium import spaces
 from gymnasium.envs.classic_control import utils as gym_utils
 
+from leap_c.examples.utils.randomize_params import randomize_normal
+
+DomainRandomizationLevel = Literal["none", "small", "medium", "large"]
+"""Specifies the amount of domain randomization to introduce by randomizing dynamics parameters.
+"""
+
 
 @dataclass(kw_only=True)
-class CartPoleEnvConfig:
-    """Configuration for the CartPole environment."""
+class CartPoleDynamicsParams:
+    """Dynamics parameters for the CartPole environment."""
 
     gravity: float = 9.81  # gravity [m/s^2]
     masscart: float = 1.0  # mass of the cart [kg]
     masspole: float = 0.1  # mass of the pole [kg]
     length: float = 0.8  # length of the pole [m]
-    Fmax: float = 80.0  # maximum force that can be applied to the cart [N]
-    dt: float = 0.05  # simulation time step [s]
-    max_time: float = 10.0  # maximum simulation time until truncation [s]
-    x_threshold: float = 2.4  # maximum absolute position of the cart before termination [m]
+
+    def _domain_randomization_to_stddev(
+        self, level: DomainRandomizationLevel
+    ) -> tuple[float, list[str]]:
+        """Maps the domain randomization level to standard deviations for dynamics randomization.
+
+        Args:
+            level: The domain randomization level.
+
+        Returns:
+            The standard deviation for dynamics parameter randomization.
+            The list of parameter names to skip during randomization.
+        """
+        skip_names = []
+        if level == "none":
+            return 0.0, skip_names
+        elif level == "small":
+            return 0.05, skip_names
+        elif level == "medium":
+            return 0.1, skip_names
+        elif level == "large":
+            return 0.2, skip_names
+
+    def _clamp_params(self):
+        """Clamps the dynamics parameters to plausible ranges (50% variation)."""
+        self.gravity = np.clip(self.gravity, 5, 15.0).item()
+        self.masscart = np.clip(self.masscart, 0.5, 1.5).item()
+        self.masspole = np.clip(self.masspole, 0.005, 0.15).item()
+        self.length = np.clip(self.length, 0.4, 1.2).item()
+
+    def randomize(
+        self, level: DomainRandomizationLevel, rng: np.random.Generator
+    ) -> "CartPoleDynamicsParams":
+        """Randomizes the parameters according to the specified domain randomization level.
+
+        Args:
+            level: The domain randomization level.
+            rng: Random number generator.
+        """
+        noise_scale, skip_names = self._domain_randomization_to_stddev(level)
+        if noise_scale > 0.0:
+            new_params = randomize_normal(
+                params=self,
+                rng=rng,
+                noise_scale=noise_scale,
+                skip_names=skip_names,
+            )
+            new_params._clamp_params()
+            return new_params
+        return self
+
+
+@dataclass(kw_only=True)
+class CartPoleEnvConfig:
+    """Configuration for the CartPole environment.
+
+    Attributes:
+        dynamics: The dynamics parameters of the cartpole system.
+        domain_randomization: The amount of domain randomization to introduce by randomizing
+            dynamics parameters. Will be applied when calling reset() of the environment
+            with a seed argument.
+        Fmax: Maximum force that can be applied to the cart [N].
+        dt: Simulation time step [s].
+        max_time: Maximum simulation time until truncation [s].
+        x_threshold: Maximum absolute position of the cart before termination [m].
+    """
+
+    dynamics: CartPoleDynamicsParams = field(default_factory=CartPoleDynamicsParams)
+    domain_randomization: DomainRandomizationLevel = "none"
+
+    Fmax: float = 80.0
+    dt: float = 0.05
+    max_time: float = 10.0
+    x_threshold: float = 2.4
+
+
+def build_integrator(dynamics: CartPoleDynamicsParams) -> Callable:
+    """Builds a simple RK4 integrator for the cartpole dynamics."""
+
+    def f_explicit(
+        x,
+        u,
+        g=dynamics.gravity,
+        M=dynamics.masscart,
+        m=dynamics.masspole,
+        l=dynamics.length,  # noqa E741
+    ):
+        _, theta, dx, dtheta = x
+        F = u.item()
+        cos_theta = np.cos(theta)
+        sin_theta = np.sin(theta)
+        denominator = M + m - m * cos_theta * cos_theta
+        return np.array(
+            [
+                dx,
+                dtheta,
+                (-m * l * sin_theta * dtheta * dtheta + m * g * cos_theta * sin_theta + F)
+                / denominator,
+                (
+                    -m * l * cos_theta * sin_theta * dtheta * dtheta
+                    + F * cos_theta
+                    + (M + m) * g * sin_theta
+                )
+                / (l * denominator),
+            ]
+        )
+
+    def rk4_step(f, x, u, h):
+        k1 = f(x, u)
+        k2 = f(x + 0.5 * h * k1, u)
+        k3 = f(x + 0.5 * h * k2, u)
+        k4 = f(x + h * k3, u)
+        return x + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
+
+    return lambda x, u, t: rk4_step(f_explicit, x, u, t)
 
 
 class CartPoleEnv(gym.Env):
@@ -74,7 +191,7 @@ class CartPoleEnv(gym.Env):
 
     Info:
     -----
-    The info dictionary contains:
+    The info dictionary of step contains:
     - "task": {"violation": bool, "success": bool}
       - violation: True if out of bounds
       - success: True if the pole was upright in the last 10 steps.
@@ -127,42 +244,7 @@ class CartPoleEnv(gym.Env):
         """
         self.cfg = CartPoleEnvConfig() if cfg is None else cfg
 
-        def f_explicit(
-            x,
-            u,
-            g=self.cfg.gravity,
-            M=self.cfg.masscart,
-            m=self.cfg.masspole,
-            l=self.cfg.length,  # noqa E741
-        ):
-            _, theta, dx, dtheta = x
-            F = u.item()
-            cos_theta = np.cos(theta)
-            sin_theta = np.sin(theta)
-            denominator = M + m - m * cos_theta * cos_theta
-            return np.array(
-                [
-                    dx,
-                    dtheta,
-                    (-m * l * sin_theta * dtheta * dtheta + m * g * cos_theta * sin_theta + F)
-                    / denominator,
-                    (
-                        -m * l * cos_theta * sin_theta * dtheta * dtheta
-                        + F * cos_theta
-                        + (M + m) * g * sin_theta
-                    )
-                    / (l * denominator),
-                ]
-            )
-
-        def rk4_step(f, x, u, h):
-            k1 = f(x, u)
-            k2 = f(x + 0.5 * h * k1, u)
-            k3 = f(x + 0.5 * h * k2, u)
-            k4 = f(x + h * k3, u)
-            return x + h / 6 * (k1 + 2 * k2 + 2 * k3 + k4)
-
-        self.integrator = lambda x, u, t: rk4_step(f_explicit, x, u, t)
+        self.integrator = build_integrator(self.cfg.dynamics)
 
         high = np.array(
             [
@@ -264,7 +346,9 @@ class CartPoleEnv(gym.Env):
         self.pole_end_trajectory = []
         for x in state_trajectory:
             self.pos_trajectory.append(x[0])
-            self.pole_end_trajectory.append(self.calc_pole_end(x[0], x[1], self.cfg.length))
+            self.pole_end_trajectory.append(
+                self.calc_pole_end(x[0], x[1], self.cfg.dynamics.length)
+            )
 
     def calc_pole_end(self, x_coord: float, theta: float, length: float) -> tuple[float, float]:
         # NOTE: The minus is necessary because theta is seen as counterclockwise
@@ -290,7 +374,7 @@ class CartPoleEnv(gym.Env):
         center = (int(self.screen_width / 2), int(self.screen_height / 2))
         scale = self.screen_width / world_width
         polewidth = 10.0
-        polelen = scale * self.cfg.length
+        polelen = scale * self.cfg.dynamics.length
         cartwidth = 50.0
         cartheight = 30.0
         axleoffset = cartheight / 4.0
