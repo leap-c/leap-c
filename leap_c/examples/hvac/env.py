@@ -42,6 +42,10 @@ class HvacEnvConfig:
     param_noise_scale: float = 0.3
     random_seed: int = 0
 
+    def __post_init__(self):
+        if self.step_size != 900.0:
+            raise NotImplementedError("Only step_size of 900s is currently supported.")
+
 
 class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     """Simulator for a three-state RC thermal model with exact discretization of Gaussian noise.
@@ -161,7 +165,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         # Setup forecast and simulation parameters
         self.ctx = None
         self.N_forecast = 4 * self.forecaster.cfg.horizon_hours
-        self.max_steps = int(self.dataset.cfg.max_hours * 3600 / self.cfg.step_size)
+        self.max_steps = -1  #  int(self.dataset.cfg.max_hours * 3600 / self.cfg.step_size)
 
         print("env N_forecast: ", self.N_forecast)
 
@@ -365,7 +369,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         reached_end_of_data = self.idx >= len(self.dataset) - self.N_forecast
         truncated = reached_end_of_data or reached_max_steps
 
-        terminated = False  # We do not terminate
+        # Check if dataset is exhausted (continual learning complete)
+        terminated = self.dataset.is_exhausted(self.N_forecast)
         info = {"time_forecast": time_forecast, "task": reward_info}
 
         return obs, reward, terminated, truncated, info
@@ -394,13 +399,13 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             split = "train"
         else:
             split = "test"
-            if seed is not None:
+            # Reset test counter for reproducible evaluation (random mode only)
+            if self.dataset.cfg.mode == "random" and seed is not None:
                 self.dataset.reset_test_counter()
 
-        self.idx = self.dataset.sample_start_index(
+        self.idx, self.max_steps = self.dataset.sample_start_index(
             rng=self.np_random,
             horizon=self.N_forecast,
-            max_steps=self.max_steps,
             split=split,
         )
 
