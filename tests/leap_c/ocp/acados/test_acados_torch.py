@@ -99,13 +99,17 @@ def test_statelessness(diff_mpc: AcadosDiffMpcTorch) -> None:
                         different parameters or if it does not produce consistent
                         outputs for identical inputs.
     """
-    x0 = np.tile(
-        A=np.array([0.5, 0.5, 0.5, 0.5]),
-        reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
+    x0 = torch.tensor(
+        np.tile(
+            A=np.array([0.5, 0.5, 0.5, 0.5]),
+            reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
+        )
     )
-    u0 = np.tile(
-        A=np.array([0.5, 0.5]),
-        reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
+    u0 = torch.tensor(
+        np.tile(
+            A=np.array([0.5, 0.5]),
+            reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
+        )
     )
 
     p_global = diff_mpc.diff_mpc_fun.ocp.p_global_values
@@ -247,12 +251,12 @@ def test_closed_loop(
         # Need first dimension of inputs to be batch size
         n_batch = 1
 
-        p_global = ocp.p_global_values.reshape(n_batch, ocp.dims.np_global)
+        p_global = torch.tensor(ocp.p_global_values.reshape(n_batch, ocp.dims.np_global))
 
         for step in range(100):
             # Need first dimension to be batch size
             x0 = np.array(x[-1].reshape(n_batch, nx))  # type: ignore
-            ctx, u0, _, _, _ = diff_mpc_k.forward(x0=x0, p_global=p_global)  # type: ignore
+            ctx, u0, _, _, _ = diff_mpc_k.forward(x0=torch.tensor(x0), p_global=p_global)  # type: ignore
             assert ctx.status == 0, f"Did not converge to a solution in step {step}"
             u.append(u0)
             x.append(diff_mpc_k.diff_mpc_fun.forward_batch_solver.ocp_solvers[0].get(1, "x"))
