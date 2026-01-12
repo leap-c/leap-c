@@ -22,10 +22,14 @@ class DataConfig:
         price_data_path: Path to the price data CSV file.
         weather_data_path: Path to the weather data CSV file.
         start_time: Simulation start time. If None, samples randomly from data.
-        valid_months: List of valid months (1-12) for random sampling.
+        mode: Dataset mode - "random" for random sampling with fixed episode
+            length, "continual" for sequential episodes that break at invalid
+            months (summer).
+        valid_months: List of valid months (1-12) for sampling.
             Default is heating season months (Jan-Apr, Sep-Dec).
             Set to None to allow all months.
-        max_hours: Maximum simulation time in hours for episodes.
+        max_hours: Maximum simulation time in hours for episodes (used in
+            random mode).
         total_test_episodes: Exact number of fixed test episodes, stratified
             evenly across all (year, month) combinations in the dataset.
             These episodes are always the same for reproducible evaluation.
@@ -36,6 +40,9 @@ class DataConfig:
     price_data_path: Path | None = None
     weather_data_path: Path | None = None
     start_time: pd.Timestamp | None = None  # if None, samples randomly from data
+
+    # Dataset mode: "random" or "continual"
+    mode: Literal["random", "continual"] = "random"
 
     # train / test split configuration
     max_hours: int = 1.5 * 24  # Maximum episode length in hours
@@ -51,6 +58,9 @@ class HvacDataset:
 
     Provides convenient access to price, temperature, solar, and temporal data
     for the HVAC environment simulation.
+
+    Note:
+        Currently, only supports fixed 15-minute interval data.
 
     Attributes:
         data: Combined DataFrame with price, weather, and time features.
@@ -97,7 +107,10 @@ class HvacDataset:
         self.min = {key: self.data[key].min() for key in self.data.columns}
         self.max = {key: self.data[key].max() for key in self.data.columns}
 
-        # Generate fixed stratified test episodes
+        # Continual mode: track current position in dataset
+        self._continual_idx: int = 0
+
+        # Random mode: fixed stratified test episodes
         self._test_indices: list[int] = []
         self._test_episode_counter: int = 0
 
@@ -239,10 +252,8 @@ class HvacDataset:
         rng = np.random.default_rng(self.cfg.split_seed)
         test_indices = []
 
-        # Determine valid months
         valid_months = self.cfg.valid_months or list(range(1, 13))
 
-        # Group indices by (year, month)
         min_idx = 0
         max_idx = len(self.data) - horizon - max_steps + 1
 
@@ -263,21 +274,16 @@ class HvacDataset:
                     year_month_indices[key] = []
                 year_month_indices[key].append(idx)
 
-        # Get all (year, month) keys sorted for reproducibility
         all_keys = sorted(year_month_indices.keys())
         n_buckets = len(all_keys)
 
         if n_buckets == 0:
             raise ValueError("No valid (year, month) combinations found in dataset.")
 
-        # Distribute total_test_episodes across all buckets evenly
-        # Use a strided approach to spread remainder across all buckets
         base_per_bucket = self.cfg.total_test_episodes // n_buckets
         remainder = self.cfg.total_test_episodes % n_buckets
 
-        # Calculate which buckets get an extra episode (spread evenly)
         if remainder > 0:
-            # Spread the remainder evenly across the buckets
             step = n_buckets / remainder
             extra_indices = {int(i * step) for i in range(remainder)}
         else:
@@ -292,45 +298,158 @@ class HvacDataset:
                 sampled = rng.choice(available_indices, size=n_samples, replace=False)
                 test_indices.extend(sampled.tolist())
 
-        # Shuffle the final list for variety in evaluation order
         rng2 = np.random.default_rng(self.cfg.split_seed)
         rng2.shuffle(test_indices)
 
         return test_indices
 
+    def _find_first_valid_index(self, horizon: int) -> int:
+        """Find the first valid index in the dataset.
+
+        Args:
+            horizon: Forecast horizon length needed.
+
+        Returns:
+            First valid starting index.
+        """
+        valid_months = self.cfg.valid_months or list(range(1, 13))
+
+        for idx in range(len(self.data) - horizon):
+            if self.index[idx].month in valid_months:
+                return idx
+
+        raise ValueError("No valid starting index found in dataset.")
+
+    def _find_next_valid_index(self, current_idx: int, horizon: int) -> int | None:
+        """Find the next valid index after current position (skipping invalid months).
+
+        Args:
+            current_idx: Current index in dataset.
+            horizon: Forecast horizon length needed.
+
+        Returns:
+            Next valid index, or None if end of dataset reached.
+        """
+        valid_months = self.cfg.valid_months or list(range(1, 13))
+        max_idx = len(self.data) - horizon
+
+        for idx in range(current_idx, max_idx):
+            if self.index[idx].month in valid_months:
+                return idx
+
+        return None
+
+    def _calculate_steps_until_invalid(self, start_idx: int, horizon: int) -> int:
+        """Calculate number of steps until hitting an invalid month.
+
+        Args:
+            start_idx: Starting index.
+            horizon: Forecast horizon length.
+
+        Returns:
+            Number of valid steps from start_idx.
+        """
+        valid_months = self.cfg.valid_months or list(range(1, 13))
+        max_idx = len(self.data) - horizon
+
+        steps = 0
+        for idx in range(start_idx, max_idx):
+            if self.index[idx].month not in valid_months:
+                break
+            steps += 1
+
+        return steps
+
     def sample_start_index(
         self,
         rng: np.random.Generator,
         horizon: int,
-        max_steps: int,
-        split: Literal["train", "test", "all"] = "all",
+        split: Literal["train", "test", "all"] = "train",
         max_attempts: int = 1000,
-    ) -> int:
+    ) -> tuple[int, int]:
         """Sample a valid start index for episode initialization.
 
-        For 'test' split, returns episodes from a fixed pre-generated set
-        (stratified across months and years) in sequential order to ensure
-        reproducible evaluation.
-
-        For 'train' split, randomly samples from valid months excluding
-        the fixed test episodes.
+        Behavior depends on cfg.mode:
+        - "random": Randomly samples from valid months with fixed episode length.
+        - "continual": Returns sequential episodes, breaking at invalid months
+            (summer). Episodes resume after the invalid period.
 
         Args:
             rng: NumPy random generator for reproducibility.
             horizon: Forecast horizon length.
-            max_steps: Maximum number of simulation steps.
-            split: Data split to sample from ('train', 'test', 'all').
-            max_attempts: Maximum number of sampling attempts.
+            split: Data split ("train", "test", or "all"). In continual mode,
+                this is ignored. "all" samples randomly without train/test split.
+            max_attempts: Maximum number of sampling attempts (random mode only).
 
         Returns:
-            Valid starting index.
+            Tuple of (start_index, max_steps) for the episode.
 
         Raises:
             RuntimeError: If no valid start date found within max_attempts.
         """
+        # Fixed start time takes precedence
         if self.cfg.start_time is not None:
-            return self.index.get_loc(self.cfg.start_time)
+            idx = self.index.get_loc(self.cfg.start_time)
+            max_steps = int(self.cfg.max_hours * 4)  # 15-min intervals
+            return idx, max_steps
 
+        if self.cfg.mode == "continual":
+            return self._sample_continual(horizon)
+        else:
+            return self._sample_random(rng, horizon, split, max_attempts)
+
+    def _sample_continual(self, horizon: int) -> tuple[int, int]:
+        """Sample next episode for continual learning mode.
+
+        Starts at earliest valid date, runs until invalid month, then skips
+        to next valid period. Does not wrap around when dataset is exhausted.
+
+        Args:
+            horizon: Forecast horizon length.
+
+        Returns:
+            Tuple of (start_index, max_steps). If dataset is exhausted,
+            returns the last valid position with 0 steps remaining.
+        """
+        # Initialize on first call
+        if self._continual_idx == 0:
+            self._continual_idx = self._find_first_valid_index(horizon)
+
+        # Find next valid starting point (skip invalid months)
+        next_idx = self._find_next_valid_index(self._continual_idx, horizon)
+
+        if next_idx is None:
+            # End of dataset reached - do not wrap around
+            # Return current position with 0 steps to signal exhaustion
+            return self._continual_idx, 0
+
+        start_idx = next_idx
+        max_steps = self._calculate_steps_until_invalid(start_idx, horizon)
+
+        # Update continual index for next call
+        self._continual_idx = start_idx + max_steps
+
+        return start_idx, max_steps
+
+    def _sample_random(
+        self,
+        rng: np.random.Generator,
+        horizon: int,
+        split: Literal["train", "test", "all"],
+        max_attempts: int,
+    ) -> tuple[int, int]:
+        """Sample random episode with fixed length and optional train/test split.
+
+        Args:
+            rng: NumPy random generator.
+            horizon: Forecast horizon length.
+            split: Data split ("train", "test", or "all").
+            max_attempts: Maximum sampling attempts.
+
+        Returns:
+            Tuple of (start_index, max_steps).
+        """
+        max_steps = int(self.cfg.max_hours * 4)  # 15-min intervals
         min_start_idx = 0
         max_start_idx = len(self.data) - horizon - max_steps + 1
 
@@ -340,55 +459,49 @@ class HvacDataset:
                 f"but dataset has only {len(self.data)} steps."
             )
 
+        # For 'all' split, just sample randomly with month filtering only
+        if split == "all":
+            for _ in range(max_attempts):
+                idx = rng.integers(low=min_start_idx, high=max_start_idx + 1)
+                if self.cfg.valid_months is None or self.index[idx].month in self.cfg.valid_months:
+                    return idx, max_steps
+            raise RuntimeError(
+                f"Could not find a valid start date in {max_attempts} attempts. "
+                f"Valid months: {self.cfg.valid_months}."
+            )
+
         # Generate test indices lazily (only when needed)
         if not self._test_indices:
             self._test_indices = self._generate_stratified_test_episodes(horizon, max_steps)
             self._test_episode_counter = 0
 
-        # Episode length for overlap calculation
         episode_length = horizon + max_steps
 
         if split == "test":
             # Return fixed test episodes in order (cycling if needed)
             idx = self._test_indices[self._test_episode_counter % len(self._test_indices)]
             self._test_episode_counter += 1
-            return idx
+            return idx, max_steps
 
-        # For 'train' or 'all', sample randomly from valid months
-        # For 'train', create exclusion zones around test indices to prevent overlap
-        if split == "train":
-            # Build exclusion set: for each test index, exclude indices that would overlap
-            # An episode starting at idx overlaps with test episode at test_idx if:
-            # idx < test_idx + episode_length AND idx + episode_length > test_idx
-            # Simplified: |idx - test_idx| < episode_length
-            test_exclusion_set: set[int] = set()
-            for test_idx in self._test_indices:
-                # Exclude range [test_idx - episode_length + 1, test_idx + episode_length - 1]
-                start_exclude = max(0, test_idx - episode_length + 1)
-                end_exclude = min(max_start_idx, test_idx + episode_length - 1)
-                test_exclusion_set.update(range(start_exclude, end_exclude + 1))
-        else:
-            test_exclusion_set = set()
-
-        # If no month filtering and not excluding test indices, return random
-        if self.cfg.valid_months is None and not test_exclusion_set:
-            return rng.integers(low=min_start_idx, high=max_start_idx + 1)
+        # For 'train', create exclusion zones around test indices
+        test_exclusion_set: set[int] = set()
+        for test_idx in self._test_indices:
+            start_exclude = max(0, test_idx - episode_length + 1)
+            end_exclude = min(max_start_idx, test_idx + episode_length - 1)
+            test_exclusion_set.update(range(start_exclude, end_exclude + 1))
 
         # Sample with month filtering and test exclusion
         for _ in range(max_attempts):
             idx = rng.integers(low=min_start_idx, high=max_start_idx + 1)
 
-            # Exclude overlapping indices for train split
             if idx in test_exclusion_set:
                 continue
 
-            # Check month constraint if specified
             if self.cfg.valid_months is not None:
-                date = self.index[idx]
-                if date.month not in self.cfg.valid_months:
+                if self.index[idx].month not in self.cfg.valid_months:
                     continue
 
-            return idx
+            return idx, max_steps
 
         raise RuntimeError(
             f"Could not find a valid start date in {max_attempts} attempts. "
@@ -396,23 +509,41 @@ class HvacDataset:
             "Please check the data and configuration."
         )
 
-    def get_num_test_episodes(self, horizon: int, max_steps: int) -> int:
-        """Get the total number of fixed test episodes.
+    def reset_continual_index(self) -> None:
+        """Reset the continual mode index to start from the beginning."""
+        self._continual_idx = 0
+        self._continual_exhausted = False
+
+    def is_exhausted(self, horizon: int) -> bool:
+        """Check if the dataset has been fully traversed in continual mode.
 
         Args:
             horizon: Forecast horizon length.
-            max_steps: Maximum number of simulation steps.
 
         Returns:
-            Number of test episodes.
+            True if no more valid data remains, False otherwise.
         """
-        if not self._test_indices:
-            self._test_indices = self._generate_stratified_test_episodes(horizon, max_steps)
-        return len(self._test_indices)
+        if self.cfg.mode != "continual":
+            return False
+        return self._find_next_valid_index(self._continual_idx, horizon) is None
 
     def reset_test_counter(self) -> None:
         """Reset the test episode counter to start from the first episode."""
         self._test_episode_counter = 0
+
+    def get_num_test_episodes(self, horizon: int) -> int:
+        """Get the total number of fixed test episodes.
+
+        Args:
+            horizon: Forecast horizon length.
+
+        Returns:
+            Number of test episodes.
+        """
+        max_steps = int(self.cfg.max_hours * 4)
+        if not self._test_indices:
+            self._test_indices = self._generate_stratified_test_episodes(horizon, max_steps)
+        return len(self._test_indices)
 
 
 # ============================================================================
@@ -849,3 +980,244 @@ if __name__ == "__main__":
     plt.show()
 
     print("\nSaved test_episodes_data.png")
+
+    # =========================================================================
+    # Plot 3: Timeline visualization for Train/Test Split (Random Mode)
+    # =========================================================================
+    print("\n" + "=" * 60)
+    print("Generating Train/Test Split Timeline...")
+    print("=" * 60)
+
+    episode_length = horizon + max_steps
+
+    # Get all years in dataset
+    all_years = sorted(set(dataset.index.year))
+
+    fig3, ax3 = plt.subplots(figsize=(16, 6))
+    ax3.set_title("Test Episodes Timeline with Exclusion Zones (Random Mode)", fontsize=14)
+
+    # Plot each test episode as a bar on the timeline
+    for idx in test_indices:
+        start_date = dataset.index[idx]
+        year = start_date.year
+        day_of_year = start_date.dayofyear
+
+        # Calculate exclusion zone boundaries
+        excl_start_idx = max(0, idx - episode_length + 1)
+        excl_end_idx = min(len(dataset) - 1, idx + episode_length - 1)
+        excl_start_date = dataset.index[excl_start_idx]
+        excl_end_date = dataset.index[excl_end_idx]
+
+        # Plot exclusion zone (light red rectangle)
+        excl_start_day = excl_start_date.dayofyear
+        excl_end_day = excl_end_date.dayofyear
+
+        # Handle year boundaries for exclusion zone
+        if excl_start_date.year == year and excl_end_date.year == year:
+            ax3.barh(
+                y=year,
+                width=excl_end_day - excl_start_day,
+                left=excl_start_day,
+                height=0.6,
+                color="lightcoral",
+                alpha=0.4,
+                edgecolor="none",
+            )
+
+        # Plot test episode (blue rectangle)
+        ax3.barh(
+            y=year,
+            width=episode_length / 4 / 24,  # Convert steps to days
+            left=day_of_year,
+            height=0.6,
+            color="steelblue",
+            alpha=0.8,
+            edgecolor="darkblue",
+            linewidth=0.5,
+        )
+
+    # Add month labels on x-axis
+    # Use a reference non-leap year for consistent x-axis labels
+    from datetime import date as dt_date
+
+    def get_month_starts(year) -> list[int]:
+        """Get day-of-year for the first day of each month."""
+        return [dt_date(year, m, 1).timetuple().tm_yday for m in range(1, 13)]
+
+    month_starts = get_month_starts(2023)  # Reference year for labels
+    month_labels = [
+        "Jan",
+        "Feb",
+        "Mar",
+        "Apr",
+        "May",
+        "Jun",
+        "Jul",
+        "Aug",
+        "Sep",
+        "Oct",
+        "Nov",
+        "Dec",
+    ]
+    ax3.set_xticks(month_starts)
+    ax3.set_xticklabels(month_labels)
+    ax3.set_xlabel("Day of Year")
+    ax3.set_ylabel("Year")
+    ax3.set_yticks(all_years)
+    ax3.set_xlim(0, 366)
+    ax3.set_ylim(min(all_years) - 0.5, max(all_years) + 0.5)
+    ax3.grid(True, alpha=0.3, axis="x")
+
+    # Add legend
+    from matplotlib.patches import Patch
+
+    legend_elements = [
+        Patch(facecolor="steelblue", edgecolor="darkblue", label="Test Episode"),
+        Patch(facecolor="lightcoral", alpha=0.4, label="Exclusion Zone (no training)"),
+    ]
+    ax3.legend(handles=legend_elements, loc="upper right")
+
+    plt.tight_layout()
+    plt.savefig("train_test_split_timeline.png", dpi=150, bbox_inches="tight")
+    plt.show()
+    print("Saved train_test_split_timeline.png")
+
+    # =========================================================================
+    # Plot 4: Timeline visualization for Continual Learning Mode
+    # =========================================================================
+    print("\n" + "=" * 60)
+    print("Generating Continual Learning Timeline...")
+    print("=" * 60)
+
+    # Create a new dataset with continual mode
+    continual_cfg = DataConfig(mode="continual")
+    continual_dataset = HvacDataset(cfg=continual_cfg)
+
+    # Collect continual episodes (simulate sampling until we cycle)
+    continual_episodes = []
+    continual_dataset.reset_continual_index()
+
+    # Sample episodes until we wrap around or collect enough
+    max_episodes = 50  # Limit for visualization
+    initial_idx = None
+
+    for i in range(max_episodes):
+        start_idx, ep_max_steps = continual_dataset._sample_continual(horizon)
+
+        # Stop if we've wrapped around
+        if initial_idx is None:
+            initial_idx = start_idx
+        elif start_idx == initial_idx and i > 0:
+            break
+
+        continual_episodes.append((start_idx, ep_max_steps))
+
+    print(f"Continual learning episodes: {len(continual_episodes)}")
+
+    fig4, ax4 = plt.subplots(figsize=(16, 6))
+    ax4.set_title("Continual Learning Episodes Timeline", fontsize=14)
+
+    # Color gradient for episode order
+    n_episodes = len(continual_episodes)
+    colors = plt.cm.viridis(np.linspace(0, 1, n_episodes))
+
+    for i, (start_idx, ep_steps) in enumerate(continual_episodes):
+        start_date = continual_dataset.index[start_idx]
+        end_idx = min(start_idx + ep_steps - 1, len(continual_dataset) - 1)
+        end_date = continual_dataset.index[end_idx]
+
+        year = start_date.year
+        start_day = start_date.dayofyear
+        end_day = end_date.dayofyear
+
+        # Handle episodes that span year boundaries
+        if end_date.year != year:
+            # Split into two bars
+            days_in_year = 366 if (year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)) else 365
+            first_part_days = days_in_year - start_day + 1
+            second_part_days = end_date.dayofyear  # Days into the new year
+
+            # First year
+            ax4.barh(
+                y=year,
+                width=first_part_days,
+                left=start_day,
+                height=0.6,
+                color=colors[i],
+                alpha=0.8,
+                edgecolor="black",
+                linewidth=0.5,
+            )
+            # Second year
+            ax4.barh(
+                y=year + 1,
+                width=second_part_days,
+                left=1,
+                height=0.6,
+                color=colors[i],
+                alpha=0.8,
+                edgecolor="black",
+                linewidth=0.5,
+            )
+        else:
+            ax4.barh(
+                y=year,
+                width=end_day - start_day + 1,  # Use actual end date
+                left=start_day,
+                height=0.6,
+                color=colors[i],
+                alpha=0.8,
+                edgecolor="black",
+                linewidth=0.5,
+            )
+
+    # Mark invalid months (summer) with light gray
+    valid_months = continual_cfg.valid_months or list(range(1, 13))
+
+    for year in all_years:
+        year_month_starts = get_month_starts(year)
+        for m in range(1, 13):
+            if m not in valid_months:
+                m_start_day = year_month_starts[m - 1]
+                # End day is start of next month (or end of year for Dec)
+                if m < 12:
+                    m_end_day = year_month_starts[m]
+                else:
+                    is_leap = year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
+                    m_end_day = 367 if is_leap else 366
+                ax4.barh(
+                    y=year,
+                    width=m_end_day - m_start_day,
+                    left=m_start_day,
+                    height=0.8,
+                    color="lightgray",
+                    alpha=0.5,
+                    edgecolor="none",
+                    zorder=0,
+                )
+
+    ax4.set_xticks(get_month_starts(2023))  # Reference year for consistent labels
+    ax4.set_xticklabels(month_labels)
+    ax4.set_xlabel("Day of Year")
+    ax4.set_ylabel("Year")
+    ax4.set_yticks(all_years)
+    ax4.set_xlim(0, 366)
+    ax4.set_ylim(min(all_years) - 0.5, max(all_years) + 0.5)
+    ax4.grid(True, alpha=0.3, axis="x")
+
+    # Add legend
+    legend_elements = [
+        Patch(facecolor="darkgreen", alpha=0.8, edgecolor="black", label="Continual Episode"),
+        Patch(facecolor="lightgray", alpha=0.5, label="Invalid Months (summer)"),
+    ]
+    ax4.legend(handles=legend_elements, loc="upper right")
+
+    # Add colorbar to show episode order
+    sm = plt.cm.ScalarMappable(cmap="viridis", norm=plt.Normalize(vmin=1, vmax=n_episodes))
+    sm.set_array([])
+    cbar = plt.colorbar(sm, ax=ax4, label="Episode Order", shrink=0.8)
+
+    plt.tight_layout()
+    plt.savefig("continual_learning_timeline.png", dpi=150, bbox_inches="tight")
+    plt.show()
+    print("Saved continual_learning_timeline.png")
