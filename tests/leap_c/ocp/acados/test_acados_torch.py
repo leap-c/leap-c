@@ -287,9 +287,9 @@ def test_closed_loop(
 class GradCheckConfig:
     """Configuration for gradient checking parameters."""
 
-    atol: float = 1e-2
+    atol: float = 1e-5
     rtol: float = 1e-3
-    eps: float = 1e-4
+    eps: float = 1e-6
     raise_exception: bool = True
 
 
@@ -674,55 +674,55 @@ def check_gradients(
             "dV/dx0",
             _create_dVdx0_test(diff_mpc),
             test_inputs.x0,
-            GradCheckConfig(atol=1e-2, eps=1e-2),
+            GradCheckConfig(atol=1e-3),
         ),
         (
             "du0/dx0",
             _create_du0dx0_test(diff_mpc),
             test_inputs.x0,
-            GradCheckConfig(atol=1e-2, eps=1e-4),
+            GradCheckConfig(atol=1e-3),
         ),
         (
             "dQ/dx0",
             _create_dQdx0_test(diff_mpc, test_inputs.u0),
             test_inputs.x0,
-            GradCheckConfig(atol=1e-2, eps=1e-2),
+            GradCheckConfig(atol=1e-3),
         ),
         (
             "du0/dp_global",
             _create_du0dp_global_test(diff_mpc, test_inputs.x0),
             test_inputs.p_global,
-            GradCheckConfig(atol=1e-2, eps=1e-4),
+            GradCheckConfig(atol=1e-2),
         ),
         (
             "dV/dp_global",
             _create_dVdp_global_test(diff_mpc, test_inputs.x0),
             test_inputs.p_global,
-            GradCheckConfig(atol=1e-2, eps=1e-2),
+            GradCheckConfig(atol=1e-3),
         ),
         (
             "dQ/dp_global",
             _create_dQdp_global_test(diff_mpc, test_inputs.x0, test_inputs.u0),
             test_inputs.p_global,
-            GradCheckConfig(atol=1e-2, eps=1e-2),
+            GradCheckConfig(atol=1e-3),
         ),
         (
             "dQ/du0",
             _create_dQdu0_test(diff_mpc, test_inputs.x0, test_inputs.p_global),
             test_inputs.u0,
-            GradCheckConfig(atol=2 * 1e-2, eps=1e-2),
+            GradCheckConfig(atol=1e-3),
         ),
         (
             "dx/dp_global",
             _create_dxdp_global_test(diff_mpc, test_inputs.x0),
             test_inputs.p_global,
-            GradCheckConfig(atol=1e-2, eps=1e-4),
+            GradCheckConfig(atol=1e-2),
         ),
         (
             "du/dp_global",
             _create_dudp_global_test(diff_mpc, test_inputs.x0),
             test_inputs.p_global,
-            GradCheckConfig(atol=2 * 1e-2, eps=1e-4),
+            GradCheckConfig(atol=2 * 1e-2),
         ),
     ]
 
