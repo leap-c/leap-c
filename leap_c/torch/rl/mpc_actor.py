@@ -239,7 +239,9 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             if ctx.log is not None:
                 stats = stats | ctx.log
 
-            return StochasticMPCActorOutput(param, log_prob, stats, action, ctx.status, ctx)
+            return StochasticMPCActorOutput(
+                param, log_prob, stats, action.to(dtype=torch.float32), ctx.status, ctx
+            )
 
         # action noise mode
         mlp_outputs = self.mlp(e)
@@ -263,4 +265,6 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
         if ctx.log is not None:
             stats = stats | ctx.log
 
-        return StochasticMPCActorOutput(param, log_prob, stats, action, ctx.status, ctx)
+        return StochasticMPCActorOutput(
+            param, log_prob, stats, action.to(dtype=torch.float32), ctx.status, ctx
+        )
