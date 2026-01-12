@@ -177,8 +177,8 @@ def test_backup_functionality(diff_mpc: AcadosDiffMpcTorch) -> None:
                         before and after restoration are not consistent.
     """
     reps = (diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1)
-    x0 = np.tile(A=np.array([0.5, 0.5, 0.5, 0.5]), reps=reps)
-    u0 = np.tile(A=np.array([0.5, 0.5]), reps=reps)
+    x0 = torch.tensor(np.tile(A=np.array([0.5, 0.5, 0.5, 0.5]), reps=reps))
+    u0 = torch.tensor(np.tile(A=np.array([0.5, 0.5]), reps=reps))
 
     solutions = []
     solutions.append(diff_mpc(x0=x0, u0=u0))
