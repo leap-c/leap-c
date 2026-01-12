@@ -30,15 +30,16 @@ def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]
         def forward(torch_ctx, *args):
             custom_ctx, *non_ctx_args = args
             device = non_ctx_args[0].device
+            dtype = non_ctx_args[0].dtype
             np_args = _to_np(non_ctx_args)
 
             custom_ctx, *outputs = fun.forward(custom_ctx, *np_args)  # type: ignore
             torch_ctx.custom_ctx = custom_ctx
 
             if len(outputs) == 1:
-                return custom_ctx, _to_tensor(outputs[0], device)
+                return custom_ctx, _to_tensor(outputs[0], device, dtype)
 
-            return custom_ctx, *_to_tensor(outputs, device)
+            return custom_ctx, *_to_tensor(outputs, device, dtype)
 
         @staticmethod
         def backward(torch_ctx, grad_ctx, *grad_outputs):  # type: ignore
