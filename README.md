@@ -20,3 +20,10 @@ Please see the [Getting started section](https://leap-c.github.io/leap-c/getting
 ## Questions?
 
 Open a new thread or browse the existing ones on the [GitHub discussions](https://github.com/leap-c/leap-c/discussions) page.
+
+## Related Projects
+
+The following projects follow similar ideas and might be intersting:
+
+- [mpcrl](https://github.com/FilippoAiraldi/mpc-reinforcement-learning): A simpler codebase for using RL with MPC as function approximator
+- [ntnu-itk-autonomous-ship-lab/rlmpc](https://github.com/ntnu-itk-autonomous-ship-lab/rlmpc): A codebase tailored for marine vessel control using RL and MPC
