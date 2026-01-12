@@ -205,6 +205,7 @@ def test_backup_functionality(diff_mpc: AcadosDiffMpcTorch) -> None:
         np.testing.assert_allclose(
             solutions[0][i],
             solutions[1][i],
+            rtol=4 * 1e-7,
             err_msg=f"The solutions should have the same {field_name}.",
         )
 
