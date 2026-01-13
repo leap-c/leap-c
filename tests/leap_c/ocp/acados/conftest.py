@@ -494,10 +494,10 @@ def diff_mpc_indefinite_hess(
     request: pytest.FixtureRequest,
 ) -> AcadosDiffMpcTorch:
     if request.param == "external":
-        cfg = CartPolePlannerConfig(cost_type="EXTERNAL", output_dtype=torch.float64)
+        cfg = CartPolePlannerConfig(cost_type="EXTERNAL", dtype=torch.float64)
         return CartPolePlanner(cfg=cfg).diff_mpc
     elif request.param == "nonlinear_ls":
-        cfg = CartPolePlannerConfig(cost_type="NONLINEAR_LS", output_dtype=torch.float64)
+        cfg = CartPolePlannerConfig(cost_type="NONLINEAR_LS", dtype=torch.float64)
         return CartPolePlanner(cfg=cfg).diff_mpc
     else:
         raise ValueError("Unknown request parameter.")
@@ -509,12 +509,12 @@ def diff_mpc_indefinite_hess_stagewise(
 ) -> AcadosDiffMpcTorch:
     if request.param == "external":
         cfg = CartPolePlannerConfig(
-            cost_type="EXTERNAL", param_interface="stagewise", output_dtype=torch.float64
+            cost_type="EXTERNAL", param_interface="stagewise", dtype=torch.float64
         )
         return CartPolePlanner(cfg=cfg).diff_mpc
     elif request.param == "nonlinear_ls":
         cfg = CartPolePlannerConfig(
-            cost_type="NONLINEAR_LS", param_interface="stagewise", output_dtype=torch.float64
+            cost_type="NONLINEAR_LS", param_interface="stagewise", dtype=torch.float64
         )
         return CartPolePlanner(cfg=cfg).diff_mpc
     else:

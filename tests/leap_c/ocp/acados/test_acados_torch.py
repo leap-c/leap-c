@@ -765,11 +765,10 @@ def test_backward_lmpc(
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
 ) -> None:
-    """Test backward pass of AcadosDiffMpcTorch (LMPC example) using finite differences.
+    """Test backward pass of an AcadosDiffMpcTorch (a pointmass example) using finite differences.
 
     Args:
         diff_mpc: The differentiable mpc to test
-        diff_mpc_indefinite_hess: Differentiable mpc containing an indefinite full hessian.
         diff_mpc_with_stagewise_varying_params: The differentiable mpc with stagewise varying params
         n_batch: Number of batch samples to generate
         max_batch_size: Maximum allowed batch size for performance
@@ -792,7 +791,7 @@ def test_backward_nmpc(
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
 ) -> None:
-    """Test backward pass of AcadosDiffMpcTorch (indefinite hess example) using finite differences.
+    """Test backward pass of AcadosDiffMpcTorch (the cartpole example) using finite differences.
 
     Args:
         diff_mpc_indefinite_hess: Differentiable mpc containing an indefinite full hessian.
