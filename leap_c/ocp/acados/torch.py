@@ -3,8 +3,8 @@
 from pathlib import Path
 
 import numpy as np
+import torch
 from acados_template import AcadosOcp
-from torch import Tensor, autograd, dtype, float32, nn
 
 from leap_c.autograd.torch import create_autograd_function
 from leap_c.ocp.acados.diff_mpc import (
@@ -15,7 +15,7 @@ from leap_c.ocp.acados.diff_mpc import (
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 
 
-class AcadosDiffMpcTorch(nn.Module):
+class AcadosDiffMpcTorch(torch.nn.Module):
     """PyTorch module for differentiable MPC based on acados.
 
     This module wraps acados solvers to enable their use in differentiable machine learning
@@ -29,7 +29,7 @@ class AcadosDiffMpcTorch(nn.Module):
     """
 
     diff_mpc_fun: AcadosDiffMpcFunction
-    autograd_fun: type[autograd.Function]
+    autograd_fun: type[torch.autograd.Function]
 
     def __init__(
         self,
@@ -40,7 +40,7 @@ class AcadosDiffMpcTorch(nn.Module):
         export_directory: Path | None = None,
         n_batch_max: int | None = None,
         num_threads_batch_solver: int | None = None,
-        dtype: dtype = float32,
+        dtype: torch.dtype = torch.float32,
     ) -> None:
         """Initializes the AcadosDiffMpcTorch module.
 
@@ -78,13 +78,13 @@ class AcadosDiffMpcTorch(nn.Module):
 
     def forward(
         self,
-        x0: Tensor,
-        u0: Tensor | None = None,
-        p_global: Tensor | None = None,
-        p_stagewise: Tensor | None = None,
-        p_stagewise_sparse_idx: Tensor | None = None,
+        x0: torch.Tensor,
+        u0: torch.Tensor | None = None,
+        p_global: torch.Tensor | None = None,
+        p_stagewise: torch.Tensor | None = None,
+        p_stagewise_sparse_idx: torch.Tensor | None = None,
         ctx: AcadosDiffMpcCtx | None = None,
-    ) -> tuple[AcadosDiffMpcCtx, Tensor, Tensor, Tensor, Tensor]:
+    ) -> tuple[AcadosDiffMpcCtx, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Performs the forward pass by solving the provided problem instances.
 
         In the background, PyTorch builds a computational graph that can be used for

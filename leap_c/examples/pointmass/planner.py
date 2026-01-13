@@ -23,12 +23,15 @@ class PointMassControllerConfig:
         T_horizon: The duration of the MPC horizon.
         Fmax: The maximum force that can be applied to the point mass.
         param_interface: Determines the exposed parameter interface of the controller.
+        dtype: Type the planner output tensors will automatically be cast to.
     """
 
     N_horizon: int = 20
     T_horizon: float = 2.0
     Fmax: float = 10.0
     param_interface: PointMassAcadosParamInterface = "global"
+
+    dtype: torch.dtype = torch.float32
 
 
 class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
@@ -84,7 +87,7 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             Fmax=self.cfg.Fmax,
         )
 
-        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory)
+        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory, dtype=cfg.dtype)  # type:ignore
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
 
     def forward(

@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from torch import dtype, float32
+import torch
 
 from leap_c.examples.cartpole.acados_ocp import (
     CartPoleAcadosCostType,
@@ -41,7 +41,7 @@ class CartPolePlannerConfig:
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS"
     param_interface: CartPoleAcadosParamInterface = "global"
 
-    output_dtype: dtype = float32
+    dtype: torch.dtype = torch.float32
 
 
 class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
@@ -100,7 +100,5 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             x_threshold=self.cfg.x_threshold,
         )
 
-        diff_mpc = AcadosDiffMpcTorch(
-            ocp, export_directory=export_directory, dtype=cfg.output_dtype
-        )  # type:ignore
+        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory, dtype=cfg.dtype)  # type:ignore
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
