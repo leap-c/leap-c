@@ -77,5 +77,5 @@ class LqrPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             x0=np.array([1.0, 0.0]),
         )
 
-        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory, dtype=cfg.dtype)  # type:ignore
+        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory, dtype=self.cfg.dtype)
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
