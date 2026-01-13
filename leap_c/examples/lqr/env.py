@@ -26,6 +26,9 @@ class LqrEnvConfig:
         F_min: Minimum force.
         F_max: Maximum force.
         max_time: Maximum time for an episode in seconds.
+        mass: Mass of the system (kg).
+        damping: Damping coefficient (Ns/m).
+        stiffness: Spring stiffness coefficient (N/m).
     """
 
     dt: float = 0.1
@@ -38,6 +41,9 @@ class LqrEnvConfig:
     F_min: float = -0.5
     F_max: float = 0.5
     max_time: float = 10.0
+    mass: float = 1.0
+    damping: float = 0.1
+    stiffness: float = 0.5
 
     def __post_init__(self):
         """Set default Q and R matrices if not provided."""
@@ -50,9 +56,11 @@ class LqrEnvConfig:
 class LqrEnv(MatplotlibRenderEnv):
     """A simple 1D LQR environment with position and velocity states.
 
-    The dynamics follow a discrete-time double integrator:
-        x[k+1] = x[k] + dt * v[k] + 0.5 * dt^2 * F[k]
-        v[k+1] = v[k] + dt * F[k]
+    The dynamics follow a discrete-time mass-spring-damper system:
+        x[k+1] = x[k] + dt * v[k]
+        v[k+1] = v[k] + dt * (F[k]/m - (b/m)*v[k] - (k/m)*x[k])
+
+    where m is mass, b is damping coefficient, and k is spring stiffness.
 
     Observation Space:
     ------------------
@@ -146,10 +154,16 @@ class LqrEnv(MatplotlibRenderEnv):
         self.observation_space = spaces.Box(low=self.state_low, high=self.state_high)
         self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
 
-        # Define discrete-time dynamics matrices
+        # Define discrete-time dynamics matrices for mass-spring-damper system
+        # Continuous dynamics: x_dot = v, v_dot = F/m - (b/m)*v - (k/m)*x
+        # Discretized using Euler method
         dt = self.cfg.dt
-        self.A = np.array([[1.0, dt], [0.0, 1.0]])
-        self.B = np.array([[0.5 * dt**2], [dt]])
+        m = self.cfg.mass
+        b = self.cfg.damping
+        k = self.cfg.stiffness
+
+        self.A = np.array([[1.0, dt], [-dt * k / m, 1.0 - dt * b / m]])
+        self.B = np.array([[0.0], [dt / m]])
 
         # Environment state
         self.state = None

@@ -8,7 +8,7 @@ from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 
 def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]:
-    """Return a tuple of default parameters for the hvac planner.
+    """Return a tuple of default parameters for the LQR planner.
 
     Args:
         N_horizon: The number of steps in the MPC horizon
@@ -47,8 +47,38 @@ def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]
                     high=np.sqrt(np.array([10.0, 1.0])),
                     dtype=np.float64,
                 ),
-                interface="non-learnable",
+                interface="learnable",
                 end_stages=[],
+            ),
+            AcadosParameter(
+                name="mass",
+                default=np.array([1.0]),
+                space=gym.spaces.Box(
+                    low=np.array([0.1]),
+                    high=np.array([10.0]),
+                    dtype=np.float64,
+                ),
+                interface="learnable",
+            ),
+            AcadosParameter(
+                name="damping",
+                default=np.array([0.1]),
+                space=gym.spaces.Box(
+                    low=np.array([0.0]),
+                    high=np.array([2.0]),
+                    dtype=np.float64,
+                ),
+                interface="learnable",
+            ),
+            AcadosParameter(
+                name="stiffness",
+                default=np.array([0.5]),
+                space=gym.spaces.Box(
+                    low=np.array([0.0]),
+                    high=np.array([5.0]),
+                    dtype=np.float64,
+                ),
+                interface="learnable",
             ),
         ]
     )
@@ -59,10 +89,10 @@ def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]
 def export_parametric_ocp(
     param_manager: AcadosParameterManager,
     N_horizon: int,
-    name: str = "hvac",
+    name: str = "lqr",
     x0: np.ndarray | None = None,
 ) -> AcadosOcp:
-    """Export the HVAC OCP.
+    """Export the LQR OCP.
 
     Args:
         param_manager: The parameter manager containing the parameters for the OCP.
@@ -73,8 +103,6 @@ def export_parametric_ocp(
     Returns:
         AcadosOcp: The configured OCP object.
     """
-    dt: float = 0.1  # Time step in seconds
-
     ocp = AcadosOcp()
 
     param_manager.assign_to_ocp(ocp)
@@ -89,8 +117,21 @@ def export_parametric_ocp(
 
     ocp.model.u = ca.SX.sym("F")
 
-    A = np.array([[1.0, dt], [0.0, 1.0]])
-    B = np.array([[0.5 * dt**2], [dt]])
+    dt: float = 0.1  # Time step in seconds
+
+    # Get physical parameters
+    mass = param_manager.get("mass")
+    damping = param_manager.get("damping")
+    stiffness = param_manager.get("stiffness")
+
+    # Parametric dynamics matrices for mass-spring-damper system
+    # Continuous dynamics: x_dot = v, v_dot = F/m - (b/m)*v - (k/m)*x
+    # Discretized using Euler method
+    A = ca.vertcat(
+        ca.horzcat(1.0, dt),
+        ca.horzcat(-dt * stiffness / mass, 1.0 - dt * damping / mass),
+    )
+    B = ca.vertcat(0.0, dt / mass)
 
     ocp.model.disc_dyn_expr = A @ ocp.model.x + B @ ocp.model.u
 
@@ -136,7 +177,7 @@ def export_parametric_ocp(
     ocp.constraints.idxbu = np.array([0])  # F
 
     # Solver options
-    ocp.solver_options.tf = N_horizon
+    ocp.solver_options.tf = N_horizon * dt
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
