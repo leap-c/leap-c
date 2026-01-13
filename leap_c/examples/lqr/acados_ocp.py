@@ -7,7 +7,7 @@ from acados_template import AcadosOcp, AcadosOcpSolver
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 
-def make_default_lqr_params(N_horizon: int = 96) -> tuple[AcadosParameter, ...]:
+def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]:
     """Return a tuple of default parameters for the hvac planner.
 
     Args:
@@ -20,34 +20,34 @@ def make_default_lqr_params(N_horizon: int = 96) -> tuple[AcadosParameter, ...]:
     params.extend(
         [
             AcadosParameter(
-                name="Q",
-                default=np.diag([1.0, 0.1]),
+                name="q_diag_sqrt",
+                default=np.sqrt(np.array([1.0, 0.1])),
                 space=gym.spaces.Box(
-                    low=np.diag([0.1, 0.01]),
-                    high=np.diag([10.0, 1.0]),
-                    dtype=np.float64,
-                ),
-                interface="non-learnable",
-            ),
-            AcadosParameter(
-                name="R",
-                default=np.array([0.01]),
-                space=gym.spaces.Box(
-                    low=np.array([0.001]),
-                    high=np.array([0.1]),
-                    dtype=np.float64,
-                ),
-                interface="non-learnable",
-            ),
-            AcadosParameter(
-                name="P",
-                default=np.array([5.0, 1.0, 1.0, 0.5]),
-                space=gym.spaces.Box(
-                    low=np.array([1.0, 0.5, 0.5, 0.1]),
-                    high=np.array([10.0, 1.5, 1.5, 1.0]),
+                    low=np.sqrt(np.array([0.1, 0.01])),
+                    high=np.sqrt(np.array([10.0, 1.0])),
                     dtype=np.float64,
                 ),
                 interface="learnable",
+            ),
+            AcadosParameter(
+                name="r_diag_sqrt",
+                default=np.sqrt(np.array([0.01])),
+                space=gym.spaces.Box(
+                    low=np.sqrt(np.array([0.001])),
+                    high=np.sqrt(np.array([0.1])),
+                    dtype=np.float64,
+                ),
+                interface="learnable",
+            ),
+            AcadosParameter(
+                name="p_diag_sqrt",
+                default=np.sqrt(np.array([5.0, 0.5])),
+                space=gym.spaces.Box(
+                    low=np.sqrt(np.array([1.0, 0.1])),
+                    high=np.sqrt(np.array([10.0, 1.0])),
+                    dtype=np.float64,
+                ),
+                interface="non-learnable",
                 end_stages=[],
             ),
         ]
@@ -73,7 +73,7 @@ def export_parametric_ocp(
     Returns:
         AcadosOcp: The configured OCP object.
     """
-    dt: float = 0.1  # Time step in seconds (15 minutes)
+    dt: float = 0.1  # Time step in seconds
 
     ocp = AcadosOcp()
 
@@ -95,15 +95,25 @@ def export_parametric_ocp(
     ocp.model.disc_dyn_expr = A @ ocp.model.x + B @ ocp.model.u
 
     # Cost function
+    q_diag_sqrt = param_manager.get("q_diag_sqrt")
+    r_diag_sqrt = param_manager.get("r_diag_sqrt")
+    p_diag_sqrt = param_manager.get("p_diag_sqrt")
+
+    # Construct stage cost weight matrix W from sqrt diagonal
+    W_sqrt = ca.diag(ca.vertcat(q_diag_sqrt, r_diag_sqrt))
+    W = W_sqrt @ ca.transpose(W_sqrt)
+
+    # Construct terminal cost weight matrix W_e from sqrt diagonal
+    W_e_sqrt = ca.diag(p_diag_sqrt)
+    W_e = W_e_sqrt @ ca.transpose(W_e_sqrt)
+
     ocp.cost.cost_type = "NONLINEAR_LS"
-    ocp.cost.W = ca.diagcat(param_manager.get("Q"), param_manager.get("R"))
+    ocp.cost.W = W
     ocp.model.cost_y_expr = ca.vertcat(ocp.model.x, ocp.model.u)
     ocp.cost.yref = np.zeros((ocp.cost.W.shape[0],))
 
-    P_matrix = ca.reshape(param_manager.get("P"), (2, 2))
-
     ocp.cost.cost_type_e = "NONLINEAR_LS"
-    ocp.cost.W_e = P_matrix
+    ocp.cost.W_e = W_e
     ocp.model.cost_y_expr_e = ocp.model.x
     ocp.cost.yref_e = np.zeros((ocp.cost.W_e.shape[0],))
 
@@ -114,6 +124,11 @@ def export_parametric_ocp(
     ocp.constraints.lbx = np.array([-2.0, -2.0])
     ocp.constraints.ubx = np.array([+2.0, +2.0])
     ocp.constraints.idxbx = np.array([0, 1])  # x, v
+
+    # Slack variables for state constraints
+    ocp.constraints.idxsbx = np.array([0, 1])
+    ocp.cost.Zu = ocp.cost.Zl = np.array([1e3, 1e3])
+    ocp.cost.zu = ocp.cost.zl = np.array([0.0, 0.0])
 
     # Control constraints
     ocp.constraints.lbu = np.array([-0.5])
