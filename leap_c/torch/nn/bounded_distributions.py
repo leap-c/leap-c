@@ -390,45 +390,9 @@ class ModeConcentrationBeta(BoundedDistribution):
         lb = torch.tensor(space.low, dtype=torch.float32)
         scale = torch.tensor(scale, dtype=torch.float32)
 
-        # Store as registered buffers
         self.register_buffer("lb", lb)
         self.register_buffer("ub", lb + scale)
         self.register_buffer("scale", scale)
-
-        # Initialize with default values to set up the Beta distribution
-        mode = torch.tensor(0.5)
-        concentration = torch.tensor(5.0)
-
-        # Compute alpha, beta from mode in [0, 1] space and total concentration
-        alpha, beta = ModeConcentrationBeta.compute_alpha_beta(
-            mode=mode, concentration=concentration
-        )
-
-        # Create internal Beta distribution
-        self._beta_dist = Beta(concentration1=alpha, concentration0=beta, validate_args=None)
-
-    def _update_parameters(
-        self,
-        mode: torch.Tensor | float,
-        concentration: torch.Tensor | float,
-    ) -> None:
-        """Update the mode and concentration parameters of the distribution.
-
-        Args:
-            mode: New mode parameter in [0, 1] space
-            concentration: New concentration parameter
-        """
-        mode = torch.as_tensor(mode)
-        concentration = torch.as_tensor(concentration)
-
-        # Compute new alpha, beta from mode in [0, 1] space and concentration > 2
-        alpha, beta = ModeConcentrationBeta.compute_alpha_beta(
-            mode=mode,
-            concentration=concentration,
-        )
-
-        # Update the internal Beta distribution with new parameters
-        self._beta_dist = Beta(concentration1=alpha, concentration0=beta, validate_args=None)
 
     def forward(
         self,
@@ -476,8 +440,8 @@ class ModeConcentrationBeta(BoundedDistribution):
             y = mode
             log_prob = torch.zeros_like(mode)
         else:
-            # Update parameters and sample
-            self._update_parameters(mode=mode, concentration=concentration)
+            # Update distribution and sample
+            self._update_distribution(mode=mode, concentration=concentration)
             y = self._beta_dist.rsample()
             # Compute log_prob in [0, 1] space and adjust for Jacobian
             log_prob = self._beta_dist.log_prob(y)
@@ -499,6 +463,29 @@ class ModeConcentrationBeta(BoundedDistribution):
         )
 
         return y_scaled, log_prob, stats
+
+    def _update_distribution(
+        self,
+        mode: torch.Tensor | float,
+        concentration: torch.Tensor | float,
+    ) -> None:
+        """Update the mode and concentration parameters of the distribution.
+
+        Args:
+            mode: New mode parameter in [0, 1] space
+            concentration: New concentration parameter
+        """
+        mode = torch.as_tensor(mode)
+        concentration = torch.as_tensor(concentration)
+
+        # Compute new alpha, beta from mode in [0, 1] space and concentration > 2
+        alpha, beta = ModeConcentrationBeta.compute_alpha_beta(
+            mode=mode,
+            concentration=concentration,
+        )
+
+        # Update the internal Beta distribution with new parameters
+        self._beta_dist = Beta(concentration1=alpha, concentration0=beta, validate_args=None)
 
     def _log_prob(self, value: torch.Tensor) -> torch.Tensor:
         """Compute log probability of samples in [lb, ub] range.
