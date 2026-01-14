@@ -20,13 +20,9 @@ class LqrPlannerConfig:
         N_horizon: The number of steps in the MPC horizon.
             The MPC will have N+1 nodes (the nodes 0...N-1 and the terminal
             node N).
-        T_horizon: The simulation time between two MPC nodes will equal
-            T_horizon/N_horizon [s] simulation time (currently uses N_horizon
-            as the time horizon in acados_ocp.py).
     """
 
     N_horizon: int = 20
-    T_horizon: float = 2.0
 
 
 class LqrPlanner(AcadosPlanner[AcadosDiffMpcCtx]):

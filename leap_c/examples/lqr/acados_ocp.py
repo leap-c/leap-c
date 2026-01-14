@@ -15,13 +15,15 @@ def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]
 
     Returns:
         Tuple of AcadosParameter objects for LQR.
+
+    Note: The default parameters do not match the true parameter values used in the environment.
     """
     params = []
     params.extend(
         [
             AcadosParameter(
                 name="q_diag_sqrt",
-                default=np.sqrt(np.array([1.0, 0.1])),
+                default=np.sqrt(np.array([5.0, 0.2])),
                 space=gym.spaces.Box(
                     low=np.sqrt(np.array([0.1, 0.01])),
                     high=np.sqrt(np.array([10.0, 1.0])),
@@ -31,7 +33,7 @@ def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]
             ),
             AcadosParameter(
                 name="r_diag_sqrt",
-                default=np.sqrt(np.array([0.01])),
+                default=np.sqrt(np.array([0.08])),
                 space=gym.spaces.Box(
                     low=np.sqrt(np.array([0.001])),
                     high=np.sqrt(np.array([0.1])),
@@ -52,7 +54,7 @@ def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]
             ),
             AcadosParameter(
                 name="mass",
-                default=np.array([1.0]),
+                default=np.array([1.5]),
                 space=gym.spaces.Box(
                     low=np.array([0.1]),
                     high=np.array([10.0]),
@@ -62,7 +64,7 @@ def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]
             ),
             AcadosParameter(
                 name="damping",
-                default=np.array([0.1]),
+                default=np.array([0.7]),
                 space=gym.spaces.Box(
                     low=np.array([0.0]),
                     high=np.array([2.0]),
@@ -72,7 +74,7 @@ def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]
             ),
             AcadosParameter(
                 name="stiffness",
-                default=np.array([0.5]),
+                default=np.array([2.0]),
                 space=gym.spaces.Box(
                     low=np.array([0.0]),
                     high=np.array([5.0]),
