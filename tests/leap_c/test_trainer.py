@@ -46,3 +46,42 @@ def test_trainer_checkpointing():
         # check if the parameter is restored
         param = next(trainer.parameters())
         assert param.data.equal(orig_param)
+
+
+def test_trainer_run_with_eval_env():
+    """Test that the trainer can run with a validation environment.
+
+    This test verifies that training works correctly when an eval_env is provided,
+    using validation episodes to compute scores.
+    """
+    with TemporaryDirectory() as tmpdir:
+        tmpdir = Path(tmpdir)
+
+        val_env = CartPoleEnv()
+        train_env = CartPoleEnv()
+
+        cfg = SacTrainerConfig(
+            train_steps=10,
+            train_start=0,
+            val_freq=5,
+            val_num_rollouts=2,
+            ckpt_modus="best",
+        )
+
+        trainer = SacTrainer(
+            cfg=cfg,
+            val_env=val_env,
+            output_path=tmpdir,
+            device="cpu",
+            train_env=train_env,
+        )
+
+        # Should run without errors
+        score = trainer.run()
+
+        # Score should be a float (validation score)
+        assert isinstance(score, float)
+        # Training should have completed
+        assert trainer.state.step >= cfg.train_steps
+        # Should have validation scores recorded
+        assert len(trainer.state.scores) > 0
