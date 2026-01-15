@@ -5,8 +5,10 @@ import casadi as ca
 import gymnasium as gym
 import numpy as np
 import pytest
+import torch
 from acados_template import AcadosOcp, AcadosOcpOptions
 
+from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
 from leap_c.ocp.acados.parameters import (
     AcadosParameter,
     AcadosParameterManager,
@@ -359,7 +361,7 @@ def define_discrete_dynamics(ocp: AcadosOcp, param_manager: AcadosParameterManag
 
 def define_constraints(ocp: AcadosOcp, param_manager: AcadosParameterManager) -> None:
     """Define constraints for the OCP."""
-    ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
+    ocp.constraints.x0 = np.array([1.0, 0.5, 0.0, 0.0])
 
     Fmax = 10.0
     # Box constraints on u
@@ -487,6 +489,38 @@ def acados_test_ocp_with_stagewise_varying_params(
     return ocp
 
 
+@pytest.fixture(scope="session", params=["external", "nonlinear_ls"])
+def diff_mpc_indefinite_hess(
+    request: pytest.FixtureRequest,
+) -> AcadosDiffMpcTorch:
+    if request.param == "external":
+        cfg = CartPolePlannerConfig(cost_type="EXTERNAL", dtype=torch.float64)
+        return CartPolePlanner(cfg=cfg).diff_mpc
+    elif request.param == "nonlinear_ls":
+        cfg = CartPolePlannerConfig(cost_type="NONLINEAR_LS", dtype=torch.float64)
+        return CartPolePlanner(cfg=cfg).diff_mpc
+    else:
+        raise ValueError("Unknown request parameter.")
+
+
+@pytest.fixture(scope="session", params=["external", "nonlinear_ls"])
+def diff_mpc_indefinite_hess_stagewise(
+    request: pytest.FixtureRequest,
+) -> AcadosDiffMpcTorch:
+    if request.param == "external":
+        cfg = CartPolePlannerConfig(
+            cost_type="EXTERNAL", param_interface="stagewise", dtype=torch.float64
+        )
+        return CartPolePlanner(cfg=cfg).diff_mpc
+    elif request.param == "nonlinear_ls":
+        cfg = CartPolePlannerConfig(
+            cost_type="NONLINEAR_LS", param_interface="stagewise", dtype=torch.float64
+        )
+        return CartPolePlanner(cfg=cfg).diff_mpc
+    else:
+        raise ValueError("Unknown request parameter.")
+
+
 @pytest.fixture(scope="session")
 def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpcTorch:
     return AcadosDiffMpcTorch(
@@ -494,6 +528,7 @@ def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpcTorch:
         initializer=None,
         sensitivity_ocp=None,
         discount_factor=None,
+        dtype=torch.float64,
     )
 
 
@@ -508,6 +543,7 @@ def diff_mpc_with_stagewise_varying_params(
         initializer=None,
         sensitivity_ocp=None,
         discount_factor=None,
+        dtype=torch.float64,
     )
 
     acados_param_manager = AcadosParameterManager(

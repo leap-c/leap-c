@@ -160,7 +160,7 @@ class SquashedGaussian(BoundedDistribution):
             y = mean + std * torch.randn_like(mean)
 
         if std is not None:
-            log_prob = -0.5 * ((y - mean) / std).pow(2) - log_std - np.log(np.sqrt(2) * np.pi)
+            log_prob = -0.5 * ((y - mean) / std).pow(2) - log_std - 0.5 * np.log(2 * np.pi)
         else:
             # Deterministic: log_prob is 0 in the unbounded space (delta distribution)
             log_prob = torch.zeros_like(mean)

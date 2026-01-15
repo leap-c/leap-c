@@ -1,6 +1,8 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+import torch
+
 from leap_c.examples.cartpole.acados_ocp import (
     CartPoleAcadosCostType,
     CartPoleAcadosParamInterface,
@@ -28,6 +30,7 @@ class CartPolePlannerConfig:
             of the cart [m] (soft/slacked constraint)
         cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
         param_interface: Determines the exposed parameter interface of the planner.
+        dtype: Type the planner output tensors will automatically be cast to.
     """
 
     N_horizon: int = 5
@@ -37,6 +40,8 @@ class CartPolePlannerConfig:
 
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS"
     param_interface: CartPoleAcadosParamInterface = "global"
+
+    dtype: torch.dtype = torch.float32
 
 
 class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
@@ -95,5 +100,5 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             x_threshold=self.cfg.x_threshold,
         )
 
-        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory)
+        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory, dtype=self.cfg.dtype)
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)

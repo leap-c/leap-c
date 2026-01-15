@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import torch
 
 from leap_c.examples.lqr.acados_ocp import (
     export_parametric_ocp,
@@ -23,10 +24,13 @@ class LqrPlannerConfig:
         T_horizon: The simulation time between two MPC nodes will equal
             T_horizon/N_horizon [s] simulation time (currently uses N_horizon
             as the time horizon in acados_ocp.py).
+        dtype: Type the planner output tensors will automatically be cast to.
     """
 
     N_horizon: int = 20
     T_horizon: float = 2.0
+
+    dtype: torch.dtype = torch.float32
 
 
 class LqrPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
@@ -73,5 +77,5 @@ class LqrPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             x0=np.array([1.0, 0.0]),
         )
 
-        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory)
+        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory, dtype=self.cfg.dtype)
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
