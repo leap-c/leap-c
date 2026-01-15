@@ -311,7 +311,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         reward = comfort_reward + energy_reward
 
         reward_info = {
-            "prize": price,
+            "price": price,
             "energy": np.abs(action[0]),
             "comfort_reward": comfort_reward,
             "energy_reward": energy_reward,
