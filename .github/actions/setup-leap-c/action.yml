@@ -15,7 +15,7 @@ runs:
         path: ${{github.workspace}}/leap_c/external/acados
         repository: acados/acados
         github-token: ${{ github.token }}
-        run-id: 18498966498
+        run-id: 21025192316
 
     - name: Rename artifact directories
       working-directory: ${{github.workspace}}/leap_c/external/acados
