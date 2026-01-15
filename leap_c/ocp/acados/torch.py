@@ -3,8 +3,8 @@
 from pathlib import Path
 
 import numpy as np
+import torch
 from acados_template import AcadosOcp
-from torch import Tensor, autograd, nn
 
 from leap_c.autograd.torch import create_autograd_function
 from leap_c.ocp.acados.diff_mpc import (
@@ -15,7 +15,7 @@ from leap_c.ocp.acados.diff_mpc import (
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 
 
-class AcadosDiffMpcTorch(nn.Module):
+class AcadosDiffMpcTorch(torch.nn.Module):
     """PyTorch module for differentiable MPC based on acados.
 
     This module wraps acados solvers to enable their use in differentiable machine learning
@@ -29,7 +29,7 @@ class AcadosDiffMpcTorch(nn.Module):
     """
 
     diff_mpc_fun: AcadosDiffMpcFunction
-    autograd_fun: type[autograd.Function]
+    autograd_fun: type[torch.autograd.Function]
 
     def __init__(
         self,
@@ -40,6 +40,7 @@ class AcadosDiffMpcTorch(nn.Module):
         export_directory: Path | None = None,
         n_batch_max: int | None = None,
         num_threads_batch_solver: int | None = None,
+        dtype: torch.dtype = torch.float32,
     ) -> None:
         """Initializes the AcadosDiffMpcTorch module.
 
@@ -59,6 +60,7 @@ class AcadosDiffMpcTorch(nn.Module):
                 If `None`, a default value is used.
             num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
                 If `None`, a default value is used.
+            dtype: The output of the forward pass will automatically be cast to this type.
         """
         super().__init__()
 
@@ -72,16 +74,17 @@ class AcadosDiffMpcTorch(nn.Module):
             num_threads_batch_solver=num_threads_batch_solver,
         )
         self.autograd_fun = create_autograd_function(self.diff_mpc_fun)
+        self.dtype = dtype
 
     def forward(
         self,
-        x0: Tensor,
-        u0: Tensor | None = None,
-        p_global: Tensor | None = None,
-        p_stagewise: Tensor | None = None,
-        p_stagewise_sparse_idx: Tensor | None = None,
+        x0: torch.Tensor,
+        u0: torch.Tensor | None = None,
+        p_global: torch.Tensor | None = None,
+        p_stagewise: torch.Tensor | None = None,
+        p_stagewise_sparse_idx: torch.Tensor | None = None,
         ctx: AcadosDiffMpcCtx | None = None,
-    ) -> tuple[AcadosDiffMpcCtx, Tensor, Tensor, Tensor, Tensor]:
+    ) -> tuple[AcadosDiffMpcCtx, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Performs the forward pass by solving the provided problem instances.
 
         In the background, PyTorch builds a computational graph that can be used for
@@ -115,7 +118,19 @@ class AcadosDiffMpcTorch(nn.Module):
             u: The solution of the whole control trajectory.
             value: The cost value of the computed trajectory.
         """
-        return self.autograd_fun.apply(ctx, x0, u0, p_global, p_stagewise, p_stagewise_sparse_idx)
+        ctx, u_star, x, u, value = self.autograd_fun.apply(
+            ctx,
+            x0,
+            u0,
+            p_global,  # type:ignore
+            p_stagewise,
+            p_stagewise_sparse_idx,
+        )
+        u_star = u_star.to(dtype=self.dtype)
+        x = x.to(dtype=self.dtype)
+        u = u.to(dtype=self.dtype)
+        value = value.to(dtype=self.dtype)
+        return ctx, u_star, x, u, value  # type:ignore
 
     def sensitivity(self, ctx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
         """Retrieves a specific sensitivity field from the context object.
