@@ -28,6 +28,6 @@ The following projects follow similar ideas and might be intersting:
 - [mpc.pytorch](https://github.com/locuslab/mpc.pytorch): Early work on embedding MPC in PyTorch for end-to-end learning, with a
     more restricted class of MPC problems
 - [mpcrl](https://github.com/FilippoAiraldi/mpc-reinforcement-learning): A simpler codebase for using RL with MPC as function approximator
-- [Neuromancer](https://github.com/pnnl/neuromancer): A deep learning framework that allows to include parametric optimization layers
+- [Neuromancer](https://github.com/pnnl/neuromancer): A differentiable programming library that allows to include parametric optimization layers
     (including MPC) in PyTorch computational graphs
 - [ntnu-itk-autonomous-ship-lab/rlmpc](https://github.com/ntnu-itk-autonomous-ship-lab/rlmpc): A codebase tailored for marine vessel control using RL and MPC
