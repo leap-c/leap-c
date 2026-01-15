@@ -154,7 +154,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
                 pi_output: StochasticMPCActorOutput = self.pi(
                     obs_batched, policy_state, deterministic=False
                 )
-            action = pi_output.action.cpu().numpy()[0]
+            action = pi_output.action.cpu().numpy()[0]  # type:ignore
             param = pi_output.param.cpu().numpy()[0]
 
             self.report_stats("train_trajectory", {"param": param, "action": action}, verbose=True)

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import torch
 
 from leap_c.examples.chain.acados_ocp import (
     ChainAcadosParamInterface,
@@ -29,12 +30,15 @@ class ChainControllerConfig:
         n_mass: The number of masses in the chain.
         param_interface: Determines the exposed paramete interface of the
             controller.
+        dtype: Type the planner output tensors will automatically be cast to.
     """
 
     N_horizon: int = 20
     T_horizon: float = 0.25
     n_mass: int = 5
     param_interface: ChainAcadosParamInterface = "global"
+
+    dtype: torch.dtype = torch.float32
 
 
 class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
@@ -117,5 +121,6 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             ocp,
             initializer=initializer,
             export_directory=export_directory,
+            dtype=self.cfg.dtype,
         )
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
