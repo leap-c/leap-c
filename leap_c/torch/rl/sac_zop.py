@@ -76,7 +76,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
     def __init__(
         self,
         cfg: SacZopTrainerConfig,
-        val_env: gym.Env,
+        val_env: gym.Env | None,
         output_path: str | Path,
         device: str,
         train_env: gym.Env,
@@ -87,7 +87,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
 
         Args:
             cfg: The configuration for the trainer.
-            val_env: The validation environment.
+            val_env: The validation environment. If None, training runs without evaluation.
             output_path: The path to the output directory.
             device: The device on which the trainer is running.
             train_env: The training environment.
@@ -135,7 +135,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
 
         self.buffer = ReplayBuffer(cfg.buffer_size, device=device)
 
-    def train_loop(self) -> Generator[int, None, None]:
+    def train_loop(self) -> Generator[tuple[int, float], None, None]:
         is_terminated = is_truncated = True
         policy_ctx = None
         obs = None
@@ -235,7 +235,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
                 }
                 self.report_stats("loss", loss_stats, verbose=True)
 
-            yield 1
+            yield 1, float(reward)
 
     def act(
         self, obs, deterministic: bool = False, state: CtxType | None = None

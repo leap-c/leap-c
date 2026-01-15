@@ -26,6 +26,10 @@ class TrainerConfig:
         train_steps: The number of steps in the training loop.
         train_start: The number of training steps before training starts (e.g., to collect some data
             first).
+        train_render_freq: The frequency (in steps) at which training episodes will be rendered.
+            When the step count reaches a multiple of this value, the next training episode will be
+            recorded. If `None`, no training episodes will be rendered.
+        train_render_mode: The mode in which the training episodes will be rendered.
         val_freq: The frequency (in steps) at which validation episodes will be run.
         val_num_rollouts: The number of episode rollouts during validation.
         val_deterministic: If True, the policy will act deterministically during validation.
@@ -47,6 +51,10 @@ class TrainerConfig:
     # configuration for the training loop
     train_steps: int = 100_000
     train_start: int = 0
+
+    # train rendering configuration
+    train_render_freq: int | None = None  # Render at every N steps, None = disabled
+    train_render_mode: str | None = "rgb_array"  # rgb_array or human
 
     # validation configuration
     val_freq: int = 10_000
@@ -106,7 +114,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
     def __init__(
         self,
         cfg: TrainerConfigType,
-        eval_env: gym.Env,
+        eval_env: gym.Env | None,
         output_path: str | Path,
         device: int | str | torch.device,
         wrappers: list[WrapperType] | None = None,
@@ -129,7 +137,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
         self.output_path.mkdir(parents=True, exist_ok=True)
 
         # envs
-        self.eval_env = wrap_env(eval_env, wrappers=wrappers)
+        self.eval_env = wrap_env(eval_env, wrappers=wrappers) if eval_env is not None else None
 
         # trainer state
         self.state = TrainerState()
@@ -145,7 +153,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
         self.rng = set_seed(self.cfg.seed)
 
     @abstractmethod
-    def train_loop(self) -> Generator[int, None, None]:
+    def train_loop(self) -> Generator[tuple[int, float], None, None]:
         """The main training loop.
 
         For simplicity, we use an Iterator here, to make the training loop as simple as
@@ -155,6 +163,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
 
         Yields:
            The number of steps the training loop did.
+           The training score over these steps.
         """
 
     @abstractmethod
@@ -203,8 +212,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
         """
         self.logger(group, stats, self.state.step, verbose, with_smoothing)
 
-    def run(self) -> float:
-        """Call this function in your script to start the training loop."""
+    def _run_with_eval_env(self) -> float:
         if self.cfg.val_report_score not in get_args(ValReportScoreOptions):
             raise RuntimeError(
                 f"report_score is '{self.cfg.val_report_score}' "
@@ -225,7 +233,8 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
 
             while self.state.step < self.cfg.train_steps:
                 # train
-                self.state.step += next(train_loop_iter)
+                steps, _ = next(train_loop_iter)
+                self.state.step += steps
 
                 # validate
                 if self.state.step // self.cfg.val_freq >= len(self.state.scores):
@@ -252,8 +261,55 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
             case "best":
                 return self.state.max_score
 
+    def _run_without_eval_env(self) -> float:
+        if self.cfg.ckpt_modus not in ("none", "last", "all"):
+            raise RuntimeError(
+                f"ckpt_modus is '{self.cfg.ckpt_modus}' but has to be one of "
+                f"['none', 'last', 'all'] when no eval_env is provided"
+            )
+
+        cummulative_score = 0.0
+
+        with self.logger:
+            self.to(self.device)
+            train_loop_iter = self.train_loop()
+
+            while self.state.step < self.cfg.train_steps:
+                # train
+                steps, score = next(train_loop_iter)
+                self.state.step += steps
+                cummulative_score += score
+
+                # use val freq for ckpt saving frequency
+                if self.state.step // self.cfg.val_freq >= len(self.state.scores):
+                    self.state.scores.append(cummulative_score)
+                    self.save()
+                    cummulative_score = 0.0
+
+        self.state.scores.append(cummulative_score)
+
+        match self.cfg.val_report_score:
+            case "cum":
+                return sum(self.state.scores)
+            case "final":
+                return self.state.scores[-1]
+            case "best":
+                return max(self.state.scores)
+
+    def run(self) -> float:
+        """Runs the training loop.
+
+        If no evaluation environment is provided, the training loop is run without evaluation.
+
+        Returns:
+            The reported score based on `cfg.val_report_score` or the cummulative train score.
+        """
+        if self.eval_env is not None:
+            return self._run_with_eval_env()
+        return self._run_without_eval_env()
+
     def validate(self) -> float:
-        """Validate the policy.
+        """Validate the policy on the validation environment.
 
         The validation runs the policy deterministically and returns the mean of the cumulative
         reward over all validation episodes.
