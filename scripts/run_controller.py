@@ -52,7 +52,7 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig, CtxType], Generic[CtxTy
 
     Supports two modes:
     - Validation only (default): Runs validation episodes only
-    - Training: Runs training episodes and reports stats similar to RL algorithms. 
+    - Training: Runs training episodes and reports stats similar to RL algorithms.
 
     Attributes:
         controller: The parameterized controller to use.
@@ -221,7 +221,8 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
     parser.add_argument("--controller", type=str, default=None)
-    parser.add_argument("--only-train",
+    parser.add_argument(
+        "--only-train",
         action="store_true",
         help="Run training episodes over time (for comparison with RL methods). "
         "Without this flag, validation episodes are run instead.",
