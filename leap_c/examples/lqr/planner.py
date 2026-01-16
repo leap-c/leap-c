@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import torch
 
 from leap_c.examples.lqr.acados_ocp import (
     export_parametric_ocp,
@@ -23,6 +24,7 @@ class LqrPlannerConfig:
     """
 
     N_horizon: int = 20
+    dtype: torch.dtype = torch.float32
 
 
 class LqrPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
