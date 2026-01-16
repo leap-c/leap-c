@@ -10,7 +10,6 @@ from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]:
     """Return a tuple of default parameters for the LQR planner.
 
-
     Args:
         N_horizon: The number of steps in the MPC horizon
 
