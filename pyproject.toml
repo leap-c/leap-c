@@ -8,6 +8,8 @@ version = "2025.0.0"
 dependencies = [
   "casadi",
   "gymnasium==1.1.1",
+  "numpy>=1.26.0",
+  "torch>=2.0.0",
   "scipy==1.15.2",
   "pandas==2.3.0",
   "PyYAML==6.0.2"
@@ -64,8 +66,13 @@ dev = [
   "leap_c[docs]",
   "leap_c[test]",
   "leap_c[hvac]",
+  "leap_c[tuning]",
   "pre-commit==4.3.0",
   "ruff==0.12.12"
+]
+tuning = [
+  "smac>=2.0.0",
+  "ConfigSpace",
 ]
 wandb = ["wandb==0.20.1"]
 
