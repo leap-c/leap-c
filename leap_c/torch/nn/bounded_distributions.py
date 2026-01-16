@@ -455,31 +455,6 @@ class ModeConcentrationBeta(BoundedDistribution):
         # Update the internal Beta distribution with new parameters
         self._beta_dist = Beta(concentration1=alpha, concentration0=beta, validate_args=None)
 
-    def _log_prob(self, value: torch.Tensor) -> torch.Tensor:
-        """Compute log probability of samples in [lb, ub] range.
-
-        Args:
-            value: Sample values in [lb, ub] range
-
-        Returns:
-            Log probabilities adjusted for the transformation
-        """
-        # Compute log_prob in [0, 1] space
-        log_prob_01 = self._beta_dist.log_prob(
-            value=torch.clamp(
-                input=self.inverse(value),
-                min=0.0 + self.padding,
-                max=1.0 - self.padding,
-            )
-        )
-
-        # Adjust for Jacobian of transformation: dx/dy = 1 / (ub - lb)
-        # log_prob_rescaled = log_prob_01 - log|ub - lb|
-        log_jacobian = -torch.log(self.scale).sum()
-        log_prob_rescaled = log_prob_01 + log_jacobian
-
-        return log_prob_rescaled
-
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
         return (output_dim, output_dim)
 
