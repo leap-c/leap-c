@@ -16,7 +16,7 @@ from leap_c.torch.nn.bounded_distributions import (
     get_bounded_distribution,
 )
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
-from leap_c.torch.nn.mlp import BetaParameterNetwork, Mlp, MlpConfig
+from leap_c.torch.nn.mlp import Mlp, MlpConfig
 
 
 class StochasticMPCActorOutput(NamedTuple):
@@ -179,11 +179,7 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
 
         self.cfg = cfg
 
-        mlp_cls = (
-            BetaParameterNetwork if cfg.distribution_name == "mode_concentration_beta" else Mlp
-        )
-
-        self.mlp = mlp_cls(
+        self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
             output_sizes=output_sizes,
             mlp_cfg=cfg.mlp,

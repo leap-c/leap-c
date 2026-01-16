@@ -346,7 +346,7 @@ class ModeConcentrationBeta(BoundedDistribution):
     def __init__(
         self,
         space: spaces.Box,
-        log_conc_min: float = np.log(2.0 + 1e-6),
+        log_conc_min: float = np.log(2.0),
         log_conc_max: float = np.log(100.0),
         padding: float = 0.0001,
     ) -> None:
@@ -394,9 +394,13 @@ class ModeConcentrationBeta(BoundedDistribution):
             An output sampled from the ModeConcentrationBeta, the log probability of this output
             and a statistics dict.
         """
-        mode = torch.clamp(mode, min=self.padding, max=1.0 - self.padding)
+        # Mode must be in [padding, 1-padding]
+        mode = self.padding + (1.0 - 2 * self.padding) * torch.sigmoid(mode)
 
-        log_conc = torch.clamp(log_conc, self.log_conc_min, self.log_conc_max)
+        # Concentration must be > 2 for valid parameterization
+        log_conc = self.log_conc_min + (self.log_conc_max - self.log_conc_min) * torch.sigmoid(
+            log_conc
+        )
         concentration = torch.exp(log_conc)
 
         if anchor is not None:
