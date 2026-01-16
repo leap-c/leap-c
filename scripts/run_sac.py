@@ -21,7 +21,7 @@ class RunSacConfig:
 
 
 def create_cfg(
-    env: str,
+    env: ExampleEnvName,
     seed: int,
     ckpt_modus: Literal["best", "last", "all", "none"] = "last",
 ) -> RunSacConfig:

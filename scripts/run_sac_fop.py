@@ -5,7 +5,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from leap_c.controller import CtxType
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
 from leap_c.torch.nn.extractor import ExtractorName
@@ -30,8 +29,8 @@ class RunSacFopConfig:
 
 
 def create_cfg(
-    env: str,
-    controller: str,
+    env: ExampleEnvName,
+    controller: ExampleControllerName,
     seed: int,
     variant: str = "fop",
     ckpt_modus: Literal["best", "last", "all", "none"] = "last",
@@ -127,7 +126,7 @@ def run_sac_fop(
         with_val: Whether to use a validation environment.
     """
     val_env = create_env(cfg.env, render_mode="rgb_array") if with_val else None
-    trainer = SacFopTrainer[CtxType](
+    trainer = SacFopTrainer(
         val_env=val_env,
         train_env=create_env(cfg.env),
         controller=create_controller(cfg.controller, reuse_code_dir),
