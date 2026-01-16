@@ -159,7 +159,7 @@ class Mlp(nn.Module):
 
 
 class BetaParameterNetwork(Mlp):
-    """Neural network that outputs mode and concentration parameters for Beta distribution."""
+    """Neural network that outputs mode and log concentration parameters for Beta distribution."""
 
     def __init__(
         self,
@@ -167,7 +167,6 @@ class BetaParameterNetwork(Mlp):
         output_sizes: int | Iterable[int],
         mlp_cfg: MlpConfig,
     ) -> None:
-        # Initialize parent with input_dim, two outputs of output_dim each (mode and concentration)
         super().__init__(
             input_sizes=input_sizes,
             output_sizes=output_sizes,
@@ -182,15 +181,15 @@ class BetaParameterNetwork(Mlp):
 
         Returns:
             mode: Mode parameter in [0, 1], shape (..., output_dim)
-            concentration: Concentration parameter > 2, shape (..., output_dim)
+            log_concentration: Log concentration parameter > log(2), shape (..., output_dim)
         """
         # Get raw outputs from parent MLP
-        mode_raw, concentration_raw = super().forward(x)
+        mode_raw, log_conc_raw = super().forward(x)
 
         # Mode must be in [0, 1]
         mode = torch.sigmoid(input=mode_raw)
 
         # Concentration must be > 2 for valid parameterization
-        concentration = torch.nn.functional.softplus(input=concentration_raw) + 2.0
+        log_conc = torch.nn.functional.softplus(input=log_conc_raw) + torch.log(2.0)
 
-        return mode, concentration
+        return mode, log_conc
