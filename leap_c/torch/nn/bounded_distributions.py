@@ -390,15 +390,6 @@ class ModeConcentrationBeta(BoundedDistribution):
             An output sampled from the ModeConcentrationBeta, the log probability of this output
             and a statistics dict.
         """
-        # Mode must be in [padding, 1-padding]
-        mode = self.padding + (1.0 - 2 * self.padding) * torch.sigmoid(mode)
-
-        # Concentration must be > 2 for valid parameterization
-        log_conc = self.log_conc_min + (self.log_conc_max - self.log_conc_min) * torch.sigmoid(
-            log_conc
-        )
-        concentration = torch.exp(log_conc)
-
         if anchor is not None:
             # Convert anchor to tensor if it's a numpy array
             if not isinstance(anchor, torch.Tensor):
@@ -408,6 +399,15 @@ class ModeConcentrationBeta(BoundedDistribution):
 
             inv_anchor = self.inverse(anchor)
             mode = mode + inv_anchor  # Use out-of-place operation to avoid modifying view
+
+        # Mode must be in [padding, 1-padding]
+        mode = self.padding + (1.0 - 2 * self.padding) * torch.sigmoid(mode)
+
+        # Concentration must be > 2 for valid parameterization
+        log_conc = self.log_conc_min + (self.log_conc_max - self.log_conc_min) * torch.sigmoid(
+            log_conc
+        )
+        concentration = torch.exp(log_conc)
 
         if deterministic:
             # Deterministic: just use the mode scaled to action space
