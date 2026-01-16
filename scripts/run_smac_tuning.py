@@ -95,10 +95,8 @@ class ControllerTuner:
         self.env = create_env(cfg.env)
         self.controller = create_controller(cfg.controller, reuse_code_base_dir=reuse_code_dir)
 
-        # Get parameter space from controller
         self.param_space = self.controller.param_space
 
-        # Build SMAC configuration space from gymnasium space
         self.config_space = self._build_config_space()
 
         print(f"Parameter space: {self.param_space}")
@@ -112,18 +110,16 @@ class ControllerTuner:
         """
         cs = ConfigurationSpace(seed=self.cfg.seed)
 
-        # Get bounds from gymnasium Box space
         low = self.param_space.low.flatten()
         high = self.param_space.high.flatten()
 
-        # Create hyperparameters for each parameter dimension
-        for i, (lo, hi) in enumerate(zip(low, high)):
-            # Handle infinite bounds by setting reasonable defaults
-            if np.isinf(lo):
-                lo = -1e6
-            if np.isinf(hi):
-                hi = 1e6
+        if np.any(np.isinf(low)) or np.any(np.isinf(high)):
+            raise ValueError(
+                "SMAC requires finite bounds for all parameters. "
+                "Please specify finite bounds in the controller's parameter space."
+            )
 
+        for i, (lo, hi) in enumerate(zip(low, high)):
             hp = Float(
                 name=f"param_{i}",
                 bounds=(float(lo), float(hi)),
@@ -163,7 +159,7 @@ class ControllerTuner:
 
         for rollout_idx in range(self.cfg.n_rollouts):
             rollout_seed = seed + rollout_idx
-            obs, info = self.env.reset(seed=rollout_seed)
+            obs, _ = self.env.reset(seed=rollout_seed)
 
             done = False
             truncated = False
@@ -172,10 +168,8 @@ class ControllerTuner:
             ctx = None
 
             while not (done or truncated):
-                # Prepare observation
                 obs_tensor = torch.from_numpy(obs).unsqueeze(0).to(self.device)
 
-                # Get action from controller
                 try:
                     ctx, action = self.controller(obs_tensor, param, ctx=ctx)
                     action = action.cpu().numpy()[0]
@@ -185,10 +179,9 @@ class ControllerTuner:
 
                 # Step environment
                 obs, reward, done, truncated, info = self.env.step(action)
-                episode_reward += reward
+                episode_reward += reward  # type: ignore
                 step += 1
 
-                # Check max steps
                 if self.cfg.max_steps is not None and step >= self.cfg.max_steps:
                     break
 
@@ -196,11 +189,10 @@ class ControllerTuner:
             n_successful += 1
 
         if n_successful == 0:
-            return 1e10  # Return large cost if all rollouts failed
+            return float("inf")
 
         mean_reward = total_reward / n_successful
 
-        # SMAC minimizes, so return negative reward
         return -mean_reward
 
     def run(self) -> dict[str, Any]:
@@ -209,10 +201,8 @@ class ControllerTuner:
         Returns:
             Dictionary containing the best configuration and optimization history.
         """
-        # Create output directory
         self.cfg.output_dir.mkdir(parents=True, exist_ok=True)
 
-        # Define SMAC scenario
         scenario = Scenario(
             configspace=self.config_space,
             name="controller_tuning",
@@ -222,22 +212,18 @@ class ControllerTuner:
             seed=self.cfg.seed,
         )
 
-        # Create SMAC facade with Hyperparameter Optimization
         smac = HyperparameterOptimizationFacade(
             scenario=scenario,
             target_function=self.evaluate,
             overwrite=True,
         )
 
-        # Run optimization
         print(f"\nStarting SMAC optimization with {self.cfg.n_trials} trials...")
         incumbent = smac.optimize()
 
-        # Get best configuration
         best_config = dict(incumbent)
         best_param = self._config_to_param(best_config)
 
-        # Evaluate best configuration with more rollouts for final score
         print("\nEvaluating best configuration...")
         final_cost = self.evaluate(best_config, seed=self.cfg.seed + 10000)
         final_reward = -final_cost
@@ -250,7 +236,6 @@ class ControllerTuner:
         print(f"Best reward: {final_reward:.4f}")
         print(f"Results saved to: {self.cfg.output_dir}")
 
-        # Log best result to wandb
         if self.cfg.wandb_logger and self.wandb_run is not None:
             import wandb
 
