@@ -179,7 +179,6 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
 
         self.cfg = cfg
 
-        self.beta_distribution_initalized = False
         mlp_cls = (
             BetaParameterNetwork if cfg.distribution_name == "mode_concentration_beta" else Mlp
         )
@@ -216,23 +215,11 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             dist_params = self.mlp(e)
             anchor = self.controller.default_param(obs) if self.residual else None
 
-            if self.cfg.distribution_name == "mode_concentration_beta":
-                if not self.beta_distribution_initalized:
-                    self.param_distribution.set_mode_from_nominal_parameters(
-                        self.controller.default_param(obs)
-                    )
-                    self.beta_distribution_initalized = True
-
-                param, log_prob, stats = self.param_distribution(
-                    *dist_params,
-                    deterministic=deterministic,
-                )
-            else:
-                param, log_prob, stats = self.param_distribution(
-                    *dist_params,
-                    deterministic=deterministic,
-                    anchor=anchor,
-                )
+            param, log_prob, stats = self.param_distribution(
+                *dist_params,
+                deterministic=deterministic,
+                anchor=anchor,
+            )
 
             if only_param:
                 return StochasticMPCActorOutput(param, log_prob, stats)
