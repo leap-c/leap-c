@@ -23,7 +23,7 @@ Open a new thread or browse the existing ones on the [GitHub discussions](https:
 
 ## Related Projects
 
-The following projects follow similar ideas and might be intersting:
+The following projects follow similar ideas and might be interesting:
 
 - [mpc.pytorch](https://github.com/locuslab/mpc.pytorch): Early work on embedding MPC in PyTorch for end-to-end learning, with a
     more restricted class of MPC problems
