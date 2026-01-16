@@ -365,7 +365,7 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
         self, obs, deterministic: bool = False, state: Any = None
     ) -> tuple[np.ndarray, None, dict[str, float]]:
         obs = self.buffer.collate([obs])
-        with torch.no_grad():
+        with torch.inference_mode():
             action, _, stats = self.pi(obs, deterministic=deterministic)
         return action.cpu().numpy()[0], None, stats
 
