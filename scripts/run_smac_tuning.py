@@ -22,7 +22,6 @@ import numpy as np
 import torch
 from ConfigSpace import ConfigurationSpace, Float
 from smac import HyperparameterOptimizationFacade, Scenario
-from smac.runhistory.dataclasses import TrialValue
 
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_output_path
@@ -85,6 +84,7 @@ class ControllerTuner:
         if cfg.wandb_logger:
             try:
                 import wandb
+
                 self.wandb_run = wandb.init(**cfg.wandb_init_kwargs)
                 print(f"Wandb run initialized: {self.wandb_run.url}")
             except ImportError:
@@ -164,7 +164,7 @@ class ControllerTuner:
         for rollout_idx in range(self.cfg.n_rollouts):
             rollout_seed = seed + rollout_idx
             obs, info = self.env.reset(seed=rollout_seed)
-            
+
             done = False
             truncated = False
             episode_reward = 0.0
@@ -242,9 +242,9 @@ class ControllerTuner:
         final_cost = self.evaluate(best_config, seed=self.cfg.seed + 10000)
         final_reward = -final_cost
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("SMAC Optimization Complete!")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(f"Best configuration: {best_config}")
         print(f"Best parameter tensor: {best_param}")
         print(f"Best reward: {final_reward:.4f}")
@@ -253,10 +253,13 @@ class ControllerTuner:
         # Log best result to wandb
         if self.cfg.wandb_logger and self.wandb_run is not None:
             import wandb
-            wandb.log({
-                "best_validation_reward": final_reward,
-                "n_trials": self.cfg.n_trials,
-            })
+
+            wandb.log(
+                {
+                    "best_validation_reward": final_reward,
+                    "n_trials": self.cfg.n_trials,
+                }
+            )
             # Log best parameters as a summary
             wandb.run.summary["best_validation_reward"] = final_reward
             wandb.run.summary["best_config"] = best_config
@@ -274,10 +277,11 @@ class ControllerTuner:
     def close(self) -> None:
         """Clean up resources."""
         self.env.close()
-        
+
         # Finish wandb run
         if self.cfg.wandb_logger and self.wandb_run is not None:
             import wandb
+
             wandb.finish()
 
 
@@ -285,15 +289,16 @@ def main() -> None:
     """Main entry point for SMAC tuning."""
     parser = ArgumentParser(description="SMAC-based hyperparameter tuning for controllers")
     parser.add_argument("--env", type=str, default="hvac", help="Environment name")
-    parser.add_argument("--controller", type=str, default=None, help="Controller name (defaults to env)")
+    parser.add_argument(
+        "--controller", type=str, default=None, help="Controller name (defaults to env)"
+    )
     parser.add_argument("--n_trials", type=int, default=100, help="Number of SMAC trials")
     parser.add_argument("--n_rollouts", type=int, default=10, help="Rollouts per evaluation")
     parser.add_argument("--max_steps", type=int, default=None, help="Max steps per rollout")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
     parser.add_argument("--output_dir", type=Path, default=None, help="Output directory")
     parser.add_argument(
-        "-r", "--reuse_code", action="store_true",
-        help="Reuse compiled code for faster startup"
+        "-r", "--reuse_code", action="store_true", help="Reuse compiled code for faster startup"
     )
     parser.add_argument("--reuse_code_dir", type=Path, default=None)
     parser.add_argument("--use-wandb", action="store_true", help="Log results to wandb")
@@ -303,8 +308,10 @@ def main() -> None:
 
     # Set defaults
     controller = args.controller if args.controller else args.env
-    output_dir = args.output_dir if args.output_dir else default_output_path(
-        seed=args.seed, tags=["smac", args.env, controller]
+    output_dir = (
+        args.output_dir
+        if args.output_dir
+        else default_output_path(seed=args.seed, tags=["smac", args.env, controller])
     )
 
     cfg = SmacTuningConfig(
@@ -328,7 +335,9 @@ def main() -> None:
                 "max_steps": args.max_steps,
                 "seed": args.seed,
             },
-        } if args.use_wandb else {},
+        }
+        if args.use_wandb
+        else {},
     )
 
     # Determine code reuse directory
@@ -343,7 +352,7 @@ def main() -> None:
     tuner = ControllerTuner(cfg, reuse_code_dir=reuse_code_dir)
     try:
         results = tuner.run()
-        
+
         # Save results
         results_file = cfg.output_dir / "best_params.npz"
         np.savez(
@@ -353,7 +362,7 @@ def main() -> None:
             best_reward=results["best_reward"],
         )
         print(f"Best parameters saved to: {results_file}")
-        
+
     finally:
         tuner.close()
 
