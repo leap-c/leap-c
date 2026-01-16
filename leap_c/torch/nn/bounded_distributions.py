@@ -375,7 +375,7 @@ class ModeConcentrationBeta(BoundedDistribution):
     def forward(
         self,
         mode: torch.Tensor,
-        log_conc: torch.Tensor | None = None,
+        log_conc: torch.Tensor,
         deterministic: bool = False,
         anchor: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
@@ -386,7 +386,6 @@ class ModeConcentrationBeta(BoundedDistribution):
             log_conc: The logarithm of the concentration parameter,
                 of the same shape as the mode (i.e., assuming independent dimensions).
                 Will be clamped according to the attributes of this class.
-                If None, the output is deterministic (mode only, no sampling).
             deterministic: If True, the output will just be spacefitting(mode),
                 no sampling is taking place.
             anchor: Anchor point to shift the mode. Used for residual policies.
@@ -397,11 +396,8 @@ class ModeConcentrationBeta(BoundedDistribution):
         """
         mode = torch.clamp(mode, min=self.padding, max=1.0 - self.padding)
 
-        if log_conc is not None:
-            log_conc = torch.clamp(log_conc, self.log_conc_min, self.log_conc_max)
-            concentration = torch.exp(log_conc)
-        else:
-            concentration = None
+        log_conc = torch.clamp(log_conc, self.log_conc_min, self.log_conc_max)
+        concentration = torch.exp(log_conc)
 
         if anchor is not None:
             # Convert anchor to tensor if it's a numpy array
@@ -413,7 +409,7 @@ class ModeConcentrationBeta(BoundedDistribution):
             inv_anchor = self.inverse(anchor)
             mode = mode + inv_anchor  # Use out-of-place operation to avoid modifying view
 
-        if deterministic or concentration is None:
+        if deterministic:
             # Deterministic: just use the mode scaled to action space
             y = mode
             log_prob = torch.zeros_like(mode)
@@ -427,11 +423,8 @@ class ModeConcentrationBeta(BoundedDistribution):
         y_scaled = y * self.scale[None, :] + self.lb[None, :]
 
         # Adjust log_prob for scaling transformation
-        if concentration is not None:
-            log_prob -= torch.log(self.scale[None, :])
-            log_prob = log_prob.sum(dim=-1, keepdim=True)
-        else:
-            log_prob = log_prob.sum(dim=-1, keepdim=True)
+        log_prob -= torch.log(self.scale[None, :])
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
 
         stats = (
             {"beta_concentration": concentration.prod(dim=-1).mean().item()}
