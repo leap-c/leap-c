@@ -22,8 +22,8 @@ class RunSacZopConfig:
 
 
 def create_cfg(
-    env: str,
-    controller: str,
+    env: ExampleEnvName,
+    controller: ExampleControllerName,
     seed: int,
     ckpt_modus: Literal["best", "last", "all", "none"] = "last",
 ) -> RunSacZopConfig:
@@ -60,7 +60,7 @@ def create_cfg(
 
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
-    cfg.trainer.log.interval = 1_000
+    cfg.trainer.log.interval = 200
     cfg.trainer.log.window = 10_000
     cfg.trainer.log.csv_logger = True
     cfg.trainer.log.tensorboard_logger = True

@@ -30,8 +30,8 @@ class RunSacFopConfig:
 
 
 def create_cfg(
-    env: str,
-    controller: str,
+    env: ExampleEnvName,
+    controller: ExampleControllerName,
     seed: int,
     variant: str = "fop",
     ckpt_modus: Literal["best", "last", "all", "none"] = "last",
@@ -127,7 +127,7 @@ def run_sac_fop(
         with_val: Whether to use a validation environment.
     """
     val_env = create_env(cfg.env, render_mode="rgb_array") if with_val else None
-    trainer = SacFopTrainer[CtxType](
+    trainer = SacFopTrainer(
         val_env=val_env,
         train_env=create_env(cfg.env),
         controller=create_controller(cfg.controller, reuse_code_dir),
