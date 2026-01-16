@@ -1,4 +1,4 @@
-"""Main script to run the controller with default parameters.
+"""Main script to run baselines (controller or random) with default parameters.
 
 By default, runs validation episodes. For building comparison with RL methods,
 use the `--only-train` flag to run training episodes instead. This will report
@@ -10,7 +10,7 @@ a good estimate of performance.
 from argparse import ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Generator, Generic, Literal
+from typing import Any, Generator, Literal
 
 import gymnasium as gym
 import torch
@@ -26,36 +26,38 @@ from leap_c.utils.gym import seed_env, wrap_env
 
 
 @dataclass
-class ControllerTrainerConfig(TrainerConfig):
-    """Configuration for running controller experiments."""
+class BaselineTrainerConfig(TrainerConfig):
+    """Configuration for running baseline experiments."""
 
     pass
 
 
 @dataclass
-class RunControllerConfig:
-    """Configuration for running controller experiments.
+class RunBaselineConfig:
+    """Configuration for running baseline experiments.
 
     Attributes:
         env: The environment name.
-        controller: The controller name.
+        controller: The controller name (used if policy_type is 'controller').
+        policy_type: The type of policy to run ('controller' or 'random').
         trainer: The trainer configuration.
     """
 
     env: ExampleEnvName = "cartpole"
-    controller: ExampleControllerName = "cartpole"
-    trainer: ControllerTrainerConfig = field(default_factory=ControllerTrainerConfig)
+    controller: ExampleControllerName | None = None
+    policy_type: Literal["controller", "random"] = "controller"
+    trainer: BaselineTrainerConfig = field(default_factory=BaselineTrainerConfig)
 
 
-class ControllerTrainer(Trainer[ControllerTrainerConfig, CtxType], Generic[CtxType]):
-    """A trainer that runs the controller with default parameters.
+class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
+    """A trainer that runs a baseline policy (controller or random).
 
     Supports two modes:
     - Validation only (default): Runs validation episodes only
     - Training: Runs training episodes and reports stats similar to RL algorithms.
 
     Attributes:
-        controller: The parameterized controller to use.
+        controller: The parameterized controller to use (if policy_type is 'controller').
         collate_fn: The function used to collate observations and actions.
         train_env: The training environment (None for validation-only mode).
     """
@@ -64,11 +66,12 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig, CtxType], Generic[CtxTy
 
     def __init__(
         self,
-        cfg: ControllerTrainerConfig,
+        cfg: BaselineTrainerConfig,
         val_env: gym.Env | None,
         output_path: str | Path,
         device: str,
-        controller: ParameterizedController[CtxType],
+        policy_type: Literal["controller", "random"],
+        controller: ParameterizedController[CtxType] | None = None,
         train_env: gym.Env | None = None,
     ) -> None:
         """Initializes the trainer.
@@ -78,15 +81,21 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig, CtxType], Generic[CtxTy
             val_env: The validation environment.
             output_path: The path to save outputs to.
             device: The device to use.
-            controller: The parameterized controller to use.
+            policy_type: The type of policy to run.
+            controller: The parameterized controller to use (if policy_type is 'controller').
             train_env: The training environment. If None, only validation is performed.
         """
         super().__init__(cfg, val_env, output_path, device)
+        self.policy_type = policy_type
         self.controller = controller
         self.train_env = wrap_env(train_env) if train_env is not None else None
 
-        buffer = ReplayBuffer(1, device, collate_fn_map=controller.collate_fn_map)
-        self.collate_fn = buffer.collate
+        if self.policy_type == "controller":
+            assert self.controller is not None
+            buffer = ReplayBuffer(1, device, collate_fn_map=controller.collate_fn_map)  # type: ignore
+            self.collate_fn = buffer.collate
+        else:
+            self.collate_fn = None
 
     def train_loop(self) -> Generator[tuple[int, float], None, None]:
         """Run training episodes, reporting stats similar to SAC training."""
@@ -96,7 +105,7 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig, CtxType], Generic[CtxTy
                 yield 1, 0.0
 
         is_terminated = is_truncated = True
-        policy_ctx: CtxType | None = None
+        policy_ctx = None
         obs = None
 
         while True:
@@ -105,13 +114,16 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig, CtxType], Generic[CtxTy
                 policy_ctx = None
                 is_terminated = is_truncated = False
 
-            obs_batched = self.collate_fn([obs])
-            default_param = self.controller.default_param(obs_batched)
-            default_param_tensor = torch.from_numpy(default_param).to(self.device)
-            policy_ctx, action_tensor = self.controller(
-                obs_batched, default_param_tensor, ctx=policy_ctx
-            )
-            action = action_tensor.cpu().numpy()[0]
+            if self.policy_type == "random":
+                action = self.train_env.action_space.sample()
+            else:
+                obs_batched = self.collate_fn([obs])
+                default_param = self.controller.default_param(obs_batched)
+                default_param_tensor = torch.from_numpy(default_param).to(self.device)
+                policy_ctx, action_tensor = self.controller(
+                    obs_batched, default_param_tensor, ctx=policy_ctx
+                )
+                action = action_tensor.cpu().numpy()[0]
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
 
@@ -123,9 +135,13 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig, CtxType], Generic[CtxTy
             yield 1, float(reward)
 
     def act(
-        self, obs: ndarray, deterministic: bool = False, state: CtxType | None = None
+        self, obs: ndarray, deterministic: bool = False, state: Any | None = None
     ) -> tuple[ndarray, Any, dict[str, float] | None]:
-        """Use the controller with default parameters."""
+        """Use the policy (controller or random)."""
+        if self.policy_type == "random":
+            # Use eval_env action space for validation
+            return self.eval_env.action_space.sample(), None, None
+
         obs_batched = self.collate_fn([obs])
         default_param = self.controller.default_param(obs_batched)
         default_param = torch.from_numpy(default_param).to(self.device)
@@ -136,12 +152,13 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig, CtxType], Generic[CtxTy
 
 def create_cfg(
     env: ExampleEnvName,
-    controller: ExampleControllerName,
+    controller: ExampleControllerName | None,
     seed: int,
     only_train: bool = False,
     ckpt_modus: Literal["best", "last", "all", "none"] = "none",
-) -> RunControllerConfig:
-    """Return the default configuration for running controller experiments.
+    policy_type: Literal["controller", "random"] = "controller",
+) -> RunBaselineConfig:
+    """Return the default configuration for running baseline experiments.
 
     Args:
         env: The environment name.
@@ -149,10 +166,16 @@ def create_cfg(
         seed: The random seed.
         only_train: Whether to run training episodes.
         ckpt_modus: The checkpoint mode.
+        policy_type: The type of policy to run.
     """
-    cfg = RunControllerConfig()
+    cfg = RunBaselineConfig()
     cfg.env = env
-    cfg.controller = controller if controller is not None else env
+    cfg.policy_type = policy_type
+
+    if policy_type == "controller":
+        cfg.controller = controller if controller is not None else env
+    else:
+        cfg.controller = controller  # Can be None for random
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = seed
@@ -183,17 +206,17 @@ def create_cfg(
     return cfg
 
 
-def run_controller(
-    cfg: RunControllerConfig,
+def run_baseline(
+    cfg: RunBaselineConfig,
     output_path: str | Path,
     device: str = "cpu",
     reuse_code_dir: Path | None = None,
     only_train: bool = False,
 ) -> float:
-    """Run the controller.
+    """Run the baseline.
 
     Args:
-        cfg: The configuration for running the controller.
+        cfg: The configuration for running the baseline.
         output_path: The path to save outputs to.
             If it already exists, the run will continue from the last checkpoint.
         device: The device to use.
@@ -202,12 +225,18 @@ def run_controller(
     """
     val_env = create_env(cfg.env, render_mode="rgb_array") if not only_train else None
     train_env = create_env(cfg.env) if only_train else None
-    trainer = ControllerTrainer(
+
+    controller = None
+    if cfg.policy_type == "controller":
+        controller = create_controller(cfg.controller, reuse_code_dir)
+
+    trainer = BaselineTrainer(
         cfg=cfg.trainer,
         val_env=val_env,
         output_path=output_path,
         device=device,
-        controller=create_controller(cfg.controller, reuse_code_dir),
+        policy_type=cfg.policy_type,
+        controller=controller,
         train_env=train_env,
     )
     init_run(trainer, cfg, output_path)
@@ -221,6 +250,13 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
     parser.add_argument("--controller", type=str, default=None)
+    parser.add_argument(
+        "--policy-type",
+        type=str,
+        default="controller",
+        choices=["controller", "random"],
+        help="The type of policy to run.",
+    )
     parser.add_argument(
         "--only-train",
         action="store_true",
@@ -239,7 +275,13 @@ if __name__ == "__main__":
     parser.add_argument("--wandb-project", type=str, default="leap-c")
     args = parser.parse_args()
 
-    cfg = create_cfg(args.env, args.controller, args.seed, args.only_train)
+    cfg = create_cfg(
+        args.env,
+        args.controller,
+        args.seed,
+        args.only_train,
+        policy_type=args.policy_type,
+    )
 
     if args.use_wandb:
         config_dict = asdict(cfg)
@@ -247,13 +289,16 @@ if __name__ == "__main__":
         cfg.trainer.log.wandb_init_kwargs = {
             "entity": args.wandb_entity,
             "project": args.wandb_project,
-            "name": default_name(args.seed, tags=["controller", args.env, args.controller]),
+            "name": default_name(
+                args.seed, tags=["baseline", args.policy_type, args.env, str(args.controller)]
+            ),
             "config": config_dict,
         }
 
     if args.output_path is None:
         output_path = default_output_path(
-            seed=args.seed, tags=["controller", args.env, args.controller]
+            seed=args.seed,
+            tags=["baseline", args.policy_type, args.env, str(args.controller)],
         )
     else:
         output_path = args.output_path
@@ -265,7 +310,7 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
-    run_controller(
+    run_baseline(
         cfg=cfg,
         output_path=output_path,
         device=args.device,
