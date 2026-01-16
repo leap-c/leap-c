@@ -21,6 +21,7 @@ class LqrPlannerConfig:
         N_horizon: The number of steps in the MPC horizon.
             The MPC will have N+1 nodes (the nodes 0...N-1 and the terminal
             node N).
+        dtype: Type the planner output tensors will automatically be cast to.
     """
 
     N_horizon: int = 20
