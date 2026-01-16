@@ -5,7 +5,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from leap_c.controller import CtxType
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
 from leap_c.torch.nn.extractor import ExtractorName
