@@ -329,6 +329,10 @@ class ModeConcentrationBeta(BoundedDistribution):
         loc: The location of the space-fitting transform (for shifting).
         log_conc_min: The minimum value for the logarithm of the concentration.
         log_conc_max: The maximum value for the logarithm of the concentration.
+
+    NOTE: The mode in the forward pass is assumed to be in the interval [0, 1],
+    and the concentration is clamped to be > 2 to ensure unimodality. Use
+    the BetaParameterNetwork to output mode and concentration parameters from a neural network.
     """
 
     lb: torch.Tensor
@@ -338,29 +342,6 @@ class ModeConcentrationBeta(BoundedDistribution):
     log_conc_min: float
     log_conc_max: float
     padding: float
-
-    @staticmethod
-    def compute_alpha_beta(
-        mode: torch.Tensor | float,
-        concentration: torch.Tensor | float,
-    ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Compute alpha and beta parameters from mode and concentration.
-
-        Args:
-            mode: Mode parameter (must be in [0, 1])
-            concentration: Total concentration parameter (must be > 2)
-
-        Returns:
-            Tuple of (alpha, beta) parameters for Beta distribution
-        """
-        mode = torch.as_tensor(mode)
-        concentration = torch.as_tensor(concentration)
-
-        # Compute alpha, beta from mode and total concentration c
-        alpha = 1.0 + mode * (concentration - 2.0)
-        beta = 1.0 + (1.0 - mode) * (concentration - 2.0)
-
-        return alpha, beta
 
     def __init__(
         self,
@@ -383,12 +364,9 @@ class ModeConcentrationBeta(BoundedDistribution):
         self.log_conc_min = log_conc_min
         self.log_conc_max = log_conc_max
         self.padding = padding
-        self.space = space
-
-        scale = space.high - space.low
 
         lb = torch.tensor(space.low, dtype=torch.float32)
-        scale = torch.tensor(scale, dtype=torch.float32)
+        scale = torch.tensor(space.high - space.low, dtype=torch.float32)
 
         self.register_buffer("lb", lb)
         self.register_buffer("ub", lb + scale)
@@ -443,10 +421,9 @@ class ModeConcentrationBeta(BoundedDistribution):
             # Update distribution and sample
             self._update_distribution(mode=mode, concentration=concentration)
             y = self._beta_dist.rsample()
-            # Compute log_prob in [0, 1] space and adjust for Jacobian
             log_prob = self._beta_dist.log_prob(y)
 
-        # Scale from [0, 1] to action space
+        # Scale from [0, 1] to [lb, ub]
         y_scaled = y * self.scale[None, :] + self.lb[None, :]
 
         # Adjust log_prob for scaling transformation
@@ -478,11 +455,9 @@ class ModeConcentrationBeta(BoundedDistribution):
         mode = torch.as_tensor(mode)
         concentration = torch.as_tensor(concentration)
 
-        # Compute new alpha, beta from mode in [0, 1] space and concentration > 2
-        alpha, beta = ModeConcentrationBeta.compute_alpha_beta(
-            mode=mode,
-            concentration=concentration,
-        )
+        # Compute alpha, beta from mode and total concentration c
+        alpha = 1.0 + mode * (concentration - 2.0)
+        beta = 1.0 + (1.0 - mode) * (concentration - 2.0)
 
         # Update the internal Beta distribution with new parameters
         self._beta_dist = Beta(concentration1=alpha, concentration0=beta, validate_args=None)
@@ -500,8 +475,8 @@ class ModeConcentrationBeta(BoundedDistribution):
         log_prob_01 = self._beta_dist.log_prob(
             value=torch.clamp(
                 input=self.inverse(value),
-                min=0.0,
-                max=1.0,
+                min=0.0 + self.padding,
+                max=1.0 - self.padding,
             )
         )
 
@@ -513,15 +488,6 @@ class ModeConcentrationBeta(BoundedDistribution):
         return log_prob_rescaled
 
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
-        """Returns param size required to define the distribution for the given output dim.
-
-        Args:
-            output_dim: The dimensionality of the output space (e.g., action space).
-
-        Returns:
-            A tuple of integers, each integer specifying the size of one
-            parameter required to define the distribution in the forward pass.
-        """
         return (output_dim, output_dim)
 
     def inverse(self, x: torch.Tensor) -> torch.Tensor:
