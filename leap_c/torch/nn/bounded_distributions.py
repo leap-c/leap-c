@@ -329,10 +329,6 @@ class ModeConcentrationBeta(BoundedDistribution):
         loc: The location of the space-fitting transform (for shifting).
         log_conc_min: The minimum value for the logarithm of the concentration.
         log_conc_max: The maximum value for the logarithm of the concentration.
-
-    NOTE: The mode in the forward pass is assumed to be in the interval [0, 1],
-    and the concentration is clamped to be > 2 to ensure unimodality. Use
-    the BetaParameterNetwork to output mode and concentration parameters from a neural network.
     """
 
     lb: torch.Tensor
