@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
+import torch
 
 from leap_c.examples.lqr.acados_ocp import (
     export_parametric_ocp,
@@ -69,5 +70,5 @@ class LqrPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             x0=np.array([1.0, 0.0]),
         )
 
-        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory)
+        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory, dtype=self.cfg.dtype)
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)

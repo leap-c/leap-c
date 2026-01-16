@@ -3,6 +3,7 @@
 from argparse import ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
@@ -20,7 +21,12 @@ class RunSacZopConfig:
     extractor: ExtractorName = "identity"
 
 
-def create_cfg(env: str, controller: str, seed: int) -> RunSacZopConfig:
+def create_cfg(
+    env: str,
+    controller: str,
+    seed: int,
+    ckpt_modus: Literal["best", "last", "all", "none"] = "last",
+) -> RunSacZopConfig:
     # ---- Configuration ----
     cfg = RunSacZopConfig()
     cfg.env = env
@@ -37,7 +43,7 @@ def create_cfg(env: str, controller: str, seed: int) -> RunSacZopConfig:
     cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
     cfg.trainer.val_report_score = "cum"
-    cfg.trainer.ckpt_modus = "best"
+    cfg.trainer.ckpt_modus = ckpt_modus
     cfg.trainer.batch_size = 64
     cfg.trainer.buffer_size = 1_000_000
     cfg.trainer.gamma = 0.99
@@ -86,6 +92,7 @@ def run_sac_zop(
     output_path: str | Path,
     device: str = "cuda",
     reuse_code_dir: Path | None = None,
+    with_val: bool = False,
 ) -> float:
     """Run the SAC-ZOP trainer.
 
@@ -95,10 +102,12 @@ def run_sac_zop(
             If it already exists, the run will continue from the last checkpoint.
         device: The device to use.
         reuse_code_dir: The directory to reuse compiled code from, if any.
+        with_val: Whether to use a validation environment.
     """
+    val_env = create_env(cfg.env, render_mode="rgb_array") if with_val else None
     trainer = SacZopTrainer(
         cfg=cfg.trainer,
-        val_env=create_env(cfg.env, render_mode="rgb_array"),
+        val_env=val_env,
         output_path=output_path,
         device=device,
         train_env=create_env(cfg.env),
@@ -116,6 +125,14 @@ if __name__ == "__main__":
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
     parser.add_argument("--controller", type=str, default=None)
+    parser.add_argument("--with-val", action="store_true", help="Enable validation environment")
+    parser.add_argument(
+        "--ckpt-modus",
+        type=str,
+        default=None,
+        choices=["none", "last", "all", "best"],
+        help="Checkpoint mode. Defaults to 'best' with --with-val, 'last' otherwise.",
+    )
     parser.add_argument(
         "-r",
         "--reuse_code",
@@ -128,7 +145,14 @@ if __name__ == "__main__":
     parser.add_argument("--wandb-project", type=str, default="leap-c")
     args = parser.parse_args()
 
-    cfg = create_cfg(args.env, args.controller, args.seed)
+    if args.ckpt_modus is not None:
+        ckpt_modus = args.ckpt_modus
+    elif args.with_val:
+        ckpt_modus = "best"
+    else:
+        ckpt_modus = "last"
+
+    cfg = create_cfg(args.env, args.controller, args.seed, ckpt_modus)
 
     if args.use_wandb:
         config_dict = asdict(cfg)
@@ -154,4 +178,10 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
-    run_sac_zop(cfg=cfg, output_path=output_path, device=args.device, reuse_code_dir=reuse_code_dir)
+    run_sac_zop(
+        cfg=cfg,
+        output_path=output_path,
+        device=args.device,
+        reuse_code_dir=reuse_code_dir,
+        with_val=args.with_val,
+    )

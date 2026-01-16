@@ -74,7 +74,9 @@ class ControllerTrainer(Trainer[ControllerTrainerConfig, CtxType], Generic[CtxTy
     def train_loop(self) -> Generator[int, None, None]:
         """No training - just return immediately."""
         while True:
-            yield 1
+            steps = 1
+            score = 0
+            yield steps, score
 
     def act(
         self, obs: ndarray, deterministic: bool = False, state: CtxType | None = None

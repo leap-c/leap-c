@@ -75,7 +75,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
     def __init__(
         self,
         cfg: SacFopTrainerConfig,
-        val_env: gym.Env,
+        val_env: gym.Env | None,
         output_path: str | Path,
         device: str,
         train_env: gym.Env,
@@ -86,7 +86,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
 
         Args:
             cfg: The configuration for the trainer.
-            val_env: The validation environment.
+            val_env: The validation environment. If None, training runs without evaluation.
             output_path: The path to the output directory.
             device: The device on which the trainer is running.
             train_env: The training environment.
@@ -137,7 +137,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
             cfg.buffer_size, device=device, collate_fn_map=controller.collate_fn_map
         )
 
-    def train_loop(self) -> Generator[int, None, None]:
+    def train_loop(self) -> Generator[tuple[int, float], None, None]:
         is_terminated = is_truncated = True
         policy_state = None
         obs = None
@@ -154,7 +154,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
                 pi_output: StochasticMPCActorOutput = self.pi(
                     obs_batched, policy_state, deterministic=False
                 )
-            action = pi_output.action.cpu().numpy()[0]
+            action = pi_output.action.cpu().numpy()[0]  # type:ignore
             param = pi_output.param.cpu().numpy()[0]
 
             self.report_stats("train_trajectory", {"param": param, "action": action}, verbose=True)
@@ -266,7 +266,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
                 self.report_stats("loss", loss_stats)
                 self.report_stats("train_policy_update", pi_o_stats, verbose=True)
 
-            yield 1
+            yield 1, float(reward)
 
     def act(
         self, obs: np.ndarray, deterministic: bool = False, state: CtxType | None = None

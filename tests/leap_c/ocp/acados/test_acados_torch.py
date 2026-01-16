@@ -99,13 +99,17 @@ def test_statelessness(diff_mpc: AcadosDiffMpcTorch) -> None:
                         different parameters or if it does not produce consistent
                         outputs for identical inputs.
     """
-    x0 = np.tile(
-        A=np.array([0.5, 0.5, 0.5, 0.5]),
-        reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
+    x0 = torch.tensor(
+        np.tile(
+            A=np.array([0.5, 0.5, 0.5, 0.5]),
+            reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
+        )
     )
-    u0 = np.tile(
-        A=np.array([0.5, 0.5]),
-        reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
+    u0 = torch.tensor(
+        np.tile(
+            A=np.array([0.5, 0.5]),
+            reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
+        )
     )
 
     p_global = diff_mpc.diff_mpc_fun.ocp.p_global_values
@@ -177,8 +181,8 @@ def test_backup_functionality(diff_mpc: AcadosDiffMpcTorch) -> None:
                         before and after restoration are not consistent.
     """
     reps = (diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1)
-    x0 = np.tile(A=np.array([0.5, 0.5, 0.5, 0.5]), reps=reps)
-    u0 = np.tile(A=np.array([0.5, 0.5]), reps=reps)
+    x0 = torch.tensor(np.tile(A=np.array([0.5, 0.5, 0.5, 0.5]), reps=reps))
+    u0 = torch.tensor(np.tile(A=np.array([0.5, 0.5]), reps=reps))
 
     solutions = []
     solutions.append(diff_mpc(x0=x0, u0=u0))
@@ -205,6 +209,7 @@ def test_backup_functionality(diff_mpc: AcadosDiffMpcTorch) -> None:
         np.testing.assert_allclose(
             solutions[0][i],
             solutions[1][i],
+            rtol=4 * 1e-7,
             err_msg=f"The solutions should have the same {field_name}.",
         )
 
@@ -246,12 +251,12 @@ def test_closed_loop(
         # Need first dimension of inputs to be batch size
         n_batch = 1
 
-        p_global = ocp.p_global_values.reshape(n_batch, ocp.dims.np_global)
+        p_global = torch.tensor(ocp.p_global_values.reshape(n_batch, ocp.dims.np_global))
 
         for step in range(100):
             # Need first dimension to be batch size
             x0 = np.array(x[-1].reshape(n_batch, nx))  # type: ignore
-            ctx, u0, _, _, _ = diff_mpc_k.forward(x0=x0, p_global=p_global)  # type: ignore
+            ctx, u0, _, _, _ = diff_mpc_k.forward(x0=torch.tensor(x0), p_global=p_global)  # type: ignore
             assert ctx.status == 0, f"Did not converge to a solution in step {step}"
             u.append(u0)
             x.append(diff_mpc_k.diff_mpc_fun.forward_batch_solver.ocp_solvers[0].get(1, "x"))
@@ -286,9 +291,9 @@ def test_closed_loop(
 class GradCheckConfig:
     """Configuration for gradient checking parameters."""
 
-    atol: float = 1e-2
+    atol: float = 1e-5
     rtol: float = 1e-3
-    eps: float = 1e-4
+    eps: float = 1e-6
     raise_exception: bool = True
 
 
@@ -543,24 +548,13 @@ def test_sensitivity(
         )
 
 
-def test_backward(
+def check_gradients(
     diff_mpc: AcadosDiffMpcTorch,
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
     n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
-) -> None:
-    """Test backward pass of AcadosDiffMpcTorch using finite differences.
-
-    Args:
-        diff_mpc: The differentiable mpc to test
-        diff_mpc_with_stagewise_varying_params: The differentiable mpc with stagewise varying params
-        n_batch: Number of batch samples to generate
-        max_batch_size: Maximum allowed batch size for performance
-        dtype: PyTorch data type for tensors
-        noise_scale: Scale factor for noise added to parameters
-    """
+):
     # Validate batch size
     if n_batch > max_batch_size:
         error_message = (
@@ -673,121 +667,141 @@ def test_backward(
             lambda result: result[2],  # [:, 1, 3][:, None]
         )
 
-    for i, diff_mpc_k in enumerate(
-        [  # diff_mpc_with_stagewise_varying_params,
-            diff_mpc
-        ]
-    ):
-        print(f"Testing the {i}th Differentiable MPC Backward Pass")
-        print("=========================================================")
-        test_inputs = _setup_test_inputs(diff_mpc_k, n_batch, dtype, noise_scale)
+    test_inputs = _setup_test_inputs(diff_mpc, n_batch, dtype, noise_scale)
 
-        # TODO: Sensitivities with respect to different parameters have different scales
-        # that lead to different tolerances and step sizes for the parameters. At the moment,
-        # we use a single set of tolerances and step sizes for all parameters.
+    # TODO: Sensitivities with respect to different parameters have different scales
+    # that lead to different tolerances and step sizes for the parameters. At the moment,
+    # we use a single set of tolerances and step sizes for all parameters.
 
-        test_cases = [
-            (
-                "dV/dx0",
-                _create_dVdx0_test(diff_mpc_k),
-                test_inputs.x0,
-                GradCheckConfig(atol=1e-1, eps=1e-2),
-            ),
-            (
-                "du0/dx0",
-                _create_du0dx0_test(diff_mpc_k),
-                test_inputs.x0,
-                GradCheckConfig(atol=1e0, eps=1e-4),
-            ),
-            (
-                "dQ/dx0",
-                _create_dQdx0_test(diff_mpc_k, test_inputs.u0),
-                test_inputs.x0,
-                GradCheckConfig(atol=1e-2, eps=1e-2),
-            ),
-            (
-                "du0/dp_global",
-                _create_du0dp_global_test(diff_mpc_k, test_inputs.x0),
-                test_inputs.p_global,
-                GradCheckConfig(atol=1e-1, eps=1e-4),
-            ),
-            (
-                "dV/dp_global",
-                _create_dVdp_global_test(diff_mpc_k, test_inputs.x0),
-                test_inputs.p_global,
-                GradCheckConfig(atol=1e-2, eps=1e-2),
-            ),
-            (
-                "dQ/dp_global",
-                _create_dQdp_global_test(diff_mpc_k, test_inputs.x0, test_inputs.u0),
-                test_inputs.p_global,
-                GradCheckConfig(atol=1e-2, eps=1e-2),
-            ),
-            (
-                "dQ/du0",
-                _create_dQdu0_test(diff_mpc_k, test_inputs.x0, test_inputs.p_global),
-                test_inputs.u0,
-                GradCheckConfig(atol=1e-2, eps=1e-2),
-            ),
-            (
-                "dx/dp_global",
-                _create_dxdp_global_test(diff_mpc_k, test_inputs.x0),
-                test_inputs.p_global,
-                GradCheckConfig(atol=1e-2, eps=1e-4),
-            ),
-            (
-                "du/dp_global",
-                _create_dudp_global_test(diff_mpc_k, test_inputs.x0),
-                test_inputs.p_global,
-                GradCheckConfig(atol=4 * 1e-2, eps=1e-4),
-            ),
-        ]
+    test_cases = [
+        (
+            "dV/dx0",
+            _create_dVdx0_test(diff_mpc),
+            test_inputs.x0,
+            GradCheckConfig(atol=1e-3),
+        ),
+        (
+            "du0/dx0",
+            _create_du0dx0_test(diff_mpc),
+            test_inputs.x0,
+            GradCheckConfig(atol=1e-3),
+        ),
+        (
+            "dQ/dx0",
+            _create_dQdx0_test(diff_mpc, test_inputs.u0),
+            test_inputs.x0,
+            GradCheckConfig(atol=1e-3),
+        ),
+        (
+            "du0/dp_global",
+            _create_du0dp_global_test(diff_mpc, test_inputs.x0),
+            test_inputs.p_global,
+            GradCheckConfig(atol=1e-2),
+        ),
+        (
+            "dV/dp_global",
+            _create_dVdp_global_test(diff_mpc, test_inputs.x0),
+            test_inputs.p_global,
+            GradCheckConfig(atol=1e-3),
+        ),
+        (
+            "dQ/dp_global",
+            _create_dQdp_global_test(diff_mpc, test_inputs.x0, test_inputs.u0),
+            test_inputs.p_global,
+            GradCheckConfig(atol=1e-3),
+        ),
+        (
+            "dQ/du0",
+            _create_dQdu0_test(diff_mpc, test_inputs.x0, test_inputs.p_global),
+            test_inputs.u0,
+            GradCheckConfig(atol=1e-3),
+        ),
+        (
+            "dx/dp_global",
+            _create_dxdp_global_test(diff_mpc, test_inputs.x0),
+            test_inputs.p_global,
+            GradCheckConfig(atol=1e-2),
+        ),
+        (
+            "du/dp_global",
+            _create_dudp_global_test(diff_mpc, test_inputs.x0),
+            test_inputs.p_global,
+            GradCheckConfig(atol=2 * 1e-2),
+        ),
+    ]
 
-        # Run gradient checks
-        times = dict()
-        for test_name, test_func, test_input, config in test_cases:
-            try:
-                start_time = time.time()
-                print(f"{test_name} gradient check running")
-                torch.autograd.gradcheck(
-                    func=test_func,
-                    inputs=test_input,
-                    atol=config.atol,
-                    rtol=config.rtol,
-                    eps=config.eps,
-                    raise_exception=True,
-                )
-                times[test_name] = time.time() - start_time
-                if test_name == "dx/dp_global" or test_name == "du/dp_global":
-                    pass
-                print(f"✓ {test_name} gradient check passed")
-            except Exception as e:
-                print(f"✗ {test_name} gradient check failed: {e}")
-                raise
-        print(f"Times taken in seconds for batch_size {n_batch}: {times}.")
+    # Run gradient checks
+    times = dict()
+    for test_name, test_func, test_input, config in test_cases:
+        try:
+            start_time = time.time()
+            print(f"{test_name} gradient check running")
+            torch.autograd.gradcheck(
+                func=test_func,
+                inputs=test_input,
+                atol=config.atol,
+                rtol=config.rtol,
+                eps=config.eps,
+                raise_exception=True,
+            )
+            times[test_name] = time.time() - start_time
+            if test_name == "dx/dp_global" or test_name == "du/dp_global":
+                pass
+            print(f"✓ {test_name} gradient check passed")
+        except Exception:
+            raise
+    print(f"Times taken in seconds for batch_size {n_batch}: {times}.")
 
 
-# NOTE: Useful for debugging the sensitivities.
-# I inserted it somewhere around "if not _allclose_with_type_promotion(a, n, rtol, atol):"
-# in gradcheck.py .
+def create_grid(offset, num):
+    return 1e-3 * np.linspace(0, 1, num=num) + offset - 5 * 1e-4
 
-# def tell_me_more(a, n, rtol, atol):
-#     print("max:", a.max(), n.max())
-#     print("min:", a.min(), n.min())
-#     print("Max difference:", (a - n).abs().max())
-#     neq = ~torch.isclose(a, n, rtol=rtol, atol=atol)
-#     nonzero = ~torch.isclose(a, torch.zeros_like(a), rtol=rtol, atol=atol)
-#     nnonzero = ~torch.isclose(a, torch.zeros_like(n), rtol=rtol, atol=atol)
-#     print("Wrong elements: ", neq.sum())
-#     print("Nonzero elements: ", (nonzero.sum()))
-#     print("Indices of wrong elements: ", torch.nonzero(neq, as_tuple=True))
-#     nonzero_ind_a = torch.nonzero(nonzero, as_tuple=True)
-#     nonzero_ind_n = torch.nonzero(nnonzero, as_tuple=True)
-#     for entry_a, entry_n in zip(nonzero_ind_a, nonzero_ind_n
-#     ):
-#         if not torch.allclose(entry_a, entry_n):
-#             print("Indices of nonzero elements a: ", nonzero_ind_a)
-#             print("Indices of nonzero elements n: ", nonzero_ind_n)
-#             raise Exception("Nonzero indices do not match")
-#         else:
-#             print("Nonzero indices match")
+
+def test_backward_lmpc(
+    diff_mpc: AcadosDiffMpcTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
+    n_batch: int = 4,
+    max_batch_size: int = 10,
+    dtype: torch.dtype = torch.float64,
+    noise_scale: float = 0.1,
+) -> None:
+    """Test backward pass of an AcadosDiffMpcTorch (a pointmass example) using finite differences.
+
+    Args:
+        diff_mpc: The differentiable mpc to test
+        diff_mpc_with_stagewise_varying_params: The differentiable mpc with stagewise varying params
+        n_batch: Number of batch samples to generate
+        max_batch_size: Maximum allowed batch size for performance
+        dtype: PyTorch data type for tensors
+        noise_scale: Scale factor for noise added to parameters
+    """
+    print("Check non-stagewise diff_mpc===========================")
+    check_gradients(diff_mpc, n_batch, max_batch_size, dtype, noise_scale)
+    print("Check stagewise diff_mpc===============================")
+    check_gradients(
+        diff_mpc_with_stagewise_varying_params, n_batch, max_batch_size, dtype, noise_scale
+    )
+
+
+def test_backward_nmpc(
+    diff_mpc_indefinite_hess: AcadosDiffMpcTorch,
+    diff_mpc_indefinite_hess_stagewise: AcadosDiffMpcTorch,
+    n_batch: int = 4,
+    max_batch_size: int = 10,
+    dtype: torch.dtype = torch.float64,
+    noise_scale: float = 0.1,
+) -> None:
+    """Test backward pass of AcadosDiffMpcTorch (the cartpole example) using finite differences.
+
+    Args:
+        diff_mpc_indefinite_hess: Differentiable mpc containing an indefinite full hessian.
+        diff_mpc_indefinite_hess_stagewise: Like the above mpc, but with stagewise parameters.
+        n_batch: Number of batch samples to generate
+        max_batch_size: Maximum allowed batch size for performance
+        dtype: PyTorch data type for tensors
+        noise_scale: Scale factor for noise added to parameters
+    """
+    print("Check non-stagewise diff_mpc===========================")
+    check_gradients(diff_mpc_indefinite_hess, n_batch, max_batch_size, dtype, noise_scale)
+    print("Check stagewise diff_mpc===============================")
+    check_gradients(diff_mpc_indefinite_hess_stagewise, n_batch, max_batch_size, dtype, noise_scale)

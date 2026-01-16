@@ -15,7 +15,7 @@ class LoggerConfig:
     Args:
         verbose: If `True`, the logger will collect also verbose statistics.
         interval: The interval at which statistics will be logged (in steps).
-        window: The moving window size for the statistics (in steps).
+        window: The moving window size for the smoothed statistics (in steps).
         csv_logger: If `True`, the statistics will be logged to a CSV file.
         tensorboard_logger: If `True`, the statistics will be logged to TensorBoard.
         wandb_logger: If `True`, the statistics will be logged to Weights & Biases.
@@ -35,6 +35,16 @@ class LoggerConfig:
 
 
 class GroupWindowTracker:
+    """A moving window statistics tracker for smoothing metrics.
+
+    This tracker maintains a sliding window of statistics and computes moving
+    averages over the window. Statistics are reported at fixed interval boundaries,
+    with each report containing the average of all values within the window.
+
+    This is useful for reducing noise in high-frequency metrics like losses or
+    rewards during training and reducing the number of logged entries.
+    """
+
     def __init__(self, interval: int, window_size: int) -> None:
         """Initialize the group window tracker.
 
@@ -113,22 +123,73 @@ class GroupWindowTracker:
         clean_until(timestamp - self._window_size)
 
 
+class GroupCumulativeTracker:
+    """A simple cumulative statistics tracker.
+
+    This tracker accumulates statistics over time and provides cumulative values.
+    When `update` is called, the statistics are added to the running totals.
+    Reports are yielded at each interval boundary (like regret curves).
+
+    Reports at interval 0 (first interval boundary at timestamp `interval - 1`).
+    """
+
+    def __init__(self, interval: int):
+        """Initialize the cumulative tracker.
+
+        Args:
+            interval: The interval at which statistics will be logged.
+        """
+        self._interval = interval
+        self._cum_statistics: dict[str, float] = defaultdict(float)
+        self._last_reported_interval: int = 0
+
+    def update(
+        self, timestamp: int, stats: dict[str, float]
+    ) -> Generator[tuple[int, dict[str, float]], None, None]:
+        """Add statistics to the tracker and yield reports at interval boundaries.
+
+        This method adds the statistics to the cumulative tracker. If the timestamp
+        crosses one or more interval boundaries since the last report, it yields
+        the cumulative statistics for each crossed boundary.
+
+        Args:
+            timestamp: The timestamp of the statistics.
+            stats: The statistics to be added.
+
+        Yields:
+            Tuples of (report_timestamp, cumulative_stats) for each interval boundary.
+        """
+        for key, value in stats.items():
+            self._cum_statistics[key] += float(value)
+
+        # calculate current interval index (1-indexed for reporting)
+        # interval_idx=1 means we're in [interval, 2*interval)
+        current_interval = (timestamp + 1) // self._interval
+
+        while self._last_reported_interval < current_interval:
+            self._last_reported_interval += 1
+            report_timestamp = self._last_reported_interval * self._interval - 1
+            yield report_timestamp, dict(self._cum_statistics)
+
+
 class Logger:
     """A simple logger for statistics.
 
     This logger can write statistics to CSV, TensorBoard, and Weights & Biases.
 
-    # TODO: Logging statistics to the console.
+    # TODO (Jasper): Logging statistics to the console.
 
     Attributes:
         cfg: The configuration for the logger.
         output_path: The path to save the logs.
-        group_trackers: A dictionary of group trackers for smoothing statistics.
+        window_trackers: A dictionary of window trackers for smoothing statistics.
+        cumulative_trackers: A dictionary of cumulative trackers for regret-style metrics.
     """
 
     cfg: LoggerConfig
     output_path: Path
-    group_trackers: dict[str, GroupWindowTracker]
+    window_trackers: dict[str, GroupWindowTracker]
+    cumulative_trackers: dict[str, GroupCumulativeTracker]
 
     def __init__(self, cfg: LoggerConfig, output_path: str | Path) -> None:
         """Initialize the logger, but does not start it.
@@ -143,7 +204,8 @@ class Logger:
         self.cfg = cfg
         self.output_path = Path(output_path)
         self.output_path.mkdir(parents=True, exist_ok=True)
-        self.group_trackers = defaultdict(lambda: GroupWindowTracker(cfg.interval, cfg.window))
+        self.window_trackers = defaultdict(lambda: GroupWindowTracker(cfg.interval, cfg.window))
+        self.cumulative_trackers = defaultdict(lambda: GroupCumulativeTracker(cfg.interval))
 
     def __enter__(self) -> "Logger":
         """Starts the logger.
@@ -202,6 +264,7 @@ class Logger:
         timestamp: int,
         verbose: bool = False,
         with_smoothing: bool = True,
+        cumulative: bool = False,
     ) -> None:
         """Report statistics.
 
@@ -216,8 +279,11 @@ class Logger:
             verbose: If `True`, the statistics will only be logged in verbosity mode.
             with_smoothing: If `True`, the statistics are smoothed with a moving window.
                 This also results in the statistics being only reported at specific intervals.
+            cumulative: If `True`, the statistics are cumulative over time. Note that this ignores
+                smoothing.
         """
         cfg = self.cfg
+
         if (
             (cfg.tensorboard_logger and not hasattr(self, "_tensorboard_writer"))
             or (cfg.wandb_logger and not hasattr(self, "_wandb_defined_metrics"))
@@ -253,8 +319,13 @@ class Logger:
                 stats[f"{key}_{i}"] = float(v)
 
         # find correct iterable
-        if with_smoothing:
-            report_loop = self.group_trackers[group].update(
+        if cumulative:
+            report_loop = self.cumulative_trackers[group].update(
+                timestamp,
+                stats,  # type:ignore
+            )
+        elif with_smoothing:
+            report_loop = self.window_trackers[group].update(
                 timestamp,
                 stats,  # type:ignore
             )

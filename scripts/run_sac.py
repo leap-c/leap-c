@@ -3,6 +3,7 @@
 from argparse import ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from leap_c.examples import ExampleEnvName, create_env
 from leap_c.run import default_name, default_output_path, init_run
@@ -19,7 +20,11 @@ class RunSacConfig:
     extractor: ExtractorName = "identity"
 
 
-def create_cfg(env: str, seed: int) -> RunSacConfig:
+def create_cfg(
+    env: str,
+    seed: int,
+    ckpt_modus: Literal["best", "last", "all", "none"] = "last",
+) -> RunSacConfig:
     """Return the default configuration for running SAC experiments."""
     # ---- Configuration ----
     cfg = RunSacConfig()
@@ -36,7 +41,7 @@ def create_cfg(env: str, seed: int) -> RunSacConfig:
     cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
     cfg.trainer.val_report_score = "cum"
-    cfg.trainer.ckpt_modus = "best"
+    cfg.trainer.ckpt_modus = ckpt_modus
     cfg.trainer.batch_size = 64
     cfg.trainer.buffer_size = 1_000_000
     cfg.trainer.gamma = 0.99
@@ -74,7 +79,12 @@ def create_cfg(env: str, seed: int) -> RunSacConfig:
     return cfg
 
 
-def run_sac(cfg: RunSacConfig, output_path: str | Path, device: str = "cuda") -> float:
+def run_sac(
+    cfg: RunSacConfig,
+    output_path: str | Path,
+    device: str = "cuda",
+    with_val: bool = False,
+) -> float:
     """Run the SAC trainer.
 
     Args:
@@ -82,10 +92,12 @@ def run_sac(cfg: RunSacConfig, output_path: str | Path, device: str = "cuda") ->
         output_path: The path to save outputs to.
             If it already exists, the run will continue from the last checkpoint.
         device: The device to use.
+        with_val: Whether to use a validation environment.
     """
+    val_env = create_env(cfg.env, render_mode="rgb_array") if with_val else None
     trainer = SacTrainer(
         cfg=cfg.trainer,
-        val_env=create_env(cfg.env, render_mode="rgb_array"),
+        val_env=val_env,
         output_path=output_path,
         device=device,
         train_env=create_env(cfg.env),
@@ -101,6 +113,14 @@ if __name__ == "__main__":
     parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
+    parser.add_argument("--with-val", action="store_true", help="Enable validation environment")
+    parser.add_argument(
+        "--ckpt-modus",
+        type=str,
+        default=None,
+        choices=["none", "last", "all", "best"],
+        help="Checkpoint mode. Defaults to 'best' with --with-val, 'last' otherwise.",
+    )
     parser.add_argument("--use-wandb", action="store_true")
     parser.add_argument("--wandb-entity", type=str, default=None)
     parser.add_argument("--wandb-project", type=str, default="leap-c")
@@ -111,7 +131,14 @@ if __name__ == "__main__":
     else:
         output_path = args.output_path
 
-    cfg = create_cfg(args.env, args.seed)
+    if args.ckpt_modus is not None:
+        ckpt_modus = args.ckpt_modus
+    elif args.with_val:
+        ckpt_modus = "best"
+    else:
+        ckpt_modus = "last"
+
+    cfg = create_cfg(args.env, args.seed, ckpt_modus)
 
     if args.use_wandb:
         config_dict = asdict(cfg)
@@ -123,4 +150,4 @@ if __name__ == "__main__":
             "config": config_dict,
         }
 
-    run_sac(cfg, output_path, args.device)
+    run_sac(cfg, output_path, args.device, args.with_val)

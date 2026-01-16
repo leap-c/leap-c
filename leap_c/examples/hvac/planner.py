@@ -61,11 +61,14 @@ class HvacPlannerConfig:
             (default: 96, i.e., 24 hours in 15-minute steps).
         param_interface: Determines the exposed parameter interface of the planner.
         param_granularity: Determines the granularity of the parameters
+        dtype: Type the planner output tensors will automatically be cast to.
     """
 
     N_horizon: int = 24 * 4 - 1  # 24 hours in 15 minutes time steps
     param_interface: HvacAcadosParamInterface = "reference"
     param_granularity: HvacAcadosParamGranularity = "global"
+
+    dtype: torch.dtype = torch.float32
 
 
 class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
@@ -150,7 +153,9 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         if diff_mpc_kwargs is None:
             diff_mpc_kwargs = {}
 
-        diff_mpc = AcadosDiffMpcTorch(ocp, **diff_mpc_kwargs, export_directory=export_directory)
+        diff_mpc = AcadosDiffMpcTorch(
+            ocp, **diff_mpc_kwargs, export_directory=export_directory, dtype=self.cfg.dtype
+        )
 
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
 
