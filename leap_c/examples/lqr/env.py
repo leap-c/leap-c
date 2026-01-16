@@ -17,8 +17,8 @@ class LqrEnvConfig:
 
     Attributes:
         dt: Time step in seconds.
-        Q: State cost matrix (2x2).
-        R: Control cost matrix (1x1).
+        q_diag_sqrt: Square root of diagonal Q matrix elements.
+        r_diag_sqrt: Square root of diagonal R matrix elements.
         x_min: Minimum position.
         x_max: Maximum position.
         v_min: Minimum velocity.
@@ -26,33 +26,48 @@ class LqrEnvConfig:
         F_min: Minimum force.
         F_max: Maximum force.
         max_time: Maximum time for an episode in seconds.
+        mass: Mass of the system (kg).
+        damping: Damping coefficient (Ns/m).
+        stiffness: Spring stiffness coefficient (N/m).
     """
 
     dt: float = 0.1
-    Q: np.ndarray | None = None
-    R: np.ndarray | None = None
+    q_diag_sqrt: np.ndarray | None = None
+    r_diag_sqrt: np.ndarray | None = None
     x_min: float = -2.0
     x_max: float = 2.0
     v_min: float = -2.0
     v_max: float = 2.0
     F_min: float = -0.5
     F_max: float = 0.5
-    max_time: float = 10.0
+    max_time: float = 5.0
+    mass: float = 1.0
+    damping: float = 0.1
+    stiffness: float = 0.5
 
     def __post_init__(self):
-        """Set default Q and R matrices if not provided."""
-        if self.Q is None:
-            self.Q = np.diag([1.0, 0.1])
-        if self.R is None:
-            self.R = np.array([[0.01]])
+        """Set default q_diag_sqrt and r_diag_sqrt if not provided, and compute Q and R."""
+        if self.q_diag_sqrt is None:
+            self.q_diag_sqrt = np.sqrt(np.array([1.0, 0.1]))
+        if self.r_diag_sqrt is None:
+            self.r_diag_sqrt = np.sqrt(np.array([0.01]))
+
+        # Compute Q and R from sqrt diagonal representation using Cholesky factorization
+        Q_sqrt = np.diag(self.q_diag_sqrt)
+        self.Q = Q_sqrt @ Q_sqrt.T
+
+        R_sqrt = np.diag(self.r_diag_sqrt)
+        self.R = R_sqrt @ R_sqrt.T
 
 
 class LqrEnv(MatplotlibRenderEnv):
     """A simple 1D LQR environment with position and velocity states.
 
-    The dynamics follow a discrete-time double integrator:
-        x[k+1] = x[k] + dt * v[k] + 0.5 * dt^2 * F[k]
-        v[k+1] = v[k] + dt * F[k]
+    The dynamics follow a discrete-time mass-spring-damper system:
+        x[k+1] = x[k] + dt * v[k]
+        v[k+1] = v[k] + dt * (F[k]/m - (b/m)*v[k] - (k/m)*x[k])
+
+    where m is mass, b is damping coefficient, and k is spring stiffness.
 
     Observation Space:
     ------------------
@@ -146,10 +161,16 @@ class LqrEnv(MatplotlibRenderEnv):
         self.observation_space = spaces.Box(low=self.state_low, high=self.state_high)
         self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
 
-        # Define discrete-time dynamics matrices
+        # Define discrete-time dynamics matrices for mass-spring-damper system
+        # Continuous dynamics: x_dot = v, v_dot = F/m - (b/m)*v - (k/m)*x
+        # Discretized using Euler method
         dt = self.cfg.dt
-        self.A = np.array([[1.0, dt], [0.0, 1.0]])
-        self.B = np.array([[0.5 * dt**2], [dt]])
+        m = self.cfg.mass
+        b = self.cfg.damping
+        k = self.cfg.stiffness
+
+        self.A = np.array([[1.0, dt], [-dt * k / m, 1.0 - dt * b / m]])
+        self.B = np.array([[0.0], [dt / m]])
 
         # Environment state
         self.state = None

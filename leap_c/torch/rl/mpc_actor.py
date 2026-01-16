@@ -159,6 +159,7 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             self.param_distribution = get_bounded_distribution(
                 cfg.distribution_name, space=param_space
             )
+
             self.action_distribution = None
             # MLP outputs: param distribution parameters
             output_sizes = list(self.param_distribution.parameter_size(param_dim))
@@ -175,6 +176,8 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             # MLP outputs: (param_mean, action_dist_params...)
             action_param_size = self.action_distribution.parameter_size(action_dim)
             output_sizes = (param_dim,) + action_param_size
+
+        self.cfg = cfg
 
         self.mlp = Mlp(
             input_sizes=self.extractor.output_size,
@@ -207,8 +210,11 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             # parameter noise mode
             dist_params = self.mlp(e)
             anchor = self.controller.default_param(obs) if self.residual else None
+
             param, log_prob, stats = self.param_distribution(
-                *dist_params, deterministic=deterministic, anchor=anchor
+                *dist_params,
+                deterministic=deterministic,
+                anchor=anchor,
             )
 
             if only_param:

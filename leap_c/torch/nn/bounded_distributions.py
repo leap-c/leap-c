@@ -9,7 +9,7 @@ import torch.nn as nn
 from gymnasium import spaces
 from torch.distributions.beta import Beta
 
-BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta"]
+BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta", "mode_concentration_beta"]
 
 
 def get_bounded_distribution(name: BoundedDistributionName, **init_kwargs) -> "BoundedDistribution":
@@ -17,6 +17,8 @@ def get_bounded_distribution(name: BoundedDistributionName, **init_kwargs) -> "B
         return SquashedGaussian(**init_kwargs)
     elif name == "scaled_beta":
         return ScaledBeta(**init_kwargs)
+    elif name == "mode_concentration_beta":
+        return ModeConcentrationBeta(**init_kwargs)
     raise ValueError(f"Unknown bounded distribution: {name}")
 
 
@@ -313,3 +315,158 @@ class ScaledBeta(BoundedDistribution):
 
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
         return (output_dim, output_dim)
+
+
+class ModeConcentrationBeta(BoundedDistribution):
+    """Beta distribution parameterized by mode and total concentration.
+
+    This distribution is parameterized similarly to SquashedGaussian:
+    - mode: The mode of the distribution in [0, 1] space
+    - log_conc: The logarithm of the concentration parameter
+
+    Attributes:
+        scale: The scale of the space-fitting transform.
+        loc: The location of the space-fitting transform (for shifting).
+        log_conc_min: The minimum value for the logarithm of the concentration.
+        log_conc_max: The maximum value for the logarithm of the concentration.
+    """
+
+    lb: torch.Tensor
+    ub: torch.Tensor
+    scale: torch.Tensor
+    _beta_dist: Beta
+    log_conc_min: float
+    log_conc_max: float
+    padding: float
+
+    def __init__(
+        self,
+        space: spaces.Box,
+        log_conc_min: float = np.log(2.0),
+        log_conc_max: float = np.log(100.0),
+        padding: float = 0.0001,
+    ) -> None:
+        """Initialize ModeConcentrationBeta distribution.
+
+        Args:
+            space: Space the output should fit to.
+            log_conc_min: The minimum value for the logarithm of the concentration.
+            log_conc_max: The maximum value for the logarithm of the concentration.
+            padding: The amount of padding to distance the action of the bounds, when
+                using the inverse transformation for the anchoring. This improves numerical
+                stability.
+        """
+        super().__init__()
+        self.log_conc_min = log_conc_min
+        self.log_conc_max = log_conc_max
+        self.padding = padding
+
+        lb = torch.tensor(space.low, dtype=torch.float32)
+        scale = torch.tensor(space.high - space.low, dtype=torch.float32)
+
+        self.register_buffer("lb", lb)
+        self.register_buffer("ub", lb + scale)
+        self.register_buffer("scale", scale)
+
+    def forward(
+        self,
+        mode: torch.Tensor,
+        log_conc: torch.Tensor,
+        deterministic: bool = False,
+        anchor: torch.Tensor | None = None,
+    ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
+        """Sample from the ModeConcentrationBeta distribution.
+
+        Args:
+            mode: The mode of the Beta distribution in [0, 1] space.
+            log_conc: The logarithm of the concentration parameter,
+                of the same shape as the mode (i.e., assuming independent dimensions).
+                Will be clamped according to the attributes of this class.
+            deterministic: If True, the output will just be spacefitting(mode),
+                no sampling is taking place.
+            anchor: Anchor point to shift the mode. Used for residual policies.
+
+        Returns:
+            An output sampled from the ModeConcentrationBeta, the log probability of this output
+            and a statistics dict.
+        """
+        if anchor is not None:
+            # Convert anchor to tensor if it's a numpy array
+            if not isinstance(anchor, torch.Tensor):
+                anchor = torch.from_numpy(anchor).to(mode.device, dtype=mode.dtype)
+
+            # TODO: Add a check to ensure anchor is within action space bounds
+
+            inv_anchor = self.inverse(anchor)
+            mode = mode + inv_anchor  # Use out-of-place operation to avoid modifying view
+
+        # Mode must be in [padding, 1-padding]
+        mode = self.padding + (1.0 - 2 * self.padding) * torch.sigmoid(mode)
+
+        # Concentration must be > 2 for valid parameterization
+        log_conc = self.log_conc_min + (self.log_conc_max - self.log_conc_min) * torch.sigmoid(
+            log_conc
+        )
+        concentration = torch.exp(log_conc)
+
+        if deterministic:
+            # Deterministic: just use the mode scaled to action space
+            y = mode
+            log_prob = torch.zeros_like(mode)
+        else:
+            # Update distribution and sample
+            self._update_distribution(mode=mode, concentration=concentration)
+            y = self._beta_dist.rsample()
+            log_prob = self._beta_dist.log_prob(y)
+
+        # Scale from [0, 1] to [lb, ub]
+        y_scaled = y * self.scale[None, :] + self.lb[None, :]
+
+        # Adjust log_prob for scaling transformation
+        log_prob -= torch.log(self.scale[None, :])
+        log_prob = log_prob.sum(dim=-1, keepdim=True)
+
+        stats = (
+            {"beta_concentration": concentration.prod(dim=-1).mean().item()}
+            if concentration is not None
+            else {}
+        )
+
+        return y_scaled, log_prob, stats
+
+    def _update_distribution(
+        self,
+        mode: torch.Tensor | float,
+        concentration: torch.Tensor | float,
+    ) -> None:
+        """Update the mode and concentration parameters of the distribution.
+
+        Args:
+            mode: New mode parameter in [0, 1] space
+            concentration: New concentration parameter
+        """
+        mode = torch.as_tensor(mode)
+        concentration = torch.as_tensor(concentration)
+
+        # Compute alpha, beta from mode and total concentration c
+        alpha = 1.0 + mode * (concentration - 2.0)
+        beta = 1.0 + (1.0 - mode) * (concentration - 2.0)
+
+        # Update the internal Beta distribution with new parameters
+        self._beta_dist = Beta(concentration1=alpha, concentration0=beta, validate_args=None)
+
+    def parameter_size(self, output_dim: int) -> tuple[int, ...]:
+        return (output_dim, output_dim)
+
+    def inverse(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the inverse transformation from [lb, ub] to [0, 1].
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The inverse scaled tensor.
+        """
+        x = torch.as_tensor(x) if not isinstance(x, torch.Tensor) else x
+
+        return (x - self.lb[None, :]) / self.scale[None, :]
