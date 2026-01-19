@@ -31,13 +31,13 @@ def create_batch_solver(
 
     # translate cost terms to external to allow
     # implicit differentiation for a p_global parameter.
-    if ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
+    if ocp.cost.cost_type_0 is not None and ocp.cost.cost_type_0 != "EXTERNAL":
         ocp.translate_initial_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-    if ocp.cost.cost_type not in ["EXTERNAL"]:
+    if ocp.cost.cost_type != "EXTERNAL":
         ocp.translate_intermediate_cost_term_to_external(
             cost_hessian=ocp.solver_options.hessian_approx
         )
-    if ocp.cost.cost_type_e not in ["EXTERNAL"]:
+    if ocp.cost.cost_type_e != "EXTERNAL":
         ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
 
     if export_directory is None:
