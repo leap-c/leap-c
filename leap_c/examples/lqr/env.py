@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
 import numpy as np
-from gymnasium import spaces
+from gymnasium.spaces import Box
 from matplotlib.lines import Line2D
 from scipy.linalg import solve_discrete_are
 
@@ -97,8 +97,6 @@ class LqrEnv(MatplotlibRenderEnv):
 
     Attributes:
         cfg: Configuration object for the environment.
-        state_low: Lower bounds for position and velocity.
-        state_high: Upper bounds for position and velocity.
         observation_space: The observation space of the environment.
         action_space: The action space of the environment.
         A: State transition matrix (2x2).
@@ -112,10 +110,8 @@ class LqrEnv(MatplotlibRenderEnv):
     """
 
     cfg: LqrEnvConfig
-    state_low: np.ndarray
-    state_high: np.ndarray
-    observation_space: spaces.Box
-    action_space: spaces.Box
+    observation_space: Box
+    action_space: Box
     A: np.ndarray
     B: np.ndarray
     state: np.ndarray | None
@@ -144,13 +140,13 @@ class LqrEnv(MatplotlibRenderEnv):
         self.cfg = LqrEnvConfig() if cfg is None else cfg
 
         # Gymnasium setup
-        self.state_low = np.array([self.cfg.x_min, self.cfg.v_min], dtype=np.float32)
-        self.state_high = np.array([self.cfg.x_max, self.cfg.v_max], dtype=np.float32)
-        self.action_low = np.array([self.cfg.F_min], dtype=np.float32)
-        self.action_high = np.array([self.cfg.F_max], dtype=np.float32)
+        state_low = np.array([self.cfg.x_min, self.cfg.v_min], np.float32)
+        state_high = np.array([self.cfg.x_max, self.cfg.v_max], np.float32)
+        self.observation_space = Box(state_low, state_high)
 
-        self.observation_space = spaces.Box(low=self.state_low, high=self.state_high)
-        self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
+        action_low = np.array([self.cfg.F_min], np.float32)
+        action_high = np.array([self.cfg.F_max], np.float32)
+        self.action_space = Box(action_low, action_high)
 
         # Define discrete-time dynamics matrices for mass-spring-damper system
         # Continuous dynamics: x_dot = v, v_dot = F/m - (b/m)*v - (k/m)*x
@@ -192,7 +188,8 @@ class LqrEnv(MatplotlibRenderEnv):
             raise ValueError("Environment must be reset before stepping.")
 
         # Clip action to bounds
-        action = np.clip(action, self.action_low, self.action_high)
+        act_space = self.action_space
+        action = np.clip(action, act_space.low, act_space.high, dtype=act_space.dtype)
 
         # State transition
         self.state = self.A @ self.state + self.B @ action.reshape(-1)
@@ -203,7 +200,8 @@ class LqrEnv(MatplotlibRenderEnv):
         self.actions.append(action.copy())
 
         # Check termination conditions
-        out_of_bounds = (self.state_high < self.state).any() or (self.state_low > self.state).any()
+        obs_space = self.observation_space
+        out_of_bounds = (obs_space.high < self.state).any() or (obs_space.low > self.state).any()
 
         # Success if close to origin with low velocity
         close_to_origin = np.abs(self.state[0]) < 0.1 and np.abs(self.state[1]) < 0.1
