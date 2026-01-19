@@ -27,18 +27,17 @@ def create_batch_solver(
         n_batch_max: Maximum batch size.
         num_threads: Number of threads used in the batch solver.
     """
-    ocp.solver_options.with_batch_functionality = True
+    opts = ocp.solver_options
+    opts.with_batch_functionality = True
 
     # translate cost terms to external to allow
     # implicit differentiation for a p_global parameter.
     if ocp.cost.cost_type_0 is not None and ocp.cost.cost_type_0 != "EXTERNAL":
-        ocp.translate_initial_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
+        ocp.translate_initial_cost_term_to_external(cost_hessian=opts.hessian_approx)
     if ocp.cost.cost_type != "EXTERNAL":
-        ocp.translate_intermediate_cost_term_to_external(
-            cost_hessian=ocp.solver_options.hessian_approx
-        )
+        ocp.translate_intermediate_cost_term_to_external(cost_hessian=opts.hessian_approx)
     if ocp.cost.cost_type_e != "EXTERNAL":
-        ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
+        ocp.translate_terminal_cost_term_to_external(cost_hessian=opts.hessian_approx)
 
     if export_directory is None:
         export_directory = Path(mkdtemp())
@@ -153,7 +152,7 @@ def _check_need_sensitivity_solver(ocp: AcadosOcp) -> bool:
 
 def _set_discount_factor(
     ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver, discount_factor: float
-):
+) -> None:
     if isinstance(ocp_solver, AcadosOcpSolver):
         for stage in range(ocp_solver.acados_ocp.solver_options.N_horizon + 1):  # type: ignore
             ocp_solver.cost_set(stage, "scaling", discount_factor**stage)
@@ -168,19 +167,21 @@ def _set_discount_factor(
 
 def make_ocp_sensitivity_compatible(sensitivity_ocp: AcadosOcp):
     """Make the given ocp compatible with sensitivity computation."""
-    sensitivity_ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    sensitivity_ocp.solver_options.qp_solver_ric_alg = 0
-    sensitivity_ocp.solver_options.qp_solver_cond_N = sensitivity_ocp.solver_options.N_horizon
-    sensitivity_ocp.solver_options.hessian_approx = "EXACT"
-    sensitivity_ocp.solver_options.regularize_method = "NO_REGULARIZE"
-    sensitivity_ocp.solver_options.exact_hess_constr = True
-    sensitivity_ocp.solver_options.exact_hess_cost = True
-    sensitivity_ocp.solver_options.exact_hess_dyn = True
-    sensitivity_ocp.solver_options.fixed_hess = 0
-    sensitivity_ocp.solver_options.levenberg_marquardt = 0.0
-    sensitivity_ocp.solver_options.with_solution_sens_wrt_params = True
-    sensitivity_ocp.solver_options.with_value_sens_wrt_params = True
+    opts = sensitivity_ocp.solver_options
+    opts.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    opts.qp_solver_ric_alg = 0
+    opts.qp_solver_cond_N = sensitivity_ocp.solver_options.N_horizon
+    opts.hessian_approx = "EXACT"
+    opts.regularize_method = "NO_REGULARIZE"
+    opts.exact_hess_constr = True
+    opts.exact_hess_cost = True
+    opts.exact_hess_dyn = True
+    opts.fixed_hess = 0
+    opts.levenberg_marquardt = 0.0
+    opts.with_solution_sens_wrt_params = True
+    opts.with_value_sens_wrt_params = True
 
-    sensitivity_ocp.model.cost_expr_ext_cost_custom_hess_0 = None
-    sensitivity_ocp.model.cost_expr_ext_cost_custom_hess = None
-    sensitivity_ocp.model.cost_expr_ext_cost_custom_hess_e = None
+    mdl = sensitivity_ocp.model
+    mdl.cost_expr_ext_cost_custom_hess_0 = None
+    mdl.cost_expr_ext_cost_custom_hess = None
+    mdl.cost_expr_ext_cost_custom_hess_e = None
