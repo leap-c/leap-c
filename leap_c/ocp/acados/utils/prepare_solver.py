@@ -122,4 +122,4 @@ def _is_param_legal(model_p) -> bool:
     elif isinstance(model_p, list) or isinstance(model_p, tuple):
         return len(model_p) != 0
     else:
-        raise ValueError(f"Unknown case for model_p, type is {type(model_p)}")
+        raise ValueError(f"Unknown case for `model_p`, type is `{type(model_p)}`")
