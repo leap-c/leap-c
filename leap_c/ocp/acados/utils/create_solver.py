@@ -117,10 +117,6 @@ def create_forward_backward_batch_solvers(
     # check if we can use the forward solver for the backward pass.
     need_backward_solver = _check_need_sensitivity_solver(ocp)
 
-    if need_backward_solver:
-        ocp.solver_options.with_solution_sens_wrt_params = True
-        ocp.solver_options.with_value_sens_wrt_params = True
-
     forward_batch_solver = create_batch_solver(
         ocp,
         export_directory=export_directory,
