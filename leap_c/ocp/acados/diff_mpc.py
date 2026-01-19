@@ -190,28 +190,17 @@ class AcadosDiffMpcFunction(DiffFunction):
         """
         batch_size = x0.shape[0]
 
-        solver_input = AcadosOcpSolverInput(
-            x0=x0,
-            u0=u0,
-            p_global=p_global,
-            p_stagewise=p_stagewise,
-            p_stagewise_sparse_idx=p_stagewise_sparse_idx,
-        )
+        solver_input = AcadosOcpSolverInput(x0, u0, p_global, p_stagewise, p_stagewise_sparse_idx)
         ocp_iterate = None if ctx is None else ctx.iterate
 
         status, log = solve_with_retry(
-            self.forward_batch_solver,
-            initializer=self.initializer,
-            ocp_iterate=ocp_iterate,
-            solver_input=solver_input,
+            self.forward_batch_solver, self.initializer, ocp_iterate, solver_input
         )
 
         # fetch output
         active_solvers = self.forward_batch_solver.ocp_solvers[:batch_size]
         sol_iterate = self.forward_batch_solver.get_flat_iterate(batch_size)
-        ctx = AcadosDiffMpcCtx(
-            iterate=sol_iterate, log=log, status=status, solver_input=solver_input
-        )
+        ctx = AcadosDiffMpcCtx(sol_iterate, status, log, solver_input)
         sol_value = np.array([[s.get_cost()] for s in active_solvers])
         sol_u0 = sol_iterate.u[:, : self.ocp.dims.nu]
 
@@ -255,7 +244,7 @@ class AcadosDiffMpcFunction(DiffFunction):
 
             if x_seed is not None and not dx_zero:
                 # Sum over batch dim and state dim to know which stages to seed
-                take_stages = np.abs(x_seed).sum(axis=(0, 2)) > 0
+                take_stages = np.abs(x_seed).sum((0, 2)) > 0
                 x_seed_with_stage = [
                     (stage_idx, x_seed[:, stage_idx][..., None])
                     for stage_idx in range(0, self.ocp.solver_options.N_horizon + 1)  # type: ignore
@@ -266,7 +255,7 @@ class AcadosDiffMpcFunction(DiffFunction):
 
             if u_seed is not None and not du_zero:
                 # Sum over batch dim and control dim to know which stages to seed
-                take_stages = np.abs(u_seed).sum(axis=(0, 2)) > 0
+                take_stages = np.abs(u_seed).sum((0, 2)) > 0
                 u_seed_with_stage = [
                     (stage_idx, u_seed[:, stage_idx][..., None])
                     for stage_idx in range(self.ocp.solver_options.N_horizon)  # type: ignore
@@ -276,10 +265,7 @@ class AcadosDiffMpcFunction(DiffFunction):
                 u_seed_with_stage = []
 
             grad = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
-                seed_x=x_seed_with_stage,
-                seed_u=u_seed_with_stage,
-                with_respect_to=with_respect_to,
-                sanity_checks=True,
+                x_seed_with_stage, u_seed_with_stage, with_respect_to, True
             )[:, 0]
 
             return grad
@@ -295,7 +281,7 @@ class AcadosDiffMpcFunction(DiffFunction):
             filtered_args = [a for a in args if a is not None]
             if not filtered_args:
                 return None
-            return np.sum(filtered_args, axis=0)
+            return np.sum(filtered_args, 0)
 
         if ctx.needs_input_grad[1]:
             grad_x0 = _safe_sum(
@@ -314,7 +300,7 @@ class AcadosDiffMpcFunction(DiffFunction):
             grad_p_global = _safe_sum(
                 _jacobian(value_grad, "dvalue_dp_global"),
                 _jacobian(u0_grad, "du0_dp_global"),
-                _adjoint(x_grad, u_grad, with_respect_to="p_global"),
+                _adjoint(x_grad, u_grad, "p_global"),
             )
         else:
             grad_p_global = None
@@ -350,46 +336,32 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         if field_name == "du0_dp_global":
             single_seed = np.eye(self.ocp.dims.nu)  # type: ignore
-            seed_vec = np.repeat(single_seed[None, :, :], batch_size, axis=0)
+            seed_vec = np.repeat(single_seed[None, :, :], batch_size, 0)
             sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
-                seed_x=[],
-                seed_u=[(0, seed_vec)],
-                with_respect_to="p_global",
-                sanity_checks=True,
+                [], [(0, seed_vec)], "p_global", True
             )
         elif field_name == "dx_dp_global":
             single_seed = np.eye(self.ocp.dims.nx)  # type: ignore
-            seed_vec = np.repeat(single_seed[None, :, :], batch_size, axis=0)
+            seed_vec = np.repeat(single_seed[None, :, :], batch_size, 0)
             seed_x = [
                 (stage_idx, seed_vec) for stage_idx in range(self.ocp.solver_options.N_horizon + 1)
             ]  # type: ignore
             sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
-                seed_x=seed_x,
-                seed_u=[],
-                with_respect_to="p_global",
-                sanity_checks=True,
+                seed_x, [], "p_global", True
             )
         elif field_name == "du_dp_global":
             single_seed = np.eye(self.ocp.dims.nu)  # type: ignore
-            seed_vec = np.repeat(single_seed[None, :, :], batch_size, axis=0)
+            seed_vec = np.repeat(single_seed[None, :, :], batch_size, 0)
             seed_u = [
                 (stage_idx, seed_vec) for stage_idx in range(self.ocp.solver_options.N_horizon)
             ]  # type: ignore
             sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
-                seed_x=[],
-                seed_u=seed_u,
-                with_respect_to="p_global",
-                sanity_checks=True,
+                [], seed_u, "p_global", True
             )
         elif field_name == "du0_dx0":
             sens = np.array(
                 [
-                    s.eval_solution_sensitivity(
-                        stages=0,
-                        with_respect_to="initial_state",
-                        return_sens_u=True,
-                        return_sens_x=False,
-                    )["sens_u"]
+                    s.eval_solution_sensitivity(0, "initial_state", False)["sens_u"]
                     for s in active_solvers
                 ]
             )
