@@ -252,68 +252,21 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         prepare_batch_solver_for_backward(self.backward_batch_solver, ctx.iterate, ctx.solver_input)
 
-        def _adjoint(x_seed, u_seed, with_respect_to: str):
-            # backpropagation via the adjoint operator
-            if x_seed is None and u_seed is None:
-                return None
-
-            # check if x_seed and u_seed are all zeros
-            dx_zero = np.all(x_seed == 0) if x_seed is not None else True
-            du_zero = np.all(u_seed == 0) if u_seed is not None else True
-            if dx_zero and du_zero:
-                return None
-
-            if x_seed is not None and not dx_zero:
-                # Sum over batch dim and state dim to know which stages to seed
-                take_stages = np.abs(x_seed).sum((0, 2)) > 0
-                x_seed_with_stage = [
-                    (stage_idx, x_seed[:, stage_idx][..., None])
-                    for stage_idx in range(0, self.ocp.solver_options.N_horizon + 1)  # type: ignore
-                    if take_stages[stage_idx]
-                ]
-            else:
-                x_seed_with_stage = []
-
-            if u_seed is not None and not du_zero:
-                # Sum over batch dim and control dim to know which stages to seed
-                take_stages = np.abs(u_seed).sum((0, 2)) > 0
-                u_seed_with_stage = [
-                    (stage_idx, u_seed[:, stage_idx][..., None])
-                    for stage_idx in range(self.ocp.solver_options.N_horizon)  # type: ignore
-                    if take_stages[stage_idx]
-                ]
-            else:
-                u_seed_with_stage = []
-
-            return self.backward_batch_solver.eval_adjoint_solution_sensitivity(
-                x_seed_with_stage, u_seed_with_stage, with_respect_to, True
-            )[:, 0]
-
-        def _jacobian(output_grad, field_name: AcadosDiffMpcSensitivityOptions):
-            if output_grad is None or np.all(output_grad == 0):
-                return None
-
-            subscripts = "bj,b->bj" if output_grad.ndim == 1 else "bij,bi->bj"
-            return np.einsum(subscripts, self.sensitivity(ctx, field_name), output_grad)
-
-        def _safe_sum(*args):
-            filtered_args = [a for a in args if a is not None]
-            if not filtered_args:
-                return None
-            return np.sum(filtered_args, 0)
-
         needs_grad_x0, needs_grad_u0, needs_grad_p_global = ctx.needs_input_grad[1:4]
         grad_x0 = (
-            _safe_sum(_jacobian(value_grad, "dvalue_dx0"), _jacobian(u0_grad, "du0_dx0"))
+            self._safe_sum(
+                self._jacobian(ctx, value_grad, "dvalue_dx0"),
+                self._jacobian(ctx, u0_grad, "du0_dx0"),
+            )
             if needs_grad_x0
             else None
         )
-        grad_u0 = _jacobian(value_grad, "dvalue_du0") if needs_grad_u0 else None
+        grad_u0 = self._jacobian(ctx, value_grad, "dvalue_du0") if needs_grad_u0 else None
         grad_p_global = (
-            _safe_sum(
-                _jacobian(value_grad, "dvalue_dp_global"),
-                _jacobian(u0_grad, "du0_dp_global"),
-                _adjoint(x_grad, u_grad, "p_global"),
+            self._safe_sum(
+                self._jacobian(ctx, value_grad, "dvalue_dp_global"),
+                self._jacobian(ctx, u0_grad, "du0_dp_global"),
+                self._adjoint(x_grad, u_grad, "p_global"),
             )
             if needs_grad_p_global
             else None
@@ -392,6 +345,61 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         setattr(ctx, field_name, sens)
         return sens
+
+    def _adjoint(
+        self, x_seed: np.ndarray | None, u_seed: np.ndarray | None, with_respect_to: str
+    ) -> np.ndarray | None:
+        """Compute the adjoint sensitivity via backpropagation."""
+        # backpropagation via the adjoint operator
+        x_is_none = x_seed is None
+        u_is_none = u_seed is None
+        if x_is_none and u_is_none:
+            return None
+
+        # check if x_seed and u_seed are all zeros
+        x_is_zero = x_is_none or not x_seed.any()
+        u_is_zero = u_is_none or not u_seed.any()
+        if x_is_zero and u_is_zero:
+            return None
+
+        if x_is_none or x_is_zero:
+            x_seed_with_stage = []
+        else:
+            # Sum over batch dim and state dim to know which stages to seed
+            (nonzero_stages,) = np.abs(x_seed).sum((0, 2)).nonzero()
+            x_seed_with_stage = [(int(i), x_seed[:, i][..., None]) for i in nonzero_stages]
+
+        if u_is_none or u_is_zero:
+            u_seed_with_stage = []
+        else:
+            # Sum over batch dim and control dim to know which stages to seed
+            (nonzero_stages,) = np.abs(u_seed).sum((0, 2)).nonzero()
+            u_seed_with_stage = [(int(i), u_seed[:, i][..., None]) for i in nonzero_stages]
+
+        return self.backward_batch_solver.eval_adjoint_solution_sensitivity(
+            x_seed_with_stage, u_seed_with_stage, with_respect_to, True
+        )[:, 0]
+
+    def _jacobian(
+        self,
+        ctx: AcadosDiffMpcCtx,
+        output_grad: np.ndarray | None,
+        field_name: AcadosDiffMpcSensitivityOptions,
+    ) -> np.ndarray | None:
+        """Compute the jacobian."""
+        if output_grad is None or not output_grad.any():
+            return None
+
+        subscripts = "bj,b->bj" if output_grad.ndim == 1 else "bij,bi->bj"
+        return np.einsum(subscripts, self.sensitivity(ctx, field_name), output_grad)
+
+    @staticmethod
+    def _safe_sum(*args: np.ndarray | None) -> np.ndarray | None:
+        """Sum the given arrays, ignoring any that are `None`."""
+        filtered_args = [a for a in args if a is not None]
+        if not filtered_args:
+            return None
+        return np.sum(filtered_args, 0)
 
     @staticmethod
     @cache
