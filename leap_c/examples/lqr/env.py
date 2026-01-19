@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -32,8 +32,8 @@ class LqrEnvConfig:
     """
 
     dt: float = 0.1
-    q_diag_sqrt: np.ndarray | None = None
-    r_diag_sqrt: np.ndarray | None = None
+    q_diag_sqrt: np.ndarray = field(default_factory=lambda: np.sqrt(np.array([1.0, 0.1])))
+    r_diag_sqrt: np.ndarray = field(default_factory=lambda: np.sqrt(np.array([0.01])))
     x_min: float = -2.0
     x_max: float = 2.0
     v_min: float = -2.0
@@ -46,18 +46,9 @@ class LqrEnvConfig:
     stiffness: float = 0.5
 
     def __post_init__(self):
-        """Set default q_diag_sqrt and r_diag_sqrt if not provided, and compute Q and R."""
-        if self.q_diag_sqrt is None:
-            self.q_diag_sqrt = np.sqrt(np.array([1.0, 0.1]))
-        if self.r_diag_sqrt is None:
-            self.r_diag_sqrt = np.sqrt(np.array([0.01]))
-
-        # Compute Q and R from sqrt diagonal representation using Cholesky factorization
-        Q_sqrt = np.diag(self.q_diag_sqrt)
-        self.Q = Q_sqrt @ Q_sqrt.T
-
-        R_sqrt = np.diag(self.r_diag_sqrt)
-        self.R = R_sqrt @ R_sqrt.T
+        """Compute `Q` and `R` from sqrt diagonal representation using Cholesky factorization."""
+        self.Q = np.diag(np.square(self.q_diag_sqrt))
+        self.R = np.diag(np.square(self.r_diag_sqrt))
 
 
 class LqrEnv(MatplotlibRenderEnv):
