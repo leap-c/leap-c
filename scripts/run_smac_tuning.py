@@ -29,7 +29,7 @@ from leap_c.run import default_controller_code_path, default_output_path
 
 @dataclass
 class SmacTuningConfig:
-    """Configuration for SMAC-based hyperparameter tuning.
+    """Configuration for SMAC-based Controller parameter tuning.
 
     Attributes:
         env: The environment name.
