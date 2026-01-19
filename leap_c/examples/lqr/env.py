@@ -259,7 +259,7 @@ class LqrEnv(MatplotlibRenderEnv):
         Returns:
             Current state [x, v] as float32 array.
         """
-        return self.state.copy().astype(np.float32)
+        return self.state.astype(np.float32, copy=True)
 
     def _render_setup(self):
         """Initialize the Matplotlib figure and axes for rendering."""
