@@ -1,9 +1,9 @@
 # TODO: Rewrite this to tests for residual
 from dataclasses import dataclass
 
-import gymnasium as gym
 import numpy as np
 import torch
+from gymnasium.spaces import Box, Space
 
 from leap_c.controller import ParameterizedController
 from leap_c.torch.rl.mpc_actor import HierachicalMPCActor, HierachicalMPCActorConfig
@@ -35,9 +35,10 @@ class DummyController(ParameterizedController):
         return torch.arange(self._param_dim, dtype=torch.float32)
 
     @property
-    def param_space(self) -> gym.Space:
-        return gym.spaces.Box(
-            low=np.array([-10.0] * self._param_dim), high=np.array([20.0] * self._param_dim)
+    def param_space(self) -> Space:
+        return Box(
+            np.array([-10.0] * self._param_dim, np.float32),
+            np.array([20.0] * self._param_dim, np.float32),
         )
 
     def jacobian_action_param(self, ctx: DummyCtx) -> np.ndarray:
@@ -49,8 +50,8 @@ def test_default_param_initialization_zop():
     """Test parameter noise mode with residual learning."""
     param_dim = 4
     controller = DummyController(param_dim=param_dim)
-    dummy_obs_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(3,))
-    dummy_action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(param_dim,))
+    dummy_obs_space = Box(-np.inf, np.inf, (3,))
+    dummy_action_space = Box(-1.0, 1.0, (param_dim,))
 
     cfg = HierachicalMPCActorConfig(
         noise="param",
@@ -77,8 +78,8 @@ def test_default_param_initialization_fop():
     """Test parameter noise mode with residual learning and entropy correction."""
     param_dim = 4
     controller = DummyController(param_dim=param_dim)
-    dummy_obs_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(3,))
-    dummy_action_space = gym.spaces.Box(low=-1.0, high=1.0, shape=(param_dim,))
+    dummy_obs_space = Box(-np.inf, np.inf, (3,))
+    dummy_action_space = Box(-1.0, 1.0, (param_dim,))
 
     cfg = HierachicalMPCActorConfig(
         noise="param",
@@ -106,8 +107,8 @@ def test_default_param_initialization_foa():
     """Test action noise mode (parameters are deterministic, noise on actions)."""
     param_dim = 4
     controller = DummyController(param_dim=param_dim)
-    dummy_obs_space = gym.spaces.Box(low=-np.inf, high=np.inf, shape=(3,))
-    dummy_action_space = gym.spaces.Box(low=np.array([-100.0]), high=np.array([300.0]), shape=(1,))
+    dummy_obs_space = Box(-np.inf, np.inf, (3,))
+    dummy_action_space = Box(np.array([-100.0], np.float32), np.array([300.0], np.float32), (1,))
 
     cfg = HierachicalMPCActorConfig(
         noise="action",  # Action noise mode
