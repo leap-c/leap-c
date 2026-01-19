@@ -76,18 +76,20 @@ def prepare_batch_solver(
             solver.set_params_sparse(stage, p_stagewise_sparse_idx[idx, stage, :], param)
 
     # initial conditions
+    lbu = ocp.constraints.lbu
+    ubu = ocp.constraints.ubu
     for idx, solver in enumerate(active_solvers):
-        solver.set(0, "x", x0[idx])
-        solver.constraints_set(0, "lbx", x0[idx])
-        solver.constraints_set(0, "ubx", x0[idx])
+        solver.set(0, "x", x0_i := x0[idx])
+        solver.constraints_set(0, "lbx", x0_i)
+        solver.constraints_set(0, "ubx", x0_i)
 
         if u0 is not None:
-            solver.set(0, "u", u0[idx])
-            solver.constraints_set(0, "lbu", u0[idx])
-            solver.constraints_set(0, "ubu", u0[idx])
+            solver.set(0, "u", u0_i := u0[idx])
+            solver.constraints_set(0, "lbu", u0_i)
+            solver.constraints_set(0, "ubu", u0_i)
         else:
-            solver.constraints_set(0, "lbu", ocp.constraints.lbu)
-            solver.constraints_set(0, "ubu", ocp.constraints.ubu)
+            solver.constraints_set(0, "lbu", lbu)
+            solver.constraints_set(0, "ubu", ubu)
 
 
 def prepare_batch_solver_for_backward(
