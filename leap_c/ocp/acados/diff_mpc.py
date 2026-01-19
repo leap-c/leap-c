@@ -1,6 +1,7 @@
 """Provides an implemenation of differentiable MPC based on acados."""
 
 from dataclasses import dataclass
+from functools import cache
 from pathlib import Path
 from typing import Callable, Literal, Sequence
 
@@ -348,29 +349,23 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         match field_name:
             case "du0_dp_global":
-                single_seed = np.eye(self.ocp.dims.nu)  # type: ignore
-                seed_vec = np.repeat(single_seed[None, :, :], batch_size, 0)
+                seed_u0 = self._get_seed_seq(1, self.ocp.dims.nu, batch_size)
                 sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
-                    [], [(0, seed_vec)], "p_global", True
+                    [], seed_u0, "p_global", True
                 )
 
             case "dx_dp_global":
-                single_seed = np.eye(self.ocp.dims.nx)  # type: ignore
-                seed_vec = np.repeat(single_seed[None, :, :], batch_size, 0)
-                seed_x = [
-                    (stage_idx, seed_vec)
-                    for stage_idx in range(self.ocp.solver_options.N_horizon + 1)
-                ]  # type: ignore
+                seed_x = self._get_seed_seq(
+                    self.ocp.solver_options.N_horizon + 1, self.ocp.dims.nx, batch_size
+                )
                 sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
                     seed_x, [], "p_global", True
                 )
 
             case "du_dp_global":
-                single_seed = np.eye(self.ocp.dims.nu)  # type: ignore
-                seed_vec = np.repeat(single_seed[None, :, :], batch_size, 0)
-                seed_u = [
-                    (stage_idx, seed_vec) for stage_idx in range(self.ocp.solver_options.N_horizon)
-                ]  # type: ignore
+                seed_u = self._get_seed_seq(
+                    self.ocp.solver_options.N_horizon, self.ocp.dims.nu, batch_size
+                )
                 sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
                     [], seed_u, "p_global", True
                 )
@@ -397,3 +392,16 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         setattr(ctx, field_name, sens)
         return sens
+
+    @staticmethod
+    @cache
+    def _get_seed_seq(stages: int, n: int, batch_size: int) -> list[tuple[int, np.ndarray]]:
+        """Create the list of stages and `seed_vec` for state/action sensitivity.
+
+        The shape of a single `seed_vec` is `(batch_size, n, n)`, and the list has length `stages`.
+        """
+        single_seed = np.eye(n)
+        seed_vec = np.lib.stride_tricks.as_strided(
+            single_seed, (batch_size, n, n), (0, *single_seed.strides), writeable=False
+        )  # equivalent to `np.repeat(single_seed[None, :, :], batch_size, 0)` but without copy
+        return [(stage, seed_vec) for stage in range(stages)]
