@@ -189,10 +189,10 @@ class LqrEnv(MatplotlibRenderEnv):
 
         # Clip action to bounds
         act_space = self.action_space
-        action = np.clip(action, act_space.low, act_space.high, dtype=act_space.dtype)
+        action = np.clip(action, act_space.low, act_space.high, dtype=act_space.dtype).reshape(-1)
 
         # State transition
-        self.state = self.A @ self.state + self.B @ action.reshape(-1)
+        self.state = self.A @ self.state + self.B @ action
         self.time += self.cfg.dt
 
         # Store trajectory for rendering
@@ -201,28 +201,26 @@ class LqrEnv(MatplotlibRenderEnv):
 
         # Check termination conditions
         obs_space = self.observation_space
-        out_of_bounds = (obs_space.high < self.state).any() or (obs_space.low > self.state).any()
+        out_of_bounds = bool(
+            (obs_space.high < self.state).any() or (obs_space.low > self.state).any()
+        )
 
         # Success if close to origin with low velocity
-        close_to_origin = np.abs(self.state[0]) < 0.1 and np.abs(self.state[1]) < 0.1
-
-        terminated = bool(out_of_bounds)
-        truncated = self.time >= self.cfg.max_time
+        close_to_origin = bool(np.abs(self.state[0]) < 0.1 and np.abs(self.state[1]) < 0.1)
 
         # Compute reward (negative LQR cost)
         state_cost = self.state @ self.cfg.Q @ self.state
-        control_cost = action.reshape(-1) @ self.cfg.R @ action.reshape(-1)
+        control_cost = action @ self.cfg.R @ action
         reward = float(-(state_cost + control_cost))
 
         info = {}
+        terminated = out_of_bounds
+        truncated = self.time >= self.cfg.max_time
         if terminated or truncated:
-            info = {
-                "task": {
-                    "violation": bool(out_of_bounds),
-                    "success": bool(close_to_origin and not out_of_bounds),
-                }
+            info["task"] = {
+                "violation": out_of_bounds,
+                "success": close_to_origin and not out_of_bounds,
             }
-
         return self._observation(), reward, terminated, truncated, info
 
     def reset(
