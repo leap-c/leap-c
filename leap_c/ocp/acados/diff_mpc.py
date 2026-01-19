@@ -164,6 +164,13 @@ class AcadosDiffMpcFunction(DiffFunction):
         )
         self.initializer = ZeroDiffMpcInitializer(ocp) if initializer is None else initializer
 
+        # these flags allow to run the sanity checks only once the first time a specific sensitivity
+        # is requested, and then skip them for subsequent calls
+        self._run_sanity_checks_in_du0_dp_global = True
+        self._run_sanity_checks_in_dx_dp_global = True
+        self._run_sanity_checks_in_du_dp_global = True
+        self._run_sanity_checks_in_du0_dx0 = True
+
     def forward(  # type: ignore
         self,
         ctx: AcadosDiffMpcCtx | None,
@@ -304,32 +311,41 @@ class AcadosDiffMpcFunction(DiffFunction):
             case "du0_dp_global":
                 seed_u0 = self._get_seed_seq(1, self.ocp.dims.nu, batch_size)
                 sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
-                    [], seed_u0, "p_global", True
+                    [], seed_u0, "p_global", self._run_sanity_checks_in_du0_dp_global
                 )
+                self._run_sanity_checks_in_du0_dp_global = False
 
             case "dx_dp_global":
                 seed_x = self._get_seed_seq(
                     self.ocp.solver_options.N_horizon + 1, self.ocp.dims.nx, batch_size
                 )
                 sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
-                    seed_x, [], "p_global", True
+                    seed_x, [], "p_global", self._run_sanity_checks_in_dx_dp_global
                 )
+                self._run_sanity_checks_in_dx_dp_global = False
 
             case "du_dp_global":
                 seed_u = self._get_seed_seq(
                     self.ocp.solver_options.N_horizon, self.ocp.dims.nu, batch_size
                 )
                 sens = self.backward_batch_solver.eval_adjoint_solution_sensitivity(
-                    [], seed_u, "p_global", True
+                    [], seed_u, "p_global", self._run_sanity_checks_in_du_dp_global
                 )
+                self._run_sanity_checks_in_du_dp_global = False
 
             case "du0_dx0":
                 sens = np.array(
                     [
-                        s.eval_solution_sensitivity(0, "initial_state", False)["sens_u"]
+                        s.eval_solution_sensitivity(
+                            0,
+                            "initial_state",
+                            False,
+                            sanity_checks=self._run_sanity_checks_in_du0_dx0,
+                        )["sens_u"]
                         for s in active_solvers
                     ]
                 )
+                self._run_sanity_checks_in_du0_dx0 = False
 
             case "dvalue_dp_global" | "dvalue_dx0" | "dvalue_du0":
                 with_respect_to = TO_ACADOS_SOLVER_GRADOPTS[field_name]
