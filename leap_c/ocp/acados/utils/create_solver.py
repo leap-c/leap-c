@@ -69,6 +69,7 @@ def create_batch_solver(
             num_threads_in_batch_solve=num_threads,
             build=False,
             generate=False,
+            verbose=False,
         )
     except FileNotFoundError:
         batch_solver = AcadosOcpBatchSolver(
@@ -77,6 +78,7 @@ def create_batch_solver(
             N_batch_max=n_batch_max,
             num_threads_in_batch_solve=num_threads,
             build=True,
+            verbose=False,
         )
 
     if discount_factor is not None:
@@ -121,6 +123,7 @@ def create_forward_backward_batch_solvers(
         ocp.solver_options.with_solution_sens_wrt_params = True
         ocp.solver_options.with_value_sens_wrt_params = True
 
+    print('Creating the forward solver using acados...')
     forward_batch_solver = create_batch_solver(
         ocp,
         export_directory=export_directory,
@@ -142,6 +145,7 @@ def create_forward_backward_batch_solvers(
 
     sensitivity_ocp.ensure_solution_sensitivities_available()  # type:ignore
 
+    print('Creating the backward solver using acados...')
     backward_batch_solver = create_batch_solver(
         sensitivity_ocp,  # type:ignore
         export_directory=export_directory,
