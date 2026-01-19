@@ -53,7 +53,7 @@ def solve_with_retry(
             if batch_status[idx] == 0:
                 continue
             single_iterate = initializer.single_iterate(solver_input.get_sample(idx))
-            solver.load_iterate_from_flat_obj(single_iterate)
+            solver.set_iterate(single_iterate)
 
         start_retry = time.perf_counter()
         batch_solver.solve(n_batch=batch_size)

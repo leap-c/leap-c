@@ -4,11 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 from tempfile import mkdtemp
 
-from acados_template import (
-    AcadosOcp,
-    AcadosOcpBatchSolver,
-    AcadosOcpSolver,
-)
+from acados_template import AcadosOcp, AcadosOcpBatchSolver, AcadosOcpSolver
 
 from leap_c.ocp.acados.utils.delete_directory_hook import DeleteDirectoryHook
 
@@ -58,7 +54,7 @@ def create_batch_solver(
         export_directory = Path(export_directory)
         add_delete_hook = False
 
-    ocp.code_export_directory = str(export_directory / "c_generated_code")
+    ocp.code_gen_opts.code_export_directory = str(export_directory / "c_generated_code")
     json_file = str(export_directory / "acados_ocp.json")
 
     try:
