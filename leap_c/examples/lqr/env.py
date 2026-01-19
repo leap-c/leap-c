@@ -372,28 +372,18 @@ def plot_optimal_value_and_policy(
     elif A is None or B is None or Q is None or R is None:
         raise ValueError("Must provide either env or all matrices (A, B, Q, R)")
 
-    # Solve discrete-time algebraic Riccati equation
+    # Solve discrete-time algebraic Riccati equation and optimal feedback gain K
     P = solve_discrete_are(A, B, Q, R)
-
-    # Compute optimal feedback gain K
-    K = np.linalg.inv(B.T @ P @ B + R) @ (B.T @ P @ A)
+    K = np.linalg.solve(B.T @ P @ B + R, B.T @ P @ A)
 
     # Create grid in state space
     x_vals = np.linspace(x_min, x_max, n_points)
     v_vals = np.linspace(v_min, v_max, n_points)
-
-    # Initialize arrays for value function and policy
-    V = np.zeros((n_points, n_points))  # Value function
-    U = np.zeros((n_points, n_points))  # Optimal control
+    states = np.array(np.meshgrid(x_vals, v_vals)).reshape(2, -1)
 
     # Compute value function and optimal policy at each grid point
-    for i, v in enumerate(v_vals):
-        for j, x in enumerate(x_vals):
-            state = np.array([[x], [v]])
-            # Value function: V(x) = x^T P x
-            V[i, j] = float(state.T @ P @ state)
-            # Optimal policy: u*(x) = -K x
-            U[i, j] = float(-K @ state)
+    V = (states.T.dot(P) * states.T).sum(1).reshape(n_points, n_points)
+    U = -(K @ states).reshape(n_points, n_points)
 
     # Create figure with horizontal subplots
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
