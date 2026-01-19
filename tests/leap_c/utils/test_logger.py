@@ -30,7 +30,7 @@ def test_group_cumulative_tracker_accumulates_and_reports_at_intervals() -> None
 
 
 def test_logger_cumulative_flag(tmp_path: Path) -> None:
-    """Tests that logger correctly uses cumulative tracking when cumulative=True."""
+    """Tests that logger correctly uses cumulative tracking when metric is in cumulative_metrics."""
     group = "cumulative"
 
     cfg = LoggerConfig(
@@ -38,12 +38,13 @@ def test_logger_cumulative_flag(tmp_path: Path) -> None:
         tensorboard_logger=False,
         wandb_logger=False,
         interval=2,
+        cumulative_metrics=[f"{group}/cost"],
     )
     with Logger(cfg, tmp_path) as logger:
-        logger(group, {"cost": 100.0}, 0, cumulative=True)
-        logger(group, {"cost": 50.0}, 1, cumulative=True)
-        logger(group, {"cost": 25.0}, 2, cumulative=True)
-        logger(group, {"cost": 25.0}, 3, cumulative=True)
+        logger(group, {"cost": 100.0}, 0)
+        logger(group, {"cost": 50.0}, 1)
+        logger(group, {"cost": 25.0}, 2)
+        logger(group, {"cost": 25.0}, 3)
 
     # verify CSV output
     csv_path = tmp_path / f"{group}_log.csv"
@@ -53,12 +54,12 @@ def test_logger_cumulative_flag(tmp_path: Path) -> None:
         reader = DictReader(f)
         rows = list(reader)
 
-    # Should have 2 reports: at timestamps 1 and 3
+    # metric should be renamed to "cost_total"
     assert len(rows) == 2
     assert int(rows[0]["timestamp"]) == 1
-    assert float(rows[0]["cost"]) == 150.0  # 100 + 50
+    assert float(rows[0]["cost_total"]) == 150.0  # 100 + 50
     assert int(rows[1]["timestamp"]) == 3
-    assert float(rows[1]["cost"]) == 200.0  # 100 + 50 + 25 + 25
+    assert float(rows[1]["cost_total"]) == 200.0  # 100 + 50 + 25 + 25
 
 
 def test_group_window_tracker_single_value() -> None:
@@ -145,3 +146,38 @@ def test_logger_writes_to_csv_correctly(tmp_path: Path) -> None:
             row = {key: float(value) for key, value in row.items()}
             assert timestamp == k, f"Timestamp mismatch in group {group} at row {k}."
             assert row == stats[k], f"Data mismatch in group {group} at row {k}."
+
+
+def test_logger_mixed_cumulative_and_regular_metrics(tmp_path: Path) -> None:
+    """Tests that logger correctly handles both cumulative and regular metrics in the same group."""
+    group = "training"
+
+    cfg = LoggerConfig(
+        csv_logger=True,
+        tensorboard_logger=False,
+        wandb_logger=False,
+        interval=2,
+        cumulative_metrics=[f"{group}/money_spent"],
+    )
+    with Logger(cfg, tmp_path) as logger:
+        # log both cumulative and regular metrics
+        logger(group, {"loss": 1.0, "money_spent": 100.0}, 0)
+        logger(group, {"loss": 0.8, "money_spent": 50.0}, 1)
+        logger(group, {"loss": 0.6, "money_spent": 25.0}, 2)
+
+    # verify CSV output
+    csv_path = tmp_path / f"{group}_log.csv"
+    assert csv_path.exists()
+
+    with open(csv_path, "r") as f:
+        reader = DictReader(f)
+        rows = list(reader)
+
+    # should have 2 reports: at timestamps 1 and (potentially) others
+    assert len(rows) >= 1
+
+    # check first report
+    first_row = rows[0]
+    assert int(first_row["timestamp"]) == 1
+    assert float(first_row["loss"]) == 0.9  # smoothed average of [1.0, 0.8]
+    assert float(first_row["money_spent_total"]) == 150.0  # cumulative sum: 100 + 50
