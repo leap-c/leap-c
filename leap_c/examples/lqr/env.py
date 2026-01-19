@@ -242,21 +242,15 @@ class LqrEnv(MatplotlibRenderEnv):
         """
         super().reset(seed=seed)
         self.time = 0.0
-        self.trajectory = []
-        self.actions = []
+        self.trajectory.clear()
+        self.actions.clear()
 
-        # Sample initial state
-        if options is not None and "mode" in options and options["mode"] == "train":
-            # Training: sample from wider range
-            low = np.array([self.cfg.x_min * 0.8, self.cfg.v_min * 0.8])
-            high = np.array([self.cfg.x_max * 0.8, self.cfg.v_max * 0.8])
-            self.state = self.np_random.uniform(low=low, high=high)
-        else:
-            # Testing: sample from narrower range near origin
-            low = np.array([self.cfg.x_min * 0.5, self.cfg.v_min * 0.5])
-            high = np.array([self.cfg.x_max * 0.5, self.cfg.v_max * 0.5])
-            self.state = self.np_random.uniform(low=low, high=high)
-
+        # Sample initial state - in training mode, sample from wider range; in testing mode, sample
+        # nearer the origin
+        width = 0.8 if options is not None and options.get("mode") == "train" else 0.5
+        low = np.array([self.cfg.x_min * width, self.cfg.v_min * width])
+        high = np.array([self.cfg.x_max * width, self.cfg.v_max * width])
+        self.state = self.np_random.uniform(low=low, high=high)
         self.trajectory.append(self.state.copy())
 
         return self._observation(), {}
