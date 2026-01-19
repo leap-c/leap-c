@@ -71,7 +71,7 @@ def create_cfg(
     cfg.trainer.update_freq = 4
 
     if env == "hvac":
-        cfg.trainer.cumulative_metrics = [
+        cfg.trainer.log.cumulative_metrics = [
             "money_spent",
             "energy_kwh",
             "constraint_violation",

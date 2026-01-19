@@ -58,7 +58,7 @@ def create_cfg(
     cfg.trainer.distribution_name = "squashed_gaussian"
 
     if env == "hvac":
-        cfg.trainer.cumulative_metrics = [
+        cfg.trainer.log.cumulative_metrics = [
             "money_spent",
             "energy_kwh",
             "constraint_violation",
