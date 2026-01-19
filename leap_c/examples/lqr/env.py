@@ -17,8 +17,8 @@ class LqrEnvConfig:
 
     Attributes:
         dt: Time step in seconds.
-        q_diag_sqrt: Square root of diagonal Q matrix elements.
-        r_diag_sqrt: Square root of diagonal R matrix elements.
+        q_diag_sqrt: Square root of diagonal `Q` matrix elements.
+        r_diag_sqrt: Square root of diagonal `R` matrix elements.
         x_min: Minimum position.
         x_max: Maximum position.
         v_min: Minimum velocity.
@@ -55,10 +55,12 @@ class LqrEnv(MatplotlibRenderEnv):
     """A simple 1D LQR environment with position and velocity states.
 
     The dynamics follow a discrete-time mass-spring-damper system:
+    ```
         x[k+1] = x[k] + dt * v[k]
         v[k+1] = v[k] + dt * (F[k]/m - (b/m)*v[k] - (k/m)*x[k])
+    ```
 
-    where m is mass, b is damping coefficient, and k is spring stiffness.
+    where `m` is mass, `b` is damping coefficient, and `k` is spring stiffness.
 
     Observation Space:
     ------------------
@@ -71,13 +73,15 @@ class LqrEnv(MatplotlibRenderEnv):
     Action Space:
     -------------
     The action is a `ndarray` with shape `(1,)` and dtype `np.float32`
-    representing the applied force, bounded by [F_min, F_max].
+    representing the applied force, bounded by `[F_min, F_max]`.
 
     Reward:
     -------
     The reward is the negative LQR cost:
+    ```
         r = -(x^T Q x + u^T R u)
-    where Q and R are the state and control cost matrices.
+    ```
+    where `Q` and `R` are the state and control cost matrices.
 
     Termination:
     ------------
@@ -91,7 +95,7 @@ class LqrEnv(MatplotlibRenderEnv):
     Info:
     -----
     The info dictionary contains:
-    - "task": {"violation": bool, "success": bool}
+    - `"task"`: {`"violation"`: bool, `"success"`: bool}
       - violation: True if out of bounds
       - success: True if close to origin with low velocity
 
@@ -99,9 +103,9 @@ class LqrEnv(MatplotlibRenderEnv):
         cfg: Configuration object for the environment.
         observation_space: The observation space of the environment.
         action_space: The action space of the environment.
-        A: State transition matrix (2x2).
-        B: Control input matrix (2x1).
-        state: Current state [x, v].
+        A: State transition matrix `(2x2)`.
+        B: Control input matrix `(2x1)`.
+        state: Current state `[x, v]`.
         time: Elapsed time in the current episode.
         trajectory: List of states visited during the episode (used in rendering).
         trajectory_x_plot: Line object for position trajectory.
@@ -132,8 +136,8 @@ class LqrEnv(MatplotlibRenderEnv):
         """Initialize the LQR environment.
 
         Args:
-            render_mode: The mode to render with. Supported modes are: human, rgb_array, None.
-            cfg: Configuration for the environment. If None, default configuration is used.
+            render_mode: The mode to render with. Supported modes are: `human`, `rgb_array`, `None`.
+            cfg: Configuration for the environment. If `None`, default configuration is used.
         """
         super().__init__(render_mode=render_mode)
 
@@ -178,7 +182,7 @@ class LqrEnv(MatplotlibRenderEnv):
 
         Returns:
             Tuple containing:
-                - observation: Next observation [x, v].
+                - observation: Next observation `[x, v]`.
                 - reward: Reward for this step (negative LQR cost).
                 - terminated: Whether the episode terminated.
                 - truncated: Whether the episode was truncated.
@@ -231,11 +235,11 @@ class LqrEnv(MatplotlibRenderEnv):
         Args:
             seed: Random seed for reproducibility.
             options: Additional reset options.
-                - "mode": "train" samples from a wider range, otherwise samples near origin.
+                - "mode": `"train"` samples from a wider range, otherwise samples near origin.
 
         Returns:
             Tuple containing:
-                - observation: Initial observation [x, v].
+                - observation: Initial observation `[x, v]`.
                 - info: Empty dictionary.
         """
         super().reset(seed=seed)
@@ -257,7 +261,7 @@ class LqrEnv(MatplotlibRenderEnv):
         """Get the current observation.
 
         Returns:
-            Current state [x, v] as float32 array.
+            Current state `[x, v]` as `np.float32` array.
         """
         return self.state.astype(np.float32, copy=True)
 
@@ -338,15 +342,15 @@ def plot_optimal_value_and_policy(
     """Plot heatmaps of the optimal LQR value function and policy.
 
     This function solves the discrete-time algebraic Riccati equation (DARE)
-    to compute the optimal value function V(x) = x^T P x and the optimal
-    policy u*(x) = -K x, then visualizes them as 2D heatmaps.
+    to compute the optimal value function `V(x) = x^T P x` and the optimal
+    policy `u*(x) = -K x`, then visualizes them as 2D heatmaps.
 
     Args:
-        env: LQR environment to extract matrices from. If None, must provide A, B, Q, R.
-        A: State transition matrix (2x2). If None, extracted from env.
-        B: Control input matrix (2x1). If None, extracted from env.
-        Q: State cost matrix (2x2). If None, extracted from env.
-        R: Control cost matrix (1x1). If None, extracted from env.
+        env: LQR environment to extract matrices from. If `None`, must provide `A`, `B`, `Q`, `R`.
+        A: State transition matrix `(2x2)`. If `None`, extracted from `env`.
+        B: Control input matrix `(2x1)`. If `None`, extracted from `env`.
+        Q: State cost matrix `(2x2)`. If `None`, extracted from `env`.
+        R: Control cost matrix `(1x1)`. If `None`, extracted from `env`.
         x_min: Minimum position value for the grid.
         x_max: Maximum position value for the grid.
         v_min: Minimum velocity value for the grid.
@@ -357,7 +361,7 @@ def plot_optimal_value_and_policy(
         Tuple of (figure, axes) containing the heatmap plots.
 
     Raises:
-        ValueError: If neither env nor all matrices (A, B, Q, R) are provided.
+        ValueError: If neither `env` nor all matrices (`A`, `B`, `Q`, `R`) are provided.
     """
     # Extract matrices from environment or use provided ones
     if env is not None:
@@ -370,7 +374,7 @@ def plot_optimal_value_and_policy(
         v_min = env.cfg.v_min if v_min == -2.0 else v_min
         v_max = env.cfg.v_max if v_max == 2.0 else v_max
     elif A is None or B is None or Q is None or R is None:
-        raise ValueError("Must provide either env or all matrices (A, B, Q, R)")
+        raise ValueError("Must provide either `env` or all matrices (`A`, `B`, `Q`, `R`)")
 
     # Solve discrete-time algebraic Riccati equation and optimal feedback gain K
     P = solve_discrete_are(A, B, Q, R)
