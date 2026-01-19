@@ -57,6 +57,13 @@ def create_cfg(
     cfg.trainer.update_freq = 4
     cfg.trainer.distribution_name = "squashed_gaussian"
 
+    if env == "hvac":
+        cfg.trainer.cumulative_metrics = [
+            "money_spent",
+            "energy_kwh",
+            "constraint_violation",
+        ]
+
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
     cfg.trainer.log.interval = 1_000
