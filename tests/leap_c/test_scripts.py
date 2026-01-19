@@ -82,7 +82,7 @@ def _filter_scripts(scripts):
     return scripts
 
 
-@pytest.fixture(params=_filter_scripts(["sac", "sac_zop", "sac_fop", "controller"]))
+@pytest.fixture(params=_filter_scripts(["sac", "sac_zop", "sac_fop", "baseline"]))
 def script(request):
     return request.param
 
@@ -92,7 +92,7 @@ def script_without_ctrl(request):
     return request.param
 
 
-@pytest.fixture(params=_filter_scripts(["sac_zop", "sac_fop", "controller"]))
+@pytest.fixture(params=_filter_scripts(["sac_zop", "sac_fop", "baseline"]))
 def script_with_ctrl(request):
     return request.param
 
