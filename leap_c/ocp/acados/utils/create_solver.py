@@ -114,8 +114,6 @@ def create_forward_backward_batch_solvers(
         n_batch_max: Maximum batch size.
         num_threads: Number of threads used in the batch solver.
     """
-    # check if we can use the forward solver for the backward pass.
-    need_backward_solver = _check_need_sensitivity_solver(ocp)
 
     forward_batch_solver = create_batch_solver(
         ocp,
@@ -125,8 +123,12 @@ def create_forward_backward_batch_solvers(
         num_threads=num_threads,
     )
 
-    if not need_backward_solver:
+    # check if we can use the forward solver for the backward pass.
+    try:
+        ocp.ensure_solution_sensitivities_available()
         return forward_batch_solver, forward_batch_solver
+    except (ValueError, NotImplementedError):
+        print("Separate solver needed for the backward pass.")
 
     if sensitivity_ocp is None:
         # NOTE: Use the ocp from an already compiled solver
@@ -147,15 +149,6 @@ def create_forward_backward_batch_solvers(
     )
 
     return forward_batch_solver, backward_batch_solver
-
-
-def _check_need_sensitivity_solver(ocp: AcadosOcp) -> bool:
-    try:
-        ocp.ensure_solution_sensitivities_available()
-    except (ValueError, NotImplementedError):
-        return True
-
-    return False
 
 
 def _turn_on_warmstart(acados_ocp: AcadosOcp):
