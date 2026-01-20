@@ -26,14 +26,14 @@ If you are using code from this repository in your work, please use the followin
 ```
 @software{leap-c,
   author       = {Leonard Fichtner and
-                  Dirk Peter Reinhart and
-                  JasperHoffmann and
+                  Dirk Peter Reinhardt and
+                  Jasper Hoffmann and
                   Filippo Airaldi and
                   Jonathan Frey and
                   Josip Kir Hromatko and
                   Katrin Baumgaertner and
                   Mazen Amria and
-                  RudolfReiter and
+                  Rudolf Reiter and
                   Shambhuraj Sawant},
   title        = {leap-c/leap-c: v0.1.0-alpha},
   month        = oct,
