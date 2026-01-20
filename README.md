@@ -26,7 +26,7 @@ If you are using code from this repository in your work, please use the followin
 ```
 @software{leap-c,
   author       = {Leonard Fichtner and
-                  Dirk Peter Reinhardt and
+                  Dirk Reinhardt and
                   Jasper Hoffmann and
                   Filippo Airaldi and
                   Jonathan Frey and
