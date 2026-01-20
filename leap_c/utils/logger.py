@@ -21,6 +21,9 @@ class LoggerConfig:
         wandb_logger: If `True`, the statistics will be logged to Weights & Biases.
         wandb_init_kwargs: The kwargs to pass to wandb.init. If `"dir"` is not specified, it is set
             to `output_path / "wandb"`.
+        cumulative_metrics: A list of metrics that should be tracked cumulatively.
+            These metrics are summed up over time (e.g., "money_spent", "energy_consumption").
+            Metrics not in this list are treated as instantaneous or smoothed/averaged.
     """
 
     verbose: bool = False
@@ -32,6 +35,9 @@ class LoggerConfig:
     tensorboard_logger: bool = True
     wandb_logger: bool = False
     wandb_init_kwargs: dict[str, Any] = field(default_factory=dict)
+
+    # Metrics to track cumulatively (as running totals, not smoothed).
+    cumulative_metrics: list[str] = field(default_factory=list)
 
 
 class GroupWindowTracker:
@@ -206,6 +212,7 @@ class Logger:
         self.output_path.mkdir(parents=True, exist_ok=True)
         self.window_trackers = defaultdict(lambda: GroupWindowTracker(cfg.interval, cfg.window))
         self.cumulative_trackers = defaultdict(lambda: GroupCumulativeTracker(cfg.interval))
+        self._logged_metrics: set[str] = set()
 
     def __enter__(self) -> "Logger":
         """Starts the logger.
@@ -244,6 +251,20 @@ class Logger:
         """
         cfg = self.cfg
 
+        # validate that all configured cumulative metrics were actually logged
+        if cfg.cumulative_metrics:
+            unused_metrics = set(cfg.cumulative_metrics) - self._logged_metrics
+            if unused_metrics:
+                import warnings
+
+                warnings.warn(
+                    f"The following metrics were configured as cumulative but never logged: "
+                    f"{sorted(unused_metrics)}. Please check your cumulative_metrics"
+                    "configuration.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+
         if cfg.tensorboard_logger:
             self._tensorboard_writer.close()
 
@@ -264,12 +285,15 @@ class Logger:
         timestamp: int,
         verbose: bool = False,
         with_smoothing: bool = True,
-        cumulative: bool = False,
     ) -> None:
         """Report statistics.
 
         If the statistics are a numpy array, the array is split into multiple
         statistics of the form `key_{i}`.
+
+        Metrics specified in `cfg.cumulative_metrics` using the format "group/metric_name"
+        will be tracked cumulatively (running totals) and logged with "_total" suffix.
+        Other metrics are smoothed using a moving window (if with_smoothing=True).
 
         Args:
             group: The group of the statistics is added as a prefix to the log entry and determines
@@ -279,8 +303,6 @@ class Logger:
             verbose: If `True`, the statistics will only be logged in verbosity mode.
             with_smoothing: If `True`, the statistics are smoothed with a moving window.
                 This also results in the statistics being only reported at specific intervals.
-            cumulative: If `True`, the statistics are cumulative over time. Note that this ignores
-                smoothing.
         """
         cfg = self.cfg
 
@@ -318,21 +340,57 @@ class Logger:
             for i, v in enumerate(value):
                 stats[f"{key}_{i}"] = float(v)
 
-        # find correct iterable
-        if cumulative:
-            report_loop = self.cumulative_trackers[group].update(
-                timestamp,
-                stats,  # type:ignore
-            )
-        elif with_smoothing:
-            report_loop = self.window_trackers[group].update(
-                timestamp,
-                stats,  # type:ignore
-            )
-        else:
-            report_loop = [(timestamp, stats)]
+        # split metrics into cumulative and regular based on config
+        cumulative_stats: dict[str, float] = {}
+        regular_stats: dict[str, float] = {}
 
-        for report_timestamp, report_stats in report_loop:
+        for key, value in stats.items():  # type: ignore
+            full_path = f"{group}/{key}"
+
+            # Check for name collision: if metric is cumulative, user shouldn't log metric_total
+            if full_path in cfg.cumulative_metrics and key.endswith("_total"):
+                raise ValueError(
+                    f"Name collision: '{key}' is marked as cumulative and will be logged as "
+                    f"'{key}_total', but you're already logging a metric named '{key}'. "
+                    f"Please rename one of them."
+                )
+
+            if full_path in cfg.cumulative_metrics:
+                cumulative_stats[f"{key}_total"] = float(value)
+                self._logged_metrics.add(full_path)
+            else:
+                regular_stats[key] = float(value)
+
+        # process cumulative metrics (no smoothing, running totals)
+        cumulative_reports: dict[int, dict[str, float]] = {}
+        if cumulative_stats:
+            for report_timestamp, report_stats in self.cumulative_trackers[group].update(
+                timestamp, cumulative_stats
+            ):
+                cumulative_reports[report_timestamp] = report_stats
+
+        # process regular metrics (with optional smoothing)
+        regular_reports: dict[int, dict[str, float]] = {}
+        if regular_stats:
+            if with_smoothing:
+                report_loop = self.window_trackers[group].update(timestamp, regular_stats)
+            else:
+                report_loop = [(timestamp, regular_stats)]
+
+            for report_timestamp, report_stats in report_loop:
+                regular_reports[report_timestamp] = report_stats
+
+        # merge reports at matching timestamps
+        all_timestamps = set(cumulative_reports.keys()) | set(regular_reports.keys())
+
+        for report_timestamp in sorted(all_timestamps):
+            report_stats = {}
+            if report_timestamp in cumulative_reports:
+                report_stats.update(cumulative_reports[report_timestamp])
+            if report_timestamp in regular_reports:
+                report_stats.update(regular_reports[report_timestamp])
+
+            # start logging
             if cfg.wandb_logger:
                 import wandb
 
