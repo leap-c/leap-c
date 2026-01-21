@@ -4,11 +4,7 @@ from copy import deepcopy
 from pathlib import Path
 from tempfile import mkdtemp
 
-from acados_template import (
-    AcadosOcp,
-    AcadosOcpBatchSolver,
-    AcadosOcpSolver,
-)
+from acados_template import AcadosOcp, AcadosOcpBatchSolver, AcadosOcpSolver
 
 from leap_c.ocp.acados.utils.delete_directory_hook import DeleteDirectoryHook
 
@@ -44,13 +40,6 @@ def create_batch_solver(
     if ocp.cost.cost_type_e not in ["EXTERNAL"]:
         ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
 
-    # TODO (Leonard): Check whether we still need this.
-    # Leonard: Its a bit unclear what exactly happens in HPIPM depending on the options.
-    # I would say we should only make changes after all
-    # the current experiments in our queue are finished.
-    # I will look at it in detail after the mpcrl school.
-    _turn_on_warmstart(ocp)
-
     if export_directory is None:
         export_directory = Path(mkdtemp())
         add_delete_hook = True
@@ -58,7 +47,7 @@ def create_batch_solver(
         export_directory = Path(export_directory)
         add_delete_hook = False
 
-    ocp.code_export_directory = str(export_directory / "c_generated_code")
+    ocp.code_gen_opts.code_export_directory = str(export_directory / "c_generated_code")
     json_file = str(export_directory / "acados_ocp.json")
 
     try:
@@ -164,21 +153,6 @@ def _check_need_sensitivity_solver(ocp: AcadosOcp) -> bool:
         return True
 
     return False
-
-
-def _turn_on_warmstart(acados_ocp: AcadosOcp):
-    if not (
-        acados_ocp.solver_options.qp_solver_warm_start
-        and acados_ocp.solver_options.nlp_solver_warm_start_first_qp
-        and acados_ocp.solver_options.nlp_solver_warm_start_first_qp_from_nlp
-    ):
-        print(
-            "WARNING: Warmstarting the first QP is not enabled. We will enable it for"
-            + " our initialization strategies to work properly."
-        )
-    acados_ocp.solver_options.qp_solver_warm_start = 0
-    acados_ocp.solver_options.nlp_solver_warm_start_first_qp = True
-    acados_ocp.solver_options.nlp_solver_warm_start_first_qp_from_nlp = True
 
 
 def _set_discount_factor(

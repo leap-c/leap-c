@@ -208,7 +208,7 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         # fetch output
         active_solvers = self.forward_batch_solver.ocp_solvers[:batch_size]
-        sol_iterate = self.forward_batch_solver.store_iterate_to_flat_obj(n_batch=batch_size)
+        sol_iterate = self.forward_batch_solver.get_flat_iterate(batch_size)
         ctx = AcadosDiffMpcCtx(
             iterate=sol_iterate, log=log, status=status, solver_input=solver_input
         )

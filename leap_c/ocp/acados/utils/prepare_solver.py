@@ -45,7 +45,7 @@ def prepare_batch_solver(
     p_stagewise_sparse_idx = solver_input.p_stagewise_sparse_idx
 
     # iterate
-    batch_solver.load_iterate_from_flat_obj(ocp_iterate)
+    batch_solver.set_iterate(ocp_iterate)
 
     # set p_global
     if p_global is None and _is_param_legal(ocp.model.p_global):

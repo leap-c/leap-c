@@ -1,14 +1,15 @@
 import numpy as np
 import torch
-from gymnasium import spaces
+from gymnasium.spaces import Box
 
 from leap_c.torch.nn.bounded_distributions import ScaledBeta, SquashedGaussian
 
 
 def test_scaled_beta():
     """Sanity checks for the ScaledBeta distribution."""
-    test_space = spaces.Box(
-        low=np.array([-10.0, -15.0, 31.0, 3.0]), high=np.array([-5.0, 20.0, 42.0, 4.0])
+    test_space = Box(
+        np.array([-10.0, -15.0, 31.0, 3.0], np.float32),
+        np.array([-5.0, 20.0, 42.0, 4.0], np.float32),
     )
     dist = ScaledBeta(test_space)
 
@@ -71,7 +72,7 @@ def test_scaled_beta():
 
 def test_squashed_gaussian_anchor():
     """Test anchor functionality for SquashedGaussian distribution."""
-    test_space = spaces.Box(low=np.array([-1.0, -2.0]), high=np.array([1.0, 2.0]))
+    test_space = Box(np.array([-1.0, -2.0], np.float32), np.array([1.0, 2.0], np.float32))
     dist = SquashedGaussian(test_space)
 
     # Test deterministic sampling with anchor
@@ -109,7 +110,7 @@ def test_squashed_gaussian_anchor():
 
 # def test_scaled_beta_anchor():
 #     """Test anchor functionality for ScaledBeta distribution."""
-#     test_space = spaces.Box(low=np.array([0.0, -5.0]), high=np.array([10.0, 5.0]))
+#     test_space = Box(np.array([0.0, -5.0], np.float32), np.array([10.0, 5.0], np.float32))
 #     dist = ScaledBeta(test_space)
 #
 #     # Test deterministic sampling with anchor - when alpha=beta, mode is at center
