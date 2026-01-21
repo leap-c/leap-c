@@ -29,8 +29,8 @@ class AcadosParameter:
             exposed to the learning interface, in particular supporting sensitivities). Defaults to
             `"fix"`.
         end_stages: Sorted list (ascending order) of stages after which the parameter varies.
-            Only used for the `"learnable"` interface. If `None`, the parameter remains constant
-            across all stages. Defaults to `None`.
+            Only used for the `"learnable"` interface. If empty, the parameter remains constant
+            across all stages. Defaults to an empty list.
             Example: If the horizon has `9` stages (`0` to `9`, including the terminal stage),
             and `end_stages = [4, 9]`, then the parameter will have one value for stages `0` to `4`,
             and a different value for stages `5` to `9`.
@@ -41,6 +41,7 @@ class AcadosParameter:
     default: np.ndarray
     space: gym.spaces.Space | None = None
     interface: Literal["fix", "learnable", "non-learnable"] = "fix"
+
     # Additional acados-specific field
     end_stages: list[int] = field(default_factory=list)
 
