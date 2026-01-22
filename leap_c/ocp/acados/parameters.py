@@ -262,12 +262,13 @@ class AcadosParameterManager:
 
         batch_size = inferred_batch_size if inferred_batch_size is not None else batch_size or 1
 
-        # Get default parameter array and tile for batch
+        # Get default parameter array and replicate it along the batch dimension - if no overwrites
+        # are passed, just return a broadcasted view to avoid unnecessary memory allocation;
+        # otherwise, create a tiled array (is writeable, so overwrites can be applied afterwards)
         default_flat = self.learnable_parameters_default.cat.full().flatten()
-        batch_param = np.tile(default_flat, (batch_size, 1))
-
         if not overwrites:
-            return batch_param
+            return np.broadcast_to(default_flat, (batch_size, default_flat.size))
+        batch_param = np.tile(default_flat, (batch_size, 1))
 
         # Build index mappings for efficient vectorized assignment
         for param_name, values in overwrites.items():
@@ -373,13 +374,16 @@ class AcadosParameterManager:
         # Infer batch size from overwrite if not provided.
         # Resolve to 1 if empty, will result in one batch sample of default values.
         batch_size = next(iter(overwrite.values())).shape[0] if overwrite else batch_size or 1
-
-        # Create a batch of parameter values
         Np1 = self.N_horizon + 1
-        batch_parameter_values = np.tile(
-            self.non_learnable_parameters_default.cat.full().reshape(1, -1),
-            (batch_size, Np1, 1),
-        )
+        expected_shape = (batch_size, Np1, self.non_learnable_parameters.shape[0])
+
+        # Create a batch of parameter values - if indicators are not needed and no overwrites are
+        # passed, just return a broadcasted view to avoid unnecessary memory allocation; otherwise,
+        # create a tiled array (is writeable, so indicators and overwrites can be applied afterward)
+        nonlearn_param_default_flat = self.non_learnable_parameters_default.cat.full().reshape(-1)
+        if not (self.need_indicator or overwrite):
+            return np.broadcast_to(nonlearn_param_default_flat, expected_shape)
+        batch_parameter_values = np.tile(nonlearn_param_default_flat, (batch_size, Np1, 1))
 
         # Set indicator for each stage
         if self.need_indicator:
@@ -399,12 +403,10 @@ class AcadosParameterManager:
                 batch_size, Np1, -1
             )
 
-        expected_shape = (batch_size, Np1, self.non_learnable_parameters.cat.shape[0])
         assert batch_parameter_values.shape == expected_shape, (
             f"batch_parameter_values should have shape {expected_shape}, "
             f"got {batch_parameter_values.shape}."
         )
-
         return batch_parameter_values
 
     def get_param_space(
