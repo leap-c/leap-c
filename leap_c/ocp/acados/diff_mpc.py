@@ -64,7 +64,7 @@ class AcadosDiffMpcCtx:
     solver_input: AcadosOcpSolverInput
 
     # backward pass
-    needs_input_grad: list[bool] | None = None
+    needs_input_grad: tuple[bool] | None = None
 
     # sensitivity fields
     du0_dp_global: np.ndarray | None = None
