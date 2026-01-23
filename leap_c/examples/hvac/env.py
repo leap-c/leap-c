@@ -305,14 +305,23 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         energy_consumption_normalized = np.abs(action[0]) / self.max_power
 
         price_normalized = price / self.dataset.max["price"]
+
+        # True energy reward (for reporting)
         energy_reward = -50 * price_normalized * energy_consumption_normalized
 
-        # scale energy_reward
+        # Compute actual money spent: energy (kWh) * price (currency/kWh)
+        # action is in Watts, step_size in seconds -> energy in kWh = W * s / 3600 / 1000
+        energy_kwh = np.abs(action[0]) * self.cfg.step_size / 3600 / 1000
+        money_spent = energy_kwh * price
+
+        # Scale energy_reward
         reward = comfort_reward + energy_reward
 
         reward_info = {
             "price": price,
-            "energy": np.abs(action[0]),
+            "power": np.abs(action[0]),
+            "energy_kwh": energy_kwh,
+            "money_spent": money_spent,
             "comfort_reward": comfort_reward,
             "energy_reward": energy_reward,
             "success": success,

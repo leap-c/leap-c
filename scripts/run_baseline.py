@@ -187,6 +187,13 @@ def create_cfg(
     cfg.trainer.val_report_score = "cum"
     cfg.trainer.ckpt_modus = ckpt_modus
 
+    if env == "hvac":
+        cfg.trainer.log.cumulative_metrics = [
+            "train/money_spent",
+            "train/energy_kwh",
+            "train/constraint_violation",
+        ]
+
     if only_train:
         cfg.trainer.train_steps = 1_000_000 if env == "pointmass" else 200_000
         cfg.trainer.val_freq = 10_000 if env != "hvac" else 50_000

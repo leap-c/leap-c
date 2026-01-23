@@ -58,6 +58,13 @@ def create_cfg(
     cfg.trainer.num_critics = 2
     cfg.trainer.update_freq = 4
 
+    if env == "hvac":
+        cfg.trainer.log.cumulative_metrics = [
+            "train/money_spent",
+            "train/energy_kwh",
+            "train/constraint_violation",
+        ]
+
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
     cfg.trainer.log.interval = 1000
