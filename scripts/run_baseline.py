@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Generator, Literal, get_args
 
 import gymnasium as gym
+import numpy as np
 import torch
 from numpy import ndarray
 
@@ -36,7 +37,7 @@ from leap_c.utils.gym import seed_env, wrap_env
 class BaselineTrainerConfig(TrainerConfig):
     """Configuration for running baseline experiments."""
 
-    pass
+    param_ckpt: str | None = None
 
 
 @dataclass
@@ -105,6 +106,29 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         else:
             self.collate_fn = None
 
+        self.loaded_param = None
+        if self.cfg.param_ckpt is not None:
+            data = np.load(self.cfg.param_ckpt, allow_pickle=True)
+            if "best_param" in data:
+                self.loaded_param = data["best_param"]
+            elif "best_config" in data:
+                config = data["best_config"]
+                if isinstance(config, np.ndarray) and config.dtype == object:
+                    config = config.item()
+                if isinstance(config, dict) and all(k.startswith("param_") for k in config.keys()):
+                    n_params = len(config)
+                    self.loaded_param = np.array([config[f"param_{i}"] for i in range(n_params)])
+                else:
+                    self.loaded_param = config
+            else:
+                raise ValueError(
+                    f"Could not find 'best_param' or 'best_config' in {self.cfg.param_ckpt}"
+                )
+
+            if not isinstance(self.loaded_param, np.ndarray):
+                self.loaded_param = np.asarray(self.loaded_param)
+            self.loaded_param = self.loaded_param.astype(np.float32)
+
     def train_loop(self) -> Generator[tuple[int, float], None, None]:
         """Run training episodes, reporting stats similar to SAC training."""
         if self.train_env is None:
@@ -125,13 +149,14 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             if self.policy_type == "random":
                 action = self.train_env.action_space.sample()
             else:
-                obs_batched: torch.Tensor = self.collate_fn([obs])
-                default_param = self.controller.default_param(obs_batched)
-                default_param_tensor = torch.as_tensor(
-                    default_param, device=self.device, dtype=obs_batched.dtype
-                )
+                obs_batched = self.collate_fn([obs])
+                if self.loaded_param is not None:
+                    param = self.loaded_param
+                else:
+                    param = self.controller.default_param(obs_batched)
+                param_tensor = torch.from_numpy(param).to(self.device)
                 policy_ctx, action_tensor = self.controller(
-                    obs_batched, default_param_tensor, ctx=policy_ctx
+                    obs_batched, param_tensor, ctx=policy_ctx
                 )
                 action = action_tensor[0].cpu().numpy()
 
@@ -153,9 +178,12 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             return self.eval_env.action_space.sample(), None, None
 
         obs_batched = self.collate_fn([obs])
-        default_param = self.controller.default_param(obs_batched)
-        default_param = torch.from_numpy(default_param).to(self.device)
-        ctx, action = self.controller(obs_batched, default_param, ctx=state)
+        if self.loaded_param is not None:
+            param = self.loaded_param
+        else:
+            param = self.controller.default_param(obs_batched)
+        param_tensor = torch.from_numpy(param).to(self.device)
+        ctx, action = self.controller(obs_batched, param_tensor, ctx=state)
         action = action.cpu().numpy()[0]
         return action, ctx, ctx.log
 
@@ -167,6 +195,7 @@ def create_cfg(
     only_train: bool = False,
     ckpt_modus: Literal["best", "last", "all", "none"] = "none",
     policy_type: Literal["controller", "random"] = "controller",
+    param_ckpt: Path | None = None,
 ) -> RunBaselineConfig:
     """Return the default configuration for running baseline experiments.
 
@@ -177,10 +206,12 @@ def create_cfg(
         only_train: Whether to run training episodes.
         ckpt_modus: The checkpoint mode.
         policy_type: The type of policy to run.
+        param_ckpt: The parameter checkpoint to load.
     """
     cfg = RunBaselineConfig()
     cfg.env = env
     cfg.policy_type = policy_type
+    cfg.trainer.param_ckpt = str(param_ckpt) if param_ckpt is not None else None
 
     if policy_type == "controller":
         cfg.controller = controller if controller is not None else env
@@ -319,11 +350,19 @@ if __name__ == "__main__":
         help="Run training episodes over time (for comparison with RL methods). "
         "Without this flag, validation episodes are run instead.",
     )
+    group.add_argument(
+        "--param-ckpt",
+        type=Path,
+        default=None,
+        help="Controller parameters to load from a SMAC run.",
+    )
+
     group = parser.add_argument_group("W&B logging")
     group.add_argument("--use-wandb", action="store_true", help="Whether to use W&B logging.")
     group.add_argument("--wandb-entity", type=str, default=None, help="W&B entity name.")
     group.add_argument("--wandb-project", type=str, default="leap-c", help="W&B project name.")
     group.add_argument("--wandb-group", type=str, default="baseline", help="W&B group name.")
+
     args = parser.parse_args()
 
     cfg = create_cfg(
@@ -332,6 +371,7 @@ if __name__ == "__main__":
         args.seed,
         args.only_train,
         policy_type=args.policy_type,
+        param_ckpt=args.param_ckpt,
     )
 
     if args.use_wandb:
