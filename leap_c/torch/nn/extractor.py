@@ -125,7 +125,9 @@ class HvacExtractor(Extractor):
     - [5+2N:5+3N]: Electricity price forecast
 
     The forecasts are stacked as channels and processed with 1D convolutions.
-    Time and state features are normalized and concatenated with the conv output.
+    Time features are embedded using sin/cos transformations. State features are
+    normalized. The electricity price forecast is normalized per-instance, with
+    its mean and scale reported as additional features.
     """
 
     def __init__(
@@ -170,8 +172,8 @@ class HvacExtractor(Extractor):
         self.forecast_pool = nn.AdaptiveAvgPool1d(1)
         self.forecast_linear = nn.Linear(channels[-1], self.cfg.output_dim)
 
-        # Output: time (2) + state (3) + forecast features
-        self._output_size = 2 + 3 + self.cfg.output_dim
+        # Output: time (4) + state (3) + forecast features + price stats (2)
+        self._output_size = 4 + 3 + self.cfg.output_dim + 2
 
     def forward(
         self, x: dict[str, torch.Tensor | dict[str, torch.Tensor]] | TensorDict
@@ -188,56 +190,78 @@ class HvacExtractor(Extractor):
             Feature tensor of shape (batch, output_size).
         """
         n = self.cfg.n_forecast
+        obs_space: gym.spaces.Box = self.observation_space  # type: ignore
 
         # Split observation into components
         time_features = x[:, :2]  # quarter_hour, day_of_year
         state = x[:, 2:5]  # Ti, Th, Te
 
-        # Extract and stack forecasts: (batch, 3, n_forecast)
+        # 1. Time Embedding (Sin/Cos)
+        # quarter_hour (0-95), day_of_year (0-365)
+        qh = time_features[:, 0:1]
+        doy = time_features[:, 1:2]
+
+        qh_sin = torch.sin(2 * torch.pi * qh / 96.0)
+        qh_cos = torch.cos(2 * torch.pi * qh / 96.0)
+        doy_sin = torch.sin(2 * torch.pi * doy / 366.0)
+        doy_cos = torch.cos(2 * torch.pi * doy / 366.0)
+        time_embedding = torch.cat([qh_sin, qh_cos, doy_sin, doy_cos], dim=1)
+
+        # 2. State Normalization
+        state_low = torch.tensor(obs_space.low[2:5], device=x.device, dtype=x.dtype)
+        state_high = torch.tensor(obs_space.high[2:5], device=x.device, dtype=x.dtype)
+        state_norm = (state - state_low) / (state_high - state_low + 1e-8)
+
+        # 3. Forecast Processing
         temp_forecast = x[:, 5 : 5 + n]
         solar_forecast = x[:, 5 + n : 5 + 2 * n]
         price_forecast = x[:, 5 + 2 * n : 5 + 3 * n]
-        forecasts = torch.stack([temp_forecast, solar_forecast, price_forecast], dim=1)
 
-        # Normalize using min-max scaling based on observation space bounds
-        # Time features
-        time_low = torch.tensor(self.observation_space.low[:2], device=x.device, dtype=x.dtype)
-        time_high = torch.tensor(self.observation_space.high[:2], device=x.device, dtype=x.dtype)
-        time_norm = (time_features - time_low) / (time_high - time_low + 1e-8)
+        # Price forecast: normalize per instance and extract mean/std
+        price_mean = price_forecast.mean(dim=1, keepdim=True)
+        price_std = price_forecast.std(dim=1, keepdim=True) + 1e-8
+        price_forecast_norm = (price_forecast - price_mean) / price_std
 
-        # State
-        state_low = torch.tensor(self.observation_space.low[2:5], device=x.device, dtype=x.dtype)
-        state_high = torch.tensor(self.observation_space.high[2:5], device=x.device, dtype=x.dtype)
-        state_norm = (state - state_low) / (state_high - state_low + 1e-8)
+        # Normalize price_mean and price_std using global bounds
+        p_low = obs_space.low[5 + 2 * n]
+        p_high = obs_space.high[5 + 2 * n]
+        price_mean_norm = (price_mean - p_low) / (p_high - p_low + 1e-8)
+        price_std_norm = price_std / (p_high - p_low + 1e-8)  # Scale relative to range
 
-        # Forecasts - normalize each channel
-        forecast_low = torch.tensor(
-            [
-                self.observation_space.low[5],  # temp
-                self.observation_space.low[5 + n],  # solar
-                self.observation_space.low[5 + 2 * n],  # price
-            ],
-            device=x.device,
-            dtype=x.dtype,
-        ).view(1, 3, 1)
-        forecast_high = torch.tensor(
-            [
-                self.observation_space.high[5],
-                self.observation_space.high[5 + n],
-                self.observation_space.high[5 + 2 * n],
-            ],
-            device=x.device,
-            dtype=x.dtype,
-        ).view(1, 3, 1)
-        forecasts_norm = (forecasts - forecast_low) / (forecast_high - forecast_low + 1e-8)
+        # Other forecasts: global min-max normalization
+        temp_low, temp_high = obs_space.low[5], obs_space.high[5]
+        solar_low, solar_high = (
+            obs_space.low[5 + n],
+            obs_space.high[5 + n],
+        )
+
+        temp_forecast_norm = (temp_forecast - temp_low) / (temp_high - temp_low + 1e-8)
+        solar_forecast_norm = (solar_forecast - solar_low) / (solar_high - solar_low + 1e-8)
+
+        temp_forecast_norm = (temp_forecast - temp_low) / (temp_high - temp_low + 1e-8)
+        solar_forecast_norm = (solar_forecast - solar_low) / (solar_high - solar_low + 1e-8)
+
+        # Stack as channels: (batch, 3, n_forecast)
+        forecasts = torch.stack(
+            [temp_forecast_norm, solar_forecast_norm, price_forecast_norm], dim=1
+        )
 
         # Process forecasts with 1D conv
-        conv_out = self.forecast_conv(forecasts_norm)  # (batch, channels[-1], n_forecast)
+        conv_out = self.forecast_conv(forecasts)  # (batch, channels[-1], n_forecast)
         pooled = self.forecast_pool(conv_out).squeeze(-1)  # (batch, channels[-1])
         forecast_features = self.forecast_linear(pooled)  # (batch, output_dim)
 
         # Concatenate all features
-        return torch.cat([time_norm, state_norm, forecast_features], dim=1)
+        return torch.cat(
+            [
+                time_embedding,
+                state_norm,
+                forecast_features,
+                price_mean_norm,
+                price_std_norm,
+            ],
+            dim=1,
+        )
 
     @property
     def output_size(self) -> int:
