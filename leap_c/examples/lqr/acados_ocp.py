@@ -50,7 +50,6 @@ def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]
                     dtype=np.float64,
                 ),
                 interface="learnable",
-                end_stages=[],
             ),
             AcadosParameter(
                 name="mass",

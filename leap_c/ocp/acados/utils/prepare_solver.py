@@ -60,16 +60,16 @@ def prepare_batch_solver(
     if p_stagewise is None and _is_param_legal(ocp.model.p) and p_stagewise_sparse_idx is None:
         # if p_stagewise is None and default exist, load default p
         param_default = np.tile(ocp.parameter_values, (batch_size, N + 1))
-        param = param_default.reshape(batch_size, -1).astype(np.float64)
+        param = param_default.astype(np.float64, copy=False)
         batch_solver.set_flat("p", param)
     elif p_stagewise is not None and p_stagewise_sparse_idx is None:
         # if p_stagewise is provided, set it
-        param = p_stagewise.reshape(batch_size, -1).astype(np.float64)
+        param = p_stagewise.reshape(batch_size, -1).astype(np.float64, copy=False)
         batch_solver.set_flat("p", param)
     elif p_stagewise is not None and p_stagewise_sparse_idx is not None:
         # if p_stagewise is provided and sparse indices are provided, set it
         for idx, stage in product(range(batch_size), range(N + 1)):
-            param = p_stagewise[idx, stage, :].astype(np.float64)
+            param = p_stagewise[idx, stage, :].astype(np.float64, copy=False)
             solver = batch_solver.ocp_solvers[idx]
             solver.set_params_sparse(stage, p_stagewise_sparse_idx[idx, stage, :], param)
 
@@ -124,4 +124,4 @@ def _is_param_legal(model_p) -> bool:
     elif isinstance(model_p, list) or isinstance(model_p, tuple):
         return len(model_p) != 0
     else:
-        raise ValueError(f"Unknown case for model_p, type is {type(model_p)}")
+        raise ValueError(f"Unknown case for `model_p`, type is `{type(model_p)}`")

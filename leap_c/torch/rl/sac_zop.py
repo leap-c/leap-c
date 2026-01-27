@@ -241,7 +241,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
         self, obs, deterministic: bool = False, state: CtxType | None = None
     ) -> tuple[np.ndarray, CtxType, dict[str, float]]:
         obs = self.buffer.collate([obs])
-        with torch.no_grad():
+        with torch.inference_mode():
             pi_output: StochasticMPCActorOutput = self.pi(obs, state, deterministic=deterministic)
         assert pi_output.action is not None, "Expected action to be not `None`"
         action = pi_output.action.cpu().numpy()[0]
