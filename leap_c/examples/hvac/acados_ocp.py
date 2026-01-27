@@ -143,7 +143,7 @@ def make_default_hvac_params(
             ),
             AcadosParameter(
                 name="backoff_Ti",  # Backoff temperature for indoor temperature in Kelvin
-                default=np.array([0.]),
+                default=np.array([0.0]),
                 space=gym.spaces.Box(
                     low=np.array([0.0]),
                     high=np.array([2.0]),
