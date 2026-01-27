@@ -27,18 +27,6 @@ def create_batch_solver(
         n_batch_max: Maximum batch size.
         num_threads: Number of threads used in the batch solver.
     """
-    opts = ocp.solver_options
-    opts.with_batch_functionality = True
-
-    # translate cost terms to external to allow
-    # implicit differentiation for a p_global parameter.
-    if ocp.cost.cost_type_0 is not None and ocp.cost.cost_type_0 != "EXTERNAL":
-        ocp.translate_initial_cost_term_to_external(cost_hessian=opts.hessian_approx)
-    if ocp.cost.cost_type != "EXTERNAL":
-        ocp.translate_intermediate_cost_term_to_external(cost_hessian=opts.hessian_approx)
-    if ocp.cost.cost_type_e != "EXTERNAL":
-        ocp.translate_terminal_cost_term_to_external(cost_hessian=opts.hessian_approx)
-
     if export_directory is None:
         export_directory = Path(mkdtemp())
         add_delete_hook = True
@@ -102,6 +90,18 @@ def create_forward_backward_batch_solvers(
         n_batch_init: Initial batch size.
         num_threads: Number of threads used in the batch solver.
     """
+    opts = ocp.solver_options
+    opts.with_batch_functionality = True
+
+    # translate cost terms to external to allow
+    # implicit differentiation for a p_global parameter.
+    if ocp.cost.cost_type_0 is not None and ocp.cost.cost_type_0 != "EXTERNAL":
+        ocp.translate_initial_cost_term_to_external(cost_hessian=opts.hessian_approx)
+    if ocp.cost.cost_type != "EXTERNAL":
+        ocp.translate_intermediate_cost_term_to_external(cost_hessian=opts.hessian_approx)
+    if ocp.cost.cost_type_e != "EXTERNAL":
+        ocp.translate_terminal_cost_term_to_external(cost_hessian=opts.hessian_approx)
+
     # check if we can use the forward solver for the backward pass.
     need_backward_solver = _check_need_sensitivity_solver(ocp)
 

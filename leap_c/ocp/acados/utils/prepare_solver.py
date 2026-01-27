@@ -77,6 +77,8 @@ def prepare_batch_solver(
     batch_solver.set(0, "x", x0)
     batch_solver.constraints_set(0, "lbx", x0)
     batch_solver.constraints_set(0, "ubx", x0)
+    lbu = ocp.constraints.lbu
+    ubu = ocp.constraints.ubu
     if u0 is not None:
         batch_solver.set(0, "u", u0)
         batch_solver.constraints_set(0, "lbu", u0)
@@ -85,12 +87,12 @@ def prepare_batch_solver(
         batch_solver.constraints_set(
             0,
             "lbu",
-            np.broadcast_to(ocp.constraints.lbu, (batch_size, ocp.constraints.lbu.shape[0])),
+            np.broadcast_to(lbu, (batch_size, lbu.shape[0])),
         )
         batch_solver.constraints_set(
             0,
             "ubu",
-            np.broadcast_to(ocp.constraints.lbu, (batch_size, ocp.constraints.ubu.shape[0])),
+            np.broadcast_to(ubu, (batch_size, ubu.shape[0])),
         )
 
 
