@@ -46,7 +46,7 @@ def solve_with_retry(
     time_solve = time.perf_counter() - start
 
     active_solvers = batch_solver.ocp_solvers[:batch_size]
-    batch_status = np.array([solver.status for solver in active_solvers])
+    batch_status = batch_solver.status
 
     if with_retry and batch_status.any():
         for idx, solver in enumerate(active_solvers):
@@ -59,7 +59,7 @@ def solve_with_retry(
         batch_solver.solve(n_batch=batch_size)
         time_solve += time.perf_counter() - start_retry
 
-    batch_status_retry = np.array([solver.status for solver in active_solvers])
+    batch_status_retry = batch_solver.status
 
     stats = {
         "solving_time": time_solve,
