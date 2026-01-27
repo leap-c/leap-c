@@ -75,6 +75,4 @@ def _to_tensor(data, device):
         return None
     if isinstance(data, (tuple, list)):
         return tuple(_to_tensor(item, device) for item in data)
-    if isinstance(data, torch.Tensor):
-        return data.to(device=device)
-    return torch.tensor(data, device=device)
+    return torch.as_tensor(data, device=device)

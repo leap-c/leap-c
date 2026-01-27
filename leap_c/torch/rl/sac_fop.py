@@ -272,7 +272,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
         self, obs: np.ndarray, deterministic: bool = False, state: CtxType | None = None
     ) -> tuple[np.ndarray, CtxType, dict[str, float]]:
         obs = self.buffer.collate([obs])
-        with torch.no_grad():
+        with torch.inference_mode():
             pi_output: StochasticMPCActorOutput = self.pi(obs, state, deterministic)
         action = pi_output.action.cpu().numpy()[0]
         return action, pi_output.ctx, pi_output.stats
