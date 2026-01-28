@@ -105,7 +105,6 @@ class SquashedGaussian(BoundedDistribution):
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
         self.padding = padding
-        self.space = space
 
         loc = (space.high + space.low) / 2.0
         scale = (space.high - space.low) / 2.0
@@ -332,7 +331,6 @@ class ModeConcentrationBeta(BoundedDistribution):
     """
 
     lb: torch.Tensor
-    ub: torch.Tensor
     scale: torch.Tensor
     _beta_dist: Beta
     log_conc_min: float
@@ -365,7 +363,6 @@ class ModeConcentrationBeta(BoundedDistribution):
         scale = torch.tensor(space.high - space.low, dtype=torch.float32)
 
         self.register_buffer("lb", lb)
-        self.register_buffer("ub", lb + scale)
         self.register_buffer("scale", scale)
 
     def forward(
