@@ -371,7 +371,7 @@ class ModeConcentrationBeta(BoundedDistribution):
     def forward(
         self,
         logit_mode: torch.Tensor,
-        log_conc: torch.Tensor,
+        logit_log_conc: torch.Tensor,
         deterministic: bool = False,
         anchor: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
@@ -380,9 +380,10 @@ class ModeConcentrationBeta(BoundedDistribution):
         Args:
             logit_mode: The logit of the mode of the Beta distribution (unbounded). This number is
                 later squashed through a sigmoid to ensure it lies in the valid `[0, 1]` interval.
-            log_conc: The logarithm of the concentration parameter, of the same shape as the mode
-                (i.e., assuming independent dimensions). Will be clamped according to the
-                attributes of this class.
+            logit_log_conc: The logit of the logarithm of the concentration parameter, of the same
+                shape as the mode (i.e., assuming independent dimensions). The logit is forced to
+                the bounded interval `[log_conc_min, log_conc_max]` via a sigmoid; then,
+                exponentiated.
             deterministic: If True, the output will just be spacefitting(mode),
                 no sampling is taking place.
             anchor: Anchor point to shift the mode. Used for residual policies.
@@ -407,7 +408,7 @@ class ModeConcentrationBeta(BoundedDistribution):
 
         # Concentration must be > 2 for valid parameterization
         log_conc = self.log_conc_min + (self.log_conc_max - self.log_conc_min) * torch.sigmoid(
-            log_conc
+            logit_log_conc
         )
         concentration = torch.exp(log_conc)
 
