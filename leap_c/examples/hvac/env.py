@@ -380,7 +380,12 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         # Check if dataset is exhausted (continual learning complete)
         terminated = self.dataset.is_exhausted(self.N_forecast)
-        info = {"time_forecast": time_forecast, "task": reward_info}
+        current_datetime = self.dataset.index[self.idx]
+        info = {
+            "time_forecast": time_forecast,
+            "task": reward_info,
+            "datetime": current_datetime.isoformat(),
+        }
 
         return obs, reward, terminated, truncated, info
 
@@ -438,7 +443,11 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         obs = self._get_observation()
 
         time_forecast = self.dataset.get_time_forecast(self.idx, self.N_forecast)
-        info = {"time_forecast": time_forecast}
+        current_datetime = self.dataset.index[self.idx]
+        info = {
+            "time_forecast": time_forecast,
+            "datetime": current_datetime.isoformat(),
+        }
 
         return obs, info
 
