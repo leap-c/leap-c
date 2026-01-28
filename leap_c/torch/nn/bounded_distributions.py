@@ -370,7 +370,7 @@ class ModeConcentrationBeta(BoundedDistribution):
 
     def forward(
         self,
-        mode: torch.Tensor,
+        logit_mode: torch.Tensor,
         log_conc: torch.Tensor,
         deterministic: bool = False,
         anchor: torch.Tensor | None = None,
@@ -378,10 +378,11 @@ class ModeConcentrationBeta(BoundedDistribution):
         """Sample from the ModeConcentrationBeta distribution.
 
         Args:
-            mode: The mode of the Beta distribution in [0, 1] space.
-            log_conc: The logarithm of the concentration parameter,
-                of the same shape as the mode (i.e., assuming independent dimensions).
-                Will be clamped according to the attributes of this class.
+            logit_mode: The logit of the mode of the Beta distribution (unbounded). This number is
+                later squashed through a sigmoid to ensure it lies in the valid `[0, 1]` interval.
+            log_conc: The logarithm of the concentration parameter, of the same shape as the mode
+                (i.e., assuming independent dimensions). Will be clamped according to the
+                attributes of this class.
             deterministic: If True, the output will just be spacefitting(mode),
                 no sampling is taking place.
             anchor: Anchor point to shift the mode. Used for residual policies.
@@ -393,15 +394,16 @@ class ModeConcentrationBeta(BoundedDistribution):
         if anchor is not None:
             # Convert anchor to tensor if it's a numpy array
             if not isinstance(anchor, torch.Tensor):
-                anchor = torch.from_numpy(anchor).to(mode.device, dtype=mode.dtype)
+                anchor = torch.as_tensor(anchor, dtype=logit_mode.dtype, device=logit_mode.device)
 
             # TODO: Add a check to ensure anchor is within action space bounds
 
-            inv_anchor = self.inverse(anchor)
-            mode = mode + inv_anchor  # Use out-of-place operation to avoid modifying view
+            # Use out-of-place operation to avoid modifying view
+            logit_inv_anchor = torch.special.logit(self.inverse(anchor))
+            logit_mode = logit_mode + logit_inv_anchor
 
         # Mode must be in [padding, 1-padding]
-        mode = self.padding + (1.0 - 2 * self.padding) * torch.sigmoid(mode)
+        mode = self.padding + (1.0 - 2.0 * self.padding) * torch.sigmoid(logit_mode)
 
         # Concentration must be > 2 for valid parameterization
         log_conc = self.log_conc_min + (self.log_conc_max - self.log_conc_min) * torch.sigmoid(
