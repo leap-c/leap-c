@@ -1,4 +1,4 @@
-"""Provides a simple Gaussian layer that allows policies to respect action bounds."""
+"""Provides a simple distributional layer that allows policies to respect action bounds."""
 
 from abc import abstractmethod
 from typing import Literal
@@ -6,7 +6,7 @@ from typing import Literal
 import numpy as np
 import torch
 import torch.nn as nn
-from gymnasium import spaces
+from gymnasium.spaces import Box
 from torch.distributions.beta import Beta
 
 BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta", "mode_concentration_beta"]
@@ -31,11 +31,10 @@ class BoundedDistribution(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Sample from the distribution.
 
-        If `deterministic` is True, the mode of the distribution is used instead of
-        sampling.
+        If `deterministic` is True, the mode of the distribution is used instead of sampling.
 
         Returns:
-            A tuple containing the samples, their log_prob and a dictionary of stats.
+            A tuple containing the samples, their log probabilities and a dictionary of stats.
         """
         ...
 
@@ -47,8 +46,8 @@ class BoundedDistribution(nn.Module):
             output_dim: The dimensionality of the output space (e.g., action space).
 
         Returns:
-            A tuple of integers, each integer specifying the size of one
-            parameter required to define the distribution in the forward pass.
+            A tuple of integers, each integer specifying the size of one parameter required to
+            define the distribution in the forward pass.
         """
         ...
 
@@ -68,38 +67,38 @@ class BoundedDistribution(nn.Module):
 class SquashedGaussian(BoundedDistribution):
     """A squashed Gaussian.
 
-    Samples the output from a Gaussian distribution specified by the input,
-    and then squashes the result with a tanh function.
-    Finally, the output of the tanh function is scaled and shifted to match the space.
+    Samples the output from a Gaussian distribution specified by the input, and then squashes the
+    result with a `tanh` function. Finally, the output of the `tanh` function is scaled and shifted
+    to match the space.
 
     Can for example be used to enforce certain action bounds of a stochastic policy.
 
     Attributes:
         scale: The scale of the space-fitting transform.
         loc: The location of the space-fitting transform (for shifting).
+        log_std_min: The minimum value for the logarithm of the standard deviation.
+        log_std_max: The maximum value for the logarithm of the standard deviation.
+        padding: The amount of padding to distance the action of the bounds, when using the inverse
+            transformation for the anchoring. This improves numerical stability.
     """
 
     scale: torch.Tensor
     loc: torch.Tensor
     log_std_min: float
     log_std_max: float
+    padding: float
 
     def __init__(
-        self,
-        space: spaces.Box,
-        log_std_min: float = -4,
-        log_std_max: float = 2.0,
-        padding: float = 0.0001,
-    ):
-        """Initializes the SquashedGaussian module.
+        self, space: Box, log_std_min: float = -4, log_std_max: float = 2.0, padding: float = 1e-4
+    ) -> None:
+        """Initializes the `SquashedGaussian` module.
 
         Args:
             space: Space the output should fit to.
             log_std_min: The minimum value for the logarithm of the standard deviation.
             log_std_max: The maximum value for the logarithm of the standard deviation.
-            padding: The amount of padding to distance the action of the bounds, when
-                using the inverse transformation for the anchoring. This improves numerical
-                stability.
+            padding: The amount of padding to distance the action of the bounds, when using the
+                inverse transformation for the anchoring. This improves numerical stability.
         """
         super().__init__()
         self.log_std_min = log_std_min
@@ -122,20 +121,20 @@ class SquashedGaussian(BoundedDistribution):
         deterministic: bool = False,
         anchor: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
-        """Sample from the SquashedGaussian distribution.
+        """Sample from the `SquashedGaussian` distribution.
 
         Args:
             mean: The mean of the normal distribution.
-            log_std: The logarithm of the standard deviation of the normal distribution,
-                of the same shape as the mean (i.e., assuming independent dimensions).
+            log_std: The logarithm of the standard deviation of the normal distribution, of the same
+                shape as the mean (i.e., assuming independent dimensions).
                 Will be clamped according to the attributes of this class.
-                If None, the output is deterministic (no noise added to mean).
-            deterministic: If True, the output will just be spacefitting(tanh(mean)),
-                no sampling is taking place.
+                If `None`, the output is deterministic (no noise added to `mean`).
+            deterministic: If `True`, the output will just be `spacefitting(tanh(mean))`, with no
+                sampling taking place.
             anchor: Anchor point to shift the mean. Used for residual policies.
 
         Returns:
-            An output sampled from the SquashedGaussian, the log probability of this output
+            An output sampled from the `SquashedGaussian`, the log probability of this output
             and a statistics dict containing the standard deviation.
         """
         if log_std is not None:
@@ -185,9 +184,8 @@ class SquashedGaussian(BoundedDistribution):
     def inverse(self, x: torch.Tensor) -> torch.Tensor:
         """Apply the inverse transformation to the input tensor.
 
-        The inverse transformation is a descale and then arctanh.
-        For numerical stability, the input is slightly padded away from the bounds
-        before applying arctanh.
+        The inverse transformation is a descale and then `arctanh`. For numerical stability, the
+        input is slightly padded away (by `padding`) from the bounds before applying `arctanh`.
 
         Args:
             x: The input tensor.
@@ -203,14 +201,13 @@ class SquashedGaussian(BoundedDistribution):
 class ScaledBeta(BoundedDistribution):
     """A unimodal scaled Beta distribution.
 
-    Samples the output from a Beta distribution specified by the input,
-    and then scales and shifts the result to match the space. Unomodality is ensured
-    by enforcing alpha, beta > 1.
+    Samples the output from a Beta distribution specified by the input, and then scales and shifts
+    the result to match the space. Unomodality is ensured by enforcing `alpha, beta > 1`.
 
     Can for example be used to enforce certain action bounds of a stochastic policy.
 
     Attributes:
-        scale: The scale of the space-fitting transform.
+        scale: The scale of the space-fitting transform (for scaling).
         loc: The location of the space-fitting transform (for shifting).
         log_alpha_min: The minimum value for the logarithm of the alpha parameter.
         log_beta_min: The minimum value for the logarithm of the beta parameter.
@@ -227,13 +224,13 @@ class ScaledBeta(BoundedDistribution):
 
     def __init__(
         self,
-        space: spaces.Box,
+        space: Box,
         log_alpha_min: float = -10.0,
         log_beta_min: float = -10.0,
         log_alpha_max: float = 10.0,
         log_beta_max: float = 10.0,
-    ):
-        """Initializes the ScaledBeta module.
+    ) -> None:
+        """Initializes the `ScaledBeta` module.
 
         Args:
             space: Space the output should fit to.
@@ -265,20 +262,20 @@ class ScaledBeta(BoundedDistribution):
         deterministic: bool = False,
         anchor: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
-        """Sample from the ScaledBeta distribution.
+        """Sample from the `ScaledBeta` distribution.
 
-        Note that alpha and beta are enforced to be > 1 to ensure concavity.
+        Note that `alpha` and `beta` are enforced to be `> 1` to ensure concavity.
 
         Args:
             log_alpha: The logarithm of the alpha parameter of the Beta distribution.
             log_beta: The logarithm of the beta parameter of the Beta distribution.
-            deterministic: If True, the output will just be spacefitting(mode),
-                no sampling is taking place.
+            deterministic: If `True`, the output will just be `spacefitting(mode)`, with no
+                sampling taking place.
             anchor: If provided, the Beta distribution's mode is centered around this anchor point.
                 This is useful for action noise where the MPC output serves as the anchor.
 
         Returns:
-            An output sampled from the ScaledBeta distribution, the log probability of this output
+            An output sampled from the `ScaledBeta` distribution, the log probability of this output
             and a statistics dict containing the standard deviation.
         """
         log_alpha = torch.clamp(log_alpha, self.log_alpha_min, self.log_alpha_max)
@@ -302,14 +299,13 @@ class ScaledBeta(BoundedDistribution):
         # If anchor is provided, center the distribution around it
         if anchor is not None:
             # TODO (Jasper): Check whether we want to do it differently?
-            raise NotImplementedError("Anchor functionality not implemented for ScaledBeta yet.")
+            raise NotImplementedError("Anchor functionality not implemented for `ScaledBeta` yet.")
 
         log_prob -= torch.log(self.scale[None, :])
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
-        # We could return the mean of alpha and beta as stats,
-        # but I think they should at least be investigated for each action
-        # dimension independently
+        # We could return the mean of alpha and beta as stats, but I think they should at least be
+        # investigated for each action dimension independently
         return y_scaled, log_prob, {}
 
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
@@ -319,8 +315,8 @@ class ScaledBeta(BoundedDistribution):
 class ModeConcentrationBeta(BoundedDistribution):
     """Beta distribution parameterized by mode and total concentration.
 
-    This distribution is parameterized similarly to SquashedGaussian:
-    - mode: The mode of the distribution in [0, 1] space
+    This distribution is parameterized similarly to `SquashedGaussian`:
+    - logit_mode: The logit of the mode of the distribution
     - log_conc: The logarithm of the concentration parameter
 
     Attributes:
@@ -328,6 +324,8 @@ class ModeConcentrationBeta(BoundedDistribution):
         loc: The location of the space-fitting transform (for shifting).
         log_conc_min: The minimum value for the logarithm of the concentration.
         log_conc_max: The maximum value for the logarithm of the concentration.
+        padding: The amount of padding to distance the action of the bounds, when using the inverse
+            transformation for the anchoring. This improves numerical stability.
     """
 
     lb: torch.Tensor
@@ -339,20 +337,19 @@ class ModeConcentrationBeta(BoundedDistribution):
 
     def __init__(
         self,
-        space: spaces.Box,
+        space: Box,
         log_conc_min: float = np.log(2.0),
         log_conc_max: float = np.log(100.0),
-        padding: float = 0.0001,
+        padding: float = 1e-4,
     ) -> None:
-        """Initialize ModeConcentrationBeta distribution.
+        """Initialize `ModeConcentrationBeta` distribution.
 
         Args:
             space: Space the output should fit to.
             log_conc_min: The minimum value for the logarithm of the concentration.
             log_conc_max: The maximum value for the logarithm of the concentration.
-            padding: The amount of padding to distance the action of the bounds, when
-                using the inverse transformation for the anchoring. This improves numerical
-                stability.
+            padding: The amount of padding to distance the action of the bounds, when using the
+                inverse transformation for the anchoring. This improves numerical stability.
         """
         super().__init__()
         self.log_conc_min = log_conc_min
@@ -372,21 +369,21 @@ class ModeConcentrationBeta(BoundedDistribution):
         deterministic: bool = False,
         anchor: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
-        """Sample from the ModeConcentrationBeta distribution.
+        """Sample from the `ModeConcentrationBeta` distribution.
 
         Args:
             logit_mode: The logit of the mode of the Beta distribution (unbounded). This number is
                 later squashed through a sigmoid to ensure it lies in the valid `[0, 1]` interval.
             logit_log_conc: The logit of the logarithm of the concentration parameter, of the same
                 shape as the mode (i.e., assuming independent dimensions). The logit is forced to
-                the bounded interval `[log_conc_min, log_conc_max]` via a sigmoid; then,
+                the bounded interval `[log_conc_min, log_conc_max]` via a sigmoid; then, it is
                 exponentiated.
-            deterministic: If True, the output will just be spacefitting(mode),
-                no sampling is taking place.
+            deterministic: If `True`, the output will just be `spacefitting(mode)`, with no sampling
+                taking place.
             anchor: Anchor point to shift the mode. Used for residual policies.
 
         Returns:
-            An output sampled from the ModeConcentrationBeta, the log probability of this output
+            An output sampled from the `ModeConcentrationBeta`, the log probability of this output
             and a statistics dict.
         """
         if anchor is not None:
@@ -435,15 +432,13 @@ class ModeConcentrationBeta(BoundedDistribution):
         return y_scaled, log_prob, stats
 
     def _update_distribution(
-        self,
-        mode: torch.Tensor | float,
-        concentration: torch.Tensor | float,
+        self, mode: torch.Tensor | float, concentration: torch.Tensor | float
     ) -> None:
         """Update the mode and concentration parameters of the distribution.
 
         Args:
-            mode: New mode parameter in [0, 1] space
-            concentration: New concentration parameter
+            mode: New mode parameter in `[0, 1]` space.
+            concentration: New concentration parameter.
         """
         mode = torch.as_tensor(mode)
         concentration = torch.as_tensor(concentration)
@@ -459,7 +454,7 @@ class ModeConcentrationBeta(BoundedDistribution):
         return (output_dim, output_dim)
 
     def inverse(self, x: torch.Tensor) -> torch.Tensor:
-        """Apply the inverse transformation from [lb, ub] to [0, 1].
+        """Apply the inverse transformation from `[lb, ub]` to `[0, 1]`.
 
         Args:
             x: The input tensor.
