@@ -175,7 +175,10 @@ class SquashedGaussian(BoundedDistribution):
             if not isinstance(anchor, torch.Tensor):
                 anchor = torch.as_tensor(anchor, dtype=mean.dtype, device=mean.device)
 
-            # TODO: Add a check to ensure anchor is within action space bounds
+            # ensure anchor is within action space bounds
+            assert (anchor >= self.loc - self.scale).all() and (
+                anchor <= self.loc + self.scale
+            ).all(), "Anchor point must be within action space bounds."
 
             inv_anchor = self.inverse(anchor)
             mean = mean + inv_anchor  # Use out-of-place operation to avoid modifying view
@@ -418,7 +421,6 @@ class ModeConcentrationBeta(BoundedDistribution):
             assert (anchor >= self.loc).all() and (anchor <= self.loc + self.scale).all(), (
                 "Anchor point must be within action space bounds."
             )
-            # TODO: Add a check to ensure anchor is within action space bounds
 
             # Use out-of-place operation to avoid modifying view
             logit_inv_anchor = torch.special.logit(self.inverse(anchor))
