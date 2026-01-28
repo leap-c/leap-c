@@ -27,18 +27,6 @@ def create_batch_solver(
         n_batch_max: Maximum batch size.
         num_threads: Number of threads used in the batch solver.
     """
-    opts = ocp.solver_options
-    opts.with_batch_functionality = True
-
-    # translate cost terms to external to allow
-    # implicit differentiation for a p_global parameter.
-    if ocp.cost.cost_type_0 is not None and ocp.cost.cost_type_0 != "EXTERNAL":
-        ocp.translate_initial_cost_term_to_external(cost_hessian=opts.hessian_approx)
-    if ocp.cost.cost_type != "EXTERNAL":
-        ocp.translate_intermediate_cost_term_to_external(cost_hessian=opts.hessian_approx)
-    if ocp.cost.cost_type_e != "EXTERNAL":
-        ocp.translate_terminal_cost_term_to_external(cost_hessian=opts.hessian_approx)
-
     if export_directory is None:
         export_directory = Path(mkdtemp())
         add_delete_hook = True
@@ -53,7 +41,7 @@ def create_batch_solver(
         batch_solver = AcadosOcpBatchSolver(
             ocp,
             json_file=json_file,
-            N_batch_max=n_batch_max,
+            N_batch_init=n_batch_max,
             num_threads_in_batch_solve=num_threads,
             build=False,
             generate=False,
@@ -62,7 +50,7 @@ def create_batch_solver(
         batch_solver = AcadosOcpBatchSolver(
             ocp,
             json_file=json_file,
-            N_batch_max=n_batch_max,
+            N_batch_init=n_batch_max,
             num_threads_in_batch_solve=num_threads,
             build=True,
         )
@@ -81,7 +69,7 @@ def create_forward_backward_batch_solvers(
     sensitivity_ocp: AcadosOcp | None = None,
     export_directory: str | Path | None = None,
     discount_factor: float | None = None,
-    n_batch_max: int = 256,
+    n_batch_init: int = 256,
     num_threads: int = 4,
 ) -> tuple[AcadosOcpBatchSolver, AcadosOcpBatchSolver]:
     """Create a batch solver for solving the MPC problems (forward solver).
@@ -99,9 +87,21 @@ def create_forward_backward_batch_solvers(
         discount_factor: Discount factor for the solver. If not provided,
             acados default weighting is used
             (i.e., 1/N_horizon for intermediate stages, 1 for terminal stage).
-        n_batch_max: Maximum batch size.
+        n_batch_init: Initial batch size.
         num_threads: Number of threads used in the batch solver.
     """
+    opts = ocp.solver_options
+    opts.with_batch_functionality = True
+
+    # translate cost terms to external to allow
+    # implicit differentiation for a p_global parameter.
+    if ocp.cost.cost_type_0 is not None and ocp.cost.cost_type_0 != "EXTERNAL":
+        ocp.translate_initial_cost_term_to_external(cost_hessian=opts.hessian_approx)
+    if ocp.cost.cost_type != "EXTERNAL":
+        ocp.translate_intermediate_cost_term_to_external(cost_hessian=opts.hessian_approx)
+    if ocp.cost.cost_type_e != "EXTERNAL":
+        ocp.translate_terminal_cost_term_to_external(cost_hessian=opts.hessian_approx)
+
     # check if we can use the forward solver for the backward pass.
     need_backward_solver = _check_need_sensitivity_solver(ocp)
 
@@ -113,7 +113,7 @@ def create_forward_backward_batch_solvers(
         ocp,
         export_directory=export_directory,
         discount_factor=discount_factor,
-        n_batch_max=n_batch_max,
+        n_batch_max=n_batch_init,
         num_threads=num_threads,
     )
 
@@ -134,7 +134,7 @@ def create_forward_backward_batch_solvers(
         sensitivity_ocp,  # type:ignore
         export_directory=export_directory,
         discount_factor=discount_factor,
-        n_batch_max=n_batch_max,
+        n_batch_max=n_batch_init,
         num_threads=num_threads,
     )
 
