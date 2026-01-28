@@ -298,7 +298,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         elif state[0] > ub:
             constraint_violation += state[0] - ub
 
-        comfort_reward = 1.0 * success - 1.0 * constraint_violation
+        comfort_reward = -constraint_violation ** 2 - abs(constraint_violation)
 
         # Reward for energy saving
         price = self.dataset.get_price(self.idx)[0]

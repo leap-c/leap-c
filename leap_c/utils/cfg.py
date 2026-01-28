@@ -51,3 +51,5 @@ def update_dataclass_from_dict(dataclass_instance, update_dict):
             else:
                 # Otherwise, directly update the field
                 setattr(dataclass_instance, field.name, update_dict[field.name])
+
+    return dataclass_instance
