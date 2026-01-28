@@ -9,6 +9,44 @@ from leap_c.torch.nn.bounded_distributions import (
 )
 
 
+def test_squashed_gaussian_anchor():
+    """Test anchor functionality for SquashedGaussian distribution."""
+    test_space = Box(np.array([-1.0, -2.0], np.float32), np.array([1.0, 2.0], np.float32))
+    dist = SquashedGaussian(test_space)
+
+    # Test deterministic sampling with anchor
+    mean = torch.tensor([[0.0, 0.0]], requires_grad=True)
+    log_std = torch.tensor([[-1.0, -1.0]], requires_grad=True)
+    anchor = torch.tensor([0.5, 1.0])
+
+    samples, log_prob, _ = dist(mean, log_std, deterministic=True, anchor=anchor)
+
+    # With anchor and deterministic, mean=0 should result in anchor value
+    assert samples.shape == (1, 2)
+    assert log_prob.shape == (1, 1)
+    assert torch.allclose(samples[0], anchor, atol=1e-3)
+
+    # Test gradients work with anchor in deterministic mode
+    samples.sum().backward()
+    assert mean.grad is not None and not torch.any(torch.isnan(mean.grad))
+
+    # Test stochastic sampling with anchor
+    mean = torch.tensor([[0.0, 0.0]], requires_grad=True)
+    log_std = torch.tensor([[-1.0, -1.0]], requires_grad=True)
+    torch.manual_seed(42)
+    samples_stochastic, _, _ = dist(mean, log_std, deterministic=False, anchor=anchor)
+
+    # Verify gradients work in stochastic mode
+    samples_stochastic.sum().backward()
+    assert mean.grad is not None and not torch.any(torch.isnan(mean.grad))
+    assert log_std.grad is not None and not torch.any(torch.isnan(log_std.grad))
+
+    # Samples should be in valid range
+    assert samples_stochastic.shape == (1, 2)
+    assert torch.all(samples_stochastic >= torch.from_numpy(test_space.low))
+    assert torch.all(samples_stochastic <= torch.from_numpy(test_space.high))
+
+
 def test_scaled_beta():
     """Sanity checks for the ScaledBeta distribution."""
     test_space = Box(
@@ -74,90 +112,53 @@ def test_scaled_beta():
     assert beta.grad is not None and not torch.any(torch.isnan(beta.grad))
 
 
-def test_squashed_gaussian_anchor():
-    """Test anchor functionality for SquashedGaussian distribution."""
-    test_space = Box(np.array([-1.0, -2.0], np.float32), np.array([1.0, 2.0], np.float32))
-    dist = SquashedGaussian(test_space)
+def test_scaled_beta_anchor():
+    """Test anchor functionality for `ScaledBeta` distribution."""
+    rng = np.random.default_rng()
 
-    # Test deterministic sampling with anchor
-    mean = torch.tensor([[0.0, 0.0]], requires_grad=True)
-    log_std = torch.tensor([[-1.0, -1.0]], requires_grad=True)
-    anchor = torch.tensor([0.5, 1.0])
+    # generate random space and associated distribution
+    ndim, n_samples = map(int, rng.integers(2, 10, size=2))
+    low = -5 - np.abs(rng.normal(scale=5, size=ndim))
+    high = 5 + np.abs(rng.normal(scale=5, size=ndim))
+    space = Box(low, high, dtype=np.float64)
+    distribution = ScaledBeta(space, padding=0)  # remove paddings to avoid distorsion
 
-    samples, log_prob, _ = dist(mean, log_std, deterministic=True, anchor=anchor)
+    # test deterministic sampling with anchor - when alpha=beta, mode is on anchor
+    log_alpha = torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
+    log_beta = log_alpha.detach().clone().requires_grad_()
+    anchor = torch.from_numpy(rng.uniform(low, high, size=(n_samples, ndim)))
+    samples: torch.Tensor
+    log_prob: torch.Tensor
+    samples, log_prob, _ = distribution(log_alpha, log_beta, True, anchor)
+    assert all(s in space for s in samples.numpy(force=True))
+    assert log_prob.shape == (n_samples, 1)
+    torch.testing.assert_close(samples, anchor)
 
-    # With anchor and deterministic, mean=0 should result in anchor value
-    assert samples.shape == (1, 2)
-    assert log_prob.shape == (1, 1)
-    assert torch.allclose(samples[0], anchor, atol=1e-3)
+    # test gradients work with anchor
+    samples.sum().backward(retain_graph=True)
+    for t in (log_alpha, log_beta):
+        assert t.grad is not None and not t.grad.isnan().any().item()
+        t.grad = None  # reset for next test
+    log_prob.sum().backward()
+    for t in (log_alpha, log_beta):
+        assert t.grad is not None and not t.grad.isnan().any().item()
 
-    # Test gradients work with anchor in deterministic mode
-    samples.sum().backward()
-    assert mean.grad is not None and not torch.any(torch.isnan(mean.grad))
+    # test stochastic sampling with anchor
+    log_alpha = torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
+    log_beta = torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
+    anchor = torch.from_numpy(rng.uniform(low, high, size=(n_samples, ndim)))
+    samples, log_prob, _ = distribution(log_alpha, log_beta, anchor=anchor)
+    assert all(s in space for s in samples.numpy(force=True))
+    assert log_prob.shape == (n_samples, 1)
 
-    # Test stochastic sampling with anchor
-    mean = torch.tensor([[0.0, 0.0]], requires_grad=True)
-    log_std = torch.tensor([[-1.0, -1.0]], requires_grad=True)
-    torch.manual_seed(42)
-    samples_stochastic, _, _ = dist(mean, log_std, deterministic=False, anchor=anchor)
-
-    # Verify gradients work in stochastic mode
-    samples_stochastic.sum().backward()
-    assert mean.grad is not None and not torch.any(torch.isnan(mean.grad))
-    assert log_std.grad is not None and not torch.any(torch.isnan(log_std.grad))
-
-    # Samples should be in valid range
-    assert samples_stochastic.shape == (1, 2)
-    assert torch.all(samples_stochastic >= torch.from_numpy(test_space.low))
-    assert torch.all(samples_stochastic <= torch.from_numpy(test_space.high))
-
-
-# def test_scaled_beta_anchor():
-#     """Test anchor functionality for ScaledBeta distribution."""
-#     test_space = Box(np.array([0.0, -5.0], np.float32), np.array([10.0, 5.0], np.float32))
-#     dist = ScaledBeta(test_space)
-#
-#     # Test deterministic sampling with anchor - when alpha=beta, mode is at center
-#     # This gives us a predictable mode to test anchoring
-#     log_alpha = torch.tensor([[0.0, 0.0]], requires_grad=True)
-#     log_beta = torch.tensor([[0.0, 0.0]], requires_grad=True)
-#     anchor = torch.tensor([5.0, 0.0])
-#
-#     samples, log_prob, _ = dist(log_alpha, log_beta, deterministic=True, anchor=anchor)
-#
-#     # Check shapes
-#     assert samples.shape == (1, 2)
-#     assert log_prob.shape == (1, 1)
-#
-#     # With equal alpha and beta, the mode is at 0.5 in [0,1] space
-#     # After shifting to align mode with anchor, the output should equal the anchor
-#     # (assuming no clamping is needed)
-#     assert torch.allclose(samples[0], anchor, atol=1e-3)
-#
-#     # Samples should be within bounds after anchoring and clamping
-#     assert torch.all(samples >= torch.from_numpy(test_space.low))
-#     assert torch.all(samples <= torch.from_numpy(test_space.high))
-#
-#     # Test gradients work with anchor
-#     samples.sum().backward()
-#     assert log_alpha.grad is not None and not torch.any(torch.isnan(log_alpha.grad))
-#     assert log_beta.grad is not None and not torch.any(torch.isnan(log_beta.grad))
-#
-#     # Test stochastic sampling with anchor
-#     log_alpha = torch.tensor([[0.0, 0.0]], requires_grad=True)
-#     log_beta = torch.tensor([[0.0, 0.0]], requires_grad=True)
-#     torch.manual_seed(42)
-#     samples_stochastic, _, _ = dist(log_alpha, log_beta, deterministic=False, anchor=anchor)
-#
-#     # Verify gradients work in stochastic mode
-#     samples_stochastic.sum().backward()
-#     assert log_alpha.grad is not None and not torch.any(torch.isnan(log_alpha.grad))
-#     assert log_beta.grad is not None and not torch.any(torch.isnan(log_beta.grad))
-#
-#     # Samples should be in valid range
-#     assert samples_stochastic.shape == (1, 2)
-#     assert torch.all(samples_stochastic >= torch.from_numpy(test_space.low))
-#     assert torch.all(samples_stochastic <= torch.from_numpy(test_space.high))
+    # test gradients work with anchor in stochastic mode
+    samples.sum().backward(retain_graph=True)
+    for t in (log_alpha, log_beta):
+        assert t.grad is not None and not t.grad.isnan().any().item()
+        t.grad = None  # reset for next test
+    log_prob.sum().backward()
+    for t in (log_alpha, log_beta):
+        assert t.grad is not None and not t.grad.isnan().any().item()
 
 
 def test_mode_concentration_beta():
@@ -203,7 +204,7 @@ def test_mode_concentration_beta():
         mode_01 = distribution.padding + (1.0 - 2.0 * distribution.padding) * torch.sigmoid(
             logit_mode
         )
-        expected_samples = distribution.lb + distribution.scale * mode_01
+        expected_samples = distribution.loc + distribution.scale * mode_01
         torch.testing.assert_close(samples, expected_samples)
 
     # test mode backward works but does not include log_conc, and that log_prob doesn't require grad

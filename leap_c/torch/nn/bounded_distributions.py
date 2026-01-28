@@ -243,6 +243,8 @@ class ScaledBeta(BoundedDistribution):
         log_beta_min: The minimum value for the logarithm of the beta parameter.
         log_alpha_max: The maximum value for the logarithm of the alpha parameter.
         log_beta_max: The maximum value for the logarithm of the beta parameter.
+        padding: The amount of padding to distance the action of the bounds, when using the inverse
+            transformation for the anchoring. This improves numerical stability.
     """
 
     scale: torch.Tensor
@@ -251,6 +253,7 @@ class ScaledBeta(BoundedDistribution):
     log_beta_min: float
     log_alpha_max: float
     log_beta_max: float
+    padding: float
 
     def __init__(
         self,
@@ -259,6 +262,7 @@ class ScaledBeta(BoundedDistribution):
         log_beta_min: float = -10.0,
         log_alpha_max: float = 10.0,
         log_beta_max: float = 10.0,
+        padding: float = 1e-4,
     ) -> None:
         """Initializes the `ScaledBeta` module.
 
@@ -268,6 +272,8 @@ class ScaledBeta(BoundedDistribution):
             log_beta_min: The minimum value for the logarithm of the beta parameter.
             log_alpha_max: The maximum value for the logarithm of the alpha parameter.
             log_beta_max: The maximum value for the logarithm of the beta parameter.
+            padding: The amount of padding to distance the action of the bounds, when using the
+                inverse transformation for the anchoring. This improves numerical stability.
 
         Raises:
             ValueError: If the provided space is not bounded.
@@ -277,6 +283,7 @@ class ScaledBeta(BoundedDistribution):
         self.log_beta_max = log_beta_max
         self.log_alpha_min = log_alpha_min
         self.log_beta_min = log_beta_min
+        self.padding = padding
 
         self.register_buffer("loc", torch.tensor(space.low, dtype=torch.float32))
         self.register_buffer("scale", torch.tensor(space.high - space.low, dtype=torch.float32))
@@ -304,29 +311,33 @@ class ScaledBeta(BoundedDistribution):
             An output sampled from the `ScaledBeta` distribution, the log probability of this output
             and a statistics dict containing the standard deviation.
         """
-        log_alpha = torch.clamp(log_alpha, self.log_alpha_min, self.log_alpha_max)
-        log_beta = torch.clamp(log_beta, self.log_beta_min, self.log_beta_max)
+        # add 1 to ensure concavity
+        alpha = 1.0 + torch.clamp(log_alpha, self.log_alpha_min, self.log_alpha_max).exp()
+        beta = 1.0 + torch.clamp(log_beta, self.log_beta_min, self.log_beta_max).exp()
 
-        # Add 1 to ensure concavity
-        alpha = torch.exp(log_alpha) + 1.0
-        beta = torch.exp(log_beta) + 1.0
+        if anchor is not None:
+            # get current mode and translate from [0, 1] to [-inf, inf] logit space
+            logit_mode = torch.special.logit((alpha - 1) / (alpha + beta - 2))
 
+            # translate the anchor from [lb, ub] to [0, 1] to [-inf, inf] logit space
+            logit_inv_anchor = torch.special.logit(self.inverse(anchor))
+
+            # sum the modes in logit space, and then translate back to [0, 1] space (with padding)
+            logit_mode = logit_mode + logit_inv_anchor
+            mode = self.padding + (1.0 - 2.0 * self.padding) * torch.sigmoid(logit_mode)
+
+            # update alpha and beta to reflect the new mode while keeping concentration constant
+            concentration_m2 = alpha + beta - 2.0
+            alpha = 1.0 + mode * concentration_m2
+            beta = 1.0 + (1.0 - mode) * concentration_m2
+
+        # create Beta distribution and sample from it or use its mode (deterministic case)
         dist = Beta(alpha, beta)
-
-        if deterministic:
-            y = dist.mode
-        else:
-            # reparameterization trick
-            y = dist.rsample()
-        log_prob = dist.log_prob(y)
-
+        y = dist.mode if deterministic else dist.rsample()  # reparameterization trick
         y_scaled = y * self.scale + self.loc
 
-        # If anchor is provided, center the distribution around it
-        if anchor is not None:
-            # TODO (Jasper): Check whether we want to do it differently?
-            raise NotImplementedError("Anchor functionality not implemented for `ScaledBeta` yet.")
-
+        # update log probability to reflect scaling
+        log_prob = dist.log_prob(y)
         log_prob -= torch.log(self.scale)
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
@@ -336,6 +347,17 @@ class ScaledBeta(BoundedDistribution):
 
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
         return output_dim, output_dim
+
+    def inverse(self, x: torch.Tensor) -> torch.Tensor:
+        """Apply the inverse transformation from `[lb, ub]` to `[0, 1]`.
+
+        Args:
+            x: The input tensor.
+
+        Returns:
+            The inverse scaled tensor.
+        """
+        return (torch.as_tensor(x) - self.loc) / self.scale
 
 
 class ModeConcentrationBeta(BoundedDistribution):
@@ -491,5 +513,4 @@ class ModeConcentrationBeta(BoundedDistribution):
         Returns:
             The inverse scaled tensor.
         """
-        x = torch.as_tensor(x) if not isinstance(x, torch.Tensor) else x
-        return (x - self.loc) / self.scale
+        return (torch.as_tensor(x) - self.loc) / self.scale
