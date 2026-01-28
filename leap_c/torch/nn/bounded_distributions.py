@@ -15,6 +15,19 @@ BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta", "mode_conc
 class BoundedDistribution(nn.Module):
     """An abstract class for bounded distributions."""
 
+    def __init__(self, space: Box) -> None:
+        """Initializes the bounded distribution.
+
+        Args:
+            space: The space the output is bounded to.
+
+        Raises:
+            ValueError: If the provided space is not bounded.
+        """
+        if not space.is_bounded():
+            raise ValueError("The provided space must be bounded to support scaling and shifting.")
+        super().__init__()
+
     @abstractmethod
     def forward(
         self, *defining_parameters, deterministic: bool = False
@@ -114,8 +127,11 @@ class SquashedGaussian(BoundedDistribution):
             log_std_max: The maximum value for the logarithm of the standard deviation.
             padding: The amount of padding to distance the action of the bounds, when using the
                 inverse transformation for the anchoring. This improves numerical stability.
+
+        Raises:
+            ValueError: If the provided space is not bounded.
         """
-        super().__init__()
+        super().__init__(space)
         self.log_std_min = log_std_min
         self.log_std_max = log_std_max
         self.padding = padding
@@ -249,9 +265,11 @@ class ScaledBeta(BoundedDistribution):
             log_beta_min: The minimum value for the logarithm of the beta parameter.
             log_alpha_max: The maximum value for the logarithm of the alpha parameter.
             log_beta_max: The maximum value for the logarithm of the beta parameter.
-        """
-        super().__init__()
 
+        Raises:
+            ValueError: If the provided space is not bounded.
+        """
+        super().__init__(space)
         self.log_alpha_max = log_alpha_max
         self.log_beta_max = log_beta_max
         self.log_alpha_min = log_alpha_min
@@ -355,8 +373,11 @@ class ModeConcentrationBeta(BoundedDistribution):
             log_conc_max: The maximum value for the logarithm of the concentration.
             padding: The amount of padding to distance the action of the bounds, when using the
                 inverse transformation for the anchoring. This improves numerical stability.
+
+        Raises:
+            ValueError: If the provided space is not bounded.
         """
-        super().__init__()
+        super().__init__(space)
         self.log_conc_min = log_conc_min
         self.log_conc_max = log_conc_max
         self.padding = padding
