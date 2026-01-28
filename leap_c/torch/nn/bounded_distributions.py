@@ -178,10 +178,10 @@ class SquashedGaussian(BoundedDistribution):
 
         y = torch.tanh(y)
 
-        log_prob -= torch.log(self.scale[None, :] * (1 - y.square()) + 1e-6)
+        log_prob -= torch.log(self.scale * (1 - y.square()) + 1e-6)
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
-        y_scaled = y * self.scale[None, :] + self.loc[None, :]
+        y_scaled = y * self.scale + self.loc
 
         stats = (
             {"gaussian_unsquashed_std": std.prod(dim=-1).mean().item()} if std is not None else {}
@@ -204,9 +204,9 @@ class SquashedGaussian(BoundedDistribution):
         Returns:
             The inverse squashed tensor, scaled and shifted to match the action space.
         """
-        abs_padding = self.scale[None, :] * self.padding
-        x = (x - self.loc[None, :]) / (self.scale[None, :] + 2 * abs_padding)
-        return torch.arctanh(x)
+        abs_padding = self.scale * self.padding
+        y = (x - self.loc) / (self.scale + 2 * abs_padding)
+        return torch.arctanh(y)
 
 
 class ScaledBeta(BoundedDistribution):
@@ -299,14 +299,14 @@ class ScaledBeta(BoundedDistribution):
             y = dist.rsample()
         log_prob = dist.log_prob(y)
 
-        y_scaled = y * self.scale[None, :] + self.loc[None, :]
+        y_scaled = y * self.scale + self.loc
 
         # If anchor is provided, center the distribution around it
         if anchor is not None:
             # TODO (Jasper): Check whether we want to do it differently?
             raise NotImplementedError("Anchor functionality not implemented for `ScaledBeta` yet.")
 
-        log_prob -= torch.log(self.scale[None, :])
+        log_prob -= torch.log(self.scale)
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
         # We could return the mean of alpha and beta as stats, but I think they should at least be
@@ -423,10 +423,10 @@ class ModeConcentrationBeta(BoundedDistribution):
             log_prob = self._beta_dist.log_prob(y)
 
         # Scale from [0, 1] to [lb, ub]
-        y_scaled = y * self.scale[None, :] + self.loc[None, :]
+        y_scaled = y * self.scale + self.loc
 
         # Adjust log_prob for scaling transformation
-        log_prob -= torch.log(self.scale[None, :])
+        log_prob -= torch.log(self.scale)
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
         stats = (
@@ -469,4 +469,4 @@ class ModeConcentrationBeta(BoundedDistribution):
             The inverse scaled tensor.
         """
         x = torch.as_tensor(x) if not isinstance(x, torch.Tensor) else x
-        return (x - self.loc[None, :]) / self.scale[None, :]
+        return (x - self.loc) / self.scale
