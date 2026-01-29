@@ -200,7 +200,8 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
 
                 # Log the gradients of the solution map wrt. params
                 dudp = self.pi.controller.jacobian_action_param(ctx=pi_o.ctx)
-                zero_grads = np.abs(dudp[mask_status]).sum(axis=(-2, -1)) > 0
+                dudp_norm = np.linalg.matrix_norm(dudp[mask_status])
+                zero_grads = np.isclose(dudp_norm, np.zeros_like(dudp_norm))
 
                 o = o[mask_status]
                 a = a[mask_status]

@@ -23,7 +23,7 @@ from leap_c.ocp.acados.utils.create_solver import create_forward_backward_batch_
 from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
 from leap_c.ocp.acados.utils.solve import solve_with_retry
 
-DEFAULT_N_BATCH_MAX = 256
+DEFAULT_N_BATCH_INIT = 256
 DEFAULT_NUM_THREADS_BATCH_SOLVER = 4
 
 
@@ -127,7 +127,7 @@ class AcadosDiffMpcFunction(DiffFunction):
         sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
-        n_batch_max: int | None = None,
+        n_batch_init: int | None = None,
         num_threads_batch_solver: int | None = None,
     ) -> None:
         """Initializes the differentiable MPC function.
@@ -144,7 +144,8 @@ class AcadosDiffMpcFunction(DiffFunction):
                 on the stage cost and `1` on the terminal cost.
             export_directory: An optional directory to which the generated C code will be exported.
                 If none is provided, a unique temporary directory will be created used.
-            n_batch_max: Maximum batch size supported by the batch OCP solver.
+            n_batch_init: Initially supported batch size of the batch OCP solver.
+                Using larger batches will trigger a delay for creation of more solvers.
                 If `None`, a default value is used.
             num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
                 If `None`, a default value is used.
@@ -156,7 +157,7 @@ class AcadosDiffMpcFunction(DiffFunction):
                 sensitivity_ocp=sensitivity_ocp,
                 discount_factor=discount_factor,
                 export_directory=export_directory,
-                n_batch_max=DEFAULT_N_BATCH_MAX if n_batch_max is None else n_batch_max,
+                n_batch_init=DEFAULT_N_BATCH_INIT if n_batch_init is None else n_batch_init,
                 num_threads=DEFAULT_NUM_THREADS_BATCH_SOLVER
                 if num_threads_batch_solver is None
                 else num_threads_batch_solver,

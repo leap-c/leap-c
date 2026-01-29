@@ -102,13 +102,13 @@ def test_statelessness(diff_mpc: AcadosDiffMpcTorch) -> None:
     x0 = torch.tensor(
         np.tile(
             A=np.array([0.5, 0.5, 0.5, 0.5]),
-            reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
+            reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.n_batch_current, 1),
         )
     )
     u0 = torch.tensor(
         np.tile(
             A=np.array([0.5, 0.5]),
-            reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
+            reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.n_batch_current, 1),
         )
     )
 
@@ -120,7 +120,7 @@ def test_statelessness(diff_mpc: AcadosDiffMpcTorch) -> None:
 
     p_global = np.tile(
         A=p_global,
-        reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1),
+        reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.n_batch_current, 1),
     )
 
     p_stagewise = diff_mpc.diff_mpc_fun.ocp.parameter_values
@@ -132,7 +132,7 @@ def test_statelessness(diff_mpc: AcadosDiffMpcTorch) -> None:
     p_stagewise = np.tile(
         A=p_stagewise,
         reps=(
-            diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max,
+            diff_mpc.diff_mpc_fun.forward_batch_solver.n_batch_current,
             diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1,  # type: ignore
             1,
         ),
@@ -180,7 +180,7 @@ def test_backup_functionality(diff_mpc: AcadosDiffMpcTorch) -> None:
         AssertionError: If the solver does not converge or if the solutions
                         before and after restoration are not consistent.
     """
-    reps = (diff_mpc.diff_mpc_fun.forward_batch_solver.N_batch_max, 1)
+    reps = (diff_mpc.diff_mpc_fun.forward_batch_solver.n_batch_current, 1)
     x0 = torch.tensor(np.tile(A=np.array([0.5, 0.5, 0.5, 0.5]), reps=reps))
     u0 = torch.tensor(np.tile(A=np.array([0.5, 0.5]), reps=reps))
 
@@ -426,7 +426,7 @@ def test_forward(
 
     for diff_mpc_k in [diff_mpc_with_stagewise_varying_params, diff_mpc]:
         acados_ocp = diff_mpc_k.diff_mpc_fun.ocp
-        n_batch = diff_mpc_k.diff_mpc_fun.forward_batch_solver.N_batch_max
+        n_batch = diff_mpc_k.diff_mpc_fun.forward_batch_solver.n_batch_current
 
         # Setup test data
         test_inputs = _setup_test_inputs(diff_mpc_k, n_batch, dtype, noise_scale)
