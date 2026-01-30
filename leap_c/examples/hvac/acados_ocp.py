@@ -221,9 +221,6 @@ def export_parametric_ocp(
     ddqh = ca.SX.sym("ddqh")  # Acceleration of heat input to radiator
 
     Ad, Bd, Ed = transcribe_discrete_state_space(
-        Ad=np.zeros((3, 3)),
-        Bd=np.zeros((3, 1)),
-        Ed=np.zeros((3, 2)),
         dt=dt,
         params=param_manager.recreate_dataclass(HydronicDynamicsParameters),
     )
