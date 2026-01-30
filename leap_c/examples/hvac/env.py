@@ -381,6 +381,13 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         # Deterministic state update
         x_next = self.Ad @ self.state + self.Bd @ action + self.Ed @ exog
 
+        # Add occupancy heat gains:
+        # - Every weekday from 08:00 to 16:45: +300W
+        day_of_week = self.dataset.index[self.idx].dayofweek  # Monday=0, Sunday=6
+        quarter_hour, _ = self.dataset.get_time_features(self.idx)
+        if day_of_week < 5 and 32 <= quarter_hour <= 67:
+            x_next[0] += (1000.0 * self.cfg.step_size) / (self.cfg.thermal_params.dynamics.Ci)
+
         # Add Gaussian noise if enabled
         if self.cfg.enable_noise:
             # Sample from multivariate normal distribution with exact covariance
