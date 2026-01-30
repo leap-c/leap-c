@@ -45,11 +45,11 @@ class DataConfig:
     mode: Literal["random", "continual"] = "random"
 
     # train / test split configuration
-    max_hours: int = 1.5 * 24  # Maximum episode length in hours
+    max_hours: int = int(4.5 * 24)  # Maximum episode length in hours
     valid_months: list[int] | None = field(
-        default_factory=lambda: [1, 2, 3, 4, 9, 10, 11, 12]
-    )  # Heating season months: Jan-Apr, Sep-Dec
-    total_test_episodes: int = 100  # Exact number of test episodes (stratified across months/years)
+        default_factory=lambda: [1, 2, 12]
+    )  # Heating season months: Jan-Feb, Dec
+    total_test_episodes: int = 0  # Exact number of test episodes (stratified across months/years)
     split_seed: int = 42  # Seed for reproducible train/test split
 
 
@@ -556,6 +556,7 @@ def load_price_data(
     price_zone: str = "NO1",
     start_date: str = "2017-01-01",
     end_date: str = "2017-11-30",
+    min_price: float = 0.0001,
 ) -> pd.DataFrame:
     """Load electricity price data from CSV file.
 
@@ -592,6 +593,9 @@ def load_price_data(
 
         # Save to CSV for future use
         price_data.to_csv(csv_path, index=True)
+
+    # ensure price is non-negative and has a minimum value
+    price_data["price"] = price_data["price"].clip(lower=min_price)
 
     return price_data
 
