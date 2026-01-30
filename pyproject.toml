@@ -41,7 +41,6 @@ test = [
   "pytest-cov==7.0.0",
   "pygame==2.6.1",
   "moviepy==2.2.1",
-  "wandb==0.20.1",
   "tensorboard==2.19.0",
   "gymnasium[mujoco]==1.1.1",
   "numpy-quaternion==2024.0.8",
@@ -68,6 +67,7 @@ dev = [
   "leap_c[test]",
   "leap_c[hvac]",
   "leap_c[tuning]",
+  "leap_c[wandb]",
   "pre-commit==4.3.0",
   "ruff==0.12.12"
 ]
