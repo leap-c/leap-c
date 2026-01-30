@@ -56,29 +56,22 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     Observation Space:
     ------------------
 
-    The observation is a `ndarray` with shape `(5 + 3*15*horizon_hours,)` and dtype `np.float32`,
-    where 3*5*horizon_hours includes forecasts for ambient temperature, solar irradiation, and
-    electricity prices. The observation space looks as follows:
+    The observation is a `Dict` space with the following structure:
 
-    | Num  | Observation                                  | Min | Max          |
-    |------|----------------------------------------------|-----|--------------|
-    | 0    | quarter hour of the day                      | 0   | 95           |
-    | 1    | day of year                                  | 0   | 365          |
-    | 2    | indoor air temperature Ti [K]                | 0   | 303.15       |
-    | 3    | radiator temperature Th [K]                  | 0   | 773.15       |
-    | 4    | envelope temperature Te [K]                  | 0   | 303.15       |
-    | 5    | ambient temperature forecast t+0 [K]         | 0   | 313.15       |
-    | 6    | ambient temperature forecast t+1 [K]         | 0   | 313.15       |
-    | ...  | ambient temperature forecast t+N-1 [K]       | 0   | 313.15       |
-    | 5+N  | solar radiation forecast t+0 [W/m²]          | 0   | 200.0        |
-    | 6+N  | solar radiation forecast t+1 [W/m²]          | 0   | 200.0        |
-    | ...  | solar radiation forecast t+N-1 [W/m²]        | 0   | 200.0        |
-    | 5+2N | electricity price forecast t+0 [EUR/kWh]     | 0   | max(dataset) |
-    | 6+2N | electricity price forecast t+1 [EUR/kWh]     | 0   | max(dataset) |
-    | ...  | electricity price forecast t+N-1 [EUR/kWh]   | 0   | max(dataset) |
+    - "time": Dict
+        - "quarter_hour": Box(0, 95, shape=(1,)) - quarter hour of the day (0=00:00, ..., 95=23:45)
+        - "day_of_year": Box(0, 365, shape=(1,)) - day within a year
+        - "day_of_week": Box(0, 6, shape=(1,)) - day of week (0=Monday, ..., 6=Sunday)
+    - "state": Box(shape=(3,)) - [Ti, Th, Te] temperatures in Kelvin
+        - Ti: indoor air temperature (0 to 303.15 K)
+        - Th: radiator temperature (0 to 773.15 K)
+        - Te: envelope temperature (0 to 303.15 K)
+    - "forecast": Dict
+        - "temperature": Box(shape=(N,)) - ambient temperature forecast [K]
+        - "solar": Box(shape=(N,)) - solar radiation forecast [W/m²]
+        - "price": Box(shape=(N,)) - electricity price forecast [EUR/kWh]
 
     Additional notes:
-    - Quarter hour: 0=00:00, 1=00:15, 2=00:30, 3=00:45, ..., 95=23:45
     - All forecasts are at 15-minute intervals starting from current time
     - N_forecast (or N) is the prediction horizon length (typically 96 for 24h)
 
@@ -169,35 +162,58 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         print("env N_forecast: ", self.N_forecast)
 
-        # Setup observation and action spaces
-        obs_low = np.array(
-            [
-                0.0,  # quarter hour within a day
-                0.0,  # day within a year
-                0.0,  # Indoor temperature
-                0.0,  # Radiator temperature
-                0.0,  # Envelope temperature
-            ]
-            + [self.dataset.min["temperature_forecast"]] * self.N_forecast  # Ambient temperatures
-            + [self.dataset.min["solar_forecast"]] * self.N_forecast  # Solar radiation
-            + [self.dataset.min["price"]] * self.N_forecast,  # Prices  TODO: Allow negative prices
-            dtype=np.float32,
+        # Setup observation space as Dict
+        self.observation_space = spaces.Dict(
+            {
+                "time": spaces.Dict(
+                    {
+                        "quarter_hour": spaces.Box(
+                            low=0.0, high=24 * 4 - 1, shape=(1,), dtype=np.float32
+                        ),
+                        "day_of_year": spaces.Box(
+                            low=0.0, high=365.0, shape=(1,), dtype=np.float32
+                        ),
+                        "day_of_week": spaces.Box(low=0.0, high=6.0, shape=(1,), dtype=np.float32),
+                    }
+                ),
+                "state": spaces.Box(
+                    low=np.array(
+                        [0.0, 0.0, 0.0],
+                        dtype=np.float32,
+                    ),
+                    high=np.array(
+                        [
+                            convert_temperature(30.0, "celsius", "kelvin"),  # Ti
+                            convert_temperature(500.0, "celsius", "kelvin"),  # Th
+                            convert_temperature(30.0, "celsius", "kelvin"),  # Te
+                        ],
+                        dtype=np.float32,
+                    ),
+                ),
+                "forecast": spaces.Dict(
+                    {
+                        "temperature": spaces.Box(
+                            low=self.dataset.min["temperature_forecast"],
+                            high=self.dataset.max["temperature_forecast"],
+                            shape=(self.N_forecast,),
+                            dtype=np.float32,
+                        ),
+                        "solar": spaces.Box(
+                            low=self.dataset.min["solar_forecast"],
+                            high=self.dataset.max["solar_forecast"],
+                            shape=(self.N_forecast,),
+                            dtype=np.float32,
+                        ),
+                        "price": spaces.Box(
+                            low=self.dataset.min["price"],
+                            high=self.dataset.max["price"],
+                            shape=(self.N_forecast,),
+                            dtype=np.float32,
+                        ),
+                    }
+                ),
+            }
         )
-
-        obs_high = np.array(
-            [
-                24 * 4 - 1,  # quarter hour within a day
-                365,  # day within a year
-                convert_temperature(30.0, "celsius", "kelvin"),  # Indoor temperature
-                convert_temperature(500.0, "celsius", "kelvin"),  # Radiator temperature
-                convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
-            ]
-            + [self.dataset.max["temperature_forecast"]] * self.N_forecast  # Ambient temperatures
-            + [self.dataset.max["solar_forecast"]] * self.N_forecast  # Solar radiation
-            + [self.dataset.max["price"]] * self.N_forecast,  # Prices
-            dtype=np.float32,
-        )
-        self.observation_space = spaces.Box(low=obs_low, high=obs_high)
 
         # Action space: electric power to radiators in Watts
         self.max_power = 5000.0  # Maximum power in Watts
@@ -244,19 +260,22 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         self.param_axes_limits_set = False
 
-    def _get_observation(self) -> np.ndarray:
+    def _get_observation(self) -> dict[str, np.ndarray | dict[str, np.ndarray]]:
         """Get the current observation.
 
-        The observation includes time, state, ambient temperatures, solar radiation, and prices
-        up to the prediction horizon.
+        The observation includes time, state, and forecast data.
 
         Returns:
-            np.ndarray: Observation vector containing temporal, state, and forecast information
+            dict: Observation dictionary with:
+                - "time": dict with quarter_hour, day_of_year, day_of_week
+                - "state": flat array [Ti, Th, Te]
+                - "forecast": dict with temperature, solar, price arrays
 
         Notes:
             The observation structure is described in the class docstring.
         """
         quarter_hour, day_of_year = self.dataset.get_time_features(self.idx)
+        day_of_week = self.dataset.index[self.idx].dayofweek  # Monday=0, Sunday=6
 
         forecasts = self.forecaster.get_forecast(
             idx=self.idx,
@@ -265,15 +284,19 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             np_random=self.np_random,
         )
 
-        return np.concatenate(
-            [
-                np.array([quarter_hour, day_of_year], dtype=np.float32),
-                self.state.astype(np.float32),
-                forecasts["temperature"].astype(np.float32),
-                forecasts["solar"].astype(np.float32),
-                forecasts["price"].astype(np.float32),
-            ]
-        )
+        return {
+            "time": {
+                "quarter_hour": np.array([quarter_hour], dtype=np.float32),
+                "day_of_year": np.array([day_of_year], dtype=np.float32),
+                "day_of_week": np.array([day_of_week], dtype=np.float32),
+            },
+            "state": self.state.astype(np.float32),  # [Ti, Th, Te]
+            "forecast": {
+                "temperature": forecasts["temperature"].astype(np.float32),
+                "solar": forecasts["solar"].astype(np.float32),
+                "price": forecasts["price"].astype(np.float32),
+            },
+        }
 
     def _reward_function(self, state: np.ndarray, action: np.ndarray):
         """Compute the reward based on the current state and action.
@@ -641,9 +664,9 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         ctx: HvacPlannerCtx = self.ctx
 
         obs = self._get_observation()
-        temperature_forecast = obs[5 : 5 + self.N_forecast]
-        solar_forecast = obs[5 + self.N_forecast : 5 + 2 * self.N_forecast]
-        price_forecast = obs[5 + 2 * self.N_forecast : 5 + 3 * self.N_forecast]
+        temperature_forecast = obs["forecast"]["temperature"]
+        solar_forecast = obs["forecast"]["solar"]
+        price_forecast = obs["forecast"]["price"]
 
         # Update history buffers with current values (at time step -1)
         # Get current state for history
