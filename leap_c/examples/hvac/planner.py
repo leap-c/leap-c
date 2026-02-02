@@ -289,6 +289,20 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         render_info["q_Ti_min"] = self.param_manager.parameters["q_Ti"].space.low
         render_info["q_Ti_max"] = self.param_manager.parameters["q_Ti"].space.high
 
+        # Dynamics parameters
+        dynamics_params = ["gAw", "Rea", "Rhi", "Rie", "Ch", "Ci", "Ce"]
+        for key in dynamics_params:
+            if self.param_manager.has_learnable_param_pattern(f"{key}*"):
+                render_info[key] = (
+                    self.param_manager.get_labeled_learnable_parameters(param, label=key)
+                    .detach()
+                    .cpu()
+                    .numpy()
+                )
+            else:
+                # Use default value if not learnable
+                render_info[key] = self.param_manager.parameters[key].default
+
         for key in ["temperature", "ref_Ti", "lb_Ti", "ub_Ti", "Ti", "Th", "Te"]:
             render_info[key] = convert_temperature(
                 val=render_info[key],
