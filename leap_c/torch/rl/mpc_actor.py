@@ -165,8 +165,7 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             output_sizes = list(self.param_distribution.parameter_size(param_dim))
         else:
             # action noise: deterministic param transform + action distribution
-            # Note: param_distribution is used deterministically by passing log_std=None
-            # in forward(), which transforms the mean without adding noise
+            # Note: param_distribution is used deterministically
             self.param_distribution = get_bounded_distribution(
                 "squashed_gaussian", space=param_space
             )
@@ -253,8 +252,7 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
         action_dist_params = mlp_outputs[1:]
 
         # transform parameters deterministically (no noise on params)
-        # log_std=None makes the distribution deterministic (just applies tanh + scaling)
-        param, _, param_stats = self.param_distribution(param_mean, log_std=None, anchor=None)
+        param, _, param_stats = self.param_distribution(param_mean, deterministic=True, anchor=None)
 
         # get action from controller
         ctx, action_mpc = self.controller(obs, param, ctx=ctx)
