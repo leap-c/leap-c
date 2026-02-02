@@ -1,18 +1,18 @@
 """Provides a simple distributional layer that allows policies to respect action bounds."""
 
 from abc import abstractmethod
+from math import log, pi
 from typing import Any, Literal
 
-import numpy as np
 import torch
-import torch.nn as nn
 from gymnasium.spaces import Box
+from numpy import ndarray
 from torch.distributions.beta import Beta
 
 BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta", "mode_concentration_beta"]
 
 
-class BoundedDistribution(nn.Module):
+class BoundedDistribution(torch.nn.Module):
     """An abstract class for bounded distributions."""
 
     def __init__(self, space: Box) -> None:
@@ -34,7 +34,7 @@ class BoundedDistribution(nn.Module):
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Sample from the distribution.
 
-        If `deterministic` is True, the mode of the distribution is used instead of sampling.
+        If `deterministic` is `True`, the mode of the distribution is used instead of sampling.
 
         Returns:
             A tuple containing the samples, their log probabilities and a dictionary of stats.
@@ -57,6 +57,9 @@ class BoundedDistribution(nn.Module):
     @abstractmethod
     def inverse(self, normalized_x: torch.Tensor) -> torch.Tensor:
         """Apply the inverse transformation to the input tensor.
+
+        The inverse transform is meant to translate the input from the bounded space to the squashed
+        interval (e.g., `[0,1]` or `[-1,1]`) .
 
         Args:
             normalized_x: The input tensor.
@@ -146,7 +149,7 @@ class SquashedGaussian(BoundedDistribution):
         mean: torch.Tensor,
         log_std: torch.Tensor | None = None,
         deterministic: bool = False,
-        anchor: torch.Tensor | None = None,
+        anchor: torch.Tensor | ndarray | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Sample from the `SquashedGaussian` distribution.
 
@@ -155,7 +158,8 @@ class SquashedGaussian(BoundedDistribution):
             log_std: The logarithm of the standard deviation of the normal distribution, of the same
                 shape as the mean (i.e., assuming independent dimensions).
                 Will be clamped according to the attributes of this class.
-                If `None`, the output is deterministic (no noise added to `mean`).
+                If `None`, the output is deterministic (no noise added to `mean`; same as for
+                `deterministic == True`).
             deterministic: If `True`, the output will just be `spacefitting(tanh(mean))`, with no
                 sampling taking place.
             anchor: Anchor point to shift the mean. Used for residual policies.
@@ -190,7 +194,7 @@ class SquashedGaussian(BoundedDistribution):
             y = mean + std * torch.randn_like(mean)
 
         if std is not None:
-            log_prob = -0.5 * ((y - mean) / std).square() - log_std - 0.5 * np.log(2 * np.pi)
+            log_prob = -0.5 * ((y - mean) / std).square() - log_std - 0.5 * log(2 * pi)
         else:
             # Deterministic: log_prob is 0 in the unbounded space (delta distribution)
             log_prob = torch.zeros_like(mean)
@@ -293,7 +297,7 @@ class ScaledBeta(BoundedDistribution):
         log_alpha: torch.Tensor,
         log_beta: torch.Tensor,
         deterministic: bool = False,
-        anchor: torch.Tensor | None = None,
+        anchor: torch.Tensor | ndarray | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Sample from the `ScaledBeta` distribution.
 
@@ -386,8 +390,8 @@ class ModeConcentrationBeta(BoundedDistribution):
     def __init__(
         self,
         space: Box,
-        log_conc_min: float = np.log(2.0),
-        log_conc_max: float = np.log(100.0),
+        log_conc_min: float = log(2.0),
+        log_conc_max: float = log(100.0),
         padding: float = 1e-4,
     ) -> None:
         """Initialize `ModeConcentrationBeta` distribution.
@@ -415,7 +419,7 @@ class ModeConcentrationBeta(BoundedDistribution):
         logit_mode: torch.Tensor,
         logit_log_conc: torch.Tensor,
         deterministic: bool = False,
-        anchor: torch.Tensor | None = None,
+        anchor: torch.Tensor | ndarray | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Sample from the `ModeConcentrationBeta` distribution.
 
