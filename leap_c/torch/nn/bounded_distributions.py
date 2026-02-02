@@ -7,6 +7,7 @@ from typing import Any, Literal
 import torch
 from gymnasium.spaces import Box
 from numpy import ndarray
+from numpy.typing import ArrayLike
 from torch.distributions.beta import Beta
 
 BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta", "mode_concentration_beta"]
@@ -115,12 +116,16 @@ class SquashedGaussian(BoundedDistribution):
 
     scale: torch.Tensor
     loc: torch.Tensor
-    log_std_min: float
-    log_std_max: float
-    padding: float
+    log_std_min: torch.Tensor
+    log_std_max: torch.Tensor
+    padding: torch.Tensor
 
     def __init__(
-        self, space: Box, log_std_min: float = -4, log_std_max: float = 2.0, padding: float = 1e-4
+        self,
+        space: Box,
+        log_std_min: ArrayLike | float = -4.0,
+        log_std_max: ArrayLike | float = 2.0,
+        padding: ArrayLike | float = 1e-4,
     ) -> None:
         """Initializes the `SquashedGaussian` module.
 
@@ -135,14 +140,15 @@ class SquashedGaussian(BoundedDistribution):
             ValueError: If the provided space is not bounded.
         """
         super().__init__(space)
-        self.log_std_min = log_std_min
-        self.log_std_max = log_std_max
-        self.padding = padding
-
+        dt = torch.get_default_dtype()
+        dev = torch.get_default_device()
         loc = (space.high + space.low) / 2.0
         scale = (space.high - space.low) / 2.0
-        self.register_buffer("loc", torch.tensor(loc, dtype=torch.float32))
-        self.register_buffer("scale", torch.tensor(scale, dtype=torch.float32))
+        self.register_buffer("loc", torch.as_tensor(loc, dtype=dt, device=dev))
+        self.register_buffer("scale", torch.as_tensor(scale, dtype=dt, device=dev))
+        self.register_buffer("log_std_min", torch.as_tensor(log_std_min, dtype=dt, device=dev))
+        self.register_buffer("log_std_max", torch.as_tensor(log_std_max, dtype=dt, device=dev))
+        self.register_buffer("padding", torch.as_tensor(padding, dtype=dt, device=dev))
 
     def forward(
         self,
@@ -253,20 +259,20 @@ class ScaledBeta(BoundedDistribution):
 
     scale: torch.Tensor
     loc: torch.Tensor
-    log_alpha_min: float
-    log_beta_min: float
-    log_alpha_max: float
-    log_beta_max: float
-    padding: float
+    log_alpha_min: torch.Tensor
+    log_alpha_max: torch.Tensor
+    log_beta_min: torch.Tensor
+    log_beta_max: torch.Tensor
+    padding: torch.Tensor
 
     def __init__(
         self,
         space: Box,
-        log_alpha_min: float = -10.0,
-        log_beta_min: float = -10.0,
-        log_alpha_max: float = 10.0,
-        log_beta_max: float = 10.0,
-        padding: float = 1e-4,
+        log_alpha_min: ArrayLike | float = -10.0,
+        log_beta_min: ArrayLike | float = -10.0,
+        log_alpha_max: ArrayLike | float = 10.0,
+        log_beta_max: ArrayLike | float = 10.0,
+        padding: ArrayLike | float = 1e-4,
     ) -> None:
         """Initializes the `ScaledBeta` module.
 
@@ -283,14 +289,15 @@ class ScaledBeta(BoundedDistribution):
             ValueError: If the provided space is not bounded.
         """
         super().__init__(space)
-        self.log_alpha_max = log_alpha_max
-        self.log_beta_max = log_beta_max
-        self.log_alpha_min = log_alpha_min
-        self.log_beta_min = log_beta_min
-        self.padding = padding
-
-        self.register_buffer("loc", torch.tensor(space.low, dtype=torch.float32))
-        self.register_buffer("scale", torch.tensor(space.high - space.low, dtype=torch.float32))
+        dt = torch.get_default_dtype()
+        dev = torch.get_default_device()
+        self.register_buffer("scale", torch.as_tensor(space.high - space.low, dtype=dt, device=dev))
+        self.register_buffer("loc", torch.as_tensor(space.low, dtype=dt, device=dev))
+        self.register_buffer("log_alpha_min", torch.as_tensor(log_alpha_min, dtype=dt, device=dev))
+        self.register_buffer("log_beta_min", torch.as_tensor(log_beta_min, dtype=dt, device=dev))
+        self.register_buffer("log_alpha_max", torch.as_tensor(log_alpha_max, dtype=dt, device=dev))
+        self.register_buffer("log_beta_max", torch.as_tensor(log_beta_max, dtype=dt, device=dev))
+        self.register_buffer("padding", torch.as_tensor(padding, dtype=dt, device=dev))
 
     def forward(
         self,
@@ -382,10 +389,11 @@ class ModeConcentrationBeta(BoundedDistribution):
 
     scale: torch.Tensor
     loc: torch.Tensor
+    log_conc_min: torch.Tensor
+    log_conc_max: torch.Tensor
+    padding: torch.Tensor
+
     _beta_dist: Beta
-    log_conc_min: float
-    log_conc_max: float
-    padding: float
 
     def __init__(
         self,
@@ -407,12 +415,13 @@ class ModeConcentrationBeta(BoundedDistribution):
             ValueError: If the provided space is not bounded.
         """
         super().__init__(space)
-        self.log_conc_min = log_conc_min
-        self.log_conc_max = log_conc_max
-        self.padding = padding
-
-        self.register_buffer("loc", torch.tensor(space.low, dtype=torch.float32))
-        self.register_buffer("scale", torch.tensor(space.high - space.low, dtype=torch.float32))
+        dt = torch.get_default_dtype()
+        dev = torch.get_default_device()
+        self.register_buffer("scale", torch.as_tensor(space.high - space.low, dtype=dt, device=dev))
+        self.register_buffer("loc", torch.as_tensor(space.low, dtype=dt, device=dev))
+        self.register_buffer("log_conc_min", torch.as_tensor(log_conc_min, dtype=dt, device=dev))
+        self.register_buffer("log_conc_max", torch.as_tensor(log_conc_max, dtype=dt, device=dev))
+        self.register_buffer("padding", torch.as_tensor(padding, dtype=dt, device=dev))
 
     def forward(
         self,
