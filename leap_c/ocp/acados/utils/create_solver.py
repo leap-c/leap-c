@@ -15,6 +15,7 @@ def create_batch_solver(
     discount_factor: float | None = None,
     n_batch_max: int = 256,
     num_threads: int = 4,
+    verbose: bool = True,
 ) -> AcadosOcpBatchSolver:
     """Create an AcadosOcpBatchSolver from an AcadosOcp object.
 
@@ -26,6 +27,7 @@ def create_batch_solver(
             scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
         n_batch_max: Maximum batch size.
         num_threads: Number of threads used in the batch solver.
+        verbose: Whether to print the whole code generation output or just a short message.
     """
     if export_directory is None:
         export_directory = Path(mkdtemp())
@@ -37,6 +39,9 @@ def create_batch_solver(
     ocp.code_gen_opts.code_export_directory = str(export_directory / "c_generated_code")
     json_file = str(export_directory / "acados_ocp.json")
 
+    if not verbose:
+        print(f"Solver directory: {export_directory}")
+
     try:
         batch_solver = AcadosOcpBatchSolver(
             ocp,
@@ -45,6 +50,7 @@ def create_batch_solver(
             num_threads_in_batch_solve=num_threads,
             build=False,
             generate=False,
+            verbose=verbose,
         )
     except FileNotFoundError:
         batch_solver = AcadosOcpBatchSolver(
@@ -53,6 +59,7 @@ def create_batch_solver(
             N_batch_init=n_batch_max,
             num_threads_in_batch_solve=num_threads,
             build=True,
+            verbose=verbose,
         )
 
     if discount_factor is not None:
@@ -71,6 +78,7 @@ def create_forward_backward_batch_solvers(
     discount_factor: float | None = None,
     n_batch_init: int = 256,
     num_threads: int = 4,
+    verbose: bool = True,
 ) -> tuple[AcadosOcpBatchSolver, AcadosOcpBatchSolver]:
     """Create a batch solver for solving the MPC problems (forward solver).
 
@@ -89,6 +97,7 @@ def create_forward_backward_batch_solvers(
             (i.e., 1/N_horizon for intermediate stages, 1 for terminal stage).
         n_batch_init: Initial batch size.
         num_threads: Number of threads used in the batch solver.
+        verbose: Whether to print the whole code generation output or just a short message.
     """
     opts = ocp.solver_options
     opts.with_batch_functionality = True
@@ -109,12 +118,16 @@ def create_forward_backward_batch_solvers(
         ocp.solver_options.with_solution_sens_wrt_params = True
         ocp.solver_options.with_value_sens_wrt_params = True
 
+    if not verbose:
+        print("Creating the forward solver using acados...")
+
     forward_batch_solver = create_batch_solver(
         ocp,
         export_directory=export_directory,
         discount_factor=discount_factor,
         n_batch_max=n_batch_init,
         num_threads=num_threads,
+        verbose=verbose,
     )
 
     if not need_backward_solver:
@@ -130,12 +143,16 @@ def create_forward_backward_batch_solvers(
 
     sensitivity_ocp.ensure_solution_sensitivities_available()  # type:ignore
 
+    if not verbose:
+        print("Creating the backward solver using acados...")
+
     backward_batch_solver = create_batch_solver(
         sensitivity_ocp,  # type:ignore
         export_directory=export_directory,
         discount_factor=discount_factor,
         n_batch_max=n_batch_init,
         num_threads=num_threads,
+        verbose=verbose,
     )
 
     return forward_batch_solver, backward_batch_solver
