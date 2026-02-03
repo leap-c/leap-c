@@ -389,9 +389,9 @@ class ModeConcentrationBeta(BoundedDistribution):
     def __init__(
         self,
         space: Box,
-        log_conc_min: float = log(2.0),
-        log_conc_max: float = log(100.0),
-        padding: float = 1e-4,
+        log_conc_min: ArrayLike | float = log(2.0),
+        log_conc_max: ArrayLike | float = log(100.0),
+        padding: ArrayLike | float = 1e-4,
     ) -> None:
         """Initialize `ModeConcentrationBeta` distribution.
 
