@@ -9,6 +9,7 @@ from gymnasium.spaces import Box
 from numpy import ndarray
 from numpy.typing import ArrayLike
 from torch.distributions.beta import Beta
+from torch.nn.functional import softplus
 
 BoundedDistributionName = Literal["squashed_gaussian", "scaled_beta", "mode_concentration_beta"]
 
@@ -174,12 +175,6 @@ class SquashedGaussian(BoundedDistribution):
             An output sampled from the `SquashedGaussian`, the log probability of this output
             and a statistics dict containing the standard deviation.
         """
-        if log_std is not None:
-            log_std = torch.clamp(log_std, self.log_std_min, self.log_std_max)
-            std = torch.exp(log_std)
-        else:
-            std = None
-
         if anchor is not None:
             # Convert anchor to tensor if it's a numpy array
             if not isinstance(anchor, torch.Tensor):
@@ -190,32 +185,29 @@ class SquashedGaussian(BoundedDistribution):
                 anchor <= self.loc + self.scale
             ).all(), "Anchor point must be within action space bounds."
 
+            # Use out-of-place operation to avoid modifying view
             inv_anchor = self.inverse(anchor)
-            mean = mean + inv_anchor  # Use out-of-place operation to avoid modifying view
+            mean = mean + inv_anchor
 
-        if deterministic or std is None:
+        # sample and compute log probability - if deterministic, use the mean and assign 0 log_prob
+        stats = {}
+        if deterministic or log_std is None:
             y = mean
-        else:
-            # reparameterization trick
-            y = mean + std * torch.randn_like(mean)
-
-        if std is not None:
-            log_prob = -0.5 * ((y - mean) / std).square() - log_std - 0.5 * log(2 * pi)
-        else:
-            # Deterministic: log_prob is 0 in the unbounded space (delta distribution)
             log_prob = torch.zeros_like(mean)
+        else:
+            std = log_std.clamp(self.log_std_min, self.log_std_max).exp()
+            y = torch.addcmul(mean, std, torch.randn_like(mean))  # reparameterization trick
+            log_prob = -0.5 * ((y - mean) / std).square() - log_std - 0.5 * log(2.0 * pi)
+            stats["gaussian_unsquashed_std"] = std.prod(dim=-1).mean().item()
 
-        y = torch.tanh(y)
-
-        log_prob -= torch.log(self.scale * (1 - y.square()) + 1e-6)
+        # adjust log_prob with tanh correction (reformulated as softplus for numerical stability;
+        # see `torch.distributions.transforms.TanhTransform.log_abs_det_jacobian` for reference)
+        log_prob = log_prob - self.scale.log() - 2.0 * (log(2.0) - y - softplus(-2.0 * y))
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
-        y_scaled = y * self.scale + self.loc
-
-        stats = (
-            {"gaussian_unsquashed_std": std.prod(dim=-1).mean().item()} if std is not None else {}
-        )
-
+        # map to desired bounds - pad the scale slightly to avoid rare bound violations
+        scale = self.scale * (1.0 - torch.finfo(self.scale.dtype).eps)
+        y_scaled = torch.addcmul(self.loc, scale, y.tanh())
         return y_scaled, log_prob, stats
 
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
@@ -234,7 +226,7 @@ class SquashedGaussian(BoundedDistribution):
             The inverse squashed tensor, scaled and shifted to match the action space.
         """
         abs_padding = self.scale * self.padding
-        y = (x - self.loc) / (self.scale + 2 * abs_padding)
+        y = (x - self.loc) / (self.scale + 2.0 * abs_padding)
         return torch.arctanh(y)
 
 

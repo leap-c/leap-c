@@ -2,7 +2,13 @@ import numpy as np
 import pytest
 import torch
 from gymnasium.spaces import Box
-from torch.distributions import AffineTransform, Beta, TransformedDistribution
+from torch.distributions import (
+    AffineTransform,
+    Beta,
+    Normal,
+    TanhTransform,
+    TransformedDistribution,
+)
 
 from leap_c.torch.nn.bounded_distributions import (
     ModeConcentrationBeta,
@@ -14,7 +20,7 @@ from leap_c.torch.nn.bounded_distributions import (
 @pytest.mark.parametrize("deterministic", (False, True))
 def test_squashed_gaussian_anchor(deterministic: bool) -> None:
     """Test anchor functionality for `SquashedGaussian` distribution."""
-    rng = np.random.default_rng()
+    rng = np.random.default_rng()  # NOTE: set seed=4 and remove scale-padding to produce failure
     torch.manual_seed(int(rng.integers(0, 1 << 31)))
 
     # generate random space and associated distribution
@@ -47,8 +53,8 @@ def test_squashed_gaussian_anchor(deterministic: bool) -> None:
         assert log_std.grad is None
         mean.grad = None  # reset for next test
         log_prob.sum().backward()
-        for t in (mean, log_std):
-            assert t.grad is not None and not t.grad.isnan().any().item()
+        assert mean.grad is not None and not mean.grad.isnan().any().item()
+        assert log_std.grad is None
     else:
         samples.sum().backward(retain_graph=True)
         for t in (mean, log_std):
@@ -57,6 +63,46 @@ def test_squashed_gaussian_anchor(deterministic: bool) -> None:
         log_prob.sum().backward()
         for t in (mean, log_std):
             assert t.grad is not None and not t.grad.isnan().any().item()
+
+
+def test_squashed_gaussian_log_prob() -> None:
+    """Test that log_prob computation for `SquashedGaussian` is correct."""
+    rng = np.random.default_rng()
+    torch.manual_seed(int(rng.integers(0, 1 << 31)))
+
+    # generate random space and associated distribution
+    ndim, n_samples = map(int, rng.integers(2, 10, size=2))
+    low = -5 - np.abs(rng.normal(scale=5, size=ndim))
+    high = 5 + np.abs(rng.normal(scale=5, size=ndim))
+    space = Box(low, high, dtype=np.float64)
+    distribution = SquashedGaussian(space, padding=0)
+
+    # generate random Gaussian parameters and samples with associated log probs
+    mean = torch.from_numpy(rng.normal(size=(n_samples, ndim)))
+    log_std = torch.from_numpy(rng.normal(size=(n_samples, ndim))).clamp(
+        distribution.log_std_min, distribution.log_std_max
+    )
+    samples, log_prob, _ = distribution(mean, log_std)
+
+    # create the same distribution with `torch.distributions`
+    expected_distribution = TransformedDistribution(
+        Normal(mean, log_std.exp()),
+        [TanhTransform(), AffineTransform(distribution.loc, distribution.scale)],
+    )
+    expected_log_prob = expected_distribution.log_prob(samples).sum(-1)
+    # NOTE: full expression for debugging purposes
+    # std = log_std.exp()
+    # samples_bounded = (samples - distribution.loc) / distribution.scale
+    # samples_inversed = samples_bounded.arctanh()
+    # expected_log_prob = -(
+    #     0.5 * log(2 * pi)
+    #     + log_std
+    #     + 0.5 * ((samples_inversed - mean) / std).square()
+    #     + (distribution.scale * (1 - samples_bounded.square()) + 1e-6).log()
+    # )
+
+    # assert the log probs match
+    torch.testing.assert_close(log_prob.squeeze(-1), expected_log_prob, atol=1e-6, rtol=1e-6)
 
 
 @pytest.mark.parametrize("deterministic", (False, True))
