@@ -20,7 +20,7 @@ from leap_c.torch.nn.bounded_distributions import (
 @pytest.mark.parametrize("deterministic", (False, True))
 def test_squashed_gaussian_anchor(deterministic: bool) -> None:
     """Test anchor functionality for `SquashedGaussian` distribution."""
-    rng = np.random.default_rng()  # NOTE: set seed=4 and remove scale-padding to produce failure
+    rng = np.random.default_rng()  # NOTE: set seed=4 and remove padding to produce failure
     torch.manual_seed(int(rng.integers(0, 1 << 31)))
 
     # generate random space and associated distribution
@@ -41,7 +41,10 @@ def test_squashed_gaussian_anchor(deterministic: bool) -> None:
     log_std = torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
     anchor = torch.from_numpy(rng.uniform(low, high, size=(n_samples, ndim)))
     samples, log_prob, _ = distribution(mean, log_std, deterministic, anchor)
-    assert all(s in space for s in samples.numpy(force=True))
+    # NOTE: assert within bounds or close to them, since padding=0
+    samples_np = samples.numpy(force=True)
+    assert ((samples_np >= low) | np.isclose(samples_np, low)).all()
+    assert ((samples_np <= high) | np.isclose(samples_np, high)).all()
     assert log_prob.shape == (n_samples, 1)
     if deterministic:
         torch.testing.assert_close(samples, anchor)
