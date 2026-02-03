@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 import torch
 from gymnasium.spaces import Box
+from torch.distributions import AffineTransform, Beta, TransformedDistribution
 
 from leap_c.torch.nn.bounded_distributions import (
     ModeConcentrationBeta,
@@ -127,6 +128,35 @@ def test_scaled_beta_anchor(deterministic: bool) -> None:
     log_prob.sum().backward()
     for t in (log_alpha, log_beta):
         assert t.grad is not None and not t.grad.isnan().any().item()
+
+
+def test_scaled_beta_log_prob() -> None:
+    """Test that log_prob computation for `ScaledBeta` is correct."""
+    rng = np.random.default_rng()
+    torch.manual_seed(int(rng.integers(0, 1 << 31)))
+
+    # generate random space and associated distribution
+    ndim, n_samples = map(int, rng.integers(2, 10, size=2))
+    low = -5 - np.abs(rng.normal(scale=5, size=ndim))
+    high = 5 + np.abs(rng.normal(scale=5, size=ndim))
+    space = Box(low, high, dtype=np.float64)
+    distribution = ScaledBeta(space, padding=0)  # remove paddings to avoid distorsion
+
+    # generate random Gaussian parameters and samples with associated log probs
+    log_alpha = torch.from_numpy(rng.normal(size=(n_samples, ndim)))
+    log_beta = torch.from_numpy(rng.normal(size=(n_samples, ndim)))
+    samples, log_prob, _ = distribution(log_alpha, log_beta)
+
+    # create the same distribution with `torch.distributions`
+    alpha = 1.0 + log_alpha.clamp(distribution.log_alpha_min, distribution.log_alpha_max).exp()
+    beta = 1.0 + log_beta.clamp(distribution.log_beta_min, distribution.log_beta_max).exp()
+    expected_distribution = TransformedDistribution(
+        Beta(alpha, beta), AffineTransform(distribution.loc, distribution.scale)
+    )
+    expected_log_prob = expected_distribution.log_prob(samples).sum(-1)
+
+    # assert the log probs match
+    torch.testing.assert_close(log_prob.squeeze(-1), expected_log_prob, atol=1e-6, rtol=1e-6)
 
 
 @pytest.mark.parametrize("deterministic", (False, True))

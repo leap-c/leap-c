@@ -322,9 +322,10 @@ class ScaledBeta(BoundedDistribution):
             An output sampled from the `ScaledBeta` distribution, the log probability of this output
             and a statistics dict containing the standard deviation.
         """
-        # add 1 to ensure concavity
-        alpha = 1.0 + torch.clamp(log_alpha, self.log_alpha_min, self.log_alpha_max).exp()
-        beta = 1.0 + torch.clamp(log_beta, self.log_beta_min, self.log_beta_max).exp()
+        # add 1+eps to ensure concavity and existance of mode (alpha, beta > 1)
+        offset = 1.0 + torch.finfo(log_alpha.dtype).eps
+        alpha = offset + torch.clamp(log_alpha, self.log_alpha_min, self.log_alpha_max).exp()
+        beta = offset + torch.clamp(log_beta, self.log_beta_min, self.log_beta_max).exp()
 
         if anchor is not None:
             # get current mode and translate from [0, 1] to [-inf, inf] logit space
@@ -335,25 +336,25 @@ class ScaledBeta(BoundedDistribution):
 
             # sum the modes in logit space, and then translate back to [0, 1] space (with padding)
             logit_mode = logit_mode + logit_inv_anchor
-            mode = self.padding + (1.0 - 2.0 * self.padding) * torch.sigmoid(logit_mode)
+            mode = torch.addcmul(self.padding, 1.0 - 2.0 * self.padding, logit_mode.sigmoid())
 
             # update alpha and beta to reflect the new mode while keeping concentration constant
-            concentration_m2 = alpha + beta - 2.0
-            alpha = 1.0 + mode * concentration_m2
-            beta = 1.0 + (1.0 - mode) * concentration_m2
+            concentration = alpha + beta
+            alpha = 1.0 + mode * (concentration - 2.0)
+            beta = concentration - alpha
 
-        # create Beta distribution and sample from it or use its mode (deterministic case)
+        # if deterministic, use the mode as sample; otherwise, create a Beta distribution and sample
+        # from it via the reparameterization trick to preserve differentiability
         dist = Beta(alpha, beta)
-        y = dist.mode if deterministic else dist.rsample()  # reparameterization trick
-        y_scaled = y * self.scale + self.loc
+        y = dist.mode if deterministic else dist.rsample()
+        y_scaled = torch.addcmul(self.loc, self.scale, y)
 
         # update log probability to reflect scaling
         log_prob = dist.log_prob(y)
-        log_prob -= torch.log(self.scale)
-        log_prob = log_prob.sum(dim=-1, keepdim=True)
+        log_prob = (log_prob - self.scale.log()).sum(dim=-1, keepdim=True)
 
-        # We could return the mean of alpha and beta as stats, but I think they should at least be
-        # investigated for each action dimension independently
+        # NOTE: we could return the mean of alpha and beta as stats, but I think they should at
+        # least be investigated for each action dimension independently
         return y_scaled, log_prob, {}
 
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
@@ -368,7 +369,7 @@ class ScaledBeta(BoundedDistribution):
         Returns:
             The inverse scaled tensor.
         """
-        return (torch.as_tensor(x) - self.loc) / self.scale
+        return (x - self.loc) / self.scale
 
 
 class ModeConcentrationBeta(BoundedDistribution):
