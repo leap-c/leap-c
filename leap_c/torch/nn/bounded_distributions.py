@@ -206,8 +206,8 @@ class SquashedGaussian(BoundedDistribution):
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
         # map to desired bounds - pad the scale slightly to avoid rare bound violations
-        scale = self.scale * (1.0 - torch.finfo(self.scale.dtype).eps)
-        y_scaled = torch.addcmul(self.loc, scale, y.tanh())
+        padded_scale = self.scale * (1.0 - 2.0 * self.padding)
+        y_scaled = torch.addcmul(self.loc, padded_scale, y.tanh())
         return y_scaled, log_prob, stats
 
     def parameter_size(self, output_dim: int) -> tuple[int, ...]:
@@ -225,8 +225,8 @@ class SquashedGaussian(BoundedDistribution):
         Returns:
             The inverse squashed tensor, scaled and shifted to match the action space.
         """
-        abs_padding = self.scale * self.padding
-        y = (x - self.loc) / (self.scale + 2.0 * abs_padding)
+        padded_scale = self.scale * (1.0 + 2.0 * self.padding)
+        y = (x - self.loc) / padded_scale
         return torch.arctanh(y)
 
 

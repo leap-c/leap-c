@@ -28,7 +28,7 @@ def test_squashed_gaussian_anchor(deterministic: bool) -> None:
     low = -5 - np.abs(rng.normal(scale=5, size=ndim))
     high = 5 + np.abs(rng.normal(scale=5, size=ndim))
     space = Box(low, high, dtype=np.float64)
-    distribution = SquashedGaussian(space, padding=0.0)
+    distribution = SquashedGaussian(space, padding=0.0)  # remove paddings to avoid distorsion
     samples: torch.Tensor
     log_prob: torch.Tensor
 
@@ -75,7 +75,7 @@ def test_squashed_gaussian_log_prob() -> None:
     low = -5 - np.abs(rng.normal(scale=5, size=ndim))
     high = 5 + np.abs(rng.normal(scale=5, size=ndim))
     space = Box(low, high, dtype=np.float64)
-    distribution = SquashedGaussian(space, padding=0)
+    distribution = SquashedGaussian(space, padding=0.0)  # remove paddings to avoid distorsion
 
     # generate random Gaussian parameters and samples with associated log probs
     mean = torch.from_numpy(rng.normal(size=(n_samples, ndim)))
