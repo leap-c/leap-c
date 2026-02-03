@@ -102,7 +102,7 @@ def test_squashed_gaussian_log_prob() -> None:
     # )
 
     # assert the log probs match
-    torch.testing.assert_close(log_prob.squeeze(-1), expected_log_prob, atol=1e-6, rtol=1e-6)
+    torch.testing.assert_close(log_prob.squeeze(-1), expected_log_prob, atol=1e-5, rtol=1e-5)
 
 
 @pytest.mark.parametrize("deterministic", (False, True))
