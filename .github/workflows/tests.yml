@@ -2,9 +2,7 @@ name: Tests
 
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
 
 jobs:
 
@@ -47,6 +45,7 @@ jobs:
         pytest tests/leap_c/test_scripts.py -v -s --cov=leap_c --cov-report=xml:coverage-${{ matrix.test-group.env }}.xml --cov-report=term
 
     - name: Upload coverage to Codecov
+      if: ${{ secrets.CODECOV_TOKEN != '' }}
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
@@ -80,6 +79,7 @@ jobs:
         pytest tests/leap_c/ -v --ignore=tests/leap_c/test_scripts.py --cov=leap_c --cov-report=xml:coverage-unit.xml --cov-report=term
 
     - name: Upload coverage to Codecov
+      if: ${{ secrets.CODECOV_TOKEN != '' }}
       uses: codecov/codecov-action@v4
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
