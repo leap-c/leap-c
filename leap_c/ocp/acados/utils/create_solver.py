@@ -4,9 +4,11 @@ from copy import deepcopy
 from pathlib import Path
 from tempfile import mkdtemp
 
-from acados_template import AcadosOcp, AcadosOcpBatchSolver, AcadosOcpSolver
+from acados_template import AcadosOcp, AcadosOcpBatchSolver, AcadosOcpDims, AcadosOcpSolver
 
 from leap_c.ocp.acados.utils.delete_directory_hook import DeleteDirectoryHook
+
+DEFAULT_N_GLOBAL_DATA: int = AcadosOcpDims().n_global_data
 
 
 def create_batch_solver(
@@ -35,11 +37,24 @@ def create_batch_solver(
         add_delete_hook = False
 
     ocp.code_gen_opts.code_export_directory = str(export_directory / "c_generated_code")
-    json_file = str(export_directory / f"acados_ocp_{ocp.model.name}.json")
+    json_file = export_directory / f"acados_ocp_{ocp.model.name}.json"
+
+    # BUG: from PR #246, the newest version of AcadosOcpBatchSolver, during code generation, assigns
+    # a value to `ocp.dims.n_global_data`, before saving it to disk. The current `ocp` often has the
+    # default value of this attribute (i.e., 0), which causes code reusage to fail. To circumvent
+    # the issue for the moment, when the value is the default, load the json file and grab the
+    # expected value from there
+    if ocp.dims.n_global_data == DEFAULT_N_GLOBAL_DATA and json_file.exists():
+        from json import load
+
+        with open(json_file, "r") as f:
+            ocp_json: dict[str, dict] = load(f)
+            dims = ocp_json.get("dims", {})
+            ocp.dims.n_global_data = dims.get("n_global_data", DEFAULT_N_GLOBAL_DATA)
 
     batch_solver = AcadosOcpBatchSolver(
         ocp,
-        json_file=json_file,
+        json_file=str(json_file),
         N_batch_init=n_batch_max,
         num_threads_in_batch_solve=num_threads,
         build=False,
