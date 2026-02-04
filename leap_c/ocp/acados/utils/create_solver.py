@@ -35,7 +35,7 @@ def create_batch_solver(
         add_delete_hook = False
 
     ocp.code_gen_opts.code_export_directory = str(export_directory / "c_generated_code")
-    json_file = str(export_directory / "acados_ocp.json")
+    json_file = str(export_directory / f"acados_ocp_{ocp.model.name}.json")
 
     batch_solver = AcadosOcpBatchSolver(
         ocp,
