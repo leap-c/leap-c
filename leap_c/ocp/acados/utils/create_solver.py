@@ -37,23 +37,14 @@ def create_batch_solver(
     ocp.code_gen_opts.code_export_directory = str(export_directory / "c_generated_code")
     json_file = str(export_directory / "acados_ocp.json")
 
-    try:
-        batch_solver = AcadosOcpBatchSolver(
-            ocp,
-            json_file=json_file,
-            N_batch_init=n_batch_max,
-            num_threads_in_batch_solve=num_threads,
-            build=False,
-            generate=False,
-        )
-    except FileNotFoundError:
-        batch_solver = AcadosOcpBatchSolver(
-            ocp,
-            json_file=json_file,
-            N_batch_init=n_batch_max,
-            num_threads_in_batch_solve=num_threads,
-            build=True,
-        )
+    batch_solver = AcadosOcpBatchSolver(
+        ocp,
+        json_file=json_file,
+        N_batch_init=n_batch_max,
+        num_threads_in_batch_solve=num_threads,
+        build=False,
+        generate=False,
+    )
 
     if discount_factor is not None:
         _set_discount_factor(batch_solver, discount_factor)
