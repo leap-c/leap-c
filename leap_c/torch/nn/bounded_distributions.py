@@ -202,7 +202,7 @@ class SquashedGaussian(BoundedDistribution):
 
         # adjust log_prob with tanh correction (reformulated as softplus for numerical stability;
         # see `torch.distributions.transforms.TanhTransform.log_abs_det_jacobian` for reference)
-        log_prob = log_prob - self.scale.log() - 2.0 * (log(2.0) - y - softplus(-2.0 * y))
+        log_prob = log_prob - self.scale.abs().log() - 2.0 * (log(2.0) - y - softplus(-2.0 * y))
         log_prob = log_prob.sum(dim=-1, keepdim=True)
 
         # map to desired bounds - pad the scale slightly to avoid rare bound violations
