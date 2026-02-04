@@ -498,4 +498,4 @@ class ModeConcentrationBeta(BoundedDistribution):
         Returns:
             The inverse scaled tensor.
         """
-        return (torch.as_tensor(x) - self.loc) / self.scale
+        return (x - self.loc) / self.scale
