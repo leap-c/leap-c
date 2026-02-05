@@ -320,6 +320,10 @@ class ScaledBeta(BoundedDistribution):
         beta = offset + torch.clamp(log_beta, self.log_beta_min, self.log_beta_max).exp()
 
         if anchor is not None:
+            # convert anchor to tensor if it's a numpy array
+            if not isinstance(anchor, torch.Tensor):
+                anchor = torch.as_tensor(anchor, dtype=alpha.dtype, device=alpha.device)
+
             # get current mode and translate from [0, 1] to [-inf, inf] logit space
             logit_mode = torch.special.logit((alpha - 1) / (alpha + beta - 2))
 
