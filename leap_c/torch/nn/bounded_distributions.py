@@ -464,11 +464,11 @@ class ModeConcentrationBeta(BoundedDistribution):
         # translate mode from [0, 1] to [padding, 1-padding]
         mode = torch.addcmul(self.padding, 1.0 - 2.0 * self.padding, logit_mode.sigmoid())
 
-        # translate log_conc from [log_conc_min, log_conc_max] and then exponentiate
+        # translate log_conc from [log_conc_min+eps, log_conc_max] and then exponentiate
         # NOTE: concentration must be > 2 to ensure unimodality
         log_conc_min = self.log_conc_min + torch.finfo(logit_log_conc.dtype).eps
         log_conc = torch.addcmul(
-            log_conc_min, self.log_conc_max - self.log_conc_min, logit_log_conc.sigmoid()
+            log_conc_min, self.log_conc_max - log_conc_min, logit_log_conc.sigmoid()
         )
         concentration = log_conc.exp()
 
