@@ -410,14 +410,16 @@ class ModeConcentrationBeta(BoundedDistribution):
             ValueError: If the provided space is not bounded, or if `log_conc_min` is less than
                 `log(2)`.
         """
-        if log_conc_min < log(2.0):
-            raise ValueError("log_conc_min must be at least `log(2)` to ensure unimodality.")
-        super().__init__(space)
         dt = torch.get_default_dtype()
         dev = torch.get_default_device()
+        log_conc_min = torch.as_tensor(log_conc_min, dtype=dt, device=dev)
+        if (log_conc_min < log(2.0)).any().item():
+            raise ValueError("`log_conc_min` must be at least `log(2)` to ensure unimodality.")
+        super().__init__(space)
+
         self.register_buffer("scale", torch.as_tensor(space.high - space.low, dtype=dt, device=dev))
         self.register_buffer("loc", torch.as_tensor(space.low, dtype=dt, device=dev))
-        self.register_buffer("log_conc_min", torch.as_tensor(log_conc_min, dtype=dt, device=dev))
+        self.register_buffer("log_conc_min", log_conc_min)
         self.register_buffer("log_conc_max", torch.as_tensor(log_conc_max, dtype=dt, device=dev))
         self.register_buffer("padding", torch.as_tensor(padding, dtype=dt, device=dev))
 
