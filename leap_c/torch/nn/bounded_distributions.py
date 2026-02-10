@@ -201,9 +201,10 @@ class SquashedGaussian(BoundedDistribution):
             stats["gaussian_unsquashed_std"] = std.prod(dim=-1).mean().item()
 
         # adjust log_prob with tanh correction (reformulated as softplus for numerical stability;
-        # see `torch.distributions.transforms.TanhTransform.log_abs_det_jacobian` for reference)
-        log_prob = log_prob - self.scale.abs().log() - 2.0 * (log(2.0) - y - softplus(-2.0 * y))
-        log_prob = log_prob.sum(dim=-1, keepdim=True)
+        # see `torch.distributions.transforms.TanhTransform.log_abs_det_jacobian` for reference) and
+        # scaling correction
+        tanh_correction = 2.0 * (log(2.0) - y - softplus(-2.0 * y))
+        log_prob = (log_prob - tanh_correction).sum(-1, keepdim=True) - self.scale.log().sum()
 
         # map to desired bounds - pad the scale slightly to avoid rare bound violations
         padded_scale = self.scale * (1.0 - 2.0 * self.padding)
@@ -346,8 +347,7 @@ class ScaledBeta(BoundedDistribution):
         y_scaled = torch.addcmul(self.loc, self.scale, y)
 
         # update log probability to reflect scaling
-        log_prob = dist.log_prob(y)
-        log_prob = (log_prob - self.scale.log()).sum(dim=-1, keepdim=True)
+        log_prob = dist.log_prob(y).sum(-1, keepdim=True) - self.scale.log().sum()
 
         # NOTE: we could return the mean of alpha and beta as stats, but I think they should at
         # least be investigated for each action dimension independently
@@ -486,7 +486,7 @@ class ModeConcentrationBeta(BoundedDistribution):
         y_scaled = torch.addcmul(self.loc, self.scale, y)
 
         # update log probability to reflect scaling
-        log_prob = (log_prob - self.scale.log()).sum(dim=-1, keepdim=True)
+        log_prob = log_prob.sum(-1, keepdim=True) - self.scale.log().sum()
 
         # NOTE: we could return the mean of alpha and beta as stats, but I think they should at
         # least be investigated for each action dimension independently
