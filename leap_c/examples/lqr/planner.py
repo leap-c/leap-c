@@ -21,10 +21,20 @@ class LqrPlannerConfig:
         N_horizon: The number of steps in the MPC horizon.
             The MPC will have N+1 nodes (the nodes 0...N-1 and the terminal
             node N).
+        discount_factor: discount factor along the MPC horizon.
+            If `None`, it defaults to the behavior of `AcadosOcpOptions.cost_scaling`.
+        n_batch_max: Maximum batch size supported by the batch OCP solver.
+            If `None`, a default value is used.
+        num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
+            If `None`, a default value is used.
         dtype: Type the planner output tensors will automatically be cast to.
     """
 
     N_horizon: int = 20
+
+    discount_factor: float | None = None
+    n_batch_max: int | None = None
+    num_threads_batch_solver: int | None = None
     dtype: torch.dtype = torch.float32
 
 
@@ -72,5 +82,12 @@ class LqrPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             x0=np.array([1.0, 0.0]),
         )
 
-        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory, dtype=self.cfg.dtype)
+        diff_mpc = AcadosDiffMpcTorch(
+            ocp,
+            discount_factor=self.cfg.discount_factor,
+            export_directory=export_directory,
+            n_batch_max=self.cfg.n_batch_max,
+            num_threads_batch_solver=self.cfg.num_threads_batch_solver,
+            dtype=self.cfg.dtype,
+        )
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)

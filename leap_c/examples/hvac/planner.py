@@ -60,7 +60,13 @@ class HvacPlannerConfig:
         N_horizon: The number of steps in the MPC horizon
             (default: 96, i.e., 24 hours in 15-minute steps).
         param_interface: Determines the exposed parameter interface of the planner.
-        param_granularity: Determines the granularity of the parameters
+        param_granularity: Determines the granularity of the parameters.
+        discount_factor: discount factor along the MPC horizon.
+            If `None`, it defaults to the behavior of `AcadosOcpOptions.cost_scaling`.
+        n_batch_max: Maximum batch size supported by the batch OCP solver.
+            If `None`, a default value is used.
+        num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
+            If `None`, a default value is used.
         dtype: Type the planner output tensors will automatically be cast to.
     """
 
@@ -68,6 +74,9 @@ class HvacPlannerConfig:
     param_interface: HvacAcadosParamInterface = "reference"
     param_granularity: HvacAcadosParamGranularity = "global"
 
+    discount_factor: float | None = None
+    n_batch_max: int | None = None
+    num_threads_batch_solver: int | None = None
     dtype: torch.dtype = torch.float32
 
 
@@ -152,11 +161,15 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
 
         if diff_mpc_kwargs is None:
             diff_mpc_kwargs = {}
-
         diff_mpc = AcadosDiffMpcTorch(
-            ocp, **diff_mpc_kwargs, export_directory=export_directory, dtype=self.cfg.dtype
+            ocp,
+            discount_factor=self.cfg.discount_factor,
+            export_directory=export_directory,
+            n_batch_max=self.cfg.n_batch_max,
+            num_threads_batch_solver=self.cfg.num_threads_batch_solver,
+            dtype=self.cfg.dtype,
+            **diff_mpc_kwargs,
         )
-
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
 
     def forward(
