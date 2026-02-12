@@ -63,7 +63,8 @@ class HvacPlannerConfig:
         param_granularity: Determines the granularity of the parameters.
         discount_factor: discount factor along the MPC horizon.
             If `None`, it defaults to the behavior of `AcadosOcpOptions.cost_scaling`.
-        n_batch_max: Maximum batch size supported by the batch OCP solver.
+        n_batch_init: Initially supported batch size of the batch OCP solver.
+            Using larger batches will trigger a delay for the creation of more solvers.
             If `None`, a default value is used.
         num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
             If `None`, a default value is used.
@@ -75,7 +76,7 @@ class HvacPlannerConfig:
     param_granularity: HvacAcadosParamGranularity = "global"
 
     discount_factor: float | None = None
-    n_batch_max: int | None = None
+    n_batch_init: int | None = None
     num_threads_batch_solver: int | None = None
     dtype: torch.dtype = torch.float32
 
@@ -165,7 +166,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             ocp,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
-            n_batch_max=self.cfg.n_batch_max,
+            n_batch_init=self.cfg.n_batch_init,
             num_threads_batch_solver=self.cfg.num_threads_batch_solver,
             dtype=self.cfg.dtype,
             **diff_mpc_kwargs,
