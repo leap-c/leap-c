@@ -30,6 +30,13 @@ class ChainControllerConfig:
         n_mass: The number of masses in the chain.
         param_interface: Determines the exposed paramete interface of the
             controller.
+        discount_factor: discount factor along the MPC horizon.
+            If `None`, it defaults to the behavior of `AcadosOcpOptions.cost_scaling`.
+        n_batch_init: Initially supported batch size of the batch OCP solver.
+            Using larger batches will trigger a delay for the creation of more solvers.
+            If `None`, a default value is used.
+        num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
+            If `None`, a default value is used.
         dtype: Type the planner output tensors will automatically be cast to.
     """
 
@@ -38,6 +45,9 @@ class ChainControllerConfig:
     n_mass: int = 5
     param_interface: ChainAcadosParamInterface = "global"
 
+    discount_factor: float | None = None
+    n_batch_init: int | None = None
+    num_threads_batch_solver: int | None = None
     dtype: torch.dtype = torch.float32
 
 
@@ -119,8 +129,11 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
         diff_mpc = AcadosDiffMpcTorch(
             ocp,
-            initializer=initializer,
+            initializer,
+            discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
+            n_batch_init=self.cfg.n_batch_init,
+            num_threads_batch_solver=self.cfg.num_threads_batch_solver,
             dtype=self.cfg.dtype,
         )
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
