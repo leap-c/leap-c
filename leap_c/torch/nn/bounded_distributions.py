@@ -193,7 +193,7 @@ class SquashedGaussian(BoundedDistribution):
         stats = {}
         if deterministic or log_std is None:
             y = mean
-            log_prob = torch.zeros_like(mean)
+            log_prob = mean.new_zeros(()).broadcast_to(mean.shape)
         else:
             std = log_std.clamp(self.log_std_min, self.log_std_max).exp()
             y = torch.addcmul(mean, std, torch.randn_like(mean))  # reparameterization trick
@@ -475,7 +475,7 @@ class ModeConcentrationBeta(BoundedDistribution):
         # generate sample - if deterministic, use mode directly
         if deterministic:
             y = mode
-            log_prob = torch.zeros_like(mode)
+            log_prob = mode.new_zeros(()).broadcast_to(mode.shape)
         else:
             # sample from Beta distribution
             distr = Beta(alpha := (1.0 + mode * (concentration - 2.0)), concentration - alpha)
