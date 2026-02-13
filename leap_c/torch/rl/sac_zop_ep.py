@@ -71,11 +71,17 @@ class SacZopTrainerEpisodic(SacZopTrainer):
                     "train", ep_info_list.get("episode", {}) | ep_info_list.get("task", {})
                 )
 
-            data_keys = ["observations", "rewards", "dones", "truncated", "info"]
+            data_keys = [
+                "observations",
+                "rewards",
+                "next_observations",
+                "dones",
+                "truncated",
+                "info",
+            ]
             for items in zip(*(ep_info_list[key] for key in data_keys)):
-                obs_prime, reward, is_terminated, is_truncated, info = items
+                obs, reward, obs_prime, is_terminated, is_truncated, info = items
                 self.buffer.put((obs, param, reward, obs_prime, is_terminated))
-                obs = obs_prime
 
             obs = obs_prime
             policy_ctx = pi_output.ctx
