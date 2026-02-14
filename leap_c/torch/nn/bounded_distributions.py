@@ -26,20 +26,40 @@ class BoundedDistribution(torch.nn.Module):
         Raises:
             ValueError: If the provided space is not bounded.
         """
-        if not space.is_bounded():
-            raise ValueError("The provided space must be bounded to support scaling and shifting.")
+        if space.low.ndim > 1 or not space.is_bounded():
+            raise ValueError(
+                "The provided space must be a 1d bounded space to support scaling and shifting."
+            )
         super().__init__()
 
     @abstractmethod
     def forward(
-        self, *defining_parameters, deterministic: bool = False
+        self,
+        *defining_parameters: torch.Tensor,
+        deterministic: bool = False,
+        anchor: torch.Tensor | ndarray | None = None,
+        sample_shape: tuple[int, ...] = (),
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Sample from the distribution.
 
-        If `deterministic` is `True`, the mode of the distribution is used instead of sampling.
+        Args:
+            *defining_parameters: The parameters defining the distribution, such as mean and log
+                standard deviation for a Gaussian distribution, or alpha and beta parameters for a
+                Beta distribution.
+                These parameters are expected to be broadcastable with the bounds of the space
+                provided at construction, and have shape `(*, event_dim)` with `event_dim` the
+                dimension of said space and `*` any shape for the batched distributions.
+            deterministic: If `deterministic` is `True`, the mode of the distribution is used
+                instead of sampling.
+            anchor: An optional tensor/array to shift the distribution's mean/mode towards. Used in
+                residual policies where the output distribution models an offset to the anchor.
+                Must be broadcastable to `(*, event_dim)`.
+            sample_shape: The shape of the samples to be drawn from the distribution. This allows
+                for drawing multiple samples at once from each distribution in the batch.
 
         Returns:
-            A tuple containing the samples, their log probabilities and a dictionary of stats.
+            A tuple containing the samples with shape `(*sample_shape, *, event_dim)`, the
+            corresponding log-probabilities, and a dictionary of stats.
         """
         ...
 
@@ -157,23 +177,30 @@ class SquashedGaussian(BoundedDistribution):
         log_std: torch.Tensor | None = None,
         deterministic: bool = False,
         anchor: torch.Tensor | ndarray | None = None,
+        sample_shape: tuple[int, ...] = (),
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Sample from the `SquashedGaussian` distribution.
 
         Args:
-            mean: The mean of the normal distribution.
+            mean: The mean of the normal distribution with shape `(*, event_dim)`, where `event_dim`
+                is the dimension of space provided at construction.
             log_std: The logarithm of the standard deviation of the normal distribution, of the same
-                shape as the mean (i.e., assuming independent dimensions).
-                Will be clamped according to the attributes of this class.
+                shape as the mean (i.e., assuming independent dimensions). Will be clamped according
+                to the attributes of this class. Must be broadcastable to `(*, event_dim)`.
                 If `None`, the output is deterministic (no noise added to `mean`; same as for
                 `deterministic == True`).
             deterministic: If `True`, the output will just be `spacefitting(tanh(mean))`, with no
                 sampling taking place.
-            anchor: Anchor point to shift the mean. Used for residual policies.
+            anchor: An optional tensor/array to shift the distribution's mean towards. Used in
+                residual policies where the output distribution models an offset to the anchor.
+                Must be broadcastable to `(*, event_dim)`.
+            sample_shape: The shape of the samples to be drawn from the distribution. This allows
+                for drawing multiple samples at once from each distribution in the batch.
 
         Returns:
-            An output sampled from the `SquashedGaussian`, the log probability of this output
-            and a statistics dict containing the standard deviation.
+            Output sampled from the `SquashedGaussian` with shape `(*sample_shape, *, event_dim)`,
+            the log probability of this output, and a statistics dict containing the standard
+            deviation.
         """
         if anchor is not None:
             # Convert anchor to tensor if it's a numpy array
@@ -192,11 +219,13 @@ class SquashedGaussian(BoundedDistribution):
         # sample and compute log probability - if deterministic, use the mean and assign 0 log_prob
         stats = {}
         if deterministic or log_std is None:
-            y = mean
-            log_prob = mean.new_zeros(()).broadcast_to(mean.shape)
+            out_shape = sample_shape + torch.broadcast_shapes(mean.shape, self.loc.shape)
+            y = mean.broadcast_to(out_shape)
+            log_prob = mean.new_zeros(()).broadcast_to(out_shape)
         else:
             std = log_std.clamp(self.log_std_min, self.log_std_max).exp()
-            y = torch.addcmul(mean, std, torch.randn_like(mean))  # reparameterization trick
+            out_shape = sample_shape + torch.broadcast_shapes(mean.shape, std.shape, self.loc.shape)
+            y = torch.addcmul(mean, std, mean.new_empty(out_shape).normal_())
             log_prob = -0.5 * ((y - mean) / std).square() - log_std - 0.5 * log(2.0 * pi)
             stats["gaussian_unsquashed_std"] = std.prod(dim=-1).mean().item()
 
@@ -298,22 +327,29 @@ class ScaledBeta(BoundedDistribution):
         log_beta: torch.Tensor,
         deterministic: bool = False,
         anchor: torch.Tensor | ndarray | None = None,
+        sample_shape: tuple[int, ...] = (),
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Sample from the `ScaledBeta` distribution.
 
         Note that `alpha` and `beta` are enforced to be `> 1` to ensure concavity.
 
         Args:
-            log_alpha: The logarithm of the alpha parameter of the Beta distribution.
-            log_beta: The logarithm of the beta parameter of the Beta distribution.
+            log_alpha: The logarithm of the alpha parameter of the Beta distribution, with shape
+                `(*, event_dim)`, where `event_dim` is the shape of space provided at construction.
+            log_beta: The logarithm of the beta parameter of the Beta distribution. Must be
+                broadcastable to `(*, event_dim)`.
             deterministic: If `True`, the output will just be `spacefitting(mode)`, with no
                 sampling taking place.
-            anchor: If provided, the Beta distribution's mode is centered around this anchor point.
-                This is useful for action noise where the MPC output serves as the anchor.
+            anchor: An optional tensor/array to shift the distribution's mode towards. Used in
+                residual policies where the output distribution models an offset to the anchor.
+                Must be broadcastable to `(*, event_dim)`.
+            sample_shape: The shape of the samples to be drawn from the distribution. This allows
+                for drawing multiple samples at once from each distribution in the batch.
 
         Returns:
-            An output sampled from the `ScaledBeta` distribution, the log probability of this output
-            and a statistics dict containing the standard deviation.
+            An output sampled from the `ScaledBeta` distribution with shape
+            `(*sample_shape, *, event_dim)`, the log probability of this output, and an empty stats
+            dict.
         """
         # add 1+eps to ensure concavity and existance of mode (alpha, beta > 1)
         offset = 1.0 + torch.finfo(log_alpha.dtype).eps
@@ -343,7 +379,11 @@ class ScaledBeta(BoundedDistribution):
         # if deterministic, use the mode as sample; otherwise, create a Beta distribution and sample
         # from it via the reparameterization trick to preserve differentiability
         dist = Beta(alpha, beta)
-        y = dist.mode if deterministic else dist.rsample()
+        y = (
+            dist.mode.broadcast_to(sample_shape + alpha.shape)
+            if deterministic
+            else dist.rsample(sample_shape)
+        )
         y_scaled = torch.addcmul(self.loc, self.scale, y)
 
         # update log probability to reflect scaling
@@ -429,23 +469,32 @@ class ModeConcentrationBeta(BoundedDistribution):
         logit_log_conc: torch.Tensor,
         deterministic: bool = False,
         anchor: torch.Tensor | ndarray | None = None,
+        sample_shape: tuple[int, ...] = (),
     ) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]:
         """Sample from the `ModeConcentrationBeta` distribution.
 
         Args:
             logit_mode: The logit of the mode of the Beta distribution (unbounded). This number is
                 later squashed through a sigmoid to ensure it lies in the valid `[0, 1]` interval.
+                Must be broadcastable to `(*, event_dim)`, where `event_dim` is the dimension of
+                space provided at construction.
             logit_log_conc: The logit of the logarithm of the concentration parameter, of the same
                 shape as the mode (i.e., assuming independent dimensions). The logit is forced to
                 the bounded interval `[log_conc_min, log_conc_max]` via a sigmoid; then, it is
                 exponentiated.
+                Must be also broadcastable to `(*, event_dim)`.
             deterministic: If `True`, the output will just be `spacefitting(mode)`, with no sampling
                 taking place.
-            anchor: Anchor point to shift the mode. Used for residual policies.
+            anchor: An optional tensor/array to shift the distribution's mode towards. Used in
+                residual policies where the output distribution models an offset to the anchor.
+                Must be broadcastable to `(*, event_dim)`.
+            sample_shape: The shape of the samples to be drawn from the distribution. This allows
+                for drawing multiple samples at once from each distribution in the batch.
 
         Returns:
-            An output sampled from the `ModeConcentrationBeta`, the log probability of this output
-            and a statistics dict.
+            An output sampled from the `ModeConcentrationBeta` distribution with shape
+            `(*sample_shape, *, event_dim)`, the log probability of this output, and an empty stats
+            dict.
         """
         if anchor is not None:
             # convert anchor to tensor if it's a numpy array
@@ -474,12 +523,13 @@ class ModeConcentrationBeta(BoundedDistribution):
 
         # generate sample - if deterministic, use mode directly
         if deterministic:
-            y = mode
-            log_prob = mode.new_zeros(()).broadcast_to(mode.shape)
+            out_shape = sample_shape + torch.broadcast_shapes(mode.shape, self.loc.shape)
+            y = mode.broadcast_to(out_shape)
+            log_prob = mode.new_zeros(()).broadcast_to(out_shape)
         else:
             # sample from Beta distribution
             distr = Beta(alpha := (1.0 + mode * (concentration - 2.0)), concentration - alpha)
-            y = distr.rsample()
+            y = distr.rsample(sample_shape)
             log_prob = distr.log_prob(y)
 
         # scale from [0, 1] to [lb, ub]

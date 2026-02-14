@@ -17,37 +17,58 @@ from leap_c.torch.nn.bounded_distributions import (
 )
 
 
-@pytest.mark.parametrize("deterministic", (False, True))
-def test_squashed_gaussian_anchor(deterministic: bool) -> None:
-    """Test anchor functionality for `SquashedGaussian` distribution."""
-    rng = np.random.default_rng()  # NOTE: set seed=4 and remove padding to produce failure
+def _setup_test(
+    single_sample: bool, seed: int = None
+) -> tuple[np.random.Generator, Box, int, tuple[int, ...], tuple[int, ...]]:
+    """Helper function to create random components for a test."""
+    rng = np.random.default_rng(seed)
     torch.manual_seed(int(rng.integers(1 << 31)))
 
-    # generate random space and associated distribution
-    ndim, n_samples = map(int, rng.integers(2, 10, size=2))
-    low = -5 - np.abs(rng.normal(scale=5, size=ndim))
-    high = 5 + np.abs(rng.normal(scale=5, size=ndim))
+    event_dim, ndim_batch = map(int, rng.integers(2, 5, size=2))
+    batch_shape = tuple(map(int, rng.integers(1, 10, size=ndim_batch)))
+    sample_shape = (
+        () if single_sample else tuple(map(int, rng.integers(1, 10, size=rng.integers(2, 5))))
+    )
+
+    low = -5 - np.abs(rng.normal(scale=5, size=event_dim))
+    high = 5 + np.abs(rng.normal(scale=5, size=event_dim))
     space = Box(low, high, dtype=np.float64)
+
+    return rng, space, event_dim, batch_shape, sample_shape
+
+
+@pytest.mark.parametrize("deterministic", (False, True), ids=["stoch", "deter"])
+@pytest.mark.parametrize("single_sample", (False, True), ids=["many", "one"])
+def test_squashed_gaussian_anchor(deterministic: bool, single_sample: bool) -> None:
+    """Test anchor functionality for `SquashedGaussian` distribution."""
+    # NOTE: set seed=4 and remove padding to produce failure
+    rng, space, event_dim, batch_shape, sample_shape = _setup_test(single_sample)
     distribution = SquashedGaussian(space, padding=0.0)  # remove paddings to avoid distorsion
     samples: torch.Tensor
     log_prob: torch.Tensor
 
     # check shapes and within bounds - if deterministic, test that with mean=0 mode is on anchor
+    shape = batch_shape + (event_dim,)
     mean = (
-        torch.zeros((n_samples, ndim), requires_grad=True)
+        torch.zeros(shape, requires_grad=True)
         if deterministic
-        else torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
+        else torch.from_numpy(rng.normal(size=shape)).requires_grad_()
     )
-    log_std = torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
-    anchor = torch.from_numpy(rng.uniform(low, high, size=(n_samples, ndim)))
-    samples, log_prob, _ = distribution(mean, log_std, deterministic, anchor)
+    log_std = (
+        torch.from_numpy(rng.normal(size=shape))
+        .clamp(distribution.log_std_min, distribution.log_std_max)
+        .requires_grad_()
+    )
+    anchor = torch.from_numpy(rng.uniform(space.low, space.high, size=shape))
+    samples, log_prob, _ = distribution(mean, log_std, deterministic, anchor, sample_shape)
+    assert samples.shape == sample_shape + shape
+    assert log_prob.shape == sample_shape + batch_shape + (1,)
     # NOTE: assert within bounds or close to them, since padding=0
     samples_np = samples.numpy(force=True)
-    assert ((samples_np >= low) | np.isclose(samples_np, low)).all()
-    assert ((samples_np <= high) | np.isclose(samples_np, high)).all()
-    assert log_prob.shape == (n_samples, 1)
+    assert ((samples_np >= space.low) | np.isclose(samples_np, space.low)).all()
+    assert ((samples_np <= space.high) | np.isclose(samples_np, space.high)).all()
     if deterministic:
-        torch.testing.assert_close(samples, anchor)
+        torch.testing.assert_close(samples, anchor.broadcast_to(samples.shape))
 
     # test gradients work with anchor
     if deterministic:
@@ -68,24 +89,23 @@ def test_squashed_gaussian_anchor(deterministic: bool) -> None:
             assert t.grad is not None and not t.grad.isnan().any().item()
 
 
-def test_squashed_gaussian_log_prob() -> None:
+@pytest.mark.parametrize("single_sample", (False, True), ids=["many", "one"])
+def test_squashed_gaussian_log_prob(single_sample: bool) -> None:
     """Test that log_prob computation for `SquashedGaussian` is correct."""
-    rng = np.random.default_rng()  # NOTE: 267 is a nasty seed for computations
-    torch.manual_seed(int(rng.integers(1 << 31)))
-
-    # generate random space and associated distribution
-    ndim, n_samples = map(int, rng.integers(2, 10, size=2))
-    low = -5 - np.abs(rng.normal(scale=5, size=ndim))
-    high = 5 + np.abs(rng.normal(scale=5, size=ndim))
-    space = Box(low, high, dtype=np.float64)
-    distribution = SquashedGaussian(space, padding=0.0)  # remove paddings to avoid distorsion
+    # NOTE: 267 is a nasty seed for computations
+    rng, space, event_dim, batch_shape, sample_shape = _setup_test(single_sample)
+    distribution = SquashedGaussian(space, padding=0.0)  # remove padding to avoid distorsion
+    samples: torch.Tensor
+    log_prob: torch.Tensor
 
     # generate random Gaussian parameters and samples with associated log probs
-    mean = torch.from_numpy(rng.normal(size=(n_samples, ndim)))
-    log_std = torch.from_numpy(rng.normal(size=(n_samples, ndim))).clamp(
+    shape = batch_shape + (event_dim,)
+    mean = torch.from_numpy(rng.normal(size=shape))
+    log_std = torch.from_numpy(rng.normal(size=shape)).clamp(
         distribution.log_std_min, distribution.log_std_max
     )
-    samples, log_prob, _ = distribution(mean, log_std)
+    samples, log_prob, _ = distribution(mean, log_std, sample_shape=sample_shape)
+    log_prob = log_prob.squeeze(-1)
 
     # create the same distribution with `torch.distributions`
     expected_distribution = TransformedDistribution(
@@ -104,31 +124,33 @@ def test_squashed_gaussian_log_prob() -> None:
     #     + (distribution.scale * (1 - samples_bounded.square()) + 1e-6).log()
     # )
 
-    # assert the log probs match
-    torch.testing.assert_close(log_prob.squeeze(-1), expected_log_prob, atol=1e-5, rtol=1e-1)
+    # assert the log probs match where finite
+    # NOTE: `expected_log_prob` can be nonfinite when samples are too close to the boundary due to
+    # `padding=0`; but padding > 0 would distort the rest of the log-probabilities.
+    finite = expected_log_prob.isfinite()
+    torch.testing.assert_close(log_prob[finite], expected_log_prob[finite], atol=1e-5, rtol=1e-1)
 
 
-@pytest.mark.parametrize("deterministic", (False, True))
-def test_scaled_beta(deterministic: bool) -> None:
+@pytest.mark.parametrize("deterministic", (False, True), ids=["stoch", "deter"])
+@pytest.mark.parametrize("single_sample", (False, True), ids=["many", "one"])
+def test_scaled_beta(deterministic: bool, single_sample: bool) -> None:
     """Sanity checks for the `ScaledBeta` distribution."""
-    rng = np.random.default_rng()
-    torch.manual_seed(int(rng.integers(1 << 31)))
-
-    # generate random space and associated distribution
-    ndim, n_samples = map(int, rng.integers(2, 10, size=2))
-    low = -5 - np.abs(rng.normal(scale=5, size=ndim))
-    high = 5 + np.abs(rng.normal(scale=5, size=ndim))
-    space = Box(low, high, dtype=np.float64)
+    rng, space, event_dim, batch_shape, sample_shape = _setup_test(single_sample)
     distribution = ScaledBeta(space, padding=0)
     samples: torch.Tensor
     log_prob: torch.Tensor
 
     # check shapes and within bounds
-    log_alpha = torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
-    log_beta = torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
-    samples, log_prob, _ = distribution(log_alpha, log_beta, deterministic=deterministic)
-    assert all(s in space for s in samples.numpy(force=True))
-    assert log_prob.shape == (n_samples, 1)
+    shape = batch_shape + (event_dim,)
+    log_alpha = torch.from_numpy(rng.normal(size=shape)).requires_grad_()
+    log_beta = torch.from_numpy(rng.normal(size=shape)).requires_grad_()
+    samples, log_prob, _ = distribution(
+        log_alpha, log_beta, deterministic, sample_shape=sample_shape
+    )
+    assert samples.shape == sample_shape + shape
+    assert log_prob.shape == sample_shape + batch_shape + (1,)
+    samples_np = samples.numpy(force=True)
+    assert all(samples_np[i] in space for i in np.ndindex(sample_shape + batch_shape))
 
     # test backward of samples and log_prob works
     samples.sum().backward(retain_graph=True)
@@ -140,34 +162,31 @@ def test_scaled_beta(deterministic: bool) -> None:
         assert t.grad is not None and not t.grad.isnan().any().item()
 
 
-@pytest.mark.parametrize("deterministic", (False, True))
-def test_scaled_beta_anchor(deterministic: bool) -> None:
+@pytest.mark.parametrize("deterministic", (False, True), ids=["stoch", "deter"])
+@pytest.mark.parametrize("single_sample", (False, True), ids=["many", "one"])
+def test_scaled_beta_anchor(deterministic: bool, single_sample: bool) -> None:
     """Test anchor functionality for `ScaledBeta` distribution."""
-    rng = np.random.default_rng()
-    torch.manual_seed(int(rng.integers(1 << 31)))
-
-    # generate random space and associated distribution
-    ndim, n_samples = map(int, rng.integers(2, 10, size=2))
-    low = -5 - np.abs(rng.normal(scale=5, size=ndim))
-    high = 5 + np.abs(rng.normal(scale=5, size=ndim))
-    space = Box(low, high, dtype=np.float64)
-    distribution = ScaledBeta(space, padding=0)  # remove paddings to avoid distorsion
+    rng, space, event_dim, batch_shape, sample_shape = _setup_test(single_sample)
+    distribution = ScaledBeta(space, padding=0)
     samples: torch.Tensor
     log_prob: torch.Tensor
 
     # check shapes and within bounds - if deterministic, test that with alpha=bet, mode is on anchor
-    log_alpha = torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
+    shape = batch_shape + (event_dim,)
+    log_alpha = torch.from_numpy(rng.normal(size=shape)).requires_grad_()
     log_beta = (
         log_alpha.detach().clone().requires_grad_()
         if deterministic
-        else torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
+        else torch.from_numpy(rng.normal(size=shape)).requires_grad_()
     )
-    anchor = torch.from_numpy(rng.uniform(low, high, size=(n_samples, ndim)))
-    samples, log_prob, _ = distribution(log_alpha, log_beta, deterministic, anchor)
-    assert all(s in space for s in samples.numpy(force=True))
-    assert log_prob.shape == (n_samples, 1)
+    anchor = torch.from_numpy(rng.uniform(space.low, space.high, size=shape))
+    samples, log_prob, _ = distribution(log_alpha, log_beta, deterministic, anchor, sample_shape)
+    assert samples.shape == sample_shape + shape
+    assert log_prob.shape == sample_shape + batch_shape + (1,)
+    samples_np = samples.numpy(force=True)
+    assert all(samples_np[i] in space for i in np.ndindex(sample_shape + batch_shape))
     if deterministic:
-        torch.testing.assert_close(samples, anchor)
+        torch.testing.assert_close(samples, anchor.broadcast_to(samples.shape))
 
     # test gradients work with anchor
     samples.sum().backward(retain_graph=True)
@@ -179,22 +198,19 @@ def test_scaled_beta_anchor(deterministic: bool) -> None:
         assert t.grad is not None and not t.grad.isnan().any().item()
 
 
-def test_scaled_beta_log_prob() -> None:
+@pytest.mark.parametrize("single_sample", (False, True), ids=["many", "one"])
+def test_scaled_beta_log_prob(single_sample: bool) -> None:
     """Test that log_prob computation for `ScaledBeta` is correct."""
-    rng = np.random.default_rng()
-    torch.manual_seed(int(rng.integers(1 << 31)))
+    rng, space, event_dim, batch_shape, sample_shape = _setup_test(single_sample)
+    distribution = ScaledBeta(space, padding=0)
+    samples: torch.Tensor
+    log_prob: torch.Tensor
 
-    # generate random space and associated distribution
-    ndim, n_samples = map(int, rng.integers(2, 10, size=2))
-    low = -5 - np.abs(rng.normal(scale=5, size=ndim))
-    high = 5 + np.abs(rng.normal(scale=5, size=ndim))
-    space = Box(low, high, dtype=np.float64)
-    distribution = ScaledBeta(space, padding=0)  # remove paddings to avoid distorsion
-
-    # generate random Gaussian parameters and samples with associated log probs
-    log_alpha = torch.from_numpy(rng.normal(size=(n_samples, ndim)))
-    log_beta = torch.from_numpy(rng.normal(size=(n_samples, ndim)))
-    samples, log_prob, _ = distribution(log_alpha, log_beta)
+    # generate random Beta parameters and samples with associated log probs
+    shape = batch_shape + (event_dim,)
+    log_alpha = torch.from_numpy(rng.normal(size=shape))
+    log_beta = torch.from_numpy(rng.normal(size=shape))
+    samples, log_prob, _ = distribution(log_alpha, log_beta, sample_shape=sample_shape)
 
     # create the same distribution with `torch.distributions`
     alpha = 1.0 + log_alpha.clamp(distribution.log_alpha_min, distribution.log_alpha_max).exp()
@@ -208,34 +224,32 @@ def test_scaled_beta_log_prob() -> None:
     torch.testing.assert_close(log_prob.squeeze(-1), expected_log_prob, atol=1e-6, rtol=1e-6)
 
 
-@pytest.mark.parametrize("deterministic", (False, True))
-def test_mode_concentration_beta(deterministic: bool) -> None:
+@pytest.mark.parametrize("deterministic", (False, True), ids=["stoch", "deter"])
+@pytest.mark.parametrize("single_sample", (False, True), ids=["many", "one"])
+def test_mode_concentration_beta(deterministic: bool, single_sample: bool) -> None:
     """Sanity checks for the `ModeConcentrationBeta` distribution."""
-    rng = np.random.default_rng()
-    torch.manual_seed(int(rng.integers(1 << 31)))
-
-    # generate random space and associated distribution
-    ndim, n_samples = map(int, rng.integers(2, 10, size=2))
-    low = -5 - np.abs(rng.normal(scale=5, size=ndim))
-    high = 5 + np.abs(rng.normal(scale=5, size=ndim))
-    space = Box(low, high, dtype=np.float64)
-    distribution = ModeConcentrationBeta(space)
+    rng, space, event_dim, batch_shape, sample_shape = _setup_test(single_sample)
+    distribution = ModeConcentrationBeta(space, padding=0)
     samples: torch.Tensor
     log_prob: torch.Tensor
 
     # check samples lie in the space
-    logit_mode = torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
-    logit_log_conc = torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
-    samples, log_prob, _ = distribution(logit_mode, logit_log_conc, deterministic)
-    assert all(s in space for s in samples.numpy(force=True))
-    assert log_prob.shape == (n_samples, 1)
-    if deterministic:
-        # check that samples and mode are equal if deterministic
+    shape = batch_shape + (event_dim,)
+    logit_mode = torch.from_numpy(rng.normal(size=shape)).requires_grad_()
+    logit_log_conc = torch.from_numpy(rng.normal(size=shape)).requires_grad_()
+    samples, log_prob, _ = distribution(
+        logit_mode, logit_log_conc, deterministic, sample_shape=sample_shape
+    )
+    assert samples.shape == sample_shape + shape
+    assert log_prob.shape == sample_shape + batch_shape + (1,)
+    samples_np = samples.numpy(force=True)
+    assert all(samples_np[i] in space for i in np.ndindex(sample_shape + batch_shape))
+    if deterministic:  # check that samples and mode are equal if deterministic
         with torch.no_grad():
             eps = distribution.padding
             mode_01 = eps + (1.0 - 2.0 * eps) * torch.sigmoid(logit_mode)
             expected_samples = distribution.loc + distribution.scale * mode_01
-            torch.testing.assert_close(samples, expected_samples)
+            torch.testing.assert_close(samples, expected_samples.broadcast_to(samples.shape))
 
     # test backward of samples and log_prob works
     if deterministic:
@@ -253,34 +267,33 @@ def test_mode_concentration_beta(deterministic: bool) -> None:
             assert t.grad is not None and not t.grad.isnan().any().item()
 
 
-@pytest.mark.parametrize("deterministic", (False, True))
-def test_mode_concentration_beta_anchor(deterministic: bool) -> None:
+@pytest.mark.parametrize("deterministic", (False, True), ids=["stoch", "deter"])
+@pytest.mark.parametrize("single_sample", (False, True), ids=["many", "one"])
+def test_mode_concentration_beta_anchor(deterministic: bool, single_sample: bool) -> None:
     """Test anchor functionality for `ModeConcentrationBeta` distribution."""
-    rng = np.random.default_rng()
-    torch.manual_seed(int(rng.integers(1 << 31)))
-
-    # generate random space and associated distribution
-    ndim, n_samples = map(int, rng.integers(2, 10, size=2))
-    low = -5 - np.abs(rng.normal(scale=5, size=ndim))
-    high = 5 + np.abs(rng.normal(scale=5, size=ndim))
-    space = Box(low, high, dtype=np.float64)
-    distribution = ModeConcentrationBeta(space, padding=0)  # remove paddings to avoid distorsion
+    rng, space, event_dim, batch_shape, sample_shape = _setup_test(single_sample)
+    distribution = ModeConcentrationBeta(space, padding=0)
     samples: torch.Tensor
     log_prob: torch.Tensor
 
     # check shapes and within bounds - if deterministic,  when logit_mode=0, mode is on anchor
+    shape = batch_shape + (event_dim,)
     logit_mode = (
-        torch.zeros((n_samples, ndim), dtype=torch.float64, requires_grad=True)
+        torch.zeros(shape, dtype=torch.float64, requires_grad=True)
         if deterministic
-        else torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
+        else torch.from_numpy(rng.normal(size=shape)).requires_grad_()
     )
-    logit_log_conc = torch.from_numpy(rng.normal(size=(n_samples, ndim))).requires_grad_()
-    anchor = torch.from_numpy(rng.uniform(low, high, size=(n_samples, ndim)))
-    samples, log_prob, _ = distribution(logit_mode, logit_log_conc, deterministic, anchor)
-    assert all(s in space for s in samples.numpy(force=True))
-    assert log_prob.shape == (n_samples, 1)
+    logit_log_conc = torch.from_numpy(rng.normal(size=shape)).requires_grad_()
+    anchor = torch.from_numpy(rng.uniform(space.low, space.high, size=shape))
+    samples, log_prob, _ = distribution(
+        logit_mode, logit_log_conc, deterministic, anchor, sample_shape
+    )
+    assert samples.shape == sample_shape + shape
+    assert log_prob.shape == sample_shape + batch_shape + (1,)
+    samples_np = samples.numpy(force=True)
+    assert all(samples_np[i] in space for i in np.ndindex(sample_shape + batch_shape))
     if deterministic:
-        torch.testing.assert_close(samples, anchor)
+        torch.testing.assert_close(samples, anchor.broadcast_to(samples.shape))
 
     # test backward of samples and log_prob works
     if deterministic:
@@ -298,22 +311,19 @@ def test_mode_concentration_beta_anchor(deterministic: bool) -> None:
             assert t.grad is not None and not t.grad.isnan().any().item()
 
 
-def test_mode_concentration_beta_log_prob() -> None:
+@pytest.mark.parametrize("single_sample", (False, True), ids=["many", "one"])
+def test_mode_concentration_beta_log_prob(single_sample: bool) -> None:
     """Test that log_prob computation for `ModeConcentrationBeta` is correct."""
-    rng = np.random.default_rng()
-    torch.manual_seed(int(rng.integers(1 << 31)))
+    rng, space, event_dim, batch_shape, sample_shape = _setup_test(single_sample)
+    distribution = ModeConcentrationBeta(space, padding=0)
+    samples: torch.Tensor
+    log_prob: torch.Tensor
 
-    # generate random space and associated distribution
-    ndim, n_samples = map(int, rng.integers(2, 10, size=2))
-    low = -5 - np.abs(rng.normal(scale=5, size=ndim))
-    high = 5 + np.abs(rng.normal(scale=5, size=ndim))
-    space = Box(low, high, dtype=np.float64)
-    distribution = ModeConcentrationBeta(space, padding=0)  # remove paddings to avoid distorsion
-
-    # generate random Gaussian parameters and samples with associated log probs
-    logit_mode = torch.from_numpy(rng.normal(size=(n_samples, ndim)))
-    logit_log_conc = torch.from_numpy(rng.normal(size=(n_samples, ndim)))
-    samples, log_prob, _ = distribution(logit_mode, logit_log_conc)
+    # generate random Beta parameters and samples with associated log probs
+    shape = batch_shape + (event_dim,)
+    logit_mode = torch.from_numpy(rng.normal(size=shape))
+    logit_log_conc = torch.from_numpy(rng.normal(size=shape))
+    samples, log_prob, _ = distribution(logit_mode, logit_log_conc, sample_shape=sample_shape)
 
     # create the same distribution with `torch.distributions`
     mode = distribution.padding + (1.0 - 2.0 * distribution.padding) * logit_mode.sigmoid()
