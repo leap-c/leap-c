@@ -57,6 +57,7 @@ def test_default_param_initialization_zop():
         noise="param",
         residual=True,
         distribution_name="squashed_gaussian",
+        distribution_kwargs={"padding": 0.0},
         mlp=SacZopTrainerConfig().actor.mlp,
     )
     cfg.mlp.hidden_dims = None  # No hidden layers, just a parameter tensor
@@ -71,7 +72,7 @@ def test_default_param_initialization_zop():
     output = actor(torch.zeros((2, 3)), deterministic=True)
     assert output.param.shape == (2, param_dim)
     for sample in output.param:
-        assert torch.allclose(sample, controller.default_param(), atol=1e-3)
+        torch.testing.assert_close(sample, controller.default_param())
 
 
 def test_default_param_initialization_fop():
@@ -85,6 +86,7 @@ def test_default_param_initialization_fop():
         noise="param",
         residual=True,
         distribution_name="squashed_gaussian",
+        distribution_kwargs={"padding": 0.0},
         entropy_correction=True,
         mlp=SacFopTrainerConfig().actor.mlp,
     )
@@ -100,7 +102,7 @@ def test_default_param_initialization_fop():
     output = actor(torch.zeros((2, 3)), deterministic=True)
     assert output.param.shape == (2, param_dim)
     for sample in output.param:
-        assert torch.allclose(sample, controller.default_param(), atol=1e-3)
+        torch.testing.assert_close(sample, controller.default_param())
 
 
 def test_default_param_initialization_foa():
