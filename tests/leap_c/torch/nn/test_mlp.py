@@ -56,8 +56,9 @@ def test_nn_mlp__forward__handles_shapes_as_expected(single_output_dim: bool, as
         y = mlp(torch.cat(x, dim=-1))
 
     if single_output_dim:
+        assert len(y) == 1
         expected_shape = (batch, sum(output_sizes))
-        assert y.shape == expected_shape
+        assert y[0].shape == expected_shape
     else:
         expected_shapes = ((batch, sz) for sz in output_sizes)
         assert all(yi.shape == shape for yi, shape in zip(y, expected_shapes))
@@ -71,10 +72,14 @@ def test_const_param_mlp():
     assert mlp.param is not None
 
     x = [torch.randn(4, 3)]
-    y = mlp(*x)
-    assert y.shape == (4, 2)
-    assert torch.allclose(y, y[0].unsqueeze(0).expand_as(y))
 
-    x = [torch.randn(4, 3)]
-    y2 = mlp(*x)
-    assert torch.allclose(y, y2)
+    Y1 = mlp(*x)
+    assert len(Y1) == 1
+    y1 = Y1[0]
+    assert y1.shape == (4, 2)
+    assert torch.allclose(y1, y1[0].unsqueeze(0).expand_as(y1))
+
+    Y2 = mlp(*x)
+    assert len(Y2) == 1
+    y2 = Y2[0]
+    assert torch.allclose(y1, y2)
