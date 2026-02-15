@@ -143,7 +143,7 @@ class Mlp(nn.Module):
         if mlp_cfg.weight_init is not None:
             self.mlp.apply(string_to_weight_init(mlp_cfg.weight_init))
 
-    def forward(self, *x: torch.Tensor) -> torch.Tensor | tuple[torch.Tensor, ...]:
+    def forward(self, *x: torch.Tensor) -> tuple[torch.Tensor, ...]:
         if self.param is not None:
             batch_size = x[0].shape[0]
             y = self.param.unsqueeze(0).expand(batch_size, -1)
@@ -151,8 +151,4 @@ class Mlp(nn.Module):
             if isinstance(x, tuple):
                 x = torch.cat(x, dim=-1)  # type: ignore
             y = self.mlp(x)  # type: ignore
-
-        if len(self._output_dims) == 1:
-            return y
-
-        return torch.split(y, self._output_dims, dim=-1)
+        return (y,) if len(self._output_dims) == 1 else torch.split(y, self._output_dims, dim=-1)
