@@ -148,7 +148,6 @@ class Mlp(nn.Module):
             batch_size = x[0].shape[0]
             y = self.param.unsqueeze(0).expand(batch_size, -1)
         else:
-            if isinstance(x, tuple):
-                x = torch.cat(x, dim=-1)  # type: ignore
-            y = self.mlp(x)  # type: ignore
-        return (y,) if len(self._output_dims) == 1 else torch.split(y, self._output_dims, dim=-1)
+            x_cat = torch.cat(x, -1)
+            y = self.mlp(x_cat)
+        return (y,) if len(self._output_dims) == 1 else y.split(self._output_dims, -1)
