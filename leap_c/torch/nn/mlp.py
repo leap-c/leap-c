@@ -144,6 +144,15 @@ class Mlp(nn.Module):
             self.mlp.apply(string_to_weight_init(mlp_cfg.weight_init))
 
     def forward(self, *x: torch.Tensor) -> tuple[torch.Tensor, ...]:
+        """Forward the input throught the neural network.
+
+        Args:
+            *x: Input tensors. Will be concatenated along the last dimension. Must have shape
+                `(batch_size, input_size_i)` for each input tensor `i`.
+
+        Returns:
+            A tuple of output tensors, one for each output size specified in the constructor.
+        """
         if self.param is not None:
             batch_size = x[0].shape[0]
             y = self.param.unsqueeze(0).expand(batch_size, -1)
