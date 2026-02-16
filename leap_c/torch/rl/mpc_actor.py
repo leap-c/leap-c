@@ -1,11 +1,11 @@
 """Provides stochastic MPC actors."""
 
 from dataclasses import dataclass, field
+from math import prod
 from typing import Any, Generic, Literal, NamedTuple, Self
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
-import numpy as np
 import torch
 import torch.nn as nn
 
@@ -149,7 +149,7 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
 
         param_space: spaces.Box = controller.param_space
         param_dim = param_space.shape[0]
-        action_dim = np.prod(action_space.shape)
+        action_dim = prod(action_space.shape)
 
         # create extractor
         extractor_cls = get_extractor_cls(cfg.extractor_name)
@@ -249,9 +249,7 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             return StochasticMPCActorOutput(param, log_prob, stats, action, ctx.status, ctx)
 
         # action noise mode
-        mlp_outputs = self.mlp(e)
-        param_mean = mlp_outputs[0]
-        action_dist_params = mlp_outputs[1:]
+        param_mean, *action_dist_params = self.mlp(e)
 
         # transform parameters deterministically (no noise on params)
         param, _, param_stats = self.param_distribution(param_mean, deterministic=True, anchor=None)
