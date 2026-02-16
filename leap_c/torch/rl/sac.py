@@ -115,7 +115,7 @@ class SacCritic(nn.Module):
     def forward(self, x: torch.Tensor, a: torch.Tensor) -> list[torch.Tensor]:
         """Returns a list of Q-value estimates for the given state-action pairs."""
         a_norm = min_max_scaling(a, self.action_space)
-        return [mlp(qe(x), a_norm) for qe, mlp in zip(self.extractor, self.mlp)]
+        return [mlp(qe(x), a_norm)[0] for qe, mlp in zip(self.extractor, self.mlp)]
 
 
 class SacActor(nn.Module):
