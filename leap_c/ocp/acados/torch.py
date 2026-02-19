@@ -62,8 +62,7 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
                 If `None`, a default value is used.
             dtype: The output of the forward pass will automatically be cast to this type.
-            verbose: Whether to print the full output while generating solvers.
-                If True (default), prints full output; otherwise prints a short message.
+            verbose: Whether to print the output while generating solvers.
 
         """
         super().__init__()

@@ -150,8 +150,7 @@ class AcadosDiffMpcFunction(DiffFunction):
                 If `None`, a default value is used.
             num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
                 If `None`, a default value is used.
-            verbose: Whether to print the full output while generating solvers.
-                If True (default), prints full output; otherwise prints a short message.
+            verbose: Whether to print the output while generating solvers.
 
         """
         self.ocp = ocp

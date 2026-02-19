@@ -27,7 +27,7 @@ def create_batch_solver(
             scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
         n_batch_max: Maximum batch size.
         num_threads: Number of threads used in the batch solver.
-        verbose: Whether to print the whole code generation output or just a short message.
+        verbose: Whether to print the code generation output.
     """
     if export_directory is None:
         export_directory = Path(mkdtemp())
@@ -38,9 +38,6 @@ def create_batch_solver(
 
     ocp.code_gen_opts.code_export_directory = str(export_directory / "c_generated_code")
     json_file = str(export_directory / "acados_ocp.json")
-
-    if not verbose:
-        print(f"Solver directory: {export_directory}")
 
     try:
         batch_solver = AcadosOcpBatchSolver(
@@ -97,7 +94,7 @@ def create_forward_backward_batch_solvers(
             (i.e., 1/N_horizon for intermediate stages, 1 for terminal stage).
         n_batch_init: Initial batch size.
         num_threads: Number of threads used in the batch solver.
-        verbose: Whether to print the whole code generation output or just a short message.
+        verbose: Whether to print the code generation output.
     """
     opts = ocp.solver_options
     opts.with_batch_functionality = True
@@ -117,9 +114,6 @@ def create_forward_backward_batch_solvers(
     if need_backward_solver:
         ocp.solver_options.with_solution_sens_wrt_params = True
         ocp.solver_options.with_value_sens_wrt_params = True
-
-    if not verbose:
-        print("Creating the forward solver using acados...")
 
     forward_batch_solver = create_batch_solver(
         ocp,
@@ -142,9 +136,6 @@ def create_forward_backward_batch_solvers(
     sensitivity_ocp.model.name += "_sensitivity"  # type:ignore
 
     sensitivity_ocp.ensure_solution_sensitivities_available()  # type:ignore
-
-    if not verbose:
-        print("Creating the backward solver using acados...")
 
     backward_batch_solver = create_batch_solver(
         sensitivity_ocp,  # type:ignore
