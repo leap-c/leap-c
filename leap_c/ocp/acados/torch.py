@@ -74,7 +74,7 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             sensitivity_ocp=sensitivity_ocp,
             discount_factor=discount_factor,
             export_directory=export_directory,
-            n_batch_max=n_batch_max,
+            n_batch_init=n_batch_max,
             num_threads_batch_solver=num_threads_batch_solver,
             verbose=verbose,
         )

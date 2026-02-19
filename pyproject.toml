@@ -19,7 +19,7 @@ requires-python = ">=3.11"
 maintainers = [
   { name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" },
   { name = "Jasper Hoffmann", email = "hoffmaja@informatik.uni-freiburg.de" },
-  { name = "Leonard Fichtner", email = "fichtnel@cs.uni-freiburg.de" },
+  { name = "Leonard Fichtner", email = "leonard.fichtner@imtek.uni-freiburg.de" },
 ]
 description = "Learning Predictive Control"
 readme = "README.md"

@@ -115,7 +115,7 @@ class SacCritic(nn.Module):
     def forward(self, x: torch.Tensor, a: torch.Tensor) -> list[torch.Tensor]:
         """Returns a list of Q-value estimates for the given state-action pairs."""
         a_norm = min_max_scaling(a, self.action_space)
-        return [mlp(qe(x), a_norm) for qe, mlp in zip(self.extractor, self.mlp)]
+        return [mlp(qe(x), a_norm)[0] for qe, mlp in zip(self.extractor, self.mlp)]
 
 
 class SacActor(nn.Module):
@@ -365,7 +365,7 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
         self, obs, deterministic: bool = False, state: Any = None
     ) -> tuple[np.ndarray, None, dict[str, float]]:
         obs = self.buffer.collate([obs])
-        with torch.no_grad():
+        with torch.inference_mode():
             action, _, stats = self.pi(obs, deterministic=deterministic)
         return action.cpu().numpy()[0], None, stats
 

@@ -78,5 +78,4 @@ class AcadosPlanner(ParameterizedPlanner[CtxType], Generic[CtxType]):
         default = self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore
         if obs.ndim <= 1:
             return default
-        batch_size = obs.shape[0]
-        return np.tile(default, (batch_size, 1)) if batch_size > 1 else default[None, :]
+        return np.broadcast_to(default, (*obs.shape[:-1], default.size))

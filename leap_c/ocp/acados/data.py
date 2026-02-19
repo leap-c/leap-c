@@ -39,17 +39,13 @@ class AcadosOcpSolverInput(NamedTuple):
         return self.x0.shape[0]
 
     def get_sample(self, idx: int) -> "AcadosOcpSolverInput":
-        """Get the sample at index i from the batch."""
-
-        def _g(data, idx):
-            return None if data is None else data[idx]
-
+        """Get the sample at index `idx` from the batch."""
         return AcadosOcpSolverInput(
-            x0=self.x0[idx],
-            u0=_g(self.u0, idx),
-            p_global=_g(self.p_global, idx),
-            p_stagewise=_g(self.p_stagewise, idx),
-            p_stagewise_sparse_idx=_g(self.p_stagewise_sparse_idx, idx),
+            None if self.x0 is None else self.x0[idx],
+            None if self.u0 is None else self.u0[idx],
+            None if self.p_global is None else self.p_global[idx],
+            None if self.p_stagewise is None else self.p_stagewise[idx],
+            None if self.p_stagewise_sparse_idx is None else self.p_stagewise_sparse_idx[idx],
         )
 
 

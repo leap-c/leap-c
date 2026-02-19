@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import matplotlib.pyplot as plt
 import numpy as np
-from gymnasium import spaces
+from gymnasium.spaces import Box
 from matplotlib.lines import Line2D
 from scipy.linalg import solve_discrete_are
 
@@ -17,8 +17,8 @@ class LqrEnvConfig:
 
     Attributes:
         dt: Time step in seconds.
-        q_diag_sqrt: Square root of diagonal Q matrix elements.
-        r_diag_sqrt: Square root of diagonal R matrix elements.
+        q_diag_sqrt: Square root of diagonal `Q` matrix elements.
+        r_diag_sqrt: Square root of diagonal `R` matrix elements.
         x_min: Minimum position.
         x_max: Maximum position.
         v_min: Minimum velocity.
@@ -32,8 +32,8 @@ class LqrEnvConfig:
     """
 
     dt: float = 0.1
-    q_diag_sqrt: np.ndarray | None = None
-    r_diag_sqrt: np.ndarray | None = None
+    q_diag_sqrt: np.ndarray = field(default_factory=lambda: np.sqrt(np.array([1.0, 0.1])))
+    r_diag_sqrt: np.ndarray = field(default_factory=lambda: np.sqrt(np.array([0.01])))
     x_min: float = -2.0
     x_max: float = 2.0
     v_min: float = -2.0
@@ -46,28 +46,21 @@ class LqrEnvConfig:
     stiffness: float = 0.5
 
     def __post_init__(self):
-        """Set default q_diag_sqrt and r_diag_sqrt if not provided, and compute Q and R."""
-        if self.q_diag_sqrt is None:
-            self.q_diag_sqrt = np.sqrt(np.array([1.0, 0.1]))
-        if self.r_diag_sqrt is None:
-            self.r_diag_sqrt = np.sqrt(np.array([0.01]))
-
-        # Compute Q and R from sqrt diagonal representation using Cholesky factorization
-        Q_sqrt = np.diag(self.q_diag_sqrt)
-        self.Q = Q_sqrt @ Q_sqrt.T
-
-        R_sqrt = np.diag(self.r_diag_sqrt)
-        self.R = R_sqrt @ R_sqrt.T
+        """Compute `Q` and `R` from sqrt diagonal representation using Cholesky factorization."""
+        self.Q = np.diag(np.square(self.q_diag_sqrt))
+        self.R = np.diag(np.square(self.r_diag_sqrt))
 
 
 class LqrEnv(MatplotlibRenderEnv):
     """A simple 1D LQR environment with position and velocity states.
 
     The dynamics follow a discrete-time mass-spring-damper system:
+    ```
         x[k+1] = x[k] + dt * v[k]
         v[k+1] = v[k] + dt * (F[k]/m - (b/m)*v[k] - (k/m)*x[k])
+    ```
 
-    where m is mass, b is damping coefficient, and k is spring stiffness.
+    where `m` is mass, `b` is damping coefficient, and `k` is spring stiffness.
 
     Observation Space:
     ------------------
@@ -80,13 +73,15 @@ class LqrEnv(MatplotlibRenderEnv):
     Action Space:
     -------------
     The action is a `ndarray` with shape `(1,)` and dtype `np.float32`
-    representing the applied force, bounded by [F_min, F_max].
+    representing the applied force, bounded by `[F_min, F_max]`.
 
     Reward:
     -------
     The reward is the negative LQR cost:
+    ```
         r = -(x^T Q x + u^T R u)
-    where Q and R are the state and control cost matrices.
+    ```
+    where `Q` and `R` are the state and control cost matrices.
 
     Termination:
     ------------
@@ -100,19 +95,17 @@ class LqrEnv(MatplotlibRenderEnv):
     Info:
     -----
     The info dictionary contains:
-    - "task": {"violation": bool, "success": bool}
+    - `"task"`: {`"violation"`: bool, `"success"`: bool}
       - violation: True if out of bounds
       - success: True if close to origin with low velocity
 
     Attributes:
         cfg: Configuration object for the environment.
-        state_low: Lower bounds for position and velocity.
-        state_high: Upper bounds for position and velocity.
         observation_space: The observation space of the environment.
         action_space: The action space of the environment.
-        A: State transition matrix (2x2).
-        B: Control input matrix (2x1).
-        state: Current state [x, v].
+        A: State transition matrix `(2x2)`.
+        B: Control input matrix `(2x1)`.
+        state: Current state `[x, v]`.
         time: Elapsed time in the current episode.
         trajectory: List of states visited during the episode (used in rendering).
         trajectory_x_plot: Line object for position trajectory.
@@ -121,10 +114,8 @@ class LqrEnv(MatplotlibRenderEnv):
     """
 
     cfg: LqrEnvConfig
-    state_low: np.ndarray
-    state_high: np.ndarray
-    observation_space: spaces.Box
-    action_space: spaces.Box
+    observation_space: Box
+    action_space: Box
     A: np.ndarray
     B: np.ndarray
     state: np.ndarray | None
@@ -145,21 +136,21 @@ class LqrEnv(MatplotlibRenderEnv):
         """Initialize the LQR environment.
 
         Args:
-            render_mode: The mode to render with. Supported modes are: human, rgb_array, None.
-            cfg: Configuration for the environment. If None, default configuration is used.
+            render_mode: The mode to render with. Supported modes are: `human`, `rgb_array`, `None`.
+            cfg: Configuration for the environment. If `None`, default configuration is used.
         """
         super().__init__(render_mode=render_mode)
 
         self.cfg = LqrEnvConfig() if cfg is None else cfg
 
         # Gymnasium setup
-        self.state_low = np.array([self.cfg.x_min, self.cfg.v_min], dtype=np.float32)
-        self.state_high = np.array([self.cfg.x_max, self.cfg.v_max], dtype=np.float32)
-        self.action_low = np.array([self.cfg.F_min], dtype=np.float32)
-        self.action_high = np.array([self.cfg.F_max], dtype=np.float32)
+        state_low = np.array([self.cfg.x_min, self.cfg.v_min], np.float32)
+        state_high = np.array([self.cfg.x_max, self.cfg.v_max], np.float32)
+        self.observation_space = Box(state_low, state_high)
 
-        self.observation_space = spaces.Box(low=self.state_low, high=self.state_high)
-        self.action_space = spaces.Box(low=self.action_low, high=self.action_high)
+        action_low = np.array([self.cfg.F_min], np.float32)
+        action_high = np.array([self.cfg.F_max], np.float32)
+        self.action_space = Box(action_low, action_high)
 
         # Define discrete-time dynamics matrices for mass-spring-damper system
         # Continuous dynamics: x_dot = v, v_dot = F/m - (b/m)*v - (k/m)*x
@@ -191,7 +182,7 @@ class LqrEnv(MatplotlibRenderEnv):
 
         Returns:
             Tuple containing:
-                - observation: Next observation [x, v].
+                - observation: Next observation `[x, v]`.
                 - reward: Reward for this step (negative LQR cost).
                 - terminated: Whether the episode terminated.
                 - truncated: Whether the episode was truncated.
@@ -201,10 +192,11 @@ class LqrEnv(MatplotlibRenderEnv):
             raise ValueError("Environment must be reset before stepping.")
 
         # Clip action to bounds
-        action = np.clip(action, self.action_low, self.action_high)
+        act_space = self.action_space
+        action = np.clip(action, act_space.low, act_space.high, dtype=act_space.dtype).reshape(-1)
 
         # State transition
-        self.state = self.A @ self.state + self.B @ action.reshape(-1)
+        self.state = self.A @ self.state + self.B @ action
         self.time += self.cfg.dt
 
         # Store trajectory for rendering
@@ -212,28 +204,27 @@ class LqrEnv(MatplotlibRenderEnv):
         self.actions.append(action.copy())
 
         # Check termination conditions
-        out_of_bounds = (self.state_high < self.state).any() or (self.state_low > self.state).any()
+        obs_space = self.observation_space
+        out_of_bounds = bool(
+            (obs_space.high < self.state).any() or (obs_space.low > self.state).any()
+        )
 
         # Success if close to origin with low velocity
-        close_to_origin = np.abs(self.state[0]) < 0.1 and np.abs(self.state[1]) < 0.1
-
-        terminated = bool(out_of_bounds)
-        truncated = self.time >= self.cfg.max_time
+        close_to_origin = bool(np.abs(self.state[0]) < 0.1 and np.abs(self.state[1]) < 0.1)
 
         # Compute reward (negative LQR cost)
         state_cost = self.state @ self.cfg.Q @ self.state
-        control_cost = action.reshape(-1) @ self.cfg.R @ action.reshape(-1)
+        control_cost = action @ self.cfg.R @ action
         reward = float(-(state_cost + control_cost))
 
         info = {}
+        terminated = out_of_bounds
+        truncated = self.time >= self.cfg.max_time
         if terminated or truncated:
-            info = {
-                "task": {
-                    "violation": bool(out_of_bounds),
-                    "success": bool(close_to_origin and not out_of_bounds),
-                }
+            info["task"] = {
+                "violation": out_of_bounds,
+                "success": close_to_origin and not out_of_bounds,
             }
-
         return self._observation(), reward, terminated, truncated, info
 
     def reset(
@@ -244,30 +235,24 @@ class LqrEnv(MatplotlibRenderEnv):
         Args:
             seed: Random seed for reproducibility.
             options: Additional reset options.
-                - "mode": "train" samples from a wider range, otherwise samples near origin.
+                - "mode": `"train"` samples from a wider range, otherwise samples near origin.
 
         Returns:
             Tuple containing:
-                - observation: Initial observation [x, v].
+                - observation: Initial observation `[x, v]`.
                 - info: Empty dictionary.
         """
         super().reset(seed=seed)
         self.time = 0.0
-        self.trajectory = []
-        self.actions = []
+        self.trajectory.clear()
+        self.actions.clear()
 
-        # Sample initial state
-        if options is not None and "mode" in options and options["mode"] == "train":
-            # Training: sample from wider range
-            low = np.array([self.cfg.x_min * 0.8, self.cfg.v_min * 0.8])
-            high = np.array([self.cfg.x_max * 0.8, self.cfg.v_max * 0.8])
-            self.state = self.np_random.uniform(low=low, high=high)
-        else:
-            # Testing: sample from narrower range near origin
-            low = np.array([self.cfg.x_min * 0.5, self.cfg.v_min * 0.5])
-            high = np.array([self.cfg.x_max * 0.5, self.cfg.v_max * 0.5])
-            self.state = self.np_random.uniform(low=low, high=high)
-
+        # Sample initial state - in training mode, sample from wider range; in testing mode, sample
+        # nearer the origin
+        width = 0.8 if options is not None and options.get("mode") == "train" else 0.5
+        low = np.array([self.cfg.x_min * width, self.cfg.v_min * width])
+        high = np.array([self.cfg.x_max * width, self.cfg.v_max * width])
+        self.state = self.np_random.uniform(low=low, high=high)
         self.trajectory.append(self.state.copy())
 
         return self._observation(), {}
@@ -276,9 +261,9 @@ class LqrEnv(MatplotlibRenderEnv):
         """Get the current observation.
 
         Returns:
-            Current state [x, v] as float32 array.
+            Current state `[x, v]` as `np.float32` array.
         """
-        return self.state.copy().astype(np.float32)
+        return self.state.astype(np.float32, copy=True)
 
     def _render_setup(self):
         """Initialize the Matplotlib figure and axes for rendering."""
@@ -357,15 +342,15 @@ def plot_optimal_value_and_policy(
     """Plot heatmaps of the optimal LQR value function and policy.
 
     This function solves the discrete-time algebraic Riccati equation (DARE)
-    to compute the optimal value function V(x) = x^T P x and the optimal
-    policy u*(x) = -K x, then visualizes them as 2D heatmaps.
+    to compute the optimal value function `V(x) = x^T P x` and the optimal
+    policy `u*(x) = -K x`, then visualizes them as 2D heatmaps.
 
     Args:
-        env: LQR environment to extract matrices from. If None, must provide A, B, Q, R.
-        A: State transition matrix (2x2). If None, extracted from env.
-        B: Control input matrix (2x1). If None, extracted from env.
-        Q: State cost matrix (2x2). If None, extracted from env.
-        R: Control cost matrix (1x1). If None, extracted from env.
+        env: LQR environment to extract matrices from. If `None`, must provide `A`, `B`, `Q`, `R`.
+        A: State transition matrix `(2x2)`. If `None`, extracted from `env`.
+        B: Control input matrix `(2x1)`. If `None`, extracted from `env`.
+        Q: State cost matrix `(2x2)`. If `None`, extracted from `env`.
+        R: Control cost matrix `(1x1)`. If `None`, extracted from `env`.
         x_min: Minimum position value for the grid.
         x_max: Maximum position value for the grid.
         v_min: Minimum velocity value for the grid.
@@ -376,7 +361,7 @@ def plot_optimal_value_and_policy(
         Tuple of (figure, axes) containing the heatmap plots.
 
     Raises:
-        ValueError: If neither env nor all matrices (A, B, Q, R) are provided.
+        ValueError: If neither `env` nor all matrices (`A`, `B`, `Q`, `R`) are provided.
     """
     # Extract matrices from environment or use provided ones
     if env is not None:
@@ -389,30 +374,20 @@ def plot_optimal_value_and_policy(
         v_min = env.cfg.v_min if v_min == -2.0 else v_min
         v_max = env.cfg.v_max if v_max == 2.0 else v_max
     elif A is None or B is None or Q is None or R is None:
-        raise ValueError("Must provide either env or all matrices (A, B, Q, R)")
+        raise ValueError("Must provide either `env` or all matrices (`A`, `B`, `Q`, `R`)")
 
-    # Solve discrete-time algebraic Riccati equation
+    # Solve discrete-time algebraic Riccati equation and optimal feedback gain K
     P = solve_discrete_are(A, B, Q, R)
-
-    # Compute optimal feedback gain K
-    K = np.linalg.inv(B.T @ P @ B + R) @ (B.T @ P @ A)
+    K = np.linalg.solve(B.T @ P @ B + R, B.T @ P @ A)
 
     # Create grid in state space
     x_vals = np.linspace(x_min, x_max, n_points)
     v_vals = np.linspace(v_min, v_max, n_points)
-
-    # Initialize arrays for value function and policy
-    V = np.zeros((n_points, n_points))  # Value function
-    U = np.zeros((n_points, n_points))  # Optimal control
+    states = np.array(np.meshgrid(x_vals, v_vals)).reshape(2, -1)
 
     # Compute value function and optimal policy at each grid point
-    for i, v in enumerate(v_vals):
-        for j, x in enumerate(x_vals):
-            state = np.array([[x], [v]])
-            # Value function: V(x) = x^T P x
-            V[i, j] = float(state.T @ P @ state)
-            # Optimal policy: u*(x) = -K x
-            U[i, j] = float(-K @ state)
+    V = (states.T.dot(P) * states.T).sum(1).reshape(n_points, n_points)
+    U = -(K @ states).reshape(n_points, n_points)
 
     # Create figure with horizontal subplots
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))

@@ -29,19 +29,6 @@ def create_batch_solver(
         num_threads: Number of threads used in the batch solver.
         verbose: Whether to print the whole code generation output or just a short message.
     """
-    ocp.solver_options.with_batch_functionality = True
-
-    # translate cost terms to external to allow
-    # implicit differentiation for a p_global parameter.
-    if ocp.cost.cost_type_0 not in ["EXTERNAL", None]:
-        ocp.translate_initial_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-    if ocp.cost.cost_type not in ["EXTERNAL"]:
-        ocp.translate_intermediate_cost_term_to_external(
-            cost_hessian=ocp.solver_options.hessian_approx
-        )
-    if ocp.cost.cost_type_e not in ["EXTERNAL"]:
-        ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-
     if export_directory is None:
         export_directory = Path(mkdtemp())
         add_delete_hook = True
@@ -59,7 +46,7 @@ def create_batch_solver(
         batch_solver = AcadosOcpBatchSolver(
             ocp,
             json_file=json_file,
-            N_batch_max=n_batch_max,
+            N_batch_init=n_batch_max,
             num_threads_in_batch_solve=num_threads,
             build=False,
             generate=False,
@@ -69,7 +56,7 @@ def create_batch_solver(
         batch_solver = AcadosOcpBatchSolver(
             ocp,
             json_file=json_file,
-            N_batch_max=n_batch_max,
+            N_batch_init=n_batch_max,
             num_threads_in_batch_solve=num_threads,
             build=True,
             verbose=verbose,
@@ -89,7 +76,7 @@ def create_forward_backward_batch_solvers(
     sensitivity_ocp: AcadosOcp | None = None,
     export_directory: str | Path | None = None,
     discount_factor: float | None = None,
-    n_batch_max: int = 256,
+    n_batch_init: int = 256,
     num_threads: int = 4,
     verbose: bool = True,
 ) -> tuple[AcadosOcpBatchSolver, AcadosOcpBatchSolver]:
@@ -108,10 +95,22 @@ def create_forward_backward_batch_solvers(
         discount_factor: Discount factor for the solver. If not provided,
             acados default weighting is used
             (i.e., 1/N_horizon for intermediate stages, 1 for terminal stage).
-        n_batch_max: Maximum batch size.
+        n_batch_init: Initial batch size.
         num_threads: Number of threads used in the batch solver.
         verbose: Whether to print the whole code generation output or just a short message.
     """
+    opts = ocp.solver_options
+    opts.with_batch_functionality = True
+
+    # translate cost terms to external to allow
+    # implicit differentiation for a p_global parameter.
+    if ocp.cost.cost_type_0 is not None and ocp.cost.cost_type_0 != "EXTERNAL":
+        ocp.translate_initial_cost_term_to_external(cost_hessian=opts.hessian_approx)
+    if ocp.cost.cost_type != "EXTERNAL":
+        ocp.translate_intermediate_cost_term_to_external(cost_hessian=opts.hessian_approx)
+    if ocp.cost.cost_type_e != "EXTERNAL":
+        ocp.translate_terminal_cost_term_to_external(cost_hessian=opts.hessian_approx)
+
     # check if we can use the forward solver for the backward pass.
     need_backward_solver = _check_need_sensitivity_solver(ocp)
 
@@ -126,7 +125,7 @@ def create_forward_backward_batch_solvers(
         ocp,
         export_directory=export_directory,
         discount_factor=discount_factor,
-        n_batch_max=n_batch_max,
+        n_batch_max=n_batch_init,
         num_threads=num_threads,
         verbose=verbose,
     )
@@ -151,7 +150,7 @@ def create_forward_backward_batch_solvers(
         sensitivity_ocp,  # type:ignore
         export_directory=export_directory,
         discount_factor=discount_factor,
-        n_batch_max=n_batch_max,
+        n_batch_max=n_batch_init,
         num_threads=num_threads,
         verbose=verbose,
     )
@@ -170,7 +169,7 @@ def _check_need_sensitivity_solver(ocp: AcadosOcp) -> bool:
 
 def _set_discount_factor(
     ocp_solver: AcadosOcpSolver | AcadosOcpBatchSolver, discount_factor: float
-):
+) -> None:
     if isinstance(ocp_solver, AcadosOcpSolver):
         for stage in range(ocp_solver.acados_ocp.solver_options.N_horizon + 1):  # type: ignore
             ocp_solver.cost_set(stage, "scaling", discount_factor**stage)
@@ -185,19 +184,21 @@ def _set_discount_factor(
 
 def make_ocp_sensitivity_compatible(sensitivity_ocp: AcadosOcp):
     """Make the given ocp compatible with sensitivity computation."""
-    sensitivity_ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    sensitivity_ocp.solver_options.qp_solver_ric_alg = 0
-    sensitivity_ocp.solver_options.qp_solver_cond_N = sensitivity_ocp.solver_options.N_horizon
-    sensitivity_ocp.solver_options.hessian_approx = "EXACT"
-    sensitivity_ocp.solver_options.regularize_method = "NO_REGULARIZE"
-    sensitivity_ocp.solver_options.exact_hess_constr = True
-    sensitivity_ocp.solver_options.exact_hess_cost = True
-    sensitivity_ocp.solver_options.exact_hess_dyn = True
-    sensitivity_ocp.solver_options.fixed_hess = 0
-    sensitivity_ocp.solver_options.levenberg_marquardt = 0.0
-    sensitivity_ocp.solver_options.with_solution_sens_wrt_params = True
-    sensitivity_ocp.solver_options.with_value_sens_wrt_params = True
+    opts = sensitivity_ocp.solver_options
+    opts.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    opts.qp_solver_ric_alg = 0
+    opts.qp_solver_cond_N = sensitivity_ocp.solver_options.N_horizon
+    opts.hessian_approx = "EXACT"
+    opts.regularize_method = "NO_REGULARIZE"
+    opts.exact_hess_constr = True
+    opts.exact_hess_cost = True
+    opts.exact_hess_dyn = True
+    opts.fixed_hess = 0
+    opts.levenberg_marquardt = 0.0
+    opts.with_solution_sens_wrt_params = True
+    opts.with_value_sens_wrt_params = True
 
-    sensitivity_ocp.model.cost_expr_ext_cost_custom_hess_0 = None
-    sensitivity_ocp.model.cost_expr_ext_cost_custom_hess = None
-    sensitivity_ocp.model.cost_expr_ext_cost_custom_hess_e = None
+    mdl = sensitivity_ocp.model
+    mdl.cost_expr_ext_cost_custom_hess_0 = None
+    mdl.cost_expr_ext_cost_custom_hess = None
+    mdl.cost_expr_ext_cost_custom_hess_e = None
