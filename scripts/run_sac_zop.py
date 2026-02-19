@@ -118,9 +118,7 @@ def run_sac_zop(
         output_path=output_path,
         device=device,
         train_env=create_env(cfg.env),
-        controller=create_controller(
-            cfg.controller, reuse_code_dir, discount_factor=cfg.trainer.gamma
-        ),
+        controller=create_controller(cfg.controller, reuse_code_dir),
         extractor_cls=cfg.extractor,
     )
     init_run(trainer, cfg, output_path)

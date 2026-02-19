@@ -136,9 +136,7 @@ def run_sac_fop(
     trainer = SacFopTrainer(
         val_env=val_env,
         train_env=create_env(cfg.env),
-        controller=create_controller(
-            cfg.controller, reuse_code_dir, discount_factor=cfg.trainer.gamma
-        ),
+        controller=create_controller(cfg.controller, reuse_code_dir),
         output_path=output_path,
         device=device,
         cfg=cfg.trainer,
