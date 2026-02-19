@@ -124,6 +124,9 @@ def create_forward_backward_batch_solvers(
         export_directory = Path(export_directory)
         export_dir_fwd = export_directory / "forward_solver"
         export_dir_bwd = export_directory / "backward_solver"
+    else:
+        export_dir_fwd = None
+        export_dir_bwd = None
 
     forward_batch_solver = create_batch_solver(
         ocp,
