@@ -20,7 +20,27 @@ from leap_c.torch.nn.bounded_distributions import (
 def _setup_test(
     single_sample: bool, seed: int = None
 ) -> tuple[np.random.Generator, Box, int, tuple[int, ...], tuple[int, ...]]:
-    """Helper function to create random components for a test."""
+    """Helper method to create necessary components for the tests below.
+
+    In particular, this method creates
+     - a 1d `Box` space (i.e., lower and upper bounds have one dimension) with random size
+       `event_dim` (i.e., the number of independent dimensions in the distribution support)
+     - a random `batch_shape`, a tuple of integers describing how many independent distributions to
+        test in a single batch
+     - a random `sample_shape`, a tuple of integers describing how many i.i.d. samples to draw from
+       each distribution in the batch.
+    Drawn samples are expected to have shape `(*sample_shape, *batch_shape, event_dim)`.
+
+    Args:
+        single_sample (bool): Whether to test with a single sample or multiple samples. If `True`,
+            `sample_shape` is forced to be `()`; otherwise, it will be a tuple of random integers.
+        seed (int, optional): RNG seed for reproducibility. If `None`, a random seed will be used.
+
+    Returns:
+        tuple[np.random.Generator, Box, int, tuple[int, ...], tuple[int, ...]]: A tuple containing
+        the RNG, the created `Box` space, the event dimension, the batch shape, and the sample
+        shape.
+    """
     rng = np.random.default_rng(seed)
     torch.manual_seed(int(rng.integers(1 << 31)))
 
