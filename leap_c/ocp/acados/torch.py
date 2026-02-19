@@ -41,6 +41,7 @@ class AcadosDiffMpcTorch(torch.nn.Module):
         n_batch_max: int | None = None,
         num_threads_batch_solver: int | None = None,
         dtype: torch.dtype = torch.float32,
+        verbose: bool = True,
     ) -> None:
         """Initializes the AcadosDiffMpcTorch module.
 
@@ -61,6 +62,8 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
                 If `None`, a default value is used.
             dtype: The output of the forward pass will automatically be cast to this type.
+            verbose: Whether to print the output while generating solvers.
+
         """
         super().__init__()
 
@@ -72,6 +75,7 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             export_directory=export_directory,
             n_batch_init=n_batch_max,
             num_threads_batch_solver=num_threads_batch_solver,
+            verbose=verbose,
         )
         self.autograd_fun = create_autograd_function(self.diff_mpc_fun)
         self.dtype = dtype
