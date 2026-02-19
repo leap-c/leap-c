@@ -74,11 +74,9 @@ def test_squashed_gaussian_anchor(deterministic: bool, single_sample: bool) -> N
         if deterministic
         else torch.from_numpy(rng.normal(size=shape)).requires_grad_()
     )
-    log_std = (
-        torch.from_numpy(rng.normal(size=shape))
-        .clamp(distribution.log_std_min, distribution.log_std_max)
-        .requires_grad_()
-    )
+    log_std = torch.from_numpy(
+        rng.uniform(distribution.log_std_min, distribution.log_std_max, size=shape)
+    ).requires_grad_()
     anchor = torch.from_numpy(rng.uniform(space.low, space.high, size=shape))
     samples, log_prob, _ = distribution(mean, log_std, deterministic, anchor, sample_shape)
     assert samples.shape == sample_shape + shape
@@ -121,8 +119,8 @@ def test_squashed_gaussian_log_prob(single_sample: bool) -> None:
     # generate random Gaussian parameters and samples with associated log probs
     shape = batch_shape + (event_dim,)
     mean = torch.from_numpy(rng.normal(size=shape))
-    log_std = torch.from_numpy(rng.normal(size=shape)).clamp(
-        distribution.log_std_min, distribution.log_std_max
+    log_std = torch.from_numpy(
+        rng.uniform(distribution.log_std_min, distribution.log_std_max, size=shape)
     )
     samples, log_prob, _ = distribution(mean, log_std, sample_shape=sample_shape)
     log_prob = log_prob.squeeze(-1)
