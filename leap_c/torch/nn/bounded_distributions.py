@@ -144,9 +144,9 @@ class SquashedGaussian(BoundedDistribution):
     def __init__(
         self,
         space: Box,
-        log_std_min: ArrayLike | float = -4.0,
-        log_std_max: ArrayLike | float = 2.0,
-        padding: ArrayLike | float = 1e-4,
+        log_std_min: ArrayLike = -4.0,
+        log_std_max: ArrayLike = 2.0,
+        padding: ArrayLike = 1e-4,
     ) -> None:
         """Initializes the `SquashedGaussian` module.
 
@@ -290,11 +290,11 @@ class ScaledBeta(BoundedDistribution):
     def __init__(
         self,
         space: Box,
-        log_alpha_min: ArrayLike | float = -10.0,
-        log_beta_min: ArrayLike | float = -10.0,
-        log_alpha_max: ArrayLike | float = 10.0,
-        log_beta_max: ArrayLike | float = 10.0,
-        padding: ArrayLike | float = 1e-4,
+        log_alpha_min: ArrayLike = -10.0,
+        log_beta_min: ArrayLike = -10.0,
+        log_alpha_max: ArrayLike = 10.0,
+        log_beta_max: ArrayLike = 10.0,
+        padding: ArrayLike = 1e-4,
     ) -> None:
         """Initializes the `ScaledBeta` module.
 
@@ -433,9 +433,9 @@ class ModeConcentrationBeta(BoundedDistribution):
     def __init__(
         self,
         space: Box,
-        log_conc_min: ArrayLike | float = log(2.0),
-        log_conc_max: ArrayLike | float = log(100.0),
-        padding: ArrayLike | float = 1e-4,
+        log_conc_min: ArrayLike = log(2.0),
+        log_conc_max: ArrayLike = log(100.0),
+        padding: ArrayLike = 1e-4,
     ) -> None:
         """Initialize `ModeConcentrationBeta` distribution.
 
