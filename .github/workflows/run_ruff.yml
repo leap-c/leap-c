@@ -1,9 +1,8 @@
 name: Ruff Linting and Formatting
 on:
   push:
-    branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+
 jobs:
   build:
     runs-on: ubuntu-latest

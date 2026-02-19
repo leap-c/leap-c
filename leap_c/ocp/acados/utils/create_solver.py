@@ -17,6 +17,7 @@ def create_batch_solver(
     discount_factor: float | None = None,
     n_batch_max: int = 256,
     num_threads: int = 4,
+    verbose: bool = True,
 ) -> AcadosOcpBatchSolver:
     """Create an AcadosOcpBatchSolver from an AcadosOcp object.
 
@@ -28,6 +29,7 @@ def create_batch_solver(
             scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
         n_batch_max: Maximum batch size.
         num_threads: Number of threads used in the batch solver.
+        verbose: Whether to print the code generation output.
     """
     if export_directory is None:
         export_directory = Path(mkdtemp())
@@ -59,6 +61,7 @@ def create_batch_solver(
         num_threads_in_batch_solve=num_threads,
         build=False,
         generate=False,
+        verbose=verbose,
     )
 
     if discount_factor is not None:
@@ -77,6 +80,7 @@ def create_forward_backward_batch_solvers(
     discount_factor: float | None = None,
     n_batch_init: int = 256,
     num_threads: int = 4,
+    verbose: bool = True,
 ) -> tuple[AcadosOcpBatchSolver, AcadosOcpBatchSolver]:
     """Create a batch solver for solving the MPC problems (forward solver).
 
@@ -95,6 +99,7 @@ def create_forward_backward_batch_solvers(
             (i.e., 1/N_horizon for intermediate stages, 1 for terminal stage).
         n_batch_init: Initial batch size.
         num_threads: Number of threads used in the batch solver.
+        verbose: Whether to print the code generation output.
     """
     opts = ocp.solver_options
     opts.with_batch_functionality = True
@@ -121,6 +126,7 @@ def create_forward_backward_batch_solvers(
         discount_factor=discount_factor,
         n_batch_max=n_batch_init,
         num_threads=num_threads,
+        verbose=verbose,
     )
 
     if not need_backward_solver:
@@ -142,6 +148,7 @@ def create_forward_backward_batch_solvers(
         discount_factor=discount_factor,
         n_batch_max=n_batch_init,
         num_threads=num_threads,
+        verbose=verbose,
     )
 
     return forward_batch_solver, backward_batch_solver
