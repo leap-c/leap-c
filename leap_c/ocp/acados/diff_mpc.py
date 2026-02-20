@@ -146,7 +146,7 @@ class AcadosDiffMpcFunction(DiffFunction):
             export_directory: An optional directory to which the generated C code will be exported.
                 If none is provided, a unique temporary directory will be created used.
             n_batch_init: Initially supported batch size of the batch OCP solver.
-                Using larger batches will trigger a delay for creation of more solvers.
+                Using larger batches will trigger a delay for the creation of more solvers.
                 If `None`, a default value is used.
             num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
                 If `None`, a default value is used.
