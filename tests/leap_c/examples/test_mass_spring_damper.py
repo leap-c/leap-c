@@ -59,7 +59,7 @@ def plot_msd_solution(
     axs[2].grid()
     axs[2].legend()
 
-    fig.suptitle("LQR Solution Trajectory")
+    fig.suptitle("Mass-Spring-Damper Solution Trajectory")
     fig.tight_layout()
 
     return fig, axs
@@ -153,7 +153,7 @@ def test_env_types():
 
 
 def test_run_closed_loop(n_iter: int = 100) -> None:
-    """Test the closed-loop performance of the LQR MPC controller.
+    """Test the closed-loop performance of the mass-spring-damper MPC controller.
 
     The test starts from an initial state away from the origin and checks
     that the controller drives the system towards the origin.
