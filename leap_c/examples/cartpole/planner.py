@@ -30,6 +30,13 @@ class CartPolePlannerConfig:
             of the cart [m] (soft/slacked constraint)
         cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
         param_interface: Determines the exposed parameter interface of the planner.
+        discount_factor: discount factor along the MPC horizon.
+            If `None`, it defaults to the behavior of `AcadosOcpOptions.cost_scaling`.
+        n_batch_init: Initially supported batch size of the batch OCP solver.
+            Using larger batches will trigger a delay for the creation of more solvers.
+            If `None`, a default value is used.
+        num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
+            If `None`, a default value is used.
         dtype: Type the planner output tensors will automatically be cast to.
     """
 
@@ -41,6 +48,9 @@ class CartPolePlannerConfig:
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS"
     param_interface: CartPoleAcadosParamInterface = "global"
 
+    discount_factor: float | None = None
+    n_batch_init: int | None = None
+    num_threads_batch_solver: int | None = None
     dtype: torch.dtype = torch.float32
 
 
@@ -100,5 +110,12 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             x_threshold=self.cfg.x_threshold,
         )
 
-        diff_mpc = AcadosDiffMpcTorch(ocp, export_directory=export_directory, dtype=self.cfg.dtype)
+        diff_mpc = AcadosDiffMpcTorch(
+            ocp,
+            discount_factor=self.cfg.discount_factor,
+            export_directory=export_directory,
+            n_batch_init=self.cfg.n_batch_init,
+            num_threads_batch_solver=self.cfg.num_threads_batch_solver,
+            dtype=self.cfg.dtype,
+        )
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)

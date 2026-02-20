@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from typing import Any, Literal, TypeAlias
+from warnings import warn
 
 from gymnasium import Env
 
@@ -93,73 +94,72 @@ ExamplePlannerName = Literal[
 ]
 
 
+CONTROLLER_REGISTRY = {}
+# controllers are a superset of planners
+ExampleControllerName: TypeAlias = ExamplePlannerName
+
+
+def _create_from_registry(
+    kind: Literal["planner", "controller"],
+    name: str,
+    reuse_code_base_dir: Path | None,
+    **kwargs: Any,
+) -> ParameterizedPlanner[CtxType] | ParameterizedController[CtxType]:
+    """Helper to create a planner or controller from the corresponding registry."""
+    registry = PLANNER_REGISTRY if kind == "planner" else CONTROLLER_REGISTRY
+    if name not in registry:
+        raise ValueError(f"{kind.capitalize()} '{name}' is not registered or does not exist.")
+
+    cls, cfg_cls, default_cfg_kwargs = registry[name]
+    cfg = cfg_cls(**default_cfg_kwargs, **kwargs)
+
+    kwargs_cls = {"cfg": cfg}
+    if reuse_code_base_dir is not None:
+        export_directory = reuse_code_base_dir / name
+        try:
+            return cls(**kwargs_cls, export_directory=export_directory)
+        except TypeError as e:
+            if "export_directory" not in str(e):
+                raise  # unrelated TypeError, re-raise it
+            warn(
+                f"{cls.__name__} does not support 'export_directory' argument; ignoring "
+                f"'reuse_code_base_dir' for this {kind}.",
+                RuntimeWarning,
+                2,
+            )
+    return cls(**kwargs_cls)
+
+
 def create_planner(
-    planner_name: ExamplePlannerName, reuse_code_base_dir: Path | None = None, **kw: Any
+    planner_name: ExamplePlannerName, reuse_code_base_dir: Path | None = None, **kwargs: Any
 ) -> ParameterizedPlanner[CtxType]:
     """Create a planner.
 
     Args:
         planner_name: Name of the planner.
         reuse_code_base_dir: Directory to reuse code base from, e.g., generated code.
-        **kw: Additional keyword arguments passed to the planner config constructor.
+        **kwargs: Additional keyword arguments passed to the planner's config constructor.
 
     Returns:
         An instance of the requested planner.
     """
-    if planner_name not in PLANNER_REGISTRY:
-        raise ValueError(f"Planner '{planner_name}' is not registered or does not exist.")
-
-    planner_class, config_class, default_cfg_kwargs = PLANNER_REGISTRY[planner_name]
-    cfg = config_class(**{**default_cfg_kwargs, **kw})
-    kw = {"cfg": cfg}
-
-    if reuse_code_base_dir is not None:
-        export_directory = reuse_code_base_dir / planner_name
-        kw.pop("export_directory", None)  # remove if present
-        try:
-            return planner_class(**kw, export_directory=export_directory)
-        except TypeError:
-            pass
-
-    return planner_class(**kw)
-
-
-CONTROLLER_REGISTRY = {}
-# controllers are a superset of planners
-ExampleControllerName: TypeAlias = ExamplePlannerName
+    return _create_from_registry("planner", planner_name, reuse_code_base_dir, **kwargs)
 
 
 def create_controller(
-    controller_name: ExampleControllerName, reuse_code_base_dir: Path | None = None, **kw: Any
+    controller_name: ExampleControllerName, reuse_code_base_dir: Path | None = None, **kwargs: Any
 ) -> ParameterizedController[CtxType]:
     """Create a controller or create a planner and wrap it as a controller.
 
     Args:
         controller_name: Name of the controller.
         reuse_code_base_dir: Directory to reuse code base from, e.g., generated code.
-        **kw: Additional keyword arguments passed to the planner config constructor.
+        **kwargs: Additional keyword arguments passed to the controller's config constructor.
 
     Returns:
         An instance of the requested controller.
     """
     if controller_name in PLANNER_REGISTRY:
-        planner = create_planner(controller_name, reuse_code_base_dir=reuse_code_base_dir, **kw)
+        planner = create_planner(controller_name, reuse_code_base_dir, **kwargs)
         return ControllerFromPlanner(planner)
-
-    if controller_name not in CONTROLLER_REGISTRY:
-        raise ValueError(f"Controller '{controller_name}' is not registered or does not exist.")
-
-    controller_class, config_class, default_cfg_kwargs = CONTROLLER_REGISTRY[controller_name]
-    cfg = config_class(**{**default_cfg_kwargs, **kw})
-    kw = {"cfg": cfg}
-
-    if reuse_code_base_dir is not None:
-        export_directory = reuse_code_base_dir / controller_name
-        kw.pop("export_directory", None)
-
-        try:
-            return controller_class(**kw, export_directory=export_directory)
-        except TypeError:
-            pass
-
-    return controller_class(**kw)
+    return _create_from_registry("controller", controller_name, reuse_code_base_dir, **kwargs)
