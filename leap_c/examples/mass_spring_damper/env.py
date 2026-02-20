@@ -12,8 +12,8 @@ from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 
 
 @dataclass(kw_only=True)
-class LqrEnvConfig:
-    """Configuration for the LQR environment.
+class MassSpringDamperEnvConfig:
+    """Configuration for the MassSpringDamper environment.
 
     Attributes:
         dt: Time step in seconds.
@@ -51,8 +51,8 @@ class LqrEnvConfig:
         self.R = np.diag(np.square(self.r_diag_sqrt))
 
 
-class LqrEnv(MatplotlibRenderEnv):
-    """A simple 1D LQR environment with position and velocity states.
+class MassSpringDamperEnv(MatplotlibRenderEnv):
+    """A simple 1D mass-spring-damper environment with position and velocity states.
 
     The dynamics follow a discrete-time mass-spring-damper system:
     ```
@@ -77,7 +77,7 @@ class LqrEnv(MatplotlibRenderEnv):
 
     Reward:
     -------
-    The reward is the negative LQR cost:
+    The reward is the negative mass-spring-damper cost:
     ```
         r = -(x^T Q x + u^T R u)
     ```
@@ -113,7 +113,7 @@ class LqrEnv(MatplotlibRenderEnv):
         action_plot: Line object for action trajectory.
     """
 
-    cfg: LqrEnvConfig
+    cfg: MassSpringDamperEnvConfig
     observation_space: Box
     action_space: Box
     A: np.ndarray
@@ -131,9 +131,9 @@ class LqrEnv(MatplotlibRenderEnv):
     def __init__(
         self,
         render_mode: str | None = None,
-        cfg: LqrEnvConfig | None = None,
+        cfg: MassSpringDamperEnvConfig | None = None,
     ):
-        """Initialize the LQR environment.
+        """Initialize the MassSpringDamper environment.
 
         Args:
             render_mode: The mode to render with. Supported modes are: `human`, `rgb_array`, `None`.
@@ -141,7 +141,7 @@ class LqrEnv(MatplotlibRenderEnv):
         """
         super().__init__(render_mode=render_mode)
 
-        self.cfg = LqrEnvConfig() if cfg is None else cfg
+        self.cfg = MassSpringDamperEnvConfig() if cfg is None else cfg
 
         # Gymnasium setup
         state_low = np.array([self.cfg.x_min, self.cfg.v_min], np.float32)
@@ -183,7 +183,7 @@ class LqrEnv(MatplotlibRenderEnv):
         Returns:
             Tuple containing:
                 - observation: Next observation `[x, v]`.
-                - reward: Reward for this step (negative LQR cost).
+                - reward: Reward for this step (negative mass-spring-damper cost).
                 - terminated: Whether the episode terminated.
                 - truncated: Whether the episode was truncated.
                 - info: Dictionary with task information.
@@ -212,7 +212,7 @@ class LqrEnv(MatplotlibRenderEnv):
         # Success if close to origin with low velocity
         close_to_origin = bool(np.abs(self.state[0]) < 0.1 and np.abs(self.state[1]) < 0.1)
 
-        # Compute reward (negative LQR cost)
+        # Compute reward (negative mass-spring-damper cost)
         state_cost = self.state @ self.cfg.Q @ self.state
         control_cost = action @ self.cfg.R @ action
         reward = float(-(state_cost + control_cost))
@@ -304,7 +304,7 @@ class LqrEnv(MatplotlibRenderEnv):
         ax.grid(True, alpha=0.3)
         ax.legend()
 
-        self._fig.suptitle("LQR System Trajectory", fontsize=14)
+        self._fig.suptitle("Mass-Spring-Damper System Trajectory", fontsize=14)
         self._fig.tight_layout()
 
     def _render_frame(self) -> np.ndarray | None:
@@ -328,7 +328,7 @@ class LqrEnv(MatplotlibRenderEnv):
 
 
 def plot_optimal_value_and_policy(
-    env: LqrEnv | None = None,
+    env: MassSpringDamperEnv | None = None,
     A: np.ndarray | None = None,
     B: np.ndarray | None = None,
     Q: np.ndarray | None = None,
@@ -339,14 +339,15 @@ def plot_optimal_value_and_policy(
     v_max: float = 2.0,
     n_points: int = 101,
 ) -> tuple[plt.Figure, np.ndarray]:
-    """Plot heatmaps of the optimal LQR value function and policy.
+    """Plot heatmaps of the optimal mass-spring-damper value function and policy.
 
     This function solves the discrete-time algebraic Riccati equation (DARE)
     to compute the optimal value function `V(x) = x^T P x` and the optimal
     policy `u*(x) = -K x`, then visualizes them as 2D heatmaps.
 
     Args:
-        env: LQR environment to extract matrices from. If `None`, must provide `A`, `B`, `Q`, `R`.
+        env: MassSpringDamper environment to extract matrices from.
+            If `None`, must provide `A`, `B`, `Q`, `R`.
         A: State transition matrix `(2x2)`. If `None`, extracted from `env`.
         B: Control input matrix `(2x1)`. If `None`, extracted from `env`.
         Q: State cost matrix `(2x2)`. If `None`, extracted from `env`.
@@ -434,14 +435,14 @@ def plot_optimal_value_and_policy(
     )
     axes[1].contour(x_vals, v_vals, U, levels=[0.0], colors="black", linewidths=2)
 
-    fig.suptitle("LQR Optimal Value Function and Policy", fontsize=14, y=1.00)
+    fig.suptitle("Mass-Spring-Damper Optimal Value Function and Policy", fontsize=14, y=1.00)
     fig.tight_layout()
 
     return fig, axes
 
 
 if __name__ == "__main__":
-    env = LqrEnv()
+    env = MassSpringDamperEnv()
 
     fig, axes = plot_optimal_value_and_policy(env=env)
 

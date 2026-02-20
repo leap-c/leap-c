@@ -4,22 +4,25 @@ import pytest
 import torch
 from acados_template import AcadosOcpSolver
 
-from leap_c.examples.lqr.env import LqrEnv
-from leap_c.examples.lqr.planner import LqrPlanner, LqrPlannerConfig
+from leap_c.examples.mass_spring_damper.env import MassSpringDamperEnv
+from leap_c.examples.mass_spring_damper.planner import (
+    MassSpringDamperPlanner,
+    MassSpringDamperPlannerConfig,
+)
 from leap_c.planner import ControllerFromPlanner
 
 
 @pytest.fixture(scope="module")
-def lqr_controller():
-    cfg = LqrPlannerConfig()
-    planner = LqrPlanner(cfg)
+def msd_controller():
+    cfg = MassSpringDamperPlannerConfig()
+    planner = MassSpringDamperPlanner(cfg)
     return ControllerFromPlanner(planner)
 
 
-def plot_lqr_solution(
+def plot_msd_solution(
     ocp_solver: AcadosOcpSolver,
 ) -> tuple[plt.Figure, np.ndarray]:
-    """Plot the LQR solution trajectory.
+    """Plot the MassSpringDamper solution trajectory.
 
     Args:
         ocp_solver: The Acados OCP solver.
@@ -62,9 +65,9 @@ def plot_lqr_solution(
     return fig, axs
 
 
-def test_solution(lqr_controller):
+def test_solution(msd_controller):
     """Test that the OCP solver can solve for a given initial state."""
-    ocp_solver = lqr_controller.planner.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
+    ocp_solver = msd_controller.planner.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
     # Set initial state away from origin
     x0 = np.array([1.5, -1.0])
     ocp_solver.solve_for_x0(x0)
@@ -72,7 +75,7 @@ def test_solution(lqr_controller):
     if ocp_solver.status != 0:
         raise ValueError(f"Solver failed with status {ocp_solver.status}")
 
-    fig, axs = plot_lqr_solution(ocp_solver)
+    fig, axs = plot_msd_solution(ocp_solver)
     plt.close(fig)
 
 
@@ -85,7 +88,7 @@ def test_env_terminates():
     This test ensures that the environment terminates properly
     when applying extreme control inputs continuously.
     """
-    env = LqrEnv()
+    env = MassSpringDamperEnv()
 
     # Test with maximum force to exceed velocity bounds
     for action in [env.action_space.low, env.action_space.high]:
@@ -115,7 +118,7 @@ def test_env_truncates():
 
     This test ensures that the environment truncates properly when doing nothing.
     """
-    env = LqrEnv()
+    env = MassSpringDamperEnv()
     env.reset(seed=0)
 
     action = np.array([0.0])
@@ -139,7 +142,7 @@ def test_env_types():
     This test uses an action from the action space.
     Note that the action space has type np.float32.
     """
-    env = LqrEnv()
+    env = MassSpringDamperEnv()
 
     x, _ = env.reset(seed=0)
     assert x.dtype == np.float32, "Initial state should be float32"
@@ -159,14 +162,14 @@ def test_run_closed_loop(n_iter: int = 100) -> None:
     - The final position is close to zero.
     - The final velocity is close to zero.
     """
-    env = LqrEnv()
+    env = MassSpringDamperEnv()
     obs, _ = env.reset(seed=42)
 
     # Set initial state away from origin
     env.state = np.array([1.0, -0.5])
     obs = env._observation()
 
-    planner = LqrPlanner()
+    planner = MassSpringDamperPlanner()
     controller = ControllerFromPlanner(planner=planner)
 
     default_param = controller.default_param(obs)
@@ -189,7 +192,7 @@ def test_run_closed_loop(n_iter: int = 100) -> None:
 
 def test_env_reset_modes():
     """Test that the environment can reset in different modes."""
-    env = LqrEnv()
+    env = MassSpringDamperEnv()
 
     # Test reset in train mode
     obs_train, _ = env.reset(seed=0, options={"mode": "train"})
