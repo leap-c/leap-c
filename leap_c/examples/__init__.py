@@ -14,17 +14,22 @@ from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
 from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
 from leap_c.examples.hvac.env import StochasticThreeStateRcEnv
 from leap_c.examples.hvac.planner import HvacPlanner, HvacPlannerConfig
-from leap_c.examples.lqr.env import LqrEnv
-from leap_c.examples.lqr.planner import LqrPlanner, LqrPlannerConfig
+from leap_c.examples.mass_spring_damper.env import MassSpringDamperEnv
+from leap_c.examples.mass_spring_damper.planner import (
+    MassSpringDamperPlanner,
+    MassSpringDamperPlannerConfig,
+)
 from leap_c.examples.pointmass.env import PointMassEnv
 from leap_c.examples.pointmass.planner import PointMassControllerConfig, PointMassPlanner
 from leap_c.planner import ControllerFromPlanner, ParameterizedPlanner
 
-ExampleEnvName = Literal["cartpole", "chain", "lqr", "pointmass", "hvac", "hvac_continual"]
+ExampleEnvName = Literal[
+    "cartpole", "chain", "mass_spring_damper", "pointmass", "hvac", "hvac_continual"
+]
 ENV_REGISTRY = {
     "cartpole": CartPoleEnv,
     "chain": ChainEnv,
-    "lqr": LqrEnv,
+    "mass_spring_damper": MassSpringDamperEnv,
     "pointmass": PointMassEnv,
     "hvac": StochasticThreeStateRcEnv,
     "hvac_continual": lambda **kw: StochasticThreeStateRcEnv(
@@ -62,7 +67,7 @@ PLANNER_REGISTRY = {
         ChainControllerConfig,
         {"param_interface": "stagewise"},
     ),
-    "lqr": (LqrPlanner, LqrPlannerConfig, dict()),
+    "mass_spring_damper": (MassSpringDamperPlanner, MassSpringDamperPlannerConfig, dict()),
     "pointmass": (PointMassPlanner, PointMassControllerConfig, dict()),
     "pointmass_stagewise": (
         PointMassPlanner,
@@ -81,7 +86,7 @@ ExamplePlannerName = Literal[
     "cartpole_stagewise",
     "chain",
     "chain_stagewise",
-    "lqr",
+    "mass_spring_damper",
     "pointmass",
     "pointmass_stagewise",
     "hvac",

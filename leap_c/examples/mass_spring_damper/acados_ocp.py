@@ -7,14 +7,14 @@ from acados_template import AcadosOcp, AcadosOcpSolver
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 
-def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]:
-    """Return a tuple of default parameters for the LQR planner.
+def make_default_msd_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]:
+    """Return a tuple of default parameters for the mass-spring-damper planner.
 
     Args:
         N_horizon: The number of steps in the MPC horizon
 
     Returns:
-        Tuple of AcadosParameter objects for LQR.
+        Tuple of AcadosParameter objects for the mass-spring-damper system.
 
     Note: The default parameters do not match the true parameter values used in the environment.
     """
@@ -90,10 +90,10 @@ def make_default_lqr_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]
 def export_parametric_ocp(
     param_manager: AcadosParameterManager,
     N_horizon: int,
-    name: str = "lqr",
+    name: str = "mass_spring_damper",
     x0: np.ndarray | None = None,
 ) -> AcadosOcp:
-    """Export the LQR OCP.
+    """Export the mass-spring-damper OCP.
 
     Args:
         param_manager: The parameter manager containing the parameters for the OCP.
@@ -191,7 +191,7 @@ def export_parametric_ocp(
 if __name__ == "__main__":
     N_horizon = 100
     param_manager = AcadosParameterManager(
-        make_default_lqr_params(N_horizon=N_horizon),
+        make_default_msd_params(N_horizon=N_horizon),
         N_horizon=N_horizon,
     )
 

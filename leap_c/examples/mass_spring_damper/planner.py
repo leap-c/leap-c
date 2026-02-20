@@ -4,9 +4,9 @@ from pathlib import Path
 import numpy as np
 import torch
 
-from leap_c.examples.lqr.acados_ocp import (
+from leap_c.examples.mass_spring_damper.acados_ocp import (
     export_parametric_ocp,
-    make_default_lqr_params,
+    make_default_msd_params,
 )
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
@@ -14,8 +14,8 @@ from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
 
 @dataclass(kw_only=True)
-class LqrPlannerConfig:
-    """Configuration for the LQR planner.
+class MassSpringDamperPlannerConfig:
+    """Configuration for the MassSpringDamper planner.
 
     Attributes:
         N_horizon: The number of steps in the MPC horizon.
@@ -39,11 +39,11 @@ class LqrPlannerConfig:
     dtype: torch.dtype = torch.float32
 
 
-class LqrPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
-    """Acados-based planner for the LQR system.
+class MassSpringDamperPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
+    """Acados-based planner for the mass-spring-damper system.
 
     The state corresponds to [position, velocity] and the action is [force].
-    The cost function is a quadratic LQR cost with Q and R matrices, plus a
+    The cost function is a quadratic cost with Q and R matrices, plus a
     terminal cost matrix P. The dynamics are discrete-time double integrator.
 
     Attributes:
@@ -51,35 +51,35 @@ class LqrPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             such as horizon length.
     """
 
-    cfg: LqrPlannerConfig
+    cfg: MassSpringDamperPlannerConfig
 
     def __init__(
         self,
-        cfg: LqrPlannerConfig | None = None,
+        cfg: MassSpringDamperPlannerConfig | None = None,
         params: tuple[AcadosParameter, ...] | None = None,
         export_directory: Path | None = None,
     ):
-        """Initializes the LqrPlanner.
+        """Initializes the MassSpringDamperPlanner.
 
         Args:
             cfg: A configuration object containing high-level settings for the
                 MPC problem, such as horizon length. If not provided,
                 a default config is used.
             params: An optional tuple of parameters to define the
-                ocp object. If not provided, default parameters for the LQR
+                ocp object. If not provided, default parameters for the mass-spring-damper
                 system will be created based on the cfg.
             export_directory: An optional directory path where the generated
                 `acados` solver code will be exported.
         """
-        self.cfg = LqrPlannerConfig() if cfg is None else cfg
-        params = make_default_lqr_params(N_horizon=self.cfg.N_horizon) if params is None else params
+        self.cfg = MassSpringDamperPlannerConfig() if cfg is None else cfg
+        params = make_default_msd_params(N_horizon=self.cfg.N_horizon) if params is None else params
 
         param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
 
         ocp = export_parametric_ocp(
             param_manager=param_manager,
             N_horizon=self.cfg.N_horizon,
-            name="lqr",
+            name="mass_spring_damper",
             x0=np.array([1.0, 0.0]),
         )
 
