@@ -86,7 +86,7 @@ def init_run(trainer: Trainer[TrainerConfigType, CtxType], cfg, output_path: str
 
 
 def validate_torch_dtype_arg(arg: str) -> torch.dtype:
-    """Validate the provided string argument as a valid torch dtype.
+    """Validate the provided string argument as a valid torch data type.
 
     Args:
         arg: String representation of the torch dtype (e.g., "float32", "float64", etc.).
@@ -95,14 +95,11 @@ def validate_torch_dtype_arg(arg: str) -> torch.dtype:
         The corresponding torch dtype object for the provided string.
 
     Raises:
-        ArgumentTypeError: If the provided value is not a valid torch dtype.
+        ArgumentTypeError: If the provided value is not a valid torch type or is not floating.
     """
-    try:
-        result = getattr(torch, arg.lower())
-        if not isinstance(result, torch.dtype):
-            raise AttributeError
-        return result
-    except AttributeError as e:
+    result = getattr(torch, arg.lower(), None)
+    if not isinstance(result, torch.dtype) or not result.is_floating_point:
         raise ArgumentTypeError(
             f"`{arg}` is not a valid torch dtype (e.g., `float32`, `float64`, etc.)"
-        ) from e
+        )
+    return result
