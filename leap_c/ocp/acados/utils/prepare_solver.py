@@ -85,16 +85,8 @@ def prepare_batch_solver(
         batch_solver.constraints_set(0, "lbu", u0)
         batch_solver.constraints_set(0, "ubu", u0)
     else:
-        batch_solver.constraints_set(
-            0,
-            "lbu",
-            np.broadcast_to(lbu, (batch_size, lbu.shape[0])),
-        )
-        batch_solver.constraints_set(
-            0,
-            "ubu",
-            np.broadcast_to(ubu, (batch_size, ubu.shape[0])),
-        )
+        batch_solver.constraints_set(0, "lbu", np.broadcast_to(lbu, (batch_size, lbu.shape[0])))
+        batch_solver.constraints_set(0, "ubu", np.broadcast_to(ubu, (batch_size, ubu.shape[0])))
 
 
 def prepare_batch_solver_for_backward(
