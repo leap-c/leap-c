@@ -5,11 +5,10 @@ from math import prod
 from pathlib import Path
 from typing import Generator, Generic
 
-import gymnasium as gym
-import gymnasium.spaces as spaces
 import numpy as np
 import torch
 import torch.nn as nn
+from gymnasium import Env, spaces
 
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.torch.nn.extractor import ExtractorName, get_extractor_cls
@@ -62,7 +61,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
         buffer: The replay buffer used to store transitions.
     """
 
-    train_env: gym.Env
+    train_env: Env
     q: SacCritic
     q_target: SacCritic
     q_optim: torch.optim.Optimizer
@@ -77,11 +76,11 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
     def __init__(
         self,
         cfg: SacZopTrainerConfig,
-        val_env: gym.Env | None,
+        val_env: Env | None,
         output_path: str | Path,
-        device: str,
+        device: int | str | torch.device,
         dtype: torch.dtype,
-        train_env: gym.Env,
+        train_env: Env,
         controller: ParameterizedController[CtxType],
         extractor_cls: ExtractorName | None = None,
     ) -> None:

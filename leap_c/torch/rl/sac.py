@@ -1,13 +1,12 @@
 from dataclasses import dataclass, field
 from math import prod
 from pathlib import Path
-from typing import Any, Generator, Type
+from typing import Any, Generator
 
-import gymnasium as gym
-import gymnasium.spaces as spaces
 import numpy as np
 import torch
 import torch.nn as nn
+from gymnasium import Env, spaces
 
 from leap_c.torch.nn.bounded_distributions import (
     BoundedDistribution,
@@ -85,7 +84,7 @@ class SacCritic(nn.Module):
 
     def __init__(
         self,
-        extractor_cls: Type[Extractor],
+        extractor_cls: type[Extractor],
         action_space: spaces.Box,
         observation_space: spaces.Space,
         mlp_cfg: MlpConfig,
@@ -135,7 +134,7 @@ class SacActor(nn.Module):
 
     def __init__(
         self,
-        extractor_cls: Type[Extractor],
+        extractor_cls: type[Extractor],
         action_space: spaces.Box,
         observation_space: spaces.Space,
         distribution_name: BoundedDistributionName,
@@ -206,7 +205,7 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
         buffer: The replay buffer used for storing and sampling experiences.
     """
 
-    train_env: gym.Env
+    train_env: Env
     q: SacCritic
     q_target: SacCritic
     q_optim: torch.optim.Optimizer
@@ -220,12 +219,12 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
     def __init__(
         self,
         cfg: SacTrainerConfig,
-        val_env: gym.Env | None,
+        val_env: Env | None,
         output_path: str | Path,
-        device: str,
+        device: int | str | torch.device,
         dtype: torch.dtype,
-        train_env: gym.Env,
-        extractor_cls: Type[Extractor] | ExtractorName = "identity",
+        train_env: Env,
+        extractor_cls: type[Extractor] | ExtractorName = "identity",
     ) -> None:
         """Initializes the trainer with a configuration, output path, and device.
 

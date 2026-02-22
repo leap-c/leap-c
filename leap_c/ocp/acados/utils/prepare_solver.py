@@ -1,4 +1,5 @@
 from itertools import product
+from typing import Any
 
 import casadi as ca
 import numpy as np
@@ -116,7 +117,7 @@ def prepare_batch_solver_for_backward(
     batch_solver.setup_qp_matrices_and_factorize(solver_input.batch_size)
 
 
-def _is_param_legal(model_p) -> bool:
+def _is_param_legal(model_p: Any) -> bool:
     if model_p is None:
         return False
     elif isinstance(model_p, ca.SX):

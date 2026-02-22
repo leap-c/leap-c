@@ -1,6 +1,6 @@
 import collections
 import random
-from typing import Any, Callable, Union
+from typing import Any, Callable
 
 import torch
 from torch.utils._pytree import tree_map_only
@@ -36,7 +36,7 @@ class ReplayBuffer(torch.nn.Module):
 
     buffer: collections.deque
     device: str
-    collate_fn_map: dict[Union[tuple, tuple[type, ...]], Callable]
+    collate_fn_map: dict[tuple | tuple[type, ...], Callable]
     tensor_dtype: torch.dtype
 
     def __init__(
@@ -44,7 +44,7 @@ class ReplayBuffer(torch.nn.Module):
         buffer_limit: int,
         device: int | str | torch.device | None = None,
         tensor_dtype: torch.dtype | None = None,
-        collate_fn_map: dict[Union[tuple, tuple[type, ...]], Callable] | None = None,
+        collate_fn_map: dict[tuple | tuple[type, ...], Callable] | None = None,
     ) -> None:
         """Initialize the replay buffer.
 
