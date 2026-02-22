@@ -1,6 +1,7 @@
 """Provides a trainer for a SAC algorithm that sets parameters of a parameterized controller."""
 
 from dataclasses import dataclass, field
+from math import prod
 from pathlib import Path
 from typing import Generator, Generic
 
@@ -101,8 +102,8 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
         param_space: spaces.Box = controller.param_space
         obs_space = train_env.observation_space
         act_space = train_env.action_space
-        action_dim = np.prod(act_space.shape)
-        param_dim = np.prod(param_space.shape)
+        action_dim = prod(act_space.shape)
+        param_dim = prod(param_space.shape)
         self.train_env = wrap_env(train_env)
         device = self.device
 

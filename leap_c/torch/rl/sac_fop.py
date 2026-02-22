@@ -1,6 +1,7 @@
 """Provides a trainer for a SAC algorithm that uses a diff. MPC layer in the policy network."""
 
 from dataclasses import dataclass, field
+from math import prod
 from pathlib import Path
 from typing import Generator, Generic
 
@@ -100,8 +101,8 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
         param_space: spaces.Box = controller.param_space
         act_space = train_env.action_space
         obs_space = train_env.observation_space
-        action_dim = np.prod(act_space.shape)
-        param_dim = np.prod(param_space.shape)
+        action_dim = prod(act_space.shape)
+        param_dim = prod(param_space.shape)
         self.train_env = wrap_env(train_env)
         device = self.device
 

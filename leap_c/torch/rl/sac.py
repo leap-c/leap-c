@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from math import prod
 from pathlib import Path
 from typing import Any, Generator, Type
 
@@ -262,7 +263,7 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
         )
         if self.cfg.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)
-            action_dim = np.prod(self.train_env.action_space.shape)
+            action_dim = prod(self.train_env.action_space.shape)
             self.target_entropy = -action_dim if cfg.target_entropy is None else cfg.target_entropy
         else:
             self.alpha_optim = None
