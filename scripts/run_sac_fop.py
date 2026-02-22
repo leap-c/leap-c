@@ -5,8 +5,16 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Literal
 
+import torch
+
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
-from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
+from leap_c.run import (
+    default_controller_code_path,
+    default_name,
+    default_output_path,
+    init_run,
+    validate_torch_dtype_arg,
+)
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
 
@@ -118,7 +126,8 @@ def create_cfg(
 def run_sac_fop(
     cfg: RunSacFopConfig,
     output_path: str | Path,
-    device: str = "cuda",
+    device: str = "cpu",
+    dtype: torch.dtype = torch.float32,
     reuse_code_dir: Path | None = None,
     with_val: bool = False,
 ) -> float:
@@ -129,6 +138,7 @@ def run_sac_fop(
         output_path: The path to save outputs to.
             If it already exists, the run will continue from the last checkpoint.
         device: The device to use.
+        dtype: The torch dtype to use.
         reuse_code_dir: The directory to reuse compiled code from, if any.
         with_val: Whether to use a validation environment.
     """
@@ -139,6 +149,7 @@ def run_sac_fop(
         controller=create_controller(cfg.controller, reuse_code_dir),
         output_path=output_path,
         device=device,
+        dtype=dtype,
         cfg=cfg.trainer,
         extractor_cls=cfg.extractor,
     )
@@ -150,6 +161,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--output_path", type=Path, default=None)
     parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--dtype", type=validate_torch_dtype_arg, default="float32")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
     parser.add_argument("--controller", type=str, default=None)
@@ -218,6 +230,7 @@ if __name__ == "__main__":
         cfg=cfg,
         output_path=output_path,
         device=args.device,
+        dtype=args.dtype,
         reuse_code_dir=reuse_code_dir,
         with_val=args.with_val,
     )
