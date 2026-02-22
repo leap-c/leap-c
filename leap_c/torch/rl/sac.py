@@ -326,7 +326,7 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
                     target = r[:, None] + self.cfg.gamma * (1 - te[:, None]) * q_target
 
                 q = torch.cat(self.q(o, a), dim=1)
-                q_loss = torch.mean((q - target).pow(2))
+                q_loss = (q - target).square().mean()
 
                 self.q_optim.zero_grad()
                 q_loss.backward()
