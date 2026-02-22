@@ -13,6 +13,7 @@ from leap_c.run import (
     default_name,
     default_output_path,
     init_run,
+    validate_torch_device_arg,
     validate_torch_dtype_arg,
 )
 from leap_c.torch.nn.extractor import ExtractorName
@@ -160,7 +161,7 @@ def run_sac_fop(
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--output_path", type=Path, default=None)
-    parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--device", type=validate_torch_device_arg, default="cpu")
     parser.add_argument("--dtype", type=validate_torch_dtype_arg, default="float32")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
@@ -226,11 +227,4 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
-    run_sac_fop(
-        cfg=cfg,
-        output_path=output_path,
-        device=args.device,
-        dtype=args.dtype,
-        reuse_code_dir=reuse_code_dir,
-        with_val=args.with_val,
-    )
+    run_sac_fop(cfg, output_path, args.device, args.dtype, reuse_code_dir, args.with_val)

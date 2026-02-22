@@ -85,6 +85,30 @@ def init_run(trainer: Trainer[TrainerConfigType, CtxType], cfg, output_path: str
     log_git_hash_and_diff(output_path / "git.txt", module_root)
 
 
+def validate_torch_device_arg(arg: str) -> torch.device:
+    """Validate the provided string argument as a valid torch device.
+
+    Args:
+        arg: String representation of the torch device (e.g., "cpu", "cuda:0", etc.).
+
+    Returns:
+        The corresponding torch device object for the provided string.
+
+    Raises:
+        ArgumentTypeError: If the provided value is not a valid torch device.
+    """
+    try:
+        return torch.device(arg.lower())
+    except RuntimeError as e:
+        devices = []
+        if torch.cpu.is_available():
+            devices.append("`cpu`")
+        if torch.cuda.is_available():
+            devices.extend(f"`cuda:{i}`" for i in range(torch.cuda.device_count()))
+        devices_str = ", ".join(devices) if devices else "no available devices"
+        raise ArgumentTypeError(f"`{arg}` is not a valid torch device: {devices_str}.") from e
+
+
 def validate_torch_dtype_arg(arg: str) -> torch.dtype:
     """Validate the provided string argument as a valid torch data type.
 
