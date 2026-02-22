@@ -79,6 +79,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
         val_env: gym.Env | None,
         output_path: str | Path,
         device: str,
+        dtype: torch.dtype,
         train_env: gym.Env,
         controller: ParameterizedController[CtxType],
         extractor_cls: ExtractorName | None = None,
@@ -90,6 +91,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
             val_env: The validation environment. If None, training runs without evaluation.
             output_path: The path to the output directory.
             device: The device on which the trainer is running.
+            dtype: The data type to use for tensor computations.
             train_env: The training environment.
             controller: The controller to use in the policy.
             extractor_cls: Deprecated. Use cfg.actor.extractor_name instead.
@@ -97,12 +99,12 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
         super().__init__(cfg, val_env, output_path, device)
 
         param_space: spaces.Box = controller.param_space
-        observation_space = train_env.observation_space
-        action_space = train_env.action_space
-        action_dim = np.prod(action_space.shape)
+        obs_space = train_env.observation_space
+        act_space = train_env.action_space
+        action_dim = np.prod(act_space.shape)
         param_dim = np.prod(param_space.shape)
-
         self.train_env = wrap_env(train_env)
+        device = self.device
 
         # Handle deprecated extractor_cls parameter
         if extractor_cls is not None:
@@ -111,20 +113,18 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
         # Get extractor class for critic
         critic_extractor_cls = get_extractor_cls(cfg.actor.extractor_name)
 
-        self.q = SacCritic(
-            critic_extractor_cls, param_space, observation_space, cfg.critic_mlp, cfg.num_critics
-        )
-        self.q_target = SacCritic(
-            critic_extractor_cls, param_space, observation_space, cfg.critic_mlp, cfg.num_critics
-        )
+        args = (critic_extractor_cls, param_space, obs_space, cfg.critic_mlp, cfg.num_critics)
+        self.q = SacCritic(*args).to(device, dtype)
+        self.q_target = SacCritic(*args).to(device, dtype)
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.lr_q)
 
-        self.pi = HierachicalMPCActor(cfg.actor, observation_space, action_space, controller)
+        self.pi = HierachicalMPCActor(cfg.actor, obs_space, act_space, controller).to(device, dtype)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(cfg.init_alpha).log())
-
+        self.log_alpha = nn.Parameter(
+            torch.scalar_tensor(cfg.init_alpha, device=device, dtype=dtype).log()
+        )
         self.entropy_norm = param_dim / action_dim
         if cfg.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)
@@ -133,7 +133,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
             self.alpha_optim = None
             self.target_entropy = None
 
-        self.buffer = ReplayBuffer(cfg.buffer_size, device=device)
+        self.buffer = ReplayBuffer(cfg.buffer_size, device, dtype)
 
     def train_loop(self) -> Generator[tuple[int, float], None, None]:
         is_terminated = is_truncated = True
