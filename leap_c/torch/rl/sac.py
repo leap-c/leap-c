@@ -222,6 +222,7 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
         val_env: gym.Env | None,
         output_path: str | Path,
         device: str,
+        dtype: torch.dtype,
         train_env: gym.Env,
         extractor_cls: Type[Extractor] | ExtractorName = "identity",
     ) -> None:
@@ -231,7 +232,8 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
             cfg: The configuration for the trainer.
             val_env: The validation environment. If None, training runs without evaluation.
             output_path: The path to the output directory.
-            device: The device on which the trainer is running
+            device: The device on which the trainer is running.
+            dtype: The data type to use for tensor computations.
             train_env: The training environment.
             extractor_cls: The class used for extracting features from observations.
         """
@@ -240,30 +242,24 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
         self.train_env = wrap_env(train_env)
         action_space: spaces.Box = self.train_env.action_space
         observation_space = self.train_env.observation_space
-
         if isinstance(extractor_cls, str):
             extractor_cls = get_extractor_cls(extractor_cls)
+        device = self.device
 
-        self.q = SacCritic(
-            extractor_cls, action_space, observation_space, cfg.critic_mlp, cfg.num_critics
-        )
-        self.q_target = SacCritic(
-            extractor_cls, action_space, observation_space, cfg.critic_mlp, cfg.num_critics
-        )
+        args = (extractor_cls, action_space, observation_space, cfg.critic_mlp, cfg.num_critics)
+        self.q = SacCritic(*args).to(device, dtype)
+        self.q_target = SacCritic(*args).to(device, dtype)
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.lr_q)
 
         self.pi = SacActor(
-            extractor_cls,
-            action_space,
-            observation_space,
-            cfg.distribution_name,
-            cfg.actor_mlp,
-        )
+            extractor_cls, action_space, observation_space, cfg.distribution_name, cfg.actor_mlp
+        ).to(device, dtype)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(cfg.init_alpha).log())
-
+        self.log_alpha = nn.Parameter(
+            torch.scalar_tensor(cfg.init_alpha, device=device, dtype=dtype).log()
+        )
         if self.cfg.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)
             action_dim = np.prod(self.train_env.action_space.shape)
@@ -272,7 +268,7 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
             self.alpha_optim = None
             self.target_entropy = None
 
-        self.buffer = ReplayBuffer(cfg.buffer_size, device=device)
+        self.buffer = ReplayBuffer(cfg.buffer_size, device, dtype)
 
     def train_loop(self) -> Generator[tuple[int, float], None, None]:
         is_terminated = is_truncated = True
