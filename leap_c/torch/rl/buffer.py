@@ -42,8 +42,8 @@ class ReplayBuffer(torch.nn.Module):
     def __init__(
         self,
         buffer_limit: int,
-        device: int | str | torch.device,
-        tensor_dtype: torch.dtype = torch.float32,
+        device: int | str | torch.device | None = None,
+        tensor_dtype: torch.dtype | None = None,
         collate_fn_map: dict[Union[tuple, tuple[type, ...]], Callable] | None = None,
     ) -> None:
         """Initialize the replay buffer.
@@ -51,15 +51,18 @@ class ReplayBuffer(torch.nn.Module):
         Args:
             buffer_limit: The maximum number of transitions that can be stored in the buffer.
                 If the buffer is full, the oldest transition is discarded when appending a new one.
-            device: The device to which all sampled tensors will be cast.
-            tensor_dtype: The data type to which the sampled tensors will be cast.
+            device: The device to which all sampled tensors will be cast. If `None`, the default
+                PyTorch device is used.
+            tensor_dtype: The data type to which the sampled tensors will be cast. If `None`, the
+                default PyTorch type is used.
             collate_fn_map: The collate function map that informs the buffer how to form batches.
                 If given, extends the default collate function map of PyTorch.
         """
         super().__init__()
         self.buffer = collections.deque(maxlen=buffer_limit)
-        self.device = torch.device(device)
-        self.tensor_dtype = tensor_dtype
+
+        self.device = torch.get_default_device() if device is None else torch.device(device)
+        self.tensor_dtype = torch.get_default_dtype() if tensor_dtype is None else tensor_dtype
 
         if collate_fn_map is None:
             self.collate_fn_map = default_collate_fn_map
