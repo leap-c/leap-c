@@ -53,7 +53,7 @@ def prepare_batch_solver(
         batch_solver.set_p_global_and_precompute_dependencies(param)
     elif p_global is not None:
         # if p_global is provided, set it
-        p_global = p_global.astype(np.float64)
+        p_global = p_global.astype(np.float64, copy=False)
         batch_solver.set_p_global_and_precompute_dependencies(p_global)
 
     # set p_stagewise
