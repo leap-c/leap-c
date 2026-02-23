@@ -126,8 +126,8 @@ def create_cfg(
 def run_sac_fop(
     cfg: RunSacFopConfig,
     output_path: str | Path,
-    device: str = "cpu",
-    dtype: torch.dtype = torch.float32,
+    device: int | str | torch.device,
+    dtype: torch.dtype,
     reuse_code_dir: Path | None = None,
     with_val: bool = False,
 ) -> float:

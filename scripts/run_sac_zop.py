@@ -105,8 +105,8 @@ def create_cfg(
 def run_sac_zop(
     cfg: RunSacZopConfig,
     output_path: str | Path,
-    device: str = "cuda",
-    dtype: torch.dtype = torch.float32,
+    device: int | str | torch.device,
+    dtype: torch.dtype,
     reuse_code_dir: Path | None = None,
     with_val: bool = False,
 ) -> float:

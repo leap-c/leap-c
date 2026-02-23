@@ -91,8 +91,8 @@ def create_cfg(
 def run_sac(
     cfg: RunSacConfig,
     output_path: str | Path,
-    device: str = "cuda",
-    dtype: torch.dtype = torch.float32,
+    device: int | str | torch.device,
+    dtype: torch.dtype,
     with_val: bool = False,
 ) -> float:
     """Run the SAC trainer.
