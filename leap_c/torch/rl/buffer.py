@@ -8,7 +8,7 @@ from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 
 def pytree_tensor_to(
-    pytree: Any, device: int | str | torch.device, tensor_dtype: torch.dtype
+    pytree: Any, device: int | str | torch.device, tensor_dtype: torch.dtype = torch.float32
 ) -> Any:
     """Convert tensors in the pytree to tensor_dtype and move them to device."""
     return tree_map_only(
