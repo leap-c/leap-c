@@ -38,7 +38,7 @@ class HvacEnvConfig:
     thermal_params: HydronicParameters | None = None
     step_size: float = 900.0
     enable_noise: bool = True
-    randomize_params: bool = True
+    randomize_params: bool = False
     param_noise_scale: float = 0.3
     random_seed: int = 0
 
@@ -321,7 +321,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         elif state[0] > ub:
             constraint_violation += state[0] - ub
 
-        comfort_reward = -constraint_violation ** 2 - abs(constraint_violation)
+        comfort_reward = -(constraint_violation**2 + abs(constraint_violation)) * 0.1
 
         # Reward for energy saving
         price = self.dataset.get_price(self.idx)[0]
