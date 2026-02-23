@@ -122,6 +122,7 @@ def run_sac(
 if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--output_path", type=Path, default=None)
+    parser.add_argument("--device", type=str, default="cpu")
     parser.add_argument("--dtype", type=validate_torch_dtype_arg, default="float32")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
