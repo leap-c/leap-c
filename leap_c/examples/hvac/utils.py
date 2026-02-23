@@ -8,8 +8,8 @@ def set_temperature_limits(
     night_end_hour: int = 8,
     lb_night: float = convert_temperature(12.0, "celsius", "kelvin"),
     lb_day: float = convert_temperature(17.0, "celsius", "kelvin"),
-    ub_night: float = convert_temperature(30.0, "celsius", "kelvin"),
-    ub_day: float = convert_temperature(30.0, "celsius", "kelvin"),
+    ub_night: float = convert_temperature(25.0, "celsius", "kelvin"),
+    ub_day: float = convert_temperature(25.0, "celsius", "kelvin"),
 ) -> tuple[np.ndarray[np.float64], np.ndarray[np.float64]]:
     """Set temperature limits based on the time of day."""
     hours = np.floor(quarter_hours / 4)
