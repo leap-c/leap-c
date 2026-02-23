@@ -5,6 +5,7 @@ import types
 from pathlib import Path
 
 import pytest
+import torch
 
 import leap_c
 from leap_c.examples import CONTROLLER_REGISTRY, ENV_REGISTRY, PLANNER_REGISTRY
@@ -189,11 +190,7 @@ def _run_script(script, tmp_path, env, reuse_code_dir, controller=None):
     cfg.trainer.val_num_rollouts = 1
     cfg.trainer.val_num_render_rollouts = 0
 
-    kw = {
-        "output_path": tmp_path,
-        "device": "cpu",  # Use CPU for testing
-    }
-
+    kw = {"output_path": tmp_path, "device": "cpu", "dtype": torch.float32}
     if controller is not None:
         kw["reuse_code_dir"] = reuse_code_dir
         cfg.controller = controller

@@ -1,7 +1,7 @@
 """Module defining abstract interfaces of differentiable, parameterized controllers in PyTorch."""
 
 from abc import ABCMeta, abstractmethod
-from typing import Any, Callable, Generic, Protocol, TypeVar, Union
+from typing import Any, Callable, Generic, Protocol, TypeVar
 
 import gymnasium as gym
 from numpy import ndarray
@@ -39,7 +39,7 @@ class ParameterizedController(nn.Module, Generic[CtxType], metaclass=ABCMeta):
             https://docs.pytorch.org/docs/stable/data.html#torch.utils.data.default_collate.
     """
 
-    collate_fn_map: dict[Union[type, tuple[type, ...]], Callable] | None = None
+    collate_fn_map: dict[type | tuple[type, ...], Callable] | None = None
 
     @abstractmethod
     def forward(self, obs: Any, param: Any, ctx: CtxType | None = None) -> tuple[CtxType, Tensor]:

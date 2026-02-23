@@ -68,7 +68,8 @@ class HvacPlannerConfig:
             If `None`, a default value is used.
         num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
             If `None`, a default value is used.
-        dtype: Type the planner output tensors will automatically be cast to.
+        dtype: Type the planner output tensors will automatically be cast to. If `None`, PyTorch
+            default dtype is used.
     """
 
     N_horizon: int = 24 * 4 - 1  # 24 hours in 15 minutes time steps
@@ -78,7 +79,7 @@ class HvacPlannerConfig:
     discount_factor: float | None = None
     n_batch_init: int | None = None
     num_threads_batch_solver: int | None = None
-    dtype: torch.dtype = torch.float32
+    dtype: torch.dtype | None = None
 
 
 class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
