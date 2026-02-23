@@ -9,11 +9,14 @@
 
 import os
 import sys
+from datetime import datetime
 
 sys.path.insert(0, os.path.abspath(".."))
+start_year = 2025
+current_year = datetime.now().year
 
 project = "leap-c"
-copyright = "2025, Dirk, Jasper, Leonard"
+copyright = f"{start_year}-{current_year}, Dirk, Jasper, Leonard"
 author = "Dirk, Jasper, Leonard"
 release = "2025"
 
