@@ -99,7 +99,10 @@ def validate_torch_dtype_arg(arg: str) -> torch.dtype:
     """
     result = getattr(torch, arg.lower(), None)
     if not isinstance(result, torch.dtype) or not result.is_floating_point:
-        raise ArgumentTypeError(
-            f"`{arg}` is not a valid torch dtype (e.g., `float32`, `float64`, etc.)"
+        valid_dtypes = ", ".join(
+            f"`{name}`"
+            for name, dtype in torch.__dict__.items()
+            if isinstance(dtype, torch.dtype) and dtype.is_floating_point
         )
+        raise ArgumentTypeError(f"`{arg}` is not a valid torch dtype: {valid_dtypes}.")
     return result
