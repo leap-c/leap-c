@@ -65,7 +65,7 @@ class HvacPlannerConfig:
     """
 
     N_horizon: int = 24 * 4 - 1  # 24 hours in 15 minutes time steps
-    param_interface: HvacAcadosParamInterface = "reference"
+    param_interface: HvacAcadosParamInterface = "reference_dynamics"
     param_granularity: HvacAcadosParamGranularity = "global"
 
     dtype: torch.dtype = torch.float32
