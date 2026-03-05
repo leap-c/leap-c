@@ -23,7 +23,7 @@ maintainers = [
 ]
 description = "Learning Predictive Control"
 readme = "README.md"
-license = { file = "LICENSE.txt" }
+license = { file = "LICENSE" }
 keywords = [
   "Reinforcement Learning",
   "Imitation Learning",
@@ -62,11 +62,11 @@ hvac = [
   "requests-cache==1.2.1"
 ]
 dev = [
-  "leap_c[rendering]",
-  "leap_c[docs]",
-  "leap_c[test]",
-  "leap_c[hvac]",
-  "leap_c[tuning]",
+  "leap-c[rendering]",
+  "leap-c[docs]",
+  "leap-c[test]",
+  "leap-c[hvac]",
+  "leap-c[tuning]",
   "pre-commit==4.3.0",
   "ruff==0.12.12"
 ]
@@ -77,7 +77,11 @@ tuning = [
 wandb = ["wandb==0.20.1"]
 
 [tool.setuptools]
-packages = ["leap_c"]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["leap_c*"]
 
 [project.urls]
 Repository = "https://github.com/leap-c/leap-c"

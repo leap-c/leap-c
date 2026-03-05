@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import mkdtemp
 
 from acados_template import AcadosOcp, AcadosOcpBatchSolver, AcadosOcpSolver
+import numpy as np
 
 from leap_c.ocp.acados.utils.delete_directory_hook import DeleteDirectoryHook
 
@@ -115,6 +116,8 @@ def create_forward_backward_batch_solvers(
     if ocp.cost.cost_type_e != "EXTERNAL":
         ocp.translate_terminal_cost_term_to_external(cost_hessian=opts.hessian_approx)
 
+    _ensure_external_cost_yrefs(ocp)
+
     # check if we can use the forward solver for the backward pass.
     need_backward_solver = _check_need_sensitivity_solver(ocp)
 
@@ -150,6 +153,8 @@ def create_forward_backward_batch_solvers(
 
     sensitivity_ocp.model.name += "_sensitivity"  # type:ignore
 
+    _ensure_external_cost_yrefs(sensitivity_ocp)  # type:ignore
+
     sensitivity_ocp.ensure_solution_sensitivities_available()  # type:ignore
 
     backward_batch_solver = create_batch_solver(
@@ -171,6 +176,26 @@ def _check_need_sensitivity_solver(ocp: AcadosOcp) -> bool:
         return True
 
     return False
+
+
+def _ensure_external_cost_yrefs(ocp: AcadosOcp) -> None:
+    """Normalize ny/yref fields for EXTERNAL costs.
+
+    Some acados template versions render yref assignments based on ny*.
+    For EXTERNAL costs, yref is not a valid field at runtime, so we force ny*
+    to zero for EXTERNAL stages.
+    """
+    if ocp.cost.cost_type_0 == "EXTERNAL":
+        ocp.dims.ny_0 = 0
+        ocp.cost.yref_0 = np.zeros((0,))
+
+    if ocp.cost.cost_type == "EXTERNAL":
+        ocp.dims.ny = 0
+        ocp.cost.yref = np.zeros((0,))
+
+    if ocp.cost.cost_type_e == "EXTERNAL":
+        ocp.dims.ny_e = 0
+        ocp.cost.yref_e = np.zeros((0,))
 
 
 def _set_discount_factor(
