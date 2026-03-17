@@ -2,11 +2,13 @@ from dataclasses import fields
 from typing import Any, NamedTuple
 
 import numpy as np
+import pytest
 import torch
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
 )
+from tensordict import TensorDict
 
 from leap_c.ocp.acados.data import (
     AcadosOcpSolverInput,
@@ -223,3 +225,48 @@ def test_state_dict():
 
     assert len(buffer) == 2
     assert torch.equal(buffer.sample(2), dummy_tensor)
+
+
+def test_dict_observation_to_tensordict():
+    """Test that dict observations are automatically converted to TensorDict."""
+    buffer = ReplayBuffer(buffer_limit=10, device="cpu", tensor_dtype=torch.float32)
+
+    obs1 = {
+        "time": {"hour": np.array([12.0]), "minute": np.array([30.0])},
+        "state": np.array([1.0, 2.0, 3.0]),
+    }
+    obs2 = {
+        "time": {"hour": np.array([14.0]), "minute": np.array([45.0])},
+        "state": np.array([4.0, 5.0, 6.0]),
+    }
+
+    action = np.array([0.5])
+    reward = 1.0
+    terminated = False
+
+    buffer.put((obs1, action, reward, obs1, terminated))
+    buffer.put((obs2, action, reward, obs2, terminated))
+
+    batch = buffer.sample(2)
+    o, a, r, o_prime, te = batch
+
+    assert isinstance(o, TensorDict), f"Expected TensorDict, got {type(o)}"
+    assert isinstance(o_prime, TensorDict), f"Expected TensorDict, got {type(o_prime)}"
+
+    assert o.batch_size == torch.Size([2])
+    assert o_prime.batch_size == torch.Size([2])
+
+    assert isinstance(o["time"], TensorDict), f"Expected TensorDict, got {type(o['time'])}"
+    assert isinstance(o_prime["time"], TensorDict), (
+        f"Expected TensorDict, got {type(o_prime['time'])}"
+    )
+
+    assert o["time"]["hour"].shape == torch.Size([2, 1])
+    assert o["state"].shape == torch.Size([2, 3])
+
+    hour_values = set(o["time"]["hour"].flatten().tolist())
+    assert hour_values == {12.0, 14.0}, f"Expected hour values {{12.0, 14.0}}, got {hour_values}"
+
+    state_values = o["state"].tolist()
+    assert [1.0, 2.0, 3.0] in state_values, "Expected obs1 state in batch"
+    assert [4.0, 5.0, 6.0] in state_values, "Expected obs2 state in batch"
