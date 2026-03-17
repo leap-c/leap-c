@@ -5,8 +5,10 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Literal
 
+import torch
+
 from leap_c.examples import ExampleEnvName, create_env
-from leap_c.run import default_name, default_output_path, init_run
+from leap_c.run import default_name, default_output_path, init_run, validate_torch_dtype_arg
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
 
@@ -89,7 +91,8 @@ def create_cfg(
 def run_sac(
     cfg: RunSacConfig,
     output_path: str | Path,
-    device: str = "cuda",
+    device: int | str | torch.device,
+    dtype: torch.dtype,
     with_val: bool = False,
 ) -> float:
     """Run the SAC trainer.
@@ -99,6 +102,7 @@ def run_sac(
         output_path: The path to save outputs to.
             If it already exists, the run will continue from the last checkpoint.
         device: The device to use.
+        dtype: The dtype to use.
         with_val: Whether to use a validation environment.
     """
     val_env = create_env(cfg.env, render_mode="rgb_array") if with_val else None
@@ -107,6 +111,7 @@ def run_sac(
         val_env=val_env,
         output_path=output_path,
         device=device,
+        dtype=dtype,
         train_env=create_env(cfg.env),
         extractor_cls=cfg.extractor,
     )
@@ -118,6 +123,7 @@ if __name__ == "__main__":
     parser = ArgumentParser()
     parser.add_argument("--output_path", type=Path, default=None)
     parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument("--dtype", type=validate_torch_dtype_arg, default="float32")
     parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--env", type=str, default="cartpole")
     parser.add_argument("--with-val", action="store_true", help="Enable validation environment")
@@ -157,4 +163,4 @@ if __name__ == "__main__":
             "config": config_dict,
         }
 
-    run_sac(cfg, output_path, args.device, args.with_val)
+    run_sac(cfg, output_path, args.device, args.dtype, args.with_val)

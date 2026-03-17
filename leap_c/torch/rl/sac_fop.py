@@ -1,14 +1,14 @@
 """Provides a trainer for a SAC algorithm that uses a diff. MPC layer in the policy network."""
 
 from dataclasses import dataclass, field
+from math import prod
 from pathlib import Path
 from typing import Generator, Generic
 
-import gymnasium as gym
-import gymnasium.spaces as spaces
 import numpy as np
 import torch
 import torch.nn as nn
+from gymnasium import Env, spaces
 
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.torch.nn.extractor import ExtractorName, get_extractor_cls
@@ -60,7 +60,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
         buffer: The replay buffer used to store transitions.
     """
 
-    train_env: gym.Env
+    train_env: Env
     q: SacCritic
     q_target: SacCritic
     q_optim: torch.optim.Optimizer
@@ -75,10 +75,11 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
     def __init__(
         self,
         cfg: SacFopTrainerConfig,
-        val_env: gym.Env | None,
+        val_env: Env | None,
         output_path: str | Path,
-        device: str,
-        train_env: gym.Env,
+        device: int | str | torch.device,
+        dtype: torch.dtype,
+        train_env: Env,
         controller: ParameterizedController[CtxType],
         extractor_cls: ExtractorName | None = None,
     ) -> None:
@@ -89,6 +90,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
             val_env: The validation environment. If None, training runs without evaluation.
             output_path: The path to the output directory.
             device: The device on which the trainer is running.
+            dtype: The data type to use for tensor computations.
             train_env: The training environment.
             controller: The controller to use in the policy.
             extractor_cls: Deprecated. Use cfg.actor.extractor_name instead.
@@ -96,12 +98,12 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
         super().__init__(cfg, val_env, output_path, device)
 
         param_space: spaces.Box = controller.param_space
-        action_space = train_env.action_space
-        observation_space = train_env.observation_space
-        action_dim = np.prod(action_space.shape)
-        param_dim = np.prod(param_space.shape)
-
+        act_space = train_env.action_space
+        obs_space = train_env.observation_space
+        action_dim = prod(act_space.shape)
+        param_dim = prod(param_space.shape)
         self.train_env = wrap_env(train_env)
+        device = self.device
 
         # Handle deprecated extractor_cls parameter
         if extractor_cls is not None:
@@ -110,21 +112,18 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
         # Get extractor class for critic
         critic_extractor_cls = get_extractor_cls(cfg.actor.extractor_name)
 
-        self.q = SacCritic(
-            critic_extractor_cls, action_space, observation_space, cfg.critic_mlp, cfg.num_critics
-        )
-        self.q_target = SacCritic(
-            critic_extractor_cls, action_space, observation_space, cfg.critic_mlp, cfg.num_critics
-        )
+        args = (critic_extractor_cls, act_space, obs_space, cfg.critic_mlp, cfg.num_critics)
+        self.q = SacCritic(*args).to(device, dtype)
+        self.q_target = SacCritic(*args).to(device, dtype)
         self.q_target.load_state_dict(self.q.state_dict())
         self.q_optim = torch.optim.Adam(self.q.parameters(), lr=cfg.lr_q)
 
-        self.pi = HierachicalMPCActor(cfg.actor, observation_space, action_space, controller)
-
+        self.pi = HierachicalMPCActor(cfg.actor, obs_space, act_space, controller)
         self.pi_optim = torch.optim.Adam(self.pi.parameters(), lr=cfg.lr_pi)
 
-        self.log_alpha = nn.Parameter(torch.tensor(cfg.init_alpha).log())
-
+        self.log_alpha = nn.Parameter(
+            torch.scalar_tensor(cfg.init_alpha, device=device, dtype=dtype).log()
+        )
         self.entropy_norm = param_dim / action_dim if cfg.actor.noise == "param" else 1.0
         if cfg.lr_alpha is not None:
             self.alpha_optim = torch.optim.Adam([self.log_alpha], lr=cfg.lr_alpha)
@@ -133,9 +132,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
             self.alpha_optim = None
             self.target_entropy = None
 
-        self.buffer = ReplayBuffer(
-            cfg.buffer_size, device=device, collate_fn_map=controller.collate_fn_map
-        )
+        self.buffer = ReplayBuffer(cfg.buffer_size, device, dtype, controller.collate_fn_map)
 
     def train_loop(self) -> Generator[tuple[int, float], None, None]:
         is_terminated = is_truncated = True
@@ -235,7 +232,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
                     target = r[:, None] + self.cfg.gamma * (1 - te[:, None]) * q_target
 
                 q = torch.cat(self.q(o, a), dim=1)
-                q_loss = torch.mean((q - target).pow(2))
+                q_loss = (q - target).square().mean()
 
                 self.q_optim.zero_grad()
                 q_loss.backward()

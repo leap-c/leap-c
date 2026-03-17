@@ -343,12 +343,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
             video_folder=self.output_path / "video",
             name_prefix=f"{self.state.step}",
         )
-
-        parts_rollout = []
-        parts_policy = []
-        for r, p in rollouts:
-            parts_rollout.append(r)
-            parts_policy.append(p)
+        parts_rollout, parts_policy = zip(*rollouts)
 
         stats_rollout = {
             key: float(np.mean([p[key] for p in parts_rollout])) for key in parts_rollout[0]
