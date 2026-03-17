@@ -28,41 +28,6 @@ from leap_c.trainer import Trainer, TrainerConfig
 from leap_c.utils.gym import seed_env, wrap_env
 
 
-def recursive_cat(dict1, dict2):
-    """Recursively stacks two nested dictionaries of tensors along dim=0.
-
-    Args:
-        dict1 (dict): First nested dictionary with tensors.
-        dict2 (dict): Second nested dictionary with tensors.
-
-    Returns:
-        dict: Nested dictionary with stacked tensors.
-    """
-    if not isinstance(dict1, dict) or not isinstance(dict2, dict):
-        raise ValueError("Both inputs must be dictionaries.")
-
-    stacked_dict = {}
-    for key in dict1.keys():
-        if key in dict2:
-            if isinstance(dict1[key], torch.Tensor) and isinstance(dict2[key], torch.Tensor):
-                # Check if tensors have the same shape
-                if dict1[key].shape == dict2[key].shape:
-                    stacked_dict[key] = torch.cat((dict1[key], dict2[key]), dim=0)
-                else:
-                    raise ValueError(f"Tensors for key '{key}' have different shapes.")
-            elif isinstance(dict1[key], dict) and isinstance(dict2[key], dict):
-                # Recursively stack nested dictionaries
-                stacked_dict[key] = recursive_cat(dict1[key], dict2[key])
-            else:
-                raise ValueError(
-                    f"Mixed types for key '{key}'. Both must be tensors or dictionaries."
-                )
-        else:
-            raise KeyError(f"Key '{key}' is present in the first dictionary but not in the second.")
-
-    return stacked_dict
-
-
 @dataclass(kw_only=True)
 class CrossQZopConfig(TrainerConfig):
     """Configuration for CrossQ-ZOP trainer.
@@ -259,7 +224,7 @@ class CrossQZop(Trainer[CrossQZopConfig, CtxType], Generic[CtxType]):
                 with torch.no_grad():
                     pi_o_prime = self.pi(o_prime, None, only_param=True)
 
-                o_comb = recursive_cat(o, o_prime)
+                o_comb = torch.cat([o, o_prime], dim=0)
                 a_comb = torch.cat([a, pi_o_prime.param], dim=0)
 
                 qs = torch.cat(self.q(o_comb, a_comb), dim=1)

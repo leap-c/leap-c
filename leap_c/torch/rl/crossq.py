@@ -23,40 +23,6 @@ from leap_c.trainer import Trainer, TrainerConfig
 from leap_c.utils.gym import seed_env, wrap_env
 
 
-def recursive_cat(dict1, dict2):
-    """
-    Recursively stacks two nested dictionaries of tensors along dim=0.
-
-    Args:
-        dict1 (dict): First nested dictionary with tensors.
-        dict2 (dict): Second nested dictionary with tensors.
-
-    Returns:
-        dict: Nested dictionary with stacked tensors.
-    """
-    if not isinstance(dict1, dict) or not isinstance(dict2, dict):
-        raise ValueError("Both inputs must be dictionaries.")
-
-    stacked_dict = {}
-    for key in dict1.keys():
-        if key in dict2:
-            if isinstance(dict1[key], torch.Tensor) and isinstance(dict2[key], torch.Tensor):
-                if dict1[key].shape == dict2[key].shape:
-                    stacked_dict[key] = torch.cat((dict1[key], dict2[key]), dim=0)
-                else:
-                    raise ValueError(f"Tensors for key '{key}' have different shapes.")
-            elif isinstance(dict1[key], dict) and isinstance(dict2[key], dict):
-                stacked_dict[key] = recursive_cat(dict1[key], dict2[key])
-            else:
-                raise ValueError(
-                    f"Mixed types for key '{key}'. Both must be tensors or dictionaries."
-                )
-        else:
-            raise KeyError(f"Key '{key}' is present in the first dictionary but not in the second.")
-
-    return stacked_dict
-
-
 @dataclass(kw_only=True)
 class SacTrainerConfig(TrainerConfig):
     """Contains the necessary configuration for a SacTrainer.
@@ -396,7 +362,7 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
                 with torch.no_grad():
                     a_pi_prime, log_p_prime, _ = self.pi(o_prime)
 
-                o_comb = recursive_cat(o, o_prime)
+                o_comb = torch.cat([o, o_prime], dim=0)
                 a_comb = torch.cat([a, a_pi_prime], dim=0)
 
                 qs = torch.cat(self.q(o_comb, a_comb), dim=1)
@@ -597,7 +563,7 @@ class CrossQTrainer(Trainer[CrossQTrainerConfig, Any]):
                 with torch.no_grad():
                     a_pi_prime, log_p_prime, _ = self.pi(o_prime)
 
-                o_comb = recursive_cat(o, o_prime)
+                o_comb = torch.cat([o, o_prime], dim=0)
                 a_comb = torch.cat([a, a_pi_prime], dim=0)
 
                 qs = torch.cat(self.q(o_comb, a_comb), dim=1)
