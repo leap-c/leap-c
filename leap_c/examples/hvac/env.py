@@ -255,7 +255,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             "solar": deque(maxlen=self.history_length),
             "price": deque(maxlen=self.history_length),
             "ddqh": deque(maxlen=self.history_length),
-            "q_Ti": deque(maxlen=self.history_length),
+            "log_q_Ti": deque(maxlen=self.history_length),
         }
 
         self.param_axes_limits_set = False
@@ -628,14 +628,14 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             ylabel="solar [W/m²]",
         )
 
-        # 2D plot of ref_Ti vs q_Ti
+        # 2D plot of ref_Ti vs log_q_Ti
         ax: plt.Axes = self.axes[0, 1]
-        (self.trajectory_plots["ref_Ti_over_q_Ti"],) = ax.plot(
-            [], [], "o-", markersize=3, label="ref_Ti vs q_Ti"
+        (self.trajectory_plots["ref_Ti_over_log_q_Ti"],) = ax.plot(
+            [], [], "o-", markersize=3, label="ref_Ti vs log_q_Ti"
         )
         ax.set(
             xlabel="ref_Ti [°C]",
-            ylabel="q_Ti [-]",
+            ylabel="log_q_Ti [-]",
             title="Reference Temperature vs Weight",
         )
         ax.grid(visible=True, alpha=0.3)
@@ -650,12 +650,12 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         )
         ax.grid(visible=True, alpha=0.3, axis="y")
 
-        # Histogram of q_Ti
+        # Histogram of log_q_Ti
         ax: plt.Axes = self.axes[2, 1]
         ax.set(
-            xlabel="q_Ti [-]",
+            xlabel="log_q_Ti [-]",
             ylabel="Frequency",
-            title="q_Ti Distribution",
+            title="log_q_Ti Distribution",
         )
         ax.grid(visible=True, alpha=0.3, axis="y")
 
@@ -699,8 +699,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 self.history["price"].append(render_info["price"].flatten()[0])
             if "ddqh" in render_info:
                 self.history["ddqh"].append(render_info["ddqh"].flatten()[0])
-            if "q_Ti" in render_info:
-                self.history["q_Ti"].append(render_info["q_Ti"].flatten()[0])
+            if "log_q_Ti" in render_info:
+                self.history["log_q_Ti"].append(render_info["log_q_Ti"].flatten()[0])
             if "qh" in render_info:
                 self.history["qh"].append(render_info["qh"].flatten()[0])
 
@@ -741,15 +741,15 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                         np.concatenate([hist_y, future_y]),
                     )
 
-            # Update 2D plot: ref_Ti vs q_Ti
-            if "ref_Ti" in render_info and "q_Ti" in render_info:
+            # Update 2D plot: ref_Ti vs log_q_Ti
+            if "ref_Ti" in render_info and "log_q_Ti" in render_info:
                 if not self.param_axes_limits_set:
                     # Draw black rectangle showing the valid parameter region
                     width = render_info["ref_Ti_max"] - render_info["ref_Ti_min"]
-                    height = render_info["q_Ti_max"] - render_info["q_Ti_min"]
+                    height = render_info["log_q_Ti_max"] - render_info["log_q_Ti_min"]
                     self.axes[0, 1].add_patch(
                         mpatches.Rectangle(
-                            xy=(render_info["ref_Ti_min"], render_info["q_Ti_min"]),
+                            xy=(render_info["ref_Ti_min"], render_info["log_q_Ti_min"]),
                             width=width,
                             height=height,
                             linewidth=2,
@@ -764,29 +764,29 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                         render_info["ref_Ti_max"] + 0.05 * width,
                     )
                     self.axes[0, 1].set_ylim(
-                        render_info["q_Ti_min"] - 0.05 * height,
-                        render_info["q_Ti_max"] + 0.05 * height,
+                        render_info["log_q_Ti_min"] - 0.05 * height,
+                        render_info["log_q_Ti_max"] + 0.05 * height,
                     )
 
                     # Set histogram x-limits (only once)
                     self.axes[1, 1].set_xlim(render_info["ref_Ti_min"], render_info["ref_Ti_max"])
-                    self.axes[2, 1].set_xlim(render_info["q_Ti_min"], render_info["q_Ti_max"])
+                    self.axes[2, 1].set_xlim(render_info["log_q_Ti_min"], render_info["log_q_Ti_max"])
 
                     self.param_axes_limits_set = True
 
                 # Historical data
                 hist_ref_Ti = np.array(list(self.history["ref_Ti"]))
-                hist_q_Ti = np.array(list(self.history["q_Ti"]))
+                hist_log_q_Ti = np.array(list(self.history["log_q_Ti"]))
 
                 # Future predictions
                 future_ref_Ti = render_info["ref_Ti"].flatten()
-                future_q_Ti = render_info["q_Ti"].flatten()
+                future_log_q_Ti = render_info["log_q_Ti"].flatten()
 
                 # Combine history and future
                 combined_ref_Ti = np.concatenate([hist_ref_Ti, future_ref_Ti])
-                combined_q_Ti = np.concatenate([hist_q_Ti, future_q_Ti])
+                combined_log_q_Ti = np.concatenate([hist_log_q_Ti, future_log_q_Ti])
 
-                self.trajectory_plots["ref_Ti_over_q_Ti"].set_data(combined_ref_Ti, combined_q_Ti)
+                self.trajectory_plots["ref_Ti_over_log_q_Ti"].set_data(combined_ref_Ti, combined_log_q_Ti)
 
                 # Update histograms
                 # Histogram for ref_Ti
@@ -817,19 +817,19 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 )
                 self.axes[1, 1].grid(visible=True, alpha=0.3, axis="y")
 
-                # Histogram for q_Ti
+                # Histogram for log_q_Ti
                 self.axes[2, 1].clear()
-                if len(combined_q_Ti) > 0:
+                if len(combined_log_q_Ti) > 0:
                     # Flatten to ensure 1D array and convert to numpy
-                    data_q_Ti = np.asarray(combined_q_Ti).flatten()
+                    data_log_q_Ti = np.asarray(combined_log_q_Ti).flatten()
                     # Check if range is valid
-                    if render_info["q_Ti_max"] > render_info["q_Ti_min"] and len(data_q_Ti) > 0:
+                    if render_info["log_q_Ti_max"] > render_info["log_q_Ti_min"] and len(data_log_q_Ti) > 0:
                         self.axes[2, 1].hist(
-                            data_q_Ti,
+                            data_log_q_Ti,
                             bins=20,
                             range=(
-                                float(render_info["q_Ti_min"]),
-                                float(render_info["q_Ti_max"]),
+                                float(render_info["log_q_Ti_min"]),
+                                float(render_info["log_q_Ti_max"]),
                             ),
                             color="blue",
                             alpha=0.7,
@@ -837,7 +837,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                         )
                 # Re-apply formatting after clear (clear() removes all properties)
                 self.axes[2, 1].set(
-                    xlabel="q_Ti [-]",
+                    xlabel="log_q_Ti [-]",
                     ylabel="Frequency",
                 )
                 self.axes[2, 1].grid(visible=True, alpha=0.3, axis="y")

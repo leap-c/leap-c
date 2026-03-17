@@ -83,12 +83,13 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
 
     The cost function takes the form of
         0.25 * price * qh
-        + q_Ti * (ref_Ti - ocp.model.x[0]) ** 2
+        + 10 ** log_q_Ti * (ref_Ti - ocp.model.x[0]) ** 2
         + q_dqh * (dqh) ** 2
         + q_ddqh * (ddqh) ** 2,
     i.e., a linear price term combined with weighted quadratic penalties on
     the room temperature residuals, the rate of change of the heating power,
-    and the acceleration of the heating power.
+    and the acceleration of the heating power. The temperature weight is
+    parameterized in log10-space via `log_q_Ti` for better numerical conditioning.
 
     The dynamics correspond partly to the dynamics also found in the environment.
 
@@ -279,15 +280,15 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         render_info["u_trajectory"] = u.detach().cpu().numpy()  # Full action trajectory
         render_info["ddqh"] = render_info["u_trajectory"]
 
-        # TODO: Assuming ref_Ti and q_Ti are the only parameters that are learnable
+        # TODO: Assuming ref_Ti and log_q_Ti are the only parameters that are learnable
         render_info["ref_Ti_min"] = convert_temperature(
             self.param_manager.parameters["ref_Ti"].space.low, "kelvin", "celsius"
         )
         render_info["ref_Ti_max"] = convert_temperature(
             self.param_manager.parameters["ref_Ti"].space.high, "kelvin", "celsius"
         )
-        render_info["q_Ti_min"] = self.param_manager.parameters["q_Ti"].space.low
-        render_info["q_Ti_max"] = self.param_manager.parameters["q_Ti"].space.high
+        render_info["log_q_Ti_min"] = self.param_manager.parameters["log_q_Ti"].space.low
+        render_info["log_q_Ti_max"] = self.param_manager.parameters["log_q_Ti"].space.high
 
         # Dynamics parameters
         dynamics_params = ["gAw", "Rea", "Rhi", "Rie", "Ch", "Ci", "Ce"]
