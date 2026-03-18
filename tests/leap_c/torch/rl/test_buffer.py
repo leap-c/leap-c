@@ -2,7 +2,6 @@ from dataclasses import fields
 from typing import Any, NamedTuple
 
 import numpy as np
-import pytest
 import torch
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
