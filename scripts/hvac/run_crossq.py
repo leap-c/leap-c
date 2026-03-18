@@ -29,7 +29,7 @@ def create_cfg(
     # ---- Configuration ----
     cfg = RunCrossQConfig()
     cfg.env = env
-    cfg.extractor_name =  "hvac"
+    cfg.extractor_name = "hvac"
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = seed
