@@ -5,11 +5,7 @@ from pathlib import Path
 from typing import Literal
 
 import numpy as np
-import openmeteo_requests
 import pandas as pd
-import requests
-import requests_cache
-from retry_requests import retry
 from scipy.constants import convert_temperature
 
 
@@ -617,7 +613,9 @@ def get_energy_charts_data(
     # API endpoint and parameters
 
     # Make the request
-    response = requests.get(
+    from requests import get
+
+    response = get(
         url="https://api.energy-charts.info/price",
         params={
             "bzn": price_zone.replace("_", ""),
@@ -656,9 +654,13 @@ def get_open_meteo_data(
     The data file is available at:
     https://open-meteo.com/en/docs/historical-forecast-api
     """
-    cache_session = requests_cache.CachedSession(".cache", expire_after=3600)
+    from openmeteo_requests import Client
+    from requests_cache import CachedSession
+    from retry_requests import retry
+
+    cache_session = CachedSession(".cache", expire_after=3600)
     retry_session = retry(cache_session, retries=5, backoff_factor=0.2)
-    openmeteo = openmeteo_requests.Client(session=retry_session)
+    openmeteo = Client(session=retry_session)
 
     # Make sure all required weather variables are listed here
     # The order of variables in hourly or daily is important to assign them correctly below
