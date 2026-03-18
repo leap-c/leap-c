@@ -59,6 +59,53 @@ def mock_external_data():
         yield
 
 
+def _make_synthetic_weather() -> pd.DataFrame:
+    """Return a minimal synthetic weather DataFrame matching Open-Meteo output format."""
+    # Two years of 15-min data covering heating-season months (Jan-Apr, Sep-Dec)
+    index = pd.date_range("2020-01-01", "2021-12-31 23:45", freq="15min", tz="UTC")
+    index.name = "Timestamp"
+    rng = np.random.default_rng(0)
+    n = len(index)
+    return pd.DataFrame(
+        {
+            "date": index,
+            "temperature_2m": rng.uniform(-10, 20, n).astype(np.float32),
+            "apparent_temperature": rng.uniform(-15, 18, n).astype(np.float32),
+            "shortwave_radiation": rng.uniform(0, 200, n).astype(np.float32),
+            "direct_normal_irradiance": rng.uniform(0, 300, n).astype(np.float32),
+        },
+        index=index,
+    )
+
+
+def _make_synthetic_price() -> pd.DataFrame:
+    """Return a minimal synthetic price DataFrame matching energy-charts output format."""
+    index = pd.date_range("2020-01-01", "2021-12-31 23:45", freq="15min", tz="UTC")
+    rng = np.random.default_rng(1)
+    return pd.DataFrame(
+        {
+            "Timestamp": index,
+            "price": rng.uniform(0.0, 0.5, len(index)).astype(np.float32),
+        }
+    )
+
+
+@pytest.fixture()
+def mock_external_data():
+    """Patch both external API calls."""
+    with (
+        patch(
+            "leap_c.examples.hvac.dataset.get_open_meteo_data",
+            return_value=_make_synthetic_weather(),
+        ),
+        patch(
+            "leap_c.examples.hvac.dataset.get_energy_charts_data",
+            return_value=_make_synthetic_price(),
+        ),
+    ):
+        yield
+
+
 @pytest.fixture(scope="module")
 def hvac_planner_stagewise():
     """Create an HVAC planner with stagewise parameters enabled."""
