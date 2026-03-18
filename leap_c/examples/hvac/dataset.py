@@ -17,17 +17,15 @@ class DataConfig:
         price_zone: Electricity price zone.
         price_data_path: Path to the price data CSV file.
         weather_data_path: Path to the weather data CSV file.
-        start_time: Simulation start time. If None, samples randomly from data.
-        mode: Dataset mode - "random" for random sampling with fixed episode
-            length, "continual" for sequential episodes that break at invalid
-            months (summer).
-        valid_months: List of valid months (1-12) for sampling.
-            Default is heating season months (Jan-Apr, Sep-Dec).
-            Set to None to allow all months.
-        max_hours: Maximum simulation time in hours for episodes (used in
-            random mode).
-        total_test_episodes: Exact number of fixed test episodes, stratified
-            evenly across all (year, month) combinations in the dataset.
+        start_time: Simulation start time. If `None`, samples randomly from data.
+        mode: Dataset mode - "random" for random sampling with fixed episode length, "continual"
+            for sequential episodes that break at invalid months (summer).
+        max_hours: Maximum simulation time in hours for episodes (used in random mode).
+        valid_months: List of valid months (1-12) for sampling. Default is heating season months
+            (Jan-Apr, Sep-Dec).
+            Set to `None` to allow all months.
+        total_test_episodes: Exact number of fixed test episodes, stratified evenly across all
+            (year, month) combinations in the dataset.
             These episodes are always the same for reproducible evaluation.
         split_seed: Random seed for reproducible train/test split.
     """
@@ -52,8 +50,8 @@ class DataConfig:
 class HvacDataset:
     """Manages HVAC simulation data (prices, weather, time features).
 
-    Provides convenient access to price, temperature, solar, and temporal data
-    for the HVAC environment simulation.
+    Provides convenient access to price, temperature, solar, and temporal data for the HVAC
+    environment simulation.
 
     Note:
         Currently, only supports fixed 15-minute interval data.
@@ -64,22 +62,18 @@ class HvacDataset:
         cfg: Data configuration.
     """
 
-    def __init__(
-        self,
-        data: pd.DataFrame | None = None,
-        cfg: DataConfig | None = None,
-    ):
+    def __init__(self, data: pd.DataFrame | None = None, cfg: DataConfig | None = None) -> None:
         """Initialize HvacDataset.
 
         Args:
             data: Combined DataFrame with price, weather, and time features.
-                If None, loads from cfg paths.
-            cfg: Data configuration. If None, uses default DataConfig.
-                If data is None, cfg is used to load data from files.
+                If `None`, loads from `cfg` paths.
+            cfg: Data configuration. If `None`, uses the default `DataConfig` instance.
+                If data is `None`, `cfg` is used to load data from files.
 
         Note:
-            If data is provided, it is used directly.
-            Otherwise, data is loaded from cfg paths (or default paths if cfg is None).
+            If `data` is provided, it is used directly.
+            Otherwise, `data` is loaded from `cfg` paths (or default paths if `cfg` is `None`).
         """
         self.cfg = cfg or DataConfig()
 
@@ -224,16 +218,12 @@ class HvacDataset:
             horizon: Number of steps needed.
 
         Returns:
-            True if valid, False otherwise.
+            `True` if valid, `False` otherwise.
         """
         return 0 <= idx < len(self.data) - horizon
 
-    def _generate_stratified_test_episodes(
-        self,
-        horizon: int,
-        max_steps: int,
-    ) -> list[int]:
-        """Generate exactly total_test_episodes stratified across months and years.
+    def _generate_stratified_test_episodes(self, horizon: int, max_steps: int) -> list[int]:
+        """Generate exactly `total_test_episodes` stratified across months and years.
 
         Distributes episodes evenly across all (year, month) combinations in the
         valid months. This ensures consistent evaluation with low variance.
@@ -243,7 +233,7 @@ class HvacDataset:
             max_steps: Maximum number of simulation steps per episode.
 
         Returns:
-            List of exactly total_test_episodes start indices.
+            List of exactly `total_test_episodes` start indices.
         """
         rng = np.random.default_rng(self.cfg.split_seed)
         test_indices = []
@@ -324,7 +314,7 @@ class HvacDataset:
             horizon: Forecast horizon length needed.
 
         Returns:
-            Next valid index, or None if end of dataset reached.
+            Next valid index, or `None` if end of dataset reached.
         """
         valid_months = self.cfg.valid_months or list(range(1, 13))
         max_idx = len(self.data) - horizon
@@ -343,7 +333,7 @@ class HvacDataset:
             horizon: Forecast horizon length.
 
         Returns:
-            Number of valid steps from start_idx.
+            Number of valid steps from `start_idx`.
         """
         valid_months = self.cfg.valid_months or list(range(1, 13))
         max_idx = len(self.data) - horizon
@@ -365,7 +355,7 @@ class HvacDataset:
     ) -> tuple[int, int]:
         """Sample a valid start index for episode initialization.
 
-        Behavior depends on cfg.mode:
+        Behavior depends on `cfg.mode`:
         - "random": Randomly samples from valid months with fixed episode length.
         - "continual": Returns sequential episodes, breaking at invalid months
             (summer). Episodes resume after the invalid period.
@@ -381,7 +371,7 @@ class HvacDataset:
             Tuple of (start_index, max_steps) for the episode.
 
         Raises:
-            RuntimeError: If no valid start date found within max_attempts.
+            RuntimeError: If no valid start date found within `max_attempts`.
         """
         # Fixed start time takes precedence
         if self.cfg.start_time is not None:
@@ -600,11 +590,7 @@ def load_price_data(
     return price_data
 
 
-def get_energy_charts_data(
-    price_zone: str,
-    start_date: str,
-    end_date: str,
-) -> pd.DataFrame:
+def get_energy_charts_data(price_zone: str, start_date: str, end_date: str) -> pd.DataFrame:
     """Download and preprocess energy chart data for a given price zone.
 
     The data file is available for, e.g., 2020, at:
@@ -757,9 +743,9 @@ def load_and_prepare_data(
         price_zone: Electricity price zone (e.g., "NO_1", "NO_2", "DK_1", etc.).
         start_date: Start date for filtering data (e.g., "2017-01-01").
         end_date: End date for filtering data (e.g., "2017-11-30").
-        price_data_path: Path to the price data CSV file. If None, uses default path.
-        weather_data_path: Path to the weather data CSV file. If None, uses default path.
-        time_zone: Timezone for the data (e.g., "Europe/Berlin"). If None, uses "Europe/Berlin".
+        price_data_path: Path to the price data CSV file. If `None`, uses default path.
+        weather_data_path: Path to the weather data CSV file. If `None`, uses default path.
+        time_zone: Timezone for the data (e.g., "Europe/Berlin"). If `None`, uses "Europe/Berlin".
 
     Returns:
         Tuple containing:
