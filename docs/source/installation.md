@@ -9,6 +9,7 @@
 - [acados dependencies](https://docs.acados.org/installation/index.html)
 
 Clone the repository and recursively update submodules:
+
 ```bash
 git clone https://github.com/leap-c/leap-c.git
 cd leap-c
@@ -17,18 +18,10 @@ git submodule update --init --recursive
 
 ### Python
 
-We work with Python 3.11. If it is not already installed on your system, you can obtain it using [deadsnakes](https://launchpad.net/~deadsnakes/+archive/ubuntu/ppa):
-```bash
-sudo add-apt-repository ppa:deadsnakes/ppa
-sudo apt install python3.11
-```
-
-A virtual environment is recommended. For example, to create a virtual environment called `.venv`
-and activate it, run:
+Create a virtual environment and activate it. Assuming a required Python version of 3.11 or newer, you can use the following commands:
 
 ```bash
-pip3 install virtualenv
-virtualenv --python=/usr/bin/python3.11 .venv
+python3 -m venv .venv
 source .venv/bin/activate
 ```
 
@@ -79,10 +72,12 @@ pip install -e ".[dev]"
 See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on package configurations.
 
 ### Troubleshooting
+
 In the [troubleshooting tab](https://leap-c.github.io/leap-c/troubleshooting.html),
 we highlight how to fix common problems arising while using leap-c with VS Code.
 
 ## Windows
+
 We recommend to use [WSL (Windows Subsystem for Linux)](https://ubuntu.com/desktop/wsl) and then following the guide above.
 You can then conveniently program on your WSL, e.g.,
 by using VS Code on Windows together with the "Remote Development" extension pack.
@@ -106,11 +101,13 @@ For keeping our code style and our diffs consistent we use the [Ruff](https://do
 To make this as easy as possible we also provide a [pre-commit](https://pre-commit.com/) config for running the linter and formatter automatically at every commit. For enabling pre-commit follow these steps:
 
 1. Install pre-commit using pip (already done if you installed the additional "[dev]" dependencies of leap-c).
+
 ```bash
 pip install pre-commit
 ```
 
 2. In the leap-c root directory run
+
 ```bash
 pre-commit install
 ```
