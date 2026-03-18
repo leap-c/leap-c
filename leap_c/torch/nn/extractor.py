@@ -185,7 +185,8 @@ class HvacExtractor(Extractor):
         self.forecast_pool = nn.AdaptiveAvgPool1d(1)
         self.forecast_linear = nn.Linear(channels[-1], self.cfg.output_dim)
 
-        # Output: time (6: 2 each for qh, doy, dow) + state (3) + forecast features + forecast stats (6)
+        # Output: 
+        #  time (6: 2 each for qh, doy, dow) + state (3) + forecast features + forecast stats (6)
         self._output_size = 6 + 3 + self.cfg.output_dim + 6
 
     def forward(

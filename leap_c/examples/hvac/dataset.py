@@ -565,6 +565,7 @@ def load_price_data(
         price_zone: Electricity price zone.
         start_date: Start date for filtering price data.
         end_date: End date for filtering price data.
+        min_price: The cut-off value to prevent negative prices.
 
     Returns:
         DataFrame with processed price data

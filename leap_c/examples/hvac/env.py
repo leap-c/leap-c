@@ -770,7 +770,9 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
                     # Set histogram x-limits (only once)
                     self.axes[1, 1].set_xlim(render_info["ref_Ti_min"], render_info["ref_Ti_max"])
-                    self.axes[2, 1].set_xlim(render_info["log_q_Ti_min"], render_info["log_q_Ti_max"])
+                    self.axes[2, 1].set_xlim(
+                        render_info["log_q_Ti_min"], render_info["log_q_Ti_max"]
+                    )
 
                     self.param_axes_limits_set = True
 
@@ -786,7 +788,9 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 combined_ref_Ti = np.concatenate([hist_ref_Ti, future_ref_Ti])
                 combined_log_q_Ti = np.concatenate([hist_log_q_Ti, future_log_q_Ti])
 
-                self.trajectory_plots["ref_Ti_over_log_q_Ti"].set_data(combined_ref_Ti, combined_log_q_Ti)
+                self.trajectory_plots["ref_Ti_over_log_q_Ti"].set_data(
+                    combined_ref_Ti, combined_log_q_Ti
+                )
 
                 # Update histograms
                 # Histogram for ref_Ti
@@ -823,7 +827,10 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                     # Flatten to ensure 1D array and convert to numpy
                     data_log_q_Ti = np.asarray(combined_log_q_Ti).flatten()
                     # Check if range is valid
-                    if render_info["log_q_Ti_max"] > render_info["log_q_Ti_min"] and len(data_log_q_Ti) > 0:
+                    if (
+                        render_info["log_q_Ti_max"] > render_info["log_q_Ti_min"]
+                        and len(data_log_q_Ti) > 0
+                    ):
                         self.axes[2, 1].hist(
                             data_log_q_Ti,
                             bins=20,

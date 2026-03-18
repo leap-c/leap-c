@@ -53,7 +53,7 @@ def create_cfg(
     cfg.trainer.init_alpha = 0.02
     cfg.trainer.target_entropy = None
     cfg.trainer.entropy_reward_bonus = True
-    cfg.trainer.num_critics = 10 
+    cfg.trainer.num_critics = 10
     cfg.trainer.update_freq = 4
     cfg.trainer.distribution_name = "squashed_gaussian"
 
