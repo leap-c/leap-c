@@ -13,9 +13,7 @@ def pytree_tensor_to(
 ) -> Any:
     """Convert tensors in the pytree to tensor_dtype and move them to device."""
     return tree_map_only(
-        torch.Tensor,
-        lambda t: t.to(device=device, dtype=tensor_dtype),
-        pytree,
+        (torch.Tensor, TensorDict), lambda t: t.to(device=device, dtype=tensor_dtype), pytree
     )
 
 
