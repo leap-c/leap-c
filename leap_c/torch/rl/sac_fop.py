@@ -191,6 +191,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
 
                 pi_o_stats = pi_o.stats
 
+                # Only use samples where MPC solver was successful for both current and next action.
                 mask_status = torch.as_tensor(
                     (pi_o.status == 0) & (pi_o_prime.status == 0),
                     dtype=torch.bool,

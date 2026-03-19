@@ -9,7 +9,7 @@ from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 
 def pytree_tensor_to(
-    pytree: Any, device: int | str | torch.device, tensor_dtype: torch.dtype = torch.float32
+    pytree: Any, device: int | str | torch.device, tensor_dtype: torch.dtype
 ) -> Any:
     """Convert tensors in the pytree to tensor_dtype and move them to device."""
     return tree_map_only(
@@ -18,18 +18,17 @@ def pytree_tensor_to(
 
 
 def collate_dict_to_tensordict(batch: list, *, collate_fn_map=None) -> TensorDict:
-    """Collate a batch of dicts into a TensorDict.
+    """Collate a batch of dicts into a `TensorDict`.
 
-    This custom collation handler converts dict observations to TensorDict
-    automatically during batch collation, enabling proper batching of dict
-    observations in the replay buffer.
+    This custom collation handler converts `dict` observations to `TensorDict` automatically during
+    batch collation, enabling proper batching of `dict` observations in the replay buffer.
 
     Args:
         batch: A list of dictionaries to collate.
         collate_fn_map: The collate function map (ignored, kept for compatibility).
 
     Returns:
-        A TensorDict with collated data and batch_size=[len(batch)].
+        A `TensorDict` with collated data and `batch_size=[len(batch)]`.
     """
     elem = batch[0]
     collated = {
@@ -55,7 +54,7 @@ class ReplayBuffer(torch.nn.Module):
     """
 
     buffer: collections.deque
-    device: str
+    device: torch.device
     collate_fn_map: dict[tuple | tuple[type, ...], Callable]
     tensor_dtype: torch.dtype
 
@@ -84,14 +83,9 @@ class ReplayBuffer(torch.nn.Module):
         self.device = torch.get_default_device() if device is None else torch.device(device)
         self.tensor_dtype = torch.get_default_dtype() if tensor_dtype is None else tensor_dtype
 
-        if collate_fn_map is None:
-            self.collate_fn_map = {**default_collate_fn_map, dict: collate_dict_to_tensordict}
-        else:
-            self.collate_fn_map = {
-                **default_collate_fn_map,
-                dict: collate_dict_to_tensordict,
-                **collate_fn_map,
-            }
+        self.collate_fn_map = {**default_collate_fn_map, dict: collate_dict_to_tensordict}
+        if collate_fn_map is not None:
+            self.collate_fn_map.update(collate_fn_map)
 
     def put(self, data: Any) -> None:
         """Put the data into the replay buffer. If the buffer is full, the oldest data is discarded.
@@ -126,9 +120,7 @@ class ReplayBuffer(torch.nn.Module):
             The collated batch.
         """
         return pytree_tensor_to(
-            collate(batch, collate_fn_map=self.collate_fn_map),  # type: ignore
-            device=self.device,
-            tensor_dtype=self.tensor_dtype,
+            collate(batch, collate_fn_map=self.collate_fn_map), self.device, self.tensor_dtype
         )
 
     def __len__(self) -> int:
