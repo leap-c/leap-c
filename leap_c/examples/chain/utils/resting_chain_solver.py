@@ -53,7 +53,7 @@ def _define_nlp_solver(n_mass: int, f_expl: Callable):
 
     nlp = {"x": w, "f": 0, "g": g, "p": p.cat}
 
-    opts = {"print_time": False, "ipopt": {"print_level": 0}}
+    opts = {"print_time": False, "ipopt": {"print_level": 0, "sb": "yes"}}
 
     return ca.nlpsol("solver", "ipopt", nlp, opts), x(0), p(0)
 
