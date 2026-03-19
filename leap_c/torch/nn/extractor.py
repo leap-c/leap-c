@@ -11,6 +11,7 @@ from typing import Literal
 import gymnasium as gym
 import torch
 import torch.nn as nn
+from tensordict import TensorDict
 
 from leap_c.torch.nn.scale import min_max_scaling
 
@@ -172,11 +173,16 @@ class HvacExtractor(Extractor):
         # Output: time (2) + state (3) + forecast features
         self._output_size = 2 + 3 + self.cfg.output_dim
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(
+        self, x: dict[str, torch.Tensor | dict[str, torch.Tensor]] | TensorDict
+    ) -> torch.Tensor:
         """Extract features from HVAC observations.
 
         Args:
-            x: Input tensor of shape (batch, obs_dim).
+            x: Input dict or TensorDict with:
+               - "time": dict with "quarter_hour", "day_of_year", "day_of_week" tensors
+               - "state": tensor of shape (batch, 3) containing [Ti, Th, Te]
+               - "forecast": dict with "temperature", "solar", "price" tensors
 
         Returns:
             Feature tensor of shape (batch, output_size).

@@ -200,6 +200,7 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
                 dudp_norm = np.linalg.matrix_norm(dudp[mask_status])
                 zero_grads = np.isclose(dudp_norm, np.zeros_like(dudp_norm))
 
+                # Mask observations (works with TensorDict for dict observations)
                 o = o[mask_status]
                 a = a[mask_status]
                 r = r[mask_status]

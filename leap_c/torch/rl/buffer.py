@@ -3,12 +3,13 @@ import random
 from typing import Any, Callable
 
 import torch
+from tensordict import TensorDict
 from torch.utils._pytree import tree_map_only
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 
 def pytree_tensor_to(
-    pytree: Any, device: int | str | torch.device, tensor_dtype: torch.dtype
+    pytree: Any, device: int | str | torch.device, tensor_dtype: torch.dtype = torch.float32
 ) -> Any:
     """Convert tensors in the pytree to tensor_dtype and move them to device."""
     return tree_map_only(
@@ -16,6 +17,27 @@ def pytree_tensor_to(
         lambda t: t.to(device=device, dtype=tensor_dtype),
         pytree,
     )
+
+
+def collate_dict_to_tensordict(batch: list, *, collate_fn_map=None) -> TensorDict:
+    """Collate a batch of dicts into a TensorDict.
+
+    This custom collation handler converts dict observations to TensorDict
+    automatically during batch collation, enabling proper batching of dict
+    observations in the replay buffer.
+
+    Args:
+        batch: A list of dictionaries to collate.
+        collate_fn_map: The collate function map (ignored, kept for compatibility).
+
+    Returns:
+        A TensorDict with collated data and batch_size=[len(batch)].
+    """
+    elem = batch[0]
+    collated = {
+        key: collate([d[key] for d in batch], collate_fn_map=collate_fn_map) for key in elem
+    }
+    return TensorDict(collated, batch_size=[len(batch)])
 
 
 class ReplayBuffer(torch.nn.Module):
@@ -65,9 +87,13 @@ class ReplayBuffer(torch.nn.Module):
         self.tensor_dtype = torch.get_default_dtype() if tensor_dtype is None else tensor_dtype
 
         if collate_fn_map is None:
-            self.collate_fn_map = default_collate_fn_map
+            self.collate_fn_map = {**default_collate_fn_map, dict: collate_dict_to_tensordict}
         else:
-            self.collate_fn_map = {**default_collate_fn_map, **collate_fn_map}
+            self.collate_fn_map = {
+                **default_collate_fn_map,
+                dict: collate_dict_to_tensordict,
+                **collate_fn_map,
+            }
 
     def put(self, data: Any) -> None:
         """Put the data into the replay buffer. If the buffer is full, the oldest data is discarded.
