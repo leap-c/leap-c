@@ -7,7 +7,7 @@ from typing import Literal
 
 from leap_c.examples import ExampleEnvName, create_env
 from leap_c.run import default_name, default_output_path, init_run
-from leap_c.torch.nn.extractor import ExtractorName, get_extractor_cls
+from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.crossq import CrossQTrainer, CrossQTrainerConfig
 
 
