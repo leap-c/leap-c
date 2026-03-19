@@ -13,8 +13,9 @@ def create_batch_solver(
     ocp: AcadosOcp,
     export_directory: str | Path | None = None,
     discount_factor: float | None = None,
-    n_batch_max: int = 256,
+    n_batch_init: int = 256,
     num_threads: int = 4,
+    verbose: bool = True,
 ) -> AcadosOcpBatchSolver:
     """Create an AcadosOcpBatchSolver from an AcadosOcp object.
 
@@ -24,35 +25,44 @@ def create_batch_solver(
             temporary directory is created and the directory is cleaned afterwards.
         discount_factor: Discount factor. If None, acados default cost
             scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
-        n_batch_max: Maximum batch size.
+        n_batch_init: Initially supported batch size of the batch OCP solver.
+            Using larger batches will trigger a delay for the creation of more solvers.
         num_threads: Number of threads used in the batch solver.
+        verbose: Whether to print the code generation output.
     """
     if export_directory is None:
         export_directory = Path(mkdtemp())
         add_delete_hook = True
+        try_code_reuse = False
     else:
         export_directory = Path(export_directory)
         add_delete_hook = False
+        try_code_reuse = True
 
     ocp.code_gen_opts.code_export_directory = str(export_directory / "c_generated_code")
     json_file = str(export_directory / "acados_ocp.json")
 
-    try:
+    if try_code_reuse:
         batch_solver = AcadosOcpBatchSolver(
             ocp,
             json_file=json_file,
-            N_batch_init=n_batch_max,
+            N_batch_init=n_batch_init,
             num_threads_in_batch_solve=num_threads,
             build=False,
             generate=False,
+            check_code_reuse_possible=True,
+            verbose=verbose,
         )
-    except FileNotFoundError:
+    else:
         batch_solver = AcadosOcpBatchSolver(
             ocp,
             json_file=json_file,
-            N_batch_init=n_batch_max,
+            N_batch_init=n_batch_init,
             num_threads_in_batch_solve=num_threads,
             build=True,
+            generate=True,
+            check_code_reuse_possible=False,
+            verbose=verbose,
         )
 
     if discount_factor is not None:
@@ -71,6 +81,7 @@ def create_forward_backward_batch_solvers(
     discount_factor: float | None = None,
     n_batch_init: int = 256,
     num_threads: int = 4,
+    verbose: bool = True,
 ) -> tuple[AcadosOcpBatchSolver, AcadosOcpBatchSolver]:
     """Create a batch solver for solving the MPC problems (forward solver).
 
@@ -87,8 +98,10 @@ def create_forward_backward_batch_solvers(
         discount_factor: Discount factor for the solver. If not provided,
             acados default weighting is used
             (i.e., 1/N_horizon for intermediate stages, 1 for terminal stage).
-        n_batch_init: Initial batch size.
+        n_batch_init: Initially supported batch size of the batch OCP solver.
+            Using larger batches will trigger a delay for the creation of more solvers.
         num_threads: Number of threads used in the batch solver.
+        verbose: Whether to print the code generation output.
     """
     opts = ocp.solver_options
     opts.with_batch_functionality = True
@@ -109,12 +122,21 @@ def create_forward_backward_batch_solvers(
         ocp.solver_options.with_solution_sens_wrt_params = True
         ocp.solver_options.with_value_sens_wrt_params = True
 
+    if export_directory is not None:
+        export_directory = Path(export_directory)
+        export_dir_fwd = export_directory / "forward_solver"
+        export_dir_bwd = export_directory / "backward_solver"
+    else:
+        export_dir_fwd = None
+        export_dir_bwd = None
+
     forward_batch_solver = create_batch_solver(
         ocp,
-        export_directory=export_directory,
+        export_directory=export_dir_fwd,
         discount_factor=discount_factor,
-        n_batch_max=n_batch_init,
+        n_batch_init=n_batch_init,
         num_threads=num_threads,
+        verbose=verbose,
     )
 
     if not need_backward_solver:
@@ -132,10 +154,11 @@ def create_forward_backward_batch_solvers(
 
     backward_batch_solver = create_batch_solver(
         sensitivity_ocp,  # type:ignore
-        export_directory=export_directory,
+        export_directory=export_dir_bwd,
         discount_factor=discount_factor,
-        n_batch_max=n_batch_init,
+        n_batch_init=n_batch_init,
         num_threads=num_threads,
+        verbose=verbose,
     )
 
     return forward_batch_solver, backward_batch_solver

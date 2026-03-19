@@ -1,12 +1,21 @@
 """Main script to run SAC-FOP experiments."""
 
-from argparse import ArgumentParser
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Literal, get_args
+
+import torch
 
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
-from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
+from leap_c.run import (
+    default_controller_code_path,
+    default_name,
+    default_output_path,
+    init_run,
+    validate_torch_device_arg,
+    validate_torch_dtype_arg,
+)
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
 
@@ -118,7 +127,8 @@ def create_cfg(
 def run_sac_fop(
     cfg: RunSacFopConfig,
     output_path: str | Path,
-    device: str = "cuda",
+    device: int | str | torch.device,
+    dtype: torch.dtype,
     reuse_code_dir: Path | None = None,
     with_val: bool = False,
 ) -> float:
@@ -129,6 +139,7 @@ def run_sac_fop(
         output_path: The path to save outputs to.
             If it already exists, the run will continue from the last checkpoint.
         device: The device to use.
+        dtype: The torch dtype to use.
         reuse_code_dir: The directory to reuse compiled code from, if any.
         with_val: Whether to use a validation environment.
     """
@@ -139,6 +150,7 @@ def run_sac_fop(
         controller=create_controller(cfg.controller, reuse_code_dir),
         output_path=output_path,
         device=device,
+        dtype=dtype,
         cfg=cfg.trainer,
         extractor_cls=cfg.extractor,
     )
@@ -147,37 +159,60 @@ def run_sac_fop(
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("--output_path", type=Path, default=None)
-    parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--env", type=str, default="cartpole")
-    parser.add_argument("--controller", type=str, default=None)
-    parser.add_argument("--with-val", action="store_true", help="Enable validation environment")
-    parser.add_argument(
+    parser = ArgumentParser(
+        description="Training of SAC-FOP agents.", formatter_class=ArgumentDefaultsHelpFormatter
+    )
+    group = parser.add_argument_group("Run settings")
+    group.add_argument(
+        "--output-path", type=Path, default=None, help="Path to outputs (e.g., logs)."
+    )
+    group.add_argument(
+        "--device", type=validate_torch_device_arg, default="cpu", help="Device to run on."
+    )
+    group.add_argument(
+        "--dtype",
+        type=validate_torch_dtype_arg,
+        default="float32",
+        help="Data type to use during training and evaluation.",
+    )
+    group.add_argument("--seed", type=int, default=0, help="RNG seed.")
+    group.add_argument(
+        "-r",
+        "--reuse-code",
+        action="store_true",
+        help="Reuse compiled code. The first time this is run, it will compile the code.",
+    )
+    group.add_argument(
+        "--reuse-code-dir", type=Path, default=None, help="Directory for compiled code."
+    )
+    group = parser.add_argument_group("Train and eval")
+    group.add_argument(
+        "--env",
+        type=str,
+        choices=get_args(ExampleEnvName),
+        default="cartpole",
+        help="Environment to train on.",
+    )
+    group.add_argument(
+        "--controller",
+        type=str,
+        choices=get_args(ExampleControllerName),
+        default=None,
+        help="MPC controller to use as actor. If not provided, it is taken from `--env`.",
+    )
+    group.add_argument("--with-val", action="store_true", help="Enables validation environment.")
+    group.add_argument(
         "--ckpt-modus",
         type=str,
         default=None,
         choices=["none", "last", "all", "best"],
         help="Checkpoint mode. Defaults to 'best' with --with-val, 'last' otherwise.",
     )
-    parser.add_argument(
-        "--variant",
-        type=str,
-        default="fop",
-        choices=["fop", "fopc", "foa"],
-        help="SAC-FOP variant: fop (normal), fopc (with entropy correction), foa (action noise)",
-    )
-    parser.add_argument(
-        "-r",
-        "--reuse_code",
-        action="store_true",
-        help="Reuse compiled code. The first time this is run, it will compile the code.",
-    )
-    parser.add_argument("--reuse_code_dir", type=Path, default=None)
-    parser.add_argument("--use-wandb", action="store_true")
-    parser.add_argument("--wandb-entity", type=str, default=None)
-    parser.add_argument("--wandb-project", type=str, default="leap-c")
+    group = parser.add_argument_group("W&B logging")
+    group.add_argument("--use-wandb", action="store_true", help="Whether to use W&B logging.")
+    group.add_argument("--wandb-entity", type=str, default=None, help="W&B entity name.")
+    group.add_argument("--wandb-project", type=str, default="leap-c", help="W&B project name.")
+    group.add_argument("--wandb-group", type=str, default="SAC-FOP", help="W&B group name.")
     args = parser.parse_args()
 
     if args.ckpt_modus is not None:
@@ -214,10 +249,4 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
-    run_sac_fop(
-        cfg=cfg,
-        output_path=output_path,
-        device=args.device,
-        reuse_code_dir=reuse_code_dir,
-        with_val=args.with_val,
-    )
+    run_sac_fop(cfg, output_path, args.device, args.dtype, reuse_code_dir, args.with_val)

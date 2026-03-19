@@ -4,6 +4,10 @@ on:
   push:
     branches:
       - main
+  pull_request:
+    paths:
+    - "docs/**"
+    - "**/*.py"
   workflow_dispatch:
 
 permissions:
@@ -28,6 +32,7 @@ jobs:
       run: sphinx-build docs/source _build
           
     - name: Deploy to GitHub Pages
+      if: github.repository == 'leap-c/leap-c' && github.event_name == 'push'
       uses: peaceiris/actions-gh-pages@v3
       with:
           publish_branch: gh-pages

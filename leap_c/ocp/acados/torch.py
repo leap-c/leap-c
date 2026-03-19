@@ -38,9 +38,10 @@ class AcadosDiffMpcTorch(torch.nn.Module):
         sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
-        n_batch_max: int | None = None,
+        n_batch_init: int | None = None,
         num_threads_batch_solver: int | None = None,
-        dtype: torch.dtype = torch.float32,
+        dtype: torch.dtype | None = None,
+        verbose: bool = True,
     ) -> None:
         """Initializes the AcadosDiffMpcTorch module.
 
@@ -56,25 +57,29 @@ class AcadosDiffMpcTorch(torch.nn.Module):
                 on the stage cost and `1` on the terminal cost.
             export_directory: An optional directory to which the generated C code will be exported.
                 If none is provided, a unique temporary directory will be created used.
-            n_batch_max: Maximum batch size supported by the batch OCP solver.
+            n_batch_init: Initially supported batch size of the batch OCP solver.
+                Using larger batches will trigger a delay for the creation of more solvers.
                 If `None`, a default value is used.
             num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
                 If `None`, a default value is used.
             dtype: The output of the forward pass will automatically be cast to this type.
+                If `None`, the default PyTorch dtype is used.
+            verbose: Whether to print the output while generating solvers.
+
         """
         super().__init__()
-
         self.diff_mpc_fun = AcadosDiffMpcFunction(
             ocp=ocp,
             initializer=initializer,
             sensitivity_ocp=sensitivity_ocp,
             discount_factor=discount_factor,
             export_directory=export_directory,
-            n_batch_init=n_batch_max,
+            n_batch_init=n_batch_init,
             num_threads_batch_solver=num_threads_batch_solver,
+            verbose=verbose,
         )
         self.autograd_fun = create_autograd_function(self.diff_mpc_fun)
-        self.dtype = dtype
+        self.dtype = torch.get_default_dtype() if dtype is None else dtype
 
     def forward(
         self,

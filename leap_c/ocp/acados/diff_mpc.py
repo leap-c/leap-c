@@ -129,6 +129,7 @@ class AcadosDiffMpcFunction(DiffFunction):
         export_directory: Path | None = None,
         n_batch_init: int | None = None,
         num_threads_batch_solver: int | None = None,
+        verbose: bool = True,
     ) -> None:
         """Initializes the differentiable MPC function.
 
@@ -145,10 +146,12 @@ class AcadosDiffMpcFunction(DiffFunction):
             export_directory: An optional directory to which the generated C code will be exported.
                 If none is provided, a unique temporary directory will be created used.
             n_batch_init: Initially supported batch size of the batch OCP solver.
-                Using larger batches will trigger a delay for creation of more solvers.
+                Using larger batches will trigger a delay for the creation of more solvers.
                 If `None`, a default value is used.
             num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
                 If `None`, a default value is used.
+            verbose: Whether to print the output while generating solvers.
+
         """
         self.ocp = ocp
         self.forward_batch_solver, self.backward_batch_solver = (
@@ -161,6 +164,7 @@ class AcadosDiffMpcFunction(DiffFunction):
                 num_threads=DEFAULT_NUM_THREADS_BATCH_SOLVER
                 if num_threads_batch_solver is None
                 else num_threads_batch_solver,
+                verbose=verbose,
             )
         )
         self.initializer = ZeroDiffMpcInitializer(ocp) if initializer is None else initializer

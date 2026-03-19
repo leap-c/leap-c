@@ -269,3 +269,42 @@ def test_dict_observation_to_tensordict():
     state_values = o["state"].tolist()
     assert [1.0, 2.0, 3.0] in state_values, "Expected obs1 state in batch"
     assert [4.0, 5.0, 6.0] in state_values, "Expected obs2 state in batch"
+
+
+def test_flat_tensor_path_unaffected_by_dict_collation():
+    """Test that non-dict observations are not automatically converted to TensorDict."""
+    buffer = ReplayBuffer(buffer_limit=10, device="cpu", tensor_dtype=torch.float32)
+
+    obs1 = np.array([1.0, 2.0, 3.0], dtype=np.float64)
+    obs2 = np.array([4.0, 5.0, 6.0], dtype=np.float64)
+    action1 = np.array([0.1], dtype=np.float64)
+    action2 = np.array([0.2], dtype=np.float64)
+    reward1, reward2 = 1.0, 2.0
+    terminated1, terminated2 = False, True
+
+    buffer.put((obs1, action1, reward1, obs1, terminated1))
+    buffer.put((obs2, action2, reward2, obs2, terminated2))
+
+    batch = buffer.sample(2)
+    o, a, r, o_prime, te = batch
+
+    # All outputs must be plain tensors, not TensorDict
+    assert isinstance(o, torch.Tensor), f"Expected Tensor, got {type(o)}"
+    assert isinstance(a, torch.Tensor), f"Expected Tensor, got {type(a)}"
+    assert isinstance(r, torch.Tensor), f"Expected Tensor, got {type(r)}"
+    assert isinstance(o_prime, torch.Tensor), f"Expected Tensor, got {type(o_prime)}"
+    assert isinstance(te, torch.Tensor), f"Expected Tensor, got {type(te)}"
+
+    # Shapes: batch of 2
+    assert o.shape == torch.Size([2, 3])
+    assert a.shape == torch.Size([2, 1])
+    assert r.shape == torch.Size([2])
+
+    # dtype must be cast to float32 (buffer default), not the original float64
+    assert o.dtype == torch.float32
+    assert a.dtype == torch.float32
+
+    # Values must be preserved
+    obs_values = o.tolist()
+    assert [1.0, 2.0, 3.0] in obs_values
+    assert [4.0, 5.0, 6.0] in obs_values

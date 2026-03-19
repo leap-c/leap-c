@@ -1,9 +1,12 @@
 """Module for running experiments."""
 
 import datetime
+from argparse import ArgumentTypeError
 from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
+
+import torch
 
 import leap_c
 from leap_c.trainer import CtxType, Trainer, TrainerConfigType
@@ -80,3 +83,50 @@ def init_run(trainer: Trainer[TrainerConfigType, CtxType], cfg, output_path: str
     else:
         module_root = Path(leap_c.__path__[0]).parent
     log_git_hash_and_diff(output_path / "git.txt", module_root)
+
+
+def validate_torch_device_arg(arg: str) -> torch.device:
+    """Validate the provided string argument as a valid torch device.
+
+    Args:
+        arg: String representation of the torch device (e.g., "cpu", "cuda:0", etc.).
+
+    Returns:
+        The corresponding torch device object for the provided string.
+
+    Raises:
+        ArgumentTypeError: If the provided value is not a valid torch device.
+    """
+    try:
+        return torch.device(arg.lower())
+    except RuntimeError as e:
+        devices = []
+        if torch.cpu.is_available():
+            devices.append("`cpu`")
+        if torch.cuda.is_available():
+            devices.extend(f"`cuda:{i}`" for i in range(torch.cuda.device_count()))
+        devices_str = ", ".join(devices) if devices else "no available devices"
+        raise ArgumentTypeError(f"`{arg}` is not a valid torch device: {devices_str}.") from e
+
+
+def validate_torch_dtype_arg(arg: str) -> torch.dtype:
+    """Validate the provided string argument as a valid torch data type.
+
+    Args:
+        arg: String representation of the torch dtype (e.g., "float32", "float64", etc.).
+
+    Returns:
+        The corresponding torch dtype object for the provided string.
+
+    Raises:
+        ArgumentTypeError: If the provided value is not a valid torch type or is not floating.
+    """
+    result = getattr(torch, arg.lower(), None)
+    if not isinstance(result, torch.dtype) or not result.is_floating_point:
+        valid_dtypes = ", ".join(
+            f"`{name}`"
+            for name, dtype in torch.__dict__.items()
+            if isinstance(dtype, torch.dtype) and dtype.is_floating_point
+        )
+        raise ArgumentTypeError(f"`{arg}` is not a valid torch dtype: {valid_dtypes}.")
+    return result
