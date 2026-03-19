@@ -479,6 +479,9 @@ class HvacDataset:
 
         if split == "test":
             # Return fixed test episodes in order (cycling if needed)
+            if not self._test_indices:
+                # No fixed test episodes configured; fall back to random sampling
+                return self._sample_random(rng, horizon, "all", max_attempts)
             idx = self._test_indices[self._test_episode_counter % len(self._test_indices)]
             self._test_episode_counter += 1
             return idx, max_steps

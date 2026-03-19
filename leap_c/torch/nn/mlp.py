@@ -81,11 +81,17 @@ class MlpConfig:
         activation: The activation function to use in the hidden layers.
         weight_init: The weight initialization method to use for the hidden layers. If `None`, no
             initialization will be applied.
+        batchnorm: Whether to use batch normalization between layers.
+
+    TODO (Jasper):
+        Consider switching to RL-specific BatchNorm as in TorchRl which in the beginning uses
+        minibatch statistics and then switches to running statistics.
     """
 
     hidden_dims: Sequence[int] | None = (256, 256, 256)
     activation: Activation = "relu"
     weight_init: WeightInit | None = "orthogonal"  # If None, no init will be used
+    batchnorm: bool = False
 
 
 class Mlp(nn.Module):
@@ -134,10 +140,16 @@ class Mlp(nn.Module):
 
         layers: list[nn.Module] = []
         activation = string_to_activation(mlp_cfg.activation)
-        for in_sz, out_sz in pairwise((comb_input_dim, *mlp_cfg.hidden_dims, comb_output_dim)):
-            layers.extend((nn.Linear(in_sz, out_sz), activation))
+        dims = [comb_input_dim, *mlp_cfg.hidden_dims, comb_output_dim]
 
-        self.mlp = nn.Sequential(*layers[:-1])
+        for i, (in_sz, out_sz) in enumerate(pairwise(dims)):
+            layers.append(nn.Linear(in_sz, out_sz))
+            if i < len(dims) - 2:  # Not the last layer
+                if mlp_cfg.batchnorm:
+                    layers.append(nn.BatchNorm1d(out_sz))
+                layers.append(activation)
+
+        self.mlp = nn.Sequential(*layers)
         self.param = None
 
         if mlp_cfg.weight_init is not None:
