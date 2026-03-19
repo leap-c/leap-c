@@ -11,8 +11,7 @@ from leap_c.examples.cartpole.env import CartPoleEnv
 from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
 from leap_c.examples.chain.env import ChainEnv
 from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
-from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
-from leap_c.examples.hvac.env import StochasticThreeStateRcEnv
+from leap_c.examples.hvac.env import ContinualStochasticThreeStateRcEnv, StochasticThreeStateRcEnv
 from leap_c.examples.hvac.planner import HvacPlanner, HvacPlannerConfig
 from leap_c.examples.mass_spring_damper.env import MassSpringDamperEnv
 from leap_c.examples.mass_spring_damper.planner import (
@@ -32,9 +31,7 @@ ENV_REGISTRY = {
     "mass_spring_damper": MassSpringDamperEnv,
     "pointmass": PointMassEnv,
     "hvac": StochasticThreeStateRcEnv,
-    "hvac_continual": lambda **kw: StochasticThreeStateRcEnv(
-        dataset=HvacDataset(cfg=DataConfig(mode="continual")), **kw
-    ),
+    "hvac_continual": ContinualStochasticThreeStateRcEnv,
 }
 
 
