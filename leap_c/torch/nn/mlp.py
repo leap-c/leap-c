@@ -83,9 +83,9 @@ class MlpConfig:
             initialization will be applied.
         batchnorm: Whether to use batch normalization between layers.
 
-    Todo (Jasper):
-        Consider switching to RL-specific BatchNorm with stable running average statistics. Current,
-        implementation might only work for large batch sizes.
+    TODO (Jasper):
+        Consider switching to RL-specific BatchNorm as in TorchRl which in the beginning uses
+        minibatch statistics and then switches to running statistics.
     """
 
     hidden_dims: Sequence[int] | None = (256, 256, 256)
