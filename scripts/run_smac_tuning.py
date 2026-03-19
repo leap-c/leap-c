@@ -22,9 +22,11 @@ import numpy as np
 import torch
 from ConfigSpace import ConfigurationSpace, Float
 from smac import HyperparameterOptimizationFacade, Scenario
+from torch.utils.data._utils.collate import default_collate
 
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_output_path
+from leap_c.torch.rl.buffer import pytree_tensor_to
 
 
 @dataclass
@@ -159,7 +161,7 @@ class ControllerTuner:
 
         for rollout_idx in range(self.cfg.n_rollouts):
             rollout_seed = seed + rollout_idx
-            obs, _ = self.env.reset(seed=rollout_seed)
+            obs, _ = self.env.reset(seed=rollout_seed, options={"mode": "train"})
 
             done = False
             truncated = False
@@ -168,7 +170,7 @@ class ControllerTuner:
             ctx = None
 
             while not (done or truncated):
-                obs_tensor = torch.from_numpy(obs).unsqueeze(0).to(self.device)
+                obs_tensor = pytree_tensor_to(default_collate([obs]), self.device)
 
                 try:
                     ctx, action = self.controller(obs_tensor, param, ctx=ctx)
