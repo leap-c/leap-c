@@ -1,5 +1,6 @@
 """In this module, we manage all the example environments, controllers and planners."""
 
+from importlib import import_module
 from pathlib import Path
 from typing import Any, Literal, TypeAlias
 from warnings import warn
@@ -7,31 +8,18 @@ from warnings import warn
 from gymnasium import Env
 
 from leap_c.controller import CtxType, ParameterizedController
-from leap_c.examples.cartpole.env import CartPoleEnv
-from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
-from leap_c.examples.chain.env import ChainEnv
-from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
-from leap_c.examples.hvac.env import ContinualStochasticThreeStateRcEnv, StochasticThreeStateRcEnv
-from leap_c.examples.hvac.planner import HvacPlanner, HvacPlannerConfig
-from leap_c.examples.mass_spring_damper.env import MassSpringDamperEnv
-from leap_c.examples.mass_spring_damper.planner import (
-    MassSpringDamperPlanner,
-    MassSpringDamperPlannerConfig,
-)
-from leap_c.examples.pointmass.env import PointMassEnv
-from leap_c.examples.pointmass.planner import PointMassControllerConfig, PointMassPlanner
 from leap_c.planner import ControllerFromPlanner, ParameterizedPlanner
 
 ExampleEnvName = Literal[
     "cartpole", "chain", "mass_spring_damper", "pointmass", "hvac", "hvac_continual"
 ]
-ENV_REGISTRY = {
-    "cartpole": CartPoleEnv,
-    "chain": ChainEnv,
-    "mass_spring_damper": MassSpringDamperEnv,
-    "pointmass": PointMassEnv,
-    "hvac": StochasticThreeStateRcEnv,
-    "hvac_continual": ContinualStochasticThreeStateRcEnv,
+ENV_REGISTRY: dict[str, tuple[str, str]] = {
+    "cartpole": ("leap_c.examples.cartpole.env", "CartPoleEnv"),
+    "chain": ("leap_c.examples.chain.env", "ChainEnv"),
+    "mass_spring_damper": ("leap_c.examples.mass_spring_damper.env", "MassSpringDamperEnv"),
+    "pointmass": ("leap_c.examples.pointmass.env", "PointMassEnv"),
+    "hvac": ("leap_c.examples.hvac.env", "StochasticThreeStateRcEnv"),
+    "hvac_continual": ("leap_c.examples.hvac.env", "ContinualStochasticThreeStateRcEnv"),
 }
 
 
@@ -45,36 +33,60 @@ def create_env(env_name: ExampleEnvName, **kw: Any) -> Env:
     Returns:
         An instance of the requested environment.
     """
-    if env_name in ENV_REGISTRY:
-        return ENV_REGISTRY[env_name](**kw)
+    if env_name not in ENV_REGISTRY:
+        raise ValueError(f"Environment '{env_name}' is not registered.")
 
-    raise ValueError(f"Environment '{env_name}' is not registered.")
+    module_path, cls_name = ENV_REGISTRY[env_name]
+    module = import_module(module_path)
+    cls = getattr(module, cls_name, None)
+    if cls is None:
+        raise ValueError(f"Class '{cls_name}' not found in module '{module_path}'.")
+    return cls(**kw)
 
 
-PLANNER_REGISTRY = {
-    "cartpole": (CartPolePlanner, CartPolePlannerConfig, dict()),
+PLANNER_REGISTRY: dict[str, tuple[str, str, str, dict[str, Any]]] = {
+    "cartpole": (
+        "leap_c.examples.cartpole.planner",
+        "CartPolePlanner",
+        "CartPolePlannerConfig",
+        {},
+    ),
     "cartpole_stagewise": (
-        CartPolePlanner,
-        CartPolePlannerConfig,
+        "leap_c.examples.cartpole.planner",
+        "CartPolePlanner",
+        "CartPolePlannerConfig",
         {"param_interface": "stagewise"},
     ),
-    "chain": (ChainPlanner, ChainControllerConfig, dict()),
+    "chain": ("leap_c.examples.chain.planner", "ChainPlanner", "ChainControllerConfig", {}),
     "chain_stagewise": (
-        ChainPlanner,
-        ChainControllerConfig,
+        "leap_c.examples.chain.planner",
+        "ChainPlanner",
+        "ChainControllerConfig",
         {"param_interface": "stagewise"},
     ),
-    "mass_spring_damper": (MassSpringDamperPlanner, MassSpringDamperPlannerConfig, dict()),
-    "pointmass": (PointMassPlanner, PointMassControllerConfig, dict()),
+    "mass_spring_damper": (
+        "leap_c.examples.mass_spring_damper.planner",
+        "MassSpringDamperPlanner",
+        "MassSpringDamperPlannerConfig",
+        {},
+    ),
+    "pointmass": (
+        "leap_c.examples.pointmass.planner",
+        "PointMassPlanner",
+        "PointMassControllerConfig",
+        {},
+    ),
     "pointmass_stagewise": (
-        PointMassPlanner,
-        PointMassControllerConfig,
+        "leap_c.examples.pointmass.planner",
+        "PointMassPlanner",
+        "PointMassControllerConfig",
         {"param_interface": "stagewise"},
     ),
-    "hvac": (HvacPlanner, HvacPlannerConfig, dict()),
+    "hvac": ("leap_c.examples.hvac.planner", "HvacPlanner", "HvacPlannerConfig", {}),
     "hvac_stagewise": (
-        HvacPlanner,
-        HvacPlannerConfig,
+        "leap_c.examples.hvac.planner",
+        "HvacPlanner",
+        "HvacPlannerConfig",
         {"param_interface": "reference", "param_granularity": "stagewise"},
     ),
 }
@@ -107,9 +119,17 @@ def _create_from_registry(
     if name not in registry:
         raise ValueError(f"{kind.capitalize()} '{name}' is not registered or does not exist.")
 
-    cls, cfg_cls, default_cfg_kwargs = registry[name]
-    cfg = cfg_cls(**default_cfg_kwargs, **kwargs)
+    module_path, cls_name, cfg_cls_name, default_cfg_kwargs = registry[name]
+    module = import_module(module_path)
+    cls = getattr(module, cls_name, None)
+    cfg_cls = getattr(module, cfg_cls_name, None)
+    if cls is None or cfg_cls is None:
+        raise ValueError(
+            f"Planner class '{cls_name}' or config clas '{cfg_cls_name}' not found in module "
+            f"'{module_path}'."
+        )
 
+    cfg = cfg_cls(**default_cfg_kwargs, **kwargs)
     kwargs_cls = {"cfg": cfg}
     if reuse_code_base_dir is not None:
         export_directory = reuse_code_base_dir / name
