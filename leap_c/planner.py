@@ -1,7 +1,7 @@
 """Module defining the abstract interface for differentiable, parameterized planners in PyTorch."""
 
 from abc import ABCMeta, abstractmethod
-from typing import Callable, Generic, Literal, Union
+from typing import Callable, Generic, Literal
 
 import gymnasium as gym
 from numpy import ndarray
@@ -24,7 +24,7 @@ class ParameterizedPlanner(nn.Module, Generic[CtxType], metaclass=ABCMeta):
             https://docs.pytorch.org/docs/stable/data.html#torch.utils.data.default_collate.
     """
 
-    collate_fn_map: dict[Union[type, tuple[type, ...]], Callable] | None = None
+    collate_fn_map: dict[type | tuple[type, ...], Callable] | None = None
 
     @abstractmethod
     def forward(
@@ -117,7 +117,7 @@ class ControllerFromPlanner(ParameterizedController[CtxType], Generic[CtxType]):
         self.planner = planner
 
     @property
-    def collate_fn_map(self) -> dict[Union[type, tuple[type, ...]], Callable] | None:
+    def collate_fn_map(self) -> dict[type | tuple[type, ...], Callable] | None:
         """Fetches the collate function map from the underlying planner."""
         return self.planner.collate_fn_map
 

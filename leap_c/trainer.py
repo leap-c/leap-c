@@ -225,8 +225,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
 
             # initial policy validation
             self.eval()  # set to eval mode
-            with torch.inference_mode():
-                val_score = self.validate()
+            val_score = self.validate()
             self.train()  # set back to train mode
             self.state.scores.append(val_score)
             self.state.max_score = val_score
@@ -239,8 +238,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
                 # validate
                 if self.state.step // self.cfg.val_freq >= len(self.state.scores):
                     self.eval()  # set to eval mode
-                    with torch.inference_mode():
-                        val_score = self.validate()
+                    val_score = self.validate()
                     self.train()  # set back to train mode
                     self.state.scores.append(val_score)
 
@@ -345,12 +343,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
             video_folder=self.output_path / "video",
             name_prefix=f"{self.state.step}",
         )
-
-        parts_rollout = []
-        parts_policy = []
-        for r, p in rollouts:
-            parts_rollout.append(r)
-            parts_policy.append(p)
+        parts_rollout, parts_policy = zip(*rollouts)
 
         stats_rollout = {
             key: float(np.mean([p[key] for p in parts_rollout])) for key in parts_rollout[0]

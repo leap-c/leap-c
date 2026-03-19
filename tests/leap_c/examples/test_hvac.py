@@ -1,4 +1,7 @@
+from unittest.mock import patch
+
 import numpy as np
+import pandas as pd
 import pytest
 import torch
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
@@ -7,6 +10,53 @@ from leap_c.examples.hvac.acados_ocp import make_default_hvac_params
 from leap_c.examples.hvac.planner import HvacPlanner, HvacPlannerConfig
 from leap_c.ocp.acados.parameters import AcadosParameter
 from leap_c.torch.rl.buffer import collate_dict_to_tensordict, pytree_tensor_to
+
+
+def _make_synthetic_weather() -> pd.DataFrame:
+    """Return a minimal synthetic weather DataFrame matching Open-Meteo output format."""
+    # Two years of 15-min data covering heating-season months (Jan-Apr, Sep-Dec)
+    index = pd.date_range("2020-01-01", "2021-12-31 23:45", freq="15min", tz="UTC")
+    index.name = "Timestamp"
+    rng = np.random.default_rng(0)
+    n = len(index)
+    return pd.DataFrame(
+        {
+            "date": index,
+            "temperature_2m": rng.uniform(-10, 20, n).astype(np.float32),
+            "apparent_temperature": rng.uniform(-15, 18, n).astype(np.float32),
+            "shortwave_radiation": rng.uniform(0, 200, n).astype(np.float32),
+            "direct_normal_irradiance": rng.uniform(0, 300, n).astype(np.float32),
+        },
+        index=index,
+    )
+
+
+def _make_synthetic_price() -> pd.DataFrame:
+    """Return a minimal synthetic price DataFrame matching energy-charts output format."""
+    index = pd.date_range("2020-01-01", "2021-12-31 23:45", freq="15min", tz="UTC")
+    rng = np.random.default_rng(1)
+    return pd.DataFrame(
+        {
+            "Timestamp": index,
+            "price": rng.uniform(0.0, 0.5, len(index)).astype(np.float32),
+        }
+    )
+
+
+@pytest.fixture()
+def mock_external_data():
+    """Patch both external API calls."""
+    with (
+        patch(
+            "leap_c.examples.hvac.dataset.get_open_meteo_data",
+            return_value=_make_synthetic_weather(),
+        ),
+        patch(
+            "leap_c.examples.hvac.dataset.get_energy_charts_data",
+            return_value=_make_synthetic_price(),
+        ),
+    ):
+        yield
 
 
 @pytest.fixture(scope="module")
@@ -457,7 +507,7 @@ def test_default_param_in_param_space(hvac_planner_stagewise: HvacPlanner) -> No
     assert param_space.contains(param), "Default parameters are not within the defined param space"
 
 
-def test_continual_episodes_only_valid_months() -> None:
+def test_continual_episodes_only_valid_months(mock_external_data) -> None:
     """Test that continual learning episodes only contain dates from valid months."""
     from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
 
@@ -496,7 +546,7 @@ def test_continual_episodes_only_valid_months() -> None:
     )
 
 
-def test_continual_episodes_sequential_coverage() -> None:
+def test_continual_episodes_sequential_coverage(mock_external_data) -> None:
     """Test that continual episodes cover the dataset sequentially."""
     from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
 

@@ -1,4 +1,5 @@
 from itertools import product
+from typing import Any
 
 import casadi as ca
 import numpy as np
@@ -53,7 +54,7 @@ def prepare_batch_solver(
         batch_solver.set_p_global_and_precompute_dependencies(param)
     elif p_global is not None:
         # if p_global is provided, set it
-        p_global = p_global.astype(np.float64)
+        p_global = p_global.astype(np.float64, copy=False)
         batch_solver.set_p_global_and_precompute_dependencies(p_global)
 
     # set p_stagewise
@@ -84,16 +85,8 @@ def prepare_batch_solver(
         batch_solver.constraints_set(0, "lbu", u0)
         batch_solver.constraints_set(0, "ubu", u0)
     else:
-        batch_solver.constraints_set(
-            0,
-            "lbu",
-            np.broadcast_to(lbu, (batch_size, lbu.shape[0])),
-        )
-        batch_solver.constraints_set(
-            0,
-            "ubu",
-            np.broadcast_to(ubu, (batch_size, ubu.shape[0])),
-        )
+        batch_solver.constraints_set(0, "lbu", np.broadcast_to(lbu, (batch_size, lbu.shape[0])))
+        batch_solver.constraints_set(0, "ubu", np.broadcast_to(ubu, (batch_size, ubu.shape[0])))
 
 
 def prepare_batch_solver_for_backward(
@@ -116,7 +109,7 @@ def prepare_batch_solver_for_backward(
     batch_solver.setup_qp_matrices_and_factorize(solver_input.batch_size)
 
 
-def _is_param_legal(model_p) -> bool:
+def _is_param_legal(model_p: Any) -> bool:
     if model_p is None:
         return False
     elif isinstance(model_p, ca.SX):
