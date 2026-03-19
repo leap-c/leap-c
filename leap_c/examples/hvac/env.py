@@ -38,7 +38,7 @@ class HvacEnvConfig:
     thermal_params: HydronicParameters | None = None
     step_size: float = 900.0
     enable_noise: bool = True
-    randomize_params: bool = True
+    randomize_params: bool = False
     param_noise_scale: float = 0.3
     random_seed: int = 0
 
@@ -56,29 +56,22 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     Observation Space:
     ------------------
 
-    The observation is a `ndarray` with shape `(5 + 3*15*horizon_hours,)` and dtype `np.float32`,
-    where 3*5*horizon_hours includes forecasts for ambient temperature, solar irradiation, and
-    electricity prices. The observation space looks as follows:
+    The observation is a `Dict` space with the following structure:
 
-    | Num  | Observation                                  | Min | Max          |
-    |------|----------------------------------------------|-----|--------------|
-    | 0    | quarter hour of the day                      | 0   | 95           |
-    | 1    | day of year                                  | 0   | 365          |
-    | 2    | indoor air temperature Ti [K]                | 0   | 303.15       |
-    | 3    | radiator temperature Th [K]                  | 0   | 773.15       |
-    | 4    | envelope temperature Te [K]                  | 0   | 303.15       |
-    | 5    | ambient temperature forecast t+0 [K]         | 0   | 313.15       |
-    | 6    | ambient temperature forecast t+1 [K]         | 0   | 313.15       |
-    | ...  | ambient temperature forecast t+N-1 [K]       | 0   | 313.15       |
-    | 5+N  | solar radiation forecast t+0 [W/m²]          | 0   | 200.0        |
-    | 6+N  | solar radiation forecast t+1 [W/m²]          | 0   | 200.0        |
-    | ...  | solar radiation forecast t+N-1 [W/m²]        | 0   | 200.0        |
-    | 5+2N | electricity price forecast t+0 [EUR/kWh]     | 0   | max(dataset) |
-    | 6+2N | electricity price forecast t+1 [EUR/kWh]     | 0   | max(dataset) |
-    | ...  | electricity price forecast t+N-1 [EUR/kWh]   | 0   | max(dataset) |
+    - "time": Dict
+        - "quarter_hour": Box(0, 95, shape=(1,)) - quarter hour of the day (0=00:00, ..., 95=23:45)
+        - "day_of_year": Box(0, 365, shape=(1,)) - day within a year
+        - "day_of_week": Box(0, 6, shape=(1,)) - day of week (0=Monday, ..., 6=Sunday)
+    - "state": Box(shape=(3,)) - [Ti, Th, Te] temperatures in Kelvin
+        - Ti: indoor air temperature (0 to 303.15 K)
+        - Th: radiator temperature (0 to 773.15 K)
+        - Te: envelope temperature (0 to 303.15 K)
+    - "forecast": Dict
+        - "temperature": Box(shape=(N,)) - ambient temperature forecast [K]
+        - "solar": Box(shape=(N,)) - solar radiation forecast [W/m²]
+        - "price": Box(shape=(N,)) - electricity price forecast [EUR/kWh]
 
     Additional notes:
-    - Quarter hour: 0=00:00, 1=00:15, 2=00:30, 3=00:45, ..., 95=23:45
     - All forecasts are at 15-minute intervals starting from current time
     - N_forecast (or N) is the prediction horizon length (typically 96 for 24h)
 
@@ -169,35 +162,58 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         print("env N_forecast: ", self.N_forecast)
 
-        # Setup observation and action spaces
-        obs_low = np.array(
-            [
-                0.0,  # quarter hour within a day
-                0.0,  # day within a year
-                0.0,  # Indoor temperature
-                0.0,  # Radiator temperature
-                0.0,  # Envelope temperature
-            ]
-            + [self.dataset.min["temperature_forecast"]] * self.N_forecast  # Ambient temperatures
-            + [self.dataset.min["solar_forecast"]] * self.N_forecast  # Solar radiation
-            + [self.dataset.min["price"]] * self.N_forecast,  # Prices  TODO: Allow negative prices
-            dtype=np.float32,
+        # Setup observation space as Dict
+        self.observation_space = spaces.Dict(
+            {
+                "time": spaces.Dict(
+                    {
+                        "quarter_hour": spaces.Box(
+                            low=0.0, high=24 * 4 - 1, shape=(1,), dtype=np.float32
+                        ),
+                        "day_of_year": spaces.Box(
+                            low=0.0, high=365.0, shape=(1,), dtype=np.float32
+                        ),
+                        "day_of_week": spaces.Box(low=0.0, high=6.0, shape=(1,), dtype=np.float32),
+                    }
+                ),
+                "state": spaces.Box(
+                    low=np.array(
+                        [0.0, 0.0, 0.0],
+                        dtype=np.float32,
+                    ),
+                    high=np.array(
+                        [
+                            convert_temperature(30.0, "celsius", "kelvin"),  # Ti
+                            convert_temperature(500.0, "celsius", "kelvin"),  # Th
+                            convert_temperature(30.0, "celsius", "kelvin"),  # Te
+                        ],
+                        dtype=np.float32,
+                    ),
+                ),
+                "forecast": spaces.Dict(
+                    {
+                        "temperature": spaces.Box(
+                            low=self.dataset.min["temperature_forecast"],
+                            high=self.dataset.max["temperature_forecast"],
+                            shape=(self.N_forecast,),
+                            dtype=np.float32,
+                        ),
+                        "solar": spaces.Box(
+                            low=self.dataset.min["solar_forecast"],
+                            high=self.dataset.max["solar_forecast"],
+                            shape=(self.N_forecast,),
+                            dtype=np.float32,
+                        ),
+                        "price": spaces.Box(
+                            low=self.dataset.min["price"],
+                            high=self.dataset.max["price"],
+                            shape=(self.N_forecast,),
+                            dtype=np.float32,
+                        ),
+                    }
+                ),
+            }
         )
-
-        obs_high = np.array(
-            [
-                24 * 4 - 1,  # quarter hour within a day
-                365,  # day within a year
-                convert_temperature(30.0, "celsius", "kelvin"),  # Indoor temperature
-                convert_temperature(500.0, "celsius", "kelvin"),  # Radiator temperature
-                convert_temperature(30.0, "celsius", "kelvin"),  # Envelope temperature
-            ]
-            + [self.dataset.max["temperature_forecast"]] * self.N_forecast  # Ambient temperatures
-            + [self.dataset.max["solar_forecast"]] * self.N_forecast  # Solar radiation
-            + [self.dataset.max["price"]] * self.N_forecast,  # Prices
-            dtype=np.float32,
-        )
-        self.observation_space = spaces.Box(low=obs_low, high=obs_high)
 
         # Action space: electric power to radiators in Watts
         self.max_power = 5000.0  # Maximum power in Watts
@@ -239,24 +255,27 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             "solar": deque(maxlen=self.history_length),
             "price": deque(maxlen=self.history_length),
             "ddqh": deque(maxlen=self.history_length),
-            "q_Ti": deque(maxlen=self.history_length),
+            "log_q_Ti": deque(maxlen=self.history_length),
         }
 
         self.param_axes_limits_set = False
 
-    def _get_observation(self) -> np.ndarray:
+    def _get_observation(self) -> dict[str, np.ndarray | dict[str, np.ndarray]]:
         """Get the current observation.
 
-        The observation includes time, state, ambient temperatures, solar radiation, and prices
-        up to the prediction horizon.
+        The observation includes time, state, and forecast data.
 
         Returns:
-            np.ndarray: Observation vector containing temporal, state, and forecast information
+            dict: Observation dictionary with:
+                - "time": dict with quarter_hour, day_of_year, day_of_week
+                - "state": flat array [Ti, Th, Te]
+                - "forecast": dict with temperature, solar, price arrays
 
         Notes:
             The observation structure is described in the class docstring.
         """
         quarter_hour, day_of_year = self.dataset.get_time_features(self.idx)
+        day_of_week = self.dataset.index[self.idx].dayofweek  # Monday=0, Sunday=6
 
         forecasts = self.forecaster.get_forecast(
             idx=self.idx,
@@ -265,15 +284,19 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             np_random=self.np_random,
         )
 
-        return np.concatenate(
-            [
-                np.array([quarter_hour, day_of_year], dtype=np.float32),
-                self.state.astype(np.float32),
-                forecasts["temperature"].astype(np.float32),
-                forecasts["solar"].astype(np.float32),
-                forecasts["price"].astype(np.float32),
-            ]
-        )
+        return {
+            "time": {
+                "quarter_hour": np.array([quarter_hour], dtype=np.float32),
+                "day_of_year": np.array([day_of_year], dtype=np.float32),
+                "day_of_week": np.array([day_of_week], dtype=np.float32),
+            },
+            "state": self.state.astype(np.float32),  # [Ti, Th, Te]
+            "forecast": {
+                "temperature": forecasts["temperature"].astype(np.float32),
+                "solar": forecasts["solar"].astype(np.float32),
+                "price": forecasts["price"].astype(np.float32),
+            },
+        }
 
     def _reward_function(self, state: np.ndarray, action: np.ndarray):
         """Compute the reward based on the current state and action.
@@ -298,7 +321,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         elif state[0] > ub:
             constraint_violation += state[0] - ub
 
-        comfort_reward = 1.0 * success - 1.0 * constraint_violation
+        comfort_reward = -(constraint_violation**2 + abs(constraint_violation)) * 0.1
 
         # Reward for energy saving
         price = self.dataset.get_price(self.idx)[0]
@@ -357,6 +380,13 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
         # Deterministic state update
         x_next = self.Ad @ self.state + self.Bd @ action + self.Ed @ exog
+
+        # Add occupancy heat gains:
+        # - Every weekday from 08:00 to 16:45: +300W
+        day_of_week = self.dataset.index[self.idx].dayofweek  # Monday=0, Sunday=6
+        quarter_hour, _ = self.dataset.get_time_features(self.idx)
+        if day_of_week < 5 and 32 <= quarter_hour <= 67:
+            x_next[0] += (1000.0 * self.cfg.step_size) / (self.cfg.thermal_params.dynamics.Ci)
 
         # Add Gaussian noise if enabled
         if self.cfg.enable_noise:
@@ -598,14 +628,14 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             ylabel="solar [W/m²]",
         )
 
-        # 2D plot of ref_Ti vs q_Ti
+        # 2D plot of ref_Ti vs log_q_Ti
         ax: plt.Axes = self.axes[0, 1]
-        (self.trajectory_plots["ref_Ti_over_q_Ti"],) = ax.plot(
-            [], [], "o-", markersize=3, label="ref_Ti vs q_Ti"
+        (self.trajectory_plots["ref_Ti_over_log_q_Ti"],) = ax.plot(
+            [], [], "o-", markersize=3, label="ref_Ti vs log_q_Ti"
         )
         ax.set(
             xlabel="ref_Ti [°C]",
-            ylabel="q_Ti [-]",
+            ylabel="log_q_Ti [-]",
             title="Reference Temperature vs Weight",
         )
         ax.grid(visible=True, alpha=0.3)
@@ -620,12 +650,12 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         )
         ax.grid(visible=True, alpha=0.3, axis="y")
 
-        # Histogram of q_Ti
+        # Histogram of log_q_Ti
         ax: plt.Axes = self.axes[2, 1]
         ax.set(
-            xlabel="q_Ti [-]",
+            xlabel="log_q_Ti [-]",
             ylabel="Frequency",
-            title="q_Ti Distribution",
+            title="log_q_Ti Distribution",
         )
         ax.grid(visible=True, alpha=0.3, axis="y")
 
@@ -641,9 +671,9 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         ctx: HvacPlannerCtx = self.ctx
 
         obs = self._get_observation()
-        temperature_forecast = obs[5 : 5 + self.N_forecast]
-        solar_forecast = obs[5 + self.N_forecast : 5 + 2 * self.N_forecast]
-        price_forecast = obs[5 + 2 * self.N_forecast : 5 + 3 * self.N_forecast]
+        temperature_forecast = obs["forecast"]["temperature"]
+        solar_forecast = obs["forecast"]["solar"]
+        price_forecast = obs["forecast"]["price"]
 
         # Update history buffers with current values (at time step -1)
         # Get current state for history
@@ -669,8 +699,8 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 self.history["price"].append(render_info["price"].flatten()[0])
             if "ddqh" in render_info:
                 self.history["ddqh"].append(render_info["ddqh"].flatten()[0])
-            if "q_Ti" in render_info:
-                self.history["q_Ti"].append(render_info["q_Ti"].flatten()[0])
+            if "log_q_Ti" in render_info:
+                self.history["log_q_Ti"].append(render_info["log_q_Ti"].flatten()[0])
             if "qh" in render_info:
                 self.history["qh"].append(render_info["qh"].flatten()[0])
 
@@ -711,15 +741,15 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                         np.concatenate([hist_y, future_y]),
                     )
 
-            # Update 2D plot: ref_Ti vs q_Ti
-            if "ref_Ti" in render_info and "q_Ti" in render_info:
+            # Update 2D plot: ref_Ti vs log_q_Ti
+            if "ref_Ti" in render_info and "log_q_Ti" in render_info:
                 if not self.param_axes_limits_set:
                     # Draw black rectangle showing the valid parameter region
                     width = render_info["ref_Ti_max"] - render_info["ref_Ti_min"]
-                    height = render_info["q_Ti_max"] - render_info["q_Ti_min"]
+                    height = render_info["log_q_Ti_max"] - render_info["log_q_Ti_min"]
                     self.axes[0, 1].add_patch(
                         mpatches.Rectangle(
-                            xy=(render_info["ref_Ti_min"], render_info["q_Ti_min"]),
+                            xy=(render_info["ref_Ti_min"], render_info["log_q_Ti_min"]),
                             width=width,
                             height=height,
                             linewidth=2,
@@ -734,29 +764,33 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                         render_info["ref_Ti_max"] + 0.05 * width,
                     )
                     self.axes[0, 1].set_ylim(
-                        render_info["q_Ti_min"] - 0.05 * height,
-                        render_info["q_Ti_max"] + 0.05 * height,
+                        render_info["log_q_Ti_min"] - 0.05 * height,
+                        render_info["log_q_Ti_max"] + 0.05 * height,
                     )
 
                     # Set histogram x-limits (only once)
                     self.axes[1, 1].set_xlim(render_info["ref_Ti_min"], render_info["ref_Ti_max"])
-                    self.axes[2, 1].set_xlim(render_info["q_Ti_min"], render_info["q_Ti_max"])
+                    self.axes[2, 1].set_xlim(
+                        render_info["log_q_Ti_min"], render_info["log_q_Ti_max"]
+                    )
 
                     self.param_axes_limits_set = True
 
                 # Historical data
                 hist_ref_Ti = np.array(list(self.history["ref_Ti"]))
-                hist_q_Ti = np.array(list(self.history["q_Ti"]))
+                hist_log_q_Ti = np.array(list(self.history["log_q_Ti"]))
 
                 # Future predictions
                 future_ref_Ti = render_info["ref_Ti"].flatten()
-                future_q_Ti = render_info["q_Ti"].flatten()
+                future_log_q_Ti = render_info["log_q_Ti"].flatten()
 
                 # Combine history and future
                 combined_ref_Ti = np.concatenate([hist_ref_Ti, future_ref_Ti])
-                combined_q_Ti = np.concatenate([hist_q_Ti, future_q_Ti])
+                combined_log_q_Ti = np.concatenate([hist_log_q_Ti, future_log_q_Ti])
 
-                self.trajectory_plots["ref_Ti_over_q_Ti"].set_data(combined_ref_Ti, combined_q_Ti)
+                self.trajectory_plots["ref_Ti_over_log_q_Ti"].set_data(
+                    combined_ref_Ti, combined_log_q_Ti
+                )
 
                 # Update histograms
                 # Histogram for ref_Ti
@@ -787,19 +821,22 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                 )
                 self.axes[1, 1].grid(visible=True, alpha=0.3, axis="y")
 
-                # Histogram for q_Ti
+                # Histogram for log_q_Ti
                 self.axes[2, 1].clear()
-                if len(combined_q_Ti) > 0:
+                if len(combined_log_q_Ti) > 0:
                     # Flatten to ensure 1D array and convert to numpy
-                    data_q_Ti = np.asarray(combined_q_Ti).flatten()
+                    data_log_q_Ti = np.asarray(combined_log_q_Ti).flatten()
                     # Check if range is valid
-                    if render_info["q_Ti_max"] > render_info["q_Ti_min"] and len(data_q_Ti) > 0:
+                    if (
+                        render_info["log_q_Ti_max"] > render_info["log_q_Ti_min"]
+                        and len(data_log_q_Ti) > 0
+                    ):
                         self.axes[2, 1].hist(
-                            data_q_Ti,
+                            data_log_q_Ti,
                             bins=20,
                             range=(
-                                float(render_info["q_Ti_min"]),
-                                float(render_info["q_Ti_max"]),
+                                float(render_info["log_q_Ti_min"]),
+                                float(render_info["log_q_Ti_max"]),
                             ),
                             color="blue",
                             alpha=0.7,
@@ -807,7 +844,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
                         )
                 # Re-apply formatting after clear (clear() removes all properties)
                 self.axes[2, 1].set(
-                    xlabel="q_Ti [-]",
+                    xlabel="log_q_Ti [-]",
                     ylabel="Frequency",
                 )
                 self.axes[2, 1].grid(visible=True, alpha=0.3, axis="y")

@@ -36,7 +36,7 @@ class DataConfig:
         split_seed: Random seed for reproducible train/test split.
     """
 
-    price_zone: Literal["NO1", "NO2", "NO3", "DK1", "DK2", "DE-AT-LU"] = "NO1"
+    price_zone: Literal["NO1", "NO2", "NO3", "DK1", "DK2", "DE-AT-LU", "DE-LU"] = "DE-LU"
     price_data_path: Path | None = None
     weather_data_path: Path | None = None
     start_time: pd.Timestamp | None = None  # if None, samples randomly from data
@@ -45,11 +45,11 @@ class DataConfig:
     mode: Literal["random", "continual"] = "random"
 
     # train / test split configuration
-    max_hours: int = 1.5 * 24  # Maximum episode length in hours
+    max_hours: int = int(4.5 * 24)  # Maximum episode length in hours
     valid_months: list[int] | None = field(
-        default_factory=lambda: [1, 2, 3, 4, 9, 10, 11, 12]
-    )  # Heating season months: Jan-Apr, Sep-Dec
-    total_test_episodes: int = 100  # Exact number of test episodes (stratified across months/years)
+        default_factory=lambda: [1, 2, 12]
+    )  # Heating season months: Jan-Feb, Dec
+    total_test_episodes: int = 0  # Exact number of test episodes (stratified across months/years)
     split_seed: int = 42  # Seed for reproducible train/test split
 
 
@@ -556,6 +556,7 @@ def load_price_data(
     price_zone: str = "NO1",
     start_date: str = "2017-01-01",
     end_date: str = "2017-11-30",
+    min_price: float = 0.0001,
 ) -> pd.DataFrame:
     """Load electricity price data from CSV file.
 
@@ -564,6 +565,7 @@ def load_price_data(
         price_zone: Electricity price zone.
         start_date: Start date for filtering price data.
         end_date: End date for filtering price data.
+        min_price: The cut-off value to prevent negative prices.
 
     Returns:
         DataFrame with processed price data
@@ -592,6 +594,9 @@ def load_price_data(
 
         # Save to CSV for future use
         price_data.to_csv(csv_path, index=True)
+
+    # ensure price is non-negative and has a minimum value
+    price_data["price"] = price_data["price"].clip(lower=min_price)
 
     return price_data
 
@@ -704,8 +709,8 @@ def get_open_meteo_data(
 
 def load_weather_data(
     csv_path: Path,
-    latitude: float = 59.91387,
-    longitude: float = 10.7522,
+    latitude: float = 47.995,  #  latitude: float = 59.91387,
+    longitude: float = 7.850,  #  longitude: float = 10.7522,
     start_date: str = "2017-01-01",
     end_date: str = "2025-11-30",
 ) -> pd.DataFrame:
@@ -764,7 +769,7 @@ def load_and_prepare_data(
     if price_zone is None:
         price_zone = "NO1"
     if start_date is None:
-        start_date = "2017-01-01"
+        start_date = "2021-03-23"
     if end_date is None:
         end_date = "2025-02-15"  # After this, the price data is missing in large parts
 

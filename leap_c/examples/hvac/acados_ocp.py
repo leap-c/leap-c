@@ -44,17 +44,36 @@ def make_default_hvac_params(
     """
     hydronic_params = HydronicParameters() if hydronic_params is None else hydronic_params
 
-    params = [
-        AcadosParameter(
-            name=k,
-            default=np.array([v]),
-            space=gym.spaces.Box(
-                low=0.95 * np.array([v]), high=1.05 * np.array([v]), dtype=np.float64
-            ),
-            interface="fix" if "dynamics" not in interface else "learnable",
+    # TODO: The default parameter shifts are currently hardcoded. This will be
+    # improved once the environment interface is refactored.
+    scaling_shifts = {
+        "gAw": 0.8,
+        "Rea": 0.8,
+        "Rhi": 0.8,
+        "Rie": 0.8,
+        "Ch": 0.8,
+        "Ci": 0.8,
+        "Ce": 0.8,
+    }
+    params = []
+
+    for k, v in asdict(hydronic_params.dynamics).items():
+        default_value = scaling_shifts[k] * np.array([v])
+        if k in scaling_shifts and "dynamics" in interface:
+            param_interface = "learnable"
+        else:
+            param_interface = "fix"
+
+        params.append(
+            AcadosParameter(
+                name=k,
+                default=default_value,
+                space=gym.spaces.Box(
+                    low=0.7 * np.array([v]), high=1.3 * np.array([v]), dtype=np.float64
+                ),
+                interface=param_interface,
+            )
         )
-        for k, v in asdict(hydronic_params.dynamics).items()
-    ]
 
     if isinstance(granularity, int):
         assert 1 <= granularity <= N_horizon, (
@@ -158,9 +177,9 @@ def make_default_hvac_params(
     params.extend(
         [
             AcadosParameter(
-                name="q_Ti",
-                default=np.array([0.2]),  # weight for indoor temperature residuals
-                space=gym.spaces.Box(low=np.array([0.01]), high=np.array([0.55]), dtype=np.float64),
+                name="log_q_Ti",
+                default=np.array([-1.9]),  # log10 of the weight for indoor temperature residuals
+                space=gym.spaces.Box(low=np.array([-2.0]), high=np.array([1.0]), dtype=np.float64),
                 interface="learnable",
                 end_stages=end_stages,
             ),
@@ -221,9 +240,6 @@ def export_parametric_ocp(
     ddqh = ca.SX.sym("ddqh")  # Acceleration of heat input to radiator
 
     Ad, Bd, Ed = transcribe_discrete_state_space(
-        Ad=np.zeros((3, 3)),
-        Bd=np.zeros((3, 1)),
-        Ed=np.zeros((3, 2)),
         dt=dt,
         params=param_manager.recreate_dataclass(HydronicDynamicsParameters),
     )
@@ -247,7 +263,7 @@ def export_parametric_ocp(
     ocp.cost.cost_type = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = (
         0.25 * param_manager.get("price") * qh
-        + param_manager.get("q_Ti") * (param_manager.get("ref_Ti") - ocp.model.x[0]) ** 2
+        + 10 ** param_manager.get("log_q_Ti") * (param_manager.get("ref_Ti") - ocp.model.x[0]) ** 2
         + param_manager.get("q_dqh") * (dqh) ** 2
         + param_manager.get("q_ddqh") * (ddqh) ** 2
     )
@@ -255,7 +271,7 @@ def export_parametric_ocp(
     ocp.cost.cost_type_e = "EXTERNAL"
     ocp.model.cost_expr_ext_cost_e = (
         0.25 * param_manager.get("price") * qh
-        + param_manager.get("q_Ti") * (param_manager.get("ref_Ti") - ocp.model.x[0]) ** 2
+        + 10 ** param_manager.get("log_q_Ti") * (param_manager.get("ref_Ti") - ocp.model.x[0]) ** 2
         + param_manager.get("q_dqh") * (dqh) ** 2
     )
 

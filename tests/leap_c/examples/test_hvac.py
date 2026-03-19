@@ -4,10 +4,12 @@ import numpy as np
 import pandas as pd
 import pytest
 import torch
+from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
 from leap_c.examples.hvac.acados_ocp import make_default_hvac_params
 from leap_c.examples.hvac.planner import HvacPlanner, HvacPlannerConfig
 from leap_c.ocp.acados.parameters import AcadosParameter
+from leap_c.torch.rl.buffer import collate_dict_to_tensordict, pytree_tensor_to
 
 
 def _make_synthetic_weather() -> pd.DataFrame:
@@ -73,29 +75,58 @@ def hvac_planner_non_stagewise():
     return planner
 
 
-def create_obs(N_horizon: int, seed: int = 42) -> np.ndarray:
-    """Create a single observation with forecasts.
+def create_obs(N_horizon: int, seed: int = 42) -> dict[str, np.ndarray | dict[str, np.ndarray]]:
+    """Create a single dict observation with forecasts.
 
     Args:
         N_horizon: Number of forecast steps.
         seed: Random seed for reproducible forecasts.
 
     Returns:
-        Observation array of shape (5 + 3*N_horizon,).
+        Dict observation matching the HVAC environment's observation space.
     """
     rng = np.random.default_rng(seed)
 
-    # First 5 elements: quarter_hour, day, Ti, Th, Te
-    base_obs = np.array([12.0, 150.0, 293.15, 303.15, 295.15], dtype=np.float32)
-
-    # Forecasts: N_horizon each for temperature, solar, price
     N_forecast = N_horizon + 1  # +1 because we need N_horizon+1 stages
     temperature_forecast = rng.uniform(280.0, 300.0, N_forecast).astype(np.float32)
     solar_forecast = rng.uniform(0.0, 150.0, N_forecast).astype(np.float32)
     price_forecast = rng.uniform(0.0, 0.5, N_forecast).astype(np.float32)
 
-    obs = np.concatenate([base_obs, temperature_forecast, solar_forecast, price_forecast])
-    return obs
+    return {
+        "time": {
+            "quarter_hour": np.array([12.0], dtype=np.float32),
+            "day_of_year": np.array([150.0], dtype=np.float32),
+            "day_of_week": np.array([3.0], dtype=np.float32),
+        },
+        "state": np.array([293.15, 303.15, 295.15], dtype=np.float32),
+        "forecast": {
+            "temperature": temperature_forecast,
+            "solar": solar_forecast,
+            "price": price_forecast,
+        },
+    }
+
+
+_collate_fn_map = {**default_collate_fn_map, dict: collate_dict_to_tensordict}
+
+
+def collate_obs(obs_list: list[dict]):
+    """Collate a list of dict observations into a batched TensorDict.
+
+    Uses the same collation logic as the replay buffer to stack dict
+    observations and convert numpy arrays to torch tensors.
+
+    Args:
+        obs_list: List of dict observations from create_obs().
+
+    Returns:
+        TensorDict with a leading batch dimension and float64 tensors.
+    """
+    return pytree_tensor_to(
+        collate(obs_list, collate_fn_map=_collate_fn_map),
+        device="cpu",
+        tensor_dtype=torch.float64,
+    )
 
 
 def test_default_param_single_obs(hvac_planner_stagewise: HvacPlanner) -> None:
@@ -119,7 +150,8 @@ def test_default_param_batched_obs(hvac_planner_stagewise: HvacPlanner) -> None:
     n_batch = 4
 
     # Create batched observations with different seeds for variety
-    obs_batch = np.stack([create_obs(N_horizon, seed=i) for i in range(n_batch)])
+    obs_list = [create_obs(N_horizon, seed=i) for i in range(n_batch)]
+    obs_batch = collate_obs(obs_list)
 
     param_batch = hvac_planner_stagewise.default_param(obs_batch)
 
@@ -128,7 +160,7 @@ def test_default_param_batched_obs(hvac_planner_stagewise: HvacPlanner) -> None:
     assert param_batch.shape[0] == n_batch
 
     # Check that each batch element has the same parameter length as single obs
-    single_obs = obs_batch[0]
+    single_obs = obs_list[0]
     single_param = hvac_planner_stagewise.default_param(single_obs)
     assert param_batch.shape[1] == len(single_param)
 
@@ -142,14 +174,15 @@ def test_default_param_batch_consistency(hvac_planner_stagewise: HvacPlanner) ->
     n_batch = 3
 
     # Create batched observations
-    obs_batch = np.stack([create_obs(N_horizon, seed=i) for i in range(n_batch)])
+    obs_list = [create_obs(N_horizon, seed=i) for i in range(n_batch)]
+    obs_batch = collate_obs(obs_list)
 
     # Get batched params
     param_batch = hvac_planner_stagewise.default_param(obs_batch)
 
     # Get individual params and compare
     for i in range(n_batch):
-        single_obs = obs_batch[i]
+        single_obs = obs_list[i]
         single_param = hvac_planner_stagewise.default_param(single_obs)
 
         # Check that individual result matches the batched result
@@ -166,13 +199,13 @@ def test_default_param_non_stagewise(hvac_planner_non_stagewise: HvacPlanner) ->
     N_horizon = hvac_planner_non_stagewise.cfg.N_horizon
 
     # Single observation
-    obs_single = np.stack([create_obs(N_horizon, seed=42)])
+    obs_single = collate_obs([create_obs(N_horizon, seed=42)])
     param_single = hvac_planner_non_stagewise.default_param(obs_single)
     assert param_single.ndim == 2
 
     # Batched observation
     n_batch = 3
-    obs_batch = np.stack([create_obs(N_horizon, seed=i) for i in range(n_batch)])
+    obs_batch = collate_obs([create_obs(N_horizon, seed=i) for i in range(n_batch)])
     param_batch = hvac_planner_non_stagewise.default_param(obs_batch)
 
     # When stagewise=False, all params should be the same (default)
@@ -188,11 +221,11 @@ def test_forecast_extraction(hvac_planner_stagewise: HvacPlanner) -> None:
     # Create an observation with known forecast values
     obs = create_obs(N_horizon, seed=123)
 
-    # Extract forecasts manually
+    # Extract forecasts from dict observation
     N_forecast = N_horizon + 1
-    temperature_forecast = obs[5 : 5 + N_forecast]
-    solar_forecast = obs[5 + N_forecast : 5 + 2 * N_forecast]
-    price_forecast = obs[5 + 2 * N_forecast : 5 + 3 * N_forecast]
+    temperature_forecast = obs["forecast"]["temperature"]
+    solar_forecast = obs["forecast"]["solar"]
+    price_forecast = obs["forecast"]["price"]
 
     # Verify we have the right number of forecast values
     assert len(temperature_forecast) == N_forecast
@@ -282,12 +315,8 @@ def test_all_forecasts_non_learnable(batch_size: int) -> None:
     )
 
     # Create observations
-    if batch_size == 1:
-        obs = create_obs(N_horizon, seed=42)
-        obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
-    else:
-        obs_batch = np.stack([create_obs(N_horizon, seed=i) for i in range(batch_size)])
-        obs_torch = torch.from_numpy(obs_batch).double()
+    obs_list = [create_obs(N_horizon, seed=i) for i in range(batch_size)]
+    obs_batch = collate_obs(obs_list)
 
     # Verify that none of the forecast parameters are learnable
     assert not planner.param_manager.has_learnable_param_pattern("temperature_*_*")
@@ -295,7 +324,7 @@ def test_all_forecasts_non_learnable(batch_size: int) -> None:
     assert not planner.param_manager.has_learnable_param_pattern("price_*_*")
 
     # Forward pass should extract forecasts from obs
-    ctx, u0, x, u, value = planner.forward(obs_torch)
+    ctx, u0, x, u, value = planner.forward(obs_batch)
 
     # Verify that the forward pass completed successfully
     assert ctx is not None
@@ -316,12 +345,8 @@ def test_all_forecasts_learnable(batch_size: int) -> None:
     )
 
     # Create observations
-    if batch_size == 1:
-        obs = create_obs(N_horizon, seed=42)
-        obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
-    else:
-        obs_batch = np.stack([create_obs(N_horizon, seed=i) for i in range(batch_size)])
-        obs_torch = torch.from_numpy(obs_batch).double()
+    obs_list = [create_obs(N_horizon, seed=i) for i in range(batch_size)]
+    obs_batch = collate_obs(obs_list)
 
     # Verify that all forecast parameters are learnable
     assert planner.param_manager.has_learnable_param_pattern("temperature_*_*")
@@ -329,7 +354,7 @@ def test_all_forecasts_learnable(batch_size: int) -> None:
     assert planner.param_manager.has_learnable_param_pattern("price_*_*")
 
     # Forward pass should NOT extract forecasts from obs (uses learned params)
-    ctx, u0, x, u, value = planner.forward(obs_torch)
+    ctx, u0, x, u, value = planner.forward(obs_batch)
 
     # Verify that the forward pass completed successfully
     assert ctx is not None
@@ -363,12 +388,8 @@ def test_mixed_forecast_learnability(
     )
 
     # Create observations with known values
-    if batch_size == 1:
-        obs = create_obs(N_horizon, seed=42)
-        obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
-    else:
-        obs_batch = np.stack([create_obs(N_horizon, seed=i) for i in range(batch_size)])
-        obs_torch = torch.from_numpy(obs_batch).double()
+    obs_list = [create_obs(N_horizon, seed=i) for i in range(batch_size)]
+    obs_batch = collate_obs(obs_list)
 
     # Verify learnability patterns
     assert planner.param_manager.has_learnable_param_pattern("temperature_*_*") == ta_learnable
@@ -376,7 +397,7 @@ def test_mixed_forecast_learnability(
     assert planner.param_manager.has_learnable_param_pattern("price_*_*") == price_learnable
 
     # Forward pass should handle mixed scenario correctly
-    ctx, u0, x, u, value = planner.forward(obs_torch)
+    ctx, u0, x, u, value = planner.forward(obs_batch)
 
     # Verify that the forward pass completed successfully
     assert ctx is not None
@@ -397,13 +418,13 @@ def test_forecast_extraction_indices() -> None:
 
     # Create observation with known values
     obs = create_obs(N_horizon, seed=123)
-    obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
+    obs_batch = collate_obs([obs])
 
-    # Extract expected values manually
+    # Extract expected values from dict observation
     N_forecast = N_horizon + 1
-    expected_Ta = obs[5 : 5 + N_forecast]
-    expected_solar = obs[5 + N_forecast : 5 + 2 * N_forecast]
-    expected_price = obs[5 + 2 * N_forecast : 5 + 3 * N_forecast]
+    expected_Ta = obs["forecast"]["temperature"]
+    expected_solar = obs["forecast"]["solar"]
+    expected_price = obs["forecast"]["price"]
 
     # Verify shapes are correct
     assert len(expected_Ta) == N_forecast
@@ -411,7 +432,7 @@ def test_forecast_extraction_indices() -> None:
     assert len(expected_price) == N_forecast
 
     # Forward pass
-    ctx, u0, x, u, value = planner.forward(obs_torch)
+    ctx, u0, x, u, value = planner.forward(obs_batch)
 
     # Verify computation succeeded
     assert ctx is not None
@@ -430,7 +451,7 @@ def test_forecast_with_different_horizons() -> None:
         )
 
         obs = create_obs(N_horizon, seed=42)
-        obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
+        obs_torch = collate_obs([obs])
 
         # Verify parameter patterns
         assert not planner.param_manager.has_learnable_param_pattern("temperature_*_*")
@@ -458,16 +479,15 @@ def test_forecast_bounds_non_negative() -> None:
 
     # Create observation - solar values should be non-negative
     obs = create_obs(N_horizon, seed=42)
-    N_forecast = N_horizon + 1
-    solar_forecast = obs[5 + N_forecast : 5 + 2 * N_forecast]
+    solar_forecast = obs["forecast"]["solar"]
 
     # Verify the test observation has non-negative solar values
     assert np.all(solar_forecast >= 0), "Test observation should have non-negative solar values"
 
-    obs_torch = torch.from_numpy(obs).unsqueeze(0).double()
+    obs_batch = collate_obs([obs])
 
     # Forward pass
-    ctx, u0, x, u, value = planner.forward(obs_torch)
+    ctx, u0, x, u, value = planner.forward(obs_batch)
 
     # Verify computation succeeded
     assert ctx is not None
