@@ -1,6 +1,8 @@
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from torch import float32
+
 from leap_c.examples.cartpole.env import CartPoleEnv
 from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
 
@@ -23,6 +25,7 @@ def test_trainer_checkpointing():
             val_env=val_env,
             output_path=tmpdir,
             device="cpu",
+            dtype=float32,
             train_env=train_env,
         )
 
@@ -73,6 +76,7 @@ def test_trainer_run_with_eval_env():
             val_env=val_env,
             output_path=tmpdir,
             device="cpu",
+            dtype=float32,
             train_env=train_env,
         )
 

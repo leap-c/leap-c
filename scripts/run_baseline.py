@@ -7,10 +7,10 @@ environments (e.g. hvac), where a lot of validation episode are required to get
 a good estimate of performance.
 """
 
-from argparse import ArgumentParser
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any, Generator, Literal
+from typing import Any, Generator, Literal, get_args
 
 import gymnasium as gym
 import torch
@@ -18,7 +18,14 @@ from numpy import ndarray
 
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
-from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
+from leap_c.run import (
+    default_controller_code_path,
+    default_name,
+    default_output_path,
+    init_run,
+    validate_torch_device_arg,
+    validate_torch_dtype_arg,
+)
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.utils.seed import mk_seed
 from leap_c.trainer import Trainer, TrainerConfig
@@ -69,7 +76,8 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         cfg: BaselineTrainerConfig,
         val_env: gym.Env | None,
         output_path: str | Path,
-        device: str,
+        device: int | str | torch.device,
+        dtype: torch.dtype,
         policy_type: Literal["controller", "random"],
         controller: ParameterizedController[CtxType] | None = None,
         train_env: gym.Env | None = None,
@@ -81,6 +89,7 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             val_env: The validation environment.
             output_path: The path to save outputs to.
             device: The device to use.
+            dtype: The data type to use.
             policy_type: The type of policy to run.
             controller: The parameterized controller to use (if policy_type is 'controller').
             train_env: The training environment. If None, only validation is performed.
@@ -91,9 +100,8 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         self.train_env = wrap_env(train_env) if train_env is not None else None
 
         if self.policy_type == "controller":
-            assert self.controller is not None
-            buffer = ReplayBuffer(1, device, collate_fn_map=controller.collate_fn_map)  # type: ignore
-            self.collate_fn = buffer.collate
+            assert self.controller is not None, "Expected controller to be provided!"
+            self.collate_fn = ReplayBuffer(1, device, dtype, controller.collate_fn_map).collate
         else:
             self.collate_fn = None
 
@@ -117,13 +125,15 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             if self.policy_type == "random":
                 action = self.train_env.action_space.sample()
             else:
-                obs_batched = self.collate_fn([obs])
+                obs_batched: torch.Tensor = self.collate_fn([obs])
                 default_param = self.controller.default_param(obs_batched)
-                default_param_tensor = torch.from_numpy(default_param).to(self.device)
+                default_param_tensor = torch.as_tensor(
+                    default_param, device=self.device, dtype=obs_batched.dtype
+                )
                 policy_ctx, action_tensor = self.controller(
                     obs_batched, default_param_tensor, ctx=policy_ctx
                 )
-                action = action_tensor.cpu().numpy()[0]
+                action = action_tensor[0].cpu().numpy()
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
 
@@ -216,7 +226,8 @@ def create_cfg(
 def run_baseline(
     cfg: RunBaselineConfig,
     output_path: str | Path,
-    device: str = "cpu",
+    device: int | str | torch.device,
+    dtype: torch.dtype,
     reuse_code_dir: Path | None = None,
     only_train: bool = False,
 ) -> float:
@@ -227,6 +238,7 @@ def run_baseline(
         output_path: The path to save outputs to.
             If it already exists, the run will continue from the last checkpoint.
         device: The device to use.
+        dtype: The data type to use.
         reuse_code_dir: The directory to reuse compiled code from, if any.
         only_train: Whether to run training episodes.
     """
@@ -242,6 +254,7 @@ def run_baseline(
         val_env=val_env,
         output_path=output_path,
         device=device,
+        dtype=dtype,
         policy_type=cfg.policy_type,
         controller=controller,
         train_env=train_env,
@@ -251,35 +264,66 @@ def run_baseline(
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("--output_path", type=Path, default=None)
-    parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--env", type=str, default="cartpole")
-    parser.add_argument("--controller", type=str, default=None)
-    parser.add_argument(
+    parser = ArgumentParser(
+        description="Training of baseline controllers.",
+        formatter_class=ArgumentDefaultsHelpFormatter,
+    )
+    group = parser.add_argument_group("Run settings")
+    group.add_argument(
+        "--output-path", type=Path, default=None, help="Path to outputs (e.g., logs)."
+    )
+    group.add_argument(
+        "--device", type=validate_torch_device_arg, default="cpu", help="Device to run on."
+    )
+    group.add_argument(
+        "--dtype",
+        type=validate_torch_dtype_arg,
+        default="float32",
+        help="Data type to use during training and evaluation.",
+    )
+    group.add_argument("--seed", type=int, default=0, help="RNG seed.")
+    group.add_argument(
+        "-r",
+        "--reuse-code",
+        action="store_true",
+        help="Reuse compiled code. The first time this is run, it will compile the code.",
+    )
+    group.add_argument(
+        "--reuse-code-dir", type=Path, default=None, help="Directory for compiled code."
+    )
+    group = parser.add_argument_group("Train and eval")
+    group.add_argument(
+        "--env",
+        type=str,
+        choices=get_args(ExampleEnvName),
+        default="cartpole",
+        help="Environment to train on.",
+    )
+    group.add_argument(
+        "--controller",
+        type=str,
+        choices=get_args(ExampleControllerName),
+        default=None,
+        help="MPC controller to use as actor. If not provided, it is taken from `--env`.",
+    )
+    group.add_argument(
         "--policy-type",
         type=str,
         default="controller",
         choices=["controller", "random"],
-        help="The type of policy to run.",
+        help="The type of policy to run. If `random`, the controller will not be used.",
     )
-    parser.add_argument(
+    group.add_argument(
         "--only-train",
         action="store_true",
         help="Run training episodes over time (for comparison with RL methods). "
         "Without this flag, validation episodes are run instead.",
     )
-    parser.add_argument(
-        "-r",
-        "--reuse_code",
-        action="store_true",
-        help="Reuse compiled code. The first time this is run, it will compile the code.",
-    )
-    parser.add_argument("--reuse_code_dir", type=Path, default=None)
-    parser.add_argument("--use-wandb", action="store_true")
-    parser.add_argument("--wandb-entity", type=str, default=None)
-    parser.add_argument("--wandb-project", type=str, default="leap-c")
+    group = parser.add_argument_group("W&B logging")
+    group.add_argument("--use-wandb", action="store_true", help="Whether to use W&B logging.")
+    group.add_argument("--wandb-entity", type=str, default=None, help="W&B entity name.")
+    group.add_argument("--wandb-project", type=str, default="leap-c", help="W&B project name.")
+    group.add_argument("--wandb-group", type=str, default="baseline", help="W&B group name.")
     args = parser.parse_args()
 
     cfg = create_cfg(
@@ -317,10 +361,4 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
-    run_baseline(
-        cfg=cfg,
-        output_path=output_path,
-        device=args.device,
-        reuse_code_dir=reuse_code_dir,
-        only_train=args.only_train,
-    )
+    run_baseline(cfg, output_path, args.device, args.dtype, reuse_code_dir, args.only_train)
