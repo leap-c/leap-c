@@ -97,6 +97,17 @@ class HvacDataset:
         self.min = {key: self.data[key].min() for key in self.data.columns}
         self.max = {key: self.data[key].max() for key in self.data.columns}
 
+        # Pre-built numpy arrays for fast indexed access
+        self._price = self.data["price"].to_numpy()
+        self._temperature = self.data["temperature"].to_numpy()
+        self._temperature_forecast = self.data["temperature_forecast"].to_numpy()
+        self._solar = self.data["solar"].to_numpy()
+        self._solar_forecast = self.data["solar_forecast"].to_numpy()
+        self._quarter_hour = self.data["quarter_hour"].to_numpy()
+        self._day = self.data["day"].to_numpy()
+        self._time = self.data["time"].to_numpy(dtype="datetime64[m]")
+        self._month = self.data.index.month.to_numpy()
+
         # Continual mode: track current position in dataset
         self._continual_idx: int = 0
 
@@ -123,7 +134,7 @@ class HvacDataset:
         Returns:
             Price array of shape (horizon,).
         """
-        return self.data["price"].iloc[idx : idx + horizon].to_numpy()
+        return self._price[idx : idx + horizon]
 
     def get_temperature(self, idx: int, horizon: int = 1) -> np.ndarray:
         """Get ambient temperature from index.
@@ -135,7 +146,7 @@ class HvacDataset:
         Returns:
             Temperature array of shape (horizon,).
         """
-        return self.data["temperature"].iloc[idx : idx + horizon].to_numpy()
+        return self._temperature[idx : idx + horizon]
 
     def get_temperature_forecast(self, idx: int, horizon: int = 1) -> np.ndarray:
         """Get ambient temperature forecastfrom index.
@@ -147,7 +158,7 @@ class HvacDataset:
         Returns:
             Temperature forecast array of shape (horizon,).
         """
-        return self.data["temperature_forecast"].iloc[idx : idx + horizon].to_numpy()
+        return self._temperature_forecast[idx : idx + horizon]
 
     def get_solar(self, idx: int, horizon: int = 1) -> np.ndarray:
         """Get solar radiation from index.
@@ -159,7 +170,7 @@ class HvacDataset:
         Returns:
             Solar radiation array of shape (horizon,).
         """
-        return self.data["solar"].iloc[idx : idx + horizon].to_numpy()
+        return self._solar[idx : idx + horizon]
 
     def get_solar_forecast(self, idx: int, horizon: int = 1) -> np.ndarray:
         """Get solar radiation forecast from index.
@@ -171,7 +182,7 @@ class HvacDataset:
         Returns:
             Solar radiation array of shape (horizon,).
         """
-        return self.data["solar_forecast"].iloc[idx : idx + horizon].to_numpy()
+        return self._solar_forecast[idx : idx + horizon]
 
     def get_time_features(self, idx: int) -> tuple[int, int]:
         """Get time features (quarter hour, day of year).
@@ -182,9 +193,7 @@ class HvacDataset:
         Returns:
             Tuple of (quarter_hour, day_of_year).
         """
-        quarter_hour = self.data["quarter_hour"].iloc[idx]
-        day_of_year = self.data["day"].iloc[idx]
-        return quarter_hour, day_of_year
+        return self._quarter_hour[idx], self._day[idx]
 
     def get_time_forecast(self, idx: int, horizon: int) -> np.ndarray:
         """Get time forecast array.
@@ -196,7 +205,7 @@ class HvacDataset:
         Returns:
             Array of datetime64[m] timestamps.
         """
-        return self.data["time"].iloc[idx : idx + horizon + 1].to_numpy(dtype="datetime64[m]")
+        return self._time[idx : idx + horizon + 1]
 
     def get_quarter_hours(self, idx: int, horizon: int) -> np.ndarray:
         """Get quarter hour values for a range.
@@ -208,7 +217,7 @@ class HvacDataset:
         Returns:
             Array of quarter hour values.
         """
-        return self.data["quarter_hour"].iloc[idx : idx + horizon].to_numpy()
+        return self._quarter_hour[idx : idx + horizon]
 
     def is_valid_index(self, idx: int, horizon: int = 1) -> bool:
         """Check if index allows fetching horizon steps.
@@ -253,8 +262,8 @@ class HvacDataset:
         year_month_indices: dict[tuple[int, int], list[int]] = {}
 
         for idx in range(min_idx, max_idx + 1):
-            date = self.index[idx]
-            if date.month in valid_months:
+            if self._month[idx] in valid_months:
+                date = self.index[idx]
                 key = (date.year, date.month)
                 if key not in year_month_indices:
                     year_month_indices[key] = []
@@ -301,7 +310,7 @@ class HvacDataset:
         valid_months = self.cfg.valid_months or list(range(1, 13))
 
         for idx in range(len(self.data) - horizon):
-            if self.index[idx].month in valid_months:
+            if self._month[idx] in valid_months:
                 return idx
 
         raise ValueError("No valid starting index found in dataset.")
@@ -320,7 +329,7 @@ class HvacDataset:
         max_idx = len(self.data) - horizon
 
         for idx in range(current_idx, max_idx):
-            if self.index[idx].month in valid_months:
+            if self._month[idx] in valid_months:
                 return idx
 
         return None
@@ -340,7 +349,7 @@ class HvacDataset:
 
         steps = 0
         for idx in range(start_idx, max_idx):
-            if self.index[idx].month not in valid_months:
+            if self._month[idx] not in valid_months:
                 break
             steps += 1
 
@@ -449,7 +458,7 @@ class HvacDataset:
         if split == "all":
             for _ in range(max_attempts):
                 idx = rng.integers(low=min_start_idx, high=max_start_idx + 1)
-                if self.cfg.valid_months is None or self.index[idx].month in self.cfg.valid_months:
+                if self.cfg.valid_months is None or self._month[idx] in self.cfg.valid_months:
                     return idx, max_steps
             raise RuntimeError(
                 f"Could not find a valid start date in {max_attempts} attempts. "
@@ -487,7 +496,7 @@ class HvacDataset:
                 continue
 
             if self.cfg.valid_months is not None:
-                if self.index[idx].month not in self.cfg.valid_months:
+                if self._month[idx] not in self.cfg.valid_months:
                     continue
 
             return idx, max_steps

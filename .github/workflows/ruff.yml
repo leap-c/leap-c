@@ -1,4 +1,4 @@
-name: Ruff Linting and Formatting
+name: Ruff
 on:
   push:
   pull_request:
