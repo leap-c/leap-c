@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Generator, Generic, Literal, TypeVar, get_args
@@ -306,6 +307,16 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
             return self._run_with_eval_env()
         return self._run_without_eval_env()
 
+    def _make_val_step_callback(
+        self,
+    ) -> Callable[[int, np.ndarray, np.ndarray, float, dict, Any], None] | None:
+        """Return an optional callback invoked after each validation step.
+
+        Called with ``(step, obs)`` where ``step`` is the 1-based index within the
+        current episode. Override in subclasses to add per-step logging or printing.
+        """
+        return None
+
     def validate(self) -> float:
         """Validate the policy on the validation environment.
 
@@ -342,6 +353,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
             render_human=self.cfg.val_render_mode == "human",
             video_folder=self.output_path / "video",
             name_prefix=f"{self.state.step}",
+            step_callback=self._make_val_step_callback(),
         )
         parts_rollout, parts_policy = zip(*rollouts)
 
