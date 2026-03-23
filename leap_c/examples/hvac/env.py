@@ -11,7 +11,7 @@ import numpy as np
 from gymnasium import spaces
 from scipy.constants import convert_temperature
 
-from leap_c.examples.hvac.dataset import HvacDataset
+from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
 from leap_c.examples.hvac.dynamics import (
     HydronicParameters,
     compute_discrete_matrices,
@@ -872,8 +872,6 @@ class ContinualStochasticThreeStateRcEnv(StochasticThreeStateRcEnv):
             args: Positional arguments passed to `StochasticThreeStateRcEnv.__init__`.
             kwargs: Keyword arguments passed to `StochasticThreeStateRcEnv.__init__`.
         """
-        from leap_c.examples.hvac.dataset import DataConfig
-
         if "dataset" not in kwargs and len(args) < 3:
             kwargs["dataset"] = HvacDataset(cfg=DataConfig(mode="continual"))
         super().__init__(*args, **kwargs)
