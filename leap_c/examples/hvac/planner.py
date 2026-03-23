@@ -285,7 +285,9 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                 )
                 render_info[key] = sub_param[key].detach().cpu().numpy()
 
-        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(**overwrites)
+        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
+            batch_size=batch_size, **overwrites
+        )
 
         # Build state: [Ti, Th, Te, qh_prev]
         thermal_state = obs["state"]  # (batch_size, 3) - [Ti, Th, Te]
