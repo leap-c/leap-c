@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+from typing import Any
 
 import matplotlib.gridspec as gridspec
 import matplotlib.patches as mpatches
@@ -10,7 +11,7 @@ import numpy as np
 from gymnasium import spaces
 from scipy.constants import convert_temperature
 
-from leap_c.examples.hvac.dataset import HvacDataset
+from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
 from leap_c.examples.hvac.dynamics import (
     HydronicParameters,
     compute_discrete_matrices,
@@ -851,3 +852,26 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
     def set_ctx(self, ctx: HvacPlannerCtx) -> None:
         self.ctx: HvacPlannerCtx = ctx
+
+
+class ContinualStochasticThreeStateRcEnv(StochasticThreeStateRcEnv):
+    """Simulator for a three-state RC thermal model with exact discretization of Gaussian noise.
+
+    This environment is equivalent to `StochasticThreeStateRcEnv`, with the only difference being
+    that it uses a continual learning dataset as default (though this behaviour can still be
+    overwritten by the user).
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        """Instantiate a `ContinualStochasticThreeStateRcEnv` environment.
+
+        Note that, unless explicitly provided by the user, the `dataset` is set to continual mode by
+        default.
+
+        Args:
+            args: Positional arguments passed to `StochasticThreeStateRcEnv.__init__`.
+            kwargs: Keyword arguments passed to `StochasticThreeStateRcEnv.__init__`.
+        """
+        if "dataset" not in kwargs and len(args) < 3:
+            kwargs["dataset"] = HvacDataset(cfg=DataConfig(mode="continual"))
+        super().__init__(*args, **kwargs)
