@@ -57,7 +57,7 @@ class RunBaselineConfig:
         trainer: The trainer configuration.
     """
 
-    env: ExampleEnvName = "cartpole"
+    env: ExampleEnvName = "hvac"
     controller: ExampleControllerName | None = None
     policy_type: Literal["controller", "random"] = "controller"
     trainer: BaselineTrainerConfig = field(default_factory=BaselineTrainerConfig)
@@ -406,7 +406,7 @@ if __name__ == "__main__":
         "--env",
         type=str,
         choices=get_args(ExampleEnvName),
-        default="cartpole",
+        default="hvac",
         help="Environment to train on.",
     )
     group.add_argument(
