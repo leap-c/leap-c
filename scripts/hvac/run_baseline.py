@@ -7,8 +7,6 @@ environments (e.g. hvac), where a lot of validation episode are required to get
 a good estimate of performance.
 """
 
-import cProfile
-import pstats
 import shutil
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from dataclasses import asdict, dataclass, field
@@ -445,19 +443,6 @@ if __name__ == "__main__":
         "Each step is a 15-min interval (e.g. 1000 steps = 250 hours).",
     )
 
-    group = parser.add_argument_group("Profiling")
-    group.add_argument(
-        "--profile",
-        action="store_true",
-        help="Profile the run with cProfile and save results to --profile-output.",
-    )
-    group.add_argument(
-        "--profile-output",
-        type=Path,
-        default=None,
-        help="Path for the .prof file. Defaults to <output_path>/profile.prof.",
-    )
-
     group = parser.add_argument_group("W&B logging")
     group.add_argument("--use-wandb", action="store_true", help="Whether to use W&B logging.")
     group.add_argument("--wandb-entity", type=str, default=None, help="W&B entity name.")
@@ -502,34 +487,13 @@ if __name__ == "__main__":
     else:
         reuse_code_dir = None
 
-    if args.profile:
-        prof_path = args.profile_output or Path(output_path) / "profile.prof"
-        with cProfile.Profile() as pr:
-            run_baseline(
-                cfg,
-                output_path,
-                args.device,
-                args.dtype,
-                reuse_code_dir,
-                args.only_train,
-                args.val_episode_steps,
-                args.overwrite,
-            )
-        pr.dump_stats(prof_path)
-        stats = pstats.Stats(pr)
-        stats.sort_stats(pstats.SortKey.CUMULATIVE)
-        print("\n--- Top 30 functions by cumulative time ---")
-        stats.print_stats(30)
-        print(f"\nProfile saved to: {prof_path}")
-        print(f"Open interactive chart with:  snakeviz {prof_path}")
-    else:
-        run_baseline(
-            cfg,
-            output_path,
-            args.device,
-            args.dtype,
-            reuse_code_dir,
-            args.only_train,
-            args.val_episode_steps,
-            args.overwrite,
-        )
+    run_baseline(
+        cfg,
+        output_path,
+        args.device,
+        args.dtype,
+        reuse_code_dir,
+        args.only_train,
+        args.val_episode_steps,
+        args.overwrite,
+    )
