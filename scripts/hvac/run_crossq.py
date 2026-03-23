@@ -5,8 +5,6 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Literal, get_args
 
-import torch
-
 from leap_c.examples import ExampleEnvName, create_env
 from leap_c.run import (
     default_name,
