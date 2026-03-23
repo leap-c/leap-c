@@ -1,5 +1,6 @@
 """Central interface to use acados in PyTorch."""
 
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
@@ -136,6 +137,27 @@ class AcadosDiffMpcTorch(torch.nn.Module):
         u = u.to(dtype=self.dtype)
         value = value.to(dtype=self.dtype)
         return ctx, u_star, x, u, value  # type:ignore
+
+    def set_constraint_bounds(
+        self,
+        lbx: np.ndarray,
+        ubx: np.ndarray,
+        stages: Sequence[int],
+    ) -> None:
+        """Set lbx/ubx constraints on the forward solvers for the given stages.
+
+        Args:
+            lbx: Lower bounds, shape ``(batch_size, len(stages), constraint_dim)``.
+            ubx: Upper bounds, shape ``(batch_size, len(stages), constraint_dim)``.
+            stages: Stage indices at which to apply the bounds.
+        """
+        solvers = self.diff_mpc_fun.forward_batch_solver.ocp_solvers
+        batch_size = lbx.shape[0]
+        for i in range(batch_size):
+            solver = solvers[i]
+            for j, stage in enumerate(stages):
+                solver.constraints_set(stage, "lbx", lbx[i, j])
+                solver.constraints_set(stage, "ubx", ubx[i, j])
 
     def sensitivity(self, ctx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
         """Retrieves a specific sensitivity field from the context object.

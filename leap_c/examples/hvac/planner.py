@@ -176,17 +176,13 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             ub: Upper bounds in Kelvin, shape (batch_size, N_horizon + 1).
             batch_size: Number of problem instances in the batch.
         """
-        solvers = self.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers
         N = self.cfg.N_horizon
-        for i in range(batch_size):
-            solver = solvers[i]
-            # Path stages 1 .. N-1: use "lbx" / "ubx" (stage 0 is fixed by x0)
-            for stage in range(1, N):
-                solver.constraints_set(stage, "lbx", np.array([lb[i, stage]]))
-                solver.constraints_set(stage, "ubx", np.array([ub[i, stage]]))
-            # Terminal stage N: constraints_set uses "lbx"/"ubx" for all stages
-            solver.constraints_set(N, "lbx", np.array([lb[i, N]]))
-            solver.constraints_set(N, "ubx", np.array([ub[i, N]]))
+        # Stages 1..N; stage 0 is fixed by x0 and is not constrained here.
+        stages = list(range(1, N + 1))
+        # lb/ub shape: (batch_size, N+1) → select stages 1..N → (batch_size, N, 1)
+        lbx = lb[:batch_size, 1:, np.newaxis]
+        ubx = ub[:batch_size, 1:, np.newaxis]
+        self.diff_mpc.set_constraint_bounds(lbx, ubx, stages)
 
     def forward(
         self,
