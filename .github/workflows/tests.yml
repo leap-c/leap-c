@@ -51,6 +51,7 @@ jobs:
           token: ${{ env.CODECOV_TOKEN }}
           name: ${{ matrix.test-group.env }}-${{ matrix.test-group.script }}
           flags: integration-tests
+          verbose: true
 
   unit_tests:
     name: Unit Tests
@@ -86,3 +87,4 @@ jobs:
           token: ${{ env.CODECOV_TOKEN }}
           name: unit-tests-${{ matrix.python-version }}
           flags: unit-tests
+          verbose: true
