@@ -125,7 +125,7 @@ def _create_from_registry(
     cfg_cls = getattr(module, cfg_cls_name, None)
     if cls is None or cfg_cls is None:
         raise ValueError(
-            f"Planner class '{cls_name}' or config clas '{cfg_cls_name}' not found in module "
+            f"Planner class '{cls_name}' or config class '{cfg_cls_name}' not found in module "
             f"'{module_path}'."
         )
 
