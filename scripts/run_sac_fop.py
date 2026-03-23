@@ -202,6 +202,13 @@ if __name__ == "__main__":
     )
     group.add_argument("--with-val", action="store_true", help="Enables validation environment.")
     group.add_argument(
+        "--variant",
+        type=str,
+        default="fop",
+        choices=["fop", "fopc", "foa"],
+        help="SAC-FOP variant: fop (parameter noise), fopc (parameter noise with entropy correction), foa (action noise).",
+    )
+    group.add_argument(
         "--ckpt-modus",
         type=str,
         default=None,
