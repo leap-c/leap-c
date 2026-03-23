@@ -1,12 +1,18 @@
 """Main script to run CrossQ-ZOP experiments."""
 
-from argparse import ArgumentParser
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Literal
+from typing import Literal, get_args
 
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
-from leap_c.run import default_controller_code_path, default_name, default_output_path, init_run
+from leap_c.run import (
+    default_controller_code_path,
+    default_name,
+    default_output_path,
+    init_run,
+    validate_torch_device_arg,
+)
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.crossq_zop import CrossQZop, CrossQZopConfig
 
@@ -124,30 +130,54 @@ def run_crossq_zop(
 
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
-    parser.add_argument("--output_path", type=Path, default=None)
-    parser.add_argument("--device", type=str, default="cpu")
-    parser.add_argument("--seed", type=int, default=0)
-    parser.add_argument("--env", type=str, default="cartpole")
-    parser.add_argument("--controller", type=str, default=None)
-    parser.add_argument("--with-val", action="store_true", help="Enable validation environment")
-    parser.add_argument(
+    parser = ArgumentParser(
+        description="Training of CrossQ-ZOP agents.", formatter_class=ArgumentDefaultsHelpFormatter
+    )
+    group = parser.add_argument_group("Run settings")
+    group.add_argument(
+        "--output-path", type=Path, default=None, help="Path to outputs (e.g., logs)."
+    )
+    group.add_argument(
+        "--device", type=validate_torch_device_arg, default="cpu", help="Device to run on."
+    )
+    group.add_argument("--seed", type=int, default=0, help="RNG seed.")
+    group.add_argument(
+        "-r",
+        "--reuse-code",
+        action="store_true",
+        help="Reuse compiled code. The first time this is run, it will compile the code.",
+    )
+    group.add_argument(
+        "--reuse-code-dir", type=Path, default=None, help="Directory for compiled code."
+    )
+    group = parser.add_argument_group("Train and eval")
+    group.add_argument(
+        "--env",
+        type=str,
+        choices=get_args(ExampleEnvName),
+        default="hvac",
+        help="Environment to train on.",
+    )
+    group.add_argument(
+        "--controller",
+        type=str,
+        choices=get_args(ExampleControllerName),
+        default=None,
+        help="MPC controller to use as actor. If not provided, it is taken from `--env`.",
+    )
+    group.add_argument("--with-val", action="store_true", help="Enables validation environment.")
+    group.add_argument(
         "--ckpt-modus",
         type=str,
         default=None,
         choices=["none", "last", "all", "best"],
         help="Checkpoint mode. Defaults to 'best' with --with-val, 'last' otherwise.",
     )
-    parser.add_argument(
-        "-r",
-        "--reuse_code",
-        action="store_true",
-        help="Reuse compiled code. The first time this is run, it will compile the code.",
-    )
-    parser.add_argument("--reuse_code_dir", type=Path, default=None)
-    parser.add_argument("--use-wandb", action="store_true")
-    parser.add_argument("--wandb-entity", type=str, default=None)
-    parser.add_argument("--wandb-project", type=str, default="leap-c")
+    group = parser.add_argument_group("W&B logging")
+    group.add_argument("--use-wandb", action="store_true", help="Whether to use W&B logging.")
+    group.add_argument("--wandb-entity", type=str, default=None, help="W&B entity name.")
+    group.add_argument("--wandb-project", type=str, default="leap-c", help="W&B project name.")
+    group.add_argument("--wandb-group", type=str, default="CrossQ-ZOP", help="W&B group name.")
     args = parser.parse_args()
 
     if args.ckpt_modus is not None:
@@ -159,20 +189,21 @@ if __name__ == "__main__":
 
     cfg = create_cfg(args.env, args.controller, args.seed, ckpt_modus)
 
+    # Include variant in tags
+    tags = ["crossq_zop", args.env, args.controller]
+
     if args.use_wandb:
         config_dict = asdict(cfg)
         cfg.trainer.log.wandb_logger = True
         cfg.trainer.log.wandb_init_kwargs = {
             "entity": args.wandb_entity,
             "project": args.wandb_project,
-            "name": default_name(args.seed, tags=["crossq_zop", args.env, args.controller]),
+            "name": default_name(args.seed, tags=tags),
             "config": config_dict,
         }
 
     if args.output_path is None:
-        output_path = default_output_path(
-            seed=args.seed, tags=["crossq_zop", args.env, args.controller]
-        )
+        output_path = default_output_path(seed=args.seed, tags=tags)
     else:
         output_path = args.output_path
 
