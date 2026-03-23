@@ -1,10 +1,7 @@
 from __future__ import annotations
 
-from collections import deque
 from dataclasses import dataclass
 
-import matplotlib.gridspec as gridspec
-import matplotlib.patches as mpatches
 import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import spaces
@@ -17,7 +14,6 @@ from leap_c.examples.hvac.dynamics import (
     compute_steady_state,
 )
 from leap_c.examples.hvac.forecast import Forecaster
-from leap_c.examples.hvac.planner import HvacPlannerCtx
 from leap_c.examples.hvac.utils import set_temperature_limits
 from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 
@@ -105,7 +101,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
 
     Attributes:
         cfg: Configuration for the environment.
-        ctx: Context for the HVAC planner (used for rendering).
         dataset: HVAC dataset containing price, weather, and time features.
         N_forecast: Number of forecast steps.
         max_steps: Maximum number of simulation steps.
@@ -114,7 +109,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         idx: Current index in the data.
         step_counter: Current step counter.
         Ad, Bd, Ed, Qd: Discrete-time system matrices.
-        trajectory_plots: Dictionary of matplotlib line plots for rendering.
     """
 
     metadata = {"render_modes": ["human", "rgb_array"], "render_fps": 30}
@@ -122,7 +116,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
     cfg: HvacEnvConfig
     dataset: HvacDataset
     forecaster: Forecaster
-    ctx: HvacPlannerCtx | None
     trajectory_plots: dict[str, plt.Line2D] | None
 
     def __init__(
@@ -156,7 +149,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         self.forecaster = Forecaster() if forecaster is None else forecaster
 
         # Setup forecast and simulation parameters
-        self.ctx = None
         self.N_forecast = 4 * self.forecaster.cfg.horizon_hours
         self.max_steps = -1  #  int(self.dataset.cfg.max_hours * 3600 / self.cfg.step_size)
 
@@ -238,27 +230,6 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         # Initialize step counter and data index
         self.step_counter = 0
         self.idx = 0
-
-        self.trajectory_plots = None
-
-        # Initialize history buffers for rendering (FIFO with max 100 steps)
-        self.history_length = 100
-        self.history = {
-            "Ti": deque(maxlen=self.history_length),
-            "Th": deque(maxlen=self.history_length),
-            "Te": deque(maxlen=self.history_length),
-            "qh": deque(maxlen=self.history_length),
-            "ref_Ti": deque(maxlen=self.history_length),
-            "lb_Ti": deque(maxlen=self.history_length),
-            "ub_Ti": deque(maxlen=self.history_length),
-            "temperature": deque(maxlen=self.history_length),
-            "solar": deque(maxlen=self.history_length),
-            "price": deque(maxlen=self.history_length),
-            "ddqh": deque(maxlen=self.history_length),
-            "log_q_Ti": deque(maxlen=self.history_length),
-        }
-
-        self.param_axes_limits_set = False
 
     def _get_observation(self) -> dict[str, np.ndarray | dict[str, np.ndarray]]:
         """Get the current observation.
@@ -480,374 +451,3 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
         }
 
         return obs, info
-
-    def _render_setup(self):
-        if self.render_mode == "human":
-            plt.ion()
-
-        # Create figure with 2 columns: left for states, right for params/actions
-        self._fig = plt.figure(figsize=(16, 10))
-
-        gs = gridspec.GridSpec(7, 2, figure=self._fig)
-
-        # Create left column axes (7 rows: (Ti, Th, Te, qh, price, temperature, solar))
-        left_axes = [self._fig.add_subplot(gs[i, 0]) for i in range(7)]
-
-        # Create right column axes (3 evenly spaced rows spanning full height)
-        right_axes = [
-            self._fig.add_subplot(gs[0:3, 1]),
-            self._fig.add_subplot(gs[3:5, 1]),
-            self._fig.add_subplot(gs[5:7, 1]),
-        ]
-
-        # Combine into 2D array structure for compatibility
-        self.axes = np.empty((7, 2), dtype=object)
-        for i in range(7):
-            self.axes[i, 0] = left_axes[i]
-        for i in range(3):
-            self.axes[i, 1] = right_axes[i]
-
-        # Fill remaining right column slots with None
-        for i in range(3, 7):
-            self.axes[i, 1] = None
-
-        # Adjust spacing
-        self._fig.subplots_adjust(hspace=0.4, wspace=0.3, top=0.95, bottom=0.05)
-        self._fig.suptitle("HVAC Controller Analysis", fontsize=14)
-
-        # Initialize empty lines for each subplot
-        self.trajectory_plots = {}
-
-        ax: plt.Axes = self.axes[0, 0]
-        (self.trajectory_plots["Ti"],) = ax.step([], [], where="post", label="Ti")
-        (self.trajectory_plots["ref_Ti"],) = ax.step(
-            [],
-            [],
-            where="post",
-            linestyle="-",
-            color="red",
-            label="Ti_ref",
-        )
-        (self.trajectory_plots["lb_Ti"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="Ti_lb",
-            linestyle="--",
-            color="black",
-        )
-        (self.trajectory_plots["ub_Ti"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="Ti_ub",
-            linestyle="--",
-            color="black",
-        )
-        ax.set(ylim=(0, 30), ylabel="Ti [°C]")
-        ax.grid(visible=True, alpha=0.3)
-
-        ax: plt.Axes = self.axes[1, 0]
-        (self.trajectory_plots["Th"],) = ax.step([], [], where="post", label="Th")
-        ax.set(ylim=(-400, 400), ylabel="Th [°C]")
-        ax.grid(visible=True, alpha=0.3)
-
-        ax: plt.Axes = self.axes[2, 0]
-        (self.trajectory_plots["Te"],) = ax.step([], [], where="post", label="Te")
-        ax.set(ylim=(0, 30), ylabel="Te [°C]")
-        ax.grid(visible=True, alpha=0.3)
-
-        # Heating power subplot
-        ax: plt.Axes = self.axes[3, 0]
-        (self.trajectory_plots["qh"],) = ax.step([], [], where="post", label="qh")
-        ax.set(ylim=(0.0, 5.10e3), ylabel="qh [kW]")
-        ax.grid(visible=True, alpha=0.3)
-
-        ax: plt.Axes = self.axes[4, 0]
-        (self.trajectory_plots["price_observation"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="price observation",
-        )
-        (self.trajectory_plots["price"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="price parameter",
-        )
-        ax.set(
-            ylim=(self.dataset.min["price"], self.dataset.max["price"]),
-            ylabel="price [NOK/kWh]",
-        )
-
-        ax: plt.Axes = self.axes[5, 0]
-        (self.trajectory_plots["temperature_observation"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="temperature observation",
-        )
-        (self.trajectory_plots["temperature"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="temperature parameter",
-        )
-        ax.set(
-            ylim=(
-                convert_temperature(
-                    val=self.dataset.min["temperature"],
-                    old_scale="k",
-                    new_scale="c",
-                ),
-                convert_temperature(
-                    val=self.dataset.max["temperature"],
-                    old_scale="k",
-                    new_scale="c",
-                ),
-            ),
-            ylabel="temperature [°C]",
-        )
-
-        ax: plt.Axes = self.axes[6, 0]
-        (self.trajectory_plots["solar_observation"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="solar observation",
-        )
-        (self.trajectory_plots["solar"],) = ax.step(
-            [],
-            [],
-            where="post",
-            label="solar parameter",
-        )
-        ax.set(
-            ylim=(self.dataset.min["solar"], self.dataset.max["solar"]),
-            ylabel="solar [W/m²]",
-        )
-
-        # 2D plot of ref_Ti vs log_q_Ti
-        ax: plt.Axes = self.axes[0, 1]
-        (self.trajectory_plots["ref_Ti_over_log_q_Ti"],) = ax.plot(
-            [], [], "o-", markersize=3, label="ref_Ti vs log_q_Ti"
-        )
-        ax.set(
-            xlabel="ref_Ti [°C]",
-            ylabel="log_q_Ti [-]",
-            title="Reference Temperature vs Weight",
-        )
-        ax.grid(visible=True, alpha=0.3)
-        ax.legend(loc="upper right")
-
-        # Histogram of ref_Ti
-        ax: plt.Axes = self.axes[1, 1]
-        ax.set(
-            xlabel="ref_Ti [°C]",
-            ylabel="Frequency",
-            title="ref_Ti Distribution",
-        )
-        ax.grid(visible=True, alpha=0.3, axis="y")
-
-        # Histogram of log_q_Ti
-        ax: plt.Axes = self.axes[2, 1]
-        ax.set(
-            xlabel="log_q_Ti [-]",
-            ylabel="Frequency",
-            title="log_q_Ti Distribution",
-        )
-        ax.grid(visible=True, alpha=0.3, axis="y")
-
-        # Set x-limits and legend for trajectory plots
-        for ax in self.axes[:, 0]:
-            ax.set(xlim=(-self.history_length, self.N_forecast))
-            ax.grid(visible=True, alpha=0.3)
-            ax.legend(loc="upper right")
-            # Add vertical line at x=0 to mark current time
-            ax.axvline(x=0, color="black", linestyle="-", linewidth=1.5, alpha=0.7)
-
-    def _render_frame(self) -> np.ndarray | None:
-        ctx: HvacPlannerCtx = self.ctx
-
-        obs = self._get_observation()
-        temperature_forecast = obs["forecast"]["temperature"]
-        solar_forecast = obs["forecast"]["solar"]
-        price_forecast = obs["forecast"]["price"]
-
-        # Update history buffers with current values (at time step -1)
-        # Get current state for history
-        if ctx is not None and hasattr(ctx, "render_info") and ctx.render_info is not None:
-            render_info: dict[str, np.ndarray] = ctx.render_info
-
-            # Add current values to history (these will appear at position -1)
-            self.history["Ti"].append(convert_temperature(self.state[0], "k", "c"))
-            self.history["Th"].append(convert_temperature(self.state[1], "k", "c"))
-            self.history["Te"].append(convert_temperature(self.state[2], "k", "c"))
-
-            if "ref_Ti" in render_info:
-                self.history["ref_Ti"].append(render_info["ref_Ti"].flatten()[0])
-            if "lb_Ti" in render_info:
-                self.history["lb_Ti"].append(render_info["lb_Ti"].flatten()[0])
-            if "ub_Ti" in render_info:
-                self.history["ub_Ti"].append(render_info["ub_Ti"].flatten()[0])
-            if "temperature" in render_info:
-                self.history["temperature"].append(render_info["temperature"].flatten()[0])
-            if "solar" in render_info:
-                self.history["solar"].append(render_info["solar"].flatten()[0])
-            if "price" in render_info:
-                self.history["price"].append(render_info["price"].flatten()[0])
-            if "ddqh" in render_info:
-                self.history["ddqh"].append(render_info["ddqh"].flatten()[0])
-            if "log_q_Ti" in render_info:
-                self.history["log_q_Ti"].append(render_info["log_q_Ti"].flatten()[0])
-            if "qh" in render_info:
-                self.history["qh"].append(render_info["qh"].flatten()[0])
-
-        # Plot forecast observations (future only, from 0 to N_forecast)
-        self.trajectory_plots["price_observation"].set_data(range(self.N_forecast), price_forecast)
-        self.trajectory_plots["temperature_observation"].set_data(
-            range(self.N_forecast),
-            convert_temperature(temperature_forecast, "k", "c"),
-        )
-        self.trajectory_plots["solar_observation"].set_data(range(self.N_forecast), solar_forecast)
-
-        # Update parameter/action plots if render_info is available
-        if hasattr(ctx, "render_info") and ctx.render_info is not None:
-            render_info: dict[str, np.ndarray] = ctx.render_info
-
-            for key in [
-                "lb_Ti",
-                "ub_Ti",
-                "temperature",
-                "price",
-                "solar",
-                "qh",
-                "Ti",
-                "Th",
-                "Te",
-            ]:
-                if key in render_info:
-                    # Future predictions
-                    future_x = np.arange(0, len(render_info[key].flatten()))
-                    future_y = render_info[key].flatten()
-
-                    # Historical data
-                    hist_x = np.arange(-len(self.history[key]), 0)
-                    hist_y = np.array(list(self.history[key]))
-
-                    self.trajectory_plots[key].set_data(
-                        np.concatenate([hist_x, future_x]),
-                        np.concatenate([hist_y, future_y]),
-                    )
-
-            # Update 2D plot: ref_Ti vs log_q_Ti
-            if "ref_Ti" in render_info and "log_q_Ti" in render_info:
-                if not self.param_axes_limits_set:
-                    # Draw black rectangle showing the valid parameter region
-                    width = render_info["ref_Ti_max"] - render_info["ref_Ti_min"]
-                    height = render_info["log_q_Ti_max"] - render_info["log_q_Ti_min"]
-                    self.axes[0, 1].add_patch(
-                        mpatches.Rectangle(
-                            xy=(render_info["ref_Ti_min"], render_info["log_q_Ti_min"]),
-                            width=width,
-                            height=height,
-                            linewidth=2,
-                            edgecolor="black",
-                            facecolor="none",
-                            linestyle="-",
-                        )
-                    )
-
-                    self.axes[0, 1].set_xlim(
-                        render_info["ref_Ti_min"] - 0.05 * width,
-                        render_info["ref_Ti_max"] + 0.05 * width,
-                    )
-                    self.axes[0, 1].set_ylim(
-                        render_info["log_q_Ti_min"] - 0.05 * height,
-                        render_info["log_q_Ti_max"] + 0.05 * height,
-                    )
-
-                    # Set histogram x-limits (only once)
-                    self.axes[1, 1].set_xlim(render_info["ref_Ti_min"], render_info["ref_Ti_max"])
-                    self.axes[2, 1].set_xlim(
-                        render_info["log_q_Ti_min"], render_info["log_q_Ti_max"]
-                    )
-
-                    self.param_axes_limits_set = True
-
-                # Historical data
-                hist_ref_Ti = np.array(list(self.history["ref_Ti"]))
-                hist_log_q_Ti = np.array(list(self.history["log_q_Ti"]))
-
-                # Future predictions
-                future_ref_Ti = render_info["ref_Ti"].flatten()
-                future_log_q_Ti = render_info["log_q_Ti"].flatten()
-
-                # Combine history and future
-                combined_ref_Ti = np.concatenate([hist_ref_Ti, future_ref_Ti])
-                combined_log_q_Ti = np.concatenate([hist_log_q_Ti, future_log_q_Ti])
-
-                self.trajectory_plots["ref_Ti_over_log_q_Ti"].set_data(
-                    combined_ref_Ti, combined_log_q_Ti
-                )
-
-                # Update histograms
-                # Histogram for ref_Ti
-                self.axes[1, 1].clear()
-                if len(combined_ref_Ti) > 0:
-                    # Flatten to ensure 1D array and convert to numpy
-                    data_ref_Ti = np.asarray(combined_ref_Ti).flatten()
-                    # Check if range is valid
-                    if (
-                        render_info["ref_Ti_max"] > render_info["ref_Ti_min"]
-                        and len(data_ref_Ti) > 0
-                    ):
-                        self.axes[1, 1].hist(
-                            data_ref_Ti,
-                            bins=20,
-                            range=(
-                                float(render_info["ref_Ti_min"]),
-                                float(render_info["ref_Ti_max"]),
-                            ),
-                            color="blue",
-                            alpha=0.7,
-                            edgecolor="black",
-                        )
-                # Re-apply formatting after clear (clear() removes all properties)
-                self.axes[1, 1].set(
-                    xlabel="ref_Ti [°C]",
-                    ylabel="Frequency",
-                )
-                self.axes[1, 1].grid(visible=True, alpha=0.3, axis="y")
-
-                # Histogram for log_q_Ti
-                self.axes[2, 1].clear()
-                if len(combined_log_q_Ti) > 0:
-                    # Flatten to ensure 1D array and convert to numpy
-                    data_log_q_Ti = np.asarray(combined_log_q_Ti).flatten()
-                    # Check if range is valid
-                    if (
-                        render_info["log_q_Ti_max"] > render_info["log_q_Ti_min"]
-                        and len(data_log_q_Ti) > 0
-                    ):
-                        self.axes[2, 1].hist(
-                            data_log_q_Ti,
-                            bins=20,
-                            range=(
-                                float(render_info["log_q_Ti_min"]),
-                                float(render_info["log_q_Ti_max"]),
-                            ),
-                            color="blue",
-                            alpha=0.7,
-                            edgecolor="black",
-                        )
-                # Re-apply formatting after clear (clear() removes all properties)
-                self.axes[2, 1].set(
-                    xlabel="log_q_Ti [-]",
-                    ylabel="Frequency",
-                )
-                self.axes[2, 1].grid(visible=True, alpha=0.3, axis="y")
-
-    def set_ctx(self, ctx: HvacPlannerCtx) -> None:
-        self.ctx: HvacPlannerCtx = ctx
