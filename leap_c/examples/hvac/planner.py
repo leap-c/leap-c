@@ -24,16 +24,14 @@ from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
 @dataclass(kw_only=True)
 class HvacPlannerCtx(AcadosDiffMpcCtx):
-    """An extension of the AcadosDiffMpcCtx to also store the heater states.
+    """An extension of the AcadosDiffMpcCtx to also store the heater state.
 
     Attributes:
-        qh: Current heating power of the radiator [W].
-        dqh: Current rate of change of heating power [W/s].
+        qh: Current heating power of the radiator [kW], used as qh_prev in the next MPC call.
         render_info: Optional dictionary containing data for rendering (parameters, actions, etc.).
     """
 
     qh: torch.Tensor
-    dqh: torch.Tensor
     render_info: dict[str, Any] | None = None
 
 
@@ -48,7 +46,6 @@ def collate_acados_diff_mpc_ctx(
         status=np.array([ctx.status for ctx in batch]),
         solver_input=collate_acados_ocp_solver_input([ctx.solver_input for ctx in batch]),
         qh=torch.stack([ctx.qh for ctx in batch], dim=0),
-        dqh=torch.stack([ctx.dqh for ctx in batch], dim=0),
     )
 
 
@@ -88,19 +85,14 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
     The first part of the state corresponds to the first part of the observation of the
     StochasticThreeStateRcEnv environment, i.e., the indoor temperature Ti,
     the radiator temperature Th, and the envelope temperature Te.
-    Appended to this state are the action "qh" from the environment
-    (the heating power of the radiator), and its derivative "dqh". Hence, the action of
-    this planner is "ddqh", the acceleration of the heating power.
+    Appended to this state is "qh_prev", the heating power applied at the previous step [kW].
+    The action of this planner is "qh" [kW], the heating power directly.
 
     The cost function takes the form of
         0.25 * price * qh
-        + 10 ** log_q_Ti * (ref_Ti - ocp.model.x[0]) ** 2
-        + q_dqh * (dqh) ** 2
-        + q_ddqh * (ddqh) ** 2,
-    i.e., a linear price term combined with weighted quadratic penalties on
-    the room temperature residuals, the rate of change of the heating power,
-    and the acceleration of the heating power. The temperature weight is
-    parameterized in log10-space via `log_q_Ti` for better numerical conditioning.
+        + q_dqh * (qh - qh_prev) ** 2,
+    i.e., a linear price term combined with a quadratic penalty on the rate of change
+    of heating power.
 
     The dynamics correspond partly to the dynamics also found in the environment.
 
@@ -108,10 +100,6 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
     - The dynamics here do not include the noise.
     - In case the ambient temperature, the solar radiation and the prices are not learned,
     they are set to a default value, instead of the data being used.
-    - The action "qh" from the environment is part of the state here.
-    To make setting of the radiator heating power smoother,
-    a double integrator is added to the dynamics (hence, the action in this planner is ddqh,
-    the acceleration of the heating power).
 
     The inequality constraints are box constraints on the room temperature
     (comfort bounds, soft/slacked), and the heating power qh (hard).
@@ -175,6 +163,27 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         )
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
 
+    def _set_stagewise_constraint_bounds(
+        self,
+        lb: np.ndarray,
+        ub: np.ndarray,
+        batch_size: int,
+    ) -> None:
+        """Set per-stage Ti comfort bounds on the forward solver via constraints_set.
+
+        Args:
+            lb: Lower bounds in Kelvin, shape (batch_size, N_horizon + 1).
+            ub: Upper bounds in Kelvin, shape (batch_size, N_horizon + 1).
+            batch_size: Number of problem instances in the batch.
+        """
+        N = self.cfg.N_horizon
+        # Stages 1..N; stage 0 is fixed by x0 and is not constrained here.
+        stages = list(range(1, N + 1))
+        # lb/ub shape: (batch_size, N+1) → select stages 1..N → (batch_size, N, 1)
+        lbx = lb[:batch_size, 1:, np.newaxis]
+        ubx = ub[:batch_size, 1:, np.newaxis]
+        self.diff_mpc.set_constraint_bounds(lbx, ubx, stages)
+
     def forward(
         self,
         obs: dict[str, torch.Tensor | dict[str, torch.Tensor]],
@@ -196,10 +205,10 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             ctx: Optional context from previous invocation containing heater states.
 
         Returns:
-            ctx: Updated context containing solver state and heater power states.
-            u0: First control action (ddqh).
-            x: State trajectory (Ti, Th, Te, qh, dqh) over the horizon.
-            u: Control trajectory (ddqh) over the horizon.
+            ctx: Updated context containing solver state and heater power.
+            u0: First control action (qh) in Watts [W], for the environment.
+            x: State trajectory (Ti, Th, Te, qh_prev) over the horizon.
+            u: Control trajectory (qh in kW) over the horizon.
             value: Cost value of the trajectory.
         """
         batch_size = obs["time"]["quarter_hour"].shape[0]
@@ -214,14 +223,11 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
 
         if not isinstance(ctx, HvacPlannerCtx):
             qh = torch.zeros((batch_size, 1), dtype=torch.float64, device=device)
-            dqh = torch.zeros((batch_size, 1), dtype=torch.float64, device=device)
         else:
             qh = ctx.qh
-            dqh = ctx.dqh
 
         # Set time-varying temperature comfort bounds from quarter_hour
         quarter_hours = obs["time"]["quarter_hour"]  # (batch_size, 1)
-        # TODO (Jasper): Understand the wrapping logic here
         lb, ub = set_temperature_limits(
             quarter_hours=np.array(
                 [
@@ -233,18 +239,20 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                     for i in range(batch_size)
                 ]
             )
-        )
+        )  # lb, ub shape: (batch_size, N_horizon + 1), values in Kelvin
 
-        overwrites = {
-            "lb_Ti": lb.reshape(batch_size, -1, 1),
-            "ub_Ti": ub.reshape(batch_size, -1, 1),
-        }
+        # Apply per-stage comfort bounds directly via constraints_set.
+        # Passing them as OCP parameters has no effect because the OCP model never
+        # references lb_Ti / ub_Ti via param_manager.get().
+        self._set_stagewise_constraint_bounds(lb, ub, batch_size)
+
+        overwrites: dict = {}
 
         sub_param: dict[str, torch.Tensor] = {}
 
         render_info = {
-            "lb_Ti": overwrites["lb_Ti"],
-            "ub_Ti": overwrites["ub_Ti"],
+            "lb_Ti": lb.reshape(batch_size, -1, 1),
+            "ub_Ti": ub.reshape(batch_size, -1, 1),
         }
 
         for key in self.param_manager.parameters.keys():
@@ -273,11 +281,13 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                 )
                 render_info[key] = sub_param[key].detach().cpu().numpy()
 
-        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(**overwrites)
+        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
+            batch_size=batch_size, **overwrites
+        )
 
-        # Build state: [Ti, Th, Te, qh, dqh]
+        # Build state: [Ti, Th, Te, qh_prev]
         thermal_state = obs["state"]  # (batch_size, 3) - [Ti, Th, Te]
-        state = torch.cat([thermal_state, qh, dqh], dim=1)  # type: ignore[arg-type]
+        state = torch.cat([thermal_state, qh], dim=1)  # type: ignore[arg-type]
 
         diff_mpc_ctx, _, x, u, value = self.diff_mpc(
             state,
@@ -290,10 +300,8 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         render_info["Ti"] = x[:, :, 0].detach().cpu().numpy()  # Indoor temperature trajectory
         render_info["Th"] = x[:, :, 1].detach().cpu().numpy()  # Radiator temperature trajectory
         render_info["Te"] = x[:, :, 2].detach().cpu().numpy()  # Envelope temperature trajectory
-        render_info["qh"] = x[:, :, 3].detach().cpu().numpy()  # Heater power trajectory
-        render_info["dqh"] = x[:, :, 4].detach().cpu().numpy()
-        render_info["u_trajectory"] = u.detach().cpu().numpy()  # Full action trajectory
-        render_info["ddqh"] = render_info["u_trajectory"]
+        render_info["qh"] = x[:, :, 3].detach().cpu().numpy()  # Heater power trajectory [kW]
+        render_info["u_trajectory"] = u.detach().cpu().numpy()  # Full action trajectory (qh [kW])
 
         # TODO: Assuming ref_Ti and log_q_Ti are the only parameters that are learnable
         render_info["ref_Ti_min"] = convert_temperature(
@@ -328,12 +336,12 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
 
         ctx = HvacPlannerCtx(
             **vars(diff_mpc_ctx),
-            qh=x[:, 1, 3].detach()[:, None],
-            dqh=x[:, 1, 4].detach()[:, None],
+            qh=u[:, 0, :].detach(),  # first input qh [kW], used as qh_prev next step
             render_info=render_info,
         )
 
-        return ctx, x[:, 1, 3][:, None], x, u, value
+        # u[:, 0, :] is qh in kW; environment expects W
+        return ctx, u[:, 0, :] * 1000.0, x, u, value
 
     def default_param(
         self, obs: dict[str, np.ndarray | dict[str, np.ndarray]] | None

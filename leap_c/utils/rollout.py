@@ -3,7 +3,7 @@
 from collections import defaultdict
 from pathlib import Path
 from timeit import default_timer
-from typing import Callable, Generator
+from typing import Any, Callable, Generator
 
 import numpy as np
 import torch
@@ -26,6 +26,7 @@ def episode_rollout(
     video_folder: str | Path | None = None,
     name_prefix: str | None = None,
     rng: RngType | None = 1042,
+    step_callback: Callable[[int, ndarray, ndarray, float, dict, Any], None] | None = None,
 ) -> Generator[tuple[dict[str, float | bool | list], dict[str, list]], None, None]:
     """Rollout episodes with the given policy.
 
@@ -42,6 +43,9 @@ def episode_rollout(
         name_prefix (str, optional): The prefix for the video file names. Must be provided if
             `video_folder` is provided.
         rng (RngType, optional): The random number generator or seed for seeding the environment.
+        step_callback: Optional callable invoked after each env step with
+            ``(step, obs, action, reward, info)`` where ``step`` is the 1-based index
+            within the episode. Resets to 1 at the start of each episode.
 
     Yields:
         The first dictionary containing the information about the rollout, at least containing the
@@ -89,6 +93,7 @@ def episode_rollout(
             truncated = False
 
             cum_inference_time = 0.0
+            step = 0
 
             while not terminated and not truncated:
                 t0 = default_timer()
@@ -102,7 +107,11 @@ def episode_rollout(
                 if isinstance(a, torch.Tensor):
                     a = a.cpu().numpy()
 
-                o_prime, _, terminated, truncated, info = env.step(a)
+                o_prime, reward_val, terminated, truncated, info = env.step(a)
+                step += 1
+
+                if step_callback is not None:
+                    step_callback(step, o_prime, a, reward_val, info, ctx)
 
                 if "task" in info:
                     for key, value in info["task"].items():
