@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 import matplotlib.pyplot as plt
 import numpy as np
-from gymnasium import spaces
+from gymnasium import Env, spaces
 from scipy.constants import convert_temperature
 
 from leap_c.examples.hvac.dataset import HvacDataset
@@ -15,7 +15,6 @@ from leap_c.examples.hvac.dynamics import (
 )
 from leap_c.examples.hvac.forecast import Forecaster
 from leap_c.examples.hvac.utils import set_temperature_limits
-from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 
 
 @dataclass(kw_only=True)
@@ -43,7 +42,7 @@ class HvacEnvConfig:
             raise NotImplementedError("Only step_size of 900s is currently supported.")
 
 
-class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
+class StochasticThreeStateRcEnv(Env):
     """Simulator for a three-state RC thermal model with exact discretization of Gaussian noise.
 
     This environment uses the matrix exponential approach to exactly discretize both the
@@ -134,7 +133,7 @@ class StochasticThreeStateRcEnv(MatplotlibRenderEnv):
             forecaster: Forecaster for generating predictions. If None, default forecaster
                 is created.
         """
-        super().__init__(render_mode=render_mode)
+        super().__init__()
 
         self.cfg = HvacEnvConfig() if cfg is None else cfg
 
