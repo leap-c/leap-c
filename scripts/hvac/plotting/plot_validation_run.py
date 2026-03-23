@@ -39,7 +39,7 @@ def plot_validation_run(csv_path: Path, output_path: Path | None = None) -> Path
     df = pd.read_csv(csv_path, parse_dates=["datetime"])
     t = df["datetime"]
 
-    fig, axes = plt.subplots(5, 1, figsize=(14, 24), sharex=True)
+    fig, axes = plt.subplots(7, 1, figsize=(14, 24), sharex=True)
     fig.suptitle(f"HVAC Validation Run\n{csv_path.name}", fontsize=12)
 
     # --- Panel 1: Ti (indoor) + comfort bounds ---
@@ -77,20 +77,29 @@ def plot_validation_run(csv_path: Path, output_path: Path | None = None) -> Path
     ax.legend(loc="upper right", fontsize=8)
     ax.grid(True, alpha=0.3)
 
-    # --- Panel 5: Price + money spent ---
+    # --- Panel 4: Heating power ---
     ax = axes[3]
+    ax.fill_between(t, df["action_W"], step="post", alpha=0.6, color="tab:orange")
+    ax.step(t, df["action_W"], color="tab:orange", linewidth=1, where="post")
+    ax.set_ylabel("Heating power (W)")
+    ax.set_ylim(bottom=0)
+    ax.grid(True, alpha=0.3)
+
+    # --- Panel 5: Price + money spent ---
+    ax = axes[4]
     ax2 = ax.twinx()
     ax.step(t, df["price"], color="tab:purple", linewidth=1.2, where="post", label="Price")
     ax2.step(
         t,
-        df["action_W"],
+        df["money_spent"] * 1000,
         color="tab:red",
         linewidth=1,
+        linestyle="--",
         where="post",
-        label="Heating power (W)",
+        label="Cost (m€/step)",
     )
     ax.set_ylabel("Price (€/kWh)", color="tab:purple")
-    ax2.set_ylabel("Heating power (W)", color="tab:red")
+    ax2.set_ylabel("Cost (m€/step)", color="tab:red")
     ax.tick_params(axis="y", labelcolor="tab:purple")
     ax2.tick_params(axis="y", labelcolor="tab:red")
     lines1, labels1 = ax.get_legend_handles_labels()
@@ -99,12 +108,40 @@ def plot_validation_run(csv_path: Path, output_path: Path | None = None) -> Path
     ax.grid(True, alpha=0.3)
 
     # --- Panel 6: Solar irradiance ---
-    ax = axes[4]
+    ax = axes[5]
     ax.fill_between(t, df["solar_W_m2"], alpha=0.5, color="gold")
     ax.step(t, df["solar_W_m2"], color="goldenrod", linewidth=1, where="post")
     ax.set_ylabel("Solar irradiance\n(W/m²)")
     ax.set_ylim(bottom=0)
     ax.grid(True, alpha=0.3)
+
+    # --- Panel 7: Constraint violation + cumulative success rate ---
+    ax = axes[6]
+    ax2 = ax.twinx()
+    ax.fill_between(t, df["constraint_violation_K"], alpha=0.6, color="tab:red")
+    ax.step(
+        t,
+        df["constraint_violation_K"],
+        color="tab:red",
+        linewidth=1,
+        where="post",
+        label="Constraint violation (K)",
+    )
+    cumulative_success = df["success"].expanding().mean() * 100
+    ax2.plot(t, cumulative_success, color="tab:green", linewidth=1.5, label="Cumul. success (%)")
+    ax.set_ylabel("Constraint violation (K)", color="tab:red")
+    ax2.set_ylabel("Cumul. success rate (%)", color="tab:green")
+    ax.tick_params(axis="y", labelcolor="tab:red")
+    ax2.tick_params(axis="y", labelcolor="tab:green")
+    ax2.set_ylim(0, 105)
+    lines1, labels1 = ax.get_legend_handles_labels()
+    lines2, labels2 = ax2.get_legend_handles_labels()
+    ax.legend(lines1 + lines2, labels1 + labels2, loc="lower right", fontsize=8)
+    ax.set_ylim(bottom=0)
+    ax.grid(True, alpha=0.3)
+
+    # --- red patches where solver status is non-zero ---
+    _add_failure_patches(axes, t, df["solver_status"])
 
     # --- shared x-axis formatting ---
     axes[-1].xaxis.set_major_formatter(mdates.DateFormatter("%m-%d\n%H:%M"))
