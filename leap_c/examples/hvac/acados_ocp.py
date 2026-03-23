@@ -244,13 +244,6 @@ def export_parametric_ocp(
     ocp.cost.cost_type = "EXTERNAL"
     ocp.cost.cost_type_e = "EXTERNAL"
 
-    # Possible functions to allow negative qh but still have meaningful cost.
-    # Both make the solver slow:
-    # smooth approximation of max(0, qh)
-    # softmax_qh = (1.0 / 10.0) * ca.log(1.0 + ca.exp(10.0 * qh))
-    # pseudo-Huber approximation of |qh|
-    # pseudo_huber_qh = ca.sqrt(qh**2 + 1e-6) - 1e-3
-
     ocp.model.cost_expr_ext_cost = (
         0.25 * param_manager.get("price") * qh + param_manager.get("q_dqh") * (qh - qh_prev) ** 2
     )
@@ -275,7 +268,7 @@ def export_parametric_ocp(
     ocp.constraints.ubx_e = np.array([convert_temperature(30.0, "C", "K")])
     ocp.constraints.idxbx_e = np.array([0])
 
-    ocp.constraints.lbu = np.array([0.0])
+    ocp.constraints.lbu = np.array([-5.0])
     ocp.constraints.ubu = np.array([5.0])
     ocp.constraints.idxbu = np.array([0])
 
