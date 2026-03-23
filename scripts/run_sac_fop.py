@@ -206,7 +206,10 @@ if __name__ == "__main__":
         type=str,
         default="fop",
         choices=["fop", "fopc", "foa"],
-        help="SAC-FOP variant: fop (parameter noise), fopc (parameter noise with entropy correction), foa (action noise).",
+        help="SAC-FOP variant:"
+        "fop (parameter noise),"
+        "fopc (parameter noise with entropy correction),"
+        "foa (action noise).",
     )
     group.add_argument(
         "--ckpt-modus",
