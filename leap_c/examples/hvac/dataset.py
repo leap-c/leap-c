@@ -1,6 +1,6 @@
 """Dataset management for HVAC environment."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
@@ -19,11 +19,8 @@ class DataConfig:
         weather_data_path: Path to the weather data CSV file.
         start_time: Simulation start time. If `None`, samples randomly from data.
         mode: Dataset mode - "random" for random sampling with fixed episode length, "continual"
-            for sequential episodes that break at invalid months (summer).
-        max_hours: Maximum simulation time in hours for episodes (used in random mode).
-        valid_months: List of valid months (1-12) for sampling. Default is heating season months
-            (Jan-Apr, Sep-Dec).
-            Set to `None` to allow all months.
+            for sequential episodes scanning the full dataset.
+        max_hours: Maximum simulation time in hours for episodes.
         total_test_episodes: Exact number of fixed test episodes, stratified evenly across all
             (year, month) combinations in the dataset.
             These episodes are always the same for reproducible evaluation.
@@ -33,16 +30,11 @@ class DataConfig:
     price_zone: Literal["NO1", "NO2", "NO3", "DK1", "DK2", "DE-AT-LU", "DE-LU"] = "DE-LU"
     price_data_path: Path | None = None
     weather_data_path: Path | None = None
-    start_time: pd.Timestamp | None = None  # if None, samples randomly from data
+    start_time: pd.Timestamp | None = None
 
-    # Dataset mode: "random" or "continual"
     mode: Literal["random", "continual"] = "random"
 
-    # train / test split configuration
     max_hours: int = int(4.5 * 24)  # Maximum episode length in hours
-    valid_months: list[int] | None = field(
-        default_factory=lambda: [1, 2, 12]
-    )  # Heating season months: Jan-Feb, Dec
     total_test_episodes: int = 0  # Exact number of test episodes (stratified across months/years)
     split_seed: int = 42  # Seed for reproducible train/test split
 
@@ -58,7 +50,6 @@ class HvacDataset:
 
     Attributes:
         data: Combined DataFrame with price, weather, and time features.
-        price_max: Maximum price value (for normalization).
         cfg: Data configuration.
     """
 
@@ -78,17 +69,14 @@ class HvacDataset:
         self.cfg = cfg or DataConfig()
 
         if data is not None:
-            # Direct injection of prepared data
             self.data = data
         else:
-            # Load from configuration
             self.data = load_and_prepare_data(
                 price_zone=self.cfg.price_zone,
                 price_data_path=self.cfg.price_data_path,
                 weather_data_path=self.cfg.weather_data_path,
             )
 
-        # Check for NaN values in the dataset
         assert not self.data.isnull().any().any(), (
             f"Dataset contains NaN values in columns: "
             f"{self.data.columns[self.data.isnull().any()].tolist()}"
@@ -106,7 +94,6 @@ class HvacDataset:
         self._quarter_hour = self.data["quarter_hour"].to_numpy()
         self._day = self.data["day"].to_numpy()
         self._time = self.data["time"].to_numpy(dtype="datetime64[m]")
-        self._month = self.data.index.month.to_numpy()
 
         # Continual mode: track current position in dataset
         self._continual_idx: int = 0
@@ -234,8 +221,7 @@ class HvacDataset:
     def _generate_stratified_test_episodes(self, horizon: int, max_steps: int) -> list[int]:
         """Generate exactly `total_test_episodes` stratified across months and years.
 
-        Distributes episodes evenly across all (year, month) combinations in the
-        valid months. This ensures consistent evaluation with low variance.
+        Distributes episodes evenly across all (year, month) combinations in the dataset.
 
         Args:
             horizon: Forecast horizon length.
@@ -245,35 +231,28 @@ class HvacDataset:
             List of exactly `total_test_episodes` start indices.
         """
         rng = np.random.default_rng(self.cfg.split_seed)
-        test_indices = []
 
-        valid_months = self.cfg.valid_months or list(range(1, 13))
+        max_idx = len(self.data) - horizon - max_steps
 
-        min_idx = 0
-        max_idx = len(self.data) - horizon - max_steps + 1
-
-        if max_idx <= min_idx:
+        if max_idx <= 0:
             raise ValueError(
                 f"Dataset too small: need at least {horizon + max_steps} steps, "
                 f"but dataset has only {len(self.data)} steps."
             )
 
-        # Build a mapping of (year, month) -> list of valid start indices
         year_month_indices: dict[tuple[int, int], list[int]] = {}
-
-        for idx in range(min_idx, max_idx + 1):
-            if self._month[idx] in valid_months:
-                date = self.index[idx]
-                key = (date.year, date.month)
-                if key not in year_month_indices:
-                    year_month_indices[key] = []
-                year_month_indices[key].append(idx)
+        for idx in range(max_idx + 1):
+            date = self.index[idx]
+            key = (date.year, date.month)
+            if key not in year_month_indices:
+                year_month_indices[key] = []
+            year_month_indices[key].append(idx)
 
         all_keys = sorted(year_month_indices.keys())
         n_buckets = len(all_keys)
 
         if n_buckets == 0:
-            raise ValueError("No valid (year, month) combinations found in dataset.")
+            raise ValueError("No (year, month) combinations found in dataset.")
 
         base_per_bucket = self.cfg.total_test_episodes // n_buckets
         remainder = self.cfg.total_test_episodes % n_buckets
@@ -284,76 +263,18 @@ class HvacDataset:
         else:
             extra_indices = set()
 
+        test_indices = []
         for i, key in enumerate(all_keys):
             available_indices = year_month_indices[key]
             n_samples = base_per_bucket + (1 if i in extra_indices else 0)
             n_samples = min(n_samples, len(available_indices))
-
             if n_samples > 0:
                 sampled = rng.choice(available_indices, size=n_samples, replace=False)
                 test_indices.extend(sampled.tolist())
 
         rng2 = np.random.default_rng(self.cfg.split_seed)
         rng2.shuffle(test_indices)
-
         return test_indices
-
-    def _find_first_valid_index(self, horizon: int) -> int:
-        """Find the first valid index in the dataset.
-
-        Args:
-            horizon: Forecast horizon length needed.
-
-        Returns:
-            First valid starting index.
-        """
-        valid_months = self.cfg.valid_months or list(range(1, 13))
-
-        for idx in range(len(self.data) - horizon):
-            if self._month[idx] in valid_months:
-                return idx
-
-        raise ValueError("No valid starting index found in dataset.")
-
-    def _find_next_valid_index(self, current_idx: int, horizon: int) -> int | None:
-        """Find the next valid index after current position (skipping invalid months).
-
-        Args:
-            current_idx: Current index in dataset.
-            horizon: Forecast horizon length needed.
-
-        Returns:
-            Next valid index, or `None` if end of dataset reached.
-        """
-        valid_months = self.cfg.valid_months or list(range(1, 13))
-        max_idx = len(self.data) - horizon
-
-        for idx in range(current_idx, max_idx):
-            if self._month[idx] in valid_months:
-                return idx
-
-        return None
-
-    def _calculate_steps_until_invalid(self, start_idx: int, horizon: int) -> int:
-        """Calculate number of steps until hitting an invalid month.
-
-        Args:
-            start_idx: Starting index.
-            horizon: Forecast horizon length.
-
-        Returns:
-            Number of valid steps from `start_idx`.
-        """
-        valid_months = self.cfg.valid_months or list(range(1, 13))
-        max_idx = len(self.data) - horizon
-
-        steps = 0
-        for idx in range(start_idx, max_idx):
-            if self._month[idx] not in valid_months:
-                break
-            steps += 1
-
-        return steps
 
     def sample_start_index(
         self,
@@ -365,27 +286,21 @@ class HvacDataset:
         """Sample a valid start index for episode initialization.
 
         Behavior depends on `cfg.mode`:
-        - "random": Randomly samples from valid months with fixed episode length.
-        - "continual": Returns sequential episodes, breaking at invalid months
-            (summer). Episodes resume after the invalid period.
+        - "random": Randomly samples a start index with fixed episode length.
+        - "continual": Returns sequential episodes scanning the full dataset.
 
         Args:
             rng: NumPy random generator for reproducibility.
             horizon: Forecast horizon length.
-            split: Data split ("train", "test", or "all"). In continual mode,
-                this is ignored. "all" samples randomly without train/test split.
+            split: Data split ("train", "test", or "all"). Ignored in continual mode.
             max_attempts: Maximum number of sampling attempts (random mode only).
 
         Returns:
             Tuple of (start_index, max_steps) for the episode.
-
-        Raises:
-            RuntimeError: If no valid start date found within `max_attempts`.
         """
-        # Fixed start time takes precedence
         if self.cfg.start_time is not None:
             idx = self.index.get_loc(self.cfg.start_time)
-            max_steps = int(self.cfg.max_hours * 4)  # 15-min intervals
+            max_steps = int(self.cfg.max_hours * 4)
             return idx, max_steps
 
         if self.cfg.mode == "continual":
@@ -396,34 +311,21 @@ class HvacDataset:
     def _sample_continual(self, horizon: int) -> tuple[int, int]:
         """Sample next episode for continual learning mode.
 
-        Starts at earliest valid date, runs until invalid month, then skips
-        to next valid period. Does not wrap around when dataset is exhausted.
+        Scans the dataset sequentially. Returns (start_idx, 0) when exhausted.
 
         Args:
             horizon: Forecast horizon length.
 
         Returns:
-            Tuple of (start_index, max_steps). If dataset is exhausted,
-            returns the last valid position with 0 steps remaining.
+            Tuple of (start_index, max_steps). Returns 0 max_steps when exhausted.
         """
-        # Initialize on first call
-        if self._continual_idx == 0:
-            self._continual_idx = self._find_first_valid_index(horizon)
+        max_steps = int(self.cfg.max_hours * 4)
+        start_idx = self._continual_idx
 
-        # Find next valid starting point (skip invalid months)
-        next_idx = self._find_next_valid_index(self._continual_idx, horizon)
+        if start_idx + horizon + max_steps > len(self.data):
+            return start_idx, 0
 
-        if next_idx is None:
-            # End of dataset reached - do not wrap around
-            # Return current position with 0 steps to signal exhaustion
-            return self._continual_idx, 0
-
-        start_idx = next_idx
-        max_steps = self._calculate_steps_until_invalid(start_idx, horizon)
-
-        # Update continual index for next call
         self._continual_idx = start_idx + max_steps
-
         return start_idx, max_steps
 
     def _sample_random(
@@ -439,12 +341,12 @@ class HvacDataset:
             rng: NumPy random generator.
             horizon: Forecast horizon length.
             split: Data split ("train", "test", or "all").
-            max_attempts: Maximum sampling attempts.
+            max_attempts: Maximum sampling attempts (used only for train split).
 
         Returns:
             Tuple of (start_index, max_steps).
         """
-        max_steps = int(self.cfg.max_hours * 4)  # 15-min intervals
+        max_steps = int(self.cfg.max_hours * 4)
         min_start_idx = 0
         max_start_idx = len(self.data) - horizon - max_steps + 1
 
@@ -454,18 +356,10 @@ class HvacDataset:
                 f"but dataset has only {len(self.data)} steps."
             )
 
-        # For 'all' split, just sample randomly with month filtering only
         if split == "all":
-            for _ in range(max_attempts):
-                idx = rng.integers(low=min_start_idx, high=max_start_idx + 1)
-                if self.cfg.valid_months is None or self._month[idx] in self.cfg.valid_months:
-                    return idx, max_steps
-            raise RuntimeError(
-                f"Could not find a valid start date in {max_attempts} attempts. "
-                f"Valid months: {self.cfg.valid_months}."
-            )
+            idx = int(rng.integers(low=min_start_idx, high=max_start_idx + 1))
+            return idx, max_steps
 
-        # Generate test indices lazily (only when needed)
         if not self._test_indices:
             self._test_indices = self._generate_stratified_test_episodes(horizon, max_steps)
             self._test_episode_counter = 0
@@ -473,44 +367,32 @@ class HvacDataset:
         episode_length = horizon + max_steps
 
         if split == "test":
-            # Return fixed test episodes in order (cycling if needed)
             if not self._test_indices:
-                # No fixed test episodes configured; fall back to random sampling
                 return self._sample_random(rng, horizon, "all", max_attempts)
             idx = self._test_indices[self._test_episode_counter % len(self._test_indices)]
             self._test_episode_counter += 1
             return idx, max_steps
 
-        # For 'train', create exclusion zones around test indices
+        # Train: exclude zones around test episodes
         test_exclusion_set: set[int] = set()
         for test_idx in self._test_indices:
             start_exclude = max(0, test_idx - episode_length + 1)
             end_exclude = min(max_start_idx, test_idx + episode_length - 1)
             test_exclusion_set.update(range(start_exclude, end_exclude + 1))
 
-        # Sample with month filtering and test exclusion
         for _ in range(max_attempts):
-            idx = rng.integers(low=min_start_idx, high=max_start_idx + 1)
-
-            if idx in test_exclusion_set:
-                continue
-
-            if self.cfg.valid_months is not None:
-                if self._month[idx] not in self.cfg.valid_months:
-                    continue
-
-            return idx, max_steps
+            idx = int(rng.integers(low=min_start_idx, high=max_start_idx + 1))
+            if idx not in test_exclusion_set:
+                return idx, max_steps
 
         raise RuntimeError(
             f"Could not find a valid start date in {max_attempts} attempts. "
-            f"Split: {split}, Valid months: {self.cfg.valid_months}. "
-            "Please check the data and configuration."
+            f"Split: {split}. Please check the data and configuration."
         )
 
     def reset_continual_index(self) -> None:
         """Reset the continual mode index to start from the beginning."""
         self._continual_idx = 0
-        self._continual_exhausted = False
 
     def is_exhausted(self, horizon: int) -> bool:
         """Check if the dataset has been fully traversed in continual mode.
@@ -523,7 +405,8 @@ class HvacDataset:
         """
         if self.cfg.mode != "continual":
             return False
-        return self._find_next_valid_index(self._continual_idx, horizon) is None
+        max_steps = int(self.cfg.max_hours * 4)
+        return self._continual_idx + horizon + max_steps > len(self.data)
 
     def reset_test_counter(self) -> None:
         """Reset the test episode counter to start from the first episode."""
@@ -719,8 +602,6 @@ def load_weather_data(
     The data file is available at:
     https://open-meteo.com/en/docs/historical-forecast-api
     """
-    # Load the dataset
-
     try:
         weather_data = pd.read_csv(csv_path, index_col=0, parse_dates=True)
         weather_data.index = pd.to_datetime(weather_data.index, utc=True)
@@ -754,14 +635,10 @@ def load_and_prepare_data(
         end_date: End date for filtering data (e.g., "2017-11-30").
         price_data_path: Path to the price data CSV file. If `None`, uses default path.
         weather_data_path: Path to the weather data CSV file. If `None`, uses default path.
-        time_zone: Timezone for the data (e.g., "Europe/Berlin"). If `None`, uses "Europe/Berlin".
 
     Returns:
-        Tuple containing:
-            - Prepared DataFrame with price, temperature, and solar data.
-            - Maximum price value in the dataset.
+        Prepared DataFrame with price, temperature, and solar data.
     """
-    # Determine data paths
     if price_data_path is None:
         price_data_path = Path(__file__).parent / "assets" / "prices.csv"
     if weather_data_path is None:
@@ -785,7 +662,6 @@ def load_and_prepare_data(
         start_date=start_date,
         end_date=end_date,
     )
-    # Load raw data
     data: pd.DataFrame = pd.merge(
         left=price,
         right=weather,
@@ -793,7 +669,6 @@ def load_and_prepare_data(
         right_index=True,
     )
 
-    # Convert to float32 and add time features
     data["time"] = data.index.to_numpy(dtype="datetime64[m]")
     data["quarter_hour"] = (data.index.hour * 4 + data.index.minute // 15) % (24 * 4)
     data["day"] = data["time"].dt.dayofyear % 366  # 366 to account for leap years
@@ -807,7 +682,6 @@ def load_and_prepare_data(
     for key in ["temperature", "temperature_forecast"]:
         data[key] = convert_temperature(data[key], "C", "K")
 
-    # Drop date column
     data.drop(
         columns=[
             "date",
@@ -826,16 +700,13 @@ def load_and_prepare_data(
         for col, count in nan_counts[nan_counts > 0].items():
             print(f"  {col}: {count} NaN values")
 
-        # Apply zero-order hold (forward fill) to replace NaNs
         data = data.ffill()
 
-        # Check if any NaNs remain (e.g., at the beginning of the dataset)
         remaining_nans = data.isnull().sum()
         if remaining_nans.any():
             print("NaN values remaining after forward fill (filling with backward fill):")
             for col, count in remaining_nans[remaining_nans > 0].items():
                 print(f"  {col}: {count} NaN values")
-            # Use backward fill for any remaining NaNs at the start
             data = data.bfill()
 
     print("Prepared combined dataset:")
@@ -852,33 +723,27 @@ def load_and_prepare_data(
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
 
-    # Test loading and preparing data
-    dataset = HvacDataset()
+    dataset = HvacDataset(cfg=DataConfig(total_test_episodes=100))
     print(f"Dataset length: {len(dataset)}")
 
-    # Generate test episodes and plot distribution
     horizon = 96  # 24 hours at 15-min intervals
     max_steps = int(1.5 * 24 * 4)  # 1.5 days
 
     test_indices = dataset._generate_stratified_test_episodes(horizon, max_steps)
     print(f"Total test episodes: {len(test_indices)}")
 
-    # Get (year, month) for each test episode
     test_dates = [dataset.index[idx] for idx in test_indices]
     test_year_months = [(d.year, d.month) for d in test_dates]
 
-    # Count episodes per (year, month)
     from collections import Counter
 
     counts = Counter(test_year_months)
 
-    # Create a heatmap-style visualization
     years = sorted(set(ym[0] for ym in counts.keys()))
     months = sorted(set(ym[1] for ym in counts.keys()))
 
     fig, axes = plt.subplots(1, 2, figsize=(14, 5))
 
-    # Plot 1: Bar chart by year
     ax1 = axes[0]
     year_counts = Counter(d.year for d in test_dates)
     ax1.bar(year_counts.keys(), year_counts.values(), color="steelblue", edgecolor="black")
@@ -887,7 +752,6 @@ if __name__ == "__main__":
     ax1.set_title("Test Episodes Distribution by Year")
     ax1.set_xticks(list(year_counts.keys()))
 
-    # Plot 2: Heatmap by (year, month)
     ax2 = axes[1]
     heatmap_data = np.zeros((len(years), len(months)))
     for i, year in enumerate(years):
@@ -903,7 +767,6 @@ if __name__ == "__main__":
     ax2.set_ylabel("Year")
     ax2.set_title("Test Episodes per (Year, Month)")
 
-    # Add text annotations
     for i in range(len(years)):
         for j in range(len(months)):
             val = int(heatmap_data[i, j])
@@ -919,26 +782,22 @@ if __name__ == "__main__":
     for key in sorted(counts.keys()):
         print(f"  {key[0]}-{key[1]:02d}: {counts[key]} episodes")
 
-    # Plot historic data for 10 sample test episodes (overlaid in 3 subplots)
     from scipy.constants import convert_temperature
 
     n_episodes = len(test_indices)
-    episode_length = horizon + max_steps  # Total steps per episode
+    episode_length = horizon + max_steps
 
     fig2, axes2 = plt.subplots(1, 3, figsize=(15, 5))
     fig2.suptitle("Test Episodes: Price, Temperature, Solar (10 sample episodes)", fontsize=14)
 
-    time_hours = np.arange(episode_length) * 0.25  # 15-min intervals to hours
+    time_hours = np.arange(episode_length) * 0.25
 
-    # Sample 10 evenly spaced episodes
     sample_indices = [test_indices[i] for i in range(0, n_episodes, n_episodes // 10)][:10]
 
-    # Different line styles and colors for each episode
-    colors = plt.cm.tab10.colors  # 10 distinct colors
+    colors = plt.cm.tab10.colors
     linestyles = ["-", "--", "-.", ":", "-", "--", "-.", ":", "-", "--"]
 
     for i, idx in enumerate(sample_indices):
-        # Get data for this episode
         prices = dataset.get_price(idx, episode_length)
         temps = dataset.get_temperature(idx, episode_length)
         temps_celsius = convert_temperature(temps, "K", "C")
@@ -949,17 +808,12 @@ if __name__ == "__main__":
         color = colors[i % len(colors)]
         linestyle = linestyles[i % len(linestyles)]
 
-        # Price plot
         axes2[0].plot(
             time_hours, prices, color=color, linewidth=1.0, linestyle=linestyle, label=label
         )
-
-        # Temperature plot
         axes2[1].plot(
             time_hours, temps_celsius, color=color, linewidth=1.0, linestyle=linestyle, label=label
         )
-
-        # Solar plot
         axes2[2].plot(
             time_hours, solar, color=color, linewidth=1.0, linestyle=linestyle, label=label
         )
@@ -983,41 +837,29 @@ if __name__ == "__main__":
     plt.tight_layout()
     plt.savefig("test_episodes_data.png", dpi=150, bbox_inches="tight")
     plt.show()
-
     print("\nSaved test_episodes_data.png")
 
     # =========================================================================
     # Plot 3: Timeline visualization for Train/Test Split (Random Mode)
     # =========================================================================
-    print("\n" + "=" * 60)
-    print("Generating Train/Test Split Timeline...")
-    print("=" * 60)
-
-    episode_length = horizon + max_steps
-
-    # Get all years in dataset
     all_years = sorted(set(dataset.index.year))
 
     fig3, ax3 = plt.subplots(figsize=(16, 6))
     ax3.set_title("Test Episodes Timeline with Exclusion Zones (Random Mode)", fontsize=14)
 
-    # Plot each test episode as a bar on the timeline
     for idx in test_indices:
         start_date = dataset.index[idx]
         year = start_date.year
         day_of_year = start_date.dayofyear
 
-        # Calculate exclusion zone boundaries
         excl_start_idx = max(0, idx - episode_length + 1)
         excl_end_idx = min(len(dataset) - 1, idx + episode_length - 1)
         excl_start_date = dataset.index[excl_start_idx]
         excl_end_date = dataset.index[excl_end_idx]
 
-        # Plot exclusion zone (light red rectangle)
         excl_start_day = excl_start_date.dayofyear
         excl_end_day = excl_end_date.dayofyear
 
-        # Handle year boundaries for exclusion zone
         if excl_start_date.year == year and excl_end_date.year == year:
             ax3.barh(
                 y=year,
@@ -1029,10 +871,9 @@ if __name__ == "__main__":
                 edgecolor="none",
             )
 
-        # Plot test episode (blue rectangle)
         ax3.barh(
             y=year,
-            width=episode_length / 4 / 24,  # Convert steps to days
+            width=episode_length / 4 / 24,
             left=day_of_year,
             height=0.6,
             color="steelblue",
@@ -1041,15 +882,13 @@ if __name__ == "__main__":
             linewidth=0.5,
         )
 
-    # Add month labels on x-axis
-    # Use a reference non-leap year for consistent x-axis labels
     from datetime import date as dt_date
 
     def get_month_starts(year) -> list[int]:
         """Get day-of-year for the first day of each month."""
         return [dt_date(year, m, 1).timetuple().tm_yday for m in range(1, 13)]
 
-    month_starts = get_month_starts(2023)  # Reference year for labels
+    month_starts = get_month_starts(2023)
     month_labels = [
         "Jan",
         "Feb",
@@ -1073,7 +912,6 @@ if __name__ == "__main__":
     ax3.set_ylim(min(all_years) - 0.5, max(all_years) + 0.5)
     ax3.grid(True, alpha=0.3, axis="x")
 
-    # Add legend
     from matplotlib.patches import Patch
 
     legend_elements = [
@@ -1090,31 +928,16 @@ if __name__ == "__main__":
     # =========================================================================
     # Plot 4: Timeline visualization for Continual Learning Mode
     # =========================================================================
-    print("\n" + "=" * 60)
-    print("Generating Continual Learning Timeline...")
-    print("=" * 60)
-
-    # Create a new dataset with continual mode
     continual_cfg = DataConfig(mode="continual")
     continual_dataset = HvacDataset(cfg=continual_cfg)
-
-    # Collect continual episodes (simulate sampling until we cycle)
-    continual_episodes = []
     continual_dataset.reset_continual_index()
 
-    # Sample episodes until we wrap around or collect enough
-    max_episodes = 50  # Limit for visualization
-    initial_idx = None
-
-    for i in range(max_episodes):
+    continual_episodes = []
+    max_episodes = 50
+    for _ in range(max_episodes):
         start_idx, ep_max_steps = continual_dataset._sample_continual(horizon)
-
-        # Stop if we've wrapped around
-        if initial_idx is None:
-            initial_idx = start_idx
-        elif start_idx == initial_idx and i > 0:
+        if ep_max_steps == 0:
             break
-
         continual_episodes.append((start_idx, ep_max_steps))
 
     print(f"Continual learning episodes: {len(continual_episodes)}")
@@ -1122,7 +945,6 @@ if __name__ == "__main__":
     fig4, ax4 = plt.subplots(figsize=(16, 6))
     ax4.set_title("Continual Learning Episodes Timeline", fontsize=14)
 
-    # Color gradient for episode order
     n_episodes = len(continual_episodes)
     colors = plt.cm.viridis(np.linspace(0, 1, n_episodes))
 
@@ -1135,14 +957,11 @@ if __name__ == "__main__":
         start_day = start_date.dayofyear
         end_day = end_date.dayofyear
 
-        # Handle episodes that span year boundaries
         if end_date.year != year:
-            # Split into two bars
             days_in_year = 366 if (year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)) else 365
             first_part_days = days_in_year - start_day + 1
-            second_part_days = end_date.dayofyear  # Days into the new year
+            second_part_days = end_date.dayofyear
 
-            # First year
             ax4.barh(
                 y=year,
                 width=first_part_days,
@@ -1153,7 +972,6 @@ if __name__ == "__main__":
                 edgecolor="black",
                 linewidth=0.5,
             )
-            # Second year
             ax4.barh(
                 y=year + 1,
                 width=second_part_days,
@@ -1167,7 +985,7 @@ if __name__ == "__main__":
         else:
             ax4.barh(
                 y=year,
-                width=end_day - start_day + 1,  # Use actual end date
+                width=end_day - start_day + 1,
                 left=start_day,
                 height=0.6,
                 color=colors[i],
@@ -1176,32 +994,7 @@ if __name__ == "__main__":
                 linewidth=0.5,
             )
 
-    # Mark invalid months (summer) with light gray
-    valid_months = continual_cfg.valid_months or list(range(1, 13))
-
-    for year in all_years:
-        year_month_starts = get_month_starts(year)
-        for m in range(1, 13):
-            if m not in valid_months:
-                m_start_day = year_month_starts[m - 1]
-                # End day is start of next month (or end of year for Dec)
-                if m < 12:
-                    m_end_day = year_month_starts[m]
-                else:
-                    is_leap = year % 4 == 0 and (year % 100 != 0 or year % 400 == 0)
-                    m_end_day = 367 if is_leap else 366
-                ax4.barh(
-                    y=year,
-                    width=m_end_day - m_start_day,
-                    left=m_start_day,
-                    height=0.8,
-                    color="lightgray",
-                    alpha=0.5,
-                    edgecolor="none",
-                    zorder=0,
-                )
-
-    ax4.set_xticks(get_month_starts(2023))  # Reference year for consistent labels
+    ax4.set_xticks(get_month_starts(2023))
     ax4.set_xticklabels(month_labels)
     ax4.set_xlabel("Day of Year")
     ax4.set_ylabel("Year")
@@ -1210,17 +1003,9 @@ if __name__ == "__main__":
     ax4.set_ylim(min(all_years) - 0.5, max(all_years) + 0.5)
     ax4.grid(True, alpha=0.3, axis="x")
 
-    # Add legend
-    legend_elements = [
-        Patch(facecolor="darkgreen", alpha=0.8, edgecolor="black", label="Continual Episode"),
-        Patch(facecolor="lightgray", alpha=0.5, label="Invalid Months (summer)"),
-    ]
-    ax4.legend(handles=legend_elements, loc="upper right")
-
-    # Add colorbar to show episode order
     sm = plt.cm.ScalarMappable(cmap="viridis", norm=plt.Normalize(vmin=1, vmax=n_episodes))
     sm.set_array([])
-    cbar = plt.colorbar(sm, ax=ax4, label="Episode Order", shrink=0.8)
+    plt.colorbar(sm, ax=ax4, label="Episode Order", shrink=0.8)
 
     plt.tight_layout()
     plt.savefig("continual_learning_timeline.png", dpi=150, bbox_inches="tight")
