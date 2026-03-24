@@ -4,7 +4,7 @@ from typing import Literal
 import casadi as ca
 import gymnasium as gym
 import numpy as np
-from acados_template import AcadosOcp
+from acados_template import ACADOS_INFTY, AcadosOcp
 from scipy.constants import convert_temperature
 
 from leap_c.examples.hvac.dynamics import (
@@ -184,7 +184,7 @@ def export_parametric_ocp(
     x0: np.ndarray | None = None,
     qh_max: float = 5.0,
 ) -> AcadosOcp:
-    """Export the HVAC OCP.
+    """Export the HVAC OCP (Quadratic Program).
 
     Augments the state with the previous input to encode the rate penalty.
 
@@ -197,7 +197,7 @@ def export_parametric_ocp(
     Bounds on Ti as box constraints.
 
     The cost is price * t + q_dqh * dqh², which is purely quadratic in dqh and
-    linear in t, giving a constant Hessian and making the OCP a true QP.
+    linear in t, giving a constant Hessian and making the OCP a QP.
 
     Args:
         param_manager: The parameter manager containing the parameters for the OCP.
@@ -251,7 +251,7 @@ def export_parametric_ocp(
     ocp.cost.cost_type = "EXTERNAL"
     ocp.cost.cost_type_e = "EXTERNAL"
 
-    # dqh² has constant Hessian; t enters linearly → overall constant Hessian.
+    # dqh**2 has constant Hessian; t enters linearly → overall constant Hessian.
     ocp.model.cost_expr_ext_cost = (
         0.25 * param_manager.get("price") * t + param_manager.get("q_dqh") * dqh**2
     )
@@ -287,7 +287,7 @@ def export_parametric_ocp(
     # lg <= C @ x + D @ u <= ug
     ocp.constraints.C = np.array([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, -1.0]])
     ocp.constraints.D = np.array([[1.0, -1.0], [-1.0, -1.0]])
-    ocp.constraints.lg = np.array([-1e9, -1e9])
+    ocp.constraints.lg = np.array([-ACADOS_INFTY, -ACADOS_INFTY])
     ocp.constraints.ug = np.array([0.0, 0.0])
 
     # ── Solver options ────────────────────────────────────────────────────────
