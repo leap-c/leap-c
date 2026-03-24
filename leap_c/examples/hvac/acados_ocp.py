@@ -182,24 +182,29 @@ def export_parametric_ocp(
     N_horizon: int,
     name: str = "hvac",
     x0: np.ndarray | None = None,
+    qh_max: float = 5.0,
 ) -> AcadosOcp:
     """Export the HVAC OCP.
 
     Augments the state with the previous input to encode the rate penalty.
 
-    State:   x = [Ti, Th, Te, qh_prev]  (K, K, K, kW)
-    Input:   u = qh                      (kW)
+    State:   x = [Ti, Th, Te, qh]  (K, K, K, kW)
+        qh is the heating power applied at the previous step.
+    Input:   u = [dqh, t]          (kW, kW)
+        dqh is the increment; the actually applied power is qh_new = qh + dqh.
+        t >= |qh_new| is an auxiliary variable for the LP absolute-value reformulation.
     Params per stage: [Ta, solar, price]
     Bounds on Ti as box constraints.
 
-    Note: the rate penalty at k=0 uses qh_prev from x0, adding one extra term
-    compared to the mpax formulation (which sums from k=0 to N-2).
+    The cost is price * t + q_dqh * dqh², which is purely quadratic in dqh and
+    linear in t, giving a constant Hessian and making the OCP a true QP.
 
     Args:
         param_manager: The parameter manager containing the parameters for the OCP.
         N_horizon: Number of time steps in the horizon.
         name: Name of the OCP model.
         x0: Initial state. If None, a default value is used.
+        qh_max: Maximum absolute heating power in kW (box constraint).
 
 
     Returns:
@@ -214,17 +219,17 @@ def export_parametric_ocp(
     # Model
     ocp.model.name = name
 
-    # ── State: x_aug = [Ti, Th, Te, qh_prev] ─────────────────────────────────
+    # ── State: x_aug = [Ti, Th, Te, qh] ──────────────────────────────────────
     Ti = ca.SX.sym("Ti")
     Th = ca.SX.sym("Th")
     Te = ca.SX.sym("Te")
-    qh_prev = ca.SX.sym("qh_prev")
-    ocp.model.x = ca.vertcat(Ti, Th, Te, qh_prev)
-
-    # ── Input: [qh, t] where t = |qh| via LP reformulation ───────────────────
     qh = ca.SX.sym("qh")
+    ocp.model.x = ca.vertcat(Ti, Th, Te, qh)
+
+    # ── Input: [dqh, t] where qh_new = qh + dqh and t = |qh_new| via LP ─────
+    dqh = ca.SX.sym("dqh")
     t = ca.SX.sym("t")
-    ocp.model.u = ca.vertcat(qh, t)
+    ocp.model.u = ca.vertcat(dqh, t)
 
     # ── Discrete dynamics ─────────────────────────────────────────────────────
     Ad, Bd, Ed = transcribe_discrete_state_space(
@@ -238,15 +243,17 @@ def export_parametric_ocp(
         param_manager.get("temperature"),  # Ambient temperature
         param_manager.get("solar"),  # Solar radiation
     )
-    x_next_phys = Ad @ x_phys + Bd_kW * qh + Ed @ d_vec
-    ocp.model.disc_dyn_expr = ca.vertcat(x_next_phys, qh)
+    qh_new = qh + dqh
+    x_next_phys = Ad @ x_phys + Bd_kW * qh_new + Ed @ d_vec
+    ocp.model.disc_dyn_expr = ca.vertcat(x_next_phys, qh_new)
 
     # ── Cost ──────────────────────────────────────────────────────────────────
     ocp.cost.cost_type = "EXTERNAL"
     ocp.cost.cost_type_e = "EXTERNAL"
 
+    # dqh² has constant Hessian; t enters linearly → overall constant Hessian.
     ocp.model.cost_expr_ext_cost = (
-        0.25 * param_manager.get("price") * t + param_manager.get("q_dqh") * (qh - qh_prev) ** 2
+        0.25 * param_manager.get("price") * t + param_manager.get("q_dqh") * dqh**2
     )
     ocp.model.cost_expr_ext_cost_e = 1e-3 * (Ti - convert_temperature(20.0, "C", "K")) ** 2
 
@@ -254,30 +261,32 @@ def export_parametric_ocp(
     Ti_ic = convert_temperature(20.0, "C", "K")
     ocp.constraints.x0 = np.array([Ti_ic, Ti_ic, Ti_ic, 0.0])
 
-    # Slacked comfort box constraint on Ti
-    ocp.constraints.lbx = np.array([convert_temperature(12.0, "C", "K")])
-    ocp.constraints.ubx = np.array([convert_temperature(30.0, "C", "K")])
-    ocp.constraints.idxbx = np.array([0])
+    # Slacked comfort box constraint on Ti; hard box constraint on qh.
+    ocp.constraints.lbx = np.array([convert_temperature(12.0, "C", "K"), -qh_max])
+    ocp.constraints.ubx = np.array([convert_temperature(25.0, "C", "K"), qh_max])
+    ocp.constraints.idxbx = np.array([0, 3])
 
-    ocp.constraints.idxsbx = np.array([0])
-    ocp.cost.zl = 1e3 * np.ones((1,))
-    ocp.cost.Zl = 1e3 * np.ones((1,))
-    ocp.cost.zu = 1e3 * np.ones((1,))
-    ocp.cost.Zu = 1e3 * np.ones((1,))
+    ocp.constraints.idxsbx = np.array([0])  # slack only on Ti (first entry of idxbx)
+    ocp.cost.zl = 1e2 * np.ones((1,))
+    ocp.cost.Zl = 1e2 * np.ones((1,))
+    ocp.cost.zu = 1e2 * np.ones((1,))
+    ocp.cost.Zu = 1e2 * np.ones((1,))
 
-    ocp.constraints.lbx_e = np.array([convert_temperature(12.0, "C", "K")])
-    ocp.constraints.ubx_e = np.array([convert_temperature(30.0, "C", "K")])
-    ocp.constraints.idxbx_e = np.array([0])
+    ocp.constraints.lbx_e = np.array([convert_temperature(12.0, "C", "K"), -qh_max])
+    ocp.constraints.ubx_e = np.array([convert_temperature(25.0, "C", "K"), qh_max])
+    ocp.constraints.idxbx_e = np.array([0, 3])
 
-    # Box bounds: qh in [-5, 5] kW, t >= 0 (upper bound matches qh range)
-    ocp.constraints.lbu = np.array([-5.0, 0.0])
-    ocp.constraints.ubu = np.array([5.0, 5.0])
+    # Box bounds: dqh in [-10, 10] kW (full swing), t >= 0
+    ocp.constraints.lbu = np.array([-10.0, 0.0])
+    ocp.constraints.ubu = np.array([10.0, qh_max])
     ocp.constraints.idxbu = np.array([0, 1])
 
-    # Linear constraints encoding t >= |qh|:  qh - t <= 0  and  -qh - t <= 0
-    # lg <= D @ u <= ug  with  D = [[1, -1], [-1, -1]]
+    # Linear constraints encoding t >= |qh_new| = |qh + dqh|:
+    #   (qh + dqh) - t <= 0  →  C=[0,0,0,1], D=[1,-1]
+    #  -(qh + dqh) - t <= 0  →  C=[0,0,0,-1], D=[-1,-1]
+    # lg <= C @ x + D @ u <= ug
+    ocp.constraints.C = np.array([[0.0, 0.0, 0.0, 1.0], [0.0, 0.0, 0.0, -1.0]])
     ocp.constraints.D = np.array([[1.0, -1.0], [-1.0, -1.0]])
-    ocp.constraints.C = np.zeros((2, 4))
     ocp.constraints.lg = np.array([-1e9, -1e9])
     ocp.constraints.ug = np.array([0.0, 0.0])
 

@@ -85,13 +85,13 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
     The first part of the state corresponds to the first part of the observation of the
     StochasticThreeStateRcEnv environment, i.e., the indoor temperature Ti,
     the radiator temperature Th, and the envelope temperature Te.
-    Appended to this state is "qh_prev", the heating power applied at the previous step [kW].
-    The action of this planner is "qh" [kW], the heating power directly.
+    Appended to this state is "qh", the heating power applied at the previous step [kW].
+    The action of this planner is "qh_new = qh + dqh" [W], the heating power for the next step.
 
     The cost function takes the form of
-        0.25 * price * qh
-        + q_dqh * (qh - qh_prev) ** 2,
-    i.e., a linear price term combined with a quadratic penalty on the rate of change
+        0.25 * price * t + q_dqh * dqh ** 2,
+    where t >= |qh + dqh| via LP reformulation and dqh is the control increment.
+    The Hessian is constant, making the OCP a true QP (one SQP iteration).
     of heating power.
 
     The dynamics correspond partly to the dynamics also found in the environment.
@@ -178,10 +178,14 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         """
         N = self.cfg.N_horizon
         # Stages 1..N; stage 0 is fixed by x0 and is not constrained here.
+        # idxbx = idxbx_e = [0, 3] → both Ti and qh bounds for all stages.
         stages = list(range(1, N + 1))
-        # lb/ub shape: (batch_size, N+1) → select stages 1..N → (batch_size, N, 1)
-        lbx = lb[:batch_size, 1:, np.newaxis]
-        ubx = ub[:batch_size, 1:, np.newaxis]
+        lbx_Ti = lb[:batch_size, 1:, np.newaxis]  # (batch_size, N, 1)
+        ubx_Ti = ub[:batch_size, 1:, np.newaxis]  # (batch_size, N, 1)
+        lbx_qh = np.full((batch_size, N, 1), -10.0)
+        ubx_qh = np.full((batch_size, N, 1), 10.0)
+        lbx = np.concatenate([lbx_Ti, lbx_qh], axis=-1)  # (batch_size, N, 2)
+        ubx = np.concatenate([ubx_Ti, ubx_qh], axis=-1)  # (batch_size, N, 2)
         self.diff_mpc.set_constraint_bounds(lbx, ubx, stages)
 
     def forward(
@@ -336,12 +340,12 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
 
         ctx = HvacPlannerCtx(
             **vars(diff_mpc_ctx),
-            qh=u[:, 0, 0:1].detach(),  # first input qh [kW], used as qh_prev next step
+            qh=x[:, 1, 3:4].detach(),  # qh + dqh at stage 0 [kW], used as qh in next x0
             render_info=render_info,
         )
 
-        # u[:, 0, 0] is qh in kW; environment expects W
-        return ctx, u[:, 0, 0:1] * 1000.0, x, u, value
+        # x[:, 1, 3] = qh + dqh at stage 0 [kW]; environment expects W
+        return ctx, x[:, 1, 3:4] * 1000.0, x, u, value
 
     def default_param(
         self, obs: dict[str, np.ndarray | dict[str, np.ndarray]] | None
