@@ -221,9 +221,10 @@ def export_parametric_ocp(
     qh_prev = ca.SX.sym("qh_prev")
     ocp.model.x = ca.vertcat(Ti, Th, Te, qh_prev)
 
-    # ── Input: qh [kW] ────────────────────────────────────────────────────────
+    # ── Input: [qh, t] where t = |qh| via LP reformulation ───────────────────
     qh = ca.SX.sym("qh")
-    ocp.model.u = qh
+    t = ca.SX.sym("t")
+    ocp.model.u = ca.vertcat(qh, t)
 
     # ── Discrete dynamics ─────────────────────────────────────────────────────
     Ad, Bd, Ed = transcribe_discrete_state_space(
@@ -245,7 +246,7 @@ def export_parametric_ocp(
     ocp.cost.cost_type_e = "EXTERNAL"
 
     ocp.model.cost_expr_ext_cost = (
-        0.25 * param_manager.get("price") * qh + param_manager.get("q_dqh") * (qh - qh_prev) ** 2
+        0.25 * param_manager.get("price") * t + param_manager.get("q_dqh") * (qh - qh_prev) ** 2
     )
     ocp.model.cost_expr_ext_cost_e = 1e-3 * (Ti - convert_temperature(20.0, "C", "K")) ** 2
 
@@ -268,9 +269,17 @@ def export_parametric_ocp(
     ocp.constraints.ubx_e = np.array([convert_temperature(30.0, "C", "K")])
     ocp.constraints.idxbx_e = np.array([0])
 
-    ocp.constraints.lbu = np.array([0.0])
-    ocp.constraints.ubu = np.array([5.0])
-    ocp.constraints.idxbu = np.array([0])
+    # Box bounds: qh in [-5, 5] kW, t >= 0 (upper bound matches qh range)
+    ocp.constraints.lbu = np.array([-5.0, 0.0])
+    ocp.constraints.ubu = np.array([5.0, 5.0])
+    ocp.constraints.idxbu = np.array([0, 1])
+
+    # Linear constraints encoding t >= |qh|:  qh - t <= 0  and  -qh - t <= 0
+    # lg <= D @ u <= ug  with  D = [[1, -1], [-1, -1]]
+    ocp.constraints.D = np.array([[1.0, -1.0], [-1.0, -1.0]])
+    ocp.constraints.C = np.zeros((2, 4))
+    ocp.constraints.lg = np.array([-1e9, -1e9])
+    ocp.constraints.ug = np.array([0.0, 0.0])
 
     # ── Solver options ────────────────────────────────────────────────────────
     ocp.solver_options.tf = N_horizon * dt

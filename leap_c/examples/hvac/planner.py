@@ -336,12 +336,12 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
 
         ctx = HvacPlannerCtx(
             **vars(diff_mpc_ctx),
-            qh=u[:, 0, :].detach(),  # first input qh [kW], used as qh_prev next step
+            qh=u[:, 0, 0:1].detach(),  # first input qh [kW], used as qh_prev next step
             render_info=render_info,
         )
 
-        # u[:, 0, :] is qh in kW; environment expects W
-        return ctx, u[:, 0, :] * 1000.0, x, u, value
+        # u[:, 0, 0] is qh in kW; environment expects W
+        return ctx, u[:, 0, 0:1] * 1000.0, x, u, value
 
     def default_param(
         self, obs: dict[str, np.ndarray | dict[str, np.ndarray]] | None
