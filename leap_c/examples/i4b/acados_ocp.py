@@ -28,10 +28,11 @@ import sys
 from pathlib import Path
 
 import casadi as ca
+import gymnasium as gym
 import numpy as np
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import AcadosParameter
+from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 # i4b root - needed for Building/Heatpump model imports
 _I4B_ROOT = Path(__file__).resolve().parents[3] / "external" / "i4b"
@@ -43,11 +44,48 @@ from src.models.model_buildings import Building  # noqa: E402
 from src.models.model_hvac import Heatpump, Heatpump_AW, Heatpump_Vitocal  # noqa: E402
 
 
-def make_i4b_params(
-    param_interface: str,
-    N_horizon: int,
-) -> list[AcadosParameter]:
-    pass
+def make_i4b_params() -> tuple[AcadosParameter, ...]:
+    """Return the four stage-wise non-learnable parameters for the i4b OCP.
+
+    All parameters use ``interface="non-learnable"``: they can be updated at
+    runtime via ``solver.set(k, "p", values)`` but are not exposed to a
+    learning interface.  Default values are representative winter conditions.
+
+    Parameter order (= flat ``p`` vector per stage):
+        0  T_amb        Ambient temperature               [degC]   default  5.0
+        1  Qdot_gains   Total heat gains (solar+internal) [W]      default  500.0
+        2  T_set_lower  Lower comfort setpoint            [degC]   default  20.0
+        3  grid_signal  Grid support signal               [-]      default  1.0
+
+    Returns:
+        Tuple of four AcadosParameter objects (preserving the order above).
+    """
+    return (
+        AcadosParameter(
+            name="T_amb",
+            default=np.array([5.0]),
+            space=gym.spaces.Box(low=np.array([-25.0]), high=np.array([45.0]), dtype=np.float64),
+            interface="non-learnable",
+        ),
+        AcadosParameter(
+            name="Qdot_gains",
+            default=np.array([500.0]),
+            space=gym.spaces.Box(low=np.array([0.0]), high=np.array([8000.0]), dtype=np.float64),
+            interface="non-learnable",
+        ),
+        AcadosParameter(
+            name="T_set_lower",
+            default=np.array([20.0]),
+            space=gym.spaces.Box(low=np.array([15.0]), high=np.array([30.0]), dtype=np.float64),
+            interface="non-learnable",
+        ),
+        AcadosParameter(
+            name="grid_signal",
+            default=np.array([1.0]),
+            space=gym.spaces.Box(low=np.array([0.0]), high=np.array([5.0]), dtype=np.float64),
+            interface="non-learnable",
+        ),
+    )
 
 
 def _cop_casadi(hp_model: Heatpump, T_HP: ca.SX, T_amb: ca.SX) -> ca.SX:
@@ -72,6 +110,7 @@ def _cop_casadi(hp_model: Heatpump, T_HP: ca.SX, T_amb: ca.SX) -> ca.SX:
 
 
 def export_parametric_ocp(
+    param_manager: AcadosParameterManager,
     N_horizon: int,
     building_model: Building,
     hp_model: Heatpump,
@@ -83,6 +122,9 @@ def export_parametric_ocp(
     """Export an AcadosOcp equivalent to the i4b MPC optimization problem.
 
     Args:
+        param_manager: Parameter manager built from make_i4b_params().
+            Provides symbolic variables for T_amb, Qdot_gains, T_set_lower,
+            grid_signal and assigns them to the OCP's p vector.
         N_horizon: Number of shooting intervals.
         building_model: Instantiated Building model (sets method, params, mdot_hp).
         hp_model: Instantiated Heatpump model (Heatpump_AW or Heatpump_Vitocal).
@@ -99,16 +141,12 @@ def export_parametric_ocp(
     ocp = AcadosOcp()
     ocp.model.name = name
 
-    # ── Symbolic variables ────────────────────────────────────────────────────
-    x = ca.SX.sym("x", nx)  # states
-    u = ca.SX.sym("u", 1)  # control: T_HP [degC]
-    # p = [T_amb, Qdot_gains, T_set_lower, grid_signal]
-    p = ca.SX.sym("p", 4)
+    # Assign p vector from param manager (sets ocp.model.p and ocp.parameter_values)
+    param_manager.assign_to_ocp(ocp)
 
-    T_amb = p[0]
-    Qdot_gains = p[1]  # noqa: F841  (accessed inside building_model via p[1])
-    T_set_lower = p[2]
-    grid_signal = p[3]
+    # ── Symbolic state / control ──────────────────────────────────────────────
+    x = ca.SX.sym("x", nx)
+    u = ca.SX.sym("u", 1)  # T_HP [degC]
 
     T_HP = u[0]
     T_room = x[0]
@@ -116,12 +154,17 @@ def export_parametric_ocp(
 
     ocp.model.x = x
     ocp.model.u = u
-    ocp.model.p = p
 
-    # ── Continuous dynamics (building_model uses p[0]=T_amb, p[1]=Qdot_gains) ─
-    # p has 4 entries; the building model only reads p[0] and p[1], so passing
-    # the full vector is safe for all three methods (2R2C, 4R3C, 5R4C).
-    ocp.model.f_expl_expr = building_model.calc_casadi(x, T_HP, p)
+    # ── Parameters (via manager) ──────────────────────────────────────────────
+    T_amb = param_manager.get("T_amb")
+    Qdot_gains = param_manager.get("Qdot_gains")
+    T_set_lower = param_manager.get("T_set_lower")
+    grid_signal = param_manager.get("grid_signal")
+
+    # ── Continuous dynamics ───────────────────────────────────────────────────
+    # building_model.calc_casadi reads p[0]=T_amb and p[1]=Qdot_gains
+    p_bldg = ca.vertcat(T_amb, Qdot_gains)
+    ocp.model.f_expl_expr = building_model.calc_casadi(x, T_HP, p_bldg)
 
     # ── Stage cost: electrical energy ─────────────────────────────────────────
     COP = _cop_casadi(hp_model, T_HP, T_amb)
@@ -131,7 +174,7 @@ def export_parametric_ocp(
     ocp.cost.cost_type = "EXTERNAL"
     ocp.cost.cost_type_e = "EXTERNAL"
     ocp.model.cost_expr_ext_cost = stage_cost
-    ocp.model.cost_expr_ext_cost_e = ca.SX(0)  # no explicit terminal cost
+    ocp.model.cost_expr_ext_cost_e = ca.SX(0)
 
     # ── Nonlinear path constraints ────────────────────────────────────────────
     # h[0]: soft lower bound on T_room  (T_room >= T_set_lower)
@@ -153,7 +196,7 @@ def export_parametric_ocp(
     ocp.constraints.lh_e = np.array([0.0, 0.0])
     ocp.constraints.uh_e = np.array([1e9, 1e9])
 
-    # ── Soft constraints (h[0] and h[1] are softened) ─────────────────────────
+    # ── Soft constraints (h[0] and h[1] softened) ────────────────────────────
     # Slack penalty: ws * sl^2  →  Zl = ws, zl = 0
     ocp.constraints.idxsh = np.array([0, 1])
     ocp.constraints.idxsh_e = np.array([0, 1])
@@ -167,17 +210,13 @@ def export_parametric_ocp(
     ocp.cost.Zl_e = ws * np.ones(2)
     ocp.cost.Zu_e = ws * np.ones(2)
 
-    # ── Control bounds (hard box) ─────────────────────────────────────────────
+    # ── Control bounds ────────────────────────────────────────────────────────
     ocp.constraints.lbu = np.array([0.0])
     ocp.constraints.ubu = np.array([65.0])
     ocp.constraints.idxbu = np.array([0])
 
     # ── Initial state ─────────────────────────────────────────────────────────
     ocp.constraints.x0 = x0 if x0 is not None else 20.0 * np.ones(nx)
-
-    # ── Default parameter values ──────────────────────────────────────────────
-    # [T_amb=5°C, Qdot_gains=500W, T_set_lower=20°C, grid_signal=1]
-    ocp.parameter_values = np.array([5.0, 500.0, 20.0, 1.0])
 
     # ── Solver options ────────────────────────────────────────────────────────
     ocp.solver_options.tf = N_horizon * delta_t
@@ -197,15 +236,13 @@ if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from acados_template import AcadosOcpSolver
 
-    # Must chdir to i4b root so its internal data imports resolve
     os.chdir(_I4B_ROOT)
 
-    # ── Select building and HP model ──────────────────────────────────────────
     from data.buildings.sfh_2016_now import sfh_2016_now_0_soc
 
     METHOD = "4R3C"
-    N = 96  # 96 steps x 900s = 24 h
-    DELTA_T = 900.0  # 15 min
+    N = 96  # 96 x 900 s = 24 h
+    DELTA_T = 900.0
 
     building = Building(
         params=sfh_2016_now_0_soc,
@@ -216,16 +253,15 @@ if __name__ == "__main__":
     )
     hp = Heatpump_AW(mdot_HP=0.25)
 
-    # Cold initial condition: house at 15 degC
-    nx = len(building.state_keys)
-    x0 = 15.0 * np.ones(nx)
+    x0 = 15.0 * np.ones(len(building.state_keys))
 
-    # ── Build and compile OCP ─────────────────────────────────────────────────
-    ocp = export_parametric_ocp(N, building, hp, x0=x0)
+    # ── Build OCP via param manager ───────────────────────────────────────────
+    param_manager = AcadosParameterManager(make_i4b_params(), N_horizon=N)
+    ocp = export_parametric_ocp(param_manager, N, building, hp, x0=x0)
     solver = AcadosOcpSolver(ocp, json_file="i4b_ocp.json")
 
     # ── Set stagewise parameters: cold winter day ─────────────────────────────
-    # p = [T_amb, Qdot_gains, T_set_lower, grid_signal]
+    # flat p order matches make_i4b_params(): [T_amb, Qdot_gains, T_set_lower, grid_signal]
     p_stage = np.array([-5.0, 300.0, 20.0, 1.0])
     for k in range(N + 1):
         solver.set(k, "p", p_stage)
@@ -235,23 +271,21 @@ if __name__ == "__main__":
     if status != 0:
         print(f"WARNING: solver returned status {status}")
 
-    # ── Extract solution ──────────────────────────────────────────────────────
+    # ── Extract and plot solution ─────────────────────────────────────────────
     X = np.array([solver.get(k, "x") for k in range(N + 1)])
     U = np.array([solver.get(k, "u") for k in range(N)])
-    t = np.arange(N + 1) * DELTA_T / 3600  # hours
+    t = np.arange(N + 1) * DELTA_T / 3600
 
-    # ── Plot ──────────────────────────────────────────────────────────────────
-    state_labels = list(building.state_keys)
     fig, axes = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
 
     ax0 = axes[0]
-    for i, label in enumerate(state_labels):
+    for i, label in enumerate(building.state_keys):
         ax0.plot(t, X[:, i], label=label)
     ax0.axhline(20.0, color="k", linestyle="--", linewidth=0.8, label="T_set_lower")
     ax0.axhline(26.0, color="r", linestyle="--", linewidth=0.8, label="T_set_upper")
     ax0.set_ylabel("Temperature [degC]")
     ax0.legend(fontsize=8)
-    ax0.set_title(f"i4b MPC OCP solution  |  {METHOD}  |  N={N}  |  T_amb={p_stage[0]} degC")
+    ax0.set_title(f"i4b MPC OCP  |  {METHOD}  |  N={N}  |  T_amb={p_stage[0]} degC")
     ax0.grid(True)
 
     ax1 = axes[1]
