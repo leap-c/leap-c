@@ -54,11 +54,43 @@ _ACTION_MID = 32.5
 _ACTION_HALF = 32.5
 
 
+def _fc_to_staged(
+    fc: torch.Tensor | None,
+    current: np.ndarray,
+    batch_size: int,
+    N: int,
+) -> np.ndarray:
+    """Convert a forecast tensor to a (B, N+1, 1) stagewise numpy array.
+
+    Args:
+        fc: Forecast tensor of shape (B, N_fc) or None.
+        current: Current value array of shape (B, 1), used when fc is None or too short.
+        batch_size: Batch size B.
+        N: MPC horizon length (number of intervals).
+
+    Returns:
+        Array of shape (B, N+1, 1).
+    """
+    if fc is None:
+        return np.broadcast_to(current[:, np.newaxis, :], (batch_size, N + 1, 1)).copy()
+    fc_np = fc.detach().cpu().numpy()[:, :, np.newaxis]  # (B, N_fc, 1)
+    N_fc = fc_np.shape[1]
+    if N_fc >= N + 1:
+        return fc_np[:, : N + 1, :].copy()
+    # Pad with last forecast value to cover remaining stages.
+    pad = np.broadcast_to(fc_np[:, -1:, :], (batch_size, N + 1 - N_fc, 1)).copy()
+    return np.concatenate([fc_np, pad], axis=1)
+
+
 class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     """Acados-based MPC planner for the I4b building heat-pump control environment.
 
-    The observation fed to ``forward`` must follow the layout produced by ``I4bEnv``:
-        [*building_states (nx), T_amb, Qdot_gains, *T_amb_forecast]
+    The observation fed to ``forward`` must follow the layout produced by ``I4bEnv``
+    (a ``spaces.Dict``):
+        obs["state"]                       – building thermal states, shape (B, nx)
+        obs["disturbances"]["T_amb"]       – ambient temperature, shape (B, 1)
+        obs["disturbances"]["Qdot_gains"]  – heat gains, shape (B, 1)
+        obs["setpoints"]["T_set_upper"]    – upper comfort bound, shape (B, 1)
 
     The planner extracts the building state and current disturbances from the
     observation, broadcasts the disturbances over the entire horizon, and calls the
@@ -119,7 +151,7 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
     def forward(
         self,
-        obs: torch.Tensor,
+        obs: dict[str, torch.Tensor | dict],
         action: torch.Tensor | None = None,
         param: torch.Tensor | None = None,
         ctx: AcadosDiffMpcCtx | None = None,
@@ -133,9 +165,11 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         """Solve the MPC problem and return the optimal normalised action.
 
         Args:
-            obs: Flat observation tensor of shape ``(batch_size, obs_dim)`` where
-                ``obs_dim >= nx + 2``.  Layout:
-                ``[*building_states (nx), T_amb, Qdot_gains, *T_amb_forecast]``.
+            obs: Dict observation as produced by ``I4bEnv``.  Must contain:
+                ``obs["state"]`` – shape (batch_size, nx),
+                ``obs["disturbances"]["T_amb"]`` – shape (batch_size, 1),
+                ``obs["disturbances"]["Qdot_gains"]`` – shape (batch_size, 1),
+                ``obs["setpoints"]["T_set_upper"]`` – shape (batch_size, 1).
             action: Warm-start action (optional).
             param: Learnable parameters (unused; all params are non-learnable).
             ctx: Previous solver context for warm-starting.
@@ -147,32 +181,36 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             u: Control trajectory (T_HP [degC]), shape (batch_size, N_horizon, 1).
             value: Optimal cost, shape (batch_size, 1).
         """
-        nx = self._nx
-        batch_size = obs.shape[0]
+        x0 = obs["state"]  # (B, nx)
+        batch_size = x0.shape[0]
         N = self.cfg.N_horizon
 
-        # Extract building state and current disturbances from the flat observation.
-        x0 = obs[:, :nx]  # (B, nx)
-        T_amb_now = obs[:, nx : nx + 1].detach().cpu().numpy()  # (B, 1)
-        Qdot_gains_now = obs[:, nx + 1 : nx + 2].detach().cpu().numpy()  # (B, 1)
+        T_amb_now = obs["disturbances"]["T_amb"].detach().cpu().numpy()  # (B, 1)
+        Qdot_gains_now = obs["disturbances"]["Qdot_gains"].detach().cpu().numpy()  # (B, 1)
+        T_set_lower_now = obs["setpoints"]["T_set_lower"].detach().cpu().numpy()  # (B, 1)
+        T_set_upper_now = obs["setpoints"]["T_set_upper"].detach().cpu().numpy()  # (B, 1)
 
-        # Broadcast current disturbances over all N_horizon+1 stages.
-        T_amb_staged = np.broadcast_to(T_amb_now[:, np.newaxis, :], (batch_size, N + 1, 1)).copy()
+        fc = obs.get("forecast", {})
+
+        # Build (B, N+1, 1) stagewise arrays from forecast where available,
+        # falling back to the current value broadcast over all stages.
+        T_amb_staged = _fc_to_staged(fc.get("T_amb"), T_amb_now, batch_size, N)
+        T_set_lower_staged = _fc_to_staged(fc.get("T_set_lower"), T_set_lower_now, batch_size, N)
+        T_set_upper_staged = _fc_to_staged(fc.get("T_set_upper"), T_set_upper_now, batch_size, N)
         Qdot_gains_staged = np.broadcast_to(
             Qdot_gains_now[:, np.newaxis, :], (batch_size, N + 1, 1)
         ).copy()
 
-        T_set_upper_staged = np.full((batch_size, N + 1, 1), self.cfg.T_set_upper)
-
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             T_amb=T_amb_staged,
             Qdot_gains=Qdot_gains_staged,
+            T_set_lower=T_set_lower_staged,
             T_set_upper=T_set_upper_staged,
         )
 
         # Supply default learnable parameters (int_gains = 0) when not provided.
         if param is None and self.param_manager.learnable_parameters.size > 0:
-            device = obs.device
+            device = x0.device
             default_flat = torch.from_numpy(
                 self.param_manager.learnable_parameters_default.cat.full().flatten()
             ).to(device)
@@ -187,8 +225,11 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
         return diff_mpc_ctx, u0_norm, x, u, value
 
-    def default_param(self, obs: np.ndarray | None) -> np.ndarray:
+    def default_param(self, obs: dict | np.ndarray | None) -> np.ndarray:
         default = self.param_manager.learnable_parameters_default.cat.full().flatten()
-        if obs is None or obs.ndim <= 1:
+        if obs is None:
             return default
-        return np.broadcast_to(default, (*obs.shape[:-1], default.size))
+        state = obs["state"] if isinstance(obs, dict) else obs
+        if state.ndim <= 1:
+            return default
+        return np.broadcast_to(default, (*state.shape[:-1], default.size))

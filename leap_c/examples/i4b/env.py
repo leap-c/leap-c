@@ -8,7 +8,8 @@ OCP parameter alignment (p per stage):
     p[0] = T_amb         [degC]
     p[1] = Qdot_gains    [W]
     p[2] = T_set_lower   [degC]
-    p[3] = grid_signal   [-]
+    p[3] = T_set_upper   [degC]
+    p[4] = grid_signal   [-]
 
 Available building models (building_params dicts from data/buildings/):
     sfh_1919_1948 … sfh_2016_now  (0_soc, 1_enev, 2_kfw variants)
@@ -16,18 +17,27 @@ Available building models (building_params dicts from data/buildings/):
 
 Available building methods: "2R2C", "4R3C", "5R4C"
 Available HP models: Heatpump_AW, Heatpump_Vitocal
+
+Observation space (spaces.Dict):
+    "state":          Box(nx,)   – building thermal states [degC]
+    "disturbances":   Dict
+        "T_amb":      Box(1,)    – current ambient temperature [degC]
+        "Qdot_gains": Box(1,)    – current total heat gains [W]
+    "setpoints":      Dict
+        "T_set_lower": Box(1,)   – lower comfort bound [degC]
+        "T_set_upper": Box(1,)   – upper comfort bound [degC]
+    "forecast":       Dict       – only if weather_forecast_steps is non-empty
+        "T_amb":      Box(nf,)   – ambient temperature forecast [degC]
 """
 
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import List
 
 import gymnasium as gym
 import numpy as np
 import pandas as pd
 from gymnasium import spaces
-from scipy.constants import convert_temperature
 
 _I4B_ROOT = Path(__file__).resolve().parents[3] / "external" / "i4b"
 if str(_I4B_ROOT) not in sys.path:
@@ -68,12 +78,14 @@ class I4bEnvConfig:
         delta_t: Simulation timestep [s].
         days: Episode length in days. None uses full weather dataset.
         random_init: Randomise initial state and start time on reset.
-        noise_level: Std dev of Gaussian noise added to observations.
-        T_set_lower: Lower comfort temperature setpoint [degC] (OCP p[2]).
-        T_set_upper: Upper comfort temperature [degC].
-        weather_forecast_steps: Steps ahead (multiples of delta_t) to include
-            as ambient temperature forecasts in the observation.
-        grid_signal: Grid support signal (OCP p[3]). Constant for now.
+        noise_level: Std dev of Gaussian noise added to building state observations.
+        T_set_lower: Default lower comfort temperature setpoint [degC]. Overridden
+            by time-varying values from get_temperature_limits if using dynamic setpoints.
+        T_set_upper: Default upper comfort temperature [degC].
+        N_forecast: Number of future steps with available weather/setpoint forecasts
+            in the "forecast" observation dict. Should match the MPC horizon for best results,
+            but can be set to 0 to disable the "forecast" part of the observation.
+        grid_signal: Grid support signal (OCP p[4]). Constant for now.
         gains_profile: Path to internal gains CSV relative to i4b root.
     """
 
@@ -87,7 +99,7 @@ class I4bEnvConfig:
     noise_level: float = 0.0
     T_set_lower: float = 20.0
     T_set_upper: float = 26.0
-    weather_forecast_steps: List[int] = field(default_factory=list)
+    N_forecast: int = 24 * 4
     grid_signal: float = 1.0
     gains_profile: str = _DEFAULT_GAINS_PROFILE
 
@@ -95,19 +107,18 @@ class I4bEnvConfig:
 class I4bEnv(gym.Env):
     """Gymnasium environment for building heat-pump control using the i4b simulator.
 
-    The observation vector is:
-        [*building_states, T_amb, Qdot_gains, *T_amb_forecast]
+    The observation is a ``spaces.Dict`` — see module docstring for layout.
 
     The action is a normalised supply temperature in [-1, 1], mapped linearly
     to T_HP in [0, 65] degC (matching the OCP control bounds).
 
     The reward is the negative electrical energy consumption scaled by the grid
-    signal, i.e.  r = - E_el_kWh * grid_signal, which is proportional to the
+    signal, i.e.  r = -E_el_kWh * grid_signal, which is proportional to the
     OCP stage cost Qth / (COP * 100) * grid_signal up to a positive constant.
 
     The method `get_ocp_parameters(t)` returns the OCP parameter vector
-    p = [T_amb, Qdot_gains, T_set_lower, grid_signal] at timestep t, matching
-    the parameter layout expected by export_parametric_ocp.
+    p = [T_amb, Qdot_gains, T_set_lower, T_set_upper, grid_signal] at timestep t,
+    matching the parameter layout expected by export_parametric_ocp.
     """
 
     metadata = {"render_modes": []}
@@ -162,7 +173,7 @@ class I4bEnv(gym.Env):
         self._max_t = self._calc_max_t()
         self._t = 0  # index into weather data
         self._steps = 0  # steps in current episode
-        self.state: np.ndarray | None = None
+        self.state: dict | None = None
 
         self.reset()
 
@@ -180,10 +191,9 @@ class I4bEnv(gym.Env):
             repo_filepath=str(_I4B_ROOT),
         )
 
-        # Resample weather to quarter-hourly  (cfg.delta_t=900s)
-        # weather = weather.resample(f"{cfg.delta_t}s").ffill()
         weather = weather.resample(f"{cfg.delta_t}s").interpolate()
 
+        # TODO: Comfort bounds not really a disturbance. Refactor
         T_set_lower, T_set_upper = get_temperature_limits(weather.index)
         comfort_bounds = pd.DataFrame(
             {"T_set_lower": T_set_lower, "T_set_upper": T_set_upper}, index=weather.index
@@ -200,34 +210,58 @@ class I4bEnv(gym.Env):
             columns=["Qdot_gains"],
         )
         p = pd.concat(
-            [
-                weather["T_amb"],
-                Qdot_gains,
-                comfort_bounds,
-            ],
+            [weather["T_amb"], Qdot_gains, comfort_bounds],
             axis=1,
         ).astype(np.float32)
 
         return p.resample(f"{cfg.delta_t}s").interpolate()
 
-    def _make_obs_space(self) -> spaces.Box:
-        lows, highs = [], []
-        for key in self.obs_keys:
-            lo, hi = OBSERVATION_SPACE_LIMIT[key]
-            lows.append(lo)
-            highs.append(hi)
-        # Current disturbances
-        lows += [OBSERVATION_SPACE_LIMIT["T_amb"][0], OBSERVATION_SPACE_LIMIT["Qdot_gains"][0]]
-        highs += [OBSERVATION_SPACE_LIMIT["T_amb"][1], OBSERVATION_SPACE_LIMIT["Qdot_gains"][1]]
-        # Forecast
-        for _ in self.cfg.weather_forecast_steps:
-            lows.append(OBSERVATION_SPACE_LIMIT["T_amb"][0])
-            highs.append(OBSERVATION_SPACE_LIMIT["T_amb"][1])
-        return spaces.Box(
-            low=np.array(lows, dtype=np.float32),
-            high=np.array(highs, dtype=np.float32),
-            dtype=np.float32,
+    def _make_obs_space(self) -> spaces.Dict:
+        state_lows = np.array(
+            [OBSERVATION_SPACE_LIMIT[k][0] for k in self.obs_keys], dtype=np.float32
         )
+        state_highs = np.array(
+            [OBSERVATION_SPACE_LIMIT[k][1] for k in self.obs_keys], dtype=np.float32
+        )
+        T_amb_lo = np.float32(OBSERVATION_SPACE_LIMIT["T_amb"][0])
+        T_amb_hi = np.float32(OBSERVATION_SPACE_LIMIT["T_amb"][1])
+        Qdot_lo = np.float32(OBSERVATION_SPACE_LIMIT["Qdot_gains"][0])
+        Qdot_hi = np.float32(OBSERVATION_SPACE_LIMIT["Qdot_gains"][1])
+
+        obs_spaces: dict = {
+            "state": spaces.Box(low=state_lows, high=state_highs, dtype=np.float32),
+            "disturbances": spaces.Dict(
+                {
+                    "T_amb": spaces.Box(low=T_amb_lo, high=T_amb_hi, shape=(1,), dtype=np.float32),
+                    "Qdot_gains": spaces.Box(
+                        low=Qdot_lo, high=Qdot_hi, shape=(1,), dtype=np.float32
+                    ),
+                }
+            ),
+            "setpoints": spaces.Dict(
+                {
+                    "T_set_lower": spaces.Box(
+                        low=np.float32(15.0), high=np.float32(30.0), shape=(1,), dtype=np.float32
+                    ),
+                    "T_set_upper": spaces.Box(
+                        low=np.float32(20.0), high=np.float32(35.0), shape=(1,), dtype=np.float32
+                    ),
+                }
+            ),
+        }
+        nf = self.cfg.N_forecast
+        obs_spaces["forecast"] = spaces.Dict(
+            {
+                "T_amb": spaces.Box(low=T_amb_lo, high=T_amb_hi, shape=(nf,), dtype=np.float32),
+                "T_set_lower": spaces.Box(
+                    low=np.float32(15.0), high=np.float32(30.0), shape=(nf,), dtype=np.float32
+                ),
+                "T_set_upper": spaces.Box(
+                    low=np.float32(20.0), high=np.float32(35.0), shape=(nf,), dtype=np.float32
+                ),
+            }
+        )
+        return spaces.Dict(obs_spaces)
 
     def _calc_max_t(self) -> int:
         if self.cfg.days is None:
@@ -240,14 +274,48 @@ class I4bEnv(gym.Env):
             )
         return max_t
 
-    def _build_obs(self, state_dict: dict) -> np.ndarray:
-        obs = [state_dict[k] for k in self.obs_keys]
-        pk = self.get_ocp_parameters(self._t)
-        obs += [pk[0], pk[1]]  # T_amb, Qdot_gains
-        for i in self.cfg.weather_forecast_steps:
-            t_fc = min(self._t + i, len(self._p) - 1)
-            obs.append(float(self._p.iloc[t_fc]["T_amb"]))
-        return np.array(obs, dtype=np.float32)
+    def _build_obs(self, state_dict: dict) -> dict:
+        row = self._p.iloc[self._t]
+        obs: dict = {
+            "state": np.array([state_dict[k] for k in self.obs_keys], dtype=np.float32),
+            "disturbances": {
+                "T_amb": np.array([float(row["T_amb"])], dtype=np.float32),
+                "Qdot_gains": np.array([float(row["Qdot_gains"])], dtype=np.float32),
+            },
+            "setpoints": {
+                "T_set_lower": np.array([float(row["T_set_lower"])], dtype=np.float32),
+                "T_set_upper": np.array([float(row["T_set_upper"])], dtype=np.float32),
+            },
+        }
+        if self.cfg.N_forecast:
+            obs["forecast"] = {
+                "T_amb": np.array(
+                    [
+                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["T_amb"])
+                        for i in range(self.cfg.N_forecast)
+                    ],
+                    dtype=np.float32,
+                ),
+                "T_set_lower": np.array(
+                    [
+                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["T_set_lower"])
+                        for i in range(self.cfg.N_forecast)
+                    ],
+                    dtype=np.float32,
+                ),
+                "T_set_upper": np.array(
+                    [
+                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["T_set_upper"])
+                        for i in range(self.cfg.N_forecast)
+                    ],
+                    dtype=np.float32,
+                ),
+            }
+        return obs
+
+    def _copy_obs(self, obs: dict) -> dict:
+        """Return a shallow-copied dict obs (arrays copied, nested dicts recursed)."""
+        return {k: self._copy_obs(v) if isinstance(v, dict) else v.copy() for k, v in obs.items()}
 
     def _denorm_action(self, a: np.ndarray) -> float:
         """Map normalised action in [-1, 1] to T_HP in [0, 65] degC."""
@@ -302,7 +370,7 @@ class I4bEnv(gym.Env):
         Returns:
             obs, reward, terminated, truncated, info
         """
-        state_dict = dict(zip(self.obs_keys, self.state[: len(self.obs_keys)]))
+        state_dict = dict(zip(self.obs_keys, self.state["state"]))
         pk_dict = self._p.iloc[self._t].to_dict()
 
         T_hp_sup = self._denorm_action(action)
@@ -342,15 +410,15 @@ class I4bEnv(gym.Env):
             "p_ocp": self.get_ocp_parameters(min(self._t, len(self._p) - 1)),
         }
 
-        obs = self.state.copy()
+        obs = self._copy_obs(self.state)
         if self.cfg.noise_level > 0:
-            obs += self.np_random.normal(0, self.cfg.noise_level, obs.shape).astype(np.float32)
+            obs["state"] += self.np_random.normal(
+                0, self.cfg.noise_level, obs["state"].shape
+            ).astype(np.float32)
 
         return obs, float(reward), False, truncated, info
 
-    def reset(
-        self, *, seed: int | None = None, options: dict | None = None
-    ) -> tuple[np.ndarray, dict]:
+    def reset(self, *, seed: int | None = None, options: dict | None = None) -> tuple[dict, dict]:
         super().reset(seed=seed)
 
         if self.cfg.random_init:
@@ -376,25 +444,21 @@ class I4bEnv(gym.Env):
             state_dict = {k: self.cfg.T_set_lower for k in self.obs_keys}
 
         self.state = self._build_obs(state_dict)
-        return self.state.copy(), {}
+        return self._copy_obs(self.state), {}
 
 
 def get_temperature_limits(
     time: pd.DatetimeIndex,
     night_start_hour: int = 22,
     night_end_hour: int = 8,
-    lb_night: float = convert_temperature(12.0, "celsius", "kelvin"),
-    lb_day: float = convert_temperature(17.0, "celsius", "kelvin"),
-    ub_night: float = convert_temperature(25.0, "celsius", "kelvin"),
-    ub_day: float = convert_temperature(25.0, "celsius", "kelvin"),
-) -> tuple[np.ndarray[np.float64], np.ndarray[np.float64]]:
+    lb_night: float = 12.0,
+    lb_day: float = 17.0,
+    ub_night: float = 25.0,
+    ub_day: float = 25.0,
+) -> tuple[np.ndarray, np.ndarray]:
     """Get temperature limits based on the time of day."""
     hours = time.hour
-
-    # Vectorized night detection
     night_idx = (hours >= night_start_hour) | (hours < night_end_hour)
-
-    # Initialize and set values
     lb = np.where(night_idx, lb_night, lb_day)
     ub = np.where(night_idx, ub_night, ub_day)
     return lb, ub

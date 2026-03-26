@@ -29,7 +29,7 @@ METHOD = "4R3C"
 MDOT_HP = 0.25
 DELTA_T = 900  # 15-min steps
 N_HORIZON = 12  # 3-hour horizon (shorter for a quick demo)
-DAYS = 1
+DAYS = 3
 
 # ── Shared models (same objects for env and planner) ───────────────────────────
 hp_model = Heatpump_AW(mdot_HP=MDOT_HP)
@@ -43,6 +43,7 @@ env_cfg = I4bEnvConfig(
     days=DAYS,
     T_set_lower=20.0,
     T_set_upper=26.0,
+    N_forecast=N_HORIZON + 1,  # full horizon coverage for planner
 )
 env = I4bEnv(cfg=env_cfg)
 
@@ -58,20 +59,33 @@ planner = I4bPlanner(
 )
 
 # ── Closed-loop rollout ────────────────────────────────────────────────────────
-obs_np, _ = env.reset(seed=0)
+obs_np, _ = env.reset(seed=0)  # obs_np is now a dict of numpy arrays
 ctx = None
 
 T_room_log = []
 T_HP_log = []
 reward_log = []
+T_set_lower_log = []
+T_set_upper_log = []
 
 steps_per_day = 24 * int(3600 / DELTA_T)
 max_steps = DAYS * steps_per_day
 
 print(f"Running {DAYS} day(s) = {max_steps} steps with N_horizon={N_HORIZON} ...")
 
+
+def _obs_to_tensor(obs_np: dict, dtype=torch.float64) -> dict:
+    """Recursively convert a numpy Dict obs to a batched (1, ...) torch Dict."""
+    return {
+        k: _obs_to_tensor(v, dtype)
+        if isinstance(v, dict)
+        else torch.tensor(v, dtype=dtype).unsqueeze(0)
+        for k, v in obs_np.items()
+    }
+
+
 for step in range(max_steps):
-    obs_t = torch.tensor(obs_np, dtype=torch.float64).unsqueeze(0)  # (1, obs_dim)
+    obs_t = _obs_to_tensor(obs_np)
 
     with torch.no_grad():
         ctx, u0_norm, x_traj, u_traj, value = planner(obs_t, ctx=ctx)
@@ -82,6 +96,8 @@ for step in range(max_steps):
     T_room_log.append(info["T_room"])
     T_HP_log.append(info["T_hp_sup"])
     reward_log.append(reward)
+    T_set_lower_log.append(float(obs_np["setpoints"]["T_set_lower"][0]))
+    T_set_upper_log.append(float(obs_np["setpoints"]["T_set_upper"][0]))
 
     if step % 16 == 0:
         print(
@@ -104,8 +120,27 @@ try:
 
     ax0 = axes[0]
     ax0.plot(t, T_room_log, label="T_room")
-    ax0.axhline(env_cfg.T_set_lower, color="k", linestyle="--", linewidth=0.8, label="T_set_lower")
-    ax0.axhline(env_cfg.T_set_upper, color="r", linestyle="--", linewidth=0.8, label="T_set_upper")
+    ax0.step(
+        t,
+        T_set_lower_log,
+        where="post",
+        color="k",
+        linestyle="--",
+        linewidth=0.8,
+        label="T_set_lower",
+    )
+    ax0.step(
+        t,
+        T_set_upper_log,
+        where="post",
+        color="k",
+        linestyle="--",
+        linewidth=0.8,
+        label="T_set_upper",
+    )
+    ax0.fill_between(
+        t, T_set_lower_log, T_set_upper_log, alpha=0.08, color="green", label="comfort band"
+    )
     ax0.set_ylabel("Temperature [degC]")
     ax0.legend(fontsize=8)
     ax0.set_title(f"I4b MPC closed-loop | {METHOD} | N_horizon={N_HORIZON}")
