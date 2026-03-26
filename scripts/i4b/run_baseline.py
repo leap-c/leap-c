@@ -239,11 +239,13 @@ def create_cfg(
     cfg.policy_type = policy_type
     cfg.trainer.param_ckpt = str(param_ckpt) if param_ckpt is not None else None
 
-    cfg.controller = (
-        (controller if controller is not None else "i4b")
-        if policy_type == "controller"
-        else controller
-    )
+    cfg.controller = "i4b"
+
+    # (
+    #     (controller if controller is not None else "i4b")
+    #     if policy_type == "controller"
+    #     else controller
+    # )
 
     cfg.trainer.seed = seed
     cfg.trainer.train_start = 0
@@ -332,7 +334,7 @@ if __name__ == "__main__":
 
     group = parser.add_argument_group("Train and eval")
     group.add_argument(
-        "--controller", type=str, default=None, help="Controller name (default: 'i4b')."
+        "--controller", type=str, default="i4b", help="Controller name (default: 'i4b')."
     )
     group.add_argument(
         "--policy-type",

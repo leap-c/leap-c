@@ -18,6 +18,8 @@ from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 class I4bPlannerCtx(AcadosDiffMpcCtx):
     """An extension of the AcadosDiffMpcCtx for the I4b planner."""
 
+    stats: dict[str, Any] = None
+
 
 @dataclass(kw_only=True)
 class I4bPlannerConfig:
@@ -176,9 +178,8 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         action: torch.Tensor | None = None,
         param: torch.Tensor | None = None,
         ctx: AcadosDiffMpcCtx | None = None,
-        print_stats: bool = False,
     ) -> tuple[
-        AcadosDiffMpcCtx,
+        I4bPlannerCtx,
         torch.Tensor,
         torch.Tensor,
         torch.Tensor,
@@ -195,10 +196,9 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             action: Warm-start action (optional).
             param: Learnable parameters (unused; all params are non-learnable).
             ctx: Previous solver context for warm-starting.
-            print_stats: If True, print per-solver statistics after the solve.
 
         Returns:
-            ctx: Updated solver context.
+            ctx: Updated solver context with solver stats in ``ctx.stats``.
             u0_norm: First control action normalised to [-1, 1], shape (batch_size, 1).
             x: State trajectory, shape (batch_size, N_horizon+1, nx).
             u: Control trajectory (T_HP [degC]), shape (batch_size, N_horizon, 1).
@@ -241,15 +241,21 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
         diff_mpc_ctx, _, x, u, value = self.diff_mpc(x0, action, param, p_stagewise, ctx=ctx)
 
-        if print_stats:
-            self.diff_mpc.print_solver_stats(diff_mpc_ctx)
+        stats = self.diff_mpc.get_solver_stats(diff_mpc_ctx)
+        i4b_ctx = I4bPlannerCtx(
+            iterate=diff_mpc_ctx.iterate,
+            status=diff_mpc_ctx.status,
+            log=diff_mpc_ctx.log,
+            solver_input=diff_mpc_ctx.solver_input,
+            stats=stats,
+        )
 
         # u[:, 0, 0] is the optimal T_HP [degC] at stage 0.
         T_HP_opt = u[:, 0, 0:1]  # (B, 1)
         u0_norm = (T_HP_opt - _ACTION_MID) / _ACTION_HALF
         u0_norm = torch.clamp(u0_norm, -1.0, 1.0)
 
-        return diff_mpc_ctx, u0_norm, x, u, value
+        return i4b_ctx, u0_norm, x, u, value
 
     def default_param(self, obs: dict | np.ndarray | None) -> np.ndarray:
         default = self.param_manager.learnable_parameters_default.cat.full().flatten()
