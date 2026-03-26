@@ -15,12 +15,13 @@ from leap_c.examples.i4b.env import I4bEnv, I4bEnvConfig
 from leap_c.examples.i4b.planner import I4bPlanner, I4bPlannerConfig
 
 # ── Configuration ──────────────────────────────────────────────────────────────
-BUILDING = "sfh_2016_now_0_soc"
+BUILDING = "i4c"
 METHOD = "4R3C"
 MDOT_HP = 0.25
 DELTA_T = 900  # 15-min steps
 N_HORIZON = 12  # 3-hour horizon (shorter for a quick demo)
-DAYS = 3
+DAYS = 30
+PRINT_STATS = False
 
 if __name__ == "__main__":
     hp_model = Heatpump_AW(mdot_HP=MDOT_HP)
@@ -77,7 +78,7 @@ if __name__ == "__main__":
         obs_t = _obs_to_tensor(obs_np)
 
         with torch.no_grad():
-            ctx, u0_norm, x_traj, u_traj, value = planner(obs_t, ctx=ctx, print_stats=True)
+            ctx, u0_norm, x_traj, u_traj, value = planner(obs_t, ctx=ctx, print_stats=PRINT_STATS)
 
         action_np = u0_norm.squeeze(0).cpu().numpy()  # (1,)
         obs_np, reward, terminated, truncated, info = env.step(action_np)
