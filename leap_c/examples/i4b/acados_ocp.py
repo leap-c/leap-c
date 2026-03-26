@@ -27,7 +27,7 @@ import casadi as ca
 import gymnasium as gym
 import numpy as np
 import scipy.linalg
-from acados_template import AcadosOcp
+from acados_template import ACADOS_INFTY, AcadosOcp
 from i4b.constants import C_WATER_SPEC
 from i4b.models.model_buildings import Building
 from i4b.models.model_hvac import Heatpump, Heatpump_AW, Heatpump_Vitocal
@@ -234,7 +234,7 @@ def export_parametric_ocp(
     # ── Continuous dynamics ───────────────────────────────────────────────────
     # building_model.calc_casadi reads p[0]=T_amb and p[1]=Qdot_gains
     p_bldg = ca.vertcat(T_amb, Qdot_gains)
-    ocp.model.f_expl_expr = building_model.calc_casadi(x, T_HP, p_bldg)
+    f_expl_expr = building_model.calc_casadi(x, T_HP, p_bldg)
 
     # int_gains [W] is a learnable offset to Qdot_gains, entering T_room via 1/C_room [J/K].
     # The capacity key depends on the building method (matches calc_*_casadi).
@@ -244,9 +244,10 @@ def export_parametric_ocp(
 
     # ── Verify dynamics are affine in x and u (LTI up to parameters) ────────────
     d = ca.vertcat(T_amb, Qdot_gains)
-    J_x = ca.jacobian(ocp.model.f_expl_expr, x)
-    J_u = ca.jacobian(ocp.model.f_expl_expr, u)
-    J_d = ca.jacobian(ocp.model.f_expl_expr, d)
+    # d = ca.vertcat(T_amb)
+    J_x = ca.jacobian(f_expl_expr, x)
+    J_u = ca.jacobian(f_expl_expr, u)
+    J_d = ca.jacobian(f_expl_expr, d)
     assert not ca.depends_on(J_x, x), "f_expl_expr is not affine in x"
     assert not ca.depends_on(J_x, u), "A matrix depends on u (not LTI)"
     assert not ca.depends_on(J_u, u), "f_expl_expr is not affine in u"
@@ -255,7 +256,7 @@ def export_parametric_ocp(
     assert not ca.depends_on(J_d, u), "f_expl_expr depends nonlinearly on d and u"
 
     # ── Discrete state-space (ZOH) ───────────────────────────────────────────
-    Ac_np, Bc_np, Ec_np = transcribe_i4b_continuous_state_space(ocp.model.f_expl_expr, x, u, d)
+    Ac_np, Bc_np, Ec_np = transcribe_i4b_continuous_state_space(f_expl_expr, x, u, d)
     Ad, Bd, Ed = transcribe_i4b_discrete_state_space(delta_t, Ac_np, Bc_np, Ec_np)
 
     ocp.model.disc_dyn_expr = Ad @ x + Bd @ u + Ed @ d
@@ -283,12 +284,12 @@ def export_parametric_ocp(
     ocp.model.con_h_expr = h_expr
 
     ocp.constraints.lh = np.array([0.0, 0.0, 0.0])
-    ocp.constraints.uh = np.array([1e9, 1e9, 26.0])
+    ocp.constraints.uh = np.array([ACADOS_INFTY, ACADOS_INFTY, 26.0])
 
     # Terminal: room temperature constraints only (no control at terminal stage)
     ocp.model.con_h_expr_e = h_expr[:2]
     ocp.constraints.lh_e = np.array([0.0, 0.0])
-    ocp.constraints.uh_e = np.array([1e9, 1e9])
+    ocp.constraints.uh_e = np.array([ACADOS_INFTY, ACADOS_INFTY])
 
     # ── Soft constraints (h[0] and h[1] softened) ────────────────────────────
     # Slack penalty: ws * sl^2  →  Zl = ws, zl = 0
@@ -315,10 +316,7 @@ def export_parametric_ocp(
     # ── Solver options ────────────────────────────────────────────────────────
     ocp.solver_options.tf = N_horizon * delta_t
     ocp.solver_options.N_horizon = N_horizon
-    # ocp.solver_options.integrator_type = "ERK"
     ocp.solver_options.integrator_type = "DISCRETE"
-    ocp.solver_options.sim_method_num_stages = 4  # RK4
-    ocp.solver_options.sim_method_num_steps = 1
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"

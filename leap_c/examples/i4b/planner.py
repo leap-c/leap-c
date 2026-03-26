@@ -148,6 +148,7 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         action: torch.Tensor | None = None,
         param: torch.Tensor | None = None,
         ctx: AcadosDiffMpcCtx | None = None,
+        print_stats: bool = False,
     ) -> tuple[
         AcadosDiffMpcCtx,
         torch.Tensor,
@@ -159,13 +160,14 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
         Args:
             obs: Dict observation as produced by ``I4bEnv``.  Must contain:
-                ``obs["state"]`` – shape (batch_size, nx),
-                ``obs["disturbances"]["T_amb"]`` – shape (batch_size, 1),
-                ``obs["disturbances"]["Qdot_gains"]`` – shape (batch_size, 1),
-                ``obs["setpoints"]["T_set_upper"]`` – shape (batch_size, 1).
+                ``obs["state"]`` - shape (batch_size, nx),
+                ``obs["disturbances"]["T_amb"]`` - shape (batch_size, 1),
+                ``obs["disturbances"]["Qdot_gains"]`` - shape (batch_size, 1),
+                ``obs["setpoints"]["T_set_upper"]`` - shape (batch_size, 1).
             action: Warm-start action (optional).
             param: Learnable parameters (unused; all params are non-learnable).
             ctx: Previous solver context for warm-starting.
+            print_stats: If True, print per-solver statistics after the solve.
 
         Returns:
             ctx: Updated solver context.
@@ -210,6 +212,9 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             param = default_flat.unsqueeze(0).expand(batch_size, -1)
 
         diff_mpc_ctx, _, x, u, value = self.diff_mpc(x0, action, param, p_stagewise, ctx=ctx)
+
+        if print_stats:
+            self.diff_mpc.print_solver_stats(diff_mpc_ctx)
 
         # u[:, 0, 0] is the optimal T_HP [degC] at stage 0.
         T_HP_opt = u[:, 0, 0:1]  # (B, 1)

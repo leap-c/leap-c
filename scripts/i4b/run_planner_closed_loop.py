@@ -77,7 +77,7 @@ if __name__ == "__main__":
         obs_t = _obs_to_tensor(obs_np)
 
         with torch.no_grad():
-            ctx, u0_norm, x_traj, u_traj, value = planner(obs_t, ctx=ctx)
+            ctx, u0_norm, x_traj, u_traj, value = planner(obs_t, ctx=ctx, print_stats=True)
 
         action_np = u0_norm.squeeze(0).cpu().numpy()  # (1,)
         obs_np, reward, terminated, truncated, info = env.step(action_np)

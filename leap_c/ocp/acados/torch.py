@@ -159,6 +159,38 @@ class AcadosDiffMpcTorch(torch.nn.Module):
                 solver.constraints_set(stage, "lbx", lbx[i, j])
                 solver.constraints_set(stage, "ubx", ubx[i, j])
 
+    def print_solver_stats(self, ctx: AcadosDiffMpcCtx) -> None:
+        """Print statistics from the most recent solve stored in ``ctx``.
+
+        Prints a summary line with batch-level statistics (solving time, success
+        rate, retry rate) followed by per-instance NLP iteration counts and
+        total solve times.  For any failed instance the full acados iteration
+        table (residuals, QP stats, step sizes) is also printed.
+
+        Args:
+            ctx: Context returned by the most recent :meth:`forward` call.
+        """
+        log = ctx.log or {}
+        batch_size = len(ctx.status)
+        print(
+            f"[AcadosDiffMpcTorch] batch={batch_size}"
+            f"  time={log.get('solving_time', float('nan')):.4f}s"
+            f"  success={log.get('success_rate', float('nan')):.1%}"
+            f"  retried={log.get('retry_rate', float('nan')):.1%}"
+        )
+        solvers = self.diff_mpc_fun.forward_batch_solver.ocp_solvers
+        for i in range(batch_size):
+            solver = solvers[i]
+            nlp_iter = solver.get_stats("nlp_iter")
+            time_tot = solver.get_stats("time_tot")
+            status = int(ctx.status[i])
+            flag = " [FAILED]" if status != 0 else ""
+            print(
+                f"  [{i}] status={status}{flag}  nlp_iter={nlp_iter}  time={time_tot * 1e3:.2f}ms"
+            )
+            if status != 0:
+                solver.print_statistics()
+
     def sensitivity(self, ctx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
         """Retrieves a specific sensitivity field from the context object.
 
