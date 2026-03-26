@@ -11,7 +11,7 @@ OCP parameter alignment (p per stage):
     p[3] = T_set_upper   [degC]
     p[4] = grid_signal   [-]
 
-Available building models (building_params dicts from data/buildings/):
+Available building models (building_params dicts from i4b_data/buildings/):
     sfh_1919_1948 … sfh_2016_now  (0_soc, 1_enev, 2_kfw variants)
     i4c
 
@@ -30,7 +30,6 @@ Observation space (spaces.Dict):
         "T_amb":      Box(nf,)   – ambient temperature forecast [degC]
 """
 
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,17 +37,14 @@ import gymnasium as gym
 import numpy as np
 import pandas as pd
 from gymnasium import spaces
+from i4b.disturbances import get_int_gains, get_solar_gains, load_weather
+from i4b.gym_interface import BUILDING_NAMES2CLASS
+from i4b.gym_interface.constant import OBSERVATION_SPACE_LIMIT
+from i4b.models.model_buildings import Building
+from i4b.models.model_hvac import Heatpump, Heatpump_AW, Heatpump_Vitocal  # noqa: F401
+from i4b.simulator import Model_simulator
 
 _I4B_ROOT = Path(__file__).resolve().parents[3] / "external" / "i4b"
-if str(_I4B_ROOT) not in sys.path:
-    sys.path.insert(0, str(_I4B_ROOT))
-
-from src.disturbances import get_int_gains, get_solar_gains, load_weather  # noqa: E402
-from src.gym_interface import BUILDING_NAMES2CLASS  # noqa: E402
-from src.gym_interface.constant import OBSERVATION_SPACE_LIMIT  # noqa: E402
-from src.models.model_buildings import Building  # noqa: E402
-from src.models.model_hvac import Heatpump, Heatpump_AW, Heatpump_Vitocal  # noqa: E402, F401
-from src.simulator import Model_simulator  # noqa: E402
 
 # Re-export for convenience
 __all__ = [
@@ -61,7 +57,7 @@ __all__ = [
 ]
 
 # Internal gains profile path relative to i4b root
-_DEFAULT_GAINS_PROFILE = "data/profiles/InternalGains/ResidentialDetached.csv"
+_DEFAULT_GAINS_PROFILE = "i4b_data/profiles/InternalGains/ResidentialDetached.csv"
 
 
 @dataclass(kw_only=True)
@@ -70,7 +66,7 @@ class I4bEnvConfig:
 
     Attributes:
         building_params: Building parameter dict (e.g. sfh_2016_now_0_soc from
-            BUILDING_NAMES2CLASS or imported directly from data/buildings/).
+            BUILDING_NAMES2CLASS or imported directly from i4b_data/buildings/).
         hp_model: Instantiated heat pump model. Same object can be passed to
             export_parametric_ocp to guarantee dynamics/cost consistency.
         method: Building thermal model type. One of "2R2C", "4R3C", "5R4C".

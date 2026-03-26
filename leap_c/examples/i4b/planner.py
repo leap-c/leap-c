@@ -1,23 +1,16 @@
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import torch
+from i4b.models.model_buildings import Building
+from i4b.models.model_hvac import Heatpump
 
 from leap_c.examples.i4b.acados_ocp import export_parametric_ocp, make_i4b_params
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
-
-# i4b imports - extend path so planner can be used standalone
-_I4B_ROOT = Path(__file__).resolve().parents[3] / "external" / "i4b"
-if str(_I4B_ROOT) not in sys.path:
-    sys.path.insert(0, str(_I4B_ROOT))
-
-from src.models.model_buildings import Building  # noqa: E402
-from src.models.model_hvac import Heatpump  # noqa: E402
 
 
 @dataclass(kw_only=True)

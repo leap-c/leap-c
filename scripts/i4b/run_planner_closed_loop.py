@@ -5,23 +5,18 @@ Run from the repo root:
 """
 
 import os
-import sys
 from pathlib import Path
 
 import numpy as np
 import torch
+from i4b.gym_interface import BUILDING_NAMES2CLASS
+from i4b.models.model_hvac import Heatpump_AW
 
 from leap_c.examples.i4b.env import I4bEnv, I4bEnvConfig
 from leap_c.examples.i4b.planner import I4bPlanner, I4bPlannerConfig
 
-# ── i4b path setup ────────────────────────────────────────────────────────────
 _I4B_ROOT = Path(__file__).resolve().parents[2] / "external" / "i4b"
-if str(_I4B_ROOT) not in sys.path:
-    sys.path.insert(0, str(_I4B_ROOT))
 os.chdir(_I4B_ROOT)
-
-from src.gym_interface import BUILDING_NAMES2CLASS  # noqa: E402
-from src.models.model_hvac import Heatpump_AW  # noqa: E402
 
 # ── Configuration ──────────────────────────────────────────────────────────────
 BUILDING = "sfh_2016_now_0_soc"

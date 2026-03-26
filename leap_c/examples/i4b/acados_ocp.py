@@ -24,7 +24,6 @@ Heat pump models (from external/i4b/src/models/model_hvac.py):
 """
 
 import os
-import sys
 from pathlib import Path
 
 import casadi as ca
@@ -32,17 +31,13 @@ import gymnasium as gym
 import numpy as np
 import scipy.linalg
 from acados_template import AcadosOcp
+from i4b.constants import C_WATER_SPEC
+from i4b.models.model_buildings import Building
+from i4b.models.model_hvac import Heatpump, Heatpump_AW, Heatpump_Vitocal
 
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
-# i4b root - needed for Building/Heatpump model imports
 _I4B_ROOT = Path(__file__).resolve().parents[3] / "external" / "i4b"
-if str(_I4B_ROOT) not in sys.path:
-    sys.path.insert(0, str(_I4B_ROOT))
-
-from src.constants import C_WATER_SPEC  # noqa: E402
-from src.models.model_buildings import Building  # noqa: E402
-from src.models.model_hvac import Heatpump, Heatpump_AW, Heatpump_Vitocal  # noqa: E402
 
 
 def make_i4b_params(N_horizon: int) -> tuple[AcadosParameter, ...]:
