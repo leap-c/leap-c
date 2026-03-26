@@ -1,6 +1,8 @@
 [submodule "external/acados"]
 	path = external/acados
 	url = https://github.com/acados/acados.git
+	ignore = dirty
 [submodule "external/i4b"]
 	path = external/i4b
 	url = https://github.com/lfrison/i4b.git
+	ignore = dirty
