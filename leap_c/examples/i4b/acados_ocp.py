@@ -81,6 +81,12 @@ def make_i4b_params(N_horizon: int) -> tuple[AcadosParameter, ...]:
             interface="non-learnable",
         ),
         AcadosParameter(
+            name="T_set_upper",
+            default=np.array([26.0]),
+            space=gym.spaces.Box(low=np.array([20.0]), high=np.array([30.0]), dtype=np.float64),
+            interface="non-learnable",
+        ),
+        AcadosParameter(
             name="grid_signal",
             default=np.array([1.0]),
             space=gym.spaces.Box(low=np.array([0.0]), high=np.array([5.0]), dtype=np.float64),
@@ -278,7 +284,7 @@ def export_parametric_ocp(
     # h[0]: soft lower bound on T_room  (T_room >= T_set_lower)
     # h[1]: soft upper bound on T_room  (T_room <= T_set_upper)
     # h[2]: hard HP thermal power       (0 <= Qth <= 26 kW)
-    T_set_upper = building_model.T_room_set_upper
+    T_set_upper = param_manager.get("T_set_upper")
     h_expr = ca.vertcat(
         T_room - T_set_lower,
         T_set_upper - T_room,
@@ -365,6 +371,7 @@ if __name__ == "__main__":
         T_amb=np.full((1, N + 1, 1), -5.0),
         Qdot_gains=np.full((1, N + 1, 1), 300.0),
         T_set_lower=np.full((1, N + 1, 1), 20.0),
+        T_set_upper=np.full((1, N + 1, 1), 26.0),
         grid_signal=np.full((1, N + 1, 1), 1.0),
     )  # shape (1, N+1, p_dim)
     for k in range(N + 1):
@@ -386,7 +393,9 @@ if __name__ == "__main__":
     for i, label in enumerate(building.state_keys):
         ax0.plot(t, X[:, i], label=label)
     ax0.axhline(20.0, color="k", linestyle="--", linewidth=0.8, label="T_set_lower")
-    ax0.axhline(26.0, color="r", linestyle="--", linewidth=0.8, label="T_set_upper")
+    ax0.axhline(
+        building.T_room_set_upper, color="r", linestyle="--", linewidth=0.8, label="T_set_upper"
+    )
     ax0.set_ylabel("Temperature [degC]")
     ax0.legend(fontsize=8)
     ax0.set_title(f"i4b MPC OCP  |  {METHOD}  |  N={N}  |  T_amb={p_stagewise[0, 0, 0]:.1f} degC")
