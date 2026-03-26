@@ -4,8 +4,9 @@ from typing import Any
 
 import numpy as np
 import torch
+from i4b.gym_interface import BUILDING_NAMES2CLASS
 from i4b.models.model_buildings import Building
-from i4b.models.model_hvac import Heatpump
+from i4b.models.model_hvac import Heatpump, Heatpump_AW
 
 from leap_c.examples.i4b.acados_ocp import export_parametric_ocp, make_i4b_params
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
@@ -23,16 +24,25 @@ class I4bPlannerConfig:
     """Configuration for the I4b planner.
 
     Attributes:
-        N_horizon: Number of shooting intervals (default: 96 = 24 h in 15-min steps).
+        building_params: Building parameter dict.  Used to construct the Building model
+            when ``building_model`` is not passed explicitly to ``I4bPlanner``.
+        method: Building thermal-model type ("2R2C", "4R3C", "5R4C").
+        mdot_hp: Mass-flow rate of the HP circuit [kg/s].
+        N_horizon: Number of shooting intervals (default: 12 = 3 h in 15-min steps).
         ws: Quadratic weight on soft-constraint slack variables for T_room comfort.
         delta_t: Sampling time in seconds (default 900 = 15 min).
+        T_set_upper: Default upper comfort temperature [degC] used as a fallback when
+            the observation does not carry a setpoint forecast.
         discount_factor: Discount factor along the MPC horizon.
         n_batch_init: Initially supported batch size for the batch OCP solver.
         num_threads_batch_solver: Number of parallel threads for the batch solver.
         dtype: Output tensor dtype. Uses PyTorch default if None.
     """
 
-    N_horizon: int = 96  # 96 x 900 s = 24 h
+    building_params: dict = None  # type: ignore[assignment]  # set in __post_init__
+    method: str = "4R3C"
+    mdot_hp: float = 0.25
+    N_horizon: int = 12  # 12 x 900 s = 3 h
     ws: float = 0.1
     delta_t: float = 900.0
     T_set_upper: float = 26.0
@@ -40,6 +50,10 @@ class I4bPlannerConfig:
     n_batch_init: int | None = None
     num_threads_batch_solver: int | None = None
     dtype: torch.dtype | None = None
+
+    def __post_init__(self) -> None:
+        if self.building_params is None:
+            self.building_params = BUILDING_NAMES2CLASS["i4c"]
 
 
 # Normalisation constants matching I4bEnv (action_low=0, action_high=65)
@@ -91,11 +105,13 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     ``I4bEnv`` action space.
 
     Args:
-        building_model: Instantiated Building model.  Must match the model used in
-            ``I4bEnv`` to ensure dynamics consistency.
-        hp_model: Instantiated Heatpump model (``Heatpump_AW`` or
-            ``Heatpump_Vitocal``).
-        cfg: High-level planner configuration.  Defaults are used if not provided.
+        cfg: High-level planner configuration.  When ``building_model`` / ``hp_model``
+            are not provided, the building and heat-pump models are constructed from
+            ``cfg.building_params``, ``cfg.method``, and ``cfg.mdot_hp``.
+        building_model: Optional pre-built Building model.  Pass this (together with
+            the matching ``hp_model``) to share model objects with an ``I4bEnv``
+            instance, guaranteeing dynamics consistency.
+        hp_model: Optional pre-built Heatpump model.
         params: Optional parameter list; ``make_i4b_params()`` is used if None.
         diff_mpc_kwargs: Extra keyword arguments forwarded to ``AcadosDiffMpcTorch``.
         export_directory: Directory for generated acados C code.
@@ -105,14 +121,26 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
     def __init__(
         self,
-        building_model: Building,
-        hp_model: Heatpump,
         cfg: I4bPlannerConfig | None = None,
+        building_model: Building | None = None,
+        hp_model: Heatpump | None = None,
         params: list[AcadosParameter] | None = None,
         diff_mpc_kwargs: dict[str, Any] | None = None,
         export_directory: Path | None = None,
     ):
         self.cfg = I4bPlannerConfig() if cfg is None else cfg
+
+        if building_model is None:
+            building_model = Building(
+                params=self.cfg.building_params,
+                mdot_hp=self.cfg.mdot_hp,
+                method=self.cfg.method,
+                T_room_set_lower=20.0,
+                T_room_set_upper=self.cfg.T_set_upper,
+            )
+        if hp_model is None:
+            hp_model = Heatpump_AW(mdot_HP=self.cfg.mdot_hp)
+
         self._nx = len(building_model.state_keys)
 
         if params is None:
@@ -227,7 +255,7 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         default = self.param_manager.learnable_parameters_default.cat.full().flatten()
         if obs is None:
             return default
-        state = obs["state"] if isinstance(obs, dict) else obs
+        state = obs["state"] if not isinstance(obs, (np.ndarray, torch.Tensor)) else obs
         if state.ndim <= 1:
             return default
         return np.broadcast_to(default, (*state.shape[:-1], default.size))

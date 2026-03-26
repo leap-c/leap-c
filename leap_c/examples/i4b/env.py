@@ -123,21 +123,26 @@ class I4bEnv(gym.Env):
         self,
         render_mode: str | None = None,
         cfg: I4bEnvConfig | None = None,
+        days: int | None = None,
     ):
         """Initialise the environment.
 
         Args:
             render_mode: Unused; kept for Gymnasium compatibility.
-            cfg: Environment configuration. Uses default sfh_2016_now_0_soc /
+            cfg: Environment configuration. Uses default i4c /
                 Heatpump_AW / 4R3C if None.
+            days: Episode length in days. Overrides ``cfg.days`` when provided.
+                Convenient for use with ``create_env("i4b", days=N)``.
         """
         super().__init__()
 
         if cfg is None:
             cfg = I4bEnvConfig(
-                building_params=BUILDING_NAMES2CLASS["sfh_2016_now_0_soc"],
+                building_params=BUILDING_NAMES2CLASS["i4c"],
                 hp_model=Heatpump_AW(mdot_HP=0.25),
             )
+        if days is not None:
+            cfg.days = days
         self.cfg = cfg
 
         # ── Build models ──────────────────────────────────────────────────────
@@ -449,8 +454,8 @@ def get_temperature_limits(
     night_end_hour: int = 8,
     lb_night: float = 12.0,
     lb_day: float = 17.0,
-    ub_night: float = 25.0,
-    ub_day: float = 25.0,
+    ub_night: float = 21.0,
+    ub_day: float = 21.0,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Get temperature limits based on the time of day."""
     hours = time.hour
