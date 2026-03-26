@@ -23,9 +23,6 @@ Heat pump models (from external/i4b/src/models/model_hvac.py):
   Heatpump_Vitocal - Vitocal ground-water HP
 """
 
-import os
-from pathlib import Path
-
 import casadi as ca
 import gymnasium as gym
 import numpy as np
@@ -36,8 +33,6 @@ from i4b.models.model_buildings import Building
 from i4b.models.model_hvac import Heatpump, Heatpump_AW, Heatpump_Vitocal
 
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
-
-_I4B_ROOT = Path(__file__).resolve().parents[3] / "external" / "i4b"
 
 
 def make_i4b_params(N_horizon: int) -> tuple[AcadosParameter, ...]:
@@ -335,10 +330,7 @@ def export_parametric_ocp(
 if __name__ == "__main__":
     import matplotlib.pyplot as plt
     from acados_template import AcadosOcpSolver
-
-    os.chdir(_I4B_ROOT)
-
-    from data.buildings.sfh_2016_now import sfh_2016_now_0_soc
+    from i4b_data.buildings.sfh_2016_now import sfh_2016_now_0_soc
 
     METHOD = "4R3C"
     N = 96  # 96 x 900 s = 24 h
