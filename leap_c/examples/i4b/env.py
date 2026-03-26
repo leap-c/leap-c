@@ -27,6 +27,7 @@ import gymnasium as gym
 import numpy as np
 import pandas as pd
 from gymnasium import spaces
+from scipy.constants import convert_temperature
 
 _I4B_ROOT = Path(__file__).resolve().parents[3] / "external" / "i4b"
 if str(_I4B_ROOT) not in sys.path:
@@ -178,6 +179,16 @@ class I4bEnv(gym.Env):
             tz=pos["timezone"],
             repo_filepath=str(_I4B_ROOT),
         )
+
+        # Resample weather to quarter-hourly  (cfg.delta_t=900s)
+        # weather = weather.resample(f"{cfg.delta_t}s").ffill()
+        weather = weather.resample(f"{cfg.delta_t}s").interpolate()
+
+        T_set_lower, T_set_upper = get_temperature_limits(weather.index)
+        comfort_bounds = pd.DataFrame(
+            {"T_set_lower": T_set_lower, "T_set_upper": T_set_upper}, index=weather.index
+        )
+
         int_gains = get_int_gains(
             time=weather.index,
             profile_path=str(_I4B_ROOT / cfg.gains_profile),
@@ -188,8 +199,16 @@ class I4bEnv(gym.Env):
             Qdot_sol + int_gains["Qdot_tot"],
             columns=["Qdot_gains"],
         )
-        p = pd.concat([weather["T_amb"], Qdot_gains], axis=1).astype(np.float32)
-        return p.resample(f"{cfg.delta_t}s").ffill()
+        p = pd.concat(
+            [
+                weather["T_amb"],
+                Qdot_gains,
+                comfort_bounds,
+            ],
+            axis=1,
+        ).astype(np.float32)
+
+        return p.resample(f"{cfg.delta_t}s").interpolate()
 
     def _make_obs_space(self) -> spaces.Box:
         lows, highs = [], []
@@ -239,7 +258,9 @@ class I4bEnv(gym.Env):
     # ── Public API ────────────────────────────────────────────────────────────
 
     def get_ocp_parameters(self, t: int) -> np.ndarray:
-        """Return OCP parameter vector p = [T_amb, Qdot_gains, T_set_lower, grid_signal].
+        """Return OCP parameter vector p.
+
+        p = [T_amb, Qdot_gains, T_set_lower, T_set_upper, grid_signal].
 
         This matches the parameter layout in export_parametric_ocp exactly.
 
@@ -247,21 +268,22 @@ class I4bEnv(gym.Env):
             t: Timestep index into the weather data.
 
         Returns:
-            Array of shape (4,).
+            Array of shape (5,).
         """
         row = self._p.iloc[t]
         return np.array(
             [
                 float(row["T_amb"]),
                 float(row["Qdot_gains"]),
-                self.cfg.T_set_lower,
+                float(row["T_set_lower"]),
+                float(row["T_set_upper"]),
                 self.cfg.grid_signal,
             ],
             dtype=np.float64,
         )
 
     def get_ocp_parameters_horizon(self, t: int, N: int) -> np.ndarray:
-        """Return OCP parameters for stages t … t+N (inclusive), shape (N+1, 4).
+        """Return OCP parameters for stages t … t+N (inclusive), shape (N+1, 5).
 
         Useful to fill all shooting nodes before calling the acados solver.
         """
@@ -355,3 +377,24 @@ class I4bEnv(gym.Env):
 
         self.state = self._build_obs(state_dict)
         return self.state.copy(), {}
+
+
+def get_temperature_limits(
+    time: pd.DatetimeIndex,
+    night_start_hour: int = 22,
+    night_end_hour: int = 8,
+    lb_night: float = convert_temperature(12.0, "celsius", "kelvin"),
+    lb_day: float = convert_temperature(17.0, "celsius", "kelvin"),
+    ub_night: float = convert_temperature(25.0, "celsius", "kelvin"),
+    ub_day: float = convert_temperature(25.0, "celsius", "kelvin"),
+) -> tuple[np.ndarray[np.float64], np.ndarray[np.float64]]:
+    """Get temperature limits based on the time of day."""
+    hours = time.hour
+
+    # Vectorized night detection
+    night_idx = (hours >= night_start_hour) | (hours < night_end_hour)
+
+    # Initialize and set values
+    lb = np.where(night_idx, lb_night, lb_day)
+    ub = np.where(night_idx, ub_night, ub_day)
+    return lb, ub

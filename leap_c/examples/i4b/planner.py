@@ -42,6 +42,7 @@ class I4bPlannerConfig:
     N_horizon: int = 96  # 96 x 900 s = 24 h
     ws: float = 0.1
     delta_t: float = 900.0
+    T_set_upper: float = 26.0
     discount_factor: float | None = None
     n_batch_init: int | None = None
     num_threads_batch_solver: int | None = None
@@ -161,9 +162,12 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             Qdot_gains_now[:, np.newaxis, :], (batch_size, N + 1, 1)
         ).copy()
 
+        T_set_upper_staged = np.full((batch_size, N + 1, 1), self.cfg.T_set_upper)
+
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             T_amb=T_amb_staged,
             Qdot_gains=Qdot_gains_staged,
+            T_set_upper=T_set_upper_staged,
         )
 
         # Supply default learnable parameters (int_gains = 0) when not provided.
