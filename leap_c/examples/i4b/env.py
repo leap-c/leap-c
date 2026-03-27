@@ -98,6 +98,11 @@ class I4bEnvConfig:
     N_forecast: int = 24 * 4
     grid_signal: float = 1.0
     gains_profile: str = _DEFAULT_GAINS_PROFILE
+    apply_heating_logic: bool = False
+    """If True, apply the legacy RoomHeatEnv heating logic in step(): add T_offset when
+    T_amb < T_amb_lim, fall back to T_hp_ret when warm, and clip via check_hp().
+    If False (default), the denormalised MPC action is passed directly to the simulator,
+    matching the OCP model."""
 
 
 class I4bEnv(gym.Env):
@@ -376,16 +381,17 @@ class I4bEnv(gym.Env):
 
         T_hp_sup = self._denorm_action(action)
 
-        # Apply heating logic from RoomHeatEnv: if outside is warm enough, no heating
-        if pk_dict["T_amb"] < self.bldg_model.params["T_amb_lim"]:
-            T_hp_sup = max(
-                T_hp_sup + self.bldg_model.params["T_offset"],
-                state_dict["T_hp_ret"],
-            )
-        else:
-            T_hp_sup = state_dict["T_hp_ret"]
-
-        T_hp_sup = self.hp_model.check_hp(T_hp_sup, state_dict["T_hp_ret"])
+        if self.cfg.apply_heating_logic:
+            # Legacy RoomHeatEnv behaviour: add T_offset when cold outside, fall back to
+            # T_hp_ret when ambient is warm, then clip via check_hp.
+            if pk_dict["T_amb"] < self.bldg_model.params["T_amb_lim"]:
+                T_hp_sup = max(
+                    T_hp_sup + self.bldg_model.params["T_offset"],
+                    state_dict["T_hp_ret"],
+                )
+            else:
+                T_hp_sup = state_dict["T_hp_ret"]
+            T_hp_sup = self.hp_model.check_hp(T_hp_sup, state_dict["T_hp_ret"])
 
         res = self.simulator.get_next_state(state_dict, T_hp_sup, pk_dict)
         next_state = res["state"]
