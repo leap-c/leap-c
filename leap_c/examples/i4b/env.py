@@ -215,12 +215,30 @@ class I4bEnv(gym.Env):
             Qdot_sol + int_gains["Qdot_tot"],
             columns=["Qdot_gains"],
         )
-        p = pd.concat(
-            [weather["T_amb"], Qdot_gains, comfort_bounds],
-            axis=1,
-        ).astype(np.float32)
 
-        return p.resample(f"{cfg.delta_t}s").interpolate()
+        p = (
+            pd.concat(
+                [
+                    weather["T_amb"],
+                    weather["dhi"],
+                    weather["ghi"],
+                    weather["dni"],
+                    Qdot_gains,
+                    comfort_bounds,
+                ],
+                axis=1,
+            )
+            .astype(np.float32)
+            .resample(f"{cfg.delta_t}s")
+            .interpolate()
+        )
+
+        # Build time (quarter-hour, day-of-year, day-of-week) from p.index
+        p["quarter_hour"] = (p.index.hour * 3600 + p.index.minute * 60) // cfg.delta_t
+        p["day_of_year"] = p.index.dayofyear - 1  # dayofyear is 1-based, we want 0-based
+        p["day_of_week"] = p.index.dayofweek  # dayofweek is 0=Monday,...6=Sunday
+
+        return p
 
     def _make_obs_space(self) -> spaces.Dict:
         state_lows = np.array(
@@ -265,6 +283,12 @@ class I4bEnv(gym.Env):
                 "T_set_upper": spaces.Box(
                     low=np.float32(20.0), high=np.float32(35.0), shape=(nf,), dtype=np.float32
                 ),
+                "quarter_hour": spaces.Box(low=0, high=int(24 * 4 - 1), shape=(nf,), dtype=int),
+                "day_of_year": spaces.Box(low=0, high=365, shape=(nf,), dtype=int),
+                "day_of_week": spaces.Box(low=0, high=6, shape=(nf,), dtype=int),
+                "dhi": spaces.Box(low=0, high=np.float32(2000.0), shape=(nf,), dtype=np.float32),
+                "ghi": spaces.Box(low=0, high=np.float32(2000.0), shape=(nf,), dtype=np.float32),
+                "dni": spaces.Box(low=0, high=np.float32(2000.0), shape=(nf,), dtype=np.float32),
             }
         )
         return spaces.Dict(obs_spaces)
@@ -312,6 +336,48 @@ class I4bEnv(gym.Env):
                 "T_set_upper": np.array(
                     [
                         float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["T_set_upper"])
+                        for i in range(self.cfg.N_forecast)
+                    ],
+                    dtype=np.float32,
+                ),
+                "quarter_hour": np.array(
+                    [
+                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["quarter_hour"])
+                        for i in range(self.cfg.N_forecast)
+                    ],
+                    dtype=int,
+                ),
+                "day_of_year": np.array(
+                    [
+                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["day_of_year"])
+                        for i in range(self.cfg.N_forecast)
+                    ],
+                    dtype=int,
+                ),
+                "day_of_week": np.array(
+                    [
+                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["day_of_week"])
+                        for i in range(self.cfg.N_forecast)
+                    ],
+                    dtype=int,
+                ),
+                "dhi": np.array(
+                    [
+                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["dhi"])
+                        for i in range(self.cfg.N_forecast)
+                    ],
+                    dtype=np.float32,
+                ),
+                "ghi": np.array(
+                    [
+                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["ghi"])
+                        for i in range(self.cfg.N_forecast)
+                    ],
+                    dtype=np.float32,
+                ),
+                "dni": np.array(
+                    [
+                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["dni"])
                         for i in range(self.cfg.N_forecast)
                     ],
                     dtype=np.float32,
