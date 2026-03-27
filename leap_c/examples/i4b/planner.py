@@ -18,7 +18,7 @@ from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 class I4bPlannerCtx(AcadosDiffMpcCtx):
     """An extension of the AcadosDiffMpcCtx for the I4b planner."""
 
-    stats: dict[str, Any] = None
+    stats: list[dict[str, Any]] = None
 
 
 @dataclass(kw_only=True)
@@ -242,6 +242,7 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc_ctx, _, x, u, value = self.diff_mpc(x0, action, param, p_stagewise, ctx=ctx)
 
         stats = self.diff_mpc.get_solver_stats(diff_mpc_ctx)
+
         i4b_ctx = I4bPlannerCtx(
             iterate=diff_mpc_ctx.iterate,
             status=diff_mpc_ctx.status,

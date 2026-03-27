@@ -314,6 +314,7 @@ def export_parametric_ocp(
     ocp.constraints.x0 = x0 if x0 is not None else 20.0 * np.ones(nx)
 
     # ── Solver options ────────────────────────────────────────────────────────
+    ocp.solver_options.nlp_solver_max_iter = 1
     ocp.solver_options.tf = N_horizon * delta_t
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.integrator_type = "DISCRETE"
