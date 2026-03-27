@@ -193,6 +193,7 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             if hasattr(self.controller, "planner")
             else None
         )
+        obs_keys = list(env.obs_keys)  # e.g. ["T_room", "T_wall", "T_hp_ret"]
 
         def callback(step: int, obs, action, reward, info, ctx) -> None:
             T_room = float(info.get("T_room", float("nan")))
@@ -217,6 +218,9 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
                     "solver_status": solver_status,
                 }
             )
+            for i, key in enumerate(obs_keys):
+                records[-1][key] = float(obs["state"].flat[i])
+
             for key in ctx.stats[0].keys():
                 if key.startswith("time") or key in ["sqp_iter"]:
                     records[-1][f"solver_{key}"] = float(ctx.stats[0][key])
@@ -249,11 +253,14 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             df.to_csv(csv_path, index=False)
             print(f"Timeseries saved to: {csv_path}")
         if self._val_x_trajs:
+            env = self.eval_env.unwrapped if self.eval_env is not None else None
+            state_names = list(env.obs_keys) if isinstance(env, I4bEnv) else []
             npz_path = self.output_path / f"val_mpc_trajectories_step{step}.npz"
             np.savez_compressed(
                 npz_path,
                 x=np.stack(self._val_x_trajs),  # (T, N+1, nx)
                 u=np.stack(self._val_u_trajs),  # (T, N, nu)
+                state_names=np.array(state_names),
             )
             print(f"MPC trajectories saved to: {npz_path}")
         return score

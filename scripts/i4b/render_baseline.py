@@ -54,9 +54,10 @@ def load_data(
     """Load CSV timeseries and NPZ MPC trajectories.
 
     Returns:
-        df: Timeseries dataframe, one row per closed-loop step.
-        x:  MPC state trajectories, shape (T, N+1, nx).
-        u:  MPC control trajectories, shape (T, N, nu).
+        df:          Timeseries dataframe, one row per closed-loop step.
+        x:           MPC state trajectories, shape (T, N+1, nx).
+        u:           MPC control trajectories, shape (T, N, nu).
+        state_names: Name of each state dimension, length nx.
     """
     if run_dir is not None:
         npz_candidates = sorted(run_dir.glob("val_mpc_trajectories_step*.npz"))
@@ -67,8 +68,9 @@ def load_data(
         csv_path = csv_candidates[-1]
 
     df = pd.read_csv(csv_path)
-    data = np.load(npz_path)
-    return df, data["x"], data["u"]
+    data = np.load(npz_path, allow_pickle=True)
+    state_names = list(data["state_names"]) if "state_names" in data else _DEFAULT_STATE_NAMES
+    return df, data["x"], data["u"], state_names
 
 
 def render(
@@ -133,9 +135,21 @@ def render(
     for i, ax in enumerate(ax_extra):
         state_idx = i + 1
         label = state_names[state_idx] if state_idx < len(state_names) else f"x[{state_idx}]"
+        if label in df.columns:
+            ax.plot(t_cl, df[label], lw=1.2, label=f"{label} actual")
         ax.set_ylabel(f"{label} [°C]")
-        ax.set_title(f"{label} — MPC predicted trajectory")
+        ax.set_title(f"{label} — actual & MPC prediction")
+        ax.legend(fontsize=7, loc="upper right")
         ax.grid(True, alpha=0.4)
+
+        # Fix y-limits from full data range (closed-loop + all MPC predictions).
+        all_vals = [x[:, :, state_idx].ravel()]
+        if label in df.columns:
+            all_vals.append(df[label].to_numpy())
+        vmin = min(v.min() for v in all_vals)
+        vmax = max(v.max() for v in all_vals)
+        margin = max((vmax - vmin) * 0.05, 0.5)
+        ax.set_ylim(vmin - margin, vmax + margin)
 
     # ── Dynamic MPC prediction elements (updated by slider) ───────────────────
     horizon_t = np.arange(N_plus1) * dt_h  # relative time offsets [h]
@@ -274,8 +288,8 @@ if __name__ == "__main__":
     parser.add_argument(
         "--state-names",
         nargs="+",
-        default=_DEFAULT_STATE_NAMES,
-        help="Names for each state dimension (x axis: index 0 = T_room).",
+        default=None,
+        help="Override state dimension names (default: read from NPZ).",
     )
     parser.add_argument(
         "--save",
@@ -292,5 +306,7 @@ if __name__ == "__main__":
         run_dir = _find_latest_run()
         print(f"Auto-detected run directory: {run_dir}")
 
-    df, x, u = load_data(run_dir, args.csv_path, args.npz_path)
-    render(df, x, u, args.state_names, args.delta_t, args.save)
+    df, x, u, state_names = load_data(run_dir, args.csv_path, args.npz_path)
+    if args.state_names is not None:
+        state_names = args.state_names
+    render(df, x, u, state_names, args.delta_t, args.save)
