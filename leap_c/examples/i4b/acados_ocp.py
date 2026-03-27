@@ -146,7 +146,7 @@ def export_parametric_ocp(
     x = ca.SX.sym("x", nx)
     u = ca.SX.sym("u", 1)  # T_HP [degC]
 
-    T_HP = u[0]
+    T_hp = u[0]
     T_room = x[0]
     T_hp_ret = x[-1]
 
@@ -162,17 +162,23 @@ def export_parametric_ocp(
     # ── Continuous dynamics ───────────────────────────────────────────────────
     p_bldg_sym = ca.vertcat(ca.SX.sym("T_amb"), ca.SX.sym("Qdot_gains"))
     d = ca.vertcat(T_amb, Qdot_gains)
-    f_expl_expr = building_model.calc_casadi(x, T_HP, p_bldg_sym)
+    f_expl_expr = building_model.calc_casadi(x, T_hp, p_bldg_sym)
 
     J_x = ca.jacobian(f_expl_expr, x)
     J_u = ca.jacobian(f_expl_expr, u)
     J_d = ca.jacobian(f_expl_expr, p_bldg_sym)
+
+    # Assert that the dynamics are affine in x, u, and that parameters enter affinely
+    # (no nonlinear dependence on p_bldg_sym).
     assert not ca.depends_on(J_x, x), "f_expl_expr is not affine in x"
     assert not ca.depends_on(J_x, u), "A matrix depends on u (not LTI)"
+    assert not ca.depends_on(J_x, p_bldg_sym), "A matrix depends on p_bldg_sym (not LTI)"
     assert not ca.depends_on(J_u, u), "f_expl_expr is not affine in u"
     assert not ca.depends_on(J_u, x), "B matrix depends on x (not LTI)"
+    assert not ca.depends_on(J_u, p_bldg_sym), "B matrix depends on p_bldg_sym (not LTI)"
     assert not ca.depends_on(J_d, x), "f_expl_expr depends nonlinearly on d and x"
     assert not ca.depends_on(J_d, u), "f_expl_expr depends nonlinearly on d and u"
+    assert not ca.depends_on(J_d, p_bldg_sym), "f_expl_expr is not affine in p_bldg_sym"
 
     # ── Discrete state-space (ZOH) ───────────────────────────────────────────
     Ac = np.array(ca.evalf(J_x))
@@ -185,12 +191,12 @@ def export_parametric_ocp(
     Ed = M @ Ec
 
     # For the dynamics we use d instead of p_bldg_sym to accomodate p, p_global with possible
-    # stagewise learnable parameters (e.g. int_gains) that also enter the dynamics.
+    # stagewise learnable parameters (e.g. Qdot_gains) that also enter the dynamics.
     ocp.model.disc_dyn_expr = Ad @ x + Bd @ u + Ed @ d
 
     # ── Stage cost: electrical energy ─────────────────────────────────────────
-    COP = _cop_casadi(hp_model, T_HP, T_amb)
-    Qth = hp_model.mdot_HP * C_WATER_SPEC * (T_HP - T_hp_ret) / 1000  # [kW]
+    COP = _cop_casadi(hp_model, T_hp, T_amb)
+    Qth = hp_model.mdot_HP * C_WATER_SPEC * (T_hp - T_hp_ret) / 1000  # [kW]
     stage_cost = Qth / (COP * 100) * grid_signal
 
     ocp.cost.cost_type = "EXTERNAL"
