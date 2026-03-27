@@ -53,19 +53,6 @@ def make_i4b_params(N_horizon: int) -> tuple[AcadosParameter, ...]:
     """
     return (
         AcadosParameter(
-            name="T_amb",
-            default=np.array([5.0]),
-            space=gym.spaces.Box(low=np.array([-25.0]), high=np.array([45.0]), dtype=np.float64),
-            interface="non-learnable",
-        ),
-        AcadosParameter(
-            name="Qdot_gains",
-            default=np.array([500.0]),
-            space=gym.spaces.Box(low=np.array([0.0]), high=np.array([8000.0]), dtype=np.float64),
-            interface="non-learnable",
-            end_stages=list(range(N_horizon + 1)),
-        ),
-        AcadosParameter(
             name="T_set_lower",
             default=np.array([20.0]),
             space=gym.spaces.Box(low=np.array([15.0]), high=np.array([30.0]), dtype=np.float64),
@@ -84,9 +71,15 @@ def make_i4b_params(N_horizon: int) -> tuple[AcadosParameter, ...]:
             interface="non-learnable",
         ),
         AcadosParameter(
-            name="int_gains",
+            name="T_amb",
+            default=np.array([5.0]),
+            space=gym.spaces.Box(low=np.array([-25.0]), high=np.array([45.0]), dtype=np.float64),
+            interface="non-learnable",
+        ),
+        AcadosParameter(
+            name="Qdot_gains",
             default=np.array([0.0]),
-            # space=gym.spaces.Box(low=np.array([-25.0]), high=np.array([45.0]), dtype=np.float64),
+            space=gym.spaces.Box(low=np.array([0.0]), high=np.array([8000.0]), dtype=np.float64),
             interface="learnable",
             end_stages=list(range(N_horizon + 1)),
         ),

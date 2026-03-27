@@ -224,12 +224,16 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             Qdot_gains_now[:, np.newaxis, :], (batch_size, N + 1, 1)
         ).copy()
 
-        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
-            T_amb=T_amb_staged,
-            Qdot_gains=Qdot_gains_staged,
-            T_set_lower=T_set_lower_staged,
-            T_set_upper=T_set_upper_staged,
-        )
+        overwrites = {
+            "T_amb": T_amb_staged,
+            "T_set_lower": T_set_lower_staged,
+            "T_set_upper": T_set_upper_staged,
+        }
+
+        if self.param_manager.has_parameter("Qdot_gains", interface="non-learnable"):
+            overwrites["Qdot_gains"] = Qdot_gains_staged
+
+        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(**overwrites)
 
         # Supply default learnable parameters (int_gains = 0) when not provided.
         if param is None and self.param_manager.learnable_parameters.size > 0:
