@@ -63,6 +63,7 @@ def make_i4b_params(N_horizon: int) -> tuple[AcadosParameter, ...]:
             default=np.array([500.0]),
             space=gym.spaces.Box(low=np.array([0.0]), high=np.array([8000.0]), dtype=np.float64),
             interface="non-learnable",
+            end_stages=list(range(N_horizon + 1)),
         ),
         AcadosParameter(
             name="T_set_lower",
@@ -111,72 +112,6 @@ def _cop_casadi(hp_model: Heatpump, T_HP: ca.SX, T_amb: ca.SX) -> ca.SX:
         return z0 + a * T_HP + b * T_source + c * T_HP**2 + d * T_source**2 + f * T_HP * T_source
     else:
         raise ValueError(f"Unsupported HP model type: {type(hp_model).__name__}")
-
-
-def transcribe_i4b_continuous_state_space(
-    f_expl: ca.SX,
-    x: ca.SX,
-    u: ca.SX,
-    disturbances: list[ca.SX],
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Extract continuous-time LTI matrices by evaluating the (constant) Jacobians of f_expl.
-
-    Requires that f_expl is affine in x, u, and disturbances (i.e. LTI up to parameters).
-
-        dx/dt = Ac @ x + Bc @ u + Ec @ disturbances
-
-    Each entry of ``disturbances`` must be a purely symbolic scalar or vector.
-    ``ca.jacobian`` requires purely symbolic differentiation variables; passing
-    ``ca.vertcat(...)`` of indexed struct elements would fail, so a list is used
-    and the column Jacobians are concatenated afterwards.
-
-    Args:
-        f_expl: Continuous-time right-hand side, shape (nx,).
-        x: State symbolic vector, shape (nx,).
-        u: Control symbolic vector, shape (nu,).
-        disturbances: List of purely symbolic disturbance variables, e.g.
-            [T_amb, Qdot_gains, int_gains]. One column per entry in Ec.
-
-    Returns:
-        Ac: State matrix,        shape (nx, nx).
-        Bc: Control matrix,      shape (nx, nu).
-        Ec: Disturbance matrix,  shape (nx, nd).
-    """
-    Ac = np.array(ca.evalf(ca.jacobian(f_expl, x)))
-    Bc = np.array(ca.evalf(ca.jacobian(f_expl, u)))
-    Ec = np.array(ca.evalf(ca.jacobian(f_expl, disturbances)))
-    return Ac, Bc, Ec
-
-
-def transcribe_i4b_discrete_state_space(
-    dt: float,
-    Ac: np.ndarray,
-    Bc: np.ndarray,
-    Ec: np.ndarray,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Discretize a continuous LTI system via zero-order hold (ZOH).
-
-    Uses the matrix-exponential formula:
-
-        Ad = expm(Ac * dt)
-        Bd = inv(Ac) @ (Ad - I) @ Bc
-        Ed = inv(Ac) @ (Ad - I) @ Ec
-
-    Args:
-        dt: Sampling time [s].
-        Ac: Continuous state matrix,        shape (nx, nx).
-        Bc: Continuous control matrix,      shape (nx, nu).
-        Ec: Continuous disturbance matrix,  shape (nx, nd).
-
-    Returns:
-        Ad: Discrete state matrix,        shape (nx, nx).
-        Bd: Discrete control matrix,      shape (nx, nu).
-        Ed: Discrete disturbance matrix,  shape (nx, nd).
-    """
-    nx = Ac.shape[0]
-    Ad = scipy.linalg.expm(Ac * dt)
-    M = np.linalg.solve(Ac, Ad - np.eye(nx))  # inv(Ac) @ (Ad - I)
-    return Ad, M @ Bc, M @ Ec
 
 
 def export_parametric_ocp(
@@ -232,22 +167,13 @@ def export_parametric_ocp(
     grid_signal = param_manager.get("grid_signal")
 
     # ── Continuous dynamics ───────────────────────────────────────────────────
-    # building_model.calc_casadi reads p[0]=T_amb and p[1]=Qdot_gains
-    p_bldg = ca.vertcat(T_amb, Qdot_gains)
-    f_expl_expr = building_model.calc_casadi(x, T_HP, p_bldg)
-
-    # int_gains [W] is a learnable offset to Qdot_gains, entering T_room via 1/C_room [J/K].
-    # The capacity key depends on the building method (matches calc_*_casadi).
-    # _C_room_key = {"2R2C": "C_bldg", "4R3C": "C_zone", "5R4C": "C_air"}
-    # C_room = building_model.params[_C_room_key[building_model.method]]
-    # ocp.model.f_expl_expr[0] += param_manager.get("int_gains") / C_room
-
-    # ── Verify dynamics are affine in x and u (LTI up to parameters) ────────────
+    p_bldg_sym = ca.vertcat(ca.SX.sym("T_amb"), ca.SX.sym("Qdot_gains"))
     d = ca.vertcat(T_amb, Qdot_gains)
-    # d = ca.vertcat(T_amb)
+    f_expl_expr = building_model.calc_casadi(x, T_HP, p_bldg_sym)
+
     J_x = ca.jacobian(f_expl_expr, x)
     J_u = ca.jacobian(f_expl_expr, u)
-    J_d = ca.jacobian(f_expl_expr, d)
+    J_d = ca.jacobian(f_expl_expr, p_bldg_sym)
     assert not ca.depends_on(J_x, x), "f_expl_expr is not affine in x"
     assert not ca.depends_on(J_x, u), "A matrix depends on u (not LTI)"
     assert not ca.depends_on(J_u, u), "f_expl_expr is not affine in u"
@@ -256,9 +182,17 @@ def export_parametric_ocp(
     assert not ca.depends_on(J_d, u), "f_expl_expr depends nonlinearly on d and u"
 
     # ── Discrete state-space (ZOH) ───────────────────────────────────────────
-    Ac_np, Bc_np, Ec_np = transcribe_i4b_continuous_state_space(f_expl_expr, x, u, d)
-    Ad, Bd, Ed = transcribe_i4b_discrete_state_space(delta_t, Ac_np, Bc_np, Ec_np)
+    Ac = np.array(ca.evalf(J_x))
+    Bc = np.array(ca.evalf(J_u))
+    Ec = np.array(ca.evalf(J_d))
 
+    Ad = scipy.linalg.expm(Ac * delta_t)
+    M = np.linalg.solve(Ac, Ad - np.eye(nx))  # inv(Ac) @ (Ad - I)
+    Bd = M @ Bc
+    Ed = M @ Ec
+
+    # For the dynamics we use d instead of p_bldg_sym to accomodate p, p_global with possible
+    # stagewise learnable parameters (e.g. int_gains) that also enter the dynamics.
     ocp.model.disc_dyn_expr = Ad @ x + Bd @ u + Ed @ d
 
     # ── Stage cost: electrical energy ─────────────────────────────────────────
