@@ -221,9 +221,10 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             for i, key in enumerate(obs_keys):
                 records[-1][key] = float(obs["state"].flat[i])
 
-            for key in ctx.stats[0].keys():
-                if key.startswith("time") or key in ["sqp_iter"]:
-                    records[-1][f"solver_{key}"] = float(ctx.stats[0][key])
+            if ctx is not None and hasattr(ctx, "stats") and ctx.stats:
+                for key in ctx.stats[0].keys():
+                    if key.startswith("time") or key in ["sqp_iter"]:
+                        records[-1][f"solver_{key}"] = float(ctx.stats[0][key])
 
             if ctx is not None and hasattr(ctx, "iterate") and ctx.iterate is not None:
                 # ctx.iterate.x shape: (1, (N+1)*nx) — reshape to (N+1, nx)
@@ -335,7 +336,7 @@ def run_baseline(
     if overwrite and Path(output_path).exists():
         shutil.rmtree(output_path)
 
-    val_env = create_env(cfg.env, days=days) if not only_train else None
+    val_env = create_env(cfg.env) if not only_train else None
     train_env = create_env(cfg.env) if only_train else None
 
     controller = None
