@@ -37,12 +37,14 @@ import gymnasium as gym
 import numpy as np
 import pandas as pd
 from gymnasium import spaces
-from i4b.disturbances import get_int_gains, get_solar_gains, load_weather
+from i4b.disturbances import get_int_gains, get_solar_gains
 from i4b.gym_interface import BUILDING_NAMES2CLASS
 from i4b.gym_interface.constant import OBSERVATION_SPACE_LIMIT
 from i4b.models.model_buildings import Building
 from i4b.models.model_hvac import Heatpump, Heatpump_AW, Heatpump_Vitocal  # noqa: F401
 from i4b.simulator import Model_simulator
+
+from leap_c.examples.hvac.dataset import load_weather_data
 
 _I4B_ROOT = Path(__file__).resolve().parents[3] / "external" / "i4b"
 
@@ -99,6 +101,8 @@ class I4bEnvConfig:
     grid_signal: float = 1.0
     gains_profile: str = _DEFAULT_GAINS_PROFILE
     apply_heating_logic: bool = False
+    start_date: str | None = None
+    end_date: str | None = None
     """If True, apply the legacy RoomHeatEnv heating logic in step(): add T_offset when
     T_amb < T_amb_lim, fall back to T_hp_ret when warm, and clip via check_hp().
     If False (default), the denormalised MPC action is passed directly to the simulator,
@@ -148,6 +152,7 @@ class I4bEnv(gym.Env):
             )
         if days is not None:
             cfg.days = days
+
         self.cfg = cfg
 
         # ── Build models ──────────────────────────────────────────────────────
@@ -189,15 +194,24 @@ class I4bEnv(gym.Env):
         """Load weather and compute total gains; return resampled DataFrame."""
         cfg = self.cfg
         pos = cfg.building_params["position"]
-        weather = load_weather(
-            pos["lat"],
-            pos["long"],
-            pos["altitude"],
-            tz=pos["timezone"],
-            repo_filepath=str(_I4B_ROOT),
-        )
 
-        weather = weather.resample(f"{cfg.delta_t}s").interpolate()
+        weather = load_weather_data(
+            csv_path=Path(__file__).parent / "assets" / "weather.csv",
+            latitude=pos["lat"],
+            longitude=pos["long"],
+            start_date=cfg.start_date or "2022-01-01",
+            end_date=cfg.end_date
+            or (
+                pd.Timestamp(cfg.start_date or "2022-01-01") + pd.Timedelta(days=cfg.days)
+            ).strftime("%Y-%m-%d"),
+        ).rename(
+            columns={
+                "temperature_2m": "T_amb",
+                "diffuse_radiation": "dhi",
+                "shortwave_radiation": "ghi",
+                "direct_normal_irradiance": "dni",
+            }
+        )
 
         # TODO: Comfort bounds not really a disturbance. Refactor
         T_set_lower, T_set_upper = get_temperature_limits(weather.index)

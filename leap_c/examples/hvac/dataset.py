@@ -671,6 +671,7 @@ def get_open_meteo_data(
                 "apparent_temperature",
                 "shortwave_radiation",
                 "direct_normal_irradiance",
+                "diffuse_radiation",
             ],
         },
     )
@@ -697,6 +698,7 @@ def get_open_meteo_data(
             "apparent_temperature": minutely_15.Variables(1).ValuesAsNumpy(),
             "shortwave_radiation": minutely_15.Variables(2).ValuesAsNumpy(),
             "direct_normal_irradiance": minutely_15.Variables(3).ValuesAsNumpy(),
+            "diffuse_radiation": minutely_15.Variables(4).ValuesAsNumpy(),
         }
     )
 
