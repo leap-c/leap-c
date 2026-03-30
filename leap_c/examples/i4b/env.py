@@ -44,7 +44,7 @@ from i4b.models.model_buildings import Building
 from i4b.models.model_hvac import Heatpump, Heatpump_AW, Heatpump_Vitocal  # noqa: F401
 from i4b.simulator import Model_simulator
 
-from leap_c.examples.hvac.dataset import load_weather_data
+from leap_c.examples.hvac.dataset import DataConfig, HvacDataset, load_and_prepare_data
 
 _I4B_ROOT = Path(__file__).resolve().parents[3] / "external" / "i4b"
 
@@ -92,7 +92,7 @@ class I4bEnvConfig:
     method: str = "4R3C"
     mdot_hp: float = 0.25
     delta_t: int = 900
-    days: int | None = None
+    days: int = 3
     random_init: bool = False
     noise_level: float = 0.0
     T_set_lower: float = 20.0
@@ -102,7 +102,6 @@ class I4bEnvConfig:
     gains_profile: str = _DEFAULT_GAINS_PROFILE
     apply_heating_logic: bool = False
     start_date: str | None = None
-    end_date: str | None = None
     """If True, apply the legacy RoomHeatEnv heating logic in step(): add T_offset when
     T_amb < T_amb_lim, fall back to T_hp_ret when warm, and clip via check_hp().
     If False (default), the denormalised MPC action is passed directly to the simulator,
@@ -132,7 +131,7 @@ class I4bEnv(gym.Env):
         self,
         render_mode: str | None = None,
         cfg: I4bEnvConfig | None = None,
-        days: int | None = None,
+        dataset: HvacDataset | None = None,
     ):
         """Initialise the environment.
 
@@ -140,8 +139,8 @@ class I4bEnv(gym.Env):
             render_mode: Unused; kept for Gymnasium compatibility.
             cfg: Environment configuration. Uses default i4c /
                 Heatpump_AW / 4R3C if None.
-            days: Episode length in days. Overrides ``cfg.days`` when provided.
-                Convenient for use with ``create_env("i4b", days=N)``.
+            dataset: Pre-built HvacDataset with weather and price data. When
+                None a default dataset is loaded from local CSV assets.
         """
         super().__init__()
 
@@ -150,8 +149,6 @@ class I4bEnv(gym.Env):
                 building_params=BUILDING_NAMES2CLASS["i4c"],
                 hp_model=Heatpump_AW(mdot_HP=0.25),
             )
-        if days is not None:
-            cfg.days = days
 
         self.cfg = cfg
 
@@ -170,8 +167,9 @@ class I4bEnv(gym.Env):
             timestep=cfg.delta_t,
         )
 
-        # ── Load weather / disturbances ───────────────────────────────────────
-        self._p: pd.DataFrame = self._load_disturbances()
+        # ── Dataset ───────────────────────────────────────────────────────────
+        self.dataset = dataset if dataset is not None else self._create_default_dataset()
+        self._augment_dataset()
 
         # ── Spaces ────────────────────────────────────────────────────────────
         self.obs_keys = self.bldg_model.state_keys  # e.g. ("T_room","T_wall","T_hp_ret")
@@ -181,30 +179,42 @@ class I4bEnv(gym.Env):
         self.observation_space = self._make_obs_space()
 
         # ── Episode state ─────────────────────────────────────────────────────
-        self._max_t = self._calc_max_t()
-        self._t = 0  # index into weather data
-        self._steps = 0  # steps in current episode
+        self._idx = 0  # current index into dataset
+        self.step_counter = 0
+        self.max_steps = 0
         self.state: dict | None = None
 
         self.reset()
 
     # ── Internal helpers ──────────────────────────────────────────────────────
 
-    def _load_disturbances(self) -> pd.DataFrame:
-        """Load weather and compute total gains; return resampled DataFrame."""
-        cfg = self.cfg
-        pos = cfg.building_params["position"]
+    def _create_default_dataset(self) -> HvacDataset:
+        """Load a default HvacDataset from local CSV assets."""
+        data = load_and_prepare_data(
+            price_zone="DE-LU",
+            price_data_path=Path(__file__).parent / "assets" / "price.csv",
+            weather_data_path=Path(__file__).parent / "assets" / "weather.csv",
+        )
+        return HvacDataset(data=data, cfg=DataConfig(valid_months=None))
 
-        weather = load_weather_data(
-            csv_path=Path(__file__).parent / "assets" / "weather.csv",
-            latitude=pos["lat"],
-            longitude=pos["long"],
-            start_date=cfg.start_date or "2022-01-01",
-            end_date=cfg.end_date
-            or (
-                pd.Timestamp(cfg.start_date or "2022-01-01") + pd.Timedelta(days=cfg.days)
-            ).strftime("%Y-%m-%d"),
-        ).rename(
+    def _augment_dataset(self) -> None:
+        """Compute building-specific disturbances and write them to the dataset.
+
+        Adds ``Qdot_gains``, ``T_set_lower``, and ``T_set_upper`` columns to
+        ``self.dataset`` using the full dataset index so that any episode start
+        can be served from the pre-computed arrays.
+        """
+        cfg = self.cfg
+        idx = self.dataset.data.index
+
+        weather = self.dataset.data[
+            [
+                "temperature_2m",
+                "diffuse_radiation",
+                "shortwave_radiation",
+                "direct_normal_irradiance",
+            ]
+        ].rename(
             columns={
                 "temperature_2m": "T_amb",
                 "diffuse_radiation": "dhi",
@@ -213,46 +223,25 @@ class I4bEnv(gym.Env):
             }
         )
 
-        # TODO: Comfort bounds not really a disturbance. Refactor
-        T_set_lower, T_set_upper = get_temperature_limits(weather.index)
-        comfort_bounds = pd.DataFrame(
-            {"T_set_lower": T_set_lower, "T_set_upper": T_set_upper}, index=weather.index
-        )
-
+        T_set_lower, T_set_upper = get_temperature_limits(idx)
         int_gains = get_int_gains(
-            time=weather.index,
+            time=idx,
             profile_path=str(_I4B_ROOT / cfg.gains_profile),
             bldg_area=cfg.building_params["area_floor"],
         )
-        Qdot_sol = get_solar_gains(weather=weather, bldg_params=cfg.building_params)
-        Qdot_gains = pd.DataFrame(
-            Qdot_sol + int_gains["Qdot_tot"],
-            columns=["Qdot_gains"],
+        Qdot_sol: pd.Series = get_solar_gains(weather=weather, bldg_params=cfg.building_params)
+
+        self.dataset.add_columns(
+            {
+                "Qdot_gains": (Qdot_sol + int_gains["Qdot_tot"]).to_numpy(dtype=np.float32),
+                "Qdot_int_oc": int_gains["Qdot_oc"].to_numpy(dtype=np.float32),
+                "Qdot_int_app": int_gains["Qdot_app"].to_numpy(dtype=np.float32),
+                "Qdot_int_tot": int_gains["Qdot_tot"].to_numpy(dtype=np.float32),
+                "Qdot_sol": Qdot_sol.to_numpy(dtype=np.float32),
+                "T_set_lower": T_set_lower.astype(np.float32),
+                "T_set_upper": T_set_upper.astype(np.float32),
+            }
         )
-
-        p = (
-            pd.concat(
-                [
-                    weather["T_amb"],
-                    weather["dhi"],
-                    weather["ghi"],
-                    weather["dni"],
-                    Qdot_gains,
-                    comfort_bounds,
-                ],
-                axis=1,
-            )
-            .astype(np.float32)
-            .resample(f"{cfg.delta_t}s")
-            .interpolate()
-        )
-
-        # Build time (quarter-hour, day-of-year, day-of-week) from p.index
-        p["quarter_hour"] = (p.index.hour * 3600 + p.index.minute * 60) // cfg.delta_t
-        p["day_of_year"] = p.index.dayofyear - 1  # dayofyear is 1-based, we want 0-based
-        p["day_of_week"] = p.index.dayofweek  # dayofweek is 0=Monday,...6=Sunday
-
-        return p
 
     def _make_obs_space(self) -> spaces.Dict:
         state_lows = np.array(
@@ -303,99 +292,40 @@ class I4bEnv(gym.Env):
                 "dhi": spaces.Box(low=0, high=np.float32(2000.0), shape=(nf,), dtype=np.float32),
                 "ghi": spaces.Box(low=0, high=np.float32(2000.0), shape=(nf,), dtype=np.float32),
                 "dni": spaces.Box(low=0, high=np.float32(2000.0), shape=(nf,), dtype=np.float32),
+                # price in €/kWh
+                "price": spaces.Box(low=0, high=np.float32(10.0), shape=(nf,), dtype=np.float32),
             }
         )
         return spaces.Dict(obs_spaces)
 
-    def _calc_max_t(self) -> int:
-        if self.cfg.days is None:
-            return len(self._p) - 1
-        steps_per_day = 24 * int(3600 / self.cfg.delta_t)
-        max_t = self.cfg.days * steps_per_day
-        if max_t >= len(self._p):
-            raise ValueError(
-                f"Episode length ({max_t} steps) exceeds available data ({len(self._p)} steps)."
-            )
-        return max_t
-
     def _build_obs(self, state_dict: dict) -> dict:
-        row = self._p.iloc[self._t]
+        # All arrays in self.dataset._arrays are pre-cast to float32 at build
+        # time so no dtype conversions are needed here.
+        nf = self.cfg.N_forecast
+        gcv = self.dataset.get_column_view  # zero-copy view, raises on out-of-bounds
         obs: dict = {
             "state": np.array([state_dict[k] for k in self.obs_keys], dtype=np.float32),
             "disturbances": {
-                "T_amb": np.array([float(row["T_amb"])], dtype=np.float32),
-                "Qdot_gains": np.array([float(row["Qdot_gains"])], dtype=np.float32),
+                "T_amb": gcv("temperature_2m", self._idx),
+                "Qdot_gains": gcv("Qdot_gains", self._idx),
             },
             "setpoints": {
-                "T_set_lower": np.array([float(row["T_set_lower"])], dtype=np.float32),
-                "T_set_upper": np.array([float(row["T_set_upper"])], dtype=np.float32),
+                "T_set_lower": gcv("T_set_lower", self._idx),
+                "T_set_upper": gcv("T_set_upper", self._idx),
             },
         }
-        if self.cfg.N_forecast:
+        if nf:
             obs["forecast"] = {
-                "T_amb": np.array(
-                    [
-                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["T_amb"])
-                        for i in range(self.cfg.N_forecast)
-                    ],
-                    dtype=np.float32,
-                ),
-                "T_set_lower": np.array(
-                    [
-                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["T_set_lower"])
-                        for i in range(self.cfg.N_forecast)
-                    ],
-                    dtype=np.float32,
-                ),
-                "T_set_upper": np.array(
-                    [
-                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["T_set_upper"])
-                        for i in range(self.cfg.N_forecast)
-                    ],
-                    dtype=np.float32,
-                ),
-                "quarter_hour": np.array(
-                    [
-                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["quarter_hour"])
-                        for i in range(self.cfg.N_forecast)
-                    ],
-                    dtype=int,
-                ),
-                "day_of_year": np.array(
-                    [
-                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["day_of_year"])
-                        for i in range(self.cfg.N_forecast)
-                    ],
-                    dtype=int,
-                ),
-                "day_of_week": np.array(
-                    [
-                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["day_of_week"])
-                        for i in range(self.cfg.N_forecast)
-                    ],
-                    dtype=int,
-                ),
-                "dhi": np.array(
-                    [
-                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["dhi"])
-                        for i in range(self.cfg.N_forecast)
-                    ],
-                    dtype=np.float32,
-                ),
-                "ghi": np.array(
-                    [
-                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["ghi"])
-                        for i in range(self.cfg.N_forecast)
-                    ],
-                    dtype=np.float32,
-                ),
-                "dni": np.array(
-                    [
-                        float(self._p.iloc[min(self._t + i, len(self._p) - 1)]["dni"])
-                        for i in range(self.cfg.N_forecast)
-                    ],
-                    dtype=np.float32,
-                ),
+                "T_amb": gcv("temperature_2m", self._idx, nf),
+                "T_set_lower": gcv("T_set_lower", self._idx, nf),
+                "T_set_upper": gcv("T_set_upper", self._idx, nf),
+                "quarter_hour": gcv("quarter_hour", self._idx, nf),
+                "day_of_year": gcv("day_of_year", self._idx, nf),
+                "day_of_week": gcv("day_of_week", self._idx, nf),
+                "dhi": gcv("diffuse_radiation", self._idx, nf),
+                "ghi": gcv("shortwave_radiation", self._idx, nf),
+                "dni": gcv("direct_normal_irradiance", self._idx, nf),
+                "price": gcv("price", self._idx, nf),
             }
         return obs
 
@@ -409,42 +339,6 @@ class I4bEnv(gym.Env):
         half = (self._action_high - self._action_low) / 2
         return float(np.clip(a, -1.0, 1.0).flat[0] * half + mid)
 
-    # ── Public API ────────────────────────────────────────────────────────────
-
-    def get_ocp_parameters(self, t: int) -> np.ndarray:
-        """Return OCP parameter vector p.
-
-        p = [T_amb, Qdot_gains, T_set_lower, T_set_upper, grid_signal].
-
-        This matches the parameter layout in export_parametric_ocp exactly.
-
-        Args:
-            t: Timestep index into the weather data.
-
-        Returns:
-            Array of shape (5,).
-        """
-        row = self._p.iloc[t]
-        return np.array(
-            [
-                float(row["T_amb"]),
-                float(row["Qdot_gains"]),
-                float(row["T_set_lower"]),
-                float(row["T_set_upper"]),
-                self.cfg.grid_signal,
-            ],
-            dtype=np.float64,
-        )
-
-    def get_ocp_parameters_horizon(self, t: int, N: int) -> np.ndarray:
-        """Return OCP parameters for stages t … t+N (inclusive), shape (N+1, 5).
-
-        Useful to fill all shooting nodes before calling the acados solver.
-        """
-        n_avail = len(self._p)
-        rows = np.stack([self.get_ocp_parameters(min(t + k, n_avail - 1)) for k in range(N + 1)])
-        return rows
-
     # ── Gymnasium interface ───────────────────────────────────────────────────
 
     def step(self, action: np.ndarray):
@@ -457,7 +351,10 @@ class I4bEnv(gym.Env):
             obs, reward, terminated, truncated, info
         """
         state_dict = dict(zip(self.obs_keys, self.state["state"]))
-        pk_dict = self._p.iloc[self._t].to_dict()
+        pk_dict = {
+            "T_amb": float(self.dataset.get_column("temperature_2m", self._idx)),
+            "Qdot_gains": float(self.dataset.get_column("Qdot_gains", self._idx)),
+        }
 
         T_hp_sup = self._denorm_action(action)
 
@@ -478,12 +375,15 @@ class I4bEnv(gym.Env):
         costs = res["cost"]
         E_el_kWh = float(costs["E_el"]) / 1000.0
 
-        self._t += 1
-        self._steps += 1
+        self._idx += 1
+        self.step_counter += 1
         self.state = self._build_obs(next_state)
 
         reward = -E_el_kWh * self.cfg.grid_signal
-        truncated = self._t >= len(self._p) - 1 or self._steps >= self._max_t
+        truncated = (
+            self._idx + self.cfg.N_forecast >= len(self.dataset)
+            or self.step_counter >= self.max_steps
+        )
 
         info = {
             "cost": float(costs["dev_neg_max"]),
@@ -492,9 +392,7 @@ class I4bEnv(gym.Env):
             "dev_max": float(costs["dev_neg_max"]),
             "T_room": float(next_state["T_room"]),
             "T_hp_sup": T_hp_sup,
-            "t": self._t,
-            # OCP parameter vector at the new timestep (ready for MPC warm-start)
-            "p_ocp": self.get_ocp_parameters(min(self._t, len(self._p) - 1)),
+            "t": self._idx,
         }
 
         obs = self._copy_obs(self.state)
@@ -508,14 +406,23 @@ class I4bEnv(gym.Env):
     def reset(self, *, seed: int | None = None, options: dict | None = None) -> tuple[dict, dict]:
         super().reset(seed=seed)
 
-        if self.cfg.random_init:
-            max_fc = max(self.cfg.weather_forecast_steps) if self.cfg.weather_forecast_steps else 0
-            max_start = len(self._p) - self._max_t - 1 - max_fc
-            self._t = int(self.np_random.integers(0, max(1, max_start)))
-        else:
-            self._t = 0
+        steps_per_day = 24 * int(3600 / self.cfg.delta_t)
+        # Cap max_steps so the forecast window never extends beyond the dataset.
+        data_limit = len(self.dataset) - self.cfg.N_forecast - 1
+        self.max_steps = min(
+            self.cfg.days * steps_per_day if self.cfg.days is not None else data_limit,
+            data_limit,
+        )
 
-        self._steps = 0
+        if self.cfg.random_init:
+            max_start = max(0, len(self.dataset) - self.max_steps - self.cfg.N_forecast)
+            self._idx = int(self.np_random.integers(0, max(1, max_start)))
+        elif self.cfg.start_date is not None:
+            self._idx = self.dataset.index.searchsorted(pd.Timestamp(self.cfg.start_date, tz="UTC"))
+        else:
+            self._idx = 0
+
+        self.step_counter = 0
 
         if self.cfg.random_init:
             state_dict = {
