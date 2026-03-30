@@ -193,7 +193,7 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             if hasattr(self.controller, "planner")
             else None
         )
-        obs_keys = list(env.obs_keys)  # e.g. ["T_room", "T_wall", "T_hp_ret"]
+        obs_keys = list(env.state_keys)  # e.g. ["T_room", "T_wall", "T_hp_ret"]
 
         def callback(step: int, obs, action, reward, info, ctx) -> None:
             T_room = float(info.get("T_room", float("nan")))
@@ -255,7 +255,7 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             print(f"Timeseries saved to: {csv_path}")
         if self._val_x_trajs:
             env = self.eval_env.unwrapped if self.eval_env is not None else None
-            state_names = list(env.obs_keys) if isinstance(env, I4bEnv) else []
+            state_names = list(env.state_keys) if isinstance(env, I4bEnv) else []
             npz_path = self.output_path / f"val_mpc_trajectories_step{step}.npz"
             np.savez_compressed(
                 npz_path,

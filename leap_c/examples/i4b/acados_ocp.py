@@ -239,7 +239,7 @@ def export_parametric_ocp(
     ocp.cost.Zu_e = ws * np.ones(2)
 
     # ── Control bounds ────────────────────────────────────────────────────────
-    ocp.constraints.lbu = np.array([0.0])
+    ocp.constraints.lbu = np.array([5.0])
     ocp.constraints.ubu = np.array([65.0])
     ocp.constraints.idxbu = np.array([0])
 

@@ -172,10 +172,10 @@ class I4bEnv(gym.Env):
         self._augment_dataset()
 
         # ── Spaces ────────────────────────────────────────────────────────────
-        self.obs_keys = self.bldg_model.state_keys  # e.g. ("T_room","T_wall","T_hp_ret")
+        self.state_keys = self.bldg_model.state_keys  # e.g. ("T_room","T_wall","T_hp_ret")
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
-        self._action_low = 0.0
-        self._action_high = 65.0
+        self._action_low = OBSERVATION_SPACE_LIMIT["T_hp_sup"][0]
+        self._action_high = OBSERVATION_SPACE_LIMIT["T_hp_sup"][1]
         self.observation_space = self._make_obs_space()
 
         # ── Episode state ─────────────────────────────────────────────────────
@@ -245,10 +245,10 @@ class I4bEnv(gym.Env):
 
     def _make_obs_space(self) -> spaces.Dict:
         state_lows = np.array(
-            [OBSERVATION_SPACE_LIMIT[k][0] for k in self.obs_keys], dtype=np.float32
+            [OBSERVATION_SPACE_LIMIT[k][0] for k in self.state_keys], dtype=np.float32
         )
         state_highs = np.array(
-            [OBSERVATION_SPACE_LIMIT[k][1] for k in self.obs_keys], dtype=np.float32
+            [OBSERVATION_SPACE_LIMIT[k][1] for k in self.state_keys], dtype=np.float32
         )
         T_amb_lo = np.float32(OBSERVATION_SPACE_LIMIT["T_amb"][0])
         T_amb_hi = np.float32(OBSERVATION_SPACE_LIMIT["T_amb"][1])
@@ -304,7 +304,7 @@ class I4bEnv(gym.Env):
         nf = self.cfg.N_forecast
         gcv = self.dataset.get_column_view  # zero-copy view, raises on out-of-bounds
         obs: dict = {
-            "state": np.array([state_dict[k] for k in self.obs_keys], dtype=np.float32),
+            "state": np.array([state_dict[k] for k in self.state_keys], dtype=np.float32),
             "disturbances": {
                 "T_amb": gcv("temperature_2m", self._idx),
                 "Qdot_gains": gcv("Qdot_gains", self._idx),
@@ -350,7 +350,7 @@ class I4bEnv(gym.Env):
         Returns:
             obs, reward, terminated, truncated, info
         """
-        state_dict = dict(zip(self.obs_keys, self.state["state"]))
+        state_dict = dict(zip(self.state_keys, self.state["state"]))
         pk_dict = {
             "T_amb": float(self.dataset.get_column("temperature_2m", self._idx)),
             "Qdot_gains": float(self.dataset.get_column("Qdot_gains", self._idx)),
@@ -432,10 +432,10 @@ class I4bEnv(gym.Env):
                         OBSERVATION_SPACE_LIMIT[k][1],
                     )
                 )
-                for k in self.obs_keys
+                for k in self.state_keys
             }
         else:
-            state_dict = {k: self.cfg.T_set_lower for k in self.obs_keys}
+            state_dict = {k: self.cfg.T_set_lower for k in self.state_keys}
 
         self.state = self._build_obs(state_dict)
         return self._copy_obs(self.state), {}
