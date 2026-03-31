@@ -62,7 +62,7 @@ class I4bExtractor(Extractor):
                 f"I4bExtractor requires a Dict observation space, got {type(observation_space)}"
             )
 
-        required_keys = {"time", "state", "forecast"}
+        required_keys = {"state", "forecast"}
         if not required_keys.issubset(observation_space.spaces.keys()):
             raise ValueError(
                 f"Observation space must contain keys {required_keys}, "
@@ -70,7 +70,7 @@ class I4bExtractor(Extractor):
             )
 
         # Validate forecast length matches config
-        forecast_space = observation_space["forecast"]["temperature"]  # type: ignore[index]
+        forecast_space = observation_space["forecast"]["T_amb"]  # type: ignore[index]
         if forecast_space.shape[0] != self.cfg.n_forecast:
             raise ValueError(
                 f"Expected forecast length {self.cfg.n_forecast}, "
@@ -120,11 +120,11 @@ class I4bExtractor(Extractor):
         """
         obs_space: gym.spaces.Dict = self.observation_space  # type: ignore
 
-        # 1. Time Embedding (Sin/Cos)
+        # 1. Time Embedding (Sin/Cos) — take current time step (index 0)
         # quarter_hour (0-95), day_of_year (0-365), day_of_week (0-6)
-        qh = x["time"]["quarter_hour"]  # (batch, 1)
-        doy = x["time"]["day_of_year"]  # (batch, 1)
-        dow = x["time"]["day_of_week"]  # (batch, 1)
+        qh = x["forecast"]["quarter_hour"][:, :1].float()  # (batch, 1)
+        doy = x["forecast"]["day_of_year"][:, :1].float()  # (batch, 1)
+        dow = x["forecast"]["day_of_week"][:, :1].float()  # (batch, 1)
 
         qh_sin = torch.sin(2 * torch.pi * qh / 96.0)
         qh_cos = torch.cos(2 * torch.pi * qh / 96.0)
@@ -143,7 +143,7 @@ class I4bExtractor(Extractor):
         state_norm = (state - state_low) / (state_high - state_low + 1e-8)
 
         # 3. Forecast Processing
-        temp_forecast = x["forecast"]["temperature"]  # (batch, n_forecast)
+        temp_forecast = x["forecast"]["T_amb"]  # (batch, n_forecast)
         dhi_forecast = x["forecast"]["dhi"]  # (batch, n_forecast)
         ghi_forecast = x["forecast"]["ghi"]  # (batch, n_forecast)
         dni_forecast = x["forecast"]["dni"]  # (batch, n_forecast)
@@ -162,9 +162,7 @@ class I4bExtractor(Extractor):
             std_norm = std / (hi - lo + 1e-8)
             return fc_norm, mean_norm, std_norm
 
-        temp_forecast_norm, temp_mean_norm, temp_std_norm = _norm_forecast(
-            temp_forecast, "temperature"
-        )
+        temp_forecast_norm, temp_mean_norm, temp_std_norm = _norm_forecast(temp_forecast, "T_amb")
         dhi_forecast_norm, dhi_mean_norm, dhi_std_norm = _norm_forecast(dhi_forecast, "dhi")
         ghi_forecast_norm, ghi_mean_norm, ghi_std_norm = _norm_forecast(ghi_forecast, "ghi")
         dni_forecast_norm, dni_mean_norm, dni_std_norm = _norm_forecast(dni_forecast, "dni")

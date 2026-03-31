@@ -15,7 +15,7 @@ from tensordict import TensorDict
 
 from leap_c.torch.nn.scale import min_max_scaling
 
-ExtractorName = Literal["identity", "scaling", "hvac"]
+ExtractorName = Literal["identity", "scaling", "hvac", "i4b"]
 
 
 class Extractor(nn.Module, ABC):
@@ -303,11 +303,19 @@ EXTRACTOR_REGISTRY = {
     "identity": IdentityExtractor,
     "scaling": ScalingExtractor,
     "hvac": HvacExtractor,
+    "i4b": "leap_c.examples.i4b.extractor:I4bExtractor",
 }
 
 
 def get_extractor_cls(name: ExtractorName):
     try:
-        return EXTRACTOR_REGISTRY[name]
+        entry = EXTRACTOR_REGISTRY[name]
     except KeyError:
         raise ValueError(f"Unknown extractor type: {name}")
+    if isinstance(entry, str):
+        module_path, cls_name = entry.rsplit(":", 1)
+        import importlib
+
+        module = importlib.import_module(module_path)
+        return getattr(module, cls_name)
+    return entry
