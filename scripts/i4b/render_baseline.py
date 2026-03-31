@@ -50,7 +50,7 @@ def load_data(
     run_dir: Path | None,
     csv_path: Path | None,
     npz_path: Path | None,
-) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray, list[str], np.ndarray | None]:
     """Load CSV timeseries and NPZ MPC trajectories.
 
     Returns:
@@ -58,6 +58,8 @@ def load_data(
         x:           MPC state trajectories, shape (T, N+1, nx).
         u:           MPC control trajectories, shape (T, N, nu).
         state_names: Name of each state dimension, length nx.
+        du_dp:       Sensitivity dT_HP[k]/dQdot_gains[j], shape (T, N, N+1),
+                     or None if not present in the NPZ.
     """
     if run_dir is not None:
         npz_candidates = sorted(run_dir.glob("val_mpc_trajectories_step*.npz"))
@@ -70,7 +72,8 @@ def load_data(
     df = pd.read_csv(csv_path)
     data = np.load(npz_path, allow_pickle=True)
     state_names = list(data["state_names"]) if "state_names" in data else _DEFAULT_STATE_NAMES
-    return df, data["x"], data["u"], state_names
+    du_dp = data["du_dp"] if "du_dp" in data else None
+    return df, data["x"], data["u"], state_names, du_dp
 
 
 def render(
@@ -80,6 +83,7 @@ def render(
     state_names: list[str],
     delta_t: float,
     save_path: Path | None,
+    du_dp: np.ndarray | None = None,
 ) -> None:
     """Build the interactive figure.
 
@@ -90,22 +94,36 @@ def render(
         state_names: Names for each state dimension.
         delta_t:     Sampling interval in seconds (used for the time axis).
         save_path:   If given, save an animation to this path instead of showing.
+        du_dp:       Sensitivity dT_HP[k]/dQdot_gains[j], shape (T, N, N+1), or None.
     """
     T, N_plus1, nx = x.shape
     N = N_plus1 - 1
     steps = df["step"].to_numpy()
     dt_h = delta_t / 3600.0  # hours per step
 
+    has_sens = du_dp is not None
+
     # Build a shared time axis in hours for the closed-loop data.
     t_cl = steps * dt_h
 
     # ── Figure layout ─────────────────────────────────────────────────────────
     n_extra_states = nx - 1  # states other than T_room (index 0)
-    n_rows = 2 + max(n_extra_states, 0)
-    fig, axes = plt.subplots(n_rows, 1, figsize=(12, 3 * n_rows), sharex=False, squeeze=False)
+    n_ts_rows = 2 + max(n_extra_states, 0)  # time-series rows
+    n_rows = n_ts_rows + (1 if has_sens else 0)
+    # Sensitivity panel is taller than time-series panels to give the matrix room.
+    height_ratios = [1] * n_ts_rows + ([1.6] if has_sens else [])
+    fig, axes = plt.subplots(
+        n_rows,
+        1,
+        figsize=(12, 3 * n_ts_rows + (4 if has_sens else 0)),
+        sharex=False,
+        squeeze=False,
+        gridspec_kw={"height_ratios": height_ratios},
+    )
     ax_room = axes[0, 0]
     ax_ctrl = axes[1, 0]
     ax_extra = [axes[i + 2, 0] for i in range(n_extra_states)]
+    ax_sens = axes[n_ts_rows, 0] if has_sens else None
 
     plt.subplots_adjust(bottom=0.12, hspace=0.45)
 
@@ -150,6 +168,35 @@ def render(
         vmax = max(v.max() for v in all_vals)
         margin = max((vmax - vmin) * 0.05, 0.5)
         ax.set_ylim(vmin - margin, vmax + margin)
+
+    # ── Sensitivity matrix panel (static layout, dynamic data) ───────────────
+    im_sens = None
+    if has_sens:
+        # Fixed symmetric colour scale across all timesteps for stable comparison.
+        vmax = float(np.abs(du_dp).max())
+        if vmax == 0.0:
+            vmax = 1.0
+        im_sens = ax_sens.imshow(
+            du_dp[0],
+            aspect="auto",
+            origin="upper",
+            cmap="RdBu_r",
+            vmin=-vmax,
+            vmax=vmax,
+            interpolation="nearest",
+        )
+        ax_sens.set_xlabel("Qdot_gains stage  j")
+        ax_sens.set_ylabel("T_HP stage  k")
+        ax_sens.set_title(
+            r"$\partial T_\mathrm{HP}[k]\,/\,\partial\dot{Q}_\mathrm{gains}[j]$"
+            "  [degC/W]  — sensitivity matrix at current step"
+        )
+        # Tick every stage
+        ax_sens.set_xticks(range(N + 1))
+        ax_sens.set_yticks(range(N))
+        ax_sens.set_xticklabels(range(N + 1), fontsize=7)
+        ax_sens.set_yticklabels(range(N), fontsize=7)
+        fig.colorbar(im_sens, ax=ax_sens, label="degC/W", shrink=0.8, pad=0.02)
 
     # ── Dynamic MPC prediction elements (updated by slider) ───────────────────
     horizon_t = np.arange(N_plus1) * dt_h  # relative time offsets [h]
@@ -222,6 +269,10 @@ def render(
         x_min = t_cl[0] - dt_h
         for ax in [ax_room, ax_ctrl] + ax_extra:
             ax.set_xlim(x_min, x_max)
+
+        # Update sensitivity matrix
+        if im_sens is not None:
+            im_sens.set_data(du_dp[t_idx])
 
         fig.canvas.draw_idle()
 
@@ -306,7 +357,9 @@ if __name__ == "__main__":
         run_dir = _find_latest_run()
         print(f"Auto-detected run directory: {run_dir}")
 
-    df, x, u, state_names = load_data(run_dir, args.csv_path, args.npz_path)
+    df, x, u, state_names, du_dp = load_data(run_dir, args.csv_path, args.npz_path)
     if args.state_names is not None:
         state_names = args.state_names
-    render(df, x, u, state_names, args.delta_t, args.save)
+    if du_dp is not None:
+        print(f"Loaded sensitivity du_dp, shape {du_dp.shape}")
+    render(df, x, u, state_names, args.delta_t, args.save, du_dp)

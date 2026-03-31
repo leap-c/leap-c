@@ -28,10 +28,10 @@ import gymnasium as gym
 import numpy as np
 import scipy.linalg
 from acados_template import ACADOS_INFTY, AcadosOcp
+
 from i4b.constants import C_WATER_SPEC
 from i4b.models.model_buildings import Building
 from i4b.models.model_hvac import Heatpump, Heatpump_AW, Heatpump_Vitocal
-
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 
@@ -247,7 +247,6 @@ def export_parametric_ocp(
     ocp.constraints.x0 = x0 if x0 is not None else 20.0 * np.ones(nx)
 
     # ── Solver options ────────────────────────────────────────────────────────
-    ocp.solver_options.nlp_solver_max_iter = 1
     ocp.solver_options.tf = N_horizon * delta_t
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.integrator_type = "DISCRETE"

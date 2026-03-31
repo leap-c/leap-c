@@ -27,6 +27,7 @@ from numpy import ndarray
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.examples import ExampleControllerName, create_controller, create_env
 from leap_c.examples.i4b.env import I4bEnv
+from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
 from leap_c.run import (
     default_controller_code_path,
     default_name,
@@ -50,6 +51,7 @@ class BaselineTrainerConfig(TrainerConfig):
 
     param_ckpt: str | None = None
     val_step_print_interval: int = 16
+    compute_sensitivities: bool = False
 
 
 @dataclass
@@ -67,6 +69,8 @@ class RunBaselineConfig:
     controller: ExampleControllerName | None = None
     policy_type: Literal["controller", "random"] = "controller"
     trainer: BaselineTrainerConfig = field(default_factory=BaselineTrainerConfig)
+    start_date: str | None = None
+    end_date: str | None = None
 
 
 class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
@@ -92,6 +96,7 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         self._val_records: list[dict] = []
         self._val_x_trajs: list[np.ndarray] = []  # per-step (N+1, nx) state trajectories
         self._val_u_trajs: list[np.ndarray] = []  # per-step (N, nu) control trajectories
+        self._val_du_dp: list[np.ndarray] = []  # per-step (N, N+1) sensitivity matrices
 
         if self.policy_type == "controller":
             assert self.controller is not None
@@ -146,6 +151,8 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
                     else self.controller.default_param(obs_batched)
                 )
                 param_tensor = torch.from_numpy(param).to(self.device)
+                if param_tensor.ndim == 1:
+                    param_tensor = param_tensor.unsqueeze(0)
                 policy_ctx, action_tensor = self.controller(
                     obs_batched, param_tensor, ctx=policy_ctx
                 )
@@ -172,6 +179,8 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             else self.controller.default_param(obs_batched)
         )
         param_tensor = torch.from_numpy(param).to(self.device)
+        if param_tensor.ndim == 1:
+            param_tensor = param_tensor.unsqueeze(0)
         ctx, action = self.controller(obs_batched, param_tensor, ctx=state)
         action = action.cpu().numpy()[0]
         return action, ctx, ctx.log
@@ -186,14 +195,20 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         x_trajs = self._val_x_trajs
         u_trajs = self._val_u_trajs
 
-        planner = getattr(getattr(self.controller, "planner", None), "cfg", None)
-        N_horizon = getattr(planner, "N_horizon", None)
+        planner_cfg = getattr(getattr(self.controller, "planner", None), "cfg", None)
+        N_horizon = getattr(planner_cfg, "N_horizon", None)
         nx = (
             getattr(self.controller.planner, "_nx", None)
             if hasattr(self.controller, "planner")
             else None
         )
         obs_keys = list(env.state_keys)  # e.g. ["T_room", "T_wall", "T_hp_ret"]
+
+        planner_obj = getattr(self.controller, "planner", None)
+        compute_sens = (
+            self.cfg.compute_sensitivities and planner_obj is not None and N_horizon is not None
+        )
+        du_dp_list = self._val_du_dp
 
         def callback(step: int, obs, action, reward, info, ctx) -> None:
             T_room = float(info.get("T_room", float("nan")))
@@ -232,6 +247,28 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
                 x_trajs.append(ctx.iterate.x[0].reshape(N_horizon + 1, nx))
                 u_trajs.append(ctx.iterate.u[0].reshape(N_horizon, -1))
 
+                if compute_sens:
+                    try:
+                        # Compute M[k,j] = dT_HP[k]/dQdot_gains[j] via N one-hot
+                        # adjoint backward passes (du_dp sums all stages; we need rows).
+                        diff_mpc_fun = planner_obj.diff_mpc.diff_mpc_fun
+                        prepare_batch_solver_for_backward(
+                            diff_mpc_fun.backward_batch_solver,
+                            ctx.iterate,
+                            ctx.solver_input,
+                        )
+                        one = np.ones((1, 1, 1))  # (batch=1, n_out=1, nu=1)
+                        rows = []
+                        bwd = diff_mpc_fun.backward_batch_solver
+                        for k in range(N_horizon):
+                            row = bwd.eval_adjoint_solution_sensitivity(
+                                [], [(k, one)], "p_global", False
+                            )  # (1, 1, N+1)
+                            rows.append(row[0, 0])  # (N+1,)
+                        du_dp_list.append(np.stack(rows))  # (N, N+1)
+                    except Exception as e:
+                        print(f"[sensitivity] step {step}: {type(e).__name__}: {e}")
+
             if interval > 0 and step % interval == 0:
                 flag = "" if T_set_lower <= T_room <= T_set_upper else " [!]"
                 print(
@@ -246,6 +283,7 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         self._val_records.clear()
         self._val_x_trajs.clear()
         self._val_u_trajs.clear()
+        self._val_du_dp.clear()
         score = super().validate()
         step = self.state.step
         if self._val_records:
@@ -257,13 +295,17 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             env = self.eval_env.unwrapped if self.eval_env is not None else None
             state_names = list(env.state_keys) if isinstance(env, I4bEnv) else []
             npz_path = self.output_path / f"val_mpc_trajectories_step{step}.npz"
-            np.savez_compressed(
-                npz_path,
+            save_kwargs: dict = dict(
                 x=np.stack(self._val_x_trajs),  # (T, N+1, nx)
                 u=np.stack(self._val_u_trajs),  # (T, N, nu)
                 state_names=np.array(state_names),
             )
+            if self._val_du_dp and len(self._val_du_dp) == len(self._val_x_trajs):
+                save_kwargs["du_dp"] = np.stack(self._val_du_dp)  # (T, N, N+1)
+            np.savez_compressed(npz_path, **save_kwargs)
             print(f"MPC trajectories saved to: {npz_path}")
+            if "du_dp" in save_kwargs:
+                print(f"  (includes du_dp sensitivity, shape {save_kwargs['du_dp'].shape})")
         return score
 
 
@@ -390,6 +432,11 @@ if __name__ == "__main__":
         "--days", type=int, default=_DEFAULT_DAYS, help="Episode length in days for validation."
     )
     group.add_argument("--param-ckpt", type=Path, default=None)
+    group.add_argument(
+        "--compute-sensitivities",
+        action="store_true",
+        help="Compute du_dp sensitivities at each validation step (slower; saves to NPZ).",
+    )
 
     group = parser.add_argument_group("W&B logging")
     group.add_argument("--use-wandb", action="store_true")
@@ -406,6 +453,7 @@ if __name__ == "__main__":
         policy_type=args.policy_type,
         param_ckpt=args.param_ckpt,
     )
+    cfg.trainer.compute_sensitivities = args.compute_sensitivities
 
     if args.use_wandb:
         config_dict = asdict(cfg)
