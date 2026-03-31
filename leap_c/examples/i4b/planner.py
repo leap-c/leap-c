@@ -261,12 +261,3 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         u0_norm = torch.clamp(u0_norm, -1.0, 1.0)
 
         return i4b_ctx, u0_norm, x, u, value
-
-    def default_param(self, obs: dict | np.ndarray | None) -> np.ndarray:
-        default = self.param_manager.learnable_parameters_default.cat.full().flatten()
-        if obs is None:
-            return default
-        state = obs["state"] if not isinstance(obs, (np.ndarray, torch.Tensor)) else obs
-        if state.ndim <= 1:
-            return default
-        return np.broadcast_to(default, (*state.shape[:-1], default.size))
