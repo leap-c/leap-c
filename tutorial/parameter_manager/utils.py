@@ -9,8 +9,8 @@ from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-N_HORIZON = 10   # MPC horizon length; stages 0 .. N_HORIZON (inclusive)
-BATCH_SIZE = 4   # number of parallel problem instances
+N_HORIZON = 10  # MPC horizon length; stages 0 .. N_HORIZON (inclusive)
+BATCH_SIZE = 4  # number of parallel problem instances
 
 # Thermal model constants [RC circuit]
 R_THERMAL = 2.0  # thermal resistance [h·degC/kW]
@@ -18,6 +18,7 @@ C_THERMAL = 1.5  # thermal capacitance [kWh/degC]
 
 
 # ── Parameter list ────────────────────────────────────────────────────────────
+
 
 def make_params(N_horizon: int = N_HORIZON) -> list[AcadosParameter]:
     """Return the canonical parameter list for the temperature-control tutorial OCP.
@@ -33,14 +34,14 @@ def make_params(N_horizon: int = N_HORIZON) -> list[AcadosParameter]:
         # Fixed: known constant, baked into the solver at compile time.
         AcadosParameter(
             name="dt",
-            default=np.array([0.25]),   # 15-minute time step [h]
+            default=np.array([0.25]),  # 15-minute time step [h]
             interface="fix",
         ),
         # Non-learnable: changes every solver call (e.g. a weather forecast),
         # but is NOT differentiated through.
         AcadosParameter(
             name="outdoor_temp",
-            default=np.array([20.0]),   # ambient temperature [degC]
+            default=np.array([20.0]),  # ambient temperature [degC]
             interface="non-learnable",
         ),
         # Learnable, constant across stages: a single scalar the learning
@@ -56,7 +57,7 @@ def make_params(N_horizon: int = N_HORIZON) -> list[AcadosParameter]:
         # The manager handles the indicator mechanism automatically.
         AcadosParameter(
             name="price",
-            default=np.array([0.15]),   # electricity price [EUR/kWh]
+            default=np.array([0.15]),  # electricity price [EUR/kWh]
             space=gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float64),
             interface="learnable",
             end_stages=[4, N_horizon],
@@ -65,6 +66,7 @@ def make_params(N_horizon: int = N_HORIZON) -> list[AcadosParameter]:
 
 
 # ── OCP builder ───────────────────────────────────────────────────────────────
+
 
 def build_ocp(manager: AcadosParameterManager, N_horizon: int = N_HORIZON) -> AcadosOcp:
     """Build and return the acados OCP for the temperature-control tutorial.
@@ -98,19 +100,19 @@ def build_ocp(manager: AcadosParameterManager, N_horizon: int = N_HORIZON) -> Ac
     # Retrieve parameters.
     # "fix" returns a numpy array; index [0] to get a plain scalar for CasADi arithmetic.
     # All other interfaces return CasADi SX expressions.
-    dt           = manager.get("dt")[0]           # numpy scalar
-    outdoor_temp = manager.get("outdoor_temp")    # CasADi SX, from p (per-stage)
-    comfort_ref  = manager.get("comfort_setpoint") # CasADi SX, from p_global
-    price        = manager.get("price")           # CasADi SX, stage-aware weighted sum
+    dt = manager.get("dt")[0]  # numpy scalar
+    outdoor_temp = manager.get("outdoor_temp")  # CasADi SX, from p (per-stage)
+    comfort_ref = manager.get("comfort_setpoint")  # CasADi SX, from p_global
+    price = manager.get("price")  # CasADi SX, stage-aware weighted sum
 
     # Discrete-time RC dynamics
     model.disc_dyn_expr = T + dt * ((outdoor_temp - T) / (R_THERMAL * C_THERMAL) + q / C_THERMAL)
 
     # Costs
-    model.cost_expr_ext_cost   = (T - comfort_ref) ** 2 + price * q
+    model.cost_expr_ext_cost = (T - comfort_ref) ** 2 + price * q
     model.cost_expr_ext_cost_e = (T - comfort_ref) ** 2
 
-    ocp.cost.cost_type   = "EXTERNAL"
+    ocp.cost.cost_type = "EXTERNAL"
     ocp.cost.cost_type_e = "EXTERNAL"
 
     ocp.model = model
@@ -120,9 +122,9 @@ def build_ocp(manager: AcadosParameterManager, N_horizon: int = N_HORIZON) -> Ac
     # The actual value is overwritten at each solve call by AcadosDiffMpcTorch.
     ocp.constraints.x0 = np.array([20.0])
 
-    ocp.solver_options.tf               = N_horizon * dt
-    ocp.solver_options.N_horizon        = N_horizon
-    ocp.solver_options.qp_solver        = "PARTIAL_CONDENSING_HPIPM"
-    ocp.solver_options.hessian_approx   = "EXACT"
-    ocp.solver_options.integrator_type  = "DISCRETE"
+    ocp.solver_options.tf = N_horizon * dt
+    ocp.solver_options.N_horizon = N_horizon
+    ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    ocp.solver_options.hessian_approx = "EXACT"
+    ocp.solver_options.integrator_type = "DISCRETE"
     return ocp

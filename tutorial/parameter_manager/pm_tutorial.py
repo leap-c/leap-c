@@ -47,19 +47,17 @@ if __name__ == "__main__":
         batch_size=BATCH_SIZE,
         price=price_forecast,
     )
-    print(f"p_global shape:    {p_global.shape}")     # (4, N_learnable)
+    print(f"p_global shape:    {p_global.shape}")  # (4, N_learnable)
 
     # ── Run the planner ───────────────────────────────────────────────────────
     # AcadosPlanner.forward calls combine_non_learnable_parameter_values internally
     # using the default outdoor_temp (20 degC every stage).  To supply a real
     # forecast at solve time, see pm_tutorial_forecast.py.
     x0_batch = torch.tensor(rng.uniform(15.0, 25.0, size=(BATCH_SIZE, 1)))
-    param = torch.tensor(
-        manager.combine_default_learnable_parameter_values(batch_size=BATCH_SIZE)
-    )
+    param = torch.tensor(manager.combine_default_learnable_parameter_values(batch_size=BATCH_SIZE))
 
     ctx, u0, x, u, value = planner.forward(obs=x0_batch, param=param)
 
-    print(f"ctx.status: {ctx.status}")   # [0 0 0 0] means all solves succeeded
+    print(f"ctx.status: {ctx.status}")  # [0 0 0 0] means all solves succeeded
     print(f"u0.shape:   {u0.shape}")
     print(f"value:      {value.squeeze().tolist()}")

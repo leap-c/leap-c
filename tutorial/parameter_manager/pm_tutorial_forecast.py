@@ -28,6 +28,7 @@ from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 # ── Custom planner ────────────────────────────────────────────────────────────
 
+
 class TempCtrlPlanner(AcadosPlanner):
     """Temperature-control planner that reads outdoor_temp from the observation dict.
 
@@ -124,7 +125,7 @@ if __name__ == "__main__":
     # ── Solve ─────────────────────────────────────────────────────────────────
     ctx, u0, x, u, value = planner.forward(obs=obs, param=param)
 
-    print(f"ctx.status:     {ctx.status}")   # [0 0 0 0] means all solves succeeded
+    print(f"ctx.status:     {ctx.status}")  # [0 0 0 0] means all solves succeeded
     print(f"u0.shape:       {u0.shape}")
     print(f"value:          {value.squeeze().tolist()}")
     print(f"comfort_values: {comfort_values.squeeze().tolist()}")
