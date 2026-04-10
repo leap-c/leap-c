@@ -53,10 +53,33 @@ class AcadosParameterManager:
     out-of-the-box in acados.
 
     Basic usage inside the AcadosOcp formulation:
-        Step 1: Create a list of AcadosParameter objects that define the Parameters you want to use.
-        Step 2: Use `param = param_manager.get(name)` to retrieve parameters with a certain name.
-        Use these variables in the ocp formulation to define costs, dynamics, etc.
-        Step 3: Use `param_manager.assign_to_ocp(ocp)` to assign the parameters to the ocp object.
+
+    .. code-block:: python
+
+        # Step 1: define parameters
+        params = [
+            AcadosParameter("price", default=np.array([1.0]), interface="learnable",
+                            end_stages=[4, 9]),
+            AcadosParameter("outdoor_temp", default=np.array([20.0]), interface="non-learnable"),
+        ]
+        manager = AcadosParameterManager(params, N_horizon=10)
+
+        # Step 2: use symbolic variables in the OCP formulation
+        price = manager.get("price")           # CasADi expression, stage-aware
+        outdoor_temp = manager.get("outdoor_temp")  # CasADi symbolic variable
+
+        # Step 3: wire into acados
+        manager.assign_to_ocp(ocp)
+
+    **Stage-varying learnable parameters** (``end_stages`` non-empty) are implemented via a
+    one-hot *indicator* vector that is appended to the non-learnable parameters.  At stage ``k``
+    only ``indicator[k]`` is 1; ``get()`` returns a weighted sum over all stage blocks so the
+    same symbolic expression evaluates to the correct block value at every stage.
+
+    .. warning::
+        If you forget to set the indicator correctly in
+        ``combine_non_learnable_parameter_values()``, every stage will silently evaluate to zero
+        for all stage-varying learnable parameters.
 
     Attributes:
         parameters: Dictionary of parameter names to AcadosParameter instances.
@@ -87,6 +110,30 @@ class AcadosParameterManager:
         N_horizon: int,
         casadi_type: Literal["SX", "MX"] = "SX",
     ) -> None:
+        """Initialize the parameter manager and build CasADi symbolic structs.
+
+        Validates all parameters, then constructs two CasADi symbolic structs:
+
+        - ``learnable_parameters``: one entry per learnable param; stage-varying params are
+          split into named blocks, e.g. ``price_0_4`` and ``price_5_9``.
+        - ``non_learnable_parameters``: one entry per non-learnable param, plus an
+          ``indicator`` vector of length ``N_horizon + 1`` if any stage-varying learnable
+          params exist.
+
+        Args:
+            parameters: Collection of :class:`AcadosParameter` instances describing all
+                parameters for the OCP.
+            N_horizon: Horizon length ``N``.  Stages are indexed ``0`` to ``N`` (inclusive),
+                giving ``N + 1`` stages in total.
+            casadi_type: CasADi symbolic type to use, either ``"SX"`` (default, faster for
+                small problems) or ``"MX"`` (required when parameters appear inside CasADi
+                ``Function`` objects that are evaluated multiple times).
+
+        Raises:
+            ValueError: If any parameter has more than 2 dimensions, uses a non-Box space,
+                or has ``end_stages`` whose last element is not ``N_horizon - 1`` or
+                ``N_horizon``.
+        """
         # add parameters to the manager
         if not parameters:
             warn(
@@ -465,13 +512,25 @@ class AcadosParameterManager:
             return gym.spaces.utils.flatten_space(tuple_space)
 
     def get(self, name: str) -> ca.SX | ca.MX | np.ndarray:
-        """Get the variable of a given name.
+        """Get the symbolic variable (or fixed value) for a parameter.
+
+        For stage-varying learnable parameters (those with ``end_stages``), the returned
+        expression is a weighted sum over all stage blocks, gated by the ``indicator`` vector
+        in the non-learnable parameters.  The expression evaluates to the correct block value
+        at each stage, but **only if the indicator is set correctly** via
+        ``combine_non_learnable_parameter_values()``.  If the indicator is all-zero (e.g. the
+        default), every stage silently evaluates to zero for these parameters.
 
         Args:
             name: The name of the parameter to retrieve.
 
         Returns:
-            A casadi variable for the parameter, or its default value if fixed.
+            - ``np.ndarray`` for ``"fix"`` parameters (the default value).
+            - CasADi ``SX``/``MX`` expression for ``"learnable"`` and ``"non-learnable"``
+              parameters.
+
+        Raises:
+            ValueError: If ``name`` is not registered with this manager.
         """
         if name not in self.parameters:
             raise ValueError(f"Unknown name: {name}. Available names: {', '.join(self.parameters)}")
@@ -507,9 +566,15 @@ class AcadosParameterManager:
             )
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
-        """Assign the parameters to the acados ocp object.
+        """Assign the parameters to the acados OCP object.
 
-        NOTE: Overwrites any existing parameter definitions in the ocp object.
+        Wires ``learnable_parameters`` into ``ocp.model.p_global`` (shared across all stages)
+        and ``non_learnable_parameters`` into ``ocp.model.p`` (per-stage).  Default values are
+        set on ``ocp.p_global_values`` and ``ocp.parameter_values`` respectively.
+
+        Args:
+            ocp: The :class:`acados_template.AcadosOcp` instance to configure.
+                Any existing ``p_global`` / ``p`` definitions are overwritten.
         """
         if self.learnable_parameters is not None:
             ocp.model.p_global = self.learnable_parameters.cat
