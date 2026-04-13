@@ -312,7 +312,7 @@ class Logger:
             or (cfg.csv_logger and not hasattr(self, "_csv_files_and_writers"))
         ):
             raise RuntimeError(
-                "Logger waws not started before calling it. Must be initialized with `__enter__`, "
+                "Logger was not started before calling it. Must be initialized with `__enter__`, "
                 "e.g., via `with Logger(...) as logger:`."
             )
 
