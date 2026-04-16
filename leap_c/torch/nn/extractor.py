@@ -299,14 +299,14 @@ class HvacExtractor(Extractor):
         return self._output_size
 
 
-EXTRACTOR_REGISTRY = {
+EXTRACTOR_REGISTRY: dict[ExtractorName, type[Extractor]] = {
     "identity": IdentityExtractor,
     "scaling": ScalingExtractor,
     "hvac": HvacExtractor,
 }
 
 
-def get_extractor_cls(name: ExtractorName):
+def get_extractor_cls(name: ExtractorName) -> type[Extractor]:
     try:
         return EXTRACTOR_REGISTRY[name]
     except KeyError:

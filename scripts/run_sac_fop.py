@@ -39,9 +39,9 @@ class RunSacFopConfig:
 
 def create_cfg(
     env: ExampleEnvName,
-    controller: ExampleControllerName,
+    controller: ExampleControllerName | None,
     seed: int,
-    variant: str = "fop",
+    variant: Literal["fop", "fopc", "foa"] = "fop",
     ckpt_modus: Literal["best", "last", "all", "none"] = "last",
 ) -> RunSacFopConfig:
     # ---- Configuration ----

@@ -99,9 +99,9 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
 
     cfg: TrainerConfigType
     output_path: Path
-    eval_env: gym.Env
+    eval_env: gym.Env | None
     state: TrainerState
-    device: str
+    device: torch.device
     logger: Logger
 
     def __init__(

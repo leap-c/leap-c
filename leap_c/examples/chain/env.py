@@ -139,7 +139,7 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
         self,
         render_mode: str | None = None,
         cfg: ChainEnvConfig | None = None,
-    ):
+    ) -> None:
         """Initialize the Chain environment.
 
         Args:
@@ -258,7 +258,7 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
 
         return x_ss, u_ss
 
-    def _render_setup(self):
+    def _render_setup(self) -> None:
         """One-time setup for the rendering."""
         self._fig, self._ax = plt.subplots(3, 1, figsize=(8, 10))
 
@@ -286,7 +286,7 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
             )
             ax_k.legend()
 
-    def _render_frame(self):
+    def _render_frame(self) -> None:
         """Update the plot with the current environment state."""
         pos = np.vstack([self.fix_point, self.state[: self.nx_pos].reshape(-1, 3)])
         for k, line in enumerate(self.lines):

@@ -2,7 +2,7 @@ import subprocess
 from pathlib import Path
 
 
-def log_git_hash_and_diff(filename: Path, repo_path: Path = Path(".")):
+def log_git_hash_and_diff(filename: Path, repo_path: Path = Path(".")) -> None:
     """Log the git hash and diff of the current commit to a file.
 
     Args:

@@ -72,7 +72,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         cfg: ChainControllerConfig | None = None,
         params: list[AcadosParameter] | None = None,
         export_directory: Path | None = None,
-    ):
+    ) -> None:
         """Initializes the ChainController.
 
         Args:
