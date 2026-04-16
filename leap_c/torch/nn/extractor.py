@@ -130,9 +130,7 @@ class HvacExtractor(Extractor):
     """
 
     def __init__(
-        self,
-        observation_space: gym.spaces.Dict,
-        cfg: HvacExtractorConfig | None = None,
+        self, observation_space: gym.spaces.Dict, cfg: HvacExtractorConfig | None = None
     ) -> None:
         """Initializes the HVAC extractor.
 

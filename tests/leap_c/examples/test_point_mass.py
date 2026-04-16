@@ -7,9 +7,7 @@ from leap_c.examples.pointmass.planner import PointMassPlanner
 from leap_c.planner import ControllerFromPlanner
 
 
-def test_run_closed_loop(
-    n_iter: int = 200,
-) -> None:
+def test_run_closed_loop(n_iter: int = 200) -> None:
     """Test the closed-loop performance of a learnable point mass MPC.
 
     Asserts:
