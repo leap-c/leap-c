@@ -75,7 +75,7 @@ class TempCtrlPlanner(AcadosPlanner):
         return self.diff_mpc(state, action, param, p_stagewise, ctx=ctx)
 
     def default_param(self, obs: ndarray | None) -> ndarray:
-        return self.param_manager.learnable_parameters_default.cat.full().flatten()
+        return self.param_manager.learnable_default_flat
 
 
 # ── Main ──────────────────────────────────────────────────────────────────────
