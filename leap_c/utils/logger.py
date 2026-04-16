@@ -227,7 +227,7 @@ class Logger:
         if cfg.wandb_logger:
             import wandb
 
-            if not cfg.wandb_init_kwargs.get("dir", False):  # type:ignore
+            if not cfg.wandb_init_kwargs.get("dir"):  # type:ignore
                 cfg.wandb_init_kwargs["dir"] = str(self.output_path)
             wandb.init(**cfg.wandb_init_kwargs)
             self._wandb_defined_metrics: dict[str, bool] = {}

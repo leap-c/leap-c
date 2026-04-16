@@ -214,7 +214,6 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
 
         with self.logger:
             self.to(self.device)
-            train_loop_iter = self.train_loop()
 
             # initial policy validation
             self.eval()  # set to eval mode
@@ -223,6 +222,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
             self.state.scores.append(val_score)
             self.state.max_score = val_score
 
+            train_loop_iter = self.train_loop()
             while self.state.step < self.cfg.train_steps:
                 # train
                 steps, _ = next(train_loop_iter)

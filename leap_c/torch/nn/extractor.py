@@ -305,7 +305,17 @@ EXTRACTOR_REGISTRY: dict[ExtractorName, type[Extractor]] = {
 
 
 def get_extractor_cls(name: ExtractorName) -> type[Extractor]:
-    try:
-        return EXTRACTOR_REGISTRY[name]
-    except KeyError:
-        raise ValueError(f"Unknown extractor type: {name}")
+    """Get the extract class corresponding to the given name.
+
+    Args:
+        name ({"identity", "scaling", "hvac"}): The name of the extractor.
+
+    Returns:
+        type[Extractor]: The class of the requested extractor.
+
+    Raises:
+        ValueError: If the name is not recognized.
+    """
+    if name not in EXTRACTOR_REGISTRY:
+        raise ValueError(f"Unknown extractor type: `{name}`")
+    return EXTRACTOR_REGISTRY[name]

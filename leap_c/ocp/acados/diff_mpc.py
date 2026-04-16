@@ -302,8 +302,8 @@ class AcadosDiffMpcFunction(DiffFunction):
             ValueError: If `field_name` is not recognized.
         """
         # check if already calculated
-        if getattr(ctx, field_name) is not None:
-            return getattr(ctx, field_name)
+        if (attr := getattr(ctx, field_name)) is not None:
+            return attr
 
         prepare_batch_solver_for_backward(self.backward_batch_solver, ctx.iterate, ctx.solver_input)
 
