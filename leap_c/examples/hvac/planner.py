@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Sequence
 
+import gymnasium as gym
 import numpy as np
 import torch
 from scipy.constants import convert_temperature
@@ -411,3 +412,12 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
 
         # Return single array if input was single observation
         return batch_param[0] if was_single else batch_param
+
+    @property
+    def param_space(self) -> gym.Space:
+        # NOTE: since HVAC planner uses `np.float64`, the returned param_space should
+        # have the same dtype for the `space.contains` method to work. When using the
+        # default `np.float32` that is returned by the method, it returns false even
+        # if the values are contained in the space. I think this needs to be fixed on
+        # the parent `Planner` level.
+        return self.param_manager.get_param_space(dtype=np.float64)
