@@ -85,7 +85,6 @@ class AcadosParameter:
                     UserWarning,
                     stacklevel=2,
                 )
-                self.space = None
             if self.end_stages:
                 warn(
                     f"Parameter '{self.name}' with interface '{self.interface}' defines end_stages."
@@ -93,7 +92,6 @@ class AcadosParameter:
                     UserWarning,
                     stacklevel=2,
                 )
-                self.end_stages = []
 
 
 class AcadosParameterManager:
