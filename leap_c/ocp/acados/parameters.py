@@ -94,6 +94,55 @@ class AcadosParameter:
                 )
 
 
+@dataclass
+class _ParameterStore:
+    """Helper class for storing parameter information and symbolic variables.
+
+    This is used internally by AcadosParameterManager to manage the parameters.
+    Allows adding symbols, defaults, and bounds. Handles the indexing and sizing
+    automatically.
+    """
+
+    symbols: dict[str, ca.SX | ca.MX] = field(default_factory=dict)
+    indices: dict[str, tuple[int, int]] = field(default_factory=dict)
+    defaults: dict[str, np.ndarray] = field(default_factory=dict)
+    lb: dict[str, np.ndarray] = field(default_factory=dict)
+    ub: dict[str, np.ndarray] = field(default_factory=dict)
+    _size: int = field(default=0, init=False)
+
+    @property
+    def size(self) -> int:
+        return self._size
+
+    def add(
+        self,
+        name: str,
+        symbol: ca.SX | ca.MX,
+        default: np.ndarray,
+        lb: np.ndarray | None = None,
+        ub: np.ndarray | None = None,
+    ) -> None:
+        n = default.size
+        self.symbols[name] = symbol
+        self.indices[name] = (self._size, self._size + n)
+        self.defaults[name] = default
+        if lb is not None:
+            self.lb[name] = lb
+        if ub is not None:
+            self.ub[name] = ub
+        self._size += n
+
+    def get_values(self) -> np.ndarray:
+        return (
+            np.concatenate([v.reshape(-1, order="F") for v in self.defaults.values()])
+            if self.defaults
+            else np.array([])
+        )
+
+    def get_symbols(self) -> ca.SX | ca.MX:
+        return ca.vertcat(*list(self.symbols.values()))
+
+
 class AcadosParameterManager:
     """Manager class for handling acados parameters according to their specifications.
 
@@ -143,53 +192,65 @@ class AcadosParameterManager:
     """
 
     parameters: dict[str, AcadosParameter]
-    _learnable_symbols: dict[str, ca.SX | ca.MX]
-    _learnable_indices: dict[str, tuple[int, int]]
-    _learnable_size: int
-    _learnable_parameters_default: dict[str, np.ndarray]
-    _learnable_parameters_lb: dict[str, np.ndarray]
-    _learnable_parameters_ub: dict[str, np.ndarray]
-    _non_learnable_symbols: dict[str, ca.SX | ca.MX]
-    _non_learnable_indices: dict[str, tuple[int, int]]
-    _non_learnable_size: int
-    _non_learnable_parameters_default: dict[str, np.ndarray]
     N_horizon: int
-    need_indicator: bool
+    casadi_type: Literal["SX", "MX"]
+    _learnable_parameter_store: _ParameterStore
+    _non_learnable_parameter_store: _ParameterStore
+    _need_indicator: bool
 
     @property
     def learnable_default_flat(self) -> np.ndarray:
-        return (
-            np.concatenate(
-                [arr.reshape(-1, order="F") for arr in self._learnable_parameters_default.values()]
-            )
-            if self._learnable_parameters_default
-            else np.array([])
-        )
+        return self._learnable_parameter_store.get_values()
 
     @property
     def non_learnable_default_flat(self) -> np.ndarray:
-        return (
-            np.concatenate(
-                [
-                    arr.reshape(-1, order="F")
-                    for arr in self._non_learnable_parameters_default.values()
-                ]
-            )
-            if self._non_learnable_parameters_default
-            else np.array([])
-        )
+        return self._non_learnable_parameter_store.get_values()
 
     @property
     def p_global(self) -> ca.SX | ca.MX:
-        return ca.vertcat(*list(self._learnable_symbols.values()))
+        return self._learnable_parameter_store.get_symbols()
 
     @property
     def p(self) -> ca.SX | ca.MX:
-        return ca.vertcat(*list(self._non_learnable_symbols.values()))
+        return self._non_learnable_parameter_store.get_symbols()
 
     @property
     def p_full(self) -> ca.SX | ca.MX:
         return ca.vertcat(self.p_global, self.p)
+
+    @staticmethod
+    def _create_symbol(name: str, size: int, casadi_type: Literal["SX", "MX"]) -> ca.SX | ca.MX:
+        if casadi_type == "SX":
+            return ca.SX.sym(name, size, 1)
+        elif casadi_type == "MX":
+            return ca.MX.sym(name, size, 1)
+        else:
+            raise ValueError(f"Unsupported casadi_type: {casadi_type}")
+
+    def add_learnable_parameter_entries(self, parameter: AcadosParameter) -> None:
+        if parameter.end_stages:
+            self._need_indicator = True
+            starts, ends = _define_starts_and_ends(
+                end_stages=parameter.end_stages, N_horizon=self.N_horizon
+            )
+            for start, end in zip(starts, ends):
+                # Build symbolic expressions for each stage
+                # following the template {name}_{first_stage}_{last_stage}
+                # e.g. price_0_10, price_11_20, etc.
+                p_name = f"{parameter.name}_{start}_{end}"
+                symbol = self._create_symbol(p_name, parameter.default.size, self.casadi_type)
+                self._learnable_parameter_store.add(
+                    p_name, symbol, parameter.default, parameter.space.low, parameter.space.high
+                )
+        else:
+            symbol = self._create_symbol(parameter.name, parameter.default.size, self.casadi_type)
+            self._learnable_parameter_store.add(
+                parameter.name, symbol, parameter.default, parameter.space.low, parameter.space.high
+            )
+
+    def add_non_learnable_parameter_entries(self, parameter: AcadosParameter) -> None:
+        symbol = self._create_symbol(parameter.name, parameter.default.size, self.casadi_type)
+        self._non_learnable_parameter_store.add(parameter.name, symbol, parameter.default)
 
     def __init__(
         self,
@@ -239,91 +300,28 @@ class AcadosParameterManager:
                 )
         self.parameters = {param.name: param for param in parameters}
 
-        self._learnable_symbols = {}
-        self._learnable_indices = {}
-        self._learnable_size = 0
-        self._learnable_parameters_default = {}
-        self._learnable_parameters_lb = {}
-        self._learnable_parameters_ub = {}
-        self._non_learnable_symbols = {}
-        self._non_learnable_indices = {}
-        self._non_learnable_size = 0
-        self._non_learnable_parameters_default = {}
-
         self.N_horizon = N_horizon
+        self.casadi_type = casadi_type
+        self._learnable_parameter_store = _ParameterStore()
+        self._non_learnable_parameter_store = _ParameterStore()
 
-        def _add_learnable_parameter_entries(name: str, parameter: AcadosParameter) -> None:
-            if parameter.end_stages:
-                self.need_indicator = True
-                starts, ends = _define_starts_and_ends(
-                    end_stages=parameter.end_stages, N_horizon=self.N_horizon
-                )
-                for start, end in zip(starts, ends):
-                    # Build symbolic expressions for each stage
-                    # following the template {name}_{first_stage}_{last_stage}
-                    # e.g. price_0_10, price_11_20, etc.
-                    pname = f"{name}_{start}_{end}"
-                    if casadi_type == "SX":
-                        self._learnable_symbols[pname] = ca.SX.sym(pname, parameter.default.size, 1)
-                    elif casadi_type == "MX":
-                        self._learnable_symbols[pname] = ca.MX.sym(pname, parameter.default.size, 1)
-                    self._learnable_indices[pname] = (
-                        self._learnable_size,
-                        self._learnable_size + parameter.default.size,
-                    )
-                    self._learnable_size += parameter.default.size
-                    self._learnable_parameters_default[pname] = parameter.default
-                    self._learnable_parameters_lb[pname] = parameter.space.low
-                    self._learnable_parameters_ub[pname] = parameter.space.high
-            else:
-                if casadi_type == "SX":
-                    self._learnable_symbols[name] = ca.SX.sym(name, parameter.default.size, 1)
-                elif casadi_type == "MX":
-                    self._learnable_symbols[name] = ca.MX.sym(name, parameter.default.size, 1)
-                self._learnable_indices[name] = (
-                    self._learnable_size,
-                    self._learnable_size + parameter.default.size,
-                )
-                self._learnable_size += parameter.default.size
-                self._learnable_parameters_default[name] = parameter.default
-                self._learnable_parameters_lb[name] = parameter.space.low
-                self._learnable_parameters_ub[name] = parameter.space.high
-
-        def _add_non_learnable_parameter_entries(name: str, parameter: AcadosParameter) -> None:
-            # Non-learnable parameters are by construction for each stage
-            if casadi_type == "SX":
-                self._non_learnable_symbols[name] = ca.SX.sym(name, parameter.default.size, 1)
-            elif casadi_type == "MX":
-                self._non_learnable_symbols[name] = ca.MX.sym(name, parameter.default.size, 1)
-            self._non_learnable_indices[name] = (
-                self._non_learnable_size,
-                self._non_learnable_size + parameter.default.size,
-            )
-            self._non_learnable_size += parameter.default.size
-            self._non_learnable_parameters_default[name] = parameter.default
-
-        self.need_indicator = False
-        for name, parameter in self.parameters.items():
+        self._need_indicator = False
+        for _, parameter in self.parameters.items():
             if parameter.interface == "learnable":
-                _add_learnable_parameter_entries(name, parameter)
+                self.add_learnable_parameter_entries(parameter)
             if parameter.interface == "non-learnable":
-                _add_non_learnable_parameter_entries(name, parameter)
+                self.add_non_learnable_parameter_entries(parameter)
 
-        if self.need_indicator:
-            if casadi_type == "SX":
-                self._non_learnable_symbols["indicator"] = ca.SX.sym(
-                    "indicator", self.N_horizon + 1, 1
-                )
-            elif casadi_type == "MX":
-                self._non_learnable_symbols["indicator"] = ca.MX.sym(
-                    "indicator", self.N_horizon + 1, 1
-                )
-            self._non_learnable_indices["indicator"] = (
-                self._non_learnable_size,
-                self._non_learnable_size + self.N_horizon + 1,
+        # TODO: (Mazen) when parameters are added incrementally, we may add parameters that
+        # require an indicator after the construction of the parameter manager. We
+        # need to move this code into a point that is guaranteed to be run before the
+        # usage of the parameter manager for OCP solving. I guess that would be:
+        # `combine_non_learnable_parameter_values`?
+        if self._need_indicator:
+            indicator = AcadosParameter(
+                name="indicator", default=np.zeros(self.N_horizon + 1), interface="non-learnable"
             )
-            self._non_learnable_size += self.N_horizon + 1
-            self._non_learnable_parameters_default["indicator"] = np.zeros(self.N_horizon + 1)
+            self.add_non_learnable_parameter_entries(indicator)
 
     def combine_default_learnable_parameter_values(
         self, batch_size: int | None = None, **overwrites: np.ndarray
@@ -363,7 +361,7 @@ class AcadosParameterManager:
         # Get default parameter array and replicate it along the batch dimension - if no overwrites
         # are passed, just return a broadcasted view to avoid unnecessary memory allocation;
         # otherwise, create a tiled array (is writeable, so overwrites can be applied afterwards)
-        default_flat = self.learnable_default_flat
+        default_flat = self._learnable_parameter_store.get_values()
         if not overwrites:
             return np.broadcast_to(default_flat, (batch_size, default_flat.size))
         batch_param = np.tile(default_flat, (batch_size, 1))
@@ -412,7 +410,7 @@ class AcadosParameterManager:
                 for start, end in zip(starts, ends):
                     param_key = f"{param_name}_{start}_{end}"
                     try:
-                        s, e = self._learnable_indices[param_key]
+                        s, e = self._learnable_parameter_store.indices[param_key]
                         param_idx = slice(s, e)
                     except KeyError as e:
                         raise KeyError(f"Learnable parameter '{param_key}' not found.") from e
@@ -423,7 +421,7 @@ class AcadosParameterManager:
                 # Non-stage-varying parameter - single value per batch
                 param_key = param_name
                 try:
-                    s, e = self._learnable_indices[param_key]
+                    s, e = self._learnable_parameter_store.indices[param_key]
                     param_idx = slice(s, e)
                 except KeyError as e:
                     raise KeyError(f"Learnable parameter '{param_key}' not found.") from e
@@ -456,18 +454,18 @@ class AcadosParameterManager:
         # Resolve to 1 if empty, will result in one batch sample of default values.
         batch_size = next(iter(overwrite.values())).shape[0] if overwrite else batch_size or 1
         Np1 = self.N_horizon + 1
-        expected_shape = (batch_size, Np1, self._non_learnable_size)
+        expected_shape = (batch_size, Np1, self._non_learnable_parameter_store.size)
 
         # Create a batch of parameter values - if indicators are not needed and no overwrites are
         # passed, just return a broadcasted view to avoid unnecessary memory allocation; otherwise,
         # create a tiled array (is writeable, so indicators and overwrites can be applied afterward)
-        nonlearn_param_default_flat = self.non_learnable_default_flat
-        if not (self.need_indicator or overwrite):
+        nonlearn_param_default_flat = self._non_learnable_parameter_store.get_values()
+        if not (self._need_indicator or overwrite):
             return np.broadcast_to(nonlearn_param_default_flat, expected_shape)
         batch_parameter_values = np.tile(nonlearn_param_default_flat, (batch_size, Np1, 1))
 
         # Set indicator for each stage
-        if self.need_indicator:
+        if self._need_indicator:
             batch_parameter_values[:, :, -Np1:] = np.eye(Np1)
 
         # Overwrite the values in the batch
@@ -480,7 +478,7 @@ class AcadosParameterManager:
         # see https://numpy.org/doc/2.1/reference/generated/numpy.isfortran.html
         # and reshape if needed or raise an error.
         for key, val in overwrite.items():
-            s, e = self._non_learnable_indices[key]
+            s, e = self._non_learnable_parameter_store.indices[key]
             batch_parameter_values[:, :, s:e] = val.reshape(batch_size, Np1, -1)
 
         assert batch_parameter_values.shape == expected_shape, (
@@ -494,54 +492,25 @@ class AcadosParameterManager:
     ) -> gym.Space:
         """Return the combined Gym space for the learnable parameters.
 
-        If the parameters do not provide a space themselves, an unbounded Box space with type
-        `dtype` will be filled in for them.
-
-        For parameters with stage variations (end_stages), the space is duplicated according
-        to the number of stage variations.
-
         Args:
-            dtype: The desired data type for the filled-in spaces.
+            dtype: The desired data type for the spaces.
         """
-        learnable_spaces = []
-
-        for param in self.parameters.values():
-            if param.interface == "learnable":
-                # Determine the base space for this parameter
-                if param.space is not None:
-                    base_space = param.space
-                else:
-                    # Create unbounded space for parameters without bounds
-                    param_shape = param.default.shape
-                    base_space = gym.spaces.Box(
-                        low=-np.inf,
-                        high=np.inf,
-                        shape=param_shape,
-                        dtype=dtype,
-                    )
-
-                # If parameter has stage variations, duplicate the space for each variation
-                if param.end_stages:
-                    starts, ends = _define_starts_and_ends(
-                        end_stages=param.end_stages, N_horizon=self.N_horizon
-                    )
-                    # Add one space for each stage variation
-                    for _ in zip(starts, ends):
-                        learnable_spaces.append(base_space)
-                else:
-                    # No stage variations, add single space
-                    learnable_spaces.append(base_space)
+        store = self._learnable_parameter_store
+        learnable_spaces = [
+            gym.spaces.Box(
+                low=store.lb[name].reshape(store.defaults[name].shape),
+                high=store.ub[name].reshape(store.defaults[name].shape),
+                dtype=dtype,
+            )
+            for name in store.symbols.keys()
+        ]
 
         if not learnable_spaces:
-            # No learnable parameters - return empty box space
             return gym.spaces.Box(low=np.empty(0, dtype), high=np.empty(0, dtype), dtype=dtype)
         elif len(learnable_spaces) == 1:
-            # Single space - flatten it to ensure consistent return type
             return learnable_spaces[0]
         else:
-            # Multiple spaces
-            tuple_space = gym.spaces.Tuple(learnable_spaces)
-            return gym.spaces.utils.flatten_space(tuple_space)
+            return gym.spaces.utils.flatten_space(gym.spaces.Tuple(learnable_spaces))
 
     def get(self, name: str) -> ca.SX | ca.MX | np.ndarray:
         """Get the symbolic variable (or fixed value) for a parameter.
@@ -577,8 +546,12 @@ class AcadosParameterManager:
             indicators = []
             variables = []
             for start, end in zip(starts, ends):
-                indicators.append(ca.sum(self._non_learnable_symbols["indicator"][start : end + 1]))
-                variables.append(self._learnable_symbols[f"{name}_{start}_{end}"])
+                indicators.append(
+                    ca.sum(
+                        self._non_learnable_parameter_store.symbols["indicator"][start : end + 1]
+                    )
+                )
+                variables.append(self._learnable_parameter_store.symbols[f"{name}_{start}_{end}"])
 
             terms = []
             for indicator, variable in zip(indicators, variables):
@@ -586,10 +559,10 @@ class AcadosParameterManager:
             return sum(terms)
 
         if self.parameters[name].interface == "learnable":
-            return self._learnable_symbols[name]
+            return self._learnable_parameter_store.symbols[name]
 
         if self.parameters[name].interface == "non-learnable":
-            return self._non_learnable_symbols[name]
+            return self._non_learnable_parameter_store.symbols[name]
         else:
             raise ValueError(
                 f"Unknown interface type for field '{name}': {self.parameters[name].interface}"
@@ -606,13 +579,13 @@ class AcadosParameterManager:
             ocp: The :class:`acados_template.AcadosOcp` instance to configure.
                 Any existing ``p_global`` / ``p`` definitions are overwritten.
         """
-        if len(self._learnable_symbols) > 0:
-            ocp.model.p_global = self.p_global
-            ocp.p_global_values = self.learnable_default_flat
+        if len(self._learnable_parameter_store.symbols) > 0:
+            ocp.model.p_global = self._learnable_parameter_store.get_symbols()
+            ocp.p_global_values = self._learnable_parameter_store.get_values()
 
-        if len(self._non_learnable_symbols) > 0:
-            ocp.model.p = self.p
-            ocp.parameter_values = self.non_learnable_default_flat
+        if len(self._non_learnable_parameter_store.symbols) > 0:
+            ocp.model.p = self._non_learnable_parameter_store.get_symbols()
+            ocp.parameter_values = self._non_learnable_parameter_store.get_values()
 
     def recreate_dataclass(self, cls):
         """Recreate a dataclass instance of type cls with current parameter values.
@@ -651,7 +624,7 @@ class AcadosParameterManager:
         """
         import fnmatch
 
-        learnable_param_names = self._learnable_symbols.keys()
+        learnable_param_names = self._learnable_parameter_store.symbols.keys()
         return any(fnmatch.fnmatch(name, pattern) for name in learnable_param_names)
 
     def get_labeled_learnable_parameters(
@@ -672,12 +645,12 @@ class AcadosParameterManager:
         if label is None:
             raise ValueError("Label must be provided to filter learnable parameters.")
 
-        keys = [key for key in self._learnable_symbols.keys() if label in key]
+        keys = [key for key in self._learnable_parameter_store.symbols.keys() if label in key]
 
         if keys == []:
             raise ValueError(f"No learnable parameters found with label '{label}'.")
 
-        idx = [self._learnable_indices[key] for key in keys]
+        idx = [self._learnable_parameter_store.indices[key] for key in keys]
         idx = [slice(s, e) for s, e in idx]
         return param_values[..., np.r_[*idx]].reshape(-1, len(keys))
 
