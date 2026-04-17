@@ -45,12 +45,55 @@ class AcadosParameter:
     end_stages: list[int] = field(default_factory=list)
 
     def __post_init__(self):
-        if self.space is None:
-            self.space = gym.spaces.Box(
-                low=-np.inf,
-                high=np.inf,
-                shape=np.shape(self.default),
+        if self.default.ndim > 2:
+            raise ValueError(
+                f"Parameter '{self.name}' has {self.default.ndim} dimensions, "
+                f"but CasADi only supports arrays up to 2 dimensions. "
+                f"Parameter shape: {self.default.shape}"
             )
+
+        if self.interface == "learnable":
+            if isinstance(self.space, gym.spaces.Box):
+                if len(self.space.shape) > 2:
+                    raise ValueError(
+                        f"Parameter '{self.name}' space has {len(self.space.shape)} dimensions, "
+                        f"but CasADi only supports arrays up to 2 dimensions. "
+                        f"Space shape: {self.space.shape}"
+                    )
+            elif self.space is None:
+                self.space = gym.spaces.Box(
+                    low=-np.inf,
+                    high=np.inf,
+                    shape=np.shape(self.default),
+                )
+            else:
+                raise NotImplementedError(
+                    f"Parameter '{self.name}' has space of type {type(self.space)}, "
+                    "but currently only gym.spaces.Box is supported."
+                )
+
+            if self.end_stages and sorted(self.end_stages) != self.end_stages:
+                raise ValueError(
+                    f"Parameter '{self.name}' has end_stages {self.end_stages} which are not "
+                    "in sorted ascending order."
+                )
+        else:
+            if self.space is not None:
+                warn(
+                    f"Parameter '{self.name}' with interface '{self.interface}' defines space."
+                    " The space will be ignored as only 'learnable' parameters supports it.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                self.space = None
+            if self.end_stages:
+                warn(
+                    f"Parameter '{self.name}' with interface '{self.interface}' defines end_stages."
+                    " The end_stages will be ignored as only 'learnable' parameters supports it.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+                self.end_stages = []
 
 
 class AcadosParameterManager:
@@ -190,27 +233,6 @@ class AcadosParameterManager:
             )
         # validate parameter dimensions before storing
         for param in parameters:
-            if param.default.ndim > 2:
-                raise ValueError(
-                    f"Parameter '{param.name}' has {param.default.ndim} dimensions, "
-                    f"but CasADi only supports arrays up to 2 dimensions. "
-                    f"Parameter shape: {param.default.shape}"
-                )
-            if isinstance(param.space, gym.spaces.Box):
-                if len(param.space.shape) > 2:
-                    raise ValueError(
-                        f"Parameter '{param.name}' space has {len(param.space.shape)} dimensions, "
-                        f"but CasADi only supports arrays up to 2 dimensions. "
-                        f"Space shape: {param.space.shape}"
-                    )
-            elif param.space is None:
-                pass
-            else:
-                raise NotImplementedError(
-                    f"Parameter '{param.name}' has space of type {type(param.space)}, "
-                    "but currently only gym.spaces.Box is supported."
-                )
-
             # Check end_stages convention
             if param.end_stages and param.end_stages[-1] not in [N_horizon - 1, N_horizon]:
                 raise ValueError(

@@ -821,23 +821,29 @@ def test_large_dimension_parameters():
     np.testing.assert_array_equal(manager._learnable_parameters_ub["matrix_param"], expected_ub)
 
     # Test that 3D arrays raise an error
-    params_3d = [
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Parameter 'tensor_param' has 3 dimensions, "
+            "but CasADi only supports arrays up to 2 dimensions. "
+            "Parameter shape: (2, 2, 2)"
+        ),
+    ):
         AcadosParameter(
             name="tensor_param",
             default=np.array([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
             interface="learnable",
-        ),
-    ]
-
-    with pytest.raises(
-        ValueError,
-        match="Parameter 'tensor_param' has 3 dimensions."
-        "*CasADi only supports arrays up to 2 dimensions",
-    ):
-        AcadosParameterManager(params_3d, N_horizon=5)
+        )
 
     # Test that 3D space bounds raise an error
-    params_3d_bounds = [
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Parameter 'tensor_bounds_param' space has 3 dimensions, "
+            "but CasADi only supports arrays up to 2 dimensions. "
+            "Space shape: (2, 2, 2)"
+        ),
+    ):
         AcadosParameter(
             name="tensor_bounds_param",
             default=np.array([[1.0, 2.0], [3.0, 4.0]]),
@@ -846,17 +852,7 @@ def test_large_dimension_parameters():
                 high=np.array([[[10.0, 10.0], [10.0, 10.0]], [[10.0, 10.0], [10.0, 10.0]]]),
             ),
             interface="learnable",
-        ),
-    ]
-
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "Parameter 'tensor_bounds_param' space has 3 dimensions, but CasADi only"
-            " supports arrays up to 2 dimensions. Space shape: (2, 2, 2)"
-        ),
-    ):
-        AcadosParameterManager(params_3d_bounds, N_horizon=5)
+        )
 
 
 def test_combine_parameter_values():
