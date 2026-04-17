@@ -225,9 +225,16 @@ class AcadosParameterManager:
         else:
             raise ValueError(f"Unsupported casadi_type: {casadi_type}")
 
-    def add_learnable_parameter_entries(self, parameter: AcadosParameter) -> None:
+    def _store_learnable_parameter(self, parameter: AcadosParameter) -> None:
         if parameter.end_stages:
             self._need_indicator = True
+            if "indicator" not in self._non_learnable_parameter_store.symbols:
+                indicator = AcadosParameter(
+                    name="indicator",
+                    default=np.zeros(self.N_horizon + 1),
+                    interface="non-learnable",
+                )
+                self._store_non_learnable_parameter(indicator)
             starts, ends = _define_starts_and_ends(
                 end_stages=parameter.end_stages, N_horizon=self.N_horizon
             )
@@ -246,7 +253,7 @@ class AcadosParameterManager:
                 parameter.name, symbol, parameter.default, parameter.space.low, parameter.space.high
             )
 
-    def add_non_learnable_parameter_entries(self, parameter: AcadosParameter) -> None:
+    def _store_non_learnable_parameter(self, parameter: AcadosParameter) -> None:
         symbol = self._create_symbol(parameter.name, parameter.default.size, self.casadi_type)
         self._non_learnable_parameter_store.add(parameter.name, symbol, parameter.default)
 
@@ -305,20 +312,33 @@ class AcadosParameterManager:
         self._need_indicator = False
         for _, parameter in self.parameters.items():
             if parameter.interface == "learnable":
-                self.add_learnable_parameter_entries(parameter)
+                self._store_learnable_parameter(parameter)
             if parameter.interface == "non-learnable":
-                self.add_non_learnable_parameter_entries(parameter)
+                self._store_non_learnable_parameter(parameter)
 
-        # TODO: (Mazen) when parameters are added incrementally, we may add parameters that
-        # require an indicator after the construction of the parameter manager. We
-        # need to move this code into a point that is guaranteed to be run before the
-        # usage of the parameter manager for OCP solving. I guess that would be:
-        # `combine_non_learnable_parameter_values`?
-        if self._need_indicator:
-            indicator = AcadosParameter(
-                name="indicator", default=np.zeros(self.N_horizon + 1), interface="non-learnable"
+    def add_parameter(self, parameter: AcadosParameter) -> "AcadosParameterManager":
+        """Return a new AcadosParameterManager with the given parameter added.
+
+        This is a helper method for incrementally building the parameter manager, e.g. when
+        parameters are defined in different parts of the code.
+
+        Args:
+            parameter: The AcadosParameter to add.
+
+        Returns:
+            The same parameter manager, returned for chaining.
+        """
+        if parameter.name in self.parameters:
+            raise ValueError(
+                f"Parameter '{parameter.name}' already exists in the manager. "
+                "Use a different name or modify the existing parameter instead."
             )
-            self.add_non_learnable_parameter_entries(indicator)
+        self.parameters[parameter.name] = parameter
+        if parameter.interface == "learnable":
+            self._store_learnable_parameter(parameter)
+        if parameter.interface == "non-learnable":
+            self._store_non_learnable_parameter(parameter)
+        return self
 
     def combine_default_learnable_parameter_values(
         self, batch_size: int | None = None, **overwrites: np.ndarray
@@ -463,7 +483,8 @@ class AcadosParameterManager:
 
         # Set indicator for each stage
         if self._need_indicator:
-            batch_parameter_values[:, :, -Np1:] = np.eye(Np1)
+            s, e = self._non_learnable_parameter_store.indices["indicator"]
+            batch_parameter_values[:, :, s:e] = np.eye(Np1)
 
         # Overwrite the values in the batch
         # TODO: Make sure indexing is consistent.
@@ -499,7 +520,7 @@ class AcadosParameterManager:
                 high=store.ub[name].reshape(store.defaults[name].shape),
                 dtype=dtype,
             )
-            for name in store.symbols.keys()
+            for name in store.symbols
         ]
 
         if not learnable_spaces:
@@ -621,8 +642,9 @@ class AcadosParameterManager:
         """
         import fnmatch
 
-        learnable_param_names = self._learnable_parameter_store.symbols.keys()
-        return any(fnmatch.fnmatch(name, pattern) for name in learnable_param_names)
+        return any(
+            fnmatch.fnmatch(name, pattern) for name in self._learnable_parameter_store.symbols
+        )
 
     def get_labeled_learnable_parameters(
         self,
@@ -642,7 +664,7 @@ class AcadosParameterManager:
         if label is None:
             raise ValueError("Label must be provided to filter learnable parameters.")
 
-        keys = [key for key in self._learnable_parameter_store.symbols.keys() if label in key]
+        keys = [key for key in self._learnable_parameter_store.symbols if label in key]
 
         if keys == []:
             raise ValueError(f"No learnable parameters found with label '{label}'.")
