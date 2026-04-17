@@ -180,15 +180,13 @@ class AcadosParameterManager:
 
     Attributes:
         parameters: Dictionary of parameter names to AcadosParameter instances.
-        learnable_parameters: CasADi struct of learnable parameters.
-        learnable_parameters_default: Default values for learnable parameters.
-        learnable_parameters_lb: Lower bounds for learnable parameters.
-        learnable_parameters_ub: Upper bounds for learnable parameters.
-        non_learnable_parameters: CasADi struct of non-learnable parameters.
-        non_learnable_parameters_default: Default values for non-learnable parameters.
         N_horizon: The horizon length for the ocp.
-        need_indicator: Whether indicator variables exist (for controlling stage-varying learnable
-            parameters).
+        casadi_type: The CasADi symbolic type used for the parameters, either "SX" or "MX".
+        learnable_default_flat: Learnable parameters' default values as a flattened NDArray.
+        non_learnable_default_flat: Non-learnable parameters' default values as a flattened NDArray.
+        p_global: CasADi SX/MX expression for the learnable parameters.
+        p: CasADi SX/MX expression for the non-learnable parameters.
+        p_full: CasADi SX/MX expression for both learnable and non-learnable parameters.
     """
 
     parameters: dict[str, AcadosParameter]
@@ -258,13 +256,13 @@ class AcadosParameterManager:
         N_horizon: int,
         casadi_type: Literal["SX", "MX"] = "SX",
     ) -> None:
-        """Initialize the parameter manager and build CasADi symbolic structs.
+        """Initialize the parameter manager by building the symbols and the parameter stores.
 
-        Validates all parameters, then constructs two CasADi symbolic structs:
+        Validates the provided input, then constructs two parameter stores:
 
-        - ``learnable_parameters``: one entry per learnable param; stage-varying params are
+        - ``learnable_parameter_store``: one entry per learnable param; stage-varying params are
           split into named blocks, e.g. ``price_0_4`` and ``price_5_9``.
-        - ``non_learnable_parameters``: one entry per non-learnable param, plus an
+        - ``non_learnable_parameter_store``: one entry per non-learnable param, plus an
           ``indicator`` vector of length ``N_horizon + 1`` if any stage-varying learnable
           params exist.
 
@@ -278,9 +276,8 @@ class AcadosParameterManager:
                 ``Function`` objects that are evaluated multiple times).
 
         Raises:
-            ValueError: If any parameter has more than 2 dimensions, uses a non-Box space,
-                or has ``end_stages`` whose last element is not ``N_horizon - 1`` or
-                ``N_horizon``.
+            ValueError: If any parameter has ``end_stages`` whose last element is not
+            ``N_horizon - 1`` or ``N_horizon``.
         """
         # add parameters to the manager
         if not parameters:
