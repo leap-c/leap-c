@@ -93,6 +93,7 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         self.controller = controller
         self.train_env = wrap_env(train_env) if train_env is not None else None
         self._val_logger: ChannelLogger | None = None
+        self._pre_obs: Any = None  # most recent pre-step obs passed into act()
 
         if self.policy_type == "controller":
             assert self.controller is not None
@@ -165,6 +166,10 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
     def act(
         self, obs: ndarray, deterministic: bool = False, state: Any | None = None
     ) -> tuple[ndarray, Any, dict[str, float] | None]:
+        # Capture the pre-step obs so the validation callback can log
+        # MPC-aligned scalars (obs == ctx.iterate.x[0] at the current tick).
+        self._pre_obs = obs
+
         if self.policy_type == "random":
             return self.eval_env.action_space.sample(), None, None
 
@@ -192,15 +197,18 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         )
         interval = self.cfg.val_step_print_interval
 
-        def callback(step: int, obs, action, reward, info, ctx) -> None:
-            self._val_logger.record(obs, info, action, ctx, reward)
+        def callback(step: int, obs_post, action, reward, info, ctx) -> None:
+            # Log with the PRE-step obs captured in act(); that's the obs the
+            # MPC actually solved from (obs["state"] == ctx.iterate.x[0]).
+            obs_pre = self._pre_obs
+            self._val_logger.record(obs_pre, info, action, ctx, reward)
 
             if interval > 0 and step % interval == 0:
                 T_room = float(info.get("T_room", float("nan")))
                 T_hp_sup = float(info.get("T_hp_sup", float("nan")))
                 E_el_kWh = float(info.get("E_el_kWh", float("nan")))
-                T_set_lower = float(obs["setpoints"]["T_set_lower"].flat[0])
-                T_set_upper = float(obs["setpoints"]["T_set_upper"].flat[0])
+                T_set_lower = float(obs_pre["setpoints"]["T_set_lower"].flat[0])
+                T_set_upper = float(obs_pre["setpoints"]["T_set_upper"].flat[0])
                 flag = "" if T_set_lower <= T_room <= T_set_upper else " [!]"
                 print(
                     f"  val step {step:4d} | T_room={T_room:.1f}°C"

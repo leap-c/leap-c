@@ -17,10 +17,21 @@ determine how the variable is stored:
 - ``scalars_dict`` : dict[str, float]      -> multiple (T,) arrays
 
 All extractors receive ``(obs, info, action, ctx, reward)`` where ``obs`` is
-the post-step observation, ``info`` is the post-step info dict, ``action`` is
-the action just applied, ``ctx`` is the policy context produced when computing
-that action (i.e. the MPC plan was solved from the pre-step state), and
-``reward`` is the scalar step reward.
+the **pre-step** observation (the same ``obs`` the MPC solved from, so
+``obs["state"] == ctx.iterate.x[0]``), ``info`` is the post-step info dict
+returned by ``env.step``, ``action`` is the action just applied, ``ctx`` is
+the policy context produced by that solve, and ``reward`` is the scalar step
+reward.
+
+Alignment convention
+--------------------
+One slider tick = one MPC tick. At the cursor:
+
+- ``obs["state"]`` = ``ctx.iterate.x[0]`` (pre-step state)
+- ``ctx.iterate.u[0]`` is the action applied from the cursor to cursor+dt
+  (equal to ``info["T_hp_sup"]`` modulo clipping)
+- Sequence overlays extend forward from the cursor: ``x[k]``, ``u[k]``
+  plotted at ``cursor + k*dt``.
 """
 
 from __future__ import annotations
@@ -50,7 +61,6 @@ class Channel:
     unit: str = ""
     panel: str | None = None
     cmap: str = "RdBu_r"
-    shift_back: bool = True
 
     def kinds(self) -> list[str]:
         return [
@@ -166,7 +176,6 @@ def _channel_metadata(ch: Channel, present_keys: set[str]) -> dict:
         "ylabel": ch.ylabel,
         "unit": ch.unit,
         "cmap": ch.cmap,
-        "shift_back": ch.shift_back,
     }
 
 
@@ -244,36 +253,44 @@ def default_channels(
         )
     )
 
-    # ── Disturbances ──
-    channels.append(
-        Channel(
-            name="T_amb",
-            scalar=lambda obs, info, a, ctx, r: _obs(obs, "disturbances", "T_amb"),
-            ylabel="T_amb [\u00b0C]",
-        )
-    )
-    channels.append(
-        Channel(
-            name="Qdot_gains",
-            scalar=lambda obs, info, a, ctx, r: _obs(obs, "disturbances", "Qdot_gains"),
-            ylabel="Qdot_gains [W]",
-        )
-    )
-
-    # ── Solar irradiance (from forecast[:, 0] if present) ──
-    if has_forecast:
-        for key, label in [("dhi", "dhi [W/m^2]"), ("ghi", "ghi [W/m^2]"), ("dni", "dni [W/m^2]")]:
-            channels.append(
-                Channel(
-                    name=key,
-                    scalar=(
-                        lambda k: lambda obs, info, a, ctx, r: float(
-                            np.asarray(obs["forecast"][k]).flat[0]
-                        )
-                    )(key),
-                    ylabel=label,
-                )
+    if False:
+        # ── Disturbances ──
+        channels.append(
+            Channel(
+                name="T_amb",
+                scalar=lambda obs, info, a, ctx, r: _obs(obs, "disturbances", "T_amb"),
+                ylabel="T_amb [\u00b0C]",
             )
+        )
+
+    if False:
+        channels.append(
+            Channel(
+                name="Qdot_gains",
+                scalar=lambda obs, info, a, ctx, r: _obs(obs, "disturbances", "Qdot_gains"),
+                ylabel="Qdot_gains [W]",
+            )
+        )
+
+    if False:
+        # ── Solar irradiance (from forecast[:, 0] if present) ──
+        if has_forecast:
+            for key, label in [
+                ("dhi", "dhi [W/m^2]"),
+                ("ghi", "ghi [W/m^2]"),
+                ("dni", "dni [W/m^2]"),
+            ]:
+                channels.append(
+                    Channel(
+                        name=key,
+                        scalar=(
+                            lambda k: lambda obs, info, a, ctx, r: float(
+                                np.asarray(obs["forecast"][k]).flat[0]
+                            )
+                        )(key),
+                        ylabel=label,
+                    )
+                )
 
     # ── Step metrics ──
     if False:

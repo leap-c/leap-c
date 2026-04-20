@@ -171,9 +171,7 @@ def _build_line_panel(
         for ch, line in overlay_lines:
             arr = arrays[ch["keys"]["sequence"]][t_idx]  # (K,)
             K = arr.shape[0]
-            shift = dt_h if ch.get("shift_back", True) else 0.0
-            t_plan = t0 - shift
-            horizon_t = t_plan + np.arange(K) * dt_h
+            horizon_t = t0 + np.arange(K) * dt_h
             line.set_data(horizon_t, arr)
         cursor.set_data([t0, t0], [y_lo, y_hi])
 
@@ -219,7 +217,10 @@ def render(arrays: dict[str, np.ndarray], metadata: dict, save_path: Path | None
 
     # Determine number of closed-loop steps from the first scalar array found.
     T = _infer_T(arrays, metadata)
-    t_cl = np.arange(1, T + 1) * dt_h  # callback uses 1-based step index
+    # Cursor at slider s sits at s*dt — the pre-step time of the s+1-th MPC
+    # tick. Scalar[s] and plan.x[0] from tick s+1 are the same physical value
+    # by construction (both are the MPC's x0).
+    t_cl = np.arange(T) * dt_h
 
     height_ratios = [1.6 if p.kind == "matrix" else 1.0 for p in panels]
     n_line = sum(1 for p in panels if p.kind == "line")
@@ -241,7 +242,7 @@ def render(arrays: dict[str, np.ndarray], metadata: dict, save_path: Path | None
 
     # Horizon extends x-axis of line panels; match across them.
     x_min = t_cl[0] - dt_h
-    x_max = t_cl[-1] + (N + 1) * dt_h
+    x_max = t_cl[-1] + N * dt_h
     for panel, ax in zip(panels, axes[:, 0]):
         if panel.kind == "line":
             ax.set_xlim(x_min, x_max)
