@@ -25,8 +25,8 @@ import torch
 from numpy import ndarray
 
 from leap_c.controller import CtxType, ParameterizedController
-from leap_c.examples import ExampleControllerName, create_controller, create_env
-from leap_c.examples.i4b.env import I4bEnv
+from leap_c.examples import ExampleControllerName, create_controller
+from leap_c.examples.i4b.env import BUILDING_NAMES2CLASS, Heatpump_AW, I4bEnv, I4bEnvConfig
 from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
 from leap_c.run import (
     default_controller_code_path,
@@ -378,8 +378,13 @@ def run_baseline(
     if overwrite and Path(output_path).exists():
         shutil.rmtree(output_path)
 
-    val_env = create_env(cfg.env) if not only_train else None
-    train_env = create_env(cfg.env) if only_train else None
+    env_cfg = I4bEnvConfig(
+        building_params=BUILDING_NAMES2CLASS["i4c"],
+        hp_model=Heatpump_AW(mdot_HP=0.25),
+        days=days,
+    )
+    val_env = I4bEnv(cfg=env_cfg) if not only_train else None
+    train_env = I4bEnv(cfg=env_cfg) if only_train else None
 
     controller = None
     if cfg.policy_type == "controller":

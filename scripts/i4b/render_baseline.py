@@ -241,13 +241,18 @@ def render(
 
     def _update(t_idx: int) -> None:
         t0 = t_cl[t_idx]
-        h_t = t0 + horizon_t  # absolute horizon time [h]
+        # The MPC plan stored at t_idx was solved using the pre-step state
+        # (one step before the post-step T_room recorded in the CSV at t_idx).
+        # Shift the horizon back by dt_h so x[t_idx, 0] aligns with the
+        # actual trajectory at t_cl[t_idx - 1].
+        t_plan = t0 - dt_h
+        h_t = t_plan + horizon_t  # absolute horizon time [h]
 
         # Room temperature prediction (state index 0)
         pred_room.set_data(h_t, x[t_idx, :, 0])
 
         # Control trajectory (nu channels; show first)
-        pred_ctrl.set_data(t0 + np.arange(N) * dt_h, u[t_idx, :, 0])
+        pred_ctrl.set_data(t_plan + np.arange(N) * dt_h, u[t_idx, :, 0])
 
         # Extra states
         for i, (line, ax) in enumerate(zip(pred_extras, ax_extra)):
