@@ -323,21 +323,41 @@ def default_channels(
         channels.append(Channel(name="solver", scalars_dict=_solver_stats))
 
     if True:
-        # ── ctx.iterate extras: slacks (sequence kind) ──
-        def _seq_iter(attr):
+        # Flattened sl has 2*N entries, stage-major: the 2N block covers
+        # stages 1..N-1 (from idxsh=[0,1]) followed by the terminal stage N
+        # (from idxsh_e=[0,1]). Stage 0 has no idxsh_0 and therefore no
+        # slack — we pad it with NaN so the returned sequence aligns with
+        # the (N+1,)-long state prediction sequences.
+        # sl[:, 0] is the lower-temp violation (h[0] = T_room - T_set_lower
+        # < 0 → room too cold); sl[:, 1] is the upper-temp violation.
+        # su is always 0 (uh=+INF) and is not plotted.
+        def _sl_per_stage(constraint_idx: int):
             def _fn(obs, info, a, ctx, r):
                 if ctx is None or getattr(ctx, "iterate", None) is None:
                     return None
-                v = getattr(ctx.iterate, attr, None)
-                if v is None:
-                    return None
-                arr = np.asarray(v)
-                return arr[0] if arr.ndim > 1 else arr
+                sl = np.asarray(ctx.iterate.sl)
+                sl = sl[0] if sl.ndim > 1 else sl
+                per_stage = sl.reshape(N, 2)[:, constraint_idx]
+                out = np.full(N + 1, np.nan)
+                out[1:] = per_stage
+                return out
 
             return _fn
 
-        channels.append(Channel(name="slack_lower", sequence=_seq_iter("sl"), ylabel="sl"))
-        channels.append(Channel(name="slack_upper", sequence=_seq_iter("su"), ylabel="su"))
+        channels.append(
+            Channel(
+                name="sl_T_lower",
+                sequence=_sl_per_stage(0),
+                ylabel="sl (T_room < T_set_lower)",
+            )
+        )
+        channels.append(
+            Channel(
+                name="sl_T_upper",
+                sequence=_sl_per_stage(1),
+                ylabel="sl (T_room > T_set_upper)",
+            )
+        )
 
     # ── du_dp sensitivity matrix (manual adjoint loop, optional) ──
     if compute_sensitivities:
