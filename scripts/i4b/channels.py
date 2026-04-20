@@ -259,7 +259,7 @@ def default_channels(
             Channel(
                 name="T_amb",
                 scalar=lambda obs, info, a, ctx, r: _obs(obs, "disturbances", "T_amb"),
-                ylabel="T_amb [\u00b0C]",
+                ylabel="T_amb [deg C]",
             )
         )
 
@@ -380,7 +380,7 @@ def default_channels(
                 name="du_dp",
                 matrix=_du_dp,
                 cmap="RdBu_r",
-                ylabel=r"$\partial T_{HP}[k]\,/\,\partial \dot{Q}_{gains}[j]$  [\u00b0C/W]",
+                ylabel=r"$\partial T_{HP}[k]\,/\,\partial \dot{Q}_{gains}[j]$  [deg C/W]",
             )
         )
 
