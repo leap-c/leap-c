@@ -20,14 +20,13 @@ from typing import Any, Generator, Literal
 
 import gymnasium as gym
 import numpy as np
-import pandas as pd
 import torch
+from channels import ChannelLogger, default_channels, header_from
 from numpy import ndarray
 
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.examples import ExampleControllerName, create_controller
 from leap_c.examples.i4b.env import BUILDING_NAMES2CLASS, Heatpump_AW, I4bEnv, I4bEnvConfig
-from leap_c.ocp.acados.utils.prepare_solver import prepare_batch_solver_for_backward
 from leap_c.run import (
     default_controller_code_path,
     default_name,
@@ -93,10 +92,7 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         self.policy_type = policy_type
         self.controller = controller
         self.train_env = wrap_env(train_env) if train_env is not None else None
-        self._val_records: list[dict] = []
-        self._val_x_trajs: list[np.ndarray] = []  # per-step (N+1, nx) state trajectories
-        self._val_u_trajs: list[np.ndarray] = []  # per-step (N, nu) control trajectories
-        self._val_du_dp: list[np.ndarray] = []  # per-step (N, N+1) sensitivity matrices
+        self._val_logger: ChannelLogger | None = None
 
         if self.policy_type == "controller":
             assert self.controller is not None
@@ -187,89 +183,24 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
 
     def _make_val_step_callback(self):
         env = self.eval_env.unwrapped if self.eval_env is not None else None
-        if not isinstance(env, I4bEnv):
+        planner = getattr(self.controller, "planner", None)
+        if not isinstance(env, I4bEnv) or planner is None:
             return super()._make_val_step_callback()
 
+        self._val_logger = ChannelLogger(
+            default_channels(env, planner, compute_sensitivities=self.cfg.compute_sensitivities)
+        )
         interval = self.cfg.val_step_print_interval
-        records = self._val_records
-        x_trajs = self._val_x_trajs
-        u_trajs = self._val_u_trajs
-
-        planner_cfg = getattr(getattr(self.controller, "planner", None), "cfg", None)
-        N_horizon = getattr(planner_cfg, "N_horizon", None)
-        nx = (
-            getattr(self.controller.planner, "_nx", None)
-            if hasattr(self.controller, "planner")
-            else None
-        )
-        obs_keys = list(env.state_keys)  # e.g. ["T_room", "T_wall", "T_hp_ret"]
-
-        planner_obj = getattr(self.controller, "planner", None)
-        compute_sens = (
-            self.cfg.compute_sensitivities and planner_obj is not None and N_horizon is not None
-        )
-        du_dp_list = self._val_du_dp
 
         def callback(step: int, obs, action, reward, info, ctx) -> None:
-            T_room = float(info.get("T_room", float("nan")))
-            T_hp_sup = float(info.get("T_hp_sup", float("nan")))
-            E_el_kWh = float(info.get("E_el_kWh", float("nan")))
-            T_set_lower = float(obs["setpoints"]["T_set_lower"].flat[0])
-            T_set_upper = float(obs["setpoints"]["T_set_upper"].flat[0])
-            T_amb = float(obs["disturbances"]["T_amb"].flat[0])
-            solver_status = (
-                int(ctx.status.flat[0]) if ctx is not None and hasattr(ctx, "status") else -1
-            )
-            records.append(
-                {
-                    "step": step,
-                    "T_room": T_room,
-                    "T_set_lower": T_set_lower,
-                    "T_set_upper": T_set_upper,
-                    "T_amb": T_amb,
-                    "T_hp_sup": T_hp_sup,
-                    "E_el_kWh": E_el_kWh,
-                    "reward": float(reward),
-                    "solver_status": solver_status,
-                }
-            )
-            for i, key in enumerate(obs_keys):
-                records[-1][key] = float(obs["state"].flat[i])
-
-            if ctx is not None and hasattr(ctx, "stats") and ctx.stats:
-                for key in ctx.stats[0].keys():
-                    if key.startswith("time") or key in ["sqp_iter"]:
-                        records[-1][f"solver_{key}"] = float(ctx.stats[0][key])
-
-            if ctx is not None and hasattr(ctx, "iterate") and ctx.iterate is not None:
-                # ctx.iterate.x shape: (1, (N+1)*nx) — reshape to (N+1, nx)
-                # ctx.iterate.u shape: (1, N*nu)     — reshape to (N, nu)
-                x_trajs.append(ctx.iterate.x[0].reshape(N_horizon + 1, nx))
-                u_trajs.append(ctx.iterate.u[0].reshape(N_horizon, -1))
-
-                if compute_sens:
-                    try:
-                        # Compute M[k,j] = dT_HP[k]/dQdot_gains[j] via N one-hot
-                        # adjoint backward passes (du_dp sums all stages; we need rows).
-                        diff_mpc_fun = planner_obj.diff_mpc.diff_mpc_fun
-                        prepare_batch_solver_for_backward(
-                            diff_mpc_fun.backward_batch_solver,
-                            ctx.iterate,
-                            ctx.solver_input,
-                        )
-                        one = np.ones((1, 1, 1))  # (batch=1, n_out=1, nu=1)
-                        rows = []
-                        bwd = diff_mpc_fun.backward_batch_solver
-                        for k in range(N_horizon):
-                            row = bwd.eval_adjoint_solution_sensitivity(
-                                [], [(k, one)], "p_global", False
-                            )  # (1, 1, N+1)
-                            rows.append(row[0, 0])  # (N+1,)
-                        du_dp_list.append(np.stack(rows))  # (N, N+1)
-                    except Exception as e:
-                        print(f"[sensitivity] step {step}: {type(e).__name__}: {e}")
+            self._val_logger.record(obs, info, action, ctx, reward)
 
             if interval > 0 and step % interval == 0:
+                T_room = float(info.get("T_room", float("nan")))
+                T_hp_sup = float(info.get("T_hp_sup", float("nan")))
+                E_el_kWh = float(info.get("E_el_kWh", float("nan")))
+                T_set_lower = float(obs["setpoints"]["T_set_lower"].flat[0])
+                T_set_upper = float(obs["setpoints"]["T_set_upper"].flat[0])
                 flag = "" if T_set_lower <= T_room <= T_set_upper else " [!]"
                 print(
                     f"  val step {step:4d} | T_room={T_room:.1f}°C"
@@ -280,32 +211,17 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         return callback
 
     def validate(self) -> float:
-        self._val_records.clear()
-        self._val_x_trajs.clear()
-        self._val_u_trajs.clear()
-        self._val_du_dp.clear()
+        self._val_logger = None
         score = super().validate()
-        step = self.state.step
-        if self._val_records:
-            df = pd.DataFrame(self._val_records)
-            csv_path = self.output_path / f"val_timeseries_step{step}.csv"
-            df.to_csv(csv_path, index=False)
-            print(f"Timeseries saved to: {csv_path}")
-        if self._val_x_trajs:
-            env = self.eval_env.unwrapped if self.eval_env is not None else None
-            state_names = list(env.state_keys) if isinstance(env, I4bEnv) else []
-            npz_path = self.output_path / f"val_mpc_trajectories_step{step}.npz"
-            save_kwargs: dict = dict(
-                x=np.stack(self._val_x_trajs),  # (T, N+1, nx)
-                u=np.stack(self._val_u_trajs),  # (T, N, nu)
-                state_names=np.array(state_names),
-            )
-            if self._val_du_dp and len(self._val_du_dp) == len(self._val_x_trajs):
-                save_kwargs["du_dp"] = np.stack(self._val_du_dp)  # (T, N, N+1)
-            np.savez_compressed(npz_path, **save_kwargs)
-            print(f"MPC trajectories saved to: {npz_path}")
-            if "du_dp" in save_kwargs:
-                print(f"  (includes du_dp sensitivity, shape {save_kwargs['du_dp'].shape})")
+        if self._val_logger is None or not self._val_logger.scalars:
+            return score
+
+        env = self.eval_env.unwrapped
+        planner = self.controller.planner
+        header = header_from(env, planner)
+        npz_path, json_path = self._val_logger.save(self.output_path, self.state.step, header)
+        print(f"Channel log saved to: {npz_path}")
+        print(f"Channel metadata saved to: {json_path}")
         return score
 
 
