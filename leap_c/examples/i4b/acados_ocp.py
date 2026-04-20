@@ -2,9 +2,9 @@
 
 OCP formulation (matching external/i4b/src/controller/mpc/optimization_problem.py):
 
-  State (4R3C example):  x = [T_room, T_wall, T_hp_ret]      [degC]
-  Control:               u = [T_HP]                           [degC]
-  Parameters per stage:  p = [T_amb, Qdot_gains, T_set_lower, grid_signal]
+  State (4R3C example):  x = [T_room, T_wall, T_hp_ret]                       [degC]
+  Control:               u = [T_HP]                                            [degC]
+  Parameters per stage:  p = [T_set_lower, T_set_upper, grid_signal, T_amb, Qdot_gains]
 
   Stage cost:  Qth / (COP(T_HP, T_amb) * 100) * grid_signal
                where Qth = mdot_HP * c_water * (T_HP - T_hp_ret) / 1000  [kW]

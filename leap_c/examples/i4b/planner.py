@@ -4,11 +4,12 @@ from typing import Any
 
 import numpy as np
 import torch
+
 from i4b.gym_interface import BUILDING_NAMES2CLASS
 from i4b.models.model_buildings import Building
 from i4b.models.model_hvac import Heatpump, Heatpump_AW
-
 from leap_c.examples.i4b.acados_ocp import export_parametric_ocp, make_i4b_params
+from leap_c.examples.i4b.env import _T_HP_ACT_HIGH, _T_HP_ACT_LOW
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
@@ -58,9 +59,8 @@ class I4bPlannerConfig:
             self.building_params = BUILDING_NAMES2CLASS["i4c"]
 
 
-# Normalisation constants matching I4bEnv (action_low=0, action_high=65)
-_ACTION_MID = 32.5
-_ACTION_HALF = 32.5
+_ACTION_MID = (_T_HP_ACT_HIGH + _T_HP_ACT_LOW) / 2
+_ACTION_HALF = (_T_HP_ACT_HIGH - _T_HP_ACT_LOW) / 2
 
 
 def _fc_to_staged(
@@ -96,10 +96,10 @@ class I4bPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
     The observation fed to ``forward`` must follow the layout produced by ``I4bEnv``
     (a ``spaces.Dict``):
-        obs["state"]                       – building thermal states, shape (B, nx)
-        obs["disturbances"]["T_amb"]       – ambient temperature, shape (B, 1)
-        obs["disturbances"]["Qdot_gains"]  – heat gains, shape (B, 1)
-        obs["setpoints"]["T_set_upper"]    – upper comfort bound, shape (B, 1)
+        obs["state"]                       - building thermal states, shape (B, nx)
+        obs["disturbances"]["T_amb"]       - ambient temperature, shape (B, 1)
+        obs["disturbances"]["Qdot_gains"]  - heat gains, shape (B, 1)
+        obs["setpoints"]["T_set_upper"]    - upper comfort bound, shape (B, 1)
 
     The planner extracts the building state and current disturbances from the
     observation, broadcasts the disturbances over the entire horizon, and calls the

@@ -5,11 +5,11 @@ building/HP model objects used in acados_ocp.py, ensuring the environment
 dynamics and cost match the OCP exactly.
 
 OCP parameter alignment (p per stage):
-    p[0] = T_amb         [degC]
-    p[1] = Qdot_gains    [W]
-    p[2] = T_set_lower   [degC]
-    p[3] = T_set_upper   [degC]
-    p[4] = grid_signal   [-]
+    p[0] = T_set_lower   [degC]
+    p[1] = T_set_upper   [degC]
+    p[2] = grid_signal   [-]
+    p[3] = T_amb         [degC]
+    p[4] = Qdot_gains    [W]
 
 Available building models (building_params dicts from i4b_data/buildings/):
     sfh_1919_1948 … sfh_2016_now  (0_soc, 1_enev, 2_kfw variants)
@@ -37,16 +37,20 @@ import gymnasium as gym
 import numpy as np
 import pandas as pd
 from gymnasium import spaces
+
 from i4b.disturbances import get_int_gains, get_solar_gains
 from i4b.gym_interface import BUILDING_NAMES2CLASS
 from i4b.gym_interface.constant import OBSERVATION_SPACE_LIMIT
 from i4b.models.model_buildings import Building
 from i4b.models.model_hvac import Heatpump, Heatpump_AW, Heatpump_Vitocal  # noqa: F401
 from i4b.simulator import Model_simulator
-
 from leap_c.examples.hvac.dataset import DataConfig, HvacDataset, load_and_prepare_data
 
 _I4B_ROOT = Path(__file__).resolve().parents[3] / "external" / "i4b"
+
+# Action bounds for T_HP supply temperature [degC], shared with the planner.
+_T_HP_ACT_LOW: float = OBSERVATION_SPACE_LIMIT["T_hp_sup"][0]
+_T_HP_ACT_HIGH: float = OBSERVATION_SPACE_LIMIT["T_hp_sup"][1]
 
 # Re-export for convenience
 __all__ = [
@@ -174,8 +178,6 @@ class I4bEnv(gym.Env):
         # ── Spaces ────────────────────────────────────────────────────────────
         self.state_keys = self.bldg_model.state_keys  # e.g. ("T_room","T_wall","T_hp_ret")
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(1,), dtype=np.float32)
-        self._action_low = OBSERVATION_SPACE_LIMIT["T_hp_sup"][0]
-        self._action_high = OBSERVATION_SPACE_LIMIT["T_hp_sup"][1]
         self.observation_space = self._make_obs_space()
 
         # ── Episode state ─────────────────────────────────────────────────────
@@ -334,9 +336,9 @@ class I4bEnv(gym.Env):
         return {k: self._copy_obs(v) if isinstance(v, dict) else v.copy() for k, v in obs.items()}
 
     def _denorm_action(self, a: np.ndarray) -> float:
-        """Map normalised action in [-1, 1] to T_HP in [0, 65] degC."""
-        mid = (self._action_high + self._action_low) / 2
-        half = (self._action_high - self._action_low) / 2
+        """Map normalised action in [-1, 1] to T_HP in [degC]."""
+        mid = (_T_HP_ACT_HIGH + _T_HP_ACT_LOW) / 2
+        half = (_T_HP_ACT_HIGH - _T_HP_ACT_LOW) / 2
         return float(np.clip(a, -1.0, 1.0).flat[0] * half + mid)
 
     # ── Gymnasium interface ───────────────────────────────────────────────────
