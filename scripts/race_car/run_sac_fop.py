@@ -1,0 +1,262 @@
+r"""Train a SAC-FOP agent on the race_car environment (with plant/model mismatch).
+
+Mirrors ``scripts/run_sac_fop.py`` but:
+- Hardcodes ``env = "race_car"`` and exposes ``--controller`` between
+  ``{race_car, race_car_stagewise}``.
+- Builds train / eval envs with a perturbed ``vehicle_params`` dict
+  (see ``sac_race_car_mixin.make_mismatched_env``).
+- Writes per-step validation channels (NPZ + JSON) via
+  ``RaceCarValChannelsMixin``.
+
+Variants (``--variant``) mirror the upstream script:
+- ``fop``  — parameter noise, no entropy correction (default).
+- ``fopc`` — parameter noise + entropy correction (Jacobian-based).
+- ``foa``  — action noise (deterministic params, stochastic actions).
+
+Note on stability: ``SacFopTrainer`` drops batches where the MPC solver
+failed (``solver_status != 0``). The race_car OCP is tight (soft ``n``
+slack, hard ``a_lat``) so aggressive exploration early on can trigger
+many failures. The default config uses ``train_start=5_000`` and
+``init_alpha=0.05`` to keep that rate manageable.
+
+Example:
+-------
+    python scripts/race_car/run_sac_fop.py --seed 0 --controller race_car \\
+        --variant fop --output-path output/race_car_sac_fop \\
+        --with-val --reuse-code
+"""
+
+from __future__ import annotations
+
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from dataclasses import asdict, dataclass, field
+from pathlib import Path
+from typing import Literal
+
+import torch
+from sac_race_car_mixin import RaceCarValChannelsMixin, make_mismatched_env
+
+from leap_c.examples import ExampleControllerName, create_controller
+from leap_c.run import (
+    default_controller_code_path,
+    default_name,
+    default_output_path,
+    init_run,
+    validate_torch_device_arg,
+    validate_torch_dtype_arg,
+)
+from leap_c.torch.nn.extractor import ExtractorName
+from leap_c.torch.rl.sac_fop import SacFopTrainer, SacFopTrainerConfig
+
+RACE_CAR_CONTROLLERS = ("race_car", "race_car_stagewise")
+SAC_FOP_VARIANTS = ("fop", "fopc", "foa")
+
+
+class RaceCarSacFopTrainer(RaceCarValChannelsMixin, SacFopTrainer):
+    """SAC-FOP trainer with race_car channel logging on validation."""
+
+
+@dataclass
+class RunSacFopRaceCarConfig:
+    """Configuration for running SAC-FOP on race_car."""
+
+    controller: ExampleControllerName = "race_car"
+    trainer: SacFopTrainerConfig = field(default_factory=SacFopTrainerConfig)
+    extractor: ExtractorName = "identity"
+    variant: str = "fop"
+    cm1_scale: float = 0.85
+    cr0_scale: float = 1.30
+    cr2_scale: float = 1.30
+    max_steps: int = 4000
+
+
+def create_cfg(
+    controller: ExampleControllerName,
+    seed: int,
+    variant: str = "fop",
+    ckpt_modus: Literal["best", "last", "all", "none"] = "last",
+) -> RunSacFopRaceCarConfig:
+    if variant not in SAC_FOP_VARIANTS:
+        raise ValueError(f"Invalid variant '{variant}'. Must be one of: {SAC_FOP_VARIANTS}")
+
+    cfg = RunSacFopRaceCarConfig()
+    cfg.controller = controller
+    cfg.extractor = "identity"
+    cfg.variant = variant
+
+    # ---- Trainer ----
+    cfg.trainer.seed = seed
+    cfg.trainer.train_steps = 500_000
+    cfg.trainer.train_start = 5_000
+    cfg.trainer.val_freq = 25_000
+    cfg.trainer.val_num_rollouts = 3
+    cfg.trainer.val_deterministic = True
+    cfg.trainer.val_num_render_rollouts = 1
+    cfg.trainer.val_render_mode = "rgb_array"
+    cfg.trainer.val_report_score = "cum"
+    cfg.trainer.ckpt_modus = ckpt_modus
+    cfg.trainer.batch_size = 256
+    cfg.trainer.buffer_size = 1_000_000
+    cfg.trainer.gamma = 0.995
+    cfg.trainer.tau = 0.005
+    cfg.trainer.soft_update_freq = 1
+    cfg.trainer.lr_q = 3e-4
+    cfg.trainer.lr_pi = 3e-4
+    cfg.trainer.lr_alpha = 3e-4
+    cfg.trainer.init_alpha = 0.05
+    cfg.trainer.target_entropy = None
+    cfg.trainer.entropy_reward_bonus = True
+    cfg.trainer.num_critics = 2
+    cfg.trainer.update_freq = 4
+
+    # ---- Logger ----
+    cfg.trainer.log.verbose = True
+    cfg.trainer.log.interval = 1_000
+    cfg.trainer.log.window = 10_000
+    cfg.trainer.log.csv_logger = True
+    cfg.trainer.log.tensorboard_logger = True
+    cfg.trainer.log.wandb_logger = False
+    cfg.trainer.log.wandb_init_kwargs = {}
+
+    # ---- Critic MLP ----
+    cfg.trainer.critic_mlp.hidden_dims = (256, 256, 256)
+    cfg.trainer.critic_mlp.activation = "relu"
+    cfg.trainer.critic_mlp.weight_init = "orthogonal"
+
+    # ---- Actor (HierachicalMPCActor) ----
+    # Variant-specific actor config (mirrors scripts/run_sac_fop.py).
+    if variant == "foa":
+        cfg.trainer.actor.noise = "action"
+        cfg.trainer.actor.entropy_correction = False
+    else:
+        cfg.trainer.actor.noise = "param"
+        cfg.trainer.actor.entropy_correction = variant == "fopc"
+    cfg.trainer.actor.extractor_name = cfg.extractor
+    cfg.trainer.actor.distribution_name = "squashed_gaussian"
+    cfg.trainer.actor.residual = False
+    cfg.trainer.actor.mlp.hidden_dims = (256, 256, 256)
+    cfg.trainer.actor.mlp.activation = "relu"
+    cfg.trainer.actor.mlp.weight_init = "orthogonal"
+
+    return cfg
+
+
+def run_sac_fop(
+    cfg: RunSacFopRaceCarConfig,
+    output_path: str | Path,
+    device: int | str | torch.device,
+    dtype: torch.dtype,
+    reuse_code_dir: Path | None = None,
+    with_val: bool = False,
+) -> float:
+    def _make_env(render_mode: str | None = None):
+        return make_mismatched_env(
+            render_mode=render_mode,
+            cm1_scale=cfg.cm1_scale,
+            cr0_scale=cfg.cr0_scale,
+            cr2_scale=cfg.cr2_scale,
+            max_steps=cfg.max_steps,
+        )
+
+    val_env = _make_env(render_mode="rgb_array") if with_val else None
+    trainer = RaceCarSacFopTrainer(
+        val_env=val_env,
+        train_env=_make_env(),
+        controller=create_controller(cfg.controller, reuse_code_dir),
+        output_path=output_path,
+        device=device,
+        dtype=dtype,
+        cfg=cfg.trainer,
+        extractor_cls=cfg.extractor,
+    )
+    init_run(trainer, cfg, output_path)
+    return trainer.run()
+
+
+if __name__ == "__main__":
+    parser = ArgumentParser(
+        description="Train SAC-FOP on race_car (with plant/model mismatch).",
+        formatter_class=ArgumentDefaultsHelpFormatter,
+    )
+    g = parser.add_argument_group("Run settings")
+    g.add_argument("--output-path", type=Path, default=None)
+    g.add_argument("--device", type=validate_torch_device_arg, default="cpu")
+    g.add_argument("--dtype", type=validate_torch_dtype_arg, default="float32")
+    g.add_argument("--seed", type=int, default=0)
+    g.add_argument("-r", "--reuse-code", action="store_true")
+    g.add_argument("--reuse-code-dir", type=Path, default=None)
+
+    g = parser.add_argument_group("Train and eval")
+    g.add_argument(
+        "--controller",
+        type=str,
+        choices=list(RACE_CAR_CONTROLLERS),
+        default="race_car",
+    )
+    g.add_argument(
+        "--variant",
+        type=str,
+        choices=list(SAC_FOP_VARIANTS),
+        default="fop",
+    )
+    g.add_argument("--with-val", action="store_true")
+    g.add_argument(
+        "--ckpt-modus",
+        type=str,
+        default=None,
+        choices=["none", "last", "all", "best"],
+    )
+    g.add_argument("--max-steps", type=int, default=4000)
+
+    g = parser.add_argument_group("Plant/model mismatch")
+    g.add_argument("--mismatch-cm1", type=float, default=0.85)
+    g.add_argument("--mismatch-cr0", type=float, default=1.30)
+    g.add_argument("--mismatch-cr2", type=float, default=1.30)
+
+    g = parser.add_argument_group("W&B logging")
+    g.add_argument("--use-wandb", action="store_true")
+    g.add_argument("--wandb-entity", type=str, default=None)
+    g.add_argument("--wandb-project", type=str, default="leap-c")
+    g.add_argument("--wandb-group", type=str, default="SAC-FOP-race_car")
+
+    args = parser.parse_args()
+
+    if args.ckpt_modus is not None:
+        ckpt_modus = args.ckpt_modus
+    elif args.with_val:
+        ckpt_modus = "best"
+    else:
+        ckpt_modus = "last"
+
+    cfg = create_cfg(args.controller, args.seed, args.variant, ckpt_modus)
+    cfg.cm1_scale = args.mismatch_cm1
+    cfg.cr0_scale = args.mismatch_cr0
+    cfg.cr2_scale = args.mismatch_cr2
+    cfg.max_steps = args.max_steps
+
+    tags = [f"sac_{args.variant}", "race_car", args.controller]
+
+    if args.use_wandb:
+        config_dict = asdict(cfg)
+        cfg.trainer.log.wandb_logger = True
+        cfg.trainer.log.wandb_init_kwargs = {
+            "entity": args.wandb_entity,
+            "project": args.wandb_project,
+            "group": args.wandb_group,
+            "name": default_name(args.seed, tags=tags),
+            "config": config_dict,
+        }
+
+    if args.output_path is None:
+        output_path = default_output_path(seed=args.seed, tags=tags)
+    else:
+        output_path = args.output_path
+
+    if args.reuse_code and args.reuse_code_dir is None:
+        reuse_code_dir = default_controller_code_path()
+    elif args.reuse_code_dir is not None:
+        reuse_code_dir = args.reuse_code_dir
+    else:
+        reuse_code_dir = None
+
+    run_sac_fop(cfg, output_path, args.device, args.dtype, reuse_code_dir, args.with_val)

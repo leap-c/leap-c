@@ -221,7 +221,7 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
 
         # Rendering placeholders
         self._car_dot = None
-        self._traj_line = None
+        self._traj_scatter = None
         self._plan_line = None
         self.ctx: AcadosDiffMpcCtx | None = None
 
@@ -296,7 +296,67 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
         self._ax.set_ylabel("y [m]")
         self._ax.set_title("Race car (Frenet) - Cartesian view")
 
-        (self._traj_line,) = self._ax.plot([], [], "b-", lw=1.0, alpha=0.7, label="trajectory")
+        # Arc-length markers every 1 m, matching external/acados plotFcn.plotTrackProj.
+        for i in range(int(self._pathlength) + 1):
+            k = int(np.argmin(np.abs(self._sref - i)))
+            s_k = float(self._sref[k])
+            lx, ly, _ = frenet_to_cartesian(
+                s_k,
+                self.cfg.n_max + 0.06,
+                self._sref,
+                self._xref,
+                self._yref,
+                self._psiref,
+            )
+            tin_x, tin_y, _ = frenet_to_cartesian(
+                s_k,
+                self.cfg.n_max,
+                self._sref,
+                self._xref,
+                self._yref,
+                self._psiref,
+            )
+            tout_x, tout_y, _ = frenet_to_cartesian(
+                s_k,
+                -self.cfg.n_max,
+                self._sref,
+                self._xref,
+                self._yref,
+                self._psiref,
+            )
+            self._ax.plot(
+                [np.asarray(tin_x).item(), np.asarray(tout_x).item()],
+                [np.asarray(tin_y).item(), np.asarray(tout_y).item()],
+                "k-",
+                lw=0.3,
+                alpha=0.5,
+            )
+            self._ax.text(
+                np.asarray(lx).item(),
+                np.asarray(ly).item(),
+                f"{i}m",
+                fontsize=6,
+                ha="center",
+                va="center",
+                alpha=0.7,
+            )
+
+        # Velocity-colored trajectory scatter (replaces the earlier blue line);
+        # vmin/vmax are fixed so the colorbar doesn't jump between video frames.
+        self._traj_scatter = self._ax.scatter(
+            [],
+            [],
+            c=[],
+            cmap="rainbow",
+            s=4,
+            edgecolor="none",
+            vmin=0.0,
+            vmax=2.0,
+            label="trajectory",
+        )
+        self._cbar = self._fig.colorbar(self._traj_scatter, ax=self._ax, fraction=0.035)
+        self._cbar.set_label("v [m/s]")
+
         (self._plan_line,) = self._ax.plot([], [], "g--", lw=1.0, alpha=0.6, label="MPC plan")
         (self._car_dot,) = self._ax.plot([], [], "ro", ms=8, label="car")
         self._ax.legend(loc="upper right", fontsize=8)
@@ -309,7 +369,9 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
         x_traj, y_traj, _ = frenet_to_cartesian(
             traj_arr[:, 0], traj_arr[:, 1], self._sref, self._xref, self._yref, self._psiref
         )
-        self._traj_line.set_data(x_traj, y_traj)
+        v_traj = traj_arr[:, 3]
+        self._traj_scatter.set_offsets(np.c_[x_traj, y_traj])
+        self._traj_scatter.set_array(v_traj)
 
         car_x, car_y, _ = frenet_to_cartesian(
             self.x[0], self.x[1], self._sref, self._xref, self._yref, self._psiref
