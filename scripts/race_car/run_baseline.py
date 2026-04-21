@@ -1,16 +1,18 @@
-"""Run baseline (MPC controller or random policy) for the i4b environment.
+"""Run baseline (MPC controller or random policy) for the race-car environment.
 
-By default runs a single validation episode.  Use ``--only-train`` to run
-training episodes instead, which reports rolling stats comparable to RL runs.
+Wires the channel-logging trainer machinery in ``channels.py`` up against
+``RaceCarEnv`` / ``RaceCarPlanner``.
 
 Example:
 -------
-    # MPC controller, 3-day validation episode:
-    python scripts/i4b/run_baseline.py --days 3
+    # MPC controller, single validation lap:
+    python scripts/race_car/run_baseline.py --output-path output/race_car_baseline
 
     # Random policy:
-    python scripts/i4b/run_baseline.py --policy-type random
+    python scripts/race_car/run_baseline.py --policy-type random
 """
+
+from __future__ import annotations
 
 import shutil
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
@@ -26,7 +28,7 @@ from numpy import ndarray
 
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.examples import ExampleControllerName, create_controller
-from leap_c.examples.i4b.env import BUILDING_NAMES2CLASS, Heatpump_AW, I4bEnv, I4bEnvConfig
+from leap_c.examples.race_car.env import RaceCarEnv, RaceCarEnvConfig
 from leap_c.run import (
     default_controller_code_path,
     default_name,
@@ -40,40 +42,26 @@ from leap_c.torch.utils.seed import mk_seed
 from leap_c.trainer import Trainer, TrainerConfig
 from leap_c.utils.gym import seed_env, wrap_env
 
-# Default episode length for validation
-_DEFAULT_DAYS = 3
-
 
 @dataclass
 class BaselineTrainerConfig(TrainerConfig):
-    """Trainer configuration for i4b baseline runs."""
+    """Trainer configuration for race-car baseline runs."""
 
     param_ckpt: str | None = None
-    val_step_print_interval: int = 16
+    val_step_print_interval: int = 50
     compute_sensitivities: bool = False
 
 
 @dataclass
 class RunBaselineConfig:
-    """Top-level configuration for an i4b baseline run.
-
-    Attributes:
-        env: The environment name (always "i4b").
-        controller: Controller name used when policy_type is "controller".
-        policy_type: "controller" runs the MPC; "random" samples uniformly.
-        trainer: Trainer hyper-parameters.
-    """
-
-    env: str = "i4b"
+    env: str = "race_car"
     controller: ExampleControllerName | None = None
     policy_type: Literal["controller", "random"] = "controller"
     trainer: BaselineTrainerConfig = field(default_factory=BaselineTrainerConfig)
-    start_date: str | None = None
-    end_date: str | None = None
 
 
 class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
-    """Trainer that runs a fixed-parameter MPC or random baseline for i4b."""
+    """Trainer that runs a fixed-parameter MPC or random baseline for race_car."""
 
     train_env: gym.Env | None
 
@@ -101,27 +89,13 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         else:
             self.collate_fn = None
 
-        self.loaded_param = None
+        self.loaded_param: np.ndarray | None = None
         if self.cfg.param_ckpt is not None:
             data = np.load(self.cfg.param_ckpt, allow_pickle=True)
             if "best_param" in data:
-                self.loaded_param = data["best_param"]
-            elif "best_config" in data:
-                config = data["best_config"]
-                if isinstance(config, np.ndarray) and config.dtype == object:
-                    config = config.item()
-                if isinstance(config, dict) and all(k.startswith("param_") for k in config.keys()):
-                    n_params = len(config)
-                    self.loaded_param = np.array([config[f"param_{i}"] for i in range(n_params)])
-                else:
-                    self.loaded_param = config
+                self.loaded_param = np.asarray(data["best_param"]).astype(np.float32)
             else:
-                raise ValueError(
-                    f"Could not find 'best_param' or 'best_config' in {self.cfg.param_ckpt}"
-                )
-            if not isinstance(self.loaded_param, np.ndarray):
-                self.loaded_param = np.asarray(self.loaded_param)
-            self.loaded_param = self.loaded_param.astype(np.float32)
+                raise ValueError(f"Could not find 'best_param' in {self.cfg.param_ckpt}")
 
     def train_loop(self) -> Generator[tuple[int, float], None, None]:
         if self.train_env is None:
@@ -131,7 +105,6 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         is_terminated = is_truncated = True
         policy_ctx = None
         obs = None
-
         while True:
             if is_terminated or is_truncated:
                 obs, _ = seed_env(self.train_env, mk_seed(self.rng), {"mode": "train"})
@@ -156,23 +129,17 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
                 action = action_tensor[0].cpu().numpy()
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
-
             if "episode" in info or "task" in info:
                 self.report_stats("train", info.get("episode", {}) | info.get("task", {}))
-
             obs = obs_prime
             yield 1, float(reward)
 
     def act(
         self, obs: ndarray, deterministic: bool = False, state: Any | None = None
     ) -> tuple[ndarray, Any, dict[str, float] | None]:
-        # Capture the pre-step obs so the validation callback can log
-        # MPC-aligned scalars (obs == ctx.iterate.x[0] at the current tick).
         self._pre_obs = obs
-
         if self.policy_type == "random":
             return self.eval_env.action_space.sample(), None, None
-
         obs_batched = self.collate_fn([obs])
         param = (
             self.loaded_param
@@ -183,13 +150,12 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         if param_tensor.ndim == 1:
             param_tensor = param_tensor.unsqueeze(0)
         ctx, action = self.controller(obs_batched, param_tensor, ctx=state)
-        action = action.cpu().numpy()[0]
-        return action, ctx, ctx.log
+        return action.cpu().numpy()[0], ctx, ctx.log
 
     def _make_val_step_callback(self):
         env = self.eval_env.unwrapped if self.eval_env is not None else None
         planner = getattr(self.controller, "planner", None)
-        if not isinstance(env, I4bEnv) or planner is None:
+        if not isinstance(env, RaceCarEnv) or planner is None:
             return super()._make_val_step_callback()
 
         self._val_logger = ChannelLogger(
@@ -198,22 +164,15 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
         interval = self.cfg.val_step_print_interval
 
         def callback(step: int, obs_post, action, reward, info, ctx) -> None:
-            # Log with the PRE-step obs captured in act(); that's the obs the
-            # MPC actually solved from (obs["state"] == ctx.iterate.x[0]).
             obs_pre = self._pre_obs
             self._val_logger.record(obs_pre, info, action, ctx, reward)
-
             if interval > 0 and step % interval == 0:
-                T_room = float(info.get("T_room", float("nan")))
-                T_hp_sup = float(info.get("T_hp_sup", float("nan")))
-                E_el_kWh = float(info.get("E_el_kWh", float("nan")))
-                T_set_lower = float(obs_pre["setpoints"]["T_set_lower"].flat[0])
-                T_set_upper = float(obs_pre["setpoints"]["T_set_upper"].flat[0])
-                flag = "" if T_set_lower <= T_room <= T_set_upper else " [!]"
+                s_ = float(np.asarray(obs_pre).flat[0])
+                n_ = float(np.asarray(obs_pre).flat[1])
+                v_ = float(np.asarray(obs_pre).flat[3])
                 print(
-                    f"  val step {step:4d} | T_room={T_room:.1f}°C"
-                    f"  [{T_set_lower:.1f}, {T_set_upper:.1f}]°C{flag}"
-                    f"  T_HP={T_hp_sup:.1f}°C  E={E_el_kWh * 1e3:.0f} Wh"
+                    f"  val step {step:4d} | s={s_:+6.2f} m | n={n_ * 100:+5.1f} cm "
+                    f"| v={v_:.3f} m/s"
                 )
 
         return callback
@@ -221,9 +180,8 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
     def validate(self) -> float:
         self._val_logger = None
         score = super().validate()
-        if self._val_logger is None or not self._val_logger.scalars:
+        if self._val_logger is None or not (self._val_logger.scalars or self._val_logger.sequences):
             return score
-
         env = self.eval_env.unwrapped
         planner = self.controller.planner
         header = header_from(env, planner)
@@ -236,24 +194,14 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
 def create_cfg(
     controller: ExampleControllerName | None,
     seed: int,
-    only_train: bool = False,
     policy_type: Literal["controller", "random"] = "controller",
     param_ckpt: Path | None = None,
 ) -> RunBaselineConfig:
-    """Return the default configuration for an i4b baseline run."""
     cfg = RunBaselineConfig()
-    cfg.env = "i4b"
+    cfg.env = "race_car"
     cfg.policy_type = policy_type
+    cfg.controller = controller if controller is not None else "race_car"
     cfg.trainer.param_ckpt = str(param_ckpt) if param_ckpt is not None else None
-
-    cfg.controller = "i4b"
-
-    # (
-    #     (controller if controller is not None else "i4b")
-    #     if policy_type == "controller"
-    #     else controller
-    # )
-
     cfg.trainer.seed = seed
     cfg.trainer.train_start = 0
     cfg.trainer.val_num_rollouts = 1
@@ -262,10 +210,8 @@ def create_cfg(
     cfg.trainer.val_render_mode = None
     cfg.trainer.val_report_score = "cum"
     cfg.trainer.ckpt_modus = "none"
-
     cfg.trainer.train_steps = 0
     cfg.trainer.val_freq = 1
-
     cfg.trainer.log.verbose = True
     cfg.trainer.log.interval = 100
     cfg.trainer.log.window = 10_000
@@ -273,7 +219,6 @@ def create_cfg(
     cfg.trainer.log.tensorboard_logger = True
     cfg.trainer.log.wandb_logger = False
     cfg.trainer.log.wandb_init_kwargs = {}
-
     return cfg
 
 
@@ -283,32 +228,14 @@ def run_baseline(
     device: int | str | torch.device,
     dtype: torch.dtype,
     reuse_code_dir: Path | None = None,
-    only_train: bool = False,
-    days: int = _DEFAULT_DAYS,
     overwrite: bool = False,
+    max_steps: int = 4000,
 ) -> float:
-    """Run the i4b baseline.
-
-    Args:
-        cfg: Run configuration.
-        output_path: Directory for logs and checkpoints.
-        device: Torch device.
-        dtype: Torch dtype.
-        reuse_code_dir: Directory with pre-compiled acados code, if any.
-        only_train: Run training episodes instead of validation.
-        days: Episode length in days for validation (default: 3).
-        overwrite: Delete existing output directory before running.
-    """
     if overwrite and Path(output_path).exists():
         shutil.rmtree(output_path)
 
-    env_cfg = I4bEnvConfig(
-        building_params=BUILDING_NAMES2CLASS["i4c"],
-        hp_model=Heatpump_AW(mdot_HP=0.25),
-        days=days,
-    )
-    val_env = I4bEnv(cfg=env_cfg) if not only_train else None
-    train_env = I4bEnv(cfg=env_cfg) if only_train else None
+    env_cfg = RaceCarEnvConfig(max_steps=max_steps)
+    val_env = RaceCarEnv(cfg=env_cfg)
 
     controller = None
     if cfg.policy_type == "controller":
@@ -322,7 +249,6 @@ def run_baseline(
         dtype=dtype,
         policy_type=cfg.policy_type,
         controller=controller,
-        train_env=train_env,
     )
     init_run(trainer, cfg, output_path)
     return trainer.run()
@@ -330,55 +256,42 @@ def run_baseline(
 
 if __name__ == "__main__":
     parser = ArgumentParser(
-        description="i4b baseline: MPC controller or random policy.",
+        description="race_car baseline: MPC controller or random policy.",
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
-    group = parser.add_argument_group("Run settings")
-    group.add_argument("--output-path", type=Path, default=None)
-    group.add_argument("--overwrite", action="store_true")
-    group.add_argument("--device", type=validate_torch_device_arg, default="cpu")
-    group.add_argument("--dtype", type=validate_torch_dtype_arg, default="float64")
-    group.add_argument("--seed", type=int, default=0)
-    group.add_argument(
-        "-r", "--reuse-code", action="store_true", help="Reuse compiled acados code."
-    )
-    group.add_argument("--reuse-code-dir", type=Path, default=None)
+    g = parser.add_argument_group("Run settings")
+    g.add_argument("--output-path", type=Path, default=None)
+    g.add_argument("--overwrite", action="store_true")
+    g.add_argument("--device", type=validate_torch_device_arg, default="cpu")
+    g.add_argument("--dtype", type=validate_torch_dtype_arg, default="float64")
+    g.add_argument("--seed", type=int, default=0)
+    g.add_argument("-r", "--reuse-code", action="store_true")
+    g.add_argument("--reuse-code-dir", type=Path, default=None)
 
-    group = parser.add_argument_group("Train and eval")
-    group.add_argument(
-        "--controller", type=str, default="i4b", help="Controller name (default: 'i4b')."
+    g = parser.add_argument_group("Train and eval")
+    g.add_argument("--controller", type=str, default="race_car")
+    g.add_argument(
+        "--policy-type", type=str, default="controller", choices=["controller", "random"]
     )
-    group.add_argument(
-        "--policy-type",
-        type=str,
-        default="controller",
-        choices=["controller", "random"],
-    )
-    group.add_argument(
-        "--only-train", action="store_true", help="Run training episodes (for RL comparison)."
-    )
-    group.add_argument(
-        "--days", type=int, default=_DEFAULT_DAYS, help="Episode length in days for validation."
-    )
-    group.add_argument("--param-ckpt", type=Path, default=None)
-    group.add_argument(
+    g.add_argument("--max-steps", type=int, default=4000)
+    g.add_argument("--param-ckpt", type=Path, default=None)
+    g.add_argument(
         "--compute-sensitivities",
         action="store_true",
         help="Compute du_dp sensitivities at each validation step (slower; saves to NPZ).",
     )
 
-    group = parser.add_argument_group("W&B logging")
-    group.add_argument("--use-wandb", action="store_true")
-    group.add_argument("--wandb-entity", type=str, default=None)
-    group.add_argument("--wandb-project", type=str, default="leap-c")
-    group.add_argument("--wandb-group", type=str, default="baseline-i4b")
+    g = parser.add_argument_group("W&B logging")
+    g.add_argument("--use-wandb", action="store_true")
+    g.add_argument("--wandb-entity", type=str, default=None)
+    g.add_argument("--wandb-project", type=str, default="leap-c")
+    g.add_argument("--wandb-group", type=str, default="baseline-race_car")
 
     args = parser.parse_args()
 
     cfg = create_cfg(
-        args.controller,
-        args.seed,
-        args.only_train,
+        controller=args.controller,
+        seed=args.seed,
         policy_type=args.policy_type,
         param_ckpt=args.param_ckpt,
     )
@@ -391,7 +304,7 @@ if __name__ == "__main__":
             "entity": args.wandb_entity,
             "project": args.wandb_project,
             "name": default_name(
-                args.seed, tags=["baseline", args.policy_type, "i4b", str(args.controller)]
+                args.seed, tags=["baseline", args.policy_type, "race_car", str(args.controller)]
             ),
             "config": config_dict,
         }
@@ -399,7 +312,7 @@ if __name__ == "__main__":
     if args.output_path is None:
         output_path = default_output_path(
             seed=args.seed,
-            tags=["baseline", args.policy_type, "i4b", str(args.controller)],
+            tags=["baseline", args.policy_type, "race_car", str(args.controller)],
         )
     else:
         output_path = args.output_path
@@ -417,7 +330,6 @@ if __name__ == "__main__":
         args.device,
         args.dtype,
         reuse_code_dir,
-        args.only_train,
-        args.days,
         args.overwrite,
+        max_steps=args.max_steps,
     )

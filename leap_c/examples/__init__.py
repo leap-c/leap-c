@@ -17,7 +17,6 @@ ExampleEnvName = Literal[
     "pointmass",
     "hvac",
     "hvac_continual",
-    "i4b",
     "race_car",
 ]
 ENV_REGISTRY: dict[str, tuple[str, str]] = {
@@ -27,7 +26,6 @@ ENV_REGISTRY: dict[str, tuple[str, str]] = {
     "pointmass": ("leap_c.examples.pointmass.env", "PointMassEnv"),
     "hvac": ("leap_c.examples.hvac.env", "StochasticThreeStateRcEnv"),
     "hvac_continual": ("leap_c.examples.hvac.env", "ContinualStochasticThreeStateRcEnv"),
-    "i4b": ("leap_c.examples.i4b.env", "I4bEnv"),
     "race_car": ("leap_c.examples.race_car.env", "RaceCarEnv"),
 }
 
@@ -98,12 +96,6 @@ PLANNER_REGISTRY: dict[str, tuple[str, str, str, dict[str, Any]]] = {
         "HvacPlannerConfig",
         {"param_interface": "reference", "param_granularity": "stagewise"},
     ),
-    "i4b": (
-        "leap_c.examples.i4b.planner",
-        "I4bPlanner",
-        "I4bPlannerConfig",
-        {"N_horizon": 12},
-    ),
     "race_car": (
         "leap_c.examples.race_car.planner",
         "RaceCarPlanner",
@@ -127,7 +119,6 @@ ExamplePlannerName = Literal[
     "pointmass_stagewise",
     "hvac",
     "hvac_stagewise",
-    "i4b",
     "race_car",
     "race_car_stagewise",
 ]

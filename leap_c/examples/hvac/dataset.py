@@ -110,7 +110,7 @@ class HvacDataset:
 
         # Generic column store for arbitrary named-column access.
         # Pre-populated with open-meteo labels (kept alongside hvac aliases) and
-        # index-derived time columns useful to other environments (e.g. i4b).
+        # index-derived time columns useful to other environments.
         self._arrays: dict[str, np.ndarray] = {}
         # Float columns are stored as float32 so environment hot-paths never
         # need an additional astype/cast when reading them.
@@ -888,7 +888,7 @@ def load_and_prepare_data(
         data[key] = convert_temperature(data[key], "C", "K")
 
     # Drop date column only; keep original open-meteo labels alongside hvac aliases
-    # so that other environments (e.g. i4b) can access them by their canonical names.
+    # so that other environments can access them by their canonical names.
     data.drop(columns=["date"], inplace=True)
 
     # Check for NaN values and apply zero-order hold (forward fill)

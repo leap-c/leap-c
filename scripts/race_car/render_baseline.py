@@ -1,4 +1,4 @@
-"""Interactive rendering of i4b baseline channel logs.
+"""Interactive rendering of race-car baseline channel logs.
 
 Loads ``val_log_step*.npz`` + ``val_log_step*.json`` produced by
 ``run_baseline.py`` and builds an interactive figure. The subplots adapt to
@@ -10,13 +10,16 @@ Panel rules (one subplot per "panel" group):
   history + dashed overlay driven by the slider.
 - ``matrix`` panel (channel with a matrix field) — imshow of the frame at the
   selected step, fixed symmetric colour scale.
-- A pair of scalars named ``T_set_lower`` + ``T_set_upper`` in the same panel
-  is drawn as a shaded comfort band (cosmetic special case).
+
+The x-axis is shown in seconds: ``delta_t_s`` from the channel log header is
+pre-scaled by 3600 before passing to :func:`render`, which internally divides
+by 3600 to compute ``dt_h``. This yields the natural time unit for race-car
+closed-loop runs.
 
 Usage
 -----
-    python scripts/i4b/render_baseline.py --run-dir <output/…>
-    python scripts/i4b/render_baseline.py --run-dir <dir> --save animation.gif
+    python scripts/race_car/render_baseline.py --run-dir <output/...>
+    python scripts/race_car/render_baseline.py --run-dir <dir> --save lap.gif
 """
 
 from __future__ import annotations
@@ -90,27 +93,12 @@ def _build_line_panel(
 ) -> Updater | None:
     """Draw statics and return an updater closure for slider-driven overlays."""
     ylabels = [c["ylabel"] for c in panel.channels if c["ylabel"]]
-    by_name = {c["name"]: c for c in panel.channels}
-    has_band = {"T_set_lower", "T_set_upper"} <= by_name.keys()
-
-    if has_band:
-        ax.fill_between(
-            t_cl,
-            arrays[by_name["T_set_lower"]["keys"]["scalar"]],
-            arrays[by_name["T_set_upper"]["keys"]["scalar"]],
-            alpha=0.10,
-            color="green",
-            label="comfort band",
-        )
 
     for ch in panel.channels:
         name = ch["name"]
         if "scalar" in ch["kinds"]:
             key = ch["keys"]["scalar"]
-            if has_band and name in {"T_set_lower", "T_set_upper"}:
-                ax.step(t_cl, arrays[key], color="k", lw=0.6, alpha=0.4, label=name)
-            else:
-                ax.plot(t_cl, arrays[key], lw=1.2, label=name)
+            ax.plot(t_cl, arrays[key], lw=1.2, label=name)
         if "scalars_dict" in ch["kinds"]:
             prefix = f"{name}."
             for k in sorted(key for key in arrays if key.startswith(prefix)):
@@ -280,9 +268,9 @@ def _infer_T(arrays: dict[str, np.ndarray], metadata: dict) -> int:
     raise RuntimeError("Could not infer T from any channel.")
 
 
-if __name__ == "__main__":
+def main() -> None:
     parser = ArgumentParser(
-        description="Render i4b baseline channel log.",
+        description="Render race_car baseline channel log.",
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
     parser.add_argument("--run-dir", type=Path, default=None)
@@ -292,4 +280,11 @@ if __name__ == "__main__":
     run_dir = args.run_dir or _find_latest_run()
     print(f"Rendering from: {run_dir}")
     arrays, metadata = load(run_dir)
+
+    # Make the x-axis display seconds: render() computes dt_h = delta_t_s / 3600.
+    metadata["header"]["delta_t_s"] = float(metadata["header"]["delta_t_s"]) * 3600.0
     render(arrays, metadata, args.save)
+
+
+if __name__ == "__main__":
+    main()

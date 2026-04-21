@@ -15,7 +15,7 @@ from tensordict import TensorDict
 
 from leap_c.torch.nn.scale import min_max_scaling
 
-ExtractorName = Literal["identity", "scaling", "hvac", "i4b"]
+ExtractorName = Literal["identity", "scaling", "hvac"]
 
 
 class Extractor(nn.Module, ABC):
@@ -303,7 +303,6 @@ EXTRACTOR_REGISTRY = {
     "identity": IdentityExtractor,
     "scaling": ScalingExtractor,
     "hvac": HvacExtractor,
-    "i4b": "leap_c.examples.i4b.extractor:I4bExtractor",
 }
 
 

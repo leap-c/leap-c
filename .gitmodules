@@ -2,7 +2,3 @@
 	path = external/acados
 	url = https://github.com/acados/acados.git
 	ignore = dirty
-[submodule "external/i4b"]
-	path = external/i4b
-	url = https://github.com/leap-c/i4b
-	ignore = dirty
