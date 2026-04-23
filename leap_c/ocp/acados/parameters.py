@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Any, Collection, Literal
+from typing import Any, Collection, Literal, Self
 from warnings import warn
 
 import casadi as ca
@@ -316,7 +316,7 @@ class AcadosParameterManager:
             if parameter.interface == "non-learnable":
                 self._store_non_learnable_parameter(parameter)
 
-    def add_parameter(self, parameter: AcadosParameter) -> "AcadosParameterManager":
+    def add_parameter(self, parameter: AcadosParameter) -> Self:
         """Adds a new parameter to the manager.
 
         This is a helper method for incrementally building the parameter manager, e.g. when
