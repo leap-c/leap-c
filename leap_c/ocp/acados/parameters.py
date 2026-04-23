@@ -317,7 +317,7 @@ class AcadosParameterManager:
                 self._store_non_learnable_parameter(parameter)
 
     def add_parameter(self, parameter: AcadosParameter) -> "AcadosParameterManager":
-        """Return a new AcadosParameterManager with the given parameter added.
+        """Adds a new parameter to the manager.
 
         This is a helper method for incrementally building the parameter manager, e.g. when
         parameters are defined in different parts of the code.
@@ -326,12 +326,20 @@ class AcadosParameterManager:
             parameter: The AcadosParameter to add.
 
         Returns:
-            The same parameter manager, returned for chaining.
+            The same parameter manager, returned to allow method chaining.
         """
         if parameter.name in self.parameters:
             raise ValueError(
                 f"Parameter '{parameter.name}' already exists in the manager. "
                 "Use a different name or modify the existing parameter instead."
+            )
+        if parameter.end_stages and parameter.end_stages[-1] not in [
+            self.N_horizon - 1,
+            self.N_horizon,
+        ]:
+            raise ValueError(
+                f"Parameter '{parameter.name}' has end_stages {parameter.end_stages} "
+                f"but the last element must be either {self.N_horizon - 1} or {self.N_horizon}."
             )
         self.parameters[parameter.name] = parameter
         if parameter.interface == "learnable":
