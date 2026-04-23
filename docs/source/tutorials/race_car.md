@@ -16,9 +16,10 @@ kernelspec:
 
 This tutorial walks you through every object in the `race_car` example in leap-c. By the end you will understand how a Frenet-frame bicycle model is turned into an `AcadosOcp`, wrapped in a differentiable MPC planner, and used as the inner loop of a reinforcement-learning agent whose neural network outputs a *distribution over MPC cost weights* conditioned on the observation.
 
-This file is both Sphinx-rendered documentation **and** a runnable Jupyter notebook. To use it as a notebook:
+This file is both Sphinx-rendered documentation **and** a runnable Jupyter notebook. To use it as a notebook, install the `tutorial` extra (pulls in `jupytext` and `jupyterlab`), then convert and launch:
 
 ```bash
+pip install -e .[tutorial]
 jupytext --to notebook docs/source/tutorials/race_car.md
 jupyter lab docs/source/tutorials/race_car.ipynb
 ```
@@ -51,12 +52,6 @@ import torch
 
 import leap_c  # noqa: F401  (ensures the package imports)
 import acados_template
-
-print("python         ", sys.version.split()[0])
-print("numpy          ", np.__version__)
-print("torch          ", torch.__version__)
-print("casadi         ", casadi.__version__)
-print("acados_template", acados_template.__version__)
 ```
 
 ---
@@ -212,7 +207,7 @@ u = np.array([5.0, 0.0])  # accelerate throttle at 5 /s, no steering
 dt = 0.02
 
 ts, xs = [0.0], [x.copy()]
-for _ in range(80):
+for _ in range(200):
     x = rk4_step(f_numpy, x, u, dt)
     # saturate D and delta to physical bounds (the env does this too)
     x[4] = np.clip(x[4], -1.0, 1.0)
@@ -251,7 +246,7 @@ Terminal conditions:
 - **Terminates** when `s > pathlength` (lap complete, `info["task"]["success"] = True`).
 - **Truncates** when `|n| > n_max + n_violation_margin` (off-track, `info["task"]["violation"] = True`) or after `cfg.max_steps` (default 4000 = 80 s).
 
-Let us build one and take some random steps:
+Let us instantiate a race-car environment and take some random steps:
 
 ```{code-cell} ipython3
 from leap_c.examples.race_car.env import RaceCarEnv, RaceCarEnvConfig
@@ -411,7 +406,7 @@ Each `forward` call produces an `AcadosDiffMpcCtx` (`leap_c/ocp/acados/diff_mpc.
 - `log` — timing and iteration counts.
 - Cached sensitivity fields (`du0_dp_global`, `dvalue_dp_global`, `du0_dx0`, ...), filled on demand by `ctx.diff_mpc.sensitivity(ctx, name)`.
 
-You pass the previous `ctx` back in on the next solve for warm-starting; SQP-RTI needs this to be fast.
+You pass the previous `ctx` back in on the next solve for warm-starting.
 
 ### `AcadosPlanner` and `ParameterizedController`
 
@@ -447,7 +442,7 @@ A *planner* returns the whole predicted trajectory plus the first action; a *con
 └──────────────────────────────────────────────────────────────────────┘
 ```
 
-The red return path is the novelty: gradients of any downstream loss (critic, trajectory optimality, anything) flow back through `AcadosDiffMpcTorch` into the policy network via analytic sensitivities, not finite differences.
+TODO: Make a prettier version of this diagram with red backprop arrows and the primitives labeled on each arrow. (The red return path is the novelty: gradients of any downstream loss (critic, trajectory optimality, anything) flow back through `AcadosDiffMpcTorch` into the policy network via analytic sensitivities, not finite differences.)
 
 ### Touching the primitives directly
 
@@ -516,7 +511,8 @@ ax.plot(xref, yref, "k--", lw=0.4)
 ax.plot(inner_x, inner_y, "k-", lw=0.6); ax.plot(outer_x, outer_y, "k-", lw=0.6)
 ax.plot(px, py, "g.-", ms=4, label="MPC plan (3 m lookahead)")
 ax.plot(px[0], py[0], "ro", ms=8, label="car")
-ax.set_aspect("equal"); ax.legend(); ax.set_xlim(-0.6, 2.0); ax.set_ylim(-0.4, 0.8)
+ax.set_aspect("equal")
+ax.legend()
 plt.show()
 ```
 
@@ -638,7 +634,7 @@ $$
 
 The practical consequence: `AcadosDiffMpcTorch.forward` returns tensors that carry gradient. When you call `.backward()` on any downstream loss, autograd invokes the sensitivity solver via a custom `autograd.Function` and hands gradients back to the parameter (and the initial state). No unrolling, no finite differences, no graph of solver iterations.
 
-For more on this approach see Amos & Kolter (2017) *"OptNet: Differentiable Optimization as a Layer in Neural Networks"* and the acados sensitivity line of work (Frey, Diehl et al.).
+For more on this approach see Amos & Kolter (2017) *"OptNet: Differentiable Optimization as a Layer in Neural Networks"* and Frey, Baumgärtner, Frison, Reinhardt, Hoffmann, Fichtner, Gros, Diehl (2025), *"Differentiable Nonlinear Model Predictive Control"*.
 
 ### What each learnable parameter controls
 
@@ -696,9 +692,9 @@ dL_dp_fd0 = ((u_plus[0, 0] - u_minus[0, 0]) / (2 * eps)).item()
 
 print(f"analytic ∂u0[0]/∂p[0]  = {dL_dp_analytic[0]:+.6e}")
 print(f"fd       ∂u0[0]/∂p[0]  = {dL_dp_fd0:+.6e}")
-print(f"relative error         = {abs(dL_dp_analytic[0] - dL_dp_fd0) / (abs(dL_dp_fd0)+1e-12):.2e}")
 ```
 
+TODO: The gradient is zero here, maybe find a better obs to use.
 They match to within the SQP-RTI tolerance, confirming that the gradient you get from `.backward()` is the real derivative of the solver's solution, not a surrogate.
 
 :::{note}
@@ -760,6 +756,8 @@ actor = HierachicalMPCActor(
 print(actor)
 ```
 
+here the `in_features` are the 6-dimensional observation space of the environment, and the `out_features` are the 14 pairs of (mu, sigma) to parameterize the distribution over the learnable parameter vector that feeds into the MPC.
+
 ### A forward pass
 
 ```{code-cell} ipython3
@@ -772,7 +770,7 @@ obs_batch = torch.tensor([
 out = actor(obs_batch, deterministic=False)
 print("sampled param shape :", tuple(out.param.shape), "    log_prob shape:", tuple(out.log_prob.shape))
 print("action shape        :", tuple(out.action.shape))
-print("solver status batch :", out.status.detach().cpu().numpy().flatten())
+print("solver status batch :", out.status.flatten())
 print("\nfirst sampled param vector (q_diag_sqrt, r_diag_sqrt, q_e_diag_sqrt):")
 print(out.param[0].detach().cpu().numpy())
 print("\ndefault param for comparison:")
@@ -940,6 +938,7 @@ The channel logs are written by `RaceCarValChannelsMixin` (see `scripts/race_car
 ### References
 
 - **Reiter, Nurkanović, Frey, Diehl (2023).** *Frenet–Cartesian model representations for automotive obstacle avoidance within nonlinear MPC.* European Journal of Control 74, 100847. https://arxiv.org/abs/2212.13115
+- **Frey, Baumgärtner, Frison, Reinhardt, Hoffmann, Fichtner, Gros, Diehl (2025).** *Differentiable Nonlinear Model Predictive Control.* arXiv:2505.01353. https://arxiv.org/abs/2505.01353
 - **Amos, Kolter (2017).** *OptNet: Differentiable Optimization as a Layer in Neural Networks.* ICML.
 - **Frison, Diehl (2020).** *HPIPM: a high-performance quadratic programming framework for model predictive control.* IFAC World Congress.
 - Upstream acados example: `external/acados/examples/acados_python/race_cars/`.
