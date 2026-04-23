@@ -287,6 +287,8 @@ class AcadosParameterManager:
             ``N_horizon - 1`` or ``N_horizon``.
         """
         # add parameters to the manager
+        # TODO: since parameters are being added incrementally, we should remove this warning, and
+        # in the future make the parameters optional and default to an empty list on construction.
         if not parameters:
             warn(
                 "Empty parameter list provided to AcadosParamManager. "
