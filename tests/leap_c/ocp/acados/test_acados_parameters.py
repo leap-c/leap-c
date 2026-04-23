@@ -41,8 +41,8 @@ def test_parameter_interface_fix():
     manager = AcadosParameterManager(params, N_horizon=5)
 
     # Fixed parameters should not appear in learnable or non-learnable structures
-    assert len(manager.learnable_parameters.keys()) == 0
-    assert len(manager.non_learnable_parameters.keys()) == 0
+    assert len(manager._learnable_parameter_store.symbols) == 0
+    assert len(manager._non_learnable_parameter_store.symbols) == 0
 
 
 def test_parameter_interface_learnable_no_vary_stages():
@@ -62,21 +62,21 @@ def test_parameter_interface_learnable_no_vary_stages():
     manager = AcadosParameterManager(params, N_horizon=5)
 
     # All should appear in learnable_parameters with original names
-    assert len(manager.learnable_parameters.keys()) == 3
-    assert "scalar_learnable" in manager.learnable_parameters.keys()
-    assert "vector_learnable" in manager.learnable_parameters.keys()
-    assert "matrix_learnable" in manager.learnable_parameters.keys()
+    assert len(manager._learnable_parameter_store.symbols) == 3
+    assert "scalar_learnable" in manager._learnable_parameter_store.symbols
+    assert "vector_learnable" in manager._learnable_parameter_store.symbols
+    assert "matrix_learnable" in manager._learnable_parameter_store.symbols
 
     # Check default values are set correctly (CasADi returns column vectors)
     np.testing.assert_array_equal(
-        manager.learnable_parameters_default["scalar_learnable"], np.array([[1.0]])
+        manager._learnable_parameter_store.defaults["scalar_learnable"], np.array([1.0])
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_default["vector_learnable"],
-        np.array([[2.0], [3.0]]),
+        manager._learnable_parameter_store.defaults["vector_learnable"],
+        np.array([2.0, 3.0]),
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_default["matrix_learnable"],
+        manager._learnable_parameter_store.defaults["matrix_learnable"],
         np.array([[4.0, 5.0], [6.0, 7.0]]),  # Preserves matrix shape
     )
 
@@ -102,7 +102,7 @@ def test_parameter_interface_learnable_with_vary_stages():
     manager = AcadosParameterManager(params, N_horizon=N_horizon)
 
     # Should create staged parameters with {name}_{start}_{end} template
-    learnable_keys = list(manager.learnable_parameters.keys())
+    learnable_keys = list(manager._learnable_parameter_store.symbols.keys())
 
     # price changes at [3, 7], so we expect: price_0_2, price_3_6, price_7_10
     price_keys = [k for k in learnable_keys if k.startswith("price_")]
@@ -121,11 +121,13 @@ def test_parameter_interface_learnable_with_vary_stages():
 
     # Check that values are set correctly for each stage (CasADi format)
     for key in price_keys:
-        np.testing.assert_array_equal(manager.learnable_parameters_default[key], np.array([[10.0]]))
+        np.testing.assert_array_equal(
+            manager._learnable_parameter_store.defaults[key], np.array([10.0])
+        )
 
     for key in demand_keys:
         np.testing.assert_array_equal(
-            manager.learnable_parameters_default[key], np.array([[5.0], [6.0]])
+            manager._learnable_parameter_store.defaults[key], np.array([5.0, 6.0])
         )
 
 
@@ -154,26 +156,26 @@ def test_parameter_interface_non_learnable_no_vary_stages():
     manager = AcadosParameterManager(params, N_horizon=N_horizon)
 
     # All should appear in non_learnable_parameters with original names
-    assert len(manager.non_learnable_parameters.keys()) == 3
-    assert "scalar_non_learnable" in manager.non_learnable_parameters.keys()
-    assert "vector_non_learnable" in manager.non_learnable_parameters.keys()
-    assert "matrix_non_learnable" in manager.non_learnable_parameters.keys()
+    assert len(manager._non_learnable_parameter_store.symbols) == 3
+    assert "scalar_non_learnable" in manager._non_learnable_parameter_store.symbols
+    assert "vector_non_learnable" in manager._non_learnable_parameter_store.symbols
+    assert "matrix_non_learnable" in manager._non_learnable_parameter_store.symbols
 
-    assert "scalar_non_learnable" in manager.non_learnable_parameters_default.keys()
-    assert "vector_non_learnable" in manager.non_learnable_parameters_default.keys()
-    assert "matrix_non_learnable" in manager.non_learnable_parameters_default.keys()
+    assert "scalar_non_learnable" in manager._non_learnable_parameter_store.defaults
+    assert "vector_non_learnable" in manager._non_learnable_parameter_store.defaults
+    assert "matrix_non_learnable" in manager._non_learnable_parameter_store.defaults
 
     for stage in range(N_horizon + 1):
         np.testing.assert_array_equal(
-            manager.non_learnable_parameters_default["scalar_non_learnable"],
-            np.array([[1.0]]),
+            manager._non_learnable_parameter_store.defaults["scalar_non_learnable"],
+            np.array([1.0]),
         )
         np.testing.assert_array_equal(
-            manager.non_learnable_parameters_default["vector_non_learnable"],
-            np.array([[2.0], [3.0]]),
+            manager._non_learnable_parameter_store.defaults["vector_non_learnable"],
+            np.array([2.0, 3.0]),
         )
         np.testing.assert_array_equal(
-            manager.non_learnable_parameters_default["matrix_non_learnable"],
+            manager._non_learnable_parameter_store.defaults["matrix_non_learnable"],
             np.array([[4.0, 5.0], [6.0, 7.0]]),
         )
 
@@ -245,47 +247,47 @@ def test_parameter_bounds_learnable():
     # Test that bounds are set correctly for each parameter (CasADi format)
     # lower_bounded should have lower bound set
     np.testing.assert_array_equal(
-        manager.learnable_parameters_lb["lower_bounded"], np.array([[0.0]])
+        manager._learnable_parameter_store.lb["lower_bounded"], np.array([0.0])
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_ub["lower_bounded"], np.array([[+np.inf]])
+        manager._learnable_parameter_store.ub["lower_bounded"], np.array([+np.inf])
     )
 
     # upper_bounded should have upper bound set
     np.testing.assert_array_equal(
-        manager.learnable_parameters_lb["upper_bounded"], np.array([[-np.inf]])
+        manager._learnable_parameter_store.lb["upper_bounded"], np.array([-np.inf])
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_ub["upper_bounded"], np.array([[10.0]])
+        manager._learnable_parameter_store.ub["upper_bounded"], np.array([10.0])
     )
 
     # fully_bounded should have both bounds set
     np.testing.assert_array_equal(
-        manager.learnable_parameters_lb["fully_bounded"], np.array([[-1.0], [-2.0]])
+        manager._learnable_parameter_store.lb["fully_bounded"], np.array([-1.0, -2.0])
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_ub["fully_bounded"], np.array([[10.0], [20.0]])
+        manager._learnable_parameter_store.ub["fully_bounded"], np.array([10.0, 20.0])
     )
 
     # matrix_lower_bounded should have matrix bounds set (preserves matrix shape)
     np.testing.assert_array_equal(
-        manager.learnable_parameters_ub["matrix_lower_bounded"],
+        manager._learnable_parameter_store.ub["matrix_lower_bounded"],
         np.array([[np.inf, np.inf], [np.inf, np.inf]]),
     )
 
     # matrix_upper_bounded should have matrix bounds set (preserves matrix shape)
     np.testing.assert_array_equal(
-        manager.learnable_parameters_lb["matrix_upper_bounded"],
+        manager._learnable_parameter_store.lb["matrix_upper_bounded"],
         np.array([[-np.inf, -np.inf], [-np.inf, -np.inf]]),
     )
 
     # matrix_bounded should have matrix bounds set (preserves matrix shape)
     np.testing.assert_array_equal(
-        manager.learnable_parameters_lb["matrix_bounded"],
+        manager._learnable_parameter_store.lb["matrix_bounded"],
         np.array([[0.0, 0.0], [0.0, 0.0]]),
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_ub["matrix_bounded"],
+        manager._learnable_parameter_store.ub["matrix_bounded"],
         np.array([[10.0, 20.0], [30.0, 40.0]]),
     )
 
@@ -306,20 +308,20 @@ def test_parameter_bounds_learnable_with_vary_stages():
     manager = AcadosParameterManager(params, N_horizon=N_horizon)
 
     # Should have bounds set for both staged parameters
-    assert "bounded_staged_0_3" in manager.learnable_parameters_lb.keys()
-    assert "bounded_staged_4_5" in manager.learnable_parameters_lb.keys()
+    assert "bounded_staged_0_3" in manager._learnable_parameter_store.lb
+    assert "bounded_staged_4_5" in manager._learnable_parameter_store.lb
 
     np.testing.assert_array_equal(
-        manager.learnable_parameters_lb["bounded_staged_0_3"], np.array([[0.0]])
+        manager._learnable_parameter_store.lb["bounded_staged_0_3"], np.array([0.0])
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_ub["bounded_staged_0_3"], np.array([[10.0]])
+        manager._learnable_parameter_store.ub["bounded_staged_0_3"], np.array([10.0])
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_lb["bounded_staged_4_5"], np.array([[0.0]])
+        manager._learnable_parameter_store.lb["bounded_staged_4_5"], np.array([0.0])
     )
     np.testing.assert_array_equal(
-        manager.learnable_parameters_ub["bounded_staged_4_5"], np.array([[10.0]])
+        manager._learnable_parameter_store.ub["bounded_staged_4_5"], np.array([10.0])
     )
 
 
@@ -363,10 +365,10 @@ def test_indicator_creation():
     manager_with_vary = AcadosParameterManager(params_with_vary, N_horizon=N_horizon)
 
     # No vary_stages should not have indicator
-    assert "indicator" not in manager_no_vary.non_learnable_parameters.keys()
+    assert "indicator" not in manager_no_vary._non_learnable_parameter_store.symbols
 
     # With vary_stages should have indicator
-    assert "indicator" in manager_with_vary.non_learnable_parameters.keys()
+    assert "indicator" in manager_with_vary._non_learnable_parameter_store.symbols
 
 
 def test_mixed_parameter_types_and_interfaces():
@@ -404,7 +406,7 @@ def test_mixed_parameter_types_and_interfaces():
     manager = AcadosParameterManager(params, N_horizon=N_horizon)
 
     # Check learnable parameters
-    learnable_keys = list(manager.learnable_parameters.keys())
+    learnable_keys = list(manager._learnable_parameter_store.symbols.keys())
     expected_learnable = [
         "learn_scalar",
         "learn_vector",
@@ -417,7 +419,7 @@ def test_mixed_parameter_types_and_interfaces():
         assert key in learnable_keys
 
     # Check non-learnable parameters (includes indicator)
-    non_learnable_keys = list(manager.non_learnable_parameters.keys())
+    non_learnable_keys = list(manager._non_learnable_parameter_store.symbols.keys())
     expected_non_learnable = [
         "non_learn_scalar",
         "non_learn_vector",
@@ -614,7 +616,7 @@ def test_get_param_space_with_variable_end_stages():
     np.testing.assert_array_equal(param_space.high, expected_high)
 
     # Verify learnable parameter keys match expected staged parameter names
-    learnable_keys = list(manager.learnable_parameters.keys())
+    learnable_keys = list(manager._learnable_parameter_store.symbols.keys())
 
     # Check scalar variations (but not scalar_unbounded)
     scalar_keys = [
@@ -755,8 +757,8 @@ def test_empty_parameter_list():
         manager = AcadosParameterManager(params, N_horizon=5)
 
     assert len(manager.parameters) == 0
-    assert len(manager.learnable_parameters.keys()) == 0
-    assert len(manager.non_learnable_parameters.keys()) == 0
+    assert len(manager._learnable_parameter_store.symbols) == 0
+    assert len(manager._non_learnable_parameter_store.symbols) == 0
 
 
 def test_parameter_name_with_underscores():
@@ -777,7 +779,7 @@ def test_parameter_name_with_underscores():
     manager = AcadosParameterManager(params, N_horizon=N_horizon)
 
     # Should properly handle names with underscores
-    learnable_keys = list(manager.learnable_parameters.keys())
+    learnable_keys = list(manager._learnable_parameter_store.symbols.keys())
     staged_keys = [k for k in learnable_keys if k.startswith("param_with_underscores_")]
 
     assert len(staged_keys) == 2
@@ -786,7 +788,9 @@ def test_parameter_name_with_underscores():
 
     # Values should be set correctly (CasADi format)
     for key in staged_keys:
-        np.testing.assert_array_equal(manager.learnable_parameters_default[key], np.array([[1.0]]))
+        np.testing.assert_array_equal(
+            manager._learnable_parameter_store.defaults[key], np.array([1.0])
+        )
 
 
 def test_large_dimension_parameters():
@@ -807,7 +811,7 @@ def test_large_dimension_parameters():
     manager = AcadosParameterManager(params_2d, N_horizon=5)
 
     # Should handle 2D arrays correctly (flattened in CasADi)
-    assert "matrix_param" in manager.learnable_parameters.keys()
+    assert "matrix_param" in manager._learnable_parameter_store.symbols
 
     # CasADi preserves matrix shapes
     expected_value = np.array([[1.0, 2.0], [3.0, 4.0]])
@@ -815,29 +819,39 @@ def test_large_dimension_parameters():
     expected_ub = np.array([[10.0, 10.0], [10.0, 10.0]])
 
     np.testing.assert_array_equal(
-        manager.learnable_parameters_default["matrix_param"], expected_value
+        manager._learnable_parameter_store.defaults["matrix_param"], expected_value
     )
-    np.testing.assert_array_equal(manager.learnable_parameters_lb["matrix_param"], expected_lb)
-    np.testing.assert_array_equal(manager.learnable_parameters_ub["matrix_param"], expected_ub)
+    np.testing.assert_array_equal(
+        manager._learnable_parameter_store.lb["matrix_param"], expected_lb
+    )
+    np.testing.assert_array_equal(
+        manager._learnable_parameter_store.ub["matrix_param"], expected_ub
+    )
 
     # Test that 3D arrays raise an error
-    params_3d = [
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Parameter 'tensor_param' has 3 dimensions, "
+            "but CasADi only supports arrays up to 2 dimensions. "
+            "Parameter shape: (2, 2, 2)"
+        ),
+    ):
         AcadosParameter(
             name="tensor_param",
             default=np.array([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
             interface="learnable",
-        ),
-    ]
-
-    with pytest.raises(
-        ValueError,
-        match="Parameter 'tensor_param' has 3 dimensions."
-        "*CasADi only supports arrays up to 2 dimensions",
-    ):
-        AcadosParameterManager(params_3d, N_horizon=5)
+        )
 
     # Test that 3D space bounds raise an error
-    params_3d_bounds = [
+    with pytest.raises(
+        ValueError,
+        match=re.escape(
+            "Parameter 'tensor_bounds_param' space has 3 dimensions, "
+            "but CasADi only supports arrays up to 2 dimensions. "
+            "Space shape: (2, 2, 2)"
+        ),
+    ):
         AcadosParameter(
             name="tensor_bounds_param",
             default=np.array([[1.0, 2.0], [3.0, 4.0]]),
@@ -846,17 +860,7 @@ def test_large_dimension_parameters():
                 high=np.array([[[10.0, 10.0], [10.0, 10.0]], [[10.0, 10.0], [10.0, 10.0]]]),
             ),
             interface="learnable",
-        ),
-    ]
-
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "Parameter 'tensor_bounds_param' space has 3 dimensions, but CasADi only"
-            " supports arrays up to 2 dimensions. Space shape: (2, 2, 2)"
-        ),
-    ):
-        AcadosParameterManager(params_3d_bounds, N_horizon=5)
+        )
 
 
 def test_combine_parameter_values():
@@ -953,24 +957,28 @@ def test_combine_parameter_values_complex():
     for batch_idx in range(batch_size):
         for stage_idx in range(manager.N_horizon + 1):
             # Check scalar_non_learnable (first element)
-            assert result[batch_idx, stage_idx, 0] == 4.0
+            s, _ = manager._non_learnable_parameter_store.indices["scalar_non_learnable"]
+            assert result[batch_idx, stage_idx, s] == 4.0
 
             # Check vector_non_learnable (next 2 elements)
-            assert result[batch_idx, stage_idx, 1] == 8.0
-            assert result[batch_idx, stage_idx, 2] == 9.0
+            s, e = manager._non_learnable_parameter_store.indices["vector_non_learnable"]
+            expected_vector_flat = np.array([8.0, 9.0])
+            np.testing.assert_array_equal(result[batch_idx, stage_idx, s:e], expected_vector_flat)
 
             # Check matrix_non_learnable (next 4 elements)
             # Matrix is flattened in column-major (Fortran) order by CasADi
+            s, e = manager._non_learnable_parameter_store.indices["matrix_non_learnable"]
             expected_matrix_flat = np.array(
                 [16.0, 18.0, 17.0, 19.0]
             )  # [[16,17],[18,19]] -> [16,18,17,19]
-            np.testing.assert_array_equal(result[batch_idx, stage_idx, 3:7], expected_matrix_flat)
+            np.testing.assert_array_equal(result[batch_idx, stage_idx, s:e], expected_matrix_flat)
 
             # Check indicator values (last 9 elements for N_horizon=8)
             # indicator[stage_idx] should be 1.0, others should be 0.0
+            s, e = manager._non_learnable_parameter_store.indices["indicator"]
             expected_indicator = np.zeros(9)
             expected_indicator[stage_idx] = 1.0
-            np.testing.assert_array_equal(result[batch_idx, stage_idx, 7:], expected_indicator)
+            np.testing.assert_array_equal(result[batch_idx, stage_idx, s:e], expected_indicator)
 
     rng = np.random.default_rng(42)
 
@@ -979,7 +987,7 @@ def test_combine_parameter_values_complex():
         size=(
             batch_size,
             manager.N_horizon + 1,
-            manager.non_learnable_parameters_default["vector_non_learnable"].shape[0],
+            manager._non_learnable_parameter_store.defaults["vector_non_learnable"].shape[0],
         )
     )
 
@@ -987,8 +995,8 @@ def test_combine_parameter_values_complex():
         size=(
             batch_size,
             manager.N_horizon + 1,
-            manager.non_learnable_parameters_default["matrix_non_learnable"].shape[0],
-            manager.non_learnable_parameters_default["matrix_non_learnable"].shape[1],
+            manager._non_learnable_parameter_store.defaults["matrix_non_learnable"].shape[0],
+            manager._non_learnable_parameter_store.defaults["matrix_non_learnable"].shape[1],
         )
     )
 
@@ -1004,25 +1012,29 @@ def test_combine_parameter_values_complex():
     for batch_idx in range(batch_size):
         for stage_idx in range(manager.N_horizon + 1):
             # scalar_non_learnable should still be the default value (not overwritten)
-            assert result[batch_idx, stage_idx, 0] == 4.0
+            s, _ = manager._non_learnable_parameter_store.indices["scalar_non_learnable"]
+            assert result[batch_idx, stage_idx, s] == 4.0
 
             # vector_non_learnable should use the random overwrite values
+            s, e = manager._non_learnable_parameter_store.indices["vector_non_learnable"]
             np.testing.assert_array_equal(
-                result[batch_idx, stage_idx, 1:3],
+                result[batch_idx, stage_idx, s:e],
                 vector_non_learnable[batch_idx, stage_idx, :],
             )
 
             # matrix_non_learnable should use the random overwrite values (flattened)
             # Note: overwrite values use C-order flattening, unlike default values which use F-order
+            s, e = manager._non_learnable_parameter_store.indices["matrix_non_learnable"]
             expected_matrix_flat = matrix_non_learnable[batch_idx, stage_idx, :, :].flatten(
                 order="C"
             )
-            np.testing.assert_array_equal(result[batch_idx, stage_idx, 3:7], expected_matrix_flat)
+            np.testing.assert_array_equal(result[batch_idx, stage_idx, s:e], expected_matrix_flat)
 
             # indicator values should remain unchanged
+            s, e = manager._non_learnable_parameter_store.indices["indicator"]
             expected_indicator = np.zeros(9)
             expected_indicator[stage_idx] = 1.0
-            np.testing.assert_array_equal(result[batch_idx, stage_idx, 7:], expected_indicator)
+            np.testing.assert_array_equal(result[batch_idx, stage_idx, s:e], expected_indicator)
 
 
 def test_param_manager_combine_parameter_values(
@@ -1054,7 +1066,7 @@ def test_param_manager_combine_parameter_values(
 
     keys = [
         key
-        for key in list(acados_param_manager.non_learnable_parameters_default.keys())
+        for key in acados_param_manager._non_learnable_parameter_store.defaults
         if not key.startswith("indicator")
     ]
 
@@ -1068,7 +1080,7 @@ def test_param_manager_combine_parameter_values(
             size=(
                 batch_size,
                 N_horizon + 1,
-                acados_param_manager.non_learnable_parameters_default[key].shape[0],
+                acados_param_manager._non_learnable_parameter_store.defaults[key].shape[0],
             )
         )
 
@@ -1077,13 +1089,13 @@ def test_param_manager_combine_parameter_values(
     assert res.shape == (
         batch_size,
         N_horizon + 1,
-        acados_param_manager.non_learnable_parameters_default.cat.shape[0],
+        acados_param_manager._non_learnable_parameter_store.size,
     ), "The shape of the combined parameter values does not match the expected shape."
 
     # Verify that the overwritten parameter values are correctly incorporated
     param_start_idx = 0
     for key in keys:
-        param_dim = acados_param_manager.non_learnable_parameters_default[key].shape[0]
+        param_dim = acados_param_manager._non_learnable_parameter_store.defaults[key].shape[0]
         param_end_idx = param_start_idx + param_dim
 
         # Check that the overwritten values match exactly
@@ -1211,7 +1223,9 @@ def test_combine_default_learnable_parameter_values_basic():
     result = manager.combine_default_learnable_parameter_values(batch_size=batch_size)
 
     # Expected: tiled default values
-    default_flat = manager.learnable_parameters_default.cat.full().flatten()
+    default_flat = np.concatenate(
+        list(manager._learnable_parameter_store.defaults.values())
+    ).reshape(-1)
     expected = np.tile(default_flat, (batch_size, 1))
 
     np.testing.assert_array_equal(result, expected)
@@ -1237,13 +1251,13 @@ def test_combine_default_learnable_parameter_values_with_overwrites():
     )
 
     # Check that scalar was overwritten
-    scalar_idx = manager.learnable_parameters.f["scalar"]
-    np.testing.assert_array_equal(result[:, scalar_idx], scalar_values)
+    scalar_idx_start, scalar_idx_end = manager._learnable_parameter_store.indices["scalar"]
+    np.testing.assert_array_equal(result[:, scalar_idx_start:scalar_idx_end], scalar_values)
 
     # Check that vector kept default values
-    vector_idx = manager.learnable_parameters.f["vector"]
+    vector_idx_start, vector_idx_end = manager._learnable_parameter_store.indices["vector"]
     expected_vector = np.tile([[2.0], [3.0]], (1, batch_size)).T
-    np.testing.assert_array_equal(result[:, vector_idx], expected_vector)
+    np.testing.assert_array_equal(result[:, vector_idx_start:vector_idx_end], expected_vector)
 
 
 def test_combine_default_learnable_parameter_values_stagewise():
@@ -1281,21 +1295,37 @@ def test_combine_default_learnable_parameter_values_stagewise():
     )
 
     # Verify temperature stages
-    temp_0_2_idx = manager.learnable_parameters.f["temperature_0_2"]
-    temp_3_5_idx = manager.learnable_parameters.f["temperature_3_5"]
+    temp_0_2_idx_start, temp_0_2_idx_end = manager._learnable_parameter_store.indices[
+        "temperature_0_2"
+    ]
+    temp_3_5_idx_start, temp_3_5_idx_end = manager._learnable_parameter_store.indices[
+        "temperature_3_5"
+    ]
 
     # For batch 0: stages 0-2 should all have first block value, stages 3-5 second block
-    np.testing.assert_array_equal(result[0, temp_0_2_idx], temperature_forecast[0, 0])
-    np.testing.assert_array_equal(result[0, temp_3_5_idx], temperature_forecast[0, 3])
+    np.testing.assert_array_equal(
+        result[0, temp_0_2_idx_start:temp_0_2_idx_end], temperature_forecast[0, 0]
+    )
+    np.testing.assert_array_equal(
+        result[0, temp_3_5_idx_start:temp_3_5_idx_end], temperature_forecast[0, 3]
+    )
 
     # For batch 1
-    np.testing.assert_array_equal(result[1, temp_0_2_idx], temperature_forecast[1, 0])
-    np.testing.assert_array_equal(result[1, temp_3_5_idx], temperature_forecast[1, 3])
+    np.testing.assert_array_equal(
+        result[1, temp_0_2_idx_start:temp_0_2_idx_end], temperature_forecast[1, 0]
+    )
+    np.testing.assert_array_equal(
+        result[1, temp_3_5_idx_start:temp_3_5_idx_end], temperature_forecast[1, 3]
+    )
 
     # Verify price (single stage block 0-5)
-    price_0_5_idx = manager.learnable_parameters.f["price_0_5"]
-    np.testing.assert_array_equal(result[0, price_0_5_idx], price_forecast[0, 0])
-    np.testing.assert_array_equal(result[1, price_0_5_idx], price_forecast[1, 0])
+    price_0_5_idx_start, price_0_5_idx_end = manager._learnable_parameter_store.indices["price_0_5"]
+    np.testing.assert_array_equal(
+        result[0, price_0_5_idx_start:price_0_5_idx_end], price_forecast[0, 0]
+    )
+    np.testing.assert_array_equal(
+        result[1, price_0_5_idx_start:price_0_5_idx_end], price_forecast[1, 0]
+    )
 
 
 def test_combine_default_learnable_parameter_values_errors():
@@ -1364,7 +1394,7 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
         N_horizon=ocp.solver_options.N_horizon,
     )
 
-    p_global_values = pm.learnable_parameters_default
+    p_global_values = pm._learnable_parameter_store.defaults
     p_stagewise = pm.combine_non_learnable_parameter_values()
 
     xref_0 = rng.random(size=4)
@@ -1394,7 +1424,9 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
         ]
     )
 
-    p_global = p_global_values.cat.full().flatten().reshape(1, ocp.dims.np_global)
+    p_global = np.concatenate([arr.reshape(-1) for arr in p_global_values.values()]).reshape(
+        1, ocp.dims.np_global
+    )
     x0 = torch.tensor(x0, dtype=torch.float32).reshape(1, -1)
 
     sol_pert = diff_mpc_with_stagewise_varying_params.forward(
@@ -1446,3 +1478,80 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
         "The state trajectory matches between nominal and stagewise diff MPC \
             despite different initial reference."
     )
+
+
+def test_add_parameter_interface_fix():
+    """Test adding fixed parameters (interface='fix')."""
+    manager = AcadosParameterManager([], N_horizon=5)
+    manager.add_parameter(
+        AcadosParameter(name="scalar_fix", default=np.array([1.0]), interface="fix")
+    )
+
+    # Fixed parameters should not appear in learnable or non-learnable structures
+    assert len(manager._learnable_parameter_store.symbols) == 0
+    assert len(manager._non_learnable_parameter_store.symbols) == 0
+
+    # No indicator should be created
+    assert len(manager._non_learnable_parameter_store.symbols) == 0
+
+
+def test_add_parameter_interface_learnable_no_vary_stages():
+    """Test adding learnable parameters without vary_stages."""
+    manager = AcadosParameterManager([], N_horizon=5)
+    manager.add_parameter(
+        AcadosParameter(name="learnable", default=np.array([1.0]), interface="learnable")
+    )
+
+    # Learnable should appear in learnable_parameter_store with original name
+    assert len(manager._learnable_parameter_store.symbols) == 1
+    assert "learnable" in manager._learnable_parameter_store.symbols
+
+    # No indicator should be created
+    assert len(manager._non_learnable_parameter_store.symbols) == 0
+
+
+def test_add_parameter_interface_learnable_with_vary_stages():
+    """Test adding learnable parameters with vary_stages."""
+    N_horizon = 10
+    manager = AcadosParameterManager([], N_horizon=N_horizon)
+
+    # No indicator should be created before adding the parameter
+    assert len(manager._non_learnable_parameter_store.symbols) == 0
+
+    manager.add_parameter(
+        AcadosParameter(
+            name="price",
+            default=np.array([10.0]),
+            interface="learnable",
+            end_stages=[3, 7, N_horizon],
+        )
+    )
+
+    # Should create staged parameters with {name}_{start}_{end} template
+    learnable_keys = list(manager._learnable_parameter_store.symbols.keys())
+
+    # price changes at [3, 7], so we expect: price_0_2, price_3_6, price_7_10
+    price_keys = [k for k in learnable_keys if k.startswith("price_")]
+    assert len(price_keys) == 3
+    assert "price_0_3" in price_keys
+    assert "price_4_7" in price_keys
+    assert "price_8_10" in price_keys
+
+    # Indicator should be created in non-learnable parameters
+    assert "indicator" in manager._non_learnable_parameter_store.symbols
+
+
+def test_add_parameter_interface_non_learnable():
+    """Test adding non-learnable parameters."""
+    manager = AcadosParameterManager([], N_horizon=5)
+    manager.add_parameter(
+        AcadosParameter(
+            name="non_learnable",
+            default=np.array([1.0]),
+            interface="non-learnable",
+        )
+    )
+
+    # Non-learnable should appear in non_learnable_parameter_store with original name
+    assert len(manager._non_learnable_parameter_store.symbols) == 1
+    assert "non_learnable" in manager._non_learnable_parameter_store.symbols

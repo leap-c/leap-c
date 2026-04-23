@@ -75,7 +75,7 @@ class AcadosPlanner(ParameterizedPlanner[CtxType], Generic[CtxType]):
         return self.param_manager.get_param_space()
 
     def default_param(self, obs: ndarray) -> ndarray:
-        default = self.param_manager.learnable_parameters_default.cat.full().flatten()  # type:ignore
+        default = self.param_manager.learnable_default_flat  # type:ignore
         if obs.ndim <= 1:
             return default
         return np.broadcast_to(default, (*obs.shape[:-1], default.size))
