@@ -266,10 +266,16 @@ def default_channels(
         )
     )
 
-    # Slack sequences for the two soft constraints (idxsh = [0, 2] in the OCP).
-    # Stage-major layout: ``sl`` has shape (N, 2). Pad stage 0 with NaN to align with the
+    # Slack sequences for the soft constraints. The OCP has:
+    #   - 1 soft state-box slack on n (idxsbx=[0])
+    #   - 5 soft h-slacks for [a_long, a_lat, n, D, delta] (idxsh=[0..4])
+    # Acados orders per-stage slacks as [sbx, sbu, sg, sh]; with only sbx and sh present that
+    # gives layout [sl_sbx_n, sl_a_long, sl_a_lat, sl_n_h, sl_D, sl_delta], ns=6 per stage.
+    # Stage-major layout: ``sl`` has shape (N, 6). Pad stage 0 with NaN to align with the
     # (N+1,)-long state-prediction sequences.
-    nsh = 2
+    ns_per_stage = 6
+    SLACK_A_LONG = 1
+    SLACK_N_H = 3
 
     def _sl_per_stage(constraint_idx: int):
         def _fn(obs, info, a, ctx, r):
@@ -278,7 +284,7 @@ def default_channels(
             sl = np.asarray(ctx.iterate.sl)
             sl = sl[0] if sl.ndim > 1 else sl
             try:
-                per_stage = sl.reshape(-1, nsh)[:, constraint_idx]
+                per_stage = sl.reshape(-1, ns_per_stage)[:, constraint_idx]
             except ValueError:
                 return None
             out = np.full(N + 1, np.nan)
@@ -288,9 +294,9 @@ def default_channels(
         return _fn
 
     channels.append(
-        Channel(name="sl_a_long", sequence=_sl_per_stage(0), ylabel="sl (a_long bound)")
+        Channel(name="sl_a_long", sequence=_sl_per_stage(SLACK_A_LONG), ylabel="sl (a_long bound)")
     )
-    channels.append(Channel(name="sl_n", sequence=_sl_per_stage(1), ylabel="sl (n bound)"))
+    channels.append(Channel(name="sl_n", sequence=_sl_per_stage(SLACK_N_H), ylabel="sl (n bound)"))
 
     if compute_sensitivities:
         from leap_c.ocp.acados.utils.prepare_solver import (  # noqa: WPS433

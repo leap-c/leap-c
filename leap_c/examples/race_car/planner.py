@@ -82,6 +82,7 @@ class RaceCarPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             create_race_car_params(
                 param_interface=self.cfg.param_interface,
                 N_horizon=self.cfg.N_horizon,
+                T_horizon=self.cfg.T_horizon,
             )
             if params is None
             else params

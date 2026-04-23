@@ -86,7 +86,9 @@ RaceCarCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 """``NONLINEAR_LS`` uses a Gauss-Newton Hessian; ``EXTERNAL`` uses the exact Hessian."""
 
 
-# Cost-weight defaults match the diag(Q), diag(R), diag(Qe) of the acados example.
+# Logical cost-weight values (Q, R, Qe) from the acados example. Scaled by unscale = N/Tf
+# at parameter-build time so the realized W = unscale * blkdiag(Q, R) and W_e = Qe / unscale
+# match upstream's `acados_settings_dev.py` (lines 88-89).
 _Q_DIAG_DEFAULT = np.array([1e-1, 1e-8, 1e-8, 1e-8, 1e-3, 5e-3])
 _R_DIAG_DEFAULT = np.array([1e-3, 5e-3])
 _QE_DIAG_DEFAULT = np.array([5e0, 1e1, 1e-8, 1e-8, 5e-3, 2e-3])
@@ -95,21 +97,28 @@ _QE_DIAG_DEFAULT = np.array([5e0, 1e1, 1e-8, 1e-8, 5e-3, 2e-3])
 def create_race_car_params(
     param_interface: RaceCarParamInterface,
     N_horizon: int = 50,
+    T_horizon: float = 1.0,
 ) -> list[AcadosParameter]:
     """Parameters of the race-car OCP.
 
     Learnable: ``q_diag_sqrt`` (6), ``r_diag_sqrt`` (2), ``q_e_diag_sqrt`` (6).
     Non-learnable: ``s_ref`` (scalar arc-length reference, written per stage at solve time).
 
-    Note: the acados example time-scales ``W = (N/Tf) * Q``. The defaults below are the
-    *per-discrete-step* weights and produce equivalent behaviour without the runtime rescaling.
+    The acados example time-scales the cost matrices: ``W = (N/Tf) * blkdiag(Q, R)`` and
+    ``W_e = Qe / (N/Tf)``. We bake that scaling into the parameter *defaults* so the realized
+    ``W`` and ``W_e`` match upstream without a symbolic rescaling layer.
     """
+    unscale = N_horizon / T_horizon
+    q_sqrt_default = np.sqrt(_Q_DIAG_DEFAULT * unscale)
+    r_sqrt_default = np.sqrt(_R_DIAG_DEFAULT * unscale)
+    q_e_sqrt_default = np.sqrt(_QE_DIAG_DEFAULT / unscale)
+
     end_stages_q = list(range(N_horizon + 1)) if param_interface == "stagewise" else []
     end_stages_r = list(range(N_horizon + 1)) if param_interface == "stagewise" else []
     return [
         AcadosParameter(
             "q_diag_sqrt",
-            default=np.sqrt(_Q_DIAG_DEFAULT),
+            default=q_sqrt_default,
             space=gym.spaces.Box(
                 low=1e-6 * np.ones(6),
                 high=1e3 * np.ones(6),
@@ -120,7 +129,7 @@ def create_race_car_params(
         ),
         AcadosParameter(
             "r_diag_sqrt",
-            default=np.sqrt(_R_DIAG_DEFAULT),
+            default=r_sqrt_default,
             space=gym.spaces.Box(
                 low=1e-6 * np.ones(2),
                 high=1e3 * np.ones(2),
@@ -131,7 +140,7 @@ def create_race_car_params(
         ),
         AcadosParameter(
             "q_e_diag_sqrt",
-            default=np.sqrt(_QE_DIAG_DEFAULT),
+            default=q_e_sqrt_default,
             space=gym.spaces.Box(
                 low=1e-6 * np.ones(6),
                 high=1e3 * np.ones(6),
@@ -186,6 +195,7 @@ def export_parametric_ocp(
         u=ocp.model.u,
         p=p,
         dt=dt,
+        num_substeps=3,
     )
 
     ######## Cost ########
@@ -234,7 +244,8 @@ def export_parametric_ocp(
     ocp.constraints.ubu = np.array([DTHROTTLE_MAX_DEFAULT, DDELTA_MAX_DEFAULT])
     ocp.constraints.idxbu = np.array([0, 1])
 
-    # Nonlinear path constraint h(x, u) = [a_long, a_lat, n, D, delta]; soft on a_long and n.
+    # Nonlinear path constraint h(x, u) = [a_long, a_lat, n, D, delta]; all five softened to
+    # match upstream `acados_settings_dev.py` (`idxsh = range(5)`).
     a_long, a_lat = define_a_long_a_lat_exprs(ocp.model.x, vehicle_params)
     ocp.model.con_h_expr = ca.vertcat(
         a_long,
@@ -249,19 +260,36 @@ def export_parametric_ocp(
     ocp.constraints.uh = np.array(
         [4.0, 4.0, N_MAX_DEFAULT, THROTTLE_MAX_DEFAULT, DELTA_MAX_DEFAULT]
     )
-    nsh = 2
+    nsh = 5
     ocp.constraints.lsh = np.zeros(nsh)
     ocp.constraints.ush = np.zeros(nsh)
-    ocp.constraints.idxsh = np.array([0, 2])  # softed: a_long, n  (matches acados example)
-    ocp.cost.zl = 100.0 * np.ones(nsh)
-    ocp.cost.zu = 100.0 * np.ones(nsh)
-    ocp.cost.Zl = np.zeros(nsh)
-    ocp.cost.Zu = np.zeros(nsh)
+    ocp.constraints.idxsh = np.arange(nsh)
+
+    # Soft state-box on n (lateral offset): upstream has a loose bound |n| <= 12 that only
+    # exists to give the slack variable a home (the tight bound |n| <= 0.12 is enforced via
+    # the h-constraint above). Matches upstream `idxsbx=[0]`, `lbx=[-12], ubx=[12]`.
+    ocp.constraints.idxbx = np.array([1])
+    ocp.constraints.lbx = np.array([-12.0])
+    ocp.constraints.ubx = np.array([12.0])
+    nsbx = 1
+    ocp.constraints.idxsbx = np.arange(nsbx)
+    ocp.constraints.lsbx = np.zeros(nsbx)
+    ocp.constraints.usbx = np.zeros(nsbx)
+
+    ns = nsh + nsbx
+    ocp.cost.zl = 100.0 * np.ones(ns)
+    ocp.cost.zu = 100.0 * np.ones(ns)
+    ocp.cost.Zl = np.ones(ns)
+    ocp.cost.Zu = np.ones(ns)
 
     ######## Solver options ########
     ocp.solver_options.integrator_type = "DISCRETE"
-    ocp.solver_options.nlp_solver_type = "SQP_RTI"
+    ocp.solver_options.nlp_solver_type = "SQP"
+    ocp.solver_options.nlp_solver_max_iter = 200
+    ocp.solver_options.tol = 1e-4
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    # qp_solver_ric_alg=1 is required by leap-c for solution sensitivities; upstream uses the
+    # default (0). The resulting ~1e-12/solve Riccati-factorization drift is accepted.
     ocp.solver_options.qp_solver_ric_alg = 1
 
     return ocp
