@@ -86,9 +86,9 @@ RaceCarCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 """``NONLINEAR_LS`` uses a Gauss-Newton Hessian; ``EXTERNAL`` uses the exact Hessian."""
 
 
-# Logical cost-weight values (Q, R, Qe) from the acados example. Scaled by unscale = N/Tf
+# Logical cost-weight values (Q, R, Qe) from the original acados example. Scaled by unscale = N/Tf
 # at parameter-build time so the realized W = unscale * blkdiag(Q, R) and W_e = Qe / unscale
-# match upstream's `acados_settings_dev.py` (lines 88-89).
+# match original example's `acados_settings_dev.py`
 _Q_DIAG_DEFAULT = np.array([1e-1, 1e-8, 1e-8, 1e-8, 1e-3, 5e-3])
 _R_DIAG_DEFAULT = np.array([1e-3, 5e-3])
 _QE_DIAG_DEFAULT = np.array([5e0, 1e1, 1e-8, 1e-8, 5e-3, 2e-3])
@@ -101,10 +101,7 @@ def create_race_car_params(
 ) -> list[AcadosParameter]:
     """Parameters of the race-car OCP.
 
-    Learnable: ``q_diag_sqrt`` (6), ``r_diag_sqrt`` (2), ``q_e_diag_sqrt`` (6).
-    Non-learnable: ``s_ref`` (scalar arc-length reference, written per stage at solve time).
-
-    The acados example time-scales the cost matrices: ``W = (N/Tf) * blkdiag(Q, R)`` and
+    The original acados example time-scales the cost matrices: ``W = (N/Tf) * blkdiag(Q, R)`` and
     ``W_e = Qe / (N/Tf)``. We bake that scaling into the parameter *defaults* so the realized
     ``W`` and ``W_e`` match upstream without a symbolic rescaling layer.
     """
@@ -120,8 +117,8 @@ def create_race_car_params(
             "q_diag_sqrt",
             default=q_sqrt_default,
             space=gym.spaces.Box(
-                low=1e-6 * np.ones(6),
-                high=1e3 * np.ones(6),
+                low=q_sqrt_default * 0.9,
+                high=q_sqrt_default * 1.1,
                 dtype=np.float64,
             ),
             interface="learnable",
@@ -131,8 +128,8 @@ def create_race_car_params(
             "r_diag_sqrt",
             default=r_sqrt_default,
             space=gym.spaces.Box(
-                low=1e-6 * np.ones(2),
-                high=1e3 * np.ones(2),
+                low=r_sqrt_default * 0.9,
+                high=r_sqrt_default * 1.1,
                 dtype=np.float64,
             ),
             interface="learnable",
@@ -142,8 +139,8 @@ def create_race_car_params(
             "q_e_diag_sqrt",
             default=q_e_sqrt_default,
             space=gym.spaces.Box(
-                low=1e-6 * np.ones(6),
-                high=1e3 * np.ones(6),
+                low=q_e_sqrt_default * 0.9,
+                high=q_e_sqrt_default * 1.1,
                 dtype=np.float64,
             ),
             interface="learnable",
@@ -235,7 +232,6 @@ def export_parametric_ocp(
         raise ValueError(f"Unknown cost_type {cost_type!r}; use 'NONLINEAR_LS' or 'EXTERNAL'.")
 
     ######## Constraints ########
-    # Initial state: x0 = [-2, 0, 0, 0, 0, 0] (matches acados main.py).
     ocp.constraints.x0 = np.array([-2.0, 0.0, 0.0, 0.0, 0.0, 0.0])
     ocp.constraints.idxbx_0 = np.arange(6)
 
@@ -244,8 +240,7 @@ def export_parametric_ocp(
     ocp.constraints.ubu = np.array([DTHROTTLE_MAX_DEFAULT, DDELTA_MAX_DEFAULT])
     ocp.constraints.idxbu = np.array([0, 1])
 
-    # Nonlinear path constraint h(x, u) = [a_long, a_lat, n, D, delta]; all five softened to
-    # match upstream `acados_settings_dev.py` (`idxsh = range(5)`).
+    # Nonlinear path constraint h(x, u) = [a_long, a_lat, n, D, delta]
     a_long, a_lat = define_a_long_a_lat_exprs(ocp.model.x, vehicle_params)
     ocp.model.con_h_expr = ca.vertcat(
         a_long,
@@ -255,10 +250,22 @@ def export_parametric_ocp(
         ocp.model.x[5],  # delta
     )
     ocp.constraints.lh = np.array(
-        [-4.0, -4.0, -N_MAX_DEFAULT, THROTTLE_MIN_DEFAULT, DELTA_MIN_DEFAULT]
+        [
+            -4.0,
+            -4.0,
+            -N_MAX_DEFAULT,
+            THROTTLE_MIN_DEFAULT,
+            DELTA_MIN_DEFAULT,
+        ]
     )
     ocp.constraints.uh = np.array(
-        [4.0, 4.0, N_MAX_DEFAULT, THROTTLE_MAX_DEFAULT, DELTA_MAX_DEFAULT]
+        [
+            4.0,
+            4.0,
+            N_MAX_DEFAULT,
+            THROTTLE_MAX_DEFAULT,
+            DELTA_MAX_DEFAULT,
+        ]
     )
     nsh = 5
     ocp.constraints.lsh = np.zeros(nsh)
@@ -288,19 +295,16 @@ def export_parametric_ocp(
     ocp.solver_options.nlp_solver_max_iter = 200
     ocp.solver_options.tol = 1e-4
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-    # qp_solver_ric_alg=1 is required by leap-c for solution sensitivities; upstream uses the
-    # default (0). The resulting ~1e-12/solve Riccati-factorization drift is accepted.
     ocp.solver_options.qp_solver_ric_alg = 1
+
+    # ocp.solver_options.regularize_method = "GERSHGORIN_LEVENBERG_MARQUARDT"
+    # ocp.solver_options.levenberg_marquardt = 1e-4
 
     return ocp
 
 
 if __name__ == "__main__":
     # Smoke test: build the OCP and confirm symbolic structure.
-    # NOTE: We do not instantiate AcadosOcpSolver directly here, because
-    # ocp.cost.W / ocp.cost.yref are symbolic (parameter-dependent). The leap_c flow
-    # (AcadosDiffMpcTorch -> create_solver) translates the NLS cost to EXTERNAL form
-    # before solver creation — the planner-level smoke test exercises that path.
     N = 50
     pm = AcadosParameterManager(
         parameters=create_race_car_params(param_interface="global", N_horizon=N),
