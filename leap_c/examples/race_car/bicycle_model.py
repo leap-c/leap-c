@@ -19,7 +19,7 @@ State / control:
     - D     : throttle / duty cycle [-]
     - delta : steering angle [rad]
 
-Default constants (match the acados example / Reiter et al. 2023):
+Default constants (match the acados example):
 
     | Name                    | Value | Units  | Meaning                                    |
     |-------------------------|-------|--------|--------------------------------------------|
@@ -33,7 +33,7 @@ Default constants (match the acados example / Reiter et al. 2023):
 
 ``VEHICLE_PARAMS_DEFAULT`` holds the bicycle-model mass, cornering factors (C1, C2),
 motor coefficients (Cm1, Cm2), and rolling resistance terms (Cr0, Cr2); values are
-taken from the acados / Reiter reference implementation.
+taken from the acados example implementation.
 
 References:
 ----------
