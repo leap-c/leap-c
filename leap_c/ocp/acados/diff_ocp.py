@@ -1,4 +1,4 @@
-import uuid
+import weakref
 from typing import Literal
 
 import casadi as ca
@@ -55,10 +55,11 @@ class AcadosDiffOcp(AcadosOcp):
         super().__init__(**kwargs)
         self.solver_options.N_horizon = N_horizon
         self.casadi_type = casadi_type
-        self.manager_id = str(uuid.uuid4())
-        type(self)._managers[self.manager_id] = AcadosParameterManager(
+        self.manager_id = id(self)
+        self._managers[self.manager_id] = AcadosParameterManager(
             parameters=[], N_horizon=self.solver_options.N_horizon, casadi_type=self.casadi_type
         )
+        weakref.finalize(self, self._managers.pop, self.manager_id, None)
         self.model = AcadosDiffModel(manager=self.parameter_manager)
 
     def register_param(
@@ -100,7 +101,7 @@ class AcadosDiffOcp(AcadosOcp):
     @property
     def parameter_manager(self) -> AcadosParameterManager:
         """Return the AcadosParameterManager for this OCP."""
-        return type(self)._managers[self.manager_id]
+        return self._managers[self.manager_id]
 
     @property
     def parameter_values(self):
