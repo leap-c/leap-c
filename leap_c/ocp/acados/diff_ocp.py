@@ -1,11 +1,42 @@
+import uuid
 from typing import Literal
 
 import casadi as ca
 import gymnasium as gym
 import numpy as np
-from acados_template import AcadosOcp
+from acados_template import AcadosModel, AcadosOcp
 
 from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
+
+
+class AcadosDiffModel(AcadosModel):
+    """An AcadosModel with built-in support for parameters registered via AcadosDiffOcp."""
+
+    def __init__(self, manager: AcadosParameterManager, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.manager = manager
+
+    @property
+    def p(self):
+        return self.manager.p
+
+    @p.setter
+    def p(self, _):
+        raise AttributeError(
+            "Directly setting p is not allowed. "
+            "Register parameters via AcadosDiffOcp.register_param() instead."
+        )
+
+    @property
+    def p_global(self):
+        return self.manager.p_global
+
+    @p_global.setter
+    def p_global(self, _):
+        raise AttributeError(
+            "Directly setting p_global is not allowed. "
+            "Use AcadosOcpSolver.set_p_global_and_precompute_dependencies() instead."
+        )
 
 
 class AcadosDiffOcp(AcadosOcp):
@@ -17,17 +48,18 @@ class AcadosDiffOcp(AcadosOcp):
 
     # NOTE: We use a class-level dict to store parameter managers because `AcadosOcp` gets
     # serialized into JSON, and `AcadosParameterManager` is not JSON-serializable. The dict
-    # is keyed by id(self) to allow multiple OCPs in the same process.
-    _managers: dict[int, AcadosParameterManager] = {}
+    # is keyed by a generated UUID to allow multiple OCPs in the same process.
+    _managers: dict[str, AcadosParameterManager] = {}
 
     def __init__(self, N_horizon: int, casadi_type: Literal["SX", "MX"] = "SX", **kwargs):
         super().__init__(**kwargs)
         self.solver_options.N_horizon = N_horizon
         self.casadi_type = casadi_type
-        type(self)._managers[id(self)] = AcadosParameterManager(
+        self.manager_id = str(uuid.uuid4())
+        type(self)._managers[self.manager_id] = AcadosParameterManager(
             parameters=[], N_horizon=self.solver_options.N_horizon, casadi_type=self.casadi_type
         )
-        self._finalized: bool = False
+        self.model = AcadosDiffModel(manager=self.parameter_manager)
 
     def register_param(
         self,
@@ -54,9 +86,6 @@ class AcadosDiffOcp(AcadosOcp):
         Returns:
             A CasADi SX (or MX) symbolic expression for immediate use in OCP formulation.
         """
-        if self._finalized:
-            raise RuntimeError("Cannot register params after finalize().")
-
         interface = "learnable" if differentiable else "non-learnable"
         param = AcadosParameter(
             name=name,
@@ -68,20 +97,29 @@ class AcadosDiffOcp(AcadosOcp):
         self.parameter_manager.add_parameter(param)
         return self.parameter_manager.get(name)
 
-    def finalize(self) -> None:
-        """Build the AcadosParameterManager and assign params to the OCP.
-
-        Called internally by AcadosDiffMpc — not by the user.
-        Idempotent — safe to call multiple times.
-        """
-        self.parameter_manager.assign_to_ocp(self)
-        self._finalized = True
-
     @property
     def parameter_manager(self) -> AcadosParameterManager:
         """Return the AcadosParameterManager for this OCP."""
-        return type(self)._managers[id(self)]
+        return type(self)._managers[self.manager_id]
 
-    def __del__(self):
-        """Clean up the parameter manager for this OCP."""
-        type(self)._managers.pop(id(self), None)
+    @property
+    def parameter_values(self):
+        return self.parameter_manager.non_learnable_default_flat
+
+    @parameter_values.setter
+    def parameter_values(self, _):
+        raise AttributeError(
+            "Directly setting parameter values is not allowed. "
+            "Register parameters via AcadosDiffOcp.register_param() instead."
+        )
+
+    @property
+    def p_global_values(self):
+        return self.parameter_manager.learnable_default_flat
+
+    @p_global_values.setter
+    def p_global_values(self, _):
+        raise AttributeError(
+            "Directly setting p_global_values is not allowed. "
+            "Use AcadosOcpSolver.set_p_global_and_precompute_dependencies() instead."
+        )

@@ -60,8 +60,6 @@ if __name__ == "__main__":
     ocp.model.cost_expr_ext_cost = (T - comfort_ref) ** 2 + price * q
     ocp.model.cost_expr_ext_cost_e = (T - comfort_ref) ** 2
 
-    ocp.finalize()
-
     ocp.constraints.x0 = np.array([20.0])
 
     ocp.solver_options.tf = N_HORIZON * dt

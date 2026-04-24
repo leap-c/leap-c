@@ -5,7 +5,9 @@ from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
 
 def test_register_parameter_returns_symbol():
     """Test that register_param returns a CasADi symbolic expression and registers parameters."""
-    diff_ocp = AcadosDiffOcp(N_horizon=5)
+    N_HORIZON = 5
+
+    diff_ocp = AcadosDiffOcp(N_horizon=N_HORIZON)
     non_learnable = diff_ocp.register_param(
         name="non_learnable",
         default=np.array([1.0, 2.0]),
@@ -19,6 +21,8 @@ def test_register_parameter_returns_symbol():
         non_learnable
         is diff_ocp.parameter_manager._non_learnable_parameter_store.symbols["non_learnable"]
     )
+    # test parameter_values being updated automatically with the new non-learnable parameter
+    assert np.allclose(diff_ocp.parameter_values, np.array([1.0, 2.0]))
 
     learnable = diff_ocp.register_param(
         name="learnable",
@@ -30,6 +34,8 @@ def test_register_parameter_returns_symbol():
     assert len(diff_ocp.parameter_manager._learnable_parameter_store.symbols) == 1
     assert "learnable" in diff_ocp.parameter_manager._learnable_parameter_store.symbols
     assert learnable is diff_ocp.parameter_manager._learnable_parameter_store.symbols["learnable"]
+    # test p_global_values being updated automatically with the new learnable parameter
+    assert np.allclose(diff_ocp.p_global_values, np.array([3.0, 4.0]))
 
     diff_ocp.register_param(
         name="learnable_stagewise",
@@ -46,42 +52,10 @@ def test_register_parameter_returns_symbol():
     assert (
         "learnable_stagewise_3_4" in diff_ocp.parameter_manager._learnable_parameter_store.symbols
     )
-
-
-def test_finalize_assigns_to_ocp():
-    """Test that finalize() assigns registered parameters to the OCP."""
-    diff_ocp = AcadosDiffOcp(N_horizon=5)
-    diff_ocp.register_param(
-        name="param1",
-        default=np.array([1.0]),
-        differentiable=False,
+    # test p_global_values being updated automatically with the new learnable parameters
+    assert np.allclose(
+        diff_ocp.p_global_values,
+        np.array([3.0, 4.0, 5.0, 6.0, 5.0, 6.0]),
     )
-    diff_ocp.register_param(
-        name="param2",
-        default=np.array([2.0]),
-        differentiable=True,
-    )
-
-    diff_ocp.finalize()
-
-    # Check non-learnable parameters are assigned to ocp.parameter_values
-    assert np.array_equal(diff_ocp.parameter_values, np.array([1.0]))
-
-    # Check learnable parameters are assigned to ocp.p_global_values
-    assert np.array_equal(diff_ocp.p_global_values, np.array([2.0]))
-
-
-def test_register_parameter_after_finalize_raises():
-    """Test that registering parameters after finalization raises an error."""
-    diff_ocp = AcadosDiffOcp(N_horizon=5)
-    diff_ocp.finalize()
-
-    try:
-        diff_ocp.register_param(
-            name="late_param",
-            default=np.array([0.0]),
-            differentiable=False,
-        )
-        assert False, "Expected RuntimeError when registering param after finalize()"
-    except RuntimeError as e:
-        assert str(e) == "Cannot register params after finalize()."
+    # test indicator being added to parameter_values automatically
+    assert diff_ocp.parameter_values.shape == (non_learnable.shape[0] + N_HORIZON + 1,)
