@@ -17,12 +17,23 @@ Two utilities:
 
 from __future__ import annotations
 
+import argparse
 from typing import Any
 
 from channels import ChannelLogger, default_channels, header_from
 
 from leap_c.examples.race_car.bicycle_model import VEHICLE_PARAMS_DEFAULT
-from leap_c.examples.race_car.env import RaceCarEnv, RaceCarEnvConfig
+from leap_c.examples.race_car.env import RaceCarEnv, RaceCarEnvConfig, RaceCarRewardConfig
+
+REWARD_MODES = ("progress", "lap_time", "hybrid")
+REWARD_WEIGHT_NAMES = (
+    "w_progress",
+    "w_time",
+    "w_bonus",
+    "w_violation",
+    "w_lateral",
+    "w_slip",
+)
 
 
 def _resolve_planner(trainer) -> Any:
@@ -122,10 +133,67 @@ def make_mismatched_env(
     cr0_scale: float = 1.30,
     cr2_scale: float = 1.30,
     max_steps: int = 4000,
+    reward: RaceCarRewardConfig | None = None,
 ) -> RaceCarEnv:
     """Build a ``RaceCarEnv`` whose plant uses perturbed vehicle params."""
     cfg = RaceCarEnvConfig(
         vehicle_params=make_mismatched_vehicle_params(cm1_scale, cr0_scale, cr2_scale),
         max_steps=max_steps,
+        reward=reward if reward is not None else RaceCarRewardConfig(),
     )
     return RaceCarEnv(render_mode=render_mode, cfg=cfg)
+
+
+def add_reward_cli(parser: argparse.ArgumentParser) -> None:
+    """Register ``--reward-mode`` plus one ``--reward-<weight>`` flag per term.
+
+    Paired with ``build_reward_from_args``. The mode flag picks a preset; the
+    per-weight flags default to ``None`` and override the preset when set,
+    so a single CLI can reproduce any wiki option or arbitrary mix.
+    """
+    group = parser.add_argument_group("reward")
+    group.add_argument(
+        "--reward-mode",
+        choices=REWARD_MODES,
+        default="progress",
+        help=(
+            "Preset for the step reward. 'progress' (default) is Option A "
+            "(arc-length ds); 'lap_time' is Option B; 'hybrid' is Option C. "
+            "Individual term weights can be overridden via --reward-<weight>."
+        ),
+    )
+    for name in REWARD_WEIGHT_NAMES:
+        flag = "--reward-" + name.replace("_", "-")
+        group.add_argument(
+            flag, type=float, default=None, help=f"Override {name} in the reward config."
+        )
+
+
+def build_reward_from_args(args: argparse.Namespace) -> RaceCarRewardConfig:
+    """Build a ``RaceCarRewardConfig`` from argparse results registered by ``add_reward_cli``.
+
+    Applies the ``--reward-mode`` preset first, then overrides individual weights
+    from any ``--reward-w-*`` flags that were explicitly set. ``lap_time`` /
+    ``hybrid`` read their preset scalars (``bonus``, ``c``, ``violation``) from
+    the corresponding weight overrides when provided.
+    """
+    mode = args.reward_mode
+    overrides = {name: getattr(args, f"reward_{name}") for name in REWARD_WEIGHT_NAMES}
+
+    if mode == "progress":
+        reward = RaceCarRewardConfig.progress()
+    elif mode == "lap_time":
+        bonus = overrides["w_bonus"] if overrides["w_bonus"] is not None else 100.0
+        reward = RaceCarRewardConfig.lap_time(bonus=bonus)
+    elif mode == "hybrid":
+        c = overrides["w_time"] if overrides["w_time"] is not None else 0.1
+        bonus = overrides["w_bonus"] if overrides["w_bonus"] is not None else 100.0
+        violation = overrides["w_violation"] if overrides["w_violation"] is not None else 50.0
+        reward = RaceCarRewardConfig.hybrid(c=c, bonus=bonus, violation=violation)
+    else:
+        raise ValueError(f"Unknown --reward-mode: {mode!r}")
+
+    for name, value in overrides.items():
+        if value is not None:
+            setattr(reward, name, value)
+    return reward

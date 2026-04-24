@@ -24,9 +24,15 @@ from pathlib import Path
 from typing import Literal
 
 import torch
-from sac_race_car_mixin import RaceCarValChannelsMixin, make_mismatched_env
+from sac_race_car_mixin import (
+    RaceCarValChannelsMixin,
+    add_reward_cli,
+    build_reward_from_args,
+    make_mismatched_env,
+)
 
 from leap_c.examples import ExampleControllerName, create_controller
+from leap_c.examples.race_car.env import RaceCarRewardConfig
 from leap_c.run import (
     default_controller_code_path,
     default_name,
@@ -56,6 +62,7 @@ class RunSacZopRaceCarConfig:
     cr0_scale: float = 1.30
     cr2_scale: float = 1.30
     max_steps: int = 4000
+    reward: RaceCarRewardConfig = field(default_factory=RaceCarRewardConfig)
 
 
 def create_cfg(
@@ -136,6 +143,7 @@ def run_sac_zop(
             cr0_scale=cfg.cr0_scale,
             cr2_scale=cfg.cr2_scale,
             max_steps=cfg.max_steps,
+            reward=cfg.reward,
         )
 
     val_env = _make_env(render_mode="rgb_array") if with_val else None
@@ -202,6 +210,8 @@ if __name__ == "__main__":
         help="Scale factor on Cr2 (quadratic drag) in the plant.",
     )
 
+    add_reward_cli(parser)
+
     g = parser.add_argument_group("W&B logging")
     g.add_argument("--use-wandb", action="store_true")
     g.add_argument("--wandb-entity", type=str, default=None)
@@ -222,6 +232,7 @@ if __name__ == "__main__":
     cfg.cr0_scale = args.mismatch_cr0
     cfg.cr2_scale = args.mismatch_cr2
     cfg.max_steps = args.max_steps
+    cfg.reward = build_reward_from_args(args)
 
     tags = ["sac_zop", "race_car", args.controller]
 

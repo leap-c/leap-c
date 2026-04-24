@@ -25,10 +25,11 @@ import numpy as np
 import torch
 from channels import ChannelLogger, default_channels, header_from
 from numpy import ndarray
+from sac_race_car_mixin import add_reward_cli, build_reward_from_args
 
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.examples import ExampleControllerName, create_controller
-from leap_c.examples.race_car.env import RaceCarEnv, RaceCarEnvConfig
+from leap_c.examples.race_car.env import RaceCarEnv, RaceCarEnvConfig, RaceCarRewardConfig
 from leap_c.run import (
     default_controller_code_path,
     default_name,
@@ -58,6 +59,7 @@ class RunBaselineConfig:
     controller: ExampleControllerName | None = None
     policy_type: Literal["controller", "random"] = "controller"
     trainer: BaselineTrainerConfig = field(default_factory=BaselineTrainerConfig)
+    reward: RaceCarRewardConfig = field(default_factory=RaceCarRewardConfig)
 
 
 class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
@@ -234,7 +236,7 @@ def run_baseline(
     if overwrite and Path(output_path).exists():
         shutil.rmtree(output_path)
 
-    env_cfg = RaceCarEnvConfig(max_steps=max_steps)
+    env_cfg = RaceCarEnvConfig(max_steps=max_steps, reward=cfg.reward)
     val_env = RaceCarEnv(cfg=env_cfg)
 
     controller = None
@@ -281,6 +283,8 @@ if __name__ == "__main__":
         help="Compute du_dp sensitivities at each validation step (slower; saves to NPZ).",
     )
 
+    add_reward_cli(parser)
+
     g = parser.add_argument_group("W&B logging")
     g.add_argument("--use-wandb", action="store_true")
     g.add_argument("--wandb-entity", type=str, default=None)
@@ -296,6 +300,7 @@ if __name__ == "__main__":
         param_ckpt=args.param_ckpt,
     )
     cfg.trainer.compute_sensitivities = args.compute_sensitivities
+    cfg.reward = build_reward_from_args(args)
 
     if args.use_wandb:
         config_dict = asdict(cfg)
