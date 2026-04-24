@@ -15,6 +15,9 @@ class AcadosDiffOcp(AcadosOcp):
     eagerly build indicator expressions for split parameters.
     """
 
+    # NOTE: We use a class-level dict to store parameter managers because `AcadosOcp` gets
+    # serialized into JSON, and `AcadosParameterManager` is not JSON-serializable. The dict
+    # is keyed by id(self) to allow multiple OCPs in the same process.
     _managers: dict[int, AcadosParameterManager] = {}
 
     def __init__(self, N_horizon: int, casadi_type: Literal["SX", "MX"] = "SX", **kwargs):
