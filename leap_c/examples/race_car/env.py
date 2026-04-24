@@ -49,6 +49,59 @@ from leap_c.ocp.acados.torch import AcadosDiffMpcCtx
 
 
 @dataclass(kw_only=True)
+class RaceCarRewardConfig:
+    """Per-term weights for the race-car step reward.
+
+    The reward is a weighted sum of six terms. All weights are non-negative; the
+    sign is built into each term. Setting a weight to ``0.0`` disables that term.
+
+    Dense (per-step):
+        ``w_progress``  -> ``+ (s_new - s_prev)``               (Option A: true arc-length)
+        ``w_time``      -> ``- dt``                             (explicit time cost)
+        ``w_lateral``   -> ``- n**2 * dt``                      (stay near centerline)
+        ``w_slip``      -> ``- (alpha + C1*delta)**2 * dt``     (discourage drift)
+
+    One-shot (terminal step):
+        ``w_bonus``     -> ``+ 1`` when the lap terminates successfully.
+        ``w_violation`` -> ``- 1`` when the episode truncates off-track.
+
+    NOTE: Every dense term scales linearly with ``dt``, rescale weights if ``dt`` changes
+
+    Factory methods reproduce the wiki's documented options:
+        ``.progress()``   -> Option A (default): ``ds`` per step.
+        ``.lap_time(K)``  -> Option B: ``-dt`` per step plus ``+K`` on lap complete.
+        ``.hybrid(c,K,Kv)`` -> Option C: ``ds - c*dt`` plus ``+K`` / ``-Kv`` terminals.
+    """
+
+    w_progress: float = 1.0
+    w_time: float = 0.0
+    w_bonus: float = 0.0
+    w_violation: float = 0.0
+    w_lateral: float = 0.0
+    w_slip: float = 0.0
+
+    @classmethod
+    def progress(cls) -> "RaceCarRewardConfig":
+        """Option A: reward is the actual arc-length progression per step."""
+        return cls()
+
+    @classmethod
+    def lap_time(cls, bonus: float = 100.0) -> "RaceCarRewardConfig":
+        """Option B: sparse lap-time reward (``-dt`` + ``+bonus`` on lap complete)."""
+        return cls(w_progress=0.0, w_time=1.0, w_bonus=bonus)
+
+    @classmethod
+    def hybrid(
+        cls,
+        c: float = 0.1,
+        bonus: float = 100.0,
+        violation: float = 50.0,
+    ) -> "RaceCarRewardConfig":
+        """Option C: ``ds - c*dt`` plus terminal bonus and off-track penalty."""
+        return cls(w_time=c, w_bonus=bonus, w_violation=violation)
+
+
+@dataclass(kw_only=True)
 class RaceCarEnvConfig:
     """Configuration for the race-car environment.
 
@@ -69,6 +122,8 @@ class RaceCarEnvConfig:
         dthrottle_min, dthrottle_max: Action bounds on ``derD`` (throttle rate) [1/s].
         ddelta_min, ddelta_max: Action bounds on ``derDelta`` (steering rate) [rad/s].
         max_steps: Truncation step budget per episode.
+        reward: ``RaceCarRewardConfig`` selecting per-term weights for the step reward.
+            Defaults to Option A (arc-length progression).
     """
 
     track_file: Path = field(default_factory=lambda: DEFAULT_TRACK_FILE)
@@ -88,6 +143,7 @@ class RaceCarEnvConfig:
     ddelta_min: float = DDELTA_MIN_DEFAULT
     ddelta_max: float = DDELTA_MAX_DEFAULT
     max_steps: int = 4000
+    reward: RaceCarRewardConfig = field(default_factory=RaceCarRewardConfig)
 
 
 class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
@@ -137,9 +193,11 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
 
     Reward:
     -------
-    ``reward = v * dt`` - distance travelled along the track tangent per step.
-    Maximising episode return is equivalent to driving as fast as possible along the
-    track while staying inside the corridor.
+    The reward is a weighted sum over ``cfg.reward`` (see ``RaceCarRewardConfig``).
+    Default (``progress``) is the arc-length progression ``s_new - s_prev`` per step.
+    Other presets: ``lap_time`` (sparse Option B), ``hybrid`` (dense Option C with
+    terminal bonus and off-track penalty).
+    Individual term weights can be mixed freely for ablation sweeps.
 
     Terminates:
     -----------
@@ -189,6 +247,7 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
 
         self._sref, self._xref, self._yref, self._psiref, _ = get_track(self.cfg.track_file)
         self._pathlength = float(self._sref[-1])
+        self._c1 = float(self.cfg.vehicle_params["C1"])
 
         f_numpy = f_explicit_numpy_factory(self.cfg.track_file, self.cfg.vehicle_params)
 
@@ -252,6 +311,7 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
             self.action_space.high,
         )
 
+        s_prev = float(self.x[0])
         self.x = self.integrator(self.x, action, self.cfg.dt)
         # Saturate D and delta to mirror the OCP's hard box constraints on those states.
         self.x[4] = float(np.clip(self.x[4], self.cfg.throttle_min, self.cfg.throttle_max))
@@ -259,13 +319,26 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
         self.x_trajectory.append(self.x.copy())
         self._step += 1
 
-        s, n, _, v, _, _ = self.x
-
-        reward = float(v * self.cfg.dt)
+        s, n, alpha, _, _, delta = self.x
+        dt = self.cfg.dt
 
         terminated = bool(s > self._pathlength)
         off_track = bool(abs(n) > self.cfg.n_max + self.cfg.n_violation_margin)
         truncated = bool(off_track or self._step >= self.cfg.max_steps)
+
+        rw = self.cfg.reward
+        slip = alpha + self._c1 * delta
+        reward = (
+            rw.w_progress * (s - s_prev)
+            - rw.w_time * dt
+            - rw.w_lateral * (n * n * dt)
+            - rw.w_slip * (slip * slip * dt)
+        )
+        if terminated:
+            reward += rw.w_bonus
+        if off_track:
+            reward -= rw.w_violation
+        reward = float(reward)
 
         info: dict[str, Any] = {
             "task": {
@@ -277,7 +350,6 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
         self._reset_needed = terminated or truncated
         return self.x.copy(), reward, terminated, truncated, info
 
-    # ---------------------------------------------------------------- rendering ---
     def _render_setup(self) -> None:
         import matplotlib.pyplot as plt
 
@@ -341,7 +413,7 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
                 alpha=0.7,
             )
 
-        # Velocity-colored trajectory scatter (replaces the earlier blue line);
+        # Velocity-colored trajectory scatter
         # vmin/vmax are fixed so the colorbar doesn't jump between video frames.
         self._traj_scatter = self._ax.scatter(
             [],
