@@ -65,9 +65,9 @@ def _materialize_linear_ls_cost(ocp, pm: AcadosParameterManager) -> None:
     ``AcadosDiffMpcTorch`` indirection). ``yref`` / ``yref_e`` become numerical placeholders
     that will be overwritten per-stage in the closed-loop via ``solver.set(j, "yref", ...)``.
     """
-    q_sqrt = np.asarray(pm.learnable_parameters_default["q_diag_sqrt"]).flatten()
-    r_sqrt = np.asarray(pm.learnable_parameters_default["r_diag_sqrt"]).flatten()
-    q_e_sqrt = np.asarray(pm.learnable_parameters_default["q_e_diag_sqrt"]).flatten()
+    q_sqrt = pm.parameters["q_diag_sqrt"].default.flatten()
+    r_sqrt = pm.parameters["r_diag_sqrt"].default.flatten()
+    q_e_sqrt = pm.parameters["q_e_diag_sqrt"].default.flatten()
 
     nx = 6
     nu = 2

@@ -182,15 +182,11 @@ def export_parametric_ocp(
     kapparef_s, _pathlength = build_curvature_spline(track_file)
     f_expl = define_f_expl_expr(ocp.model.x, ocp.model.u, kapparef_s, vehicle_params)
 
-    p = ca.vertcat(
-        param_manager.non_learnable_parameters.cat,
-        param_manager.learnable_parameters.cat,
-    )
     ocp.model.disc_dyn_expr = integrate_erk4(
         f_expl=f_expl,
         x=ocp.model.x,
         u=ocp.model.u,
-        p=p,
+        p=param_manager.p_full,
         dt=dt,
         num_substeps=3,
     )
