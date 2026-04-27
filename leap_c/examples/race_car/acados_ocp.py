@@ -297,9 +297,6 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
 
-    # ocp.solver_options.regularize_method = "GERSHGORIN_LEVENBERG_MARQUARDT"
-    # ocp.solver_options.levenberg_marquardt = 1e-4
-
     return ocp
 
 

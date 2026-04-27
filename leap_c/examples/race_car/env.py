@@ -105,7 +105,7 @@ class RaceCarRewardConfig:
 class RaceCarEnvConfig:
     """Configuration for the race-car environment.
 
-    Bounds mirror the acados example and Reiter et al. (2023). ``init_state = [-2, 0, 0, 0, 0, 0]``
+    Bounds mirror the acados example. ``init_state = [-2, 0, 0, 0, 0, 0]``
     starts the car 2 m before the start line; the curvature spline is extended backwards to keep
     this region well-defined.
 
@@ -313,7 +313,7 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
 
         s_prev = float(self.x[0])
         self.x = self.integrator(self.x, action, self.cfg.dt)
-        # Saturate D and delta to mirror the OCP's hard box constraints on those states.
+        # Saturate throttle D and steering angle delta
         self.x[4] = float(np.clip(self.x[4], self.cfg.throttle_min, self.cfg.throttle_max))
         self.x[5] = float(np.clip(self.x[5], self.cfg.delta_min, self.cfg.delta_max))
         self.x_trajectory.append(self.x.copy())

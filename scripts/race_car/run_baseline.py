@@ -15,7 +15,7 @@ Example:
 from __future__ import annotations
 
 import shutil
-from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
+from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser, BooleanOptionalAction
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Generator, Literal
@@ -25,6 +25,8 @@ import numpy as np
 import torch
 from channels import ChannelLogger, default_channels, header_from
 from numpy import ndarray
+from render_baseline import load as load_channel_log
+from render_baseline import render as render_channel_log
 
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.examples import ExampleControllerName, create_controller
@@ -280,6 +282,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Compute du_dp sensitivities at each validation step (slower; saves to NPZ).",
     )
+    g.add_argument(
+        "--render",
+        action=BooleanOptionalAction,
+        default=True,
+        help="After the run completes, render the validation channel log to <output_path>/lap.gif.",
+    )
 
     g = parser.add_argument_group("W&B logging")
     g.add_argument("--use-wandb", action="store_true")
@@ -333,3 +341,11 @@ if __name__ == "__main__":
         args.overwrite,
         max_steps=args.max_steps,
     )
+
+    if args.render:
+        run_dir = Path(output_path)
+        arrays, metadata = load_channel_log(run_dir)
+        # Match render_baseline.main(): scale delta_t_s so render() produces
+        # an x-axis in seconds (it divides by 3600 internally).
+        metadata["header"]["delta_t_s"] = float(metadata["header"]["delta_t_s"]) * 3600.0
+        render_channel_log(arrays, metadata, save_path=run_dir / "lap.gif")
