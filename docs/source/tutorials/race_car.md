@@ -906,14 +906,22 @@ if RUN_SMOKE:
 
 ## 12. Running the full experiment
 
-For publication-quality runs use the shell launchers:
+For publication-quality runs invoke the Python entry points directly:
 
 ```bash
 # SAC-ZOP, 500 k steps, plant/model mismatch, validation enabled
-bash scripts/race_car/run_sac_zop.sh
+python scripts/race_car/run_sac_zop.py \
+    --seed 0 --controller race_car \
+    --output-path output/race_car_sac_zop_race_car_seed0 \
+    --with-val --reuse-code \
+    --device cpu --dtype float32
 
-# SAC-FOP, same settings, variant selected in the script
-bash scripts/race_car/run_sac_fop.sh
+# SAC-FOP, same settings; variant selected via --variant {fop|fopc|foa}
+python scripts/race_car/run_sac_fop.py \
+    --seed 0 --controller race_car --variant fop \
+    --output-path output/race_car_sac_fop_race_car_seed0 \
+    --with-val --reuse-code \
+    --device cpu --dtype float32
 ```
 
 Each run writes to `output/<run>/`:

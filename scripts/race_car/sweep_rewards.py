@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Fan out race-car SAC training across algorithms, reward configs, and seeds.
 
-Each job invokes the existing shell launcher (``run_sac_fop.sh`` or
-``run_sac_zop.sh``) in its own subprocess with a distinct ``OUT`` directory and
+Each job invokes the matching Python runner (``run_sac_fop.py`` or
+``run_sac_zop.py``) in its own subprocess with a distinct ``OUT`` directory and
 the chosen reward CLI flags appended. Runs are launched concurrently up to
 ``--max-parallel`` at a time; a manifest of the full sweep is written to
 ``<sweep-root>/manifest.json``.
@@ -59,9 +59,9 @@ REWARD_CONFIGS: dict[str, list[str]] = {
     ],
 }
 
-# Python runners for each algorithm. We call them directly and inline the
-# flags that run_sac_{fop,zop}.sh used to add (--with-val, --reuse-code, plus
-# the --seed / --controller / --output-path / --device / --dtype plumbing).
+# Python runners for each algorithm. We inline the standard flags
+# (--with-val, --reuse-code, --seed, --controller, --output-path, --device,
+# --dtype) below in build_jobs.
 RUNNERS = {
     "fop": SCRIPT_DIR / "run_sac_fop.py",
     "zop": SCRIPT_DIR / "run_sac_zop.py",
