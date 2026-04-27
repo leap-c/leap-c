@@ -132,10 +132,7 @@ def export_parametric_ocp(
     ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
     ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
 
-    p = ca.vertcat(
-        param_manager.non_learnable_parameters.cat,
-        param_manager.learnable_parameters.cat,
-    )  # type:ignore
+    p = param_manager.p_full  # type:ignore
     f_expl = define_f_expl_expr(ocp.model, param_manager)
     ocp.model.disc_dyn_expr = integrate_erk4(
         f_expl=f_expl,

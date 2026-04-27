@@ -46,4 +46,4 @@ myst_enable_extensions = [
     "colon_fence",
 ]
 
-html_theme = "sphinx_rtd_theme"
+html_theme = "furo"

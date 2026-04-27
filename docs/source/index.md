@@ -34,5 +34,6 @@ Home<self>
 installation
 getting_started/index
 tutorials/index
+tutorials/parameter_manager
 troubleshooting
 ```

@@ -59,6 +59,8 @@ docs = [
 tutorial = [
   "jupytext>=1.16.0",
   "jupyterlab>=4.0.0"
+  "furo==2024.8.6",
+  "myst-parser==4.0.1"
 ]
 hvac = [
   "pandas==2.3.0",
