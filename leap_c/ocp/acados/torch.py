@@ -13,6 +13,7 @@ from leap_c.ocp.acados.diff_mpc import (
     AcadosDiffMpcFunction,
     AcadosDiffMpcSensitivityOptions,
 )
+from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 
 
@@ -34,7 +35,7 @@ class AcadosDiffMpcTorch(torch.nn.Module):
 
     def __init__(
         self,
-        ocp: AcadosOcp,
+        ocp: AcadosOcp | AcadosDiffOcp,
         initializer: AcadosDiffMpcInitializer | None = None,
         sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,

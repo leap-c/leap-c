@@ -15,6 +15,7 @@ from leap_c.ocp.acados.data import (
     collate_acados_flattened_batch_iterate_fn,
     collate_acados_ocp_solver_input,
 )
+from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
 from leap_c.ocp.acados.initializer import (
     AcadosDiffMpcInitializer,
     ZeroDiffMpcInitializer,
@@ -122,7 +123,7 @@ class AcadosDiffMpcFunction(DiffFunction):
 
     def __init__(
         self,
-        ocp: AcadosOcp,
+        ocp: AcadosOcp | AcadosDiffOcp,
         initializer: AcadosDiffMpcInitializer | None = None,
         sensitivity_ocp: AcadosOcp | None = None,
         discount_factor: float | None = None,
@@ -213,6 +214,13 @@ class AcadosDiffMpcFunction(DiffFunction):
             - sol_value: The objective value solution, shape `(B, 1)`.
         """
         batch_size = x0.shape[0]
+
+        if isinstance(self.ocp, AcadosDiffOcp):
+            p_stagewise = (
+                self.ocp.parameter_manager.combine_non_learnable_parameter_values(batch_size)
+                if p_stagewise is None
+                else p_stagewise
+            )
 
         solver_input = AcadosOcpSolverInput(x0, u0, p_global, p_stagewise, p_stagewise_sparse_idx)
         ocp_iterate = None if ctx is None else ctx.iterate
