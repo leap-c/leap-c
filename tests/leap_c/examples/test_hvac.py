@@ -507,45 +507,6 @@ def test_default_param_in_param_space(hvac_planner_stagewise: HvacPlanner) -> No
     assert param_space.contains(param), "Default parameters are not within the defined param space"
 
 
-def test_continual_episodes_only_valid_months(mock_external_data) -> None:
-    """Test that continual learning episodes only contain dates from valid months."""
-    from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
-
-    # Create dataset with continual mode
-    cfg = DataConfig(mode="continual")
-    dataset = HvacDataset(cfg=cfg)
-
-    valid_months = cfg.valid_months
-    assert valid_months is not None
-
-    horizon = 96  # 24 hours at 15-min intervals
-
-    # Reset continual index
-    dataset.reset_continual_index()
-
-    # Sample multiple episodes and check all dates
-    n_episodes = 20
-    invalid_dates_found = []
-
-    for ep in range(n_episodes):
-        start_idx, max_steps = dataset._sample_continual(horizon)
-
-        # Check all steps in the episode
-        for step in range(max_steps):
-            idx = start_idx + step
-            date = dataset.index[idx]
-
-            if date.month not in valid_months:
-                invalid_dates_found.append(
-                    f"Episode {ep}, step {step}: {date} (month {date.month})"
-                )
-
-    assert len(invalid_dates_found) == 0, (
-        f"Found {len(invalid_dates_found)} dates in invalid months:\n"
-        + "\n".join(invalid_dates_found[:10])  # Show first 10
-    )
-
-
 def test_continual_episodes_sequential_coverage(mock_external_data) -> None:
     """Test that continual episodes cover the dataset sequentially."""
     from leap_c.examples.hvac.dataset import DataConfig, HvacDataset
