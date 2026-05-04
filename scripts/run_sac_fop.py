@@ -39,9 +39,9 @@ class RunSacFopConfig:
 
 def create_cfg(
     env: ExampleEnvName,
-    controller: ExampleControllerName,
+    controller: ExampleControllerName | None,
     seed: int,
-    variant: str = "fop",
+    variant: Literal["fop", "fopc", "foa"] = "fop",
     ckpt_modus: Literal["best", "last", "all", "none"] = "last",
 ) -> RunSacFopConfig:
     # ---- Configuration ----
@@ -199,6 +199,15 @@ if __name__ == "__main__":
         choices=get_args(ExampleControllerName),
         default=None,
         help="MPC controller to use as actor. If not provided, it is taken from `--env`.",
+    )
+    group.add_argument(
+        "--variant",
+        type=str,
+        choices=("fop", "fopc", "foa"),
+        default="fop",
+        help="Variant of SAC-FOP to run. 'fop' is the standard version with parameter noise and no "
+        "entropy correction, 'fopc' includes entropy correction, and 'foa' uses action noise "
+        "instead of parameter noise.",
     )
     group.add_argument("--with-val", action="store_true", help="Enables validation environment.")
     group.add_argument(

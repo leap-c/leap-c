@@ -1,9 +1,11 @@
-from typing import Callable
+from typing import Any, Callable, TypeAlias
 
 import casadi as ca
 import numpy as np
 from casadi import vertcat
 from casadi.tools import entry, struct_symSX
+
+FexplType: TypeAlias = Callable[[struct_symSX, ca.SX, dict[str, ca.SX], ca.SX], ca.SX]
 
 
 def _define_param_struct(n_mass: int) -> struct_symSX:
@@ -20,7 +22,9 @@ def _define_param_struct(n_mass: int) -> struct_symSX:
     )
 
 
-def _define_nlp_solver(n_mass: int, f_expl: Callable):
+def _define_nlp_solver(
+    n_mass: int, f_expl: FexplType
+) -> tuple[ca.Function, struct_symSX, struct_symSX]:
     x = struct_symSX(
         [
             entry("pos", shape=(3, 1), repeat=n_mass - 1),
@@ -62,14 +66,14 @@ class RestingChainSolver:
     def __init__(
         self,
         n_mass: int,
-        f_expl: Callable,
+        f_expl: FexplType,
         fix_point: np.ndarray,
         m: np.ndarray,
         D: np.ndarray,
         C: np.ndarray,
         L: np.ndarray,
-        **kw,
-    ):
+        **_: Any,
+    ) -> None:
         self.n_mass = n_mass
         self.f_expl = f_expl
         self.nlp_solver, x0, p0 = _define_nlp_solver(n_mass=n_mass, f_expl=f_expl)

@@ -112,11 +112,10 @@ def prepare_batch_solver_for_backward(
 def _is_param_legal(model_p: Any) -> bool:
     if model_p is None:
         return False
-    elif isinstance(model_p, ca.SX):
+    if isinstance(model_p, ca.SX):
         return 0 not in model_p.shape
-    elif isinstance(model_p, np.ndarray):
+    if isinstance(model_p, np.ndarray):
         return model_p.size != 0
-    elif isinstance(model_p, list) or isinstance(model_p, tuple):
+    if isinstance(model_p, (list, tuple)):
         return len(model_p) != 0
-    else:
-        raise ValueError(f"Unknown case for `model_p`, type is `{type(model_p)}`")
+    raise ValueError(f"Unknown case for `model_p`, type is `{type(model_p)}`")

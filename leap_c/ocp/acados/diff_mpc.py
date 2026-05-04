@@ -78,8 +78,7 @@ class AcadosDiffMpcCtx:
 
 
 def collate_acados_diff_mpc_ctx(
-    batch: Sequence[AcadosDiffMpcCtx],
-    collate_fn_map: dict[str, Callable] | None = None,
+    batch: Sequence[AcadosDiffMpcCtx], collate_fn_map: dict[str, Callable] | None = None
 ) -> AcadosDiffMpcCtx:
     """Collates a batch of AcadosDiffMpcCtx objects into a single object."""
     return AcadosDiffMpcCtx(
@@ -311,8 +310,8 @@ class AcadosDiffMpcFunction(DiffFunction):
             ValueError: If `field_name` is not recognized.
         """
         # check if already calculated
-        if getattr(ctx, field_name) is not None:
-            return getattr(ctx, field_name)
+        if (attr := getattr(ctx, field_name)) is not None:
+            return attr
 
         prepare_batch_solver_for_backward(self.backward_batch_solver, ctx.iterate, ctx.solver_input)
 

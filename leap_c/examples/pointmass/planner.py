@@ -66,7 +66,7 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         cfg: PointMassControllerConfig | None = None,
         params: list[AcadosParameter] | None = None,
         export_directory: Path | None = None,
-    ):
+    ) -> None:
         """Initializes the PointMassController.
 
         Args:
@@ -109,7 +109,11 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
 
     def forward(
-        self, obs, action=None, param=None, ctx=None
+        self,
+        obs: torch.Tensor,
+        action: torch.Tensor | None = None,
+        param: torch.Tensor | None = None,
+        ctx: AcadosDiffMpcCtx | None = None,
     ) -> tuple[Any, torch.Tensor, torch.Tensor, torch.Tensor | None]:
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
             batch_size=obs.shape[0]

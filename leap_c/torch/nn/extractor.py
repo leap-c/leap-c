@@ -130,9 +130,7 @@ class HvacExtractor(Extractor):
     """
 
     def __init__(
-        self,
-        observation_space: gym.spaces.Dict,
-        cfg: HvacExtractorConfig | None = None,
+        self, observation_space: gym.spaces.Dict, cfg: HvacExtractorConfig | None = None
     ) -> None:
         """Initializes the HVAC extractor.
 
@@ -299,15 +297,25 @@ class HvacExtractor(Extractor):
         return self._output_size
 
 
-EXTRACTOR_REGISTRY = {
+EXTRACTOR_REGISTRY: dict[ExtractorName, type[Extractor]] = {
     "identity": IdentityExtractor,
     "scaling": ScalingExtractor,
     "hvac": HvacExtractor,
 }
 
 
-def get_extractor_cls(name: ExtractorName):
-    try:
-        return EXTRACTOR_REGISTRY[name]
-    except KeyError:
-        raise ValueError(f"Unknown extractor type: {name}")
+def get_extractor_cls(name: ExtractorName) -> type[Extractor]:
+    """Get the extract class corresponding to the given name.
+
+    Args:
+        name ({"identity", "scaling", "hvac"}): The name of the extractor.
+
+    Returns:
+        type[Extractor]: The class of the requested extractor.
+
+    Raises:
+        ValueError: If the name is not recognized.
+    """
+    if name not in EXTRACTOR_REGISTRY:
+        raise ValueError(f"Unknown extractor type: `{name}`")
+    return EXTRACTOR_REGISTRY[name]

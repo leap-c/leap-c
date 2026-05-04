@@ -227,7 +227,7 @@ class Logger:
         if cfg.wandb_logger:
             import wandb
 
-            if not cfg.wandb_init_kwargs.get("dir", False):  # type:ignore
+            if not cfg.wandb_init_kwargs.get("dir"):  # type:ignore
                 cfg.wandb_init_kwargs["dir"] = str(self.output_path)
             wandb.init(**cfg.wandb_init_kwargs)
             self._wandb_defined_metrics: dict[str, bool] = {}
@@ -312,7 +312,7 @@ class Logger:
             or (cfg.csv_logger and not hasattr(self, "_csv_files_and_writers"))
         ):
             raise RuntimeError(
-                "Logger waws not started before calling it. Must be initialized with `__enter__`, "
+                "Logger was not started before calling it. Must be initialized with `__enter__`, "
                 "e.g., via `with Logger(...) as logger:`."
             )
 
