@@ -33,6 +33,7 @@ Documentation latest build: |today|
 Home<self>
 installation
 getting_started/index
+tutorials/index
 tutorials/parameter_manager
 troubleshooting
 ```

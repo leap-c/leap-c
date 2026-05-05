@@ -14,6 +14,7 @@ def solve_with_retry(
     initializer: AcadosDiffMpcInitializer,
     ocp_iterate: AcadosOcpFlattenedBatchIterate | None,
     solver_input: AcadosOcpSolverInput,
+    stat_fields: list[str] | None = None,
 ) -> tuple[np.ndarray, dict[str, float]]:
     """Solve a batch of problem instances, and retry in case of failure.
 
@@ -26,10 +27,14 @@ def solve_with_retry(
         initializer: The initializer used for retries.
         ocp_iterate: The iterate to load into the batch solver.
         solver_input: Input data for the solver, which includes initial conditions and parameters.
+        stat_fields: Optional list of acados stat field names to collect from each solver instance
+            (e.g. ``["time_tot"]``). Each field is averaged across the batch and stored in the
+            returned stats dict under its original name.
 
     Returns:
         The status of each solver (`status != 0` means failure) and statistics of the solving
-        process, i.e., `"solving_time"`, `"success_rate"`, and `"retry_rate"`.
+        process, i.e., `"solving_time"`, `"success_rate"`, and `"retry_rate"`, plus any fields
+        requested via `stat_fields`.
     """
     batch_size = solver_input.batch_size
 
@@ -61,10 +66,22 @@ def solve_with_retry(
 
     batch_status_retry = batch_solver.status
 
-    stats = {
+    stats: dict[str, float] = {
         "solving_time": time_solve,
         "success_rate": (batch_status_retry == 0).mean(),
         "retry_rate": (batch_status != 0).mean(),
     }
+
+    if stat_fields:
+        active_solvers = batch_solver.ocp_solvers[:batch_size]
+        for field in stat_fields:
+            values = []
+            for solver in active_solvers:
+                try:
+                    values.append(solver.get_stats(field))
+                except Exception:
+                    pass
+            if values:
+                stats[field] = float(np.mean(values))
 
     return batch_status_retry, stats

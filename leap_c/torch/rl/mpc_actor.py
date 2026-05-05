@@ -6,6 +6,7 @@ from typing import Any, Generic, Literal, NamedTuple, Self
 
 import gymnasium as gym
 import gymnasium.spaces as spaces
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -36,7 +37,7 @@ class StochasticMPCActorOutput(NamedTuple):
     log_prob: torch.Tensor
     stats: dict[str, float]
     action: torch.Tensor | None = None
-    status: torch.Tensor | None = None
+    status: np.ndarray | None = None
     ctx: CtxType | None = None
 
     def __post_init__(self) -> None:

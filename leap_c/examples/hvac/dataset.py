@@ -108,6 +108,27 @@ class HvacDataset:
         self._time = self.data["time"].to_numpy(dtype="datetime64[m]")
         self._month = self.data.index.month.to_numpy()
 
+        # Generic column store for arbitrary named-column access.
+        # Pre-populated with open-meteo labels (kept alongside hvac aliases) and
+        # index-derived time columns useful to other environments.
+        self._arrays: dict[str, np.ndarray] = {}
+        # Float columns are stored as float32 so environment hot-paths never
+        # need an additional astype/cast when reading them.
+        for _col in [
+            "temperature_2m",
+            "apparent_temperature",
+            "shortwave_radiation",
+            "direct_normal_irradiance",
+            "diffuse_radiation",
+            "price",
+            "quarter_hour",
+        ]:
+            if _col in self.data.columns:
+                self._arrays[_col] = self.data[_col].to_numpy(dtype=np.float32)
+        # Integer time columns – keep as int64 for compatibility with obs spaces.
+        self._arrays["day_of_year"] = (self.data.index.dayofyear - 1).to_numpy()
+        self._arrays["day_of_week"] = self.data.index.dayofweek.to_numpy()
+
         # Continual mode: track current position in dataset
         self._continual_idx: int = 0
 
@@ -218,6 +239,63 @@ class HvacDataset:
             Array of quarter hour values.
         """
         return self._quarter_hour[idx : idx + horizon]
+
+    def add_columns(self, columns: dict[str, "np.ndarray | pd.Series"]) -> None:
+        """Add columns to the dataset and register them for fast indexed access.
+
+        Updates ``self.data``, ``self._arrays``, ``self.min``, and ``self.max``.
+
+        Args:
+            columns: Mapping of column name to values (array or Series).
+        """
+        for key, values in columns.items():
+            arr = np.asarray(values)
+            self.data[key] = arr
+            self._arrays[key] = arr
+            self.min[key] = float(arr.min())
+            self.max[key] = float(arr.max())
+
+    def get_column(self, key: str, idx: int, horizon: int = 1) -> np.ndarray:
+        """Get values from a named column.
+
+        Args:
+            key: Column name (must have been pre-built or added via ``add_columns``).
+            idx: Starting index.
+            horizon: Number of steps to retrieve.
+
+        Returns:
+            Scalar element when ``horizon=1``, array of shape ``(horizon,)`` otherwise.
+        """
+        if horizon == 1:
+            return self._arrays[key][idx]
+        return self._arrays[key][idx : idx + horizon]
+
+    def get_column_view(self, key: str, idx: int, horizon: int = 1) -> np.ndarray:
+        """Return a zero-copy view of ``horizon`` elements starting at ``idx``.
+
+        Raises ``IndexError`` if the window extends beyond the array rather than
+        silently truncating.  Use this in observation-building hot-paths; the
+        underlying arrays are pre-cast at build time so no dtype conversion is
+        needed here.
+
+        Args:
+            key: Column name.
+            idx: Starting element index.
+            horizon: Number of elements to return (default 1).
+
+        Returns:
+            A view of shape ``(horizon,)`` into the underlying array.
+
+        Raises:
+            IndexError: If ``idx + horizon`` exceeds the array length.
+        """
+        arr = self._arrays[key]
+        end = idx + horizon
+        if end > len(arr):
+            raise IndexError(
+                f"Requested window [{idx}, {end}) exceeds '{key}' array length {len(arr)}."
+            )
+        return arr[idx:end]
 
     def is_valid_index(self, idx: int, horizon: int = 1) -> bool:
         """Check if index allows fetching horizon steps.
@@ -671,6 +749,7 @@ def get_open_meteo_data(
                 "apparent_temperature",
                 "shortwave_radiation",
                 "direct_normal_irradiance",
+                "diffuse_radiation",
             ],
         },
     )
@@ -697,6 +776,7 @@ def get_open_meteo_data(
             "apparent_temperature": minutely_15.Variables(1).ValuesAsNumpy(),
             "shortwave_radiation": minutely_15.Variables(2).ValuesAsNumpy(),
             "direct_normal_irradiance": minutely_15.Variables(3).ValuesAsNumpy(),
+            "diffuse_radiation": minutely_15.Variables(4).ValuesAsNumpy(),
         }
     )
 
@@ -807,17 +887,9 @@ def load_and_prepare_data(
     for key in ["temperature", "temperature_forecast"]:
         data[key] = convert_temperature(data[key], "C", "K")
 
-    # Drop date column
-    data.drop(
-        columns=[
-            "date",
-            "temperature_2m",
-            "apparent_temperature",
-            "shortwave_radiation",
-            "direct_normal_irradiance",
-        ],
-        inplace=True,
-    )
+    # Drop date column only; keep original open-meteo labels alongside hvac aliases
+    # so that other environments can access them by their canonical names.
+    data.drop(columns=["date"], inplace=True)
 
     # Check for NaN values and apply zero-order hold (forward fill)
     nan_counts = data.isnull().sum()

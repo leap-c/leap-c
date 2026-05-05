@@ -540,6 +540,20 @@ class AcadosParameterManager:
         else:
             return gym.spaces.utils.flatten_space(gym.spaces.Tuple(learnable_spaces))
 
+    def has_parameter(self, name: str, interface: str | None = None) -> bool:
+        """Return True if a parameter with the given name (and optionally interface) exists.
+
+        Args:
+            name: Parameter name to look up.
+            interface: If provided, also check that the parameter's interface matches
+                (e.g. ``"non-learnable"``, ``"learnable"``, ``"fix"``).
+        """
+        if name not in self.parameters:
+            return False
+        if interface is not None:
+            return self.parameters[name].interface == interface
+        return True
+
     def get(self, name: str) -> ca.SX | ca.MX | np.ndarray:
         """Get the symbolic variable (or fixed value) for a parameter.
 

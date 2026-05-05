@@ -11,7 +11,13 @@ from leap_c.controller import CtxType, ParameterizedController
 from leap_c.planner import ControllerFromPlanner, ParameterizedPlanner
 
 ExampleEnvName = Literal[
-    "cartpole", "chain", "mass_spring_damper", "pointmass", "hvac", "hvac_continual"
+    "cartpole",
+    "chain",
+    "mass_spring_damper",
+    "pointmass",
+    "hvac",
+    "hvac_continual",
+    "race_car",
 ]
 ENV_REGISTRY: dict[str, tuple[str, str]] = {
     "cartpole": ("leap_c.examples.cartpole.env", "CartPoleEnv"),
@@ -20,6 +26,7 @@ ENV_REGISTRY: dict[str, tuple[str, str]] = {
     "pointmass": ("leap_c.examples.pointmass.env", "PointMassEnv"),
     "hvac": ("leap_c.examples.hvac.env", "StochasticThreeStateRcEnv"),
     "hvac_continual": ("leap_c.examples.hvac.env", "ContinualStochasticThreeStateRcEnv"),
+    "race_car": ("leap_c.examples.race_car.env", "RaceCarEnv"),
 }
 
 
@@ -89,6 +96,18 @@ PLANNER_REGISTRY: dict[str, tuple[str, str, str, dict[str, Any]]] = {
         "HvacPlannerConfig",
         {"param_interface": "reference", "param_granularity": "stagewise"},
     ),
+    "race_car": (
+        "leap_c.examples.race_car.planner",
+        "RaceCarPlanner",
+        "RaceCarPlannerConfig",
+        {},
+    ),
+    "race_car_stagewise": (
+        "leap_c.examples.race_car.planner",
+        "RaceCarPlanner",
+        "RaceCarPlannerConfig",
+        {"param_interface": "stagewise"},
+    ),
 }
 ExamplePlannerName = Literal[
     "cartpole",
@@ -100,6 +119,8 @@ ExamplePlannerName = Literal[
     "pointmass_stagewise",
     "hvac",
     "hvac_stagewise",
+    "race_car",
+    "race_car_stagewise",
 ]
 
 

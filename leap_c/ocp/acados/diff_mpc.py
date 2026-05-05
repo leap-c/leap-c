@@ -225,7 +225,11 @@ class AcadosDiffMpcFunction(DiffFunction):
         ocp_iterate = None if ctx is None else ctx.iterate
 
         status, log = solve_with_retry(
-            self.forward_batch_solver, self.initializer, ocp_iterate, solver_input
+            self.forward_batch_solver,
+            self.initializer,
+            ocp_iterate,
+            solver_input,
+            stat_fields=["time_tot"],
         )
 
         # fetch output
