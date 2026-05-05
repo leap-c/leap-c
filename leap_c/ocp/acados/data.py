@@ -50,8 +50,7 @@ class AcadosOcpSolverInput(NamedTuple):
 
 
 def collate_acados_flattened_iterate_fn(
-    batch: Sequence[AcadosOcpFlattenedIterate],
-    collate_fn_map: dict | None = None,
+    batch: Sequence[AcadosOcpFlattenedIterate], collate_fn_map: dict | None = None
 ) -> AcadosOcpFlattenedBatchIterate:
     return AcadosOcpFlattenedBatchIterate(
         x=np.stack([x.x for x in batch], axis=0),

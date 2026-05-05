@@ -37,7 +37,7 @@ def episode_rollout(
         render_episodes (int): Number of episodes to render. If `0`, no episodes will be rendered.
         render_human (bool): If `True`, render the environment in human mode.
             The environment render mode should then also be human render mode.
-            Can not be `True` if `video_path` is provided.
+            Can not be `True` if `video_folder` is provided.
         video_folder (str | Path, optional): The environment is rendered and saved as a
             video in this folder. Can not be set if `render_human` is `True`.
         name_prefix (str, optional): The prefix for the video file names. Must be provided if

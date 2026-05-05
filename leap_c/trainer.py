@@ -27,10 +27,6 @@ class TrainerConfig:
         train_steps: The number of steps in the training loop.
         train_start: The number of training steps before training starts (e.g., to collect some data
             first).
-        train_render_freq: The frequency (in steps) at which training episodes will be rendered.
-            When the step count reaches a multiple of this value, the next training episode will be
-            recorded. If `None`, no training episodes will be rendered.
-        train_render_mode: The mode in which the training episodes will be rendered.
         val_freq: The frequency (in steps) at which validation episodes will be run.
         val_num_rollouts: The number of episode rollouts during validation.
         val_deterministic: If True, the policy will act deterministically during validation.
@@ -52,10 +48,6 @@ class TrainerConfig:
     # configuration for the training loop
     train_steps: int = 100_000
     train_start: int = 0
-
-    # train rendering configuration
-    train_render_freq: int | None = None  # Render at every N steps, None = disabled
-    train_render_mode: str | None = "rgb_array"  # rgb_array or human
 
     # validation configuration
     val_freq: int = 10_000
@@ -107,9 +99,9 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
 
     cfg: TrainerConfigType
     output_path: Path
-    eval_env: gym.Env
+    eval_env: gym.Env | None
     state: TrainerState
-    device: str
+    device: torch.device
     logger: Logger
 
     def __init__(
@@ -222,7 +214,6 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
 
         with self.logger:
             self.to(self.device)
-            train_loop_iter = self.train_loop()
 
             # initial policy validation
             self.eval()  # set to eval mode
@@ -231,6 +222,7 @@ class Trainer(ABC, torch.nn.Module, Generic[TrainerConfigType, CtxType]):
             self.state.scores.append(val_score)
             self.state.max_score = val_score
 
+            train_loop_iter = self.train_loop()
             while self.state.step < self.cfg.train_steps:
                 # train
                 steps, _ = next(train_loop_iter)

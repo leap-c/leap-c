@@ -76,7 +76,7 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         cfg: CartPolePlannerConfig | None = None,
         params: list[AcadosParameter] | None = None,
         export_directory: Path | None = None,
-    ):
+    ) -> None:
         """Initializes the CartPoleController.
 
         Args:

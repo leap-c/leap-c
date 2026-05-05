@@ -245,7 +245,7 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
 
             # merge controller stats
             if ctx.log is not None:
-                stats = stats | ctx.log
+                stats |= ctx.log
 
             return StochasticMPCActorOutput(param, log_prob, stats, action, ctx.status, ctx)
 
@@ -266,6 +266,6 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
         # merge stats
         stats = param_stats | action_stats
         if ctx.log is not None:
-            stats = stats | ctx.log
+            stats |= ctx.log
 
         return StochasticMPCActorOutput(param, log_prob, stats, action, ctx.status, ctx)

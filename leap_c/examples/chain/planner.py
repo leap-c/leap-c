@@ -72,7 +72,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         cfg: ChainControllerConfig | None = None,
         params: list[AcadosParameter] | None = None,
         export_directory: Path | None = None,
-    ):
+    ) -> None:
         """Initializes the ChainController.
 
         Args:
@@ -115,7 +115,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             fix_point=fix_point,
         )
 
-        x_ref, u_ref = resting_chain_solver(p_last=pos_last_mass_ref)
+        x_ref, _ = resting_chain_solver(p_last=pos_last_mass_ref)
 
         ocp = export_parametric_ocp(
             param_manager=param_manager,
