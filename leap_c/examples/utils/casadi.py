@@ -26,11 +26,11 @@ def integrate_erk4(
     n_stages = 4
 
     # Butcher tableau for RK4
-    b = [1/6, 1/3, 1/3, 1/6]
+    b = [1 / 6, 1 / 3, 1 / 3, 1 / 6]
     A = [
-        [1/2],
-        [0,   1/2],
-        [0,   0,   1],
+        [1 / 2],
+        [0, 1 / 2],
+        [0, 0, 1],
     ]
 
     ode = ca.Function("ode", [x, u, p], [f_expl])
