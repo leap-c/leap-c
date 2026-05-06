@@ -24,30 +24,12 @@ Open a new thread or browse the existing ones on the [GitHub discussions](https:
 ## Citing
 If you are using code from this repository in your work, please use the following citation for now
 ```
-@software{leap-c,
-  author       = {Leonard Fichtner and
-                  Dirk Reinhardt and
-                  Jasper Hoffmann and
-                  Filippo Airaldi and
-                  Jonathan Frey and
-                  Josip Kir Hromatko and
-                  Katrin Baumgaertner and
-                  Mazen Amria and
-                  Rudolf Reiter and
-                  Shambhuraj Sawant},
-  title        = {leap-c/leap-c: v0.1.0-alpha},
-  month        = oct,
-  year         = 2025,
-  publisher    = {Zenodo},
-  version      = {v0.1.0-alpha},
-  doi          = {10.5281/zenodo.17244101},
-  url          = {https://doi.org/10.5281/zenodo.17244101},
-  swhid        = {swh:1:dir:ed535c814cc331317c03dd13d3ccc782dbb05ff2
-                   ;origin=https://doi.org/10.5281/zenodo.17244100;vi
-                   sit=swh:1:snp:f81ddd085e543de1b55450efd7305d2a138c
-                   906e;anchor=swh:1:rel:10559cfe0ced879c85db62a28d2a
-                   c1e9f27c187a;path=leap-c-leap-c-9159013
-                  },
+@misc{fichtner_leapc_2025,
+  title = {Leap-c/Leap-c: V0.1.0-Alpha},
+  author = {Fichtner, Leonard and Reinhardt, Dirk and Hoffmann, Jasper and Airaldi, Filippo and Frey, Jonathan and Kir Hromatko, Josip and Baumgaertner, Katrin and Amria, Mazen and Reiter, Rudolf and Sawant, Shambhuraj},
+  year = 2025,
+  month = oct,
+  howpublished = {Zenodo}
 }
 ```
 
