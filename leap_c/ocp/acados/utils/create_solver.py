@@ -203,6 +203,8 @@ def make_ocp_sensitivity_compatible(sensitivity_ocp: AcadosOcp):
     opts.levenberg_marquardt = 0.0
     opts.with_solution_sens_wrt_params = True
     opts.with_value_sens_wrt_params = True
+    opts.qpscaling_scale_constraints = "NO_CONSTRAINT_SCALING"
+    opts.qpscaling_scale_objective = "NO_OBJECTIVE_SCALING"
 
     mdl = sensitivity_ocp.model
     mdl.cost_expr_ext_cost_custom_hess_0 = None
