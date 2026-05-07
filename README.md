@@ -22,7 +22,7 @@ Please see the [Getting started section](https://leap-c.github.io/leap-c/getting
 Open a new thread or browse the existing ones on the [GitHub discussions](https://github.com/leap-c/leap-c/discussions) page.
 
 ## Citing
-If you are using code from this repository in your work, please use the following citation for now
+If you are using code from this repository in your work, please use the following citation:
 ```
 @misc{fichtner_leapc_2025,
   title = {Leap-c/Leap-c: V0.1.0-Alpha},
