@@ -52,18 +52,12 @@ from pathlib import Path
 import casadi as ca
 import numpy as np
 
+from leap_c.examples.race_car.dynamics import RaceCarDynamicsParameters
+
 ASSETS_DIR = Path(__file__).parent / "assets"
 DEFAULT_TRACK_FILE = ASSETS_DIR / "LMS_Track.txt"
 
-VEHICLE_PARAMS_DEFAULT: dict[str, float] = {
-    "m": 0.043,
-    "C1": 0.5,
-    "C2": 15.5,
-    "Cm1": 0.28,
-    "Cm2": 0.05,
-    "Cr0": 0.011,
-    "Cr2": 0.006,
-}
+VEHICLE_PARAMS_DEFAULT: dict[str, float] = RaceCarDynamicsParameters().to_dict()
 
 N_MAX_DEFAULT = 0.12
 THROTTLE_MIN_DEFAULT = -1.0

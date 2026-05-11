@@ -3,7 +3,7 @@ r"""Train a SAC-FOP agent on the race_car environment (with plant/model mismatch
 Mirrors ``scripts/run_sac_fop.py`` but:
 - Hardcodes ``env = "race_car"`` and exposes ``--controller`` between
   ``{race_car, race_car_stagewise}``.
-- Builds train / eval envs with a perturbed ``vehicle_params`` dict
+- Builds train / eval envs with a perturbed ``RaceCarDynamicsParameters``
   (see ``sac_race_car_mixin.make_mismatched_env``).
 - Writes per-step validation channels (NPZ + JSON) via
   ``RaceCarValChannelsMixin``.
@@ -34,6 +34,7 @@ from pathlib import Path
 from typing import Literal
 
 import torch
+from curriculum import STAGES, stage_config
 from sac_race_car_mixin import (
     RaceCarValChannelsMixin,
     add_reward_cli,
@@ -75,6 +76,12 @@ class RunSacFopRaceCarConfig:
     cr2_scale: float = 1.30
     max_steps: int = 4000
     reward: RaceCarRewardConfig = field(default_factory=RaceCarRewardConfig)
+    randomize_params: bool = False
+    param_noise_scale: float = 0.2
+    random_seed: int = 0
+    randomize_init_state: bool = False
+    init_state_jitter: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    stage: int | None = None
 
 
 def create_cfg(
@@ -164,6 +171,11 @@ def run_sac_fop(
             cr2_scale=cfg.cr2_scale,
             max_steps=cfg.max_steps,
             reward=cfg.reward,
+            randomize_params=cfg.randomize_params,
+            param_noise_scale=cfg.param_noise_scale,
+            random_seed=cfg.random_seed,
+            randomize_init_state=cfg.randomize_init_state,
+            init_state_jitter=cfg.init_state_jitter,
         )
 
     val_env = _make_env(render_mode="rgb_array") if with_val else None
@@ -221,6 +233,19 @@ if __name__ == "__main__":
     g.add_argument("--mismatch-cr0", type=float, default=1.30)
     g.add_argument("--mismatch-cr2", type=float, default=1.30)
 
+    g = parser.add_argument_group("Curriculum")
+    g.add_argument(
+        "--stage",
+        type=int,
+        default=None,
+        choices=list(STAGES),
+        help=(
+            "If set, apply curriculum stage preset (overrides --reward-mode, "
+            "--mismatch-* and the mismatch-related randomization fields). "
+            "See scripts/race_car/curriculum.py for the per-stage settings."
+        ),
+    )
+
     add_reward_cli(parser)
 
     g = parser.add_argument_group("W&B logging")
@@ -244,8 +269,26 @@ if __name__ == "__main__":
     cfg.cr2_scale = args.mismatch_cr2
     cfg.max_steps = args.max_steps
     cfg.reward = build_reward_from_args(args)
+    cfg.random_seed = args.seed
+
+    if args.stage is not None:
+        sc = stage_config(args.stage)
+        cfg.stage = sc.stage
+        cfg.reward = sc.build_reward()
+        cfg.cm1_scale = sc.cm1_scale
+        cfg.cr0_scale = sc.cr0_scale
+        cfg.cr2_scale = sc.cr2_scale
+        cfg.randomize_params = sc.randomize_params
+        cfg.param_noise_scale = sc.param_noise_scale
+        cfg.randomize_init_state = sc.randomize_init_state
+        cfg.init_state_jitter = sc.init_state_jitter
+        cfg.trainer.val_freq = sc.val_freq
+        cfg.trainer.val_num_rollouts = sc.val_num_rollouts
+        print(f"[curriculum] stage {sc.stage}: {sc.description}")
 
     tags = [f"sac_{args.variant}", "race_car", args.controller]
+    if args.stage is not None:
+        tags.append(f"stage{args.stage}")
 
     if args.use_wandb:
         config_dict = asdict(cfg)

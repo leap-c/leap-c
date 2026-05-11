@@ -39,11 +39,11 @@ from leap_c.examples.race_car.bicycle_model import (
     N_MAX_DEFAULT,
     THROTTLE_MAX_DEFAULT,
     THROTTLE_MIN_DEFAULT,
-    VEHICLE_PARAMS_DEFAULT,
     f_explicit_numpy_factory,
     frenet_to_cartesian,
     get_track,
 )
+from leap_c.examples.race_car.dynamics import RaceCarDynamicsParameters
 from leap_c.examples.utils.matplotlib_env import MatplotlibRenderEnv
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx
 
@@ -115,8 +115,19 @@ class RaceCarEnvConfig:
         dt: Simulation step size [s].
         n_max: Track half-width [m]; ``|n| > n_max + n_violation_margin`` truncates the episode.
         n_violation_margin: Extra tolerance [m] beyond ``n_max`` before the off-track flag fires.
-        vehicle_params: Bicycle-model parameters (mass, cornering/motor/rolling coefficients).
-        init_state: Initial ``[s, n, alpha, v, D, delta]`` at every ``reset``.
+        dynamics_params: Bicycle-model parameters (mass, cornering/motor/rolling coefficients).
+            If ``None``, defaults to ``RaceCarDynamicsParameters()``.
+        randomize_params: If ``True``, perturb ``dynamics_params`` once at ``__init__``
+            (Gaussian, std = ``param_noise_scale * |value|`` per field).
+        param_noise_scale: Std of the Gaussian perturbation applied to each dynamics
+            parameter when ``randomize_params=True``.
+        random_seed: Seed for the param-randomization RNG (only used when
+            ``randomize_params=True``). Reproducible across instances.
+        init_state: Nominal initial ``[s, n, alpha, v, D, delta]`` used by ``reset``.
+        randomize_init_state: If ``True``, ``reset`` jitters the first three components
+            of ``init_state`` (``s, n, alpha``) by ``init_state_jitter``.
+        init_state_jitter: Half-widths of the per-component uniform jitter applied to
+            ``(s, n, alpha)`` when ``randomize_init_state=True``.
         throttle_min, throttle_max: Hard saturation on ``D`` (throttle / duty cycle, dimensionless).
         delta_min, delta_max: Hard saturation on ``delta`` (steering angle) [rad].
         dthrottle_min, dthrottle_max: Action bounds on ``derD`` (throttle rate) [1/s].
@@ -130,10 +141,15 @@ class RaceCarEnvConfig:
     dt: float = 0.02
     n_max: float = N_MAX_DEFAULT
     n_violation_margin: float = 0.05
-    vehicle_params: dict[str, float] = field(default_factory=lambda: dict(VEHICLE_PARAMS_DEFAULT))
+    dynamics_params: RaceCarDynamicsParameters | None = None
+    randomize_params: bool = False
+    param_noise_scale: float = 0.3
+    random_seed: int = 0
     init_state: np.ndarray = field(
         default_factory=lambda: np.array([-2.0, 0.0, 0.0, 0.0, 0.0, 0.0], dtype=np.float64)
     )
+    randomize_init_state: bool = False
+    init_state_jitter: tuple[float, float, float] = (0.0, 0.0, 0.0)
     throttle_min: float = THROTTLE_MIN_DEFAULT
     throttle_max: float = THROTTLE_MAX_DEFAULT
     delta_min: float = DELTA_MIN_DEFAULT
@@ -216,7 +232,10 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
     - ``step`` (int): current step index within the episode.
 
     Attributes:
-        cfg: ``RaceCarEnvConfig`` with bounds, timestep, vehicle params, init state.
+        cfg: ``RaceCarEnvConfig`` with bounds, timestep, dynamics params, init state.
+        params: ``RaceCarDynamicsParameters`` actually used by the plant. Equal to
+            ``cfg.dynamics_params`` when ``cfg.randomize_params`` is ``False``;
+            otherwise a Gaussian-perturbed copy sampled once at ``__init__``.
         integrator: RK4 integrator ``(x, u, dt) -> x_next`` from the same continuous
             dynamics as the OCP.
         x: Current state, or ``None`` before the first ``reset``.
@@ -231,6 +250,7 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
     """
 
     cfg: RaceCarEnvConfig
+    params: RaceCarDynamicsParameters
     integrator: Callable[[np.ndarray, np.ndarray, float], np.ndarray]
     x: np.ndarray | None
     x_trajectory: list[np.ndarray]
@@ -245,20 +265,27 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
         super().__init__(render_mode=render_mode)
         self.cfg = RaceCarEnvConfig() if cfg is None else cfg
 
+        if self.cfg.dynamics_params is None:
+            self.cfg.dynamics_params = RaceCarDynamicsParameters()
+
+        if self.cfg.randomize_params:
+            rng = np.random.default_rng(self.cfg.random_seed)
+            self.params = self.cfg.dynamics_params.randomize(rng, self.cfg.param_noise_scale)
+        else:
+            self.params = self.cfg.dynamics_params
+
         self._sref, self._xref, self._yref, self._psiref, _ = get_track(self.cfg.track_file)
         self._pathlength = float(self._sref[-1])
-        self._c1 = float(self.cfg.vehicle_params["C1"])
 
-        f_numpy = f_explicit_numpy_factory(self.cfg.track_file, self.cfg.vehicle_params)
-
-        def rk4_step(f, x, u, h):
+        def _rk4_step(f, x, u, h):
             k1 = f(x, u)
             k2 = f(x + 0.5 * h * k1, u)
             k3 = f(x + 0.5 * h * k2, u)
             k4 = f(x + h * k3, u)
             return x + h / 6.0 * (k1 + 2 * k2 + 2 * k3 + k4)
 
-        self.integrator = lambda x, u, t: rk4_step(f_numpy, x, u, t)
+        self._rk4_step = _rk4_step
+        self._build_integrator()
 
         # Loose observation bounds — s and v grow during a lap; n and angles are loosely bounded.
         obs_high = np.array(
@@ -284,8 +311,20 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
         self._plan_line = None
         self.ctx: AcadosDiffMpcCtx | None = None
 
+    def _build_integrator(self) -> None:
+        """Build the casadi-backed RK4 integrator from ``self.params``.
+
+        Called once at construction. Params are fixed for the env's lifetime,
+        so the integrator does not need rebuilding on reset.
+        """
+        vp = self.params.to_dict()
+        self._c1 = float(vp["C1"])
+        f_numpy = f_explicit_numpy_factory(self.cfg.track_file, vp)
+        self.integrator = lambda x, u, t: self._rk4_step(f_numpy, x, u, t)
+
     def reset(
         self,
+        state_0: np.ndarray | None = None,
         *,
         seed: int | None = None,
         options: dict | None = None,
@@ -295,7 +334,16 @@ class RaceCarEnv(MatplotlibRenderEnv[np.ndarray, np.ndarray, AcadosDiffMpcCtx]):
             self.observation_space.seed(seed)
             self.action_space.seed(seed)
 
-        self.x = self.cfg.init_state.copy()
+        if state_0 is not None:
+            init_state = np.asarray(state_0, dtype=np.float64).copy()
+        elif self.cfg.randomize_init_state:
+            init_state = self.cfg.init_state.copy()
+            jitter = np.asarray(self.cfg.init_state_jitter, dtype=np.float64)
+            init_state[:3] = init_state[:3] + self.np_random.uniform(-jitter, jitter)
+        else:
+            init_state = self.cfg.init_state.copy()
+
+        self.x = init_state.copy()
         self.x_trajectory = [self.x.copy()]
         self._step = 0
         self._reset_needed = False
