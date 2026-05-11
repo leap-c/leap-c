@@ -108,6 +108,24 @@ PLANNER_REGISTRY: dict[str, tuple[str, str, str, dict[str, Any]]] = {
         "RaceCarPlannerConfig",
         {"param_interface": "stagewise"},
     ),
+    "race_car_mpcc": (
+        "leap_c.examples.race_car.mpcc_planner",
+        "MpccPlanner",
+        "MpccPlannerConfig",
+        {},
+    ),
+    "race_car_mpcc_frenet": (
+        "leap_c.examples.race_car.mpcc_planner",
+        "MpccPlanner",
+        "MpccPlannerConfig",
+        {"frame": "frenet"},
+    ),
+    "race_car_mpcc_stagewise": (
+        "leap_c.examples.race_car.mpcc_planner",
+        "MpccPlanner",
+        "MpccPlannerConfig",
+        {"param_interface": "stagewise"},
+    ),
 }
 ExamplePlannerName = Literal[
     "cartpole",
@@ -121,6 +139,9 @@ ExamplePlannerName = Literal[
     "hvac_stagewise",
     "race_car",
     "race_car_stagewise",
+    "race_car_mpcc",
+    "race_car_mpcc_frenet",
+    "race_car_mpcc_stagewise",
 ]
 
 
