@@ -804,3 +804,80 @@ def test_backward_nmpc(
     check_gradients(diff_mpc_indefinite_hess, n_batch, max_batch_size, dtype, noise_scale)
     print("Check stagewise diff_mpc===============================")
     check_gradients(diff_mpc_indefinite_hess_stagewise, n_batch, max_batch_size, dtype, noise_scale)
+
+
+def create_simple_diff_mpc(N_horizon: int = 5):
+    """Creates a minimal differentiable MPC for testing parameter gradients."""
+    import casadi as ca
+    import numpy as np
+
+    from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
+    from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+
+    ocp = AcadosDiffOcp(N_horizon=N_horizon)
+
+    # define simple model
+    x = ca.SX.sym("x", 2)
+    u = ca.SX.sym("u", 1)
+
+    # system x_{k+1} = x_k + u_k
+    ocp.model.name = "simple_test_in_suite"
+    ocp.model.x = x
+    ocp.model.u = u
+    ocp.model.disc_dyn_expr = ca.vertcat(x[1], u[0])
+
+    # dummy param to avoid empty self.p crash
+    _ = ocp.register_param("dummy_non_learnable", default=np.array([1.0]), differentiable=False)
+
+    Q_param = ocp.register_param("Q", default=np.array([1.0, 1.0]), differentiable=True)
+    R_param = ocp.register_param("R", default=np.array([0.1]), differentiable=True)
+
+    ocp.cost.cost_type = "EXTERNAL"
+    ocp.cost.cost_type_e = "EXTERNAL"
+
+    ocp.model.cost_expr_ext_cost = (
+        Q_param[0] * x[0] ** 2 + Q_param[1] * x[1] ** 2 + R_param[0] * u[0] ** 2
+    )
+    ocp.model.cost_expr_ext_cost_e = Q_param[0] * x[0] ** 2 + Q_param[1] * x[1] ** 2
+
+    ocp.solver_options.integrator_type = "DISCRETE"
+    ocp.solver_options.nlp_solver_type = "SQP"
+    ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    ocp.solver_options.hessian_approx = "EXACT"
+    ocp.solver_options.tf = 5.0
+
+    ocp.constraints.x0 = np.array([1.0, 1.0])
+    ocp.constraints.idxsbx = np.array([])
+    ocp.constraints.idxbx = np.array([])
+    ocp.constraints.idxbu = np.array([])
+    ocp.constraints.lbx = np.array([])
+    ocp.constraints.ubx = np.array([])
+    ocp.constraints.lbu = np.array([])
+    ocp.constraints.ubu = np.array([])
+
+    return AcadosDiffMpcTorch(ocp=ocp)
+
+
+def test_params_dict_backward_simple() -> None:
+    import torch
+
+    diff_mpc = create_simple_diff_mpc(N_horizon=5)
+
+    x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64, requires_grad=True)
+
+    # Test Focus: Pass parameters dict
+    Q_tensor = torch.tensor([[1.0, 1.0]], dtype=torch.float64, requires_grad=True)
+    R_tensor = torch.tensor([[0.1]], dtype=torch.float64, requires_grad=True)
+    dummy_tensor = torch.tensor([[[1.0]] * 6], dtype=torch.float64, requires_grad=False)
+
+    params = {"Q": Q_tensor, "R": R_tensor, "dummy_non_learnable": dummy_tensor}
+
+    ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
+
+    loss = value.sum()
+    loss.backward()
+
+    assert Q_tensor.grad is not None
+    assert R_tensor.grad is not None
+    assert not torch.isnan(Q_tensor.grad).any()
+    assert not torch.isnan(R_tensor.grad).any()

@@ -72,7 +72,7 @@ class TempCtrlPlanner(AcadosPlanner):
             outdoor_temp=temp_forecast,
         )
 
-        return self.diff_mpc(state, action, param, p_stagewise, ctx=ctx)
+        return self.diff_mpc(x0=state, u0=action, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
 
     def default_param(self, obs: ndarray | None) -> ndarray:
         return self.param_manager.learnable_default_flat

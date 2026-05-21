@@ -237,6 +237,16 @@ class AcadosParameterManager:
         return self._non_learnable_parameter_store.get_values()
 
     @property
+    def global_parameter_names(self) -> list[str]:
+        return [name for name, param in self.parameters.items() if param.interface == "learnable"]
+
+    @property
+    def stagewise_parameter_names(self) -> list[str]:
+        return [
+            name for name, param in self.parameters.items() if param.interface == "non-learnable"
+        ]
+
+    @property
     def p_global(self) -> ca.SX | ca.MX:
         return self._learnable_parameter_store.get_symbols()
 

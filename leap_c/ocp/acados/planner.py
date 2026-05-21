@@ -60,7 +60,7 @@ class AcadosPlanner(ParameterizedPlanner[CtxType], Generic[CtxType]):
         parameters are automatically obtained from the `param_manager`.
         """
         p_stagewise = self.param_manager.combine_non_learnable_parameter_values(obs.shape[0])
-        return self.diff_mpc(obs, action, param, p_stagewise, ctx=ctx)
+        return self.diff_mpc(x0=obs, u0=action, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
 
     def sensitivity(self, ctx: CtxType, name: SensitivityOptions) -> ndarray:
         if name not in TO_ACADOS_DIFFMPC_SENSOPTS:

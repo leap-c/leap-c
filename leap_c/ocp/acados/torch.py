@@ -1,5 +1,6 @@
 """Central interface to use acados in PyTorch."""
 
+import warnings
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -66,6 +67,10 @@ class AcadosDiffMpcTorch(torch.nn.Module):
 
         """
         super().__init__()
+        if not isinstance(ocp, AcadosDiffOcp):
+            warnings.warn(
+                "Passing `AcadosOcp` object is deprecated. Please use an `AcadosDiffOcp` object."
+            )
         self.diff_mpc_fun = AcadosDiffMpcFunction(
             ocp=ocp,
             initializer=initializer,
@@ -75,6 +80,10 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             num_threads_batch_solver=num_threads_batch_solver,
             verbose=verbose,
         )
+        if isinstance(ocp, AcadosDiffOcp):
+            self.parameter_manager = ocp.parameter_manager
+        else:
+            self.parameter_manager = None
         self.autograd_fun = create_autograd_function(self.diff_mpc_fun)
         self.dtype = torch.get_default_dtype() if dtype is None else dtype
 
@@ -82,6 +91,7 @@ class AcadosDiffMpcTorch(torch.nn.Module):
         self,
         x0: torch.Tensor,
         u0: torch.Tensor | None = None,
+        params: dict[str, torch.Tensor] | None = None,
         p_global: torch.Tensor | None = None,
         p_stagewise: torch.Tensor | None = None,
         p_stagewise_sparse_idx: torch.Tensor | None = None,
@@ -99,19 +109,25 @@ class AcadosDiffMpcTorch(torch.nn.Module):
                 (e.g., by using the saved iterate). Defaults to `None`.
             x0: Initial states with shape `(B, x_dim)`.
             u0: Initial actions with shape `(B, u_dim)`. Defaults to `None`.
+            params: A dictionary containing the parameters. The keys should correspond to the
+                parameter names defined in the acados ocp object, and the value should be a tensor
+                of shape `(B, param_dim)` for global parameters or `(B, N_horizon+1, param_dim)` for
+                stagewise parameters. You can provide sparse indices for stagewise parameters using
+                an additional key with the suffix `"_sparse_idx"` containing a tensor of shape
+                `(B, N_horizon+1, n_sparse_idx)`. The module will automatically handle the mapping
+                of these parameters to the appropriate inputs for the acados solver.
             p_global: Learnable parameters, i.e., allowing backpropagation, shape
-                `(B, p_global_dim)`. Correspond to learnable acados parameters. If none is provided,
-                the default values set in the acados ocp object are used.
+                `(B, p_global_dim)`. Correspond to learnable acados parameters. Deprecated, use
+                `params` instead.
             p_stagewise: Acados stagewise parameters, i.e., not allowing backpropagation, shape
                 `(B, N_horizon+1, p_stagewise_dim)`. Correspond to `"non-learnable"` acados
-                parameters.
-                If none is provided, the default values set in the acados ocp object are used.
+                parameters. Deprecated, use `params` instead.
                 If `p_stagewise_sparse_idx` is provided, this also has to be provided.
                 If `p_stagewise_sparse_idx` is `None`, shape is `(B, N_horizon+1, p_stagewise_dim)`.
                 If `p_stagewise_sparse_idx` is provided, shape is
                 `(B, N_horizon+1, len(p_stagewise_sparse_idx))`.
             p_stagewise_sparse_idx: Indices for sparsely setting stagewise parameters. Shape is
-                `(B, N_horizon+1, n_p_stagewise_sparse_idx)`.
+                `(B, N_horizon+1, n_p_stagewise_sparse_idx)`. Deprecated, use `params` instead.
 
         Returns:
             ctx: A new context object from solving the problems.
@@ -120,6 +136,42 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             u: The solution of the whole control trajectory.
             value: The cost value of the computed trajectory.
         """
+        assert (params is None) or (
+            p_global is None and p_stagewise is None and p_stagewise_sparse_idx is None
+        ), "You cannot provide both `params` and individual parameter tensors. Please use `params`."
+        if params is None and (p_global is not None or p_stagewise is not None):
+            warnings.warn(
+                DeprecationWarning(
+                    "Providing individual parameter tensors is deprecated. Please use `params`."
+                )
+            )
+        if params is not None:
+            assert self.parameter_manager is not None, (
+                "The `params` argument can only be used if the ocp is of type `AcadosDiffOcp` and"
+                " uses a parameter manager."
+            )
+            global_params = self.parameter_manager.global_parameter_names
+            stagewise_params = self.parameter_manager.stagewise_parameter_names
+            assert set(global_params) <= set(params.keys()) and set(stagewise_params) <= set(
+                params.keys()
+            ), (
+                "When providing `params`, it must contain all parameters defined in the ocp object."
+                f" Expected global parameters: {global_params},"
+                f" stagewise parameters: {stagewise_params}."
+            )
+            p_global = [params[name] for name in global_params if name in params]
+            p_global = torch.cat(p_global, dim=-1) if p_global else None
+            p_stagewise = [params[name] for name in stagewise_params if name in params]
+            p_stagewise = torch.cat(p_stagewise, dim=-1) if p_stagewise else None
+            p_stagewise_sparse_idx = [
+                params[name + "_sparse_idx"]
+                for name in stagewise_params
+                if name + "_sparse_idx" in params
+            ]
+            p_stagewise_sparse_idx = (
+                torch.cat(p_stagewise_sparse_idx, dim=-1) if p_stagewise_sparse_idx else None
+            )
+
         ctx, u_star, x, u, value = self.autograd_fun.apply(
             ctx,
             x0,

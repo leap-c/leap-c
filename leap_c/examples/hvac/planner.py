@@ -289,10 +289,10 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         state = torch.cat([thermal_state, qh], dim=1)  # type: ignore[arg-type]
 
         diff_mpc_ctx, _, x, u, value = self.diff_mpc(
-            state,
-            action,
-            param,
-            p_stagewise,
+            x0=state,
+            u0=action,
+            p_global=param,
+            p_stagewise=p_stagewise,
             ctx=ctx,
         )
 
