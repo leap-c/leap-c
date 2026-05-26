@@ -1,26 +1,31 @@
-name: 'Setup leap-c environment'
-description: 'Sets up python, acados, and leap-c dependencies'
+name: "Setup leap-c environment"
+description: "Sets up python, acados, and leap-c dependencies"
 inputs:
   python-version:
-    description: 'Python version to use'
+    description: "Python version to use"
     required: true
-    default: '3.11'
+    default: "3.11"
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
-    - name: Download acados artifacts (build, lib, include) into acados repository
-      uses: actions/download-artifact@v4
-      with:
-        path: ${{github.workspace}}/leap_c/external/acados
-        repository: acados/acados
-        github-token: ${{ github.token }}
-        run-id: 22223846533
-
-    - name: Rename artifact directories
-      working-directory: ${{github.workspace}}/leap_c/external/acados
+    - name: Generate acados Submodule Fingerprint
+      id: acados-hash
       shell: bash
-      run: for dir in *-build-*; do mv "$dir" "${dir%%-build-*}"; done
+      run: |
+        cd ${{ github.workspace }}/leap_c/external/acados
+        echo "hash=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache acados Binaries
+      id: cache-acados
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ github.workspace }}/leap_c/external/acados/build
+          ${{ github.workspace }}/leap_c/external/acados/lib
+          ${{ github.workspace }}/leap_c/external/acados/include
+        key: ${{ runner.os }}-acados-${{ steps.acados-hash.outputs.hash }}
+        fail-on-cache-miss: true
 
     - name: Install Tera
       working-directory: ${{github.workspace}}/leap_c/external/acados

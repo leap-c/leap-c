@@ -1,40 +1,60 @@
 name: documentation
 
-on: 
+on:
   push:
     branches:
       - main
   pull_request:
     paths:
-    - "docs/**"
-    - "**/*.py"
+      - "docs/**"
+      - "**/*.py"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
+  # NOTE: this workflow runs with full acados and leap-c setup, we may be able to optimize this by only installing the
+  # necessary dependencies for building the docs. At the moment, both workflows (this and tests.yml) dispatch the same
+  # prepare_acados job, on cache misses, the effort will be duplicated as both will try to build the same acados
+  # artifacts, otherwise both would use the cached one so it does not cause a significant overhead. Optimizing this
+  # further to ensure a unique prepare_acados job for all workflows would require defining an orchestrator workflow that
+  # triggers that is responsible of dispatching the others, which defeats the purpose of having separate workflows.
+  prepare_acados:
+    name: Ensure acados Cache
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout leap-c
+        uses: actions/checkout@v4
+        with:
+          path: ${{github.workspace}}/leap_c
+          submodules: "recursive"
+
+      - name: Build acados (saves cache if missing)
+        uses: ./leap_c/.github/actions/build-acados
+
   docs:
+    needs: prepare_acados
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout leap-c
-      uses: actions/checkout@v4
-      with:
-        path: ${{github.workspace}}/leap_c
-        submodules: 'recursive'
+      - name: Checkout leap-c
+        uses: actions/checkout@v4
+        with:
+          path: ${{github.workspace}}/leap_c
+          submodules: "recursive"
 
-    - name: Setup leap-c environment
-      uses: ./leap_c/.github/actions/setup-leap-c
-    
-    - name: Sphinx build
-      working-directory: ${{github.workspace}}/leap_c
-      run: sphinx-build docs/source _build
-          
-    - name: Deploy to GitHub Pages
-      if: github.repository == 'leap-c/leap-c' && github.event_name == 'push'
-      uses: peaceiris/actions-gh-pages@v3
-      with:
+      - name: Setup leap-c environment
+        uses: ./leap_c/.github/actions/setup-leap-c
+
+      - name: Sphinx build
+        working-directory: ${{github.workspace}}/leap_c
+        run: sphinx-build docs/source _build
+
+      - name: Deploy to GitHub Pages
+        if: github.repository == 'leap-c/leap-c' && github.event_name == 'push'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
           publish_branch: gh-pages
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: leap_c/_build
