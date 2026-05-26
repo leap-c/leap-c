@@ -1,0 +1,17 @@
+name: Ensure acados is built and cached
+on:
+  workflow_call:
+
+jobs:
+  prepare_acados:
+    name: Ensure acados is built and cached
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout leap-c
+        uses: actions/checkout@v4
+        with:
+          path: ${{github.workspace}}/leap_c
+          submodules: "recursive"
+
+      - name: Build acados if not cached
+        uses: ./leap_c/.github/actions/build-acados

@@ -6,17 +6,7 @@ on:
 
 jobs:
   prepare_acados:
-    name: Ensure acados Cache
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout leap-c
-        uses: actions/checkout@v4
-        with:
-          path: ${{github.workspace}}/leap_c
-          submodules: "recursive"
-
-      - name: Build acados (saves cache if missing)
-        uses: ./leap_c/.github/actions/build-acados
+    uses: ./.github/workflows/prepare_acados.yml
 
   script_tests:
     name: Integration Tests (${{ matrix.test-group.env }})

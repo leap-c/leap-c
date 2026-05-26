@@ -25,7 +25,5 @@ runs:
       working-directory: ${{ github.workspace }}/leap_c/external/acados
       shell: bash
       run: |
-        mkdir -p build
-        cd build
-        cmake -DACADOS_WITH_OPENMP=ON -DACADOS_NUM_THREADS=1 ..
-        make install -j4
+        cmake -S . -B build -DACADOS_WITH_OPENMP=ON -DACADOS_NUM_THREADS=1
+        cmake --build build --target install -- -j"$(nproc)"
