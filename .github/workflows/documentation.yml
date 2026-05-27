@@ -14,11 +14,7 @@ permissions:
   contents: write
 
 jobs:
-  prepare_acados:
-    uses: ./.github/workflows/prepare_acados.yml
-
   docs:
-    needs: prepare_acados
     runs-on: ubuntu-latest
 
     steps:

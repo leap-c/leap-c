@@ -9,37 +9,10 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Generate acados Submodule Fingerprint
-      id: acados-hash
-      shell: bash
-      run: |
-        cd ${{ github.workspace }}/leap_c/external/acados
-        echo "hash=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
-
-    - name: Cache acados Binaries
-      id: cache-acados
-      uses: actions/cache@v4
+    - name: Ensure acados is built and cached
+      uses: ./leap_c/.github/actions/build-acados
       with:
-        path: |
-          ${{ github.workspace }}/leap_c/external/acados/build
-          ${{ github.workspace }}/leap_c/external/acados/lib
-          ${{ github.workspace }}/leap_c/external/acados/include
-        key: ${{ runner.os }}-acados-${{ steps.acados-hash.outputs.hash }}
-        fail-on-cache-miss: true
-
-    - name: Install Tera
-      working-directory: ${{github.workspace}}/leap_c/external/acados
-      shell: bash
-      run: |
-        .github/linux/install_tera.sh
-
-    - name: Export Paths
-      working-directory: ${{github.workspace}}
-      shell: bash
-      run: |
-        echo "ACADOS_SOURCE_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
-        echo "ACADOS_INSTALL_DIR=${{github.workspace}}/leap_c/external/acados" >> $GITHUB_ENV
-        echo "LD_LIBRARY_PATH=${{github.workspace}}/leap_c/external/acados/lib" >> $GITHUB_ENV
+        acados-source-dir: ${{github.workspace}}/leap_c/external/acados
 
     - name: Set up Python ${{ inputs.python-version }}
       uses: actions/setup-python@v5

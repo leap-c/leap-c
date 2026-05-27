@@ -5,12 +5,8 @@ on:
   pull_request:
 
 jobs:
-  prepare_acados:
-    uses: ./.github/workflows/prepare_acados.yml
-
   script_tests:
     name: Integration Tests (${{ matrix.test-group.env }})
-    needs: prepare_acados
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -58,7 +54,6 @@ jobs:
 
   unit_tests:
     name: Unit Tests
-    needs: prepare_acados
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
