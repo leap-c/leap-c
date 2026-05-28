@@ -1,0 +1,43 @@
+name: "Build acados"
+description: "Builds acados from source and caches the binaries for future runs."
+inputs:
+  acados-source-dir:
+    description: "Path to the acados source directory"
+    required: true
+runs:
+  using: "composite"
+  steps:
+    - name: Generate acados Submodule Fingerprint
+      id: acados-hash
+      shell: bash
+      run: |
+        cd ${{ inputs.acados-source-dir }}
+        echo "hash=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+    - name: Cache acados Binaries
+      id: cache-acados
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ inputs.acados-source-dir }}/build
+          ${{ inputs.acados-source-dir }}/lib
+          ${{ inputs.acados-source-dir }}/include
+          ${{ inputs.acados-source-dir }}/bin
+        key: ${{ runner.os }}-acados-${{ steps.acados-hash.outputs.hash }}
+
+    - name: Compile acados Manually and Install Tera
+      if: steps.cache-acados.outputs.cache-hit != 'true'
+      working-directory: ${{ inputs.acados-source-dir }}
+      shell: bash
+      run: |
+        cmake -S . -B build -DACADOS_WITH_OPENMP=ON -DACADOS_NUM_THREADS=1
+        cmake --build build --target install -- -j"$(nproc)"
+        .github/linux/install_tera.sh
+
+    - name: Export Paths
+      working-directory: ${{github.workspace}}
+      shell: bash
+      run: |
+        echo "ACADOS_SOURCE_DIR=${{inputs.acados-source-dir}}" >> $GITHUB_ENV
+        echo "ACADOS_INSTALL_DIR=${{inputs.acados-source-dir}}" >> $GITHUB_ENV
+        echo "LD_LIBRARY_PATH=${{inputs.acados-source-dir}}/lib:$LD_LIBRARY_PATH" >> $GITHUB_ENV

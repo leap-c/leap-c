@@ -1,13 +1,13 @@
 name: documentation
 
-on: 
+on:
   push:
     branches:
       - main
   pull_request:
     paths:
-    - "docs/**"
-    - "**/*.py"
+      - "docs/**"
+      - "**/*.py"
   workflow_dispatch:
 
 permissions:
@@ -18,23 +18,23 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - name: Checkout leap-c
-      uses: actions/checkout@v4
-      with:
-        path: ${{github.workspace}}/leap_c
-        submodules: 'recursive'
+      - name: Checkout leap-c
+        uses: actions/checkout@v4
+        with:
+          path: ${{github.workspace}}/leap_c
+          submodules: "recursive"
 
-    - name: Setup leap-c environment
-      uses: ./leap_c/.github/actions/setup-leap-c
-    
-    - name: Sphinx build
-      working-directory: ${{github.workspace}}/leap_c
-      run: sphinx-build docs/source _build
-          
-    - name: Deploy to GitHub Pages
-      if: github.repository == 'leap-c/leap-c' && github.event_name == 'push'
-      uses: peaceiris/actions-gh-pages@v3
-      with:
+      - name: Setup leap-c environment
+        uses: ./leap_c/.github/actions/setup-leap-c
+
+      - name: Sphinx build
+        working-directory: ${{github.workspace}}/leap_c
+        run: sphinx-build docs/source _build
+
+      - name: Deploy to GitHub Pages
+        if: github.repository == 'leap-c/leap-c' && github.event_name == 'push'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
           publish_branch: gh-pages
           github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: leap_c/_build

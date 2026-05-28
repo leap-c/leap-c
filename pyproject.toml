@@ -59,7 +59,8 @@ hvac = [
   "pandas==2.3.0",
   "openmeteo-requests==1.7.4",
   "retry-requests==2.0.0",
-  "requests-cache==1.2.1"
+  "requests-cache==1.2.1",
+  "requests<2.34.0"
 ]
 dev = [
   "leap_c[rendering]",
