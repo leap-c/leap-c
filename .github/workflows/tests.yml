@@ -5,7 +5,6 @@ on:
   pull_request:
 
 jobs:
-
   script_tests:
     name: Integration Tests (${{ matrix.test-group.env }})
     runs-on: ubuntu-latest
@@ -24,35 +23,34 @@ jobs:
             script: "sac,sac_zop,sac_fop,controller"
 
     steps:
+      - name: Checkout leap-c
+        uses: actions/checkout@v4
+        with:
+          path: ${{github.workspace}}/leap_c
+          submodules: "recursive"
 
-    - name: Checkout leap-c
-      uses: actions/checkout@v4
-      with:
-        path: ${{github.workspace}}/leap_c
-        submodules: 'recursive'
+      - name: Setup leap-c environment
+        uses: ./leap_c/.github/actions/setup-leap-c
+        with:
+          python-version: ${{ matrix.python-version }}
 
-    - name: Setup leap-c environment
-      uses: ./leap_c/.github/actions/setup-leap-c
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Run tests
+        working-directory: ${{github.workspace}}/leap_c
+        env:
+          TEST_ENV: ${{ matrix.test-group.env }}
+          TEST_SCRIPT: ${{ matrix.test-group.script }}
+        run: |
+          pytest tests/leap_c/test_scripts.py -v -s --cov=leap_c --cov-report=xml:coverage-${{ matrix.test-group.env }}.xml --cov-report=term
 
-    - name: Run tests
-      working-directory: ${{github.workspace}}/leap_c
-      env:
-        TEST_ENV: ${{ matrix.test-group.env }}
-        TEST_SCRIPT: ${{ matrix.test-group.script }}
-      run: |
-        pytest tests/leap_c/test_scripts.py -v -s --cov=leap_c --cov-report=xml:coverage-${{ matrix.test-group.env }}.xml --cov-report=term
-
-    - name: Upload coverage to Codecov
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      if: env.CODECOV_TOKEN != ''
-      uses: codecov/codecov-action@v4
-      with:
-        token: ${{ env.CODECOV_TOKEN }}
-        name: ${{ matrix.test-group.env }}-${{ matrix.test-group.script }}
-        flags: integration-tests
+      - name: Upload coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        if: env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ env.CODECOV_TOKEN }}
+          name: ${{ matrix.test-group.env }}-${{ matrix.test-group.script }}
+          flags: integration-tests
 
   unit_tests:
     name: Unit Tests
@@ -60,32 +58,31 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ["3.11","3.12","3.13"]
+        python-version: ["3.11", "3.12", "3.13"]
 
     steps:
+      - name: Checkout leap-c
+        uses: actions/checkout@v4
+        with:
+          path: ${{github.workspace}}/leap_c
+          submodules: "recursive"
 
-    - name: Checkout leap-c
-      uses: actions/checkout@v4
-      with:
-        path: ${{github.workspace}}/leap_c
-        submodules: 'recursive'
+      - name: Setup leap-c environment
+        uses: ./leap_c/.github/actions/setup-leap-c
+        with:
+          python-version: ${{ matrix.python-version }}
 
-    - name: Setup leap-c environment
-      uses: ./leap_c/.github/actions/setup-leap-c
-      with:
-        python-version: ${{ matrix.python-version }}
+      - name: Run tests
+        working-directory: ${{github.workspace}}/leap_c
+        run: |
+          pytest tests/leap_c/ -v --ignore=tests/leap_c/test_scripts.py --cov=leap_c --cov-report=xml:coverage-unit.xml --cov-report=term
 
-    - name: Run tests
-      working-directory: ${{github.workspace}}/leap_c
-      run: |
-        pytest tests/leap_c/ -v --ignore=tests/leap_c/test_scripts.py --cov=leap_c --cov-report=xml:coverage-unit.xml --cov-report=term
-
-    - name: Upload coverage to Codecov
-      env:
-        CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-      if: env.CODECOV_TOKEN != ''
-      uses: codecov/codecov-action@v4
-      with:
-        token: ${{ env.CODECOV_TOKEN }}
-        name: unit-tests-${{ matrix.python-version }}
-        flags: unit-tests
+      - name: Upload coverage to Codecov
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        if: env.CODECOV_TOKEN != ''
+        uses: codecov/codecov-action@v4
+        with:
+          token: ${{ env.CODECOV_TOKEN }}
+          name: unit-tests-${{ matrix.python-version }}
+          flags: unit-tests
