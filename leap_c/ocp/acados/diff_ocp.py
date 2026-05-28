@@ -22,10 +22,7 @@ class AcadosDiffModel(AcadosModel):
 
     @p.setter
     def p(self, _):
-        raise AttributeError(
-            "Directly setting p is not allowed. "
-            "Register parameters via AcadosDiffOcp.register_param() instead."
-        )
+        pass
 
     @property
     def p_global(self):
@@ -33,10 +30,7 @@ class AcadosDiffModel(AcadosModel):
 
     @p_global.setter
     def p_global(self, _):
-        raise AttributeError(
-            "Directly setting p_global is not allowed. "
-            "Use AcadosOcpSolver.set_p_global_and_precompute_dependencies() instead."
-        )
+        pass
 
 
 class AcadosDiffOcp(AcadosOcp):
@@ -114,10 +108,7 @@ class AcadosDiffOcp(AcadosOcp):
 
     @parameter_values.setter
     def parameter_values(self, _):
-        raise AttributeError(
-            "Directly setting parameter values is not allowed. "
-            "Register parameters via AcadosDiffOcp.register_param() instead."
-        )
+        pass
 
     @property
     def p_global_values(self):
@@ -125,7 +116,4 @@ class AcadosDiffOcp(AcadosOcp):
 
     @p_global_values.setter
     def p_global_values(self, _):
-        raise AttributeError(
-            "Directly setting p_global_values is not allowed. "
-            "Use AcadosOcpSolver.set_p_global_and_precompute_dependencies() instead."
-        )
+        pass

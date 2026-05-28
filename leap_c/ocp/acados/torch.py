@@ -6,7 +6,6 @@ from pathlib import Path
 
 import numpy as np
 import torch
-from acados_template import AcadosOcp
 
 from leap_c.autograd.torch import create_autograd_function
 from leap_c.ocp.acados.diff_mpc import (
@@ -36,7 +35,7 @@ class AcadosDiffMpcTorch(torch.nn.Module):
 
     def __init__(
         self,
-        ocp: AcadosOcp | AcadosDiffOcp,
+        ocp: AcadosDiffOcp,
         initializer: AcadosDiffMpcInitializer | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
@@ -67,10 +66,6 @@ class AcadosDiffMpcTorch(torch.nn.Module):
 
         """
         super().__init__()
-        if not isinstance(ocp, AcadosDiffOcp):
-            warnings.warn(
-                "Passing `AcadosOcp` object is deprecated. Please use an `AcadosDiffOcp` object."
-            )
         self.diff_mpc_fun = AcadosDiffMpcFunction(
             ocp=ocp,
             initializer=initializer,
@@ -80,10 +75,7 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             num_threads_batch_solver=num_threads_batch_solver,
             verbose=verbose,
         )
-        if isinstance(ocp, AcadosDiffOcp):
-            self.parameter_manager = ocp.parameter_manager
-        else:
-            self.parameter_manager = None
+        self.parameter_manager = ocp.parameter_manager
         self.autograd_fun = create_autograd_function(self.diff_mpc_fun)
         self.dtype = torch.get_default_dtype() if dtype is None else dtype
 
@@ -146,10 +138,6 @@ class AcadosDiffMpcTorch(torch.nn.Module):
                 )
             )
         if params is not None:
-            assert self.parameter_manager is not None, (
-                "The `params` argument can only be used if the ocp is of type `AcadosDiffOcp` and"
-                " uses a parameter manager."
-            )
             global_params = self.parameter_manager.global_parameter_names
             stagewise_params = self.parameter_manager.stagewise_parameter_names
             assert set(global_params) <= set(params.keys()) and set(stagewise_params) <= set(

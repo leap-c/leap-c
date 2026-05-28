@@ -115,7 +115,6 @@ def build_ocp(manager: AcadosParameterManager, N_horizon: int) -> AcadosOcp:
     ocp.cost.cost_type_e = "EXTERNAL"
 
     ocp.model = model
-    manager.assign_to_ocp(ocp)   # wires p_global and p into the ocp object
 
     # Provide a nominal x0 so acados allocates lbx/ubx at stage 0.
     # The actual value is overwritten at each solve call by AcadosDiffMpcTorch.
@@ -128,10 +127,6 @@ def build_ocp(manager: AcadosParameterManager, N_horizon: int) -> AcadosOcp:
     ocp.solver_options.integrator_type  = "DISCRETE"
     return ocp
 ```
-
-`manager.assign_to_ocp(ocp)` flattens both parameter structs and writes them into:
-- `ocp.model.p_global` - learnable parameters (shared across all stages)
-- `ocp.model.p` - non-learnable parameters (a vector applied per stage)
 
 ### Step 3 - Set values at runtime
 

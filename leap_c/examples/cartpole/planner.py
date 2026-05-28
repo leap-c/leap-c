@@ -6,10 +6,8 @@ import torch
 from leap_c.examples.cartpole.acados_ocp import (
     CartPoleAcadosCostType,
     CartPoleAcadosParamInterface,
-    create_cartpole_params,
     export_parametric_ocp,
 )
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
@@ -74,7 +72,6 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     def __init__(
         self,
         cfg: CartPolePlannerConfig | None = None,
-        params: list[AcadosParameter] | None = None,
         export_directory: Path | None = None,
     ) -> None:
         """Initializes the CartPoleController.
@@ -83,26 +80,13 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             cfg: A configuration object containing high-level settings for the
                 MPC problem, such as horizon length and maximum force. If not provided,
                 a default config is used.
-            params: An optional list of parameters to define the
-                ocp object. If not provided, default parameters for the CartPole
-                system will be created based on the cfg.
             export_directory: An optional directory path where the generated
                 `acados` solver code will be exported.
         """
         self.cfg = CartPolePlannerConfig() if cfg is None else cfg
-        params = (
-            create_cartpole_params(
-                param_interface=self.cfg.param_interface,
-                N_horizon=self.cfg.N_horizon,
-            )
-            if params is None
-            else params
-        )
-
-        param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
 
         ocp = export_parametric_ocp(
-            param_manager=param_manager,
+            param_interface=self.cfg.param_interface,
             cost_type=self.cfg.cost_type,
             name="cartpole",
             N_horizon=self.cfg.N_horizon,
@@ -119,4 +103,4 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             num_threads_batch_solver=self.cfg.num_threads_batch_solver,
             dtype=self.cfg.dtype,
         )
-        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
+        super().__init__(param_manager=ocp.parameter_manager, diff_mpc=diff_mpc)

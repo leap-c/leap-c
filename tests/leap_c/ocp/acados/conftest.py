@@ -9,6 +9,7 @@ import torch
 from acados_template import AcadosOcp, AcadosOcpOptions
 
 from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
+from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
 from leap_c.ocp.acados.parameters import (
     AcadosParameter,
     AcadosParameterManager,
@@ -182,11 +183,11 @@ def nominal_stagewise_params(
 def acados_test_ocp_no_p_global(
     ocp_options: AcadosOcpOptions,
     nominal_params: tuple[AcadosParameter, ...],
-) -> AcadosOcp:
+) -> AcadosDiffOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp"
 
-    ocp = AcadosOcp()
+    ocp = AcadosDiffOcp(N_horizon=ocp_options.N_horizon)
 
     ocp.solver_options.integrator_type = ocp_options.integrator_type
     ocp.solver_options.nlp_solver_type = ocp_options.nlp_solver_type
@@ -194,23 +195,8 @@ def acados_test_ocp_no_p_global(
     ocp.solver_options.qp_solver = ocp_options.qp_solver
     ocp.solver_options.qp_solver_ric_alg = ocp_options.qp_solver_ric_alg
     ocp.solver_options.tf = ocp_options.tf
-    ocp.solver_options.N_horizon = ocp_options.N_horizon
 
-    # Make a copy of the nominal parameters where differentiable
-    # and stagewise is set to False everywhere
-    params = tuple(
-        AcadosParameter(
-            name=param.name,
-            default=param.default,
-            space=param.space,
-            interface="fix",
-        )
-        for param in nominal_params
-    )
-
-    param_manager = AcadosParameterManager(
-        parameters=params, N_horizon=ocp.solver_options.N_horizon
-    )
+    param_defaults = {p.name: p.default for p in nominal_params}
 
     ocp.model.name = name
 
@@ -221,16 +207,11 @@ def acados_test_ocp_no_p_global(
     ocp.dims.nu = ocp.model.u.shape[0]
 
     kwargs = {
-        "m": param_manager.get(name="m"),
-        "cx": param_manager.get(name="cx"),
-        "cy": param_manager.get(name="cy"),
+        "m": param_defaults["m"].item(),
+        "cx": param_defaults["cx"].item(),
+        "cy": param_defaults["cy"].item(),
         "dt": ocp.solver_options.tf / ocp.solver_options.N_horizon,
     }
-    # Make sure all entries are floats or casadi SX
-    # TODO: Move this into the AcadosParamManager
-    for key, value in kwargs.items():
-        if isinstance(value, np.ndarray):
-            kwargs[key] = value.item() if value.size == 1 else ca.SX(value)
 
     ocp.model.disc_dyn_expr = (
         get_A_disc(**kwargs) @ ocp.model.x + get_B_disc(**kwargs) @ ocp.model.u
@@ -244,16 +225,16 @@ def acados_test_ocp_no_p_global(
     )
     ocp.cost.yref_0 = np.concatenate(
         [
-            param_manager.parameters["xref"].default,
-            param_manager.parameters["uref"].default,
+            param_defaults["xref"],
+            param_defaults["uref"],
         ]
     )
 
     ocp.cost.W_0 = np.diag(
         np.concatenate(
             [
-                param_manager.parameters["q_diag"].default,
-                param_manager.parameters["r_diag"].default,
+                param_defaults["q_diag"],
+                param_defaults["r_diag"],
             ]
         )
     )
@@ -271,8 +252,8 @@ def acados_test_ocp_no_p_global(
     # Terminal cost
     ocp.cost.cost_type_e = "NONLINEAR_LS"
     ocp.model.cost_y_expr_e = ocp.model.x
-    ocp.cost.yref_e = param_manager.parameters["xref_e"].default
-    ocp.cost.W_e = np.diag(param_manager.parameters["q_diag_e"].default)
+    ocp.cost.yref_e = param_defaults["xref_e"]
+    ocp.cost.W_e = np.diag(param_defaults["q_diag_e"])
     ocp.cost.W_e = ocp.cost.W_e @ ocp.cost.W_e.T
 
     ocp.constraints.x0 = np.array([1.0, 1.0, 0.0, 0.0])
@@ -387,18 +368,23 @@ def acados_test_ocp(
     ocp_options: AcadosOcpOptions,
     nominal_params: tuple[AcadosParameter, ...],
     request: pytest.FixtureRequest,
-) -> AcadosOcp:
+) -> AcadosDiffOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp"
 
-    ocp = AcadosOcp()
-
+    ocp = AcadosDiffOcp(N_horizon=ocp_options.N_horizon)
     ocp.solver_options = ocp_options
 
-    param_manager = AcadosParameterManager(
-        parameters=nominal_params, N_horizon=ocp.solver_options.N_horizon
-    )
-    param_manager.assign_to_ocp(ocp)
+    for param in nominal_params:
+        ocp.register_param(
+            name=param.name,
+            default=param.default,
+            space=param.space,
+            differentiable=(param.interface == "learnable"),
+            splits=param.splits,
+        )
+
+    param_manager = ocp.parameter_manager
 
     ocp.model.name = name
 
@@ -464,18 +450,23 @@ def acados_test_ocp(
 def acados_test_ocp_with_stagewise_varying_params(
     ocp_options: AcadosOcpOptions,
     nominal_stagewise_params: tuple[AcadosParameter, ...],
-) -> AcadosOcp:
+) -> AcadosDiffOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp_with_stagewise_varying_params"
 
-    ocp = AcadosOcp()
-
+    ocp = AcadosDiffOcp(N_horizon=ocp_options.N_horizon)
     ocp.solver_options = ocp_options
 
-    param_manager = AcadosParameterManager(
-        parameters=nominal_stagewise_params, N_horizon=ocp.solver_options.N_horizon
-    )
-    param_manager.assign_to_ocp(ocp)
+    for param in nominal_stagewise_params:
+        ocp.register_param(
+            name=param.name,
+            default=param.default,
+            space=param.space,
+            differentiable=(param.interface == "learnable"),
+            splits=param.splits,
+        )
+
+    param_manager = ocp.parameter_manager
 
     ocp.model.name = name
 

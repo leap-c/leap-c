@@ -11,14 +11,12 @@ from leap_c.examples.hvac.acados_ocp import (
     HvacAcadosParamGranularity,
     HvacAcadosParamInterface,
     export_parametric_ocp,
-    make_default_hvac_params,
 )
 from leap_c.examples.hvac.utils import set_temperature_limits
 from leap_c.ocp.acados.data import (
     collate_acados_flattened_batch_iterate_fn,
     collate_acados_ocp_solver_input,
 )
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
@@ -73,6 +71,9 @@ class HvacPlannerConfig:
     N_horizon: int = 24 * 4 - 1  # 24 hours in 15 minutes time steps
     param_interface: HvacAcadosParamInterface = "reference_dynamics"
     param_granularity: HvacAcadosParamGranularity = "global"
+    ta_learnable: bool = False
+    solar_learnable: bool = False
+    price_learnable: bool = False
 
     discount_factor: float | None = None
     n_batch_init: int | None = None
@@ -115,7 +116,6 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
     def __init__(
         self,
         cfg: HvacPlannerConfig | None = None,
-        params: tuple[AcadosParameter, ...] | None = None,
         diff_mpc_kwargs: dict[str, Any] | None = None,
         export_directory: Path | None = None,
     ) -> None:
@@ -125,30 +125,19 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             cfg: A configuration object containing high-level settings for the
                 MPC problem, such as horizon length. If not provided,
                 a default config is used.
-            params: An optional tuple of parameters to define the
-                ocp object. If not provided, default parameters for the HVAC
-                system will be created based on the cfg.
             diff_mpc_kwargs: Optional keyword arguments to pass to AcadosDiffMpcTorch.
             export_directory: An optional directory path where the generated
                 `acados` solver code will be exported.
         """
         self.cfg = HvacPlannerConfig() if cfg is None else cfg
 
-        params = (
-            make_default_hvac_params(
-                interface=self.cfg.param_interface,
-                granularity=self.cfg.param_granularity,
-                N_horizon=self.cfg.N_horizon,
-            )
-            if params is None
-            else params
-        )
-
-        param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
-
         ocp = export_parametric_ocp(
-            param_manager=param_manager,
+            interface=self.cfg.param_interface,
+            granularity=self.cfg.param_granularity,
             N_horizon=self.cfg.N_horizon,
+            ta_learnable=self.cfg.ta_learnable,
+            solar_learnable=self.cfg.solar_learnable,
+            price_learnable=self.cfg.price_learnable,
         )
 
         if diff_mpc_kwargs is None:
@@ -162,7 +151,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             dtype=self.cfg.dtype,
             **diff_mpc_kwargs,
         )
-        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
+        super().__init__(param_manager=ocp.parameter_manager, diff_mpc=diff_mpc)
 
     def _set_stagewise_constraint_bounds(
         self,

@@ -18,7 +18,7 @@ from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 def test_acados_param_manager_basic_initialization():
     """Test basic initialization of AcadosParamManager."""
     params = [
-        AcadosParameter(name="scalar", default=np.array([1.0]), interface="fix"),
+        AcadosParameter(name="scalar", default=np.array([1.0]), interface="non-learnable"),
         AcadosParameter(name="vector", default=np.array([2.0, 3.0]), interface="learnable"),
     ]
 
@@ -28,25 +28,6 @@ def test_acados_param_manager_basic_initialization():
     assert "scalar" in manager.parameters
     assert "vector" in manager.parameters
     assert manager.N_horizon == 10
-
-
-def test_parameter_interface_fix():
-    """Test fixed parameters (interface='fix')."""
-    params = [
-        AcadosParameter(name="scalar_fix", default=np.array([1.0]), interface="fix"),
-        AcadosParameter(name="vector_fix", default=np.array([2.0, 3.0]), interface="fix"),
-        AcadosParameter(
-            name="matrix_fix",
-            default=np.array([[4.0, 5.0], [6.0, 7.0]]),
-            interface="fix",
-        ),
-    ]
-
-    manager = AcadosParameterManager(params, N_horizon=5)
-
-    # Fixed parameters should not appear in learnable or non-learnable structures
-    assert len(manager._learnable_parameter_store.symbols) == 0
-    assert len(manager._non_learnable_parameter_store.symbols) == 0
 
 
 def test_parameter_interface_learnable_no_vary_stages():
@@ -418,13 +399,6 @@ def test_mixed_parameter_types_and_interfaces():
     """Test complex scenario with mixed parameter types and interfaces."""
     N_horizon = 8
     params = [
-        # Fixed parameters
-        AcadosParameter(name="fix_scalar", default=np.array([1.0]), interface="fix"),
-        AcadosParameter(
-            name="fix_matrix",
-            default=np.array([[2.0, 3.0], [4.0, 5.0]]),
-            interface="fix",
-        ),
         # Learnable parameters without vary_stages
         AcadosParameter(name="learn_scalar", default=np.array([6.0]), interface="learnable"),
         AcadosParameter(name="learn_vector", default=np.array([7.0, 8.0]), interface="learnable"),
@@ -702,19 +676,6 @@ def test_get_param_space_with_variable_end_stages():
     assert len(learnable_keys) == 15
 
 
-def test_get_method_fix_parameters():
-    """Test get method for fixed parameters."""
-    params = [
-        AcadosParameter(name="fixed_param", default=np.array([42.0]), interface="fix"),
-    ]
-
-    manager = AcadosParameterManager(params, N_horizon=5)
-
-    # Should return the parameter value directly
-    result = manager.get("fixed_param")
-    np.testing.assert_array_equal(result, np.array([42.0]))
-
-
 def test_get_method_learnable_parameters():
     """Test get method for learnable parameters."""
     params = [
@@ -783,7 +744,7 @@ def test_get_method_vary_stages():
 def test_get_method_unknown_field():
     """Test get method with unknown field name."""
     params = [
-        AcadosParameter(name="existing_param", default=np.array([1.0]), interface="fix"),
+        AcadosParameter(name="existing_param", default=np.array([1.0]), interface="non-learnable"),
     ]
 
     manager = AcadosParameterManager(params, N_horizon=5)
@@ -928,7 +889,6 @@ def test_combine_parameter_values_complex():
     N_horizon = 8
     params = [
         # Scalar parameters
-        AcadosParameter(name="scalar_fix", default=np.array([2.0]), interface="fix"),
         AcadosParameter(name="scalar_learnable", default=np.array([3.0]), interface="learnable"),
         AcadosParameter(
             name="scalar_non_learnable",
@@ -942,7 +902,6 @@ def test_combine_parameter_values_complex():
             end_stages=[2, 6, N_horizon],
         ),
         # Vector parameters
-        AcadosParameter(name="vector_fix", default=np.array([1.0, 2.0]), interface="fix"),
         AcadosParameter(
             name="vector_learnable",
             default=np.array([6.0, 7.0]),
@@ -960,11 +919,6 @@ def test_combine_parameter_values_complex():
             end_stages=[3, N_horizon],
         ),
         # Matrix parameters
-        AcadosParameter(
-            name="matrix_fix",
-            default=np.array([[1.0, 2.0], [3.0, 4.0]]),
-            interface="fix",
-        ),
         AcadosParameter(
             name="matrix_learnable",
             default=np.array([[12.0, 13.0], [14.0, 15.0]]),
@@ -1521,21 +1475,6 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
         "The state trajectory matches between nominal and stagewise diff MPC \
             despite different initial reference."
     )
-
-
-def test_add_parameter_interface_fix():
-    """Test adding fixed parameters (interface='fix')."""
-    manager = AcadosParameterManager([], N_horizon=5)
-    manager.add_parameter(
-        AcadosParameter(name="scalar_fix", default=np.array([1.0]), interface="fix")
-    )
-
-    # Fixed parameters should not appear in learnable or non-learnable structures
-    assert len(manager._learnable_parameter_store.symbols) == 0
-    assert len(manager._non_learnable_parameter_store.symbols) == 0
-
-    # No indicator should be created
-    assert len(manager._non_learnable_parameter_store.symbols) == 0
 
 
 def test_add_parameter_interface_learnable_no_vary_stages():

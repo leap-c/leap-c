@@ -2,14 +2,13 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import numpy as np
 import torch
 
 from leap_c.examples.pointmass.acados_ocp import (
     PointMassAcadosParamInterface,
-    create_pointmass_params,
     export_parametric_ocp,
 )
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
@@ -38,6 +37,7 @@ class PointMassControllerConfig:
     T_horizon: float = 2.0
     Fmax: float = 10.0
     param_interface: PointMassAcadosParamInterface = "global"
+    x_ref_value: np.ndarray | None = None
 
     discount_factor: float | None = None
     n_batch_init: int | None = None
@@ -64,7 +64,6 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     def __init__(
         self,
         cfg: PointMassControllerConfig | None = None,
-        params: list[AcadosParameter] | None = None,
         export_directory: Path | None = None,
     ) -> None:
         """Initializes the PointMassController.
@@ -73,29 +72,17 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             cfg: A configuration object containing high-level settings for the
                 MPC problem, such as horizon length and maximum force.
                 If not provided, a default config is used.
-            params: An optional list of parameters to define the
-                ocp object. If not provided, default parameters for the PointMass
-                system will be created based on the cfg.
             export_directory: Optional directory for generated acados solver code.
         """
         self.cfg = PointMassControllerConfig() if cfg is None else cfg
-        params = (
-            create_pointmass_params(
-                param_interface=self.cfg.param_interface,
-                N_horizon=self.cfg.N_horizon,
-            )
-            if params is None
-            else params
-        )
-
-        param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
 
         ocp = export_parametric_ocp(
-            param_manager=param_manager,
+            param_interface=self.cfg.param_interface,
             name="pointmass",
             N_horizon=self.cfg.N_horizon,
             T_horizon=self.cfg.T_horizon,
             Fmax=self.cfg.Fmax,
+            x_ref_value=self.cfg.x_ref_value,
         )
 
         diff_mpc = AcadosDiffMpcTorch(
@@ -106,7 +93,7 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             num_threads_batch_solver=self.cfg.num_threads_batch_solver,
             dtype=self.cfg.dtype,
         )
-        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
+        super().__init__(param_manager=ocp.parameter_manager, diff_mpc=diff_mpc)
 
     def forward(
         self,

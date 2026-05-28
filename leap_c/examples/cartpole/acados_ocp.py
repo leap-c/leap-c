@@ -3,10 +3,9 @@ from typing import Literal
 import casadi as ca
 import gymnasium as gym
 import numpy as np
-from acados_template import AcadosModel, AcadosOcp
 
 from leap_c.examples.utils.casadi import integrate_erk4
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
+from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
 
 CartPoleAcadosParamInterface = Literal["global", "stagewise"]
 """Determines the exposed parameter interface of the controller.
@@ -20,75 +19,62 @@ Gauss-Newton Hessian approximation.
 """
 
 
-def create_cartpole_params(
+def export_parametric_ocp(
     param_interface: CartPoleAcadosParamInterface,
+    cost_type: CartPoleAcadosCostType = "NONLINEAR_LS",
+    name: str = "cartpole",
+    Fmax: float = 80.0,
+    x_threshold: float = 2.4,
     N_horizon: int = 50,
-) -> list[AcadosParameter]:
-    """Returns a list of parameters used in the cartpole controller.
+    T_horizon: float = 2.0,
+) -> AcadosDiffOcp:
+    ocp = AcadosDiffOcp(N_horizon=N_horizon)
 
-    Args:
-        param_interface: Determines the exposed parameter interface of the controller.
-        N_horizon: The number of steps in the MPC horizon.
-    """
-    return [
-        # Dynamics parameters
-        AcadosParameter("M", default=np.array([1.0])),  # mass of the cart [kg]
-        AcadosParameter("m", default=np.array([0.1])),  # mass of the ball [kg]
-        AcadosParameter("g", default=np.array([9.81])),  # gravity constant [m/s^2]
-        AcadosParameter("l", default=np.array([0.8])),  # length of the rod [m]
-        # Cost matrix factorization parameters
-        AcadosParameter(
-            "q_diag_sqrt", default=np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))
-        ),  # cost weights of state residuals
-        AcadosParameter(
-            "r_diag_sqrt", default=np.sqrt(np.array([2e-1]))
-        ),  # cost weights of control input residuals
-        # Reference parameters
-        AcadosParameter(
-            "xref0",
-            default=np.array([0.0]),
-            interface="non-learnable",
-        ),  # reference position
-        AcadosParameter(
-            "xref1",
-            default=np.array([0.0]),
-            space=gym.spaces.Box(
-                low=np.array([-2.0 * np.pi]),
-                high=np.array([2.0 * np.pi]),
-                dtype=np.float64,
-            ),
-            interface="learnable",
-            end_stages=list(range(N_horizon + 1)) if param_interface == "stagewise" else [],
-        ),  # reference theta
-        AcadosParameter(
-            "xref2",
-            default=np.array([0.0]),
-            interface="non-learnable",
-        ),  # reference v
-        AcadosParameter(
-            "xref3",
-            default=np.array([0.0]),
-            interface="non-learnable",
-        ),  # reference thetadot
-        AcadosParameter(
-            "uref",
-            default=np.array([0.0]),
-            interface="non-learnable",
-        ),  # reference u
-    ]
+    ocp.solver_options.N_horizon = N_horizon
+    ocp.solver_options.tf = T_horizon
 
+    dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
 
-def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParameterManager) -> ca.SX:
-    M = param_manager.get("M")
-    m = param_manager.get("m")
-    g = param_manager.get("g")
-    l = param_manager.get("l")
+    # Reference parameters (non-learnable / learnable)
+    xref0 = ocp.register_param("xref0", default=np.array([0.0]), differentiable=False)
+    xref1 = ocp.register_param(
+        "xref1",
+        default=np.array([0.0]),
+        space=gym.spaces.Box(
+            low=np.array([-2.0 * np.pi]),
+            high=np.array([2.0 * np.pi]),
+            dtype=np.float64,
+        ),
+        differentiable=True,
+        splits="stagewise" if param_interface == "stagewise" else "global",
+    )
+    xref2 = ocp.register_param("xref2", default=np.array([0.0]), differentiable=False)
+    xref3 = ocp.register_param("xref3", default=np.array([0.0]), differentiable=False)
+    uref = ocp.register_param("uref", default=np.array([0.0]), differentiable=False)
 
-    theta = model.x[1]
-    v = model.x[2]
-    dtheta = model.x[3]
+    # Dynamics physical constants (sunsetted "fix" interface)
+    M = 1.0  # mass of the cart [kg]
+    m = 0.1  # mass of the ball [kg]
+    g = 9.81  # gravity constant [m/s^2]
+    l = 0.8  # length of the rod [m]
 
-    F = model.u[0]
+    q_diag_sqrt = np.sqrt(np.array([2e3, 2e3, 1e-2, 1e-2]))
+    r_diag_sqrt = np.sqrt(np.array([2e-1]))
+
+    ######## Model ########
+    ocp.model.name = name
+
+    ocp.dims.nx = 4
+    ocp.dims.nu = 1
+
+    ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
+    ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
+
+    theta = ocp.model.x[1]
+    v = ocp.model.x[2]
+    dtheta = ocp.model.x[3]
+
+    F = ocp.model.u[0]
 
     # dynamics
     cos_theta = ca.cos(theta)
@@ -102,56 +88,21 @@ def define_f_expl_expr(model: AcadosModel, param_manager: AcadosParameterManager
         / (l * denominator),
     )
 
-    return f_expl  # type:ignore
-
-
-def export_parametric_ocp(
-    param_manager: AcadosParameterManager,
-    cost_type: CartPoleAcadosCostType = "NONLINEAR_LS",
-    name: str = "cartpole",
-    Fmax: float = 80.0,
-    x_threshold: float = 2.4,
-    N_horizon: int = 50,
-    T_horizon: float = 2.0,
-) -> AcadosOcp:
-    ocp = AcadosOcp()
-
-    ocp.solver_options.N_horizon = N_horizon
-    ocp.solver_options.tf = T_horizon
-
-    param_manager.assign_to_ocp(ocp)
-
-    dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
-
-    ######## Model ########
-    ocp.model.name = name
-
-    ocp.dims.nx = 4
-    ocp.dims.nu = 1
-
-    ocp.model.x = ca.SX.sym("x", ocp.dims.nx)
-    ocp.model.u = ca.SX.sym("u", ocp.dims.nu)
-
-    p = param_manager.p_full  # type:ignore
-    f_expl = define_f_expl_expr(ocp.model, param_manager)
     ocp.model.disc_dyn_expr = integrate_erk4(
         f_expl=f_expl,
         x=ocp.model.x,
         u=ocp.model.u,
-        p=p,
+        p=ocp.parameter_manager.p_full,
         dt=dt,
     )
 
     ######## Cost ########
-    xref = ca.vertcat(*[param_manager.get(f"xref{i}") for i in range(4)])
-    uref = param_manager.get("uref")
+    xref = ca.vertcat(xref0, xref1, xref2, xref3)
     yref = ca.vertcat(xref, uref)  # type:ignore
     yref_e = yref[: ocp.dims.nx]
     y = ca.vertcat(ocp.model.x, ocp.model.u)
     y_e = ocp.model.x
 
-    q_diag_sqrt = param_manager.get("q_diag_sqrt")
-    r_diag_sqrt = param_manager.get("r_diag_sqrt")
     W_sqrt = ca.diag(ca.vertcat(q_diag_sqrt, r_diag_sqrt))
     W = W_sqrt @ W_sqrt.T
     W_e = W[: ocp.dims.nx, : ocp.dims.nx]

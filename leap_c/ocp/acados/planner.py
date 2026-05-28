@@ -11,6 +11,7 @@ from leap_c.ocp.acados.parameters import AcadosParameterManager
 from leap_c.ocp.acados.torch import AcadosDiffMpcSensitivityOptions, AcadosDiffMpcTorch
 from leap_c.planner import ParameterizedPlanner, SensitivityOptions
 
+# TODO Jasper: Needs to be updated if we go to a dictionary based sensitivity derivation.
 TO_ACADOS_DIFFMPC_SENSOPTS: dict[SensitivityOptions, AcadosDiffMpcSensitivityOptions] = {
     "du0_dp": "du0_dp_global",
     "dx_dp": "dx_dp_global",

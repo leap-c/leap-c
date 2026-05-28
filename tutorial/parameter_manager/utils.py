@@ -116,7 +116,6 @@ def build_ocp(manager: AcadosParameterManager, N_horizon: int = N_HORIZON) -> Ac
     ocp.cost.cost_type_e = "EXTERNAL"
 
     ocp.model = model
-    manager.assign_to_ocp(ocp)  # wires p_global and p into the ocp object
 
     # Provide a nominal x0 so acados allocates lbx/ubx at stage 0.
     # The actual value is overwritten at each solve call by AcadosDiffMpcTorch.

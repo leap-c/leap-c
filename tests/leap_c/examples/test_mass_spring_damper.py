@@ -68,6 +68,12 @@ def plot_msd_solution(
 def test_solution(msd_controller):
     """Test that the OCP solver can solve for a given initial state."""
     ocp_solver = msd_controller.planner.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
+
+    # Initialize p_global if necessary
+    ocp = ocp_solver.acados_ocp
+    if hasattr(ocp.model, "p_global") and ocp.model.p_global.shape[0] > 0:
+        ocp_solver.set_p_global_and_precompute_dependencies(ocp.p_global_values)
+
     # Set initial state away from origin
     x0 = np.array([1.5, -1.0])
     ocp_solver.solve_for_x0(x0)

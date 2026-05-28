@@ -6,9 +6,7 @@ import torch
 
 from leap_c.examples.mass_spring_damper.acados_ocp import (
     export_parametric_ocp,
-    make_default_msd_params,
 )
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
@@ -57,7 +55,6 @@ class MassSpringDamperPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     def __init__(
         self,
         cfg: MassSpringDamperPlannerConfig | None = None,
-        params: tuple[AcadosParameter, ...] | None = None,
         export_directory: Path | None = None,
     ):
         """Initializes the MassSpringDamperPlanner.
@@ -66,19 +63,12 @@ class MassSpringDamperPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             cfg: A configuration object containing high-level settings for the
                 MPC problem, such as horizon length. If not provided,
                 a default config is used.
-            params: An optional tuple of parameters to define the
-                ocp object. If not provided, default parameters for the mass-spring-damper
-                system will be created based on the cfg.
             export_directory: An optional directory path where the generated
                 `acados` solver code will be exported.
         """
         self.cfg = MassSpringDamperPlannerConfig() if cfg is None else cfg
-        params = make_default_msd_params(N_horizon=self.cfg.N_horizon) if params is None else params
-
-        param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
 
         ocp = export_parametric_ocp(
-            param_manager=param_manager,
             N_horizon=self.cfg.N_horizon,
             name="mass_spring_damper",
             x0=np.array([1.0, 0.0]),
@@ -92,4 +82,4 @@ class MassSpringDamperPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             num_threads_batch_solver=self.cfg.num_threads_batch_solver,
             dtype=self.cfg.dtype,
         )
-        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
+        super().__init__(param_manager=ocp.parameter_manager, diff_mpc=diff_mpc)

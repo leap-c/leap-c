@@ -6,7 +6,6 @@ import casadi as ca
 import gymnasium as gym
 import numpy as np
 import torch
-from acados_template import AcadosOcp
 
 
 @dataclass
@@ -44,7 +43,7 @@ class AcadosParameter:
     name: str
     default: np.ndarray
     space: gym.spaces.Space | None = None
-    interface: Literal["fix", "learnable", "non-learnable"] = "fix"
+    interface: Literal["learnable", "non-learnable"] = "learnable"
 
     # Additional acados-specific field
     splits: list[int] | int | Literal["stagewise", "global"] = "global"
@@ -197,9 +196,6 @@ class AcadosParameterManager:
         price = manager.get("price")           # CasADi expression, stage-aware
         outdoor_temp = manager.get("outdoor_temp")  # CasADi symbolic variable
 
-        # Step 3: wire into acados
-        manager.assign_to_ocp(ocp)
-
     **Stage-varying learnable parameters** (``splits`` are not ``"global"``) are implemented via a
     one-hot *indicator* vector that is appended to the non-learnable parameters.  At stage ``k``
     only ``indicator[k]`` is 1; ``get()`` returns a weighted sum over all stage blocks so the
@@ -248,11 +244,21 @@ class AcadosParameterManager:
 
     @property
     def p_global(self) -> ca.SX | ca.MX:
-        return self._learnable_parameter_store.get_symbols()
+        symbols = self._learnable_parameter_store.get_symbols()
+        if symbols.is_empty():
+            return (
+                ca.SX.sym("p_global", 0, 1)
+                if self.casadi_type == "SX"
+                else ca.MX.sym("p_global", 0, 1)
+            )
+        return symbols
 
     @property
     def p(self) -> ca.SX | ca.MX:
-        return self._non_learnable_parameter_store.get_symbols()
+        symbols = self._non_learnable_parameter_store.get_symbols()
+        if symbols.is_empty():
+            return ca.SX.sym("p", 0, 1) if self.casadi_type == "SX" else ca.MX.sym("p", 0, 1)
+        return symbols
 
     @property
     def p_full(self) -> ca.SX | ca.MX:
@@ -597,7 +603,7 @@ class AcadosParameterManager:
             return gym.spaces.utils.flatten_space(gym.spaces.Tuple(learnable_spaces))
 
     def get(self, name: str) -> ca.SX | ca.MX | np.ndarray:
-        """Get the symbolic variable (or fixed value) for a parameter.
+        """Get the symbolic variable for a parameter.
 
         For stage-varying learnable parameters (those with ``splits``), the returned
         expression is a weighted sum over all stage blocks, gated by the ``indicator`` vector
@@ -610,7 +616,6 @@ class AcadosParameterManager:
             name: The name of the parameter to retrieve.
 
         Returns:
-            - ``np.ndarray`` for ``"fix"`` parameters (the default value).
             - CasADi ``SX``/``MX`` expression for ``"learnable"`` and ``"non-learnable"``
               parameters.
 
@@ -619,9 +624,6 @@ class AcadosParameterManager:
         """
         if name not in self.parameters:
             raise ValueError(f"Unknown name: {name}. Available names: {', '.join(self.parameters)}")
-
-        if self.parameters[name].interface == "fix":
-            return self.parameters[name].default
 
         if (
             self.parameters[name].interface == "learnable"
@@ -654,42 +656,6 @@ class AcadosParameterManager:
             raise ValueError(
                 f"Unknown interface type for field '{name}': {self.parameters[name].interface}"
             )
-
-    def assign_to_ocp(self, ocp: AcadosOcp) -> None:
-        """Assign the parameters to the acados OCP object.
-
-        Wires ``learnable_parameters`` into ``ocp.model.p_global`` (shared across all stages)
-        and ``non_learnable_parameters`` into ``ocp.model.p`` (per-stage).  Default values are
-        set on ``ocp.p_global_values`` and ``ocp.parameter_values`` respectively.
-
-        Args:
-            ocp: The :class:`acados_template.AcadosOcp` instance to configure.
-                Any existing ``p_global`` / ``p`` definitions are overwritten.
-        """
-        if len(self._learnable_parameter_store.symbols) > 0:
-            ocp.model.p_global = self._learnable_parameter_store.get_symbols()
-            ocp.p_global_values = self._learnable_parameter_store.get_values()
-
-        if len(self._non_learnable_parameter_store.symbols) > 0:
-            ocp.model.p = self._non_learnable_parameter_store.get_symbols()
-            ocp.parameter_values = self._non_learnable_parameter_store.get_values()
-
-    def recreate_dataclass(self, cls):
-        """Recreate a dataclass instance of type cls with current parameter values.
-
-        Args:
-            cls: The dataclass type to recreate.
-
-        Returns:
-            An instance of cls with fields populated from the current parameter values.
-        """
-        field_values = {}
-        for field_name in cls.__dataclass_fields__.keys():
-            if field_name in self.parameters:
-                field_values[field_name] = self.get(field_name)
-            else:
-                raise ValueError(f"Parameter '{field_name}' not found in parameter manager.")
-        return cls(**field_values)
 
     def has_learnable_param_pattern(self, pattern: str) -> bool:
         """Check if any parameter names match the given pattern.

@@ -6,7 +6,6 @@ from pathlib import Path
 from typing import Callable, Literal, Sequence
 
 import numpy as np
-from acados_template import AcadosOcp
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 
 from leap_c.autograd.function import DiffFunction
@@ -122,7 +121,7 @@ class AcadosDiffMpcFunction(DiffFunction):
 
     def __init__(
         self,
-        ocp: AcadosOcp | AcadosDiffOcp,
+        ocp: AcadosDiffOcp,
         initializer: AcadosDiffMpcInitializer | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
@@ -209,12 +208,11 @@ class AcadosDiffMpcFunction(DiffFunction):
         """
         batch_size = x0.shape[0]
 
-        if isinstance(self.ocp, AcadosDiffOcp):
-            p_stagewise = (
-                self.ocp.parameter_manager.combine_non_learnable_parameter_values(batch_size)
-                if p_stagewise is None
-                else p_stagewise
-            )
+        p_stagewise = (
+            self.ocp.parameter_manager.combine_non_learnable_parameter_values(batch_size)
+            if p_stagewise is None
+            else p_stagewise
+        )
 
         solver_input = AcadosOcpSolverInput(x0, u0, p_global, p_stagewise, p_stagewise_sparse_idx)
         ocp_iterate = None if ctx is None else ctx.iterate
