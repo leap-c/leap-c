@@ -27,13 +27,23 @@ extensions = [
     "sphinx.ext.viewcode",
     "sphinx.ext.mathjax",  # For math equations
     "sphinx.ext.intersphinx",  # For linking to other documentation
-    "myst_parser",  # Add this for Markdown support
+    "myst_nb",  # Markdown + MyST-NB notebook support (supersedes myst_parser)
 ]
 
-# Add this to enable Markdown files
-source_suffix = {
-    ".rst": "restructuredtext",
-    ".md": "markdown",
-}
+# MyST-NB registers parsers for .md (MyST markdown) and .ipynb (notebook).
+# Keep .rst supported by default docutils.
+source_suffix = [".rst", ".md", ".ipynb"]
+
+# MyST-NB: render notebooks statically — do not execute cells at build time.
+# Tutorials are intended to be *run* by users locally; the docs build just
+# renders the source (prose + code + any cell outputs already stored).
+nb_execution_mode = "off"
+
+# MyST parser extensions used in tutorials (math, code-cell directive).
+myst_enable_extensions = [
+    "dollarmath",
+    "amsmath",
+    "colon_fence",
+]
 
 html_theme = "furo"

@@ -287,6 +287,10 @@ class SacTrainer(Trainer[SacTrainerConfig, Any]):
             if "episode" in info or "task" in info:
                 self.report_stats("train", info.get("episode", {}) | info.get("task", {}))
 
+            if "train_episode" in info:
+                # Skip smoothing so each episode shows up as a distinct CSV row.
+                self.report_stats("train_episode", info["train_episode"], with_smoothing=False)
+
             # TODO (Jasper): Add is_truncated to buffer.
             self.buffer.put((obs, action, reward, obs_prime, is_terminated))
 

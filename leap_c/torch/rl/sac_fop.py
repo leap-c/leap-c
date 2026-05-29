@@ -162,6 +162,10 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
             if "episode" in info or "task" in info:
                 self.report_stats("train", info.get("episode", {}) | info.get("task", {}))
 
+            if "train_episode" in info:
+                # Skip smoothing so each episode shows up as a distinct CSV row.
+                self.report_stats("train_episode", info["train_episode"], with_smoothing=False)
+
             self.buffer.put(
                 (
                     obs,

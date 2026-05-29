@@ -11,6 +11,7 @@ acados_ocp_nlp.json
 
 .vscode
 .idea
+.claude
 output
 
 # Byte-compiled / optimized / DLL files
