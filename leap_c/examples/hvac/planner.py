@@ -204,15 +204,21 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         batch_size = obs["time"]["quarter_hour"].shape[0]
         device = obs["time"]["quarter_hour"].device
 
-        # Use default parameters if none provided and there are learnable parameters
-        if param is None and self.param_manager._learnable_parameter_store.size > 0:
-            default_flat = torch.from_numpy(self.param_manager.learnable_default_flat).to(device)
-            param = default_flat.unsqueeze(0).expand(batch_size, -1)
-
         if not isinstance(ctx, HvacPlannerCtx):
             qh = torch.zeros((batch_size, 1), dtype=torch.float64, device=device)
         else:
             qh = ctx.qh
+
+        render_param = param
+        if render_param is None:
+            render_param = torch.from_numpy(
+                np.array(
+                    self.param_manager.combine_default_learnable_parameter_values(
+                        batch_size=batch_size
+                    ),
+                    copy=True,
+                )
+            ).to(device=device, dtype=torch.float64)
 
         # Set time-varying temperature comfort bounds from quarter_hour
         quarter_hours = obs["time"]["quarter_hour"]  # (batch_size, 1)
@@ -265,13 +271,9 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             else:
                 # If the forecast parameter is learned, extract its structured representation
                 sub_param[key] = self.param_manager.get_labeled_learnable_parameters(
-                    param, label=key
+                    render_param, label=key
                 )
                 render_info[key] = sub_param[key].detach().cpu().numpy()
-
-        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
-            batch_size=batch_size, **overwrites
-        )
 
         # Build state: [Ti, Th, Te, qh_prev]
         thermal_state = obs["state"]  # (batch_size, 3) - [Ti, Th, Te]
@@ -280,8 +282,8 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         diff_mpc_ctx, _, x, u, value = self.diff_mpc(
             x0=state,
             u0=action,
-            p_global=param,
-            p_stagewise=p_stagewise,
+            param=param,
+            params=overwrites,
             ctx=ctx,
         )
 
@@ -306,7 +308,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         for key in dynamics_params:
             if self.param_manager.has_learnable_param_pattern(f"{key}*"):
                 render_info[key] = (
-                    self.param_manager.get_labeled_learnable_parameters(param, label=key)
+                    self.param_manager.get_labeled_learnable_parameters(render_param, label=key)
                     .detach()
                     .cpu()
                     .numpy()

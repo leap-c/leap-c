@@ -1,9 +1,9 @@
 """Central interface to use acados in PyTorch."""
 
-import warnings
 from collections.abc import Sequence
 from pathlib import Path
 
+import gymnasium as gym
 import numpy as np
 import torch
 
@@ -15,9 +15,10 @@ from leap_c.ocp.acados.diff_mpc import (
 )
 from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
+from leap_c.planner import ParameterizedPlanner
 
 
-class AcadosDiffMpcTorch(torch.nn.Module):
+class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
     """PyTorch module for differentiable MPC based on acados.
 
     This module wraps acados solvers to enable their use in differentiable machine learning
@@ -79,14 +80,24 @@ class AcadosDiffMpcTorch(torch.nn.Module):
         self.autograd_fun = create_autograd_function(self.diff_mpc_fun)
         self.dtype = torch.get_default_dtype() if dtype is None else dtype
 
+    @property
+    def param_space(self) -> gym.Space:
+        """Describes the parameter space of the planner."""
+        return self.parameter_manager.get_param_space()
+
+    def default_param(self, obs: np.ndarray | None = None) -> np.ndarray:
+        """Provides a default parameter configuration for the planner."""
+        default = self.parameter_manager.learnable_default_flat
+        if obs is None or obs.ndim <= 1:
+            return default
+        return np.broadcast_to(default, (*obs.shape[:-1], default.size))
+
     def forward(
         self,
         x0: torch.Tensor,
         u0: torch.Tensor | None = None,
-        params: dict[str, torch.Tensor] | None = None,
-        p_global: torch.Tensor | None = None,
-        p_stagewise: torch.Tensor | None = None,
-        p_stagewise_sparse_idx: torch.Tensor | None = None,
+        param: torch.Tensor | None = None,
+        params: dict[str, torch.Tensor | np.ndarray] | None = None,
         ctx: AcadosDiffMpcCtx | None = None,
     ) -> tuple[AcadosDiffMpcCtx, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Performs the forward pass by solving the provided problem instances.
@@ -97,29 +108,13 @@ class AcadosDiffMpcTorch(torch.nn.Module):
         sensitivities.
 
         Args:
-            ctx: An object for storing context. If provided, it will be used to warmstart the solve
-                (e.g., by using the saved iterate). Defaults to `None`.
             x0: Initial states with shape `(B, x_dim)`.
             u0: Initial actions with shape `(B, u_dim)`. Defaults to `None`.
-            params: A dictionary containing the parameters. The keys should correspond to the
-                parameter names defined in the acados ocp object, and the value should be a tensor
-                of shape `(B, param_dim)` for global parameters or `(B, N_horizon+1, param_dim)` for
-                stagewise parameters. You can provide sparse indices for stagewise parameters using
-                an additional key with the suffix `"_sparse_idx"` containing a tensor of shape
-                `(B, N_horizon+1, n_sparse_idx)`. The module will automatically handle the mapping
-                of these parameters to the appropriate inputs for the acados solver.
-            p_global: Learnable parameters, i.e., allowing backpropagation, shape
-                `(B, p_global_dim)`. Correspond to learnable acados parameters. Deprecated, use
-                `params` instead.
-            p_stagewise: Acados stagewise parameters, i.e., not allowing backpropagation, shape
-                `(B, N_horizon+1, p_stagewise_dim)`. Correspond to `"non-learnable"` acados
-                parameters. Deprecated, use `params` instead.
-                If `p_stagewise_sparse_idx` is provided, this also has to be provided.
-                If `p_stagewise_sparse_idx` is `None`, shape is `(B, N_horizon+1, p_stagewise_dim)`.
-                If `p_stagewise_sparse_idx` is provided, shape is
-                `(B, N_horizon+1, len(p_stagewise_sparse_idx))`.
-            p_stagewise_sparse_idx: Indices for sparsely setting stagewise parameters. Shape is
-                `(B, N_horizon+1, n_p_stagewise_sparse_idx)`. Deprecated, use `params` instead.
+            param: Learnable flat parameter tensor, shape `(B, p_global_dim)`.
+            params: A dictionary containing named parameter overrides. Values may be
+                torch tensors or numpy arrays.
+            ctx: An object for storing context. If provided, it will be used to warmstart the solve
+                (e.g., by using the saved iterate). Defaults to `None`.
 
         Returns:
             ctx: A new context object from solving the problems.
@@ -128,44 +123,76 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             u: The solution of the whole control trajectory.
             value: The cost value of the computed trajectory.
         """
-        assert (params is None) or (
-            p_global is None and p_stagewise is None and p_stagewise_sparse_idx is None
-        ), "You cannot provide both `params` and individual parameter tensors. Please use `params`."
-        if params is None and (p_global is not None or p_stagewise is not None):
-            warnings.warn(
-                DeprecationWarning(
-                    "Providing individual parameter tensors is deprecated. Please use `params`."
-                )
+        batch_size = x0.shape[0]
+        device = x0.device
+        dtype = x0.dtype
+
+        # 1. Build p_global_tensor (learnable parameters)
+        if param is not None:
+            # Mode 1: Direct flat learnable tensor passed
+            p_global_tensor = param
+        else:
+            # Mode 2: Build p_global from defaults and apply any overrides from params dict
+            default_flat = torch.from_numpy(self.parameter_manager.learnable_default_flat).to(
+                device=device, dtype=dtype
             )
+            p_global_tensor = default_flat.unsqueeze(0).expand(batch_size, -1).clone()
+
+            if params is not None:
+                from leap_c.ocp.acados.parameters import _define_starts_and_ends
+
+                # Overwrite learnable parameters from the dictionary
+                for name in self.parameter_manager.global_parameter_names:
+                    if name in params:
+                        val = params[name]
+                        if isinstance(val, np.ndarray):
+                            val = torch.from_numpy(val).to(device=device, dtype=dtype)
+                        param_def = self.parameter_manager.parameters[name]
+
+                        if param_def.splits != "global":
+                            # Stage-varying learnable
+                            starts, ends = _define_starts_and_ends(
+                                splits=param_def.splits,
+                                N_horizon=self.parameter_manager.N_horizon,
+                            )
+                            val_reshaped = val.reshape(
+                                batch_size, self.parameter_manager.N_horizon + 1, -1
+                            )
+                            for start, end in zip(starts, ends):
+                                s, e = self.parameter_manager._learnable_parameter_store.indices[
+                                    f"{name}_{start}_{end}"
+                                ]
+                                p_global_tensor[:, s:e] = val_reshaped[:, start, :]
+                        else:
+                            # Non-stage-varying learnable
+                            s, e = self.parameter_manager._learnable_parameter_store.indices[name]
+                            p_global_tensor[:, s:e] = val.reshape(batch_size, -1)
+
+        # 2. Build p_stagewise_tensor (non-learnable parameters)
+        non_learnable_overrides: dict[str, np.ndarray] = {}
         if params is not None:
-            global_params = self.parameter_manager.global_parameter_names
-            stagewise_params = self.parameter_manager.stagewise_parameter_names
-            assert set(global_params) <= set(params.keys()) and set(stagewise_params) <= set(
-                params.keys()
-            ), (
-                "When providing `params`, it must contain all parameters defined in the ocp object."
-                f" Expected global parameters: {global_params},"
-                f" stagewise parameters: {stagewise_params}."
-            )
-            p_global = [params[name] for name in global_params if name in params]
-            p_global = torch.cat(p_global, dim=-1) if p_global else None
-            p_stagewise = [params[name] for name in stagewise_params if name in params]
-            p_stagewise = torch.cat(p_stagewise, dim=-1) if p_stagewise else None
-            p_stagewise_sparse_idx = [
-                params[name + "_sparse_idx"]
-                for name in stagewise_params
-                if name + "_sparse_idx" in params
-            ]
-            p_stagewise_sparse_idx = (
-                torch.cat(p_stagewise_sparse_idx, dim=-1) if p_stagewise_sparse_idx else None
-            )
+            # Extract non-learnable parameters from the dictionary
+            for name in self.parameter_manager.stagewise_parameter_names:
+                if name in params:
+                    val = params[name]
+                    if isinstance(val, torch.Tensor):
+                        val = val.detach().cpu().numpy()
+                    non_learnable_overrides[name] = val
+
+        p_stagewise_np = self.parameter_manager.combine_non_learnable_parameter_values(
+            batch_size=batch_size, **non_learnable_overrides
+        )
+        p_stagewise_tensor = torch.from_numpy(np.array(p_stagewise_np, copy=True)).to(
+            device=device, dtype=dtype
+        )
+        p_stagewise_sparse_idx = None
 
         ctx, u_star, x, u, value = self.autograd_fun.apply(
             ctx,
             x0,
             u0,
-            p_global,  # type:ignore
-            p_stagewise,
+            p_global_tensor,  # type:ignore
+            p_stagewise_tensor,
             p_stagewise_sparse_idx,
         )
         u_star = u_star.to(dtype=self.dtype)

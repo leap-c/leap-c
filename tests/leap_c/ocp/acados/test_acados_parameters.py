@@ -1123,7 +1123,6 @@ def test_param_manager_combine_parameter_values(
 def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
     diff_mpc: AcadosDiffMpcTorch,
     diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
-    nominal_stagewise_params: tuple[AcadosParameter, ...],
 ) -> None:
     """Test diff_mpc with stagewise varying parameters is equivalent diff_mpc.
 
@@ -1136,19 +1135,6 @@ def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
         "global": diff_mpc,
     }
 
-    N_horizon = (
-        mpc["global"]
-        .diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
-        .acados_ocp.solver_options.N_horizon
-    )
-
-    # Create a parameter manager for the stagewise varying parameters.
-    parameter_manager = AcadosParameterManager(
-        parameters=nominal_stagewise_params,
-        N_horizon=N_horizon,
-    )
-    p_stagewise = parameter_manager.combine_non_learnable_parameter_values()
-
     x0 = np.array([1.0, 1.0, 0.0, 0.0])
 
     sol_forward = {}
@@ -1157,7 +1143,6 @@ def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
     )
     sol_forward["stagewise"] = mpc["stagewise"].forward(
         x0=torch.tensor(x0, dtype=torch.float32).reshape(1, -1),
-        p_stagewise=p_stagewise,
     )
 
     for key, val in sol_forward.items():
@@ -1392,7 +1377,6 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     )
 
     p_global_values = pm._learnable_parameter_store.defaults
-    p_stagewise = pm.combine_non_learnable_parameter_values()
 
     xref_0 = rng.random(size=4)
     uref_0 = rng.random(size=2)
@@ -1424,10 +1408,12 @@ def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     p_global = np.concatenate([arr.reshape(-1) for arr in p_global_values.values()]).reshape(
         1, ocp.dims.np_global
     )
+    p_global = torch.tensor(p_global, dtype=torch.float32)
     x0 = torch.tensor(x0, dtype=torch.float32).reshape(1, -1)
 
     sol_pert = diff_mpc_with_stagewise_varying_params.forward(
-        x0=x0, p_global=p_global, p_stagewise=p_stagewise
+        x0=x0,
+        param=p_global,
     )
 
     u_stagewise = sol_pert[3].detach().numpy().reshape(-1, ocp.dims.nu)

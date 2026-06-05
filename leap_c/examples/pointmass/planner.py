@@ -102,10 +102,7 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         param: torch.Tensor | None = None,
         ctx: AcadosDiffMpcCtx | None = None,
     ) -> tuple[Any, torch.Tensor, torch.Tensor, torch.Tensor | None]:
-        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
-            batch_size=obs.shape[0]
-        )
         # remove wind field from observation, this is only observed by
         # the network, not used in the MPC
         x0 = obs[:, :4]
-        return self.diff_mpc(x0, p_global=param, p_stagewise=p_stagewise, ctx=ctx)
+        return self.diff_mpc(x0=x0, u0=action, param=param, ctx=ctx)

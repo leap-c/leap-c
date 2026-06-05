@@ -74,11 +74,8 @@ if __name__ == "__main__":
     # using the default outdoor_temp (20 degC every stage).  To supply a real
     # forecast at solve time, see pm_tutorial_forecast.py.
     x0_batch = torch.tensor(rng.uniform(15.0, 25.0, size=(BATCH_SIZE, 1)))
-    p_global = torch.tensor(
-        ocp.parameter_manager.combine_default_learnable_parameter_values(batch_size=BATCH_SIZE)
-    )
 
-    ctx, u0, x, u, value = diff_mpc(x0_batch, p_global=p_global)
+    ctx, u0, x, u, value = diff_mpc(x0_batch)
 
     print(f"ctx.status: {ctx.status}")  # [0 0 0 0] means all solves succeeded
     print(f"u0.shape:   {u0.shape}")
