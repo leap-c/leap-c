@@ -37,7 +37,7 @@ if __name__ == "__main__":
         default=np.array([0.15]),
         space=gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float64),
         differentiable=True,
-        end_stages=[4, N_HORIZON],
+        splits=[4, N_HORIZON],
     )
     dt = 0.25  # 15-minute time step [h]
 

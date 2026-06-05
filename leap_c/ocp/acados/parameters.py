@@ -35,8 +35,6 @@ class AcadosParameter:
             - `"stagewise"`: One value per stage. Equivalent to `list(range(N_horizon + 1))`.
             - `"global"`: A single value across all stages. Equivalent to `[N_horizon]`.
             Defaults to `"global"`.
-        end_stages: Deprecated alias for `splits` accepting `list[int]` (or `[]` for
-            a global value), kept for backward compatibility.
     """
 
     # Fields from base Parameter class
@@ -47,19 +45,8 @@ class AcadosParameter:
 
     # Additional acados-specific field
     splits: list[int] | int | Literal["stagewise", "global"] = "global"
-    end_stages: list[int] | None = None
 
     def __post_init__(self):
-        if self.end_stages is not None:
-            warn(
-                "Passing splits via `end_stages` is deprecated."
-                " Please use the `splits` argument instead.",
-                DeprecationWarning,
-                stacklevel=2,
-            )
-            self.splits = "global" if not self.end_stages else self.end_stages
-            del self.end_stages
-
         if isinstance(self.splits, list) and not self.splits:
             raise ValueError(
                 f"Parameter '{self.name}' has empty splits list. Hint: if you meant to define a"

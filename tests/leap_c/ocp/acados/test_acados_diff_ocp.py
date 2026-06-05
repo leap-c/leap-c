@@ -21,8 +21,6 @@ def test_register_parameter_returns_symbol():
         non_learnable
         is diff_ocp.parameter_manager._non_learnable_parameter_store.symbols["non_learnable"]
     )
-    # test parameter_values being updated automatically with the new non-learnable parameter
-    assert np.allclose(diff_ocp.parameter_values, np.array([1.0, 2.0]))
 
     learnable = diff_ocp.register_param(
         name="learnable",
@@ -34,14 +32,12 @@ def test_register_parameter_returns_symbol():
     assert len(diff_ocp.parameter_manager._learnable_parameter_store.symbols) == 1
     assert "learnable" in diff_ocp.parameter_manager._learnable_parameter_store.symbols
     assert learnable is diff_ocp.parameter_manager._learnable_parameter_store.symbols["learnable"]
-    # test p_global_values being updated automatically with the new learnable parameter
-    assert np.allclose(diff_ocp.p_global_values, np.array([3.0, 4.0]))
 
     diff_ocp.register_param(
         name="learnable_stagewise",
         default=np.array([5.0, 6.0]),
         differentiable=True,
-        end_stages=[2, 4],
+        splits=[2, 4],
     )
 
     assert len(diff_ocp.parameter_manager._non_learnable_parameter_store.symbols) == 2
@@ -52,6 +48,14 @@ def test_register_parameter_returns_symbol():
     assert (
         "learnable_stagewise_3_4" in diff_ocp.parameter_manager._learnable_parameter_store.symbols
     )
+
+    # Before finalize(), parameter_values and p_global_values read from
+    # the base class defaults (empty arrays).  finalize() synchronises
+    # the parameter manager's state onto the base class properties.
+    diff_ocp.finalize()
+
+    # test parameter_values being updated automatically with the new non-learnable parameter
+    assert np.allclose(diff_ocp.parameter_values[:2], np.array([1.0, 2.0]))
     # test p_global_values being updated automatically with the new learnable parameters
     assert np.allclose(
         diff_ocp.p_global_values,

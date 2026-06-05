@@ -74,13 +74,13 @@ def test_parameter_interface_learnable_with_vary_stages():
             name="price",
             default=np.array([10.0]),
             interface="learnable",
-            end_stages=[3, 7, N_horizon],  # Ends at stages 3 and 7, and horizon (10)
+            splits=[3, 7, N_horizon],  # Ends at stages 3 and 7, and horizon (10)
         ),
         AcadosParameter(
             name="demand",
             default=np.array([5.0, 6.0]),
             interface="learnable",
-            end_stages=[2, 5, 8, N_horizon],  # Changes at stages 2, 5, 8, and horizon (10)
+            splits=[2, 5, 8, N_horizon],  # Changes at stages 2, 5, 8, and horizon (10)
         ),
     ]
 
@@ -286,7 +286,7 @@ def test_parameter_bounds_learnable_with_vary_stages():
             default=np.array([5.0]),
             space=gym.spaces.Box(low=np.array([0.0]), high=np.array([10.0])),
             interface="learnable",
-            end_stages=[3, N_horizon],  # Ends at stage 3, and horizon (5)
+            splits=[3, N_horizon],  # Ends at stage 3, and horizon (5)
         ),
     ]
 
@@ -318,7 +318,7 @@ def test_vary_stages_last_element_not_valid():
             name="exceed_horizon",
             default=np.array([1.0]),
             interface="learnable",
-            end_stages=[5],  # N_horizon is 10, but last vary_stages is 5
+            splits=[5],  # N_horizon is 10, but last vary_stages is 5
         ),
     ]
 
@@ -381,7 +381,7 @@ def test_indicator_creation():
             name="with_vary",
             default=np.array([1.0]),
             interface="learnable",
-            end_stages=[3, N_horizon],  # Ends at stage 3, and horizon (5)
+            splits=[3, N_horizon],  # Ends at stage 3, and horizon (5)
         ),
     ]
 
@@ -407,7 +407,7 @@ def test_mixed_parameter_types_and_interfaces():
             name="learn_staged",
             default=np.array([9.0]),
             interface="learnable",
-            end_stages=[2, 6, N_horizon],
+            splits=[2, 6, N_horizon],
         ),
         # Non-learnable parameters without vary_stages
         AcadosParameter(
@@ -469,8 +469,8 @@ def test_get_param_space():
     np.testing.assert_array_equal(manager.get_param_space().high, expected_ub)
 
 
-def test_get_param_space_with_variable_end_stages():
-    """Test get_param_space method with parameters that have variable end_stages.
+def test_get_param_space_with_variable_splits():
+    """Test get_param_space method with parameters that have variable splits.
 
     The parameter space should scale up according to the number of stage variations
     and dimensions of each parameter.
@@ -484,7 +484,7 @@ def test_get_param_space_with_variable_end_stages():
             default=np.array([5.0]),
             space=gym.spaces.Box(low=np.array([0.0]), high=np.array([20.0])),
             interface="learnable",
-            end_stages=[3, 7, N_horizon],
+            splits=[3, 7, N_horizon],
         ),
         # Vector parameter with 4 stage variations
         AcadosParameter(
@@ -492,14 +492,14 @@ def test_get_param_space_with_variable_end_stages():
             default=np.array([10.0, 15.0]),
             space=gym.spaces.Box(low=np.array([0.0, 5.0]), high=np.array([50.0, 100.0])),
             interface="learnable",
-            end_stages=[2, 5, 8, N_horizon],
+            splits=[2, 5, 8, N_horizon],
         ),
         # Scalar parameter with 5 stage variations but no bounds (should get -inf/+inf)
         AcadosParameter(
             name="scalar_unbounded",
             default=np.array([2.5]),
             interface="learnable",
-            end_stages=[1, 3, 6, 8, N_horizon],
+            splits=[1, 3, 6, 8, N_horizon],
         ),
         # Matrix parameter with 2 stage variations
         AcadosParameter(
@@ -510,9 +510,9 @@ def test_get_param_space_with_variable_end_stages():
                 high=np.array([[15.0, 15.0, 15.0], [15.0, 15.0, 15.0], [15.0, 15.0, 15.0]]),
             ),
             interface="learnable",
-            end_stages=[4, N_horizon],
+            splits=[4, N_horizon],
         ),
-        # Regular parameter without end_stages
+        # Regular parameter without splits
         AcadosParameter(
             name="regular_param",
             default=np.array([1.0]),
@@ -722,7 +722,7 @@ def test_get_method_vary_stages():
             name="staged_param",
             default=np.array([1.0]),
             interface="learnable",
-            end_stages=[3, N_horizon],
+            splits=[3, N_horizon],
         ),
     ]
 
@@ -776,7 +776,7 @@ def test_parameter_name_with_underscores():
             name="param_with_underscores",
             default=np.array([1.0]),
             interface="learnable",
-            end_stages=[3, N_horizon],
+            splits=[3, N_horizon],
         ),
     ]
 
@@ -899,7 +899,7 @@ def test_combine_parameter_values_complex():
             name="scalar_staged",
             default=np.array([5.0]),
             interface="learnable",
-            end_stages=[2, 6, N_horizon],
+            splits=[2, 6, N_horizon],
         ),
         # Vector parameters
         AcadosParameter(
@@ -916,7 +916,7 @@ def test_combine_parameter_values_complex():
             name="vector_staged",
             default=np.array([10.0, 11.0]),
             interface="learnable",
-            end_stages=[3, N_horizon],
+            splits=[3, N_horizon],
         ),
         # Matrix parameters
         AcadosParameter(
@@ -933,7 +933,7 @@ def test_combine_parameter_values_complex():
             name="matrix_staged",
             default=np.array([[20.0, 21.0], [22.0, 23.0]]),
             interface="learnable",
-            end_stages=[1, 4, 7],
+            splits=[1, 4, 7],
         ),
     ]
 
@@ -1265,13 +1265,13 @@ def test_combine_default_learnable_parameter_values_stagewise():
             name="temperature",
             default=np.array([20.0]),
             interface="learnable",
-            end_stages=[2, N_horizon],
+            splits=[2, N_horizon],
         ),
         AcadosParameter(
             name="price",
             default=np.array([10.0]),
             interface="learnable",
-            end_stages=[N_horizon],
+            splits=[N_horizon],
         ),
     ]
 
@@ -1334,7 +1334,7 @@ def test_combine_default_learnable_parameter_values_errors():
             name="temperature",
             default=np.array([20.0]),
             interface="learnable",
-            end_stages=[2, N_horizon],
+            splits=[2, N_horizon],
         ),
     ]
 
@@ -1505,7 +1505,7 @@ def test_add_parameter_interface_learnable_with_vary_stages():
             name="price",
             default=np.array([10.0]),
             interface="learnable",
-            end_stages=[3, 7, N_horizon],
+            splits=[3, 7, N_horizon],
         )
     )
 
@@ -1537,23 +1537,6 @@ def test_add_parameter_interface_non_learnable():
     # Non-learnable should appear in non_learnable_parameter_store with original name
     assert len(manager._non_learnable_parameter_store.symbols) == 1
     assert "non_learnable" in manager._non_learnable_parameter_store.symbols
-
-
-def test_creating_parameter_with_end_stages_warn_deprecation():
-    """Test that creating a parameter with `end_stages` raises a deprecation warning."""
-    with pytest.warns(
-        DeprecationWarning,
-        match=re.escape(
-            "Passing splits via `end_stages` is deprecated."
-            " Please use the `splits` argument instead."
-        ),
-    ):
-        _ = AcadosParameter(
-            name="deprecated_param",
-            default=np.array([1.0]),
-            interface="learnable",
-            end_stages=[2, 5],
-        )
 
 
 def test_define_starts_and_ends_stagewise():

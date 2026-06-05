@@ -60,7 +60,7 @@ def make_params(N_horizon: int = N_HORIZON) -> list[AcadosParameter]:
             default=np.array([0.15]),  # electricity price [EUR/kWh]
             space=gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float64),
             interface="learnable",
-            end_stages=[4, N_horizon],
+            splits=[4, N_horizon],
         ),
     ]
 

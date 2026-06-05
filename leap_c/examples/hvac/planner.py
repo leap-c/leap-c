@@ -312,8 +312,9 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                     .numpy()
                 )
             else:
-                # Use default value if not learnable
-                render_info[key] = self.param_manager.parameters[key].default
+                param_def = self.param_manager.parameters.get(key)
+                if param_def is not None:
+                    render_info[key] = param_def.default
 
         for key in ["temperature", "ref_Ti", "lb_Ti", "ub_Ti", "Ti", "Th", "Te"]:
             render_info[key] = convert_temperature(

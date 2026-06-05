@@ -149,6 +149,7 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         """
         self.ocp = ocp
+        ocp.finalize()
         self.forward_batch_solver, self.backward_batch_solver = (
             create_forward_backward_batch_solvers(
                 ocp=ocp,

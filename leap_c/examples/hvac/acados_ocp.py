@@ -65,11 +65,14 @@ def export_parametric_ocp(
             "Granularity must be between 0 and N_horizon (inclusive) when specified as an integer."
         )
         step = max(1, N_horizon // granularity)
-        end_stages = list(range(0, N_horizon + 1, step))
-        if end_stages[-1] != N_horizon:
-            end_stages.append(N_horizon)
+        splits_list = list(range(0, N_horizon + 1, step))
+        if splits_list[-1] != N_horizon:
+            splits_list.append(N_horizon)
+        splits = splits_list
+    elif granularity == "stagewise":
+        splits = "stagewise"
     else:
-        end_stages = list(range(N_horizon + 1)) if granularity == "stagewise" else []
+        splits = "global"
 
     # Register non-learnable forecast parameters
     temperature = ocp.register_param(
@@ -116,7 +119,7 @@ def export_parametric_ocp(
             dtype=np.float64,
         ),
         differentiable=True,
-        end_stages=end_stages,
+        splits=splits,
     )
 
     # Sunsetted "fix" parameters - they are now local python constants
@@ -185,7 +188,7 @@ def export_parametric_ocp(
         default=np.array([-1.9]),
         space=gym.spaces.Box(low=np.array([-2.0]), high=np.array([1.0]), dtype=np.float64),
         differentiable=True,
-        end_stages=end_stages,
+        splits=splits,
     )
 
     ocp.cost.cost_type = "EXTERNAL"
