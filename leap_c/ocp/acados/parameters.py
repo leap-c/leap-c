@@ -1,5 +1,6 @@
+from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Any, Collection, Literal, Self
+from typing import Any, Literal
 from warnings import warn
 
 import casadi as ca
@@ -21,11 +22,10 @@ class AcadosParameter:
         space: A gym.spaces.Space defining the valid parameter space.
             Only used for learnable parameters. Defaults to `None` (unbounded).
         interface: Parameter interface type.
-            Either `"fix"` (fixed values, unchangeable after creation of the solver),
-            `"non-learnable"` (not exposed to the learning interface, but will be changeable
+            Either `"non-learnable"` (not exposed to the learning interface, but will be changeable
             parameters also after creation of the solver), or `"learnable"` (parameters directly
             exposed to the learning interface, in particular supporting sensitivities). Defaults to
-            `"fix"`.
+            `"learnable"`.
         splits: Defines how the parameter varies across stages. Only used for the `"learnable"`
             interface. Accepts:
             - `list[int]`: Sorted (ascending) stage boundaries. The parameter takes one value per
@@ -45,6 +45,10 @@ class AcadosParameter:
 
     # Additional acados-specific field
     splits: list[int] | int | Literal["stagewise", "global"] = "global"
+
+    @property
+    def is_stage_varying(self) -> bool:
+        return self.splits != "global"
 
     def __post_init__(self):
         if isinstance(self.splits, list) and not self.splits:
@@ -103,7 +107,7 @@ class AcadosParameter:
                     UserWarning,
                     stacklevel=2,
                 )
-            if self.splits:
+            if self.splits != "global":
                 warn(
                     f"Parameter '{self.name}' with interface '{self.interface}' defines splits."
                     " The splits will be ignored as only 'learnable' parameters supports it.",
@@ -161,36 +165,22 @@ class _ParameterStore:
         return ca.vertcat(*list(self.symbols.values()))
 
 
-class AcadosParameterManager:
-    """Manager class for handling acados parameters according to their specifications.
+class AcadosParameterManager(ABC):
+    """Abstract base class for managing acados parameters.
 
-    In particular, this handles stage-varying learnable parameters, which is not available
-    out-of-the-box in acados.
-
-    Basic usage inside the AcadosOcp formulation:
-
-    .. code-block:: python
-
-        # Step 1: define parameters
-        params = [
-            AcadosParameter("price", default=np.array([1.0]), interface="learnable",
-                            splits=[4, 9]),
-            AcadosParameter("outdoor_temp", default=np.array([20.0]), interface="non-learnable"),
-        ]
-        manager = AcadosParameterManager(params, N_horizon=10)
-
-        # Step 2: use symbolic variables in the OCP formulation
-        price = manager.get("price")           # CasADi expression, stage-aware
-        outdoor_temp = manager.get("outdoor_temp")  # CasADi symbolic variable
+    Handles parameter registration, validation, CasADi symbol creation, and provides default
+    numpy implementations for combining non-learnable parameters. Subclasses must implement
+    :meth:`combine_learnable_parameters` with framework-specific (e.g. torch) tensor operations
+    to preserve differentiability.
 
     **Stage-varying learnable parameters** (``splits`` are not ``"global"``) are implemented via a
     one-hot *indicator* vector that is appended to the non-learnable parameters.  At stage ``k``
-    only ``indicator[k]`` is 1; ``get()`` returns a weighted sum over all stage blocks so the
+    only ``indicator[k]`` is 1; :meth:`get` returns a weighted sum over all stage blocks so the
     same symbolic expression evaluates to the correct block value at every stage.
 
     .. warning::
         If you forget to set the indicator correctly in
-        ``combine_non_learnable_parameter_values()``, every stage will silently evaluate to zero
+        :meth:`combine_non_learnable_parameters`, every stage will silently evaluate to zero
         for all stage-varying learnable parameters.
 
     Attributes:
@@ -199,9 +189,8 @@ class AcadosParameterManager:
         casadi_type: The CasADi symbolic type used for the parameters, either "SX" or "MX".
         learnable_default_flat: Learnable parameters' default values as a flattened NDArray.
         non_learnable_default_flat: Non-learnable parameters' default values as a flattened NDArray.
-        p_global: CasADi SX/MX expression for the learnable parameters.
-        p: CasADi SX/MX expression for the non-learnable parameters.
-        p_full: CasADi SX/MX expression for both learnable and non-learnable parameters.
+        learnable_symbols: CasADi SX/MX expression for the learnable parameters.
+        non_learnable_symbols: CasADi SX/MX expression for the non-learnable parameters.
     """
 
     parameters: dict[str, AcadosParameter]
@@ -210,6 +199,7 @@ class AcadosParameterManager:
     _learnable_parameter_store: _ParameterStore
     _non_learnable_parameter_store: _ParameterStore
     _need_indicator: bool
+    _finalized: bool = False
 
     @property
     def learnable_default_flat(self) -> np.ndarray:
@@ -220,36 +210,22 @@ class AcadosParameterManager:
         return self._non_learnable_parameter_store.get_values()
 
     @property
-    def global_parameter_names(self) -> list[str]:
+    def learnable_parameter_names(self) -> list[str]:
         return [name for name, param in self.parameters.items() if param.interface == "learnable"]
 
     @property
-    def stagewise_parameter_names(self) -> list[str]:
+    def non_learnable_parameter_names(self) -> list[str]:
         return [
             name for name, param in self.parameters.items() if param.interface == "non-learnable"
         ]
 
     @property
-    def p_global(self) -> ca.SX | ca.MX:
-        symbols = self._learnable_parameter_store.get_symbols()
-        if symbols.is_empty():
-            return (
-                ca.SX.sym("p_global", 0, 1)
-                if self.casadi_type == "SX"
-                else ca.MX.sym("p_global", 0, 1)
-            )
-        return symbols
+    def learnable_symbols(self) -> ca.SX | ca.MX:
+        return self._learnable_parameter_store.get_symbols()
 
     @property
-    def p(self) -> ca.SX | ca.MX:
-        symbols = self._non_learnable_parameter_store.get_symbols()
-        if symbols.is_empty():
-            return ca.SX.sym("p", 0, 1) if self.casadi_type == "SX" else ca.MX.sym("p", 0, 1)
-        return symbols
-
-    @property
-    def p_full(self) -> ca.SX | ca.MX:
-        return ca.vertcat(self.p_global, self.p)
+    def non_learnable_symbols(self) -> ca.SX | ca.MX:
+        return self._non_learnable_parameter_store.get_symbols()
 
     @staticmethod
     def _create_symbol(name: str, size: int, casadi_type: Literal["SX", "MX"]) -> ca.SX | ca.MX:
@@ -261,7 +237,7 @@ class AcadosParameterManager:
             raise ValueError(f"Unsupported casadi_type: {casadi_type}")
 
     def _store_learnable_parameter(self, parameter: AcadosParameter) -> None:
-        if parameter.splits != "global":
+        if parameter.is_stage_varying:
             self._need_indicator = True
             if "indicator" not in self._non_learnable_parameter_store.symbols:
                 indicator = AcadosParameter(
@@ -294,90 +270,62 @@ class AcadosParameterManager:
 
     def __init__(
         self,
-        parameters: Collection[AcadosParameter],
         N_horizon: int,
         casadi_type: Literal["SX", "MX"] = "SX",
     ) -> None:
-        """Initialize the parameter manager by building the symbols and the parameter stores.
-
-        Validates the provided input, then constructs two parameter stores:
-
-        - ``learnable_parameter_store``: one entry per learnable param; stage-varying params are
-          split into named blocks, e.g. ``price_0_4`` and ``price_5_9``.
-        - ``non_learnable_parameter_store``: one entry per non-learnable param, plus an
-          ``indicator`` vector of length ``N_horizon + 1`` if any stage-varying learnable
-          params exist.
+        """Initialize the parameter manager.
 
         Args:
-            parameters: Collection of :class:`AcadosParameter` instances describing all
-                parameters for the OCP.
             N_horizon: Horizon length ``N``.  Stages are indexed ``0`` to ``N`` (inclusive),
                 giving ``N + 1`` stages in total.
             casadi_type: CasADi symbolic type to use, either ``"SX"`` (default, faster for
                 small problems) or ``"MX"`` (required when parameters appear inside CasADi
                 ``Function`` objects that are evaluated multiple times).
-
-        Raises:
-            ValueError: If any parameter has list ``splits`` whose last element is not
-            ``N_horizon - 1`` or ``N_horizon``.
         """
-        # add parameters to the manager
-        # TODO: since parameters are being added incrementally, we should remove this warning, and
-        # in the future make the parameters optional and default to an empty list on construction.
-        if not parameters:
-            warn(
-                "Empty parameter list provided to AcadosParamManager. "
-                "Consider adding parameters for building a parametric AcadosOcp.",
-                UserWarning,
-                stacklevel=2,
-            )
-        # validate parameter dimensions before storing
-        for param in parameters:
-            # Check splits convention
-            if param.splits and isinstance(param.splits, list):
-                if param.splits[-1] not in [N_horizon - 1, N_horizon]:
-                    raise ValueError(
-                        f"Parameter '{param.name}' has splits {param.splits} "
-                        f"but the last element must be either {N_horizon - 1} or {N_horizon}."
-                    )
-            if param.splits and isinstance(param.splits, int):
-                if param.splits > N_horizon + 1:
-                    raise ValueError(
-                        f"Parameter '{param.name}' has {param.splits} splits, which exceeds the "
-                        f"number of stages {N_horizon + 1}."
-                    )
-        self.parameters = {param.name: param for param in parameters}
-
+        self.parameters = {}
         self.N_horizon = N_horizon
         self.casadi_type = casadi_type
         self._learnable_parameter_store = _ParameterStore()
         self._non_learnable_parameter_store = _ParameterStore()
-
         self._need_indicator = False
-        for _, parameter in self.parameters.items():
-            if parameter.interface == "learnable":
-                self._store_learnable_parameter(parameter)
-            if parameter.interface == "non-learnable":
-                self._store_non_learnable_parameter(parameter)
 
-    def add_parameter(self, parameter: AcadosParameter) -> Self:
-        """Adds a new parameter to the manager.
+    def register_parameter(
+        self,
+        name: str,
+        default: np.ndarray,
+        space: gym.spaces.Space | None = None,
+        differentiable: bool = False,
+        splits: list[int] | int | Literal["stagewise", "global"] = "global",
+    ) -> ca.SX | ca.MX:
+        """Register a parameter and return a CasADi symbolic for immediate use.
 
-        This is a helper method for incrementally building the parameter manager, e.g. when
-        parameters are defined in different parts of the code.
+        The returned symbolic is a real CasADi SX (or MX) expression (not a placeholder).
+        It can be used directly in cost, dynamics, and constraint expressions.
 
         Args:
-            parameter: The AcadosParameter to add.
+            name: The name of the parameter.
+            default: The default value(s) for the parameter.
+            space: A gymnasium space defining valid parameter values (for learnable params).
+            differentiable: If True, the parameter supports sensitivities (learnable).
+                If False, the parameter is changeable at runtime but not differentiable
+                (non-learnable). Defaults to ``False``.
+            splits: Defines how the parameter varies across stages. See
+                :class:`AcadosParameter` for details. Defaults to ``"global"``.
 
         Returns:
-            The same parameter manager, returned to allow method chaining.
+            A CasADi symbolic expression for the parameter.
         """
-        if parameter.name in self.parameters:
-            raise ValueError(
-                f"Parameter '{parameter.name}' already exists in the manager. "
-                "Use a different name or modify the existing parameter instead."
-            )
-        if parameter.splits and isinstance(parameter.splits, list):
+        if self._finalized:
+            raise ValueError("Cannot register parameters after assigning to OCP")
+
+        parameter = AcadosParameter(
+            name=name,
+            default=default,
+            space=space,
+            interface="learnable" if differentiable else "non-learnable",
+            splits=splits,
+        )
+        if isinstance(parameter.splits, list):
             if parameter.splits[-1] not in [
                 self.N_horizon - 1,
                 self.N_horizon,
@@ -386,7 +334,7 @@ class AcadosParameterManager:
                     f"Parameter '{parameter.name}' has splits {parameter.splits} "
                     f"but the last element must be either {self.N_horizon - 1} or {self.N_horizon}."
                 )
-        if parameter.splits and isinstance(parameter.splits, int):
+        if isinstance(parameter.splits, int):
             if parameter.splits > self.N_horizon + 1:
                 raise ValueError(
                     f"Parameter '{parameter.name}' has {parameter.splits} splits, which exceeds the"
@@ -397,134 +345,43 @@ class AcadosParameterManager:
             self._store_learnable_parameter(parameter)
         if parameter.interface == "non-learnable":
             self._store_non_learnable_parameter(parameter)
-        return self
+        return self.get(parameter.name)
 
-    def combine_default_learnable_parameter_values(
-        self, batch_size: int | None = None, **overwrites: np.ndarray
+    @abstractmethod
+    def combine_learnable_parameters(
+        self, batch_size: int | None, **overwrites: np.ndarray
     ) -> np.ndarray:
-        """Combine all learnable parameters and provided overwrites into a single numpy array.
+        """Combine learnable parameters into a single flat array (or tensor).
 
-        This can be used to create a batch of default learnable parameter values. An example would
-        be to load forecasts into the ocp, which depend on the current observation.
+        Subclasses must implement this with framework-specific operations (e.g. torch)
+        to preserve differentiability through the composition.
 
         Args:
             batch_size: The batch size for the parameters.
                 Not needed if overwrites is provided.
             **overwrites: Overwrite values for specific parameters.
-                The keys should correspond to the parameter names to overwrite.
-                For stage-varying parameters (those with splits), the values need to be
-                np.ndarray with shape `(batch_size, N_horizon + 1)` or
-                `(batch_size, N_horizon + 1, pdim)`.
-                For non-stage-varying parameters, shape `(batch_size,)` or `(batch_size, pdim)`.
 
         Returns:
-            np.ndarray: shape `(batch_size, N_learnable)` with `N_learnable` being the total
+            Array of shape ``(batch_size, N_learnable)`` with ``N_learnable`` being the total
             number of learnable parameter values.
         """
-        # Infer batch size from overwrites if not provided
-        inferred_batch_size = next(iter(overwrites.values())).shape[0] if overwrites else None
 
-        # Validate batch_size consistency
-        if batch_size is not None and inferred_batch_size is not None:
-            if batch_size != inferred_batch_size:
-                raise ValueError(
-                    f"Provided batch_size={batch_size} does not match "
-                    f"inferred batch_size={inferred_batch_size} from overwrites."
-                )
-
-        batch_size = inferred_batch_size if inferred_batch_size is not None else batch_size or 1
-
-        # Get default parameter array and replicate it along the batch dimension - if no overwrites
-        # are passed, just return a broadcasted view to avoid unnecessary memory allocation;
-        # otherwise, create a tiled array (is writeable, so overwrites can be applied afterwards)
-        default_flat = self._learnable_parameter_store.get_values()
-        if not overwrites:
-            return np.broadcast_to(default_flat, (batch_size, default_flat.size))
-        batch_param = np.tile(default_flat, (batch_size, 1))
-
-        # Build index mappings for efficient vectorized assignment
-        for param_name, values in overwrites.items():
-            if param_name not in self.parameters:
-                raise ValueError(
-                    f"Parameter '{param_name}' not found. "
-                    f"Available parameters: {list(self.parameters.keys())}"
-                )
-
-            param = self.parameters[param_name]
-
-            if param.interface != "learnable":
-                raise ValueError(
-                    f"Parameter '{param_name}' has interface '{param.interface}', "
-                    "but only 'learnable' parameters can be used in this method."
-                )
-
-            # Ensure values has correct batch dimension
-            if values.shape[0] != batch_size:
-                raise ValueError(
-                    f"Parameter '{param_name}' values have batch size {values.shape[0]}, "
-                    f"but expected {batch_size}."
-                )
-
-            if param.splits != "global":
-                # Stage-varying parameter
-                Np1 = self.N_horizon + 1
-                starts, ends = _define_starts_and_ends(
-                    splits=param.splits, N_horizon=self.N_horizon
-                )
-
-                # Expected shape: (batch_size, N_horizon + 1) or (batch_size, N_horizon + 1, pdim)
-                if values.shape[1] != Np1:
-                    raise ValueError(
-                        f"Parameter '{param_name}' is stage-varying and requires shape "
-                        f"(batch_size, {Np1}, ...), but got shape {values.shape}."
-                    )
-
-                # Reshape to (batch_size, N_horizon + 1, -1) for consistent handling
-                values_reshaped = values.reshape(batch_size, Np1, -1)
-
-                # Assign each block separately (blocks share the same parameter value)
-                for start, end in zip(starts, ends):
-                    param_key = f"{param_name}_{start}_{end}"
-                    try:
-                        s, e = self._learnable_parameter_store.indices[param_key]
-                        param_idx = slice(s, e)
-                    except KeyError as e:
-                        raise KeyError(f"Learnable parameter '{param_key}' not found.") from e
-
-                    # All stages in this block use the value from the start stage
-                    batch_param[:, param_idx] = values_reshaped[:, start, :]
-            else:
-                # Non-stage-varying parameter - single value per batch
-                param_key = param_name
-                try:
-                    s, e = self._learnable_parameter_store.indices[param_key]
-                    param_idx = slice(s, e)
-                except KeyError as e:
-                    raise KeyError(f"Learnable parameter '{param_key}' not found.") from e
-
-                # Reshape to handle both scalar and vector parameters
-                values_reshaped = values.reshape(batch_size, -1)
-
-                batch_param[:, param_idx] = values_reshaped
-
-        return batch_param
-
-    def combine_non_learnable_parameter_values(
+    def combine_non_learnable_parameters(
         self, batch_size: int | None = None, **overwrite: np.ndarray
     ) -> np.ndarray:
-        """Combine all non-learnable parameters and provided overwrites into a single numpy array.
+        """Combine all non-learnable parameters into a single numpy array.
 
         Args:
             batch_size: The batch size for the parameters.
                 Not needed if overwrite is provided.
             **overwrite: Overwrite values for specific parameters.
                 The keys should correspond to the parameter names to overwrite.
-                The values need to be np.ndarray with shape `(batch_size, N_horizon, pdim)`,
-                where `pdim` is the number of dimensions of the parameter to overwrite.
+                The values need to be np.ndarray with shape ``(batch_size, N_horizon, pdim)``,
+                where ``pdim`` is the number of dimensions of the parameter to overwrite.
 
         Returns:
-            np.ndarray: shape `(batch_size, N_horizon, np)`. with `np` being the number of
-            `parameter_values`.
+            np.ndarray: shape ``(batch_size, N_horizon, np)`` with ``np`` being the number of
+            ``parameter_values``.
         """
         # Infer batch size from overwrite if not provided.
         # Resolve to 1 if empty, will result in one batch sample of default values.
@@ -596,7 +453,7 @@ class AcadosParameterManager:
         expression is a weighted sum over all stage blocks, gated by the ``indicator`` vector
         in the non-learnable parameters.  The expression evaluates to the correct block value
         at each stage, but **only if the indicator is set correctly** via
-        ``combine_non_learnable_parameter_values()``.  If the indicator is all-zero (e.g. the
+        :meth:`combine_non_learnable_parameters`.  If the indicator is all-zero (e.g. the
         default), every stage silently evaluates to zero for these parameters.
 
         Args:
@@ -614,7 +471,7 @@ class AcadosParameterManager:
 
         if (
             self.parameters[name].interface == "learnable"
-            and self.parameters[name].splits != "global"
+            and self.parameters[name].is_stage_varying
         ):
             starts, ends = _define_starts_and_ends(
                 splits=self.parameters[name].splits, N_horizon=self.N_horizon
@@ -694,6 +551,23 @@ class AcadosParameterManager:
         idx = [self._learnable_parameter_store.indices[key] for key in keys]
         idx = [slice(s, e) for s, e in idx]
         return param_values[..., np.r_[*idx]].reshape(-1, len(keys))
+
+    def assign_to_ocp(self, ocp) -> None:
+        """Synchronize the parameter manager's symbols and defaults onto the OCP.
+
+        Sets ``model.p``, ``model.p_global``, ``parameter_values``, and ``p_global_values``
+        on the provided acados OCP instance. Should be called before solver code generation.
+
+        Args:
+            ocp: An acados ``AcadosOcp`` instance.
+        """
+        if self._finalized:
+            return
+        self._finalized = True
+        ocp.model.p = self.non_learnable_symbols
+        ocp.model.p_global = self.learnable_symbols
+        ocp.parameter_values = self.non_learnable_default_flat
+        ocp.p_global_values = self.learnable_default_flat
 
 
 def _define_starts_and_ends(

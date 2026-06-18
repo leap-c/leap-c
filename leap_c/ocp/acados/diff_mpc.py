@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Callable, Literal, Sequence
 
 import numpy as np
+from acados_template import AcadosOcp
 from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 
 from leap_c.autograd.function import DiffFunction
@@ -14,7 +15,6 @@ from leap_c.ocp.acados.data import (
     collate_acados_flattened_batch_iterate_fn,
     collate_acados_ocp_solver_input,
 )
-from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
 from leap_c.ocp.acados.initializer import (
     AcadosDiffMpcInitializer,
     ZeroDiffMpcInitializer,
@@ -121,7 +121,7 @@ class AcadosDiffMpcFunction(DiffFunction):
 
     def __init__(
         self,
-        ocp: AcadosDiffOcp,
+        ocp: AcadosOcp,
         initializer: AcadosDiffMpcInitializer | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
@@ -133,6 +133,8 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         Args:
             ocp: The acados ocp object defining the optimal control problem structure.
+                Must have ``model.p``, ``model.p_global``, ``parameter_values``, and
+                ``p_global_values`` set (e.g. via ``AcadosParameterManager.assign_to_ocp``).
             initializer: The initializer used to provide initial guesses for the solver, if none are
                 provided explicitly or on a retry. Uses a zero iterate by default.
             discount_factor: An optional discount factor for the sensitivity problem.
@@ -149,7 +151,6 @@ class AcadosDiffMpcFunction(DiffFunction):
 
         """
         self.ocp = ocp
-        ocp.finalize()
         self.forward_batch_solver, self.backward_batch_solver = (
             create_forward_backward_batch_solvers(
                 ocp=ocp,
@@ -185,35 +186,22 @@ class AcadosDiffMpcFunction(DiffFunction):
         Args:
             ctx: A context object for the forward pass. If provided, it will be used to warmstart
                 the solve (e.g., by using the saved iterate).
-            x0: Initial states with shape `(B, x_dim)`.
-            u0: Initial actions with shape `(B, u_dim)`. Defaults to `None`.
-            p_global: Acados global parameters shared across all stages
-                (i.e., learnable parameters), shape `(B, p_global_dim)`. If none is provided, the
-                default values set in the acados ocp object are used.
-            p_stagewise: Stagewise parameters.
-                If none is provided, the default values set in the acados ocp object are used.
-                If `p_stagewise_sparse_idx` is provided, this also has to be provided.
-                If `p_stagewise_sparse_idx` is `None`, shape is `(B, N_horizon+1, p_stagewise_dim)`.
-                If `p_stagewise_sparse_idx` is provided, shape is
-                `(B, N_horizon+1, len(p_stagewise_sparse_idx))`.
-            p_stagewise_sparse_idx: Indices for sparsely setting stagewise parameters. Shape is
-                `(B, N_horizon+1, n_p_stagewise_sparse_idx)`.
+            x0: Initial states with shape ``(B, x_dim)``.
+            u0: Initial actions with shape ``(B, u_dim)``. Defaults to ``None``.
+            p_global: Flat learnable parameters, shape ``(B, N_learnable)``.
+            p_stagewise: Stage-wise non-learnable parameters, shape
+                ``(B, N_horizon + 1, N_non_learnable)``.
+            p_stagewise_sparse_idx: Not yet supported.
 
         Returns:
             A tuple containing:
             - ctx: The context object containing information from the forward pass.
-            - sol_u0: The control solution of the first stage, shape `(B, u_dim)`.
-            - x: The state trajectory solution, shape `(B, N_horizon + 1, x_dim)`.
-            - u: The control trajectory solution, shape `(B, N_horizon, u_dim)`.
-            - sol_value: The objective value solution, shape `(B, 1)`.
+            - sol_u0: The control solution of the first stage, shape ``(B, u_dim)``.
+            - x: The state trajectory solution, shape ``(B, N_horizon + 1, x_dim)``.
+            - u: The control trajectory solution, shape ``(B, N_horizon, u_dim)``.
+            - sol_value: The objective value solution, shape ``(B, 1)``.
         """
         batch_size = x0.shape[0]
-
-        p_stagewise = (
-            self.ocp.parameter_manager.combine_non_learnable_parameter_values(batch_size)
-            if p_stagewise is None
-            else p_stagewise
-        )
 
         solver_input = AcadosOcpSolverInput(x0, u0, p_global, p_stagewise, p_stagewise_sparse_idx)
         ocp_iterate = None if ctx is None else ctx.iterate

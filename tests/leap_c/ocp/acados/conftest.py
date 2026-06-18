@@ -1,5 +1,4 @@
 from dataclasses import asdict
-from itertools import chain
 
 import casadi as ca
 import gymnasium as gym
@@ -9,12 +8,11 @@ import torch
 from acados_template import AcadosOcp, AcadosOcpOptions
 
 from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
-from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
 from leap_c.ocp.acados.parameters import (
     AcadosParameter,
     AcadosParameterManager,
 )
-from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+from leap_c.ocp.acados.torch import AcadosDiffMpcTorch, AcadosParameterManagerTorch
 
 
 @pytest.fixture(scope="session")
@@ -183,11 +181,11 @@ def nominal_stagewise_params(
 def acados_test_ocp_no_p_global(
     ocp_options: AcadosOcpOptions,
     nominal_params: tuple[AcadosParameter, ...],
-) -> AcadosDiffOcp:
+) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp"
 
-    ocp = AcadosDiffOcp(N_horizon=ocp_options.N_horizon)
+    ocp = AcadosOcp()
 
     ocp.solver_options.integrator_type = ocp_options.integrator_type
     ocp.solver_options.nlp_solver_type = ocp_options.nlp_solver_type
@@ -195,6 +193,7 @@ def acados_test_ocp_no_p_global(
     ocp.solver_options.qp_solver = ocp_options.qp_solver
     ocp.solver_options.qp_solver_ric_alg = ocp_options.qp_solver_ric_alg
     ocp.solver_options.tf = ocp_options.tf
+    ocp.solver_options.N_horizon = ocp_options.N_horizon
 
     param_defaults = {p.name: p.default for p in nominal_params}
 
@@ -368,23 +367,22 @@ def acados_test_ocp(
     ocp_options: AcadosOcpOptions,
     nominal_params: tuple[AcadosParameter, ...],
     request: pytest.FixtureRequest,
-) -> AcadosDiffOcp:
+) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp"
 
-    ocp = AcadosDiffOcp(N_horizon=ocp_options.N_horizon)
+    ocp = AcadosOcp()
     ocp.solver_options = ocp_options
 
+    param_manager = AcadosParameterManagerTorch(N_horizon=ocp.solver_options.N_horizon)
     for param in nominal_params:
-        ocp.register_param(
+        param_manager.register_parameter(
             name=param.name,
             default=param.default,
             space=param.space,
             differentiable=(param.interface == "learnable"),
             splits=param.splits,
         )
-
-    param_manager = ocp.parameter_manager
 
     ocp.model.name = name
 
@@ -442,6 +440,7 @@ def acados_test_ocp(
         )
         ocp.cost.W_e = ca.mtimes(ocp.cost.W_e, ca.transpose(ocp.cost.W_e))
 
+    ocp._test_pm = param_manager
     return ocp
 
 
@@ -450,23 +449,22 @@ def acados_test_ocp(
 def acados_test_ocp_with_stagewise_varying_params(
     ocp_options: AcadosOcpOptions,
     nominal_stagewise_params: tuple[AcadosParameter, ...],
-) -> AcadosDiffOcp:
+) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp_with_stagewise_varying_params"
 
-    ocp = AcadosDiffOcp(N_horizon=ocp_options.N_horizon)
+    ocp = AcadosOcp()
     ocp.solver_options = ocp_options
 
+    param_manager = AcadosParameterManagerTorch(N_horizon=ocp.solver_options.N_horizon)
     for param in nominal_stagewise_params:
-        ocp.register_param(
+        param_manager.register_parameter(
             name=param.name,
             default=param.default,
             space=param.space,
             differentiable=(param.interface == "learnable"),
             splits=param.splits,
         )
-
-    param_manager = ocp.parameter_manager
 
     ocp.model.name = name
 
@@ -477,6 +475,7 @@ def acados_test_ocp_with_stagewise_varying_params(
     define_discrete_dynamics(ocp, param_manager)
     define_constraints(ocp, param_manager)
 
+    ocp._test_pm = param_manager
     return ocp
 
 
@@ -514,8 +513,11 @@ def diff_mpc_indefinite_hess_stagewise(
 
 @pytest.fixture(scope="session")
 def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpcTorch:
+    pm = acados_test_ocp._test_pm
+    del acados_test_ocp._test_pm
     return AcadosDiffMpcTorch(
         ocp=acados_test_ocp,
+        parameter_manager=pm,
         initializer=None,
         discount_factor=None,
         dtype=torch.float64,
@@ -525,36 +527,17 @@ def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpcTorch:
 @pytest.fixture(scope="session")
 def diff_mpc_with_stagewise_varying_params(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
-    nominal_stagewise_params: tuple[AcadosParameter, ...],
-    print_level: int = 0,
 ) -> AcadosDiffMpcTorch:
-    diff_mpc = AcadosDiffMpcTorch(
+    pm = acados_test_ocp_with_stagewise_varying_params._test_pm
+    del acados_test_ocp_with_stagewise_varying_params._test_pm
+
+    return AcadosDiffMpcTorch(
         ocp=acados_test_ocp_with_stagewise_varying_params,
+        parameter_manager=pm,
         initializer=None,
         discount_factor=None,
         dtype=torch.float64,
     )
-
-    acados_param_manager = AcadosParameterManager(
-        parameters=nominal_stagewise_params,
-        N_horizon=acados_test_ocp_with_stagewise_varying_params.solver_options.N_horizon,
-    )
-
-    # Get the default parameter values for each stage
-    parameter_values = acados_param_manager.combine_non_learnable_parameter_values()
-
-    for ocp_solver in chain(
-        diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers,
-        diff_mpc.diff_mpc_fun.backward_batch_solver.ocp_solvers,
-    ):
-        for batch in range(parameter_values.shape[0]):
-            for stage in range(parameter_values.shape[1]):
-                ocp_solver.set(stage, "p", parameter_values[batch, stage, :])
-
-                if print_level > 0:
-                    print(f"stage: {stage}; p: {ocp_solver.get(stage_=stage, field_='p')}")
-
-    return diff_mpc
 
 
 @pytest.fixture(scope="session")
