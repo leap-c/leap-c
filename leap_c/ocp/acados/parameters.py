@@ -199,7 +199,7 @@ class AcadosParameterManager(ABC):
     _learnable_parameter_store: _ParameterStore
     _non_learnable_parameter_store: _ParameterStore
     _need_indicator: bool
-    _finalized: bool = False
+    _finalized: bool
 
     @property
     def learnable_default_flat(self) -> np.ndarray:
@@ -288,6 +288,7 @@ class AcadosParameterManager(ABC):
         self._learnable_parameter_store = _ParameterStore()
         self._non_learnable_parameter_store = _ParameterStore()
         self._need_indicator = False
+        self._finalized = False
 
     def register_parameter(
         self,
@@ -348,9 +349,7 @@ class AcadosParameterManager(ABC):
         return self.get(parameter.name)
 
     @abstractmethod
-    def combine_learnable_parameters(
-        self, batch_size: int | None, **overwrites: np.ndarray
-    ) -> np.ndarray:
+    def combine_learnable_parameters(self, batch_size: int | None, **overwrites: Any) -> np.ndarray:
         """Combine learnable parameters into a single flat array (or tensor).
 
         Subclasses must implement this with framework-specific operations (e.g. torch)

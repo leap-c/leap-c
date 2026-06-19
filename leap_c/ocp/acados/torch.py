@@ -107,6 +107,8 @@ class AcadosParameterManagerTorch(AcadosParameterManager):
                 val = overwrites[name]
                 if isinstance(val, np.ndarray):
                     val = torch.from_numpy(val).to(device=device, dtype=dtype)
+                elif isinstance(val, torch.Tensor):
+                    val = val.to(device=device, dtype=dtype)
             else:
                 val = None
 
