@@ -186,6 +186,66 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             mlp_cfg=cfg.mlp,
         )
 
+    # TODO (Mazen): this should also be removed, the actors should produce a dictionary instead of
+    # flat parameters.
+    def _param_to_dict(self, flat_param: torch.Tensor) -> dict[str, torch.Tensor]:
+        """Convert a flat parameter tensor to a dict for the dict-based controller API.
+
+        The flat parameter tensor is the output of the distribution (RL system).
+        This method splits it into named entries expected by the controller, using
+        the planner's parameter manager to determine the structure.
+
+        Args:
+            flat_param: Flat parameter tensor ``(batch_size, total_learnable_dim)``.
+
+        Returns:
+            Dict mapping parameter names to their values. Stage-varying parameters
+            get shape ``(batch_size, N_horizon + 1, pdim)``; global parameters
+            get shape ``(batch_size, pdim)``.
+        """
+        planner = getattr(self.controller, "planner", None)
+        if planner is None:
+            raise TypeError(
+                f"Cannot convert flat parameters to dict: controller "
+                f"({type(self.controller).__name__}) has no `.planner` attribute."
+            )
+        manager = getattr(planner, "param_manager", None)
+        if manager is None:
+            raise TypeError(
+                f"Cannot convert flat parameters to dict: planner "
+                f"({type(planner).__name__}) has no `param_manager` attribute."
+            )
+
+        store = manager._learnable_parameter_store
+        Np1 = manager.N_horizon + 1
+        batch_size = flat_param.shape[0]
+
+        param_dict = {}
+        for name in manager.learnable_parameter_names:
+            param_def = manager.parameters[name]
+            pdim = param_def.default.size
+
+            if param_def.is_stage_varying:
+                val = torch.zeros(
+                    batch_size,
+                    Np1,
+                    pdim,
+                    dtype=flat_param.dtype,
+                    device=flat_param.device,
+                )
+                for stored_name, (si, ei) in store.indices.items():
+                    if stored_name.startswith(f"{name}_"):
+                        suffix = stored_name[len(name) + 1 :]
+                        start, end = (int(x) for x in suffix.split("_"))
+                        block_val = flat_param[..., si:ei].reshape(batch_size, pdim)
+                        val[:, start : end + 1, :] = block_val.unsqueeze(1)
+                param_dict[name] = val
+            else:
+                si, ei = store.indices[name]
+                param_dict[name] = flat_param[..., si:ei]
+
+        return param_dict
+
     def forward(
         self,
         obs: torch.Tensor,
@@ -222,7 +282,8 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
                 return StochasticMPCActorOutput(param, log_prob, stats)
 
             # get action from controller
-            ctx, action = self.controller(obs, param, ctx=ctx)
+            param_dict = self._param_to_dict(param)
+            ctx, action = self.controller(obs, param_dict, ctx=ctx)
 
             # Store distribution info in context for rendering/debugging
             ctx.param_distribution_info = {
@@ -255,7 +316,8 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
         param, _, param_stats = self.param_distribution(param_mean, deterministic=True, anchor=None)
 
         # get action from controller
-        ctx, action_mpc = self.controller(obs, param, ctx=ctx)
+        param_dict = self._param_to_dict(param)
+        ctx, action_mpc = self.controller(obs, param_dict, ctx=ctx)
 
         # add noise to action - use MPC action as anchor
         action, log_prob, action_stats = self.action_distribution(
