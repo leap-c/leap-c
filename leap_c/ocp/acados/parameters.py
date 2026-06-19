@@ -525,6 +525,8 @@ class AcadosParameterManager(ABC):
             fnmatch.fnmatch(name, pattern) for name in self._learnable_parameter_store.symbols
         )
 
+    # TODO (Mazen): I guess this needs to be deprecated. After separating, all the code should use
+    # the dictionary API.
     def get_labeled_learnable_parameters(
         self,
         param_values: np.ndarray | torch.Tensor,

@@ -3,14 +3,12 @@ from typing import Literal
 import casadi as ca
 import gymnasium as gym
 import numpy as np
+from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 PointMassAcadosParamInterface = Literal["global", "stagewise"]
-"""Determines the exposed parameter interface of the controller.
-"global" means that learnable parameters are the same for all stages of the horizon,
-while "stagewise" means that learnable parameters can vary between stages.
-"""
 
 
 def export_parametric_ocp(
@@ -20,11 +18,13 @@ def export_parametric_ocp(
     N_horizon: int = 20,
     T_horizon: float = 2.0,
     x_ref_value: np.ndarray | None = None,
-) -> AcadosDiffOcp:
-    ocp = AcadosDiffOcp(N_horizon=N_horizon)
+) -> tuple[AcadosOcp, AcadosParameterManager]:
+    ocp = AcadosOcp()
 
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = T_horizon
+
+    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
 
     dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
 
@@ -35,7 +35,7 @@ def export_parametric_ocp(
     r_diag_sqrt_val = np.array([0.1, 0.1])
 
     # Register learnable parameters
-    q_diag_sqrt = ocp.register_param(
+    q_diag_sqrt = manager.register_parameter(
         "q_diag_sqrt",
         default=q_diag_sqrt_val,
         space=gym.spaces.Box(
@@ -44,7 +44,7 @@ def export_parametric_ocp(
         differentiable=True,
         splits="stagewise" if param_interface == "stagewise" else "global",
     )
-    r_diag_sqrt = ocp.register_param(
+    r_diag_sqrt = manager.register_parameter(
         "r_diag_sqrt",
         default=r_diag_sqrt_val,
         space=gym.spaces.Box(
@@ -53,7 +53,7 @@ def export_parametric_ocp(
         differentiable=True,
         splits="stagewise" if param_interface == "stagewise" else "global",
     )
-    x_ref = ocp.register_param(
+    x_ref = manager.register_parameter(
         "x_ref",
         default=x_ref_value,
         space=gym.spaces.Box(
@@ -64,7 +64,7 @@ def export_parametric_ocp(
         differentiable=True,
         splits="stagewise" if param_interface == "stagewise" else "global",
     )
-    u_ref = ocp.register_param(
+    u_ref = manager.register_parameter(
         "u_ref",
         default=np.array([0.0, 0.0]),
         space=gym.spaces.Box(
@@ -143,4 +143,4 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
 
-    return ocp
+    return ocp, manager

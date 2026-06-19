@@ -4,6 +4,7 @@ from typing import Literal
 import casadi as ca
 import gymnasium as gym
 import numpy as np
+from acados_template import AcadosOcp
 from scipy.constants import convert_temperature
 
 from leap_c.examples.hvac.dynamics import (
@@ -11,7 +12,8 @@ from leap_c.examples.hvac.dynamics import (
     HydronicParameters,
     transcribe_discrete_state_space,
 )
-from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 HvacAcadosParamInterface = Literal["reference", "reference_dynamics"]
 """Determines the exposed parameter interface of the planner.
@@ -32,7 +34,7 @@ def export_parametric_ocp(
     ta_learnable: bool = False,
     solar_learnable: bool = False,
     price_learnable: bool = False,
-) -> AcadosDiffOcp:
+) -> tuple[AcadosOcp, AcadosParameterManager]:
     """Export the HVAC OCP.
 
     Augments the state with the previous input to encode the rate penalty.
@@ -53,12 +55,14 @@ def export_parametric_ocp(
         price_learnable: Whether electricity price is learnable.
 
     Returns:
-        AcadosDiffOcp: The configured OCP object.
+        tuple[AcadosOcp, AcadosParameterManager]: The OCP object and its parameter manager.
     """
     hydronic_params = HydronicParameters() if hydronic_params is None else hydronic_params
 
-    ocp = AcadosDiffOcp(N_horizon=N_horizon)
+    ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
+
+    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
 
     if isinstance(granularity, int):
         assert 1 <= granularity <= N_horizon, (
@@ -75,7 +79,7 @@ def export_parametric_ocp(
         splits = "global"
 
     # Register non-learnable forecast parameters
-    temperature = ocp.register_param(
+    temperature = manager.register_parameter(
         "temperature",
         default=np.array([convert_temperature(20.0, "celsius", "kelvin")]),
         space=gym.spaces.Box(
@@ -86,7 +90,7 @@ def export_parametric_ocp(
         differentiable=ta_learnable,
         splits=list(range(N_horizon + 1)),
     )
-    solar = ocp.register_param(
+    solar = manager.register_parameter(
         "solar",
         default=np.array([200.0]),
         space=gym.spaces.Box(
@@ -97,7 +101,7 @@ def export_parametric_ocp(
         differentiable=solar_learnable,
         splits=list(range(N_horizon + 1)),
     )
-    price = ocp.register_param(
+    price = manager.register_parameter(
         "price",
         default=np.array([0.15]),
         space=gym.spaces.Box(
@@ -110,7 +114,7 @@ def export_parametric_ocp(
     )
 
     # Register learnable reference parameters
-    ocp.register_param(
+    manager.register_parameter(
         "ref_Ti",
         default=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
         space=gym.spaces.Box(
@@ -144,7 +148,7 @@ def export_parametric_ocp(
 
         if k in scaling_shifts and "dynamics" in interface:
             # Register as learnable parameter
-            dyn_fields[k] = ocp.register_param(
+            dyn_fields[k] = manager.register_parameter(
                 name=k,
                 default=default_value,
                 space=gym.spaces.Box(
@@ -183,7 +187,7 @@ def export_parametric_ocp(
     ocp.model.disc_dyn_expr = ca.vertcat(x_next_phys, qh)
 
     # Cost parameters
-    ocp.register_param(
+    manager.register_parameter(
         "log_q_Ti",
         default=np.array([-1.9]),
         space=gym.spaces.Box(low=np.array([-2.0]), high=np.array([1.0]), dtype=np.float64),
@@ -228,4 +232,4 @@ def export_parametric_ocp(
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
 
-    return ocp
+    return ocp, manager

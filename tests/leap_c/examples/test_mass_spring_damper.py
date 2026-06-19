@@ -178,13 +178,11 @@ def test_run_closed_loop(n_iter: int = 100) -> None:
     planner = MassSpringDamperPlanner()
     controller = ControllerFromPlanner(planner=planner)
 
-    default_param = controller.default_param(obs)
-    default_param = torch.as_tensor(default_param, dtype=torch.float32).unsqueeze(0)
     ctx = None
 
     for _ in range(n_iter):
         obs_tensor = torch.as_tensor(obs, dtype=torch.float32).unsqueeze(0)
-        ctx, a = controller(obs_tensor, default_param, ctx=ctx)
+        ctx, a = controller(obs_tensor, ctx=ctx)
         a = a.squeeze(0).numpy()
         obs, r, terminated, truncated, info = env.step(a)
 

@@ -3,9 +3,11 @@ from typing import Literal
 import casadi as ca
 import gymnasium as gym
 import numpy as np
+from acados_template import AcadosOcp
 
 from leap_c.examples.utils.casadi import integrate_erk4
-from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 CartPoleAcadosParamInterface = Literal["global", "stagewise"]
 """Determines the exposed parameter interface of the controller.
@@ -27,17 +29,18 @@ def export_parametric_ocp(
     x_threshold: float = 2.4,
     N_horizon: int = 50,
     T_horizon: float = 2.0,
-) -> AcadosDiffOcp:
-    ocp = AcadosDiffOcp(N_horizon=N_horizon)
-
+) -> tuple[AcadosOcp, AcadosParameterManager]:
+    ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = T_horizon
 
     dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
 
+    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
+
     # Reference parameters (non-learnable / learnable)
-    xref0 = ocp.register_param("xref0", default=np.array([0.0]), differentiable=False)
-    xref1 = ocp.register_param(
+    xref0 = manager.register_parameter("xref0", default=np.array([0.0]))
+    xref1 = manager.register_parameter(
         "xref1",
         default=np.array([0.0]),
         space=gym.spaces.Box(
@@ -48,9 +51,9 @@ def export_parametric_ocp(
         differentiable=True,
         splits="stagewise" if param_interface == "stagewise" else "global",
     )
-    xref2 = ocp.register_param("xref2", default=np.array([0.0]), differentiable=False)
-    xref3 = ocp.register_param("xref3", default=np.array([0.0]), differentiable=False)
-    uref = ocp.register_param("uref", default=np.array([0.0]), differentiable=False)
+    xref2 = manager.register_parameter("xref2", default=np.array([0.0]))
+    xref3 = manager.register_parameter("xref3", default=np.array([0.0]))
+    uref = manager.register_parameter("uref", default=np.array([0.0]))
 
     # Dynamics physical constants (sunsetted "fix" interface)
     M = 1.0  # mass of the cart [kg]
@@ -92,7 +95,7 @@ def export_parametric_ocp(
         f_expl=f_expl,
         x=ocp.model.x,
         u=ocp.model.u,
-        p=ocp.parameter_manager.p_full,
+        p=ca.vertcat(manager.learnable_symbols, manager.non_learnable_symbols),
         dt=dt,
     )
 
@@ -161,4 +164,4 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
 
-    return ocp
+    return ocp, manager

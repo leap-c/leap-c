@@ -76,7 +76,7 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         """
         self.cfg = PointMassControllerConfig() if cfg is None else cfg
 
-        ocp = export_parametric_ocp(
+        ocp, param_manager = export_parametric_ocp(
             param_interface=self.cfg.param_interface,
             name="pointmass",
             N_horizon=self.cfg.N_horizon,
@@ -87,22 +87,23 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
         diff_mpc = AcadosDiffMpcTorch(
             ocp,
+            param_manager,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
             n_batch_init=self.cfg.n_batch_init,
             num_threads_batch_solver=self.cfg.num_threads_batch_solver,
             dtype=self.cfg.dtype,
         )
-        super().__init__(param_manager=ocp.parameter_manager, diff_mpc=diff_mpc)
+        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
 
     def forward(
         self,
         obs: torch.Tensor,
         action: torch.Tensor | None = None,
-        param: torch.Tensor | None = None,
+        params: dict[str, torch.Tensor | np.ndarray] | None = None,
         ctx: AcadosDiffMpcCtx | None = None,
     ) -> tuple[Any, torch.Tensor, torch.Tensor, torch.Tensor | None]:
         # remove wind field from observation, this is only observed by
         # the network, not used in the MPC
         x0 = obs[:, :4]
-        return self.diff_mpc(x0=x0, u0=action, param=param, ctx=ctx)
+        return self.diff_mpc(x0=x0, u0=action, params=params, ctx=ctx)

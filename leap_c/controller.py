@@ -42,12 +42,12 @@ class ParameterizedController(nn.Module, Generic[CtxType], metaclass=ABCMeta):
     collate_fn_map: dict[type | tuple[type, ...], Callable] | None = None
 
     @abstractmethod
-    def forward(self, obs: Any, param: Any, ctx: CtxType | None = None) -> tuple[CtxType, Tensor]:
+    def forward(self, obs: Any, params: Any, ctx: CtxType | None = None) -> tuple[CtxType, Tensor]:
         """Computes action from observation, parameters and internal context.
 
         Args:
             obs: Observation input to the controller (e.g., state vector).
-            param: Parameters that define the behavior of the controller.
+            params: Parameters that define the behavior of the controller.
             ctx (CtxType, optional): Optional internal context passed between invocations.
 
         Returns:

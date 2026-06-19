@@ -2,16 +2,17 @@ import casadi as ca
 import gymnasium as gym
 import matplotlib.pyplot as plt
 import numpy as np
-from acados_template import AcadosOcpSolver
+from acados_template import AcadosOcp, AcadosOcpSolver
 
-from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 
 def export_parametric_ocp(
     N_horizon: int,
     name: str = "mass_spring_damper",
     x0: np.ndarray | None = None,
-) -> AcadosDiffOcp:
+) -> tuple[AcadosOcp, AcadosParameterManager]:
     """Export the mass-spring-damper OCP.
 
     Args:
@@ -22,11 +23,12 @@ def export_parametric_ocp(
     Returns:
         AcadosDiffOcp: The configured OCP object.
     """
-    ocp = AcadosDiffOcp(N_horizon=N_horizon)
+    ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
+    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
 
     # Register parameters
-    q_diag_sqrt = ocp.register_param(
+    q_diag_sqrt = manager.register_parameter(
         name="q_diag_sqrt",
         default=np.sqrt(np.array([5.0, 0.2])),
         space=gym.spaces.Box(
@@ -36,7 +38,7 @@ def export_parametric_ocp(
         ),
         differentiable=True,
     )
-    r_diag_sqrt = ocp.register_param(
+    r_diag_sqrt = manager.register_parameter(
         name="r_diag_sqrt",
         default=np.sqrt(np.array([0.08])),
         space=gym.spaces.Box(
@@ -46,7 +48,7 @@ def export_parametric_ocp(
         ),
         differentiable=True,
     )
-    p_diag_sqrt = ocp.register_param(
+    p_diag_sqrt = manager.register_parameter(
         name="p_diag_sqrt",
         default=np.sqrt(np.array([5.0, 0.5])),
         space=gym.spaces.Box(
@@ -56,7 +58,7 @@ def export_parametric_ocp(
         ),
         differentiable=True,
     )
-    mass = ocp.register_param(
+    mass = manager.register_parameter(
         name="mass",
         default=np.array([1.5]),
         space=gym.spaces.Box(
@@ -66,7 +68,7 @@ def export_parametric_ocp(
         ),
         differentiable=True,
     )
-    damping = ocp.register_param(
+    damping = manager.register_parameter(
         name="damping",
         default=np.array([0.7]),
         space=gym.spaces.Box(
@@ -76,7 +78,7 @@ def export_parametric_ocp(
         ),
         differentiable=True,
     )
-    stiffness = ocp.register_param(
+    stiffness = manager.register_parameter(
         name="stiffness",
         default=np.array([2.0]),
         space=gym.spaces.Box(
@@ -155,20 +157,18 @@ def export_parametric_ocp(
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
 
-    return ocp
+    return ocp, manager
 
 
 if __name__ == "__main__":
     N_horizon = 100
 
-    ocp = export_parametric_ocp(
+    ocp, manager = export_parametric_ocp(
         N_horizon=N_horizon,
         x0=np.array([1.5, -1.0]),
     )
 
-    ocp.translate_initial_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-    ocp.translate_intermediate_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-    ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
+    manager.assign_to_ocp(ocp)
 
     ocp_solver = AcadosOcpSolver(ocp)
 

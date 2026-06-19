@@ -10,8 +10,9 @@ from casadi.tools import entry, struct_symSX
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
-from leap_c.ocp.acados.diff_ocp import AcadosDiffOcp
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 ChainAcadosParamInterface = Literal["global", "stagewise"]
 """Determines the exposed parameter interface of the controller.
@@ -28,17 +29,19 @@ def export_parametric_ocp(
     N_horizon: int = 30,  # noqa: N803
     T_horizon: float = 6.0,
     n_mass: int = 5,
-) -> AcadosDiffOcp:
-    ocp = AcadosDiffOcp(N_horizon=N_horizon)
+) -> tuple[AcadosOcp, AcadosParameterManager]:
+    ocp = AcadosOcp()
 
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = T_horizon
+
+    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
 
     # Register only learnable parameters
     q_diag_sqrt_val = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
     r_diag_sqrt_val = 1e-1 * np.ones(3)
 
-    q_diag_sqrt = ocp.register_param(
+    q_diag_sqrt = manager.register_parameter(
         "q_diag_sqrt",
         default=q_diag_sqrt_val,
         space=gym.spaces.Box(
@@ -47,7 +50,7 @@ def export_parametric_ocp(
         differentiable=True,
         splits="stagewise" if param_interface == "stagewise" else "global",
     )
-    r_diag_sqrt = ocp.register_param(
+    r_diag_sqrt = manager.register_parameter(
         "r_diag_sqrt",
         default=r_diag_sqrt_val,
         space=gym.spaces.Box(
@@ -94,7 +97,7 @@ def export_parametric_ocp(
         f_expl,
         x.cat,
         u,
-        ca.SX(),
+        ca.vertcat(manager.learnable_symbols, manager.non_learnable_symbols),
         T_horizon / N_horizon,  # type:ignore
     )
 
@@ -128,7 +131,7 @@ def export_parametric_ocp(
     if isinstance(ocp.model.x, struct_symSX):
         ocp.model.x = ocp.model.x.cat
 
-    return ocp
+    return ocp, manager
 
 
 class ChainInitializer(AcadosDiffMpcInitializer):
