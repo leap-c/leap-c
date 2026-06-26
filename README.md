@@ -7,7 +7,7 @@
 
 <span style="color: red; font-size: 1.2em;">**⚠️ WARNING: We are currently refactoring this repository.**</span>
 
-`leap-c` is currently been updated to provide a more minimal interface to the differentiable `acados` layer. The previous interface is taged under the release: `https://github.com/leap-c/leap-c/tree/v0.2.0-alpha`
+`leap-c` is currently updated to provide a more minimal interface to the differentiable `acados` layer. The previous interface you can find under the release: `https://github.com/leap-c/leap-c/tree/v0.2.0-alpha`
 
 
 ## Introduction
