@@ -5,6 +5,11 @@
 
 # leap-c (Learning Predictive Control)
 
+<span style="color: red; font-size: 1.2em;">**⚠️ WARNING: We are currently refactoring this repository.**</span>
+
+`leap-c` is currently updated to provide a more minimal interface to the differentiable `acados` layer. You can find the previous interface under the release: `https://github.com/leap-c/leap-c/tree/v0.2.0-alpha`
+
+
 ## Introduction
 
 `leap-c` provides tools for learning optimal control policies using Imitation learning (IL) and Reinforcement Learning (RL) to enhance Model Predictive Control (MPC) algorithms. It is built on top of [CasADi](https://web.casadi.org/), [acados](https://docs.acados.org/index.html) and [PyTorch](https://pytorch.org/).
