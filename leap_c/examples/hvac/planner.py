@@ -238,7 +238,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         }
 
         # Build a flat default tensor for rendering learnable params not provided by caller
-        flat_default_params = self.param_manager.combine_learnable_parameters(
+        flat_default_params = self.param_manager.combine_learnable_parameters_torch(
             batch_size=batch_size, device=device, dtype=torch.float64
         )
 
@@ -392,7 +392,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                 overwrites[key] = data
 
         batch_param = (
-            self.param_manager.combine_learnable_parameters(
+            self.param_manager.combine_learnable_parameters_torch(
                 batch_size=n_batch, device="cpu", dtype=torch.float64, **overwrites
             )
             .detach()

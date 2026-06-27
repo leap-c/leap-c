@@ -13,7 +13,6 @@ from leap_c.examples.hvac.dynamics import (
     transcribe_discrete_state_space,
 )
 from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 HvacAcadosParamInterface = Literal["reference", "reference_dynamics"]
 """Determines the exposed parameter interface of the planner.
@@ -62,7 +61,7 @@ def export_parametric_ocp(
     ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
 
-    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
+    manager = AcadosParameterManager(N_horizon=N_horizon)
 
     if isinstance(granularity, int):
         assert 1 <= granularity <= N_horizon, (
