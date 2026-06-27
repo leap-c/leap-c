@@ -31,7 +31,7 @@ class ParameterizedPlanner(nn.Module, Generic[CtxType], metaclass=ABCMeta):
         self,
         obs: Tensor,
         action: Tensor | None = None,
-        param: Tensor | None = None,
+        params: dict[str, Tensor | ndarray] | None = None,
         ctx: CtxType | None = None,
     ) -> tuple[CtxType, Tensor | None, Tensor, Tensor | None]:
         """Computes state and control trajectories from an observation.
@@ -42,7 +42,8 @@ class ParameterizedPlanner(nn.Module, Generic[CtxType], metaclass=ABCMeta):
         Args:
             obs (Tensor): Initial observation input to the planner (e.g., state vector).
             action (Tensor, optional): Optional initial action.
-            param (Tensor, optional): Parameters that define the behavior of the planner.
+            params (dict[str, Tensor | ndarray], optional): Parameters that define the behavior of
+                the planner, as a dictionary keyed by the parameters names'.
             ctx (CtxType, optional): Optional internal context passed between invocations.
 
         Returns:
@@ -122,13 +123,17 @@ class ControllerFromPlanner(ParameterizedController[CtxType], Generic[CtxType]):
         return self.planner.collate_fn_map
 
     def forward(
-        self, obs: Tensor, param: Tensor, ctx: CtxType | None = None
+        self,
+        obs: Tensor,
+        params: dict[str, Tensor | ndarray] | None = None,
+        ctx: CtxType | None = None,
     ) -> tuple[CtxType, Tensor]:
         """Computes the first action from the planner's trajectory.
 
         Args:
             obs (Tensor): Observation input to the controller (e.g., state vector).
-            param: (Tensor): Parameters that define the behavior of the controller.
+            params (dict[str, Tensor | ndarray], optional): Parameters that define the behavior of
+                the controller, as a dictionary keyed by the parameters names'.
             ctx (CtxType, optional): Optional internal context passed between invocations.
 
         Returns:
@@ -136,7 +141,7 @@ class ControllerFromPlanner(ParameterizedController[CtxType], Generic[CtxType]):
                 computation and further invocations.
             action (Tensor): The computed first action from the planned trajectory.
         """
-        return self.planner.forward(obs, param=param, ctx=ctx)[:2]
+        return self.planner.forward(obs, params=params, ctx=ctx)[:2]
 
     def jacobian_action_param(self, ctx: CtxType) -> ndarray:
         return self.planner.sensitivity(ctx, "du0_dp")

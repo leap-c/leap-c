@@ -130,16 +130,13 @@ def test_closed_loop_rendering(cartpole_controller):
     cwd = os.getcwd()
     savefile_dir_path = os.path.join(cwd, "test_closed_loop_pendulum_on_cart")
 
-    default_param = cartpole_controller.default_param(obs)
-    default_param = torch.as_tensor(default_param, dtype=torch.float32).unsqueeze(0)
-
     ctx = None
 
     if not os.path.exists(savefile_dir_path):
         os.mkdir(savefile_dir_path)
     while count < 300 and not terminated and not truncated:
         obs = torch.as_tensor(obs, dtype=torch.float32).unsqueeze(0)
-        ctx, a = cartpole_controller(obs, default_param, ctx=ctx)
+        ctx, a = cartpole_controller(obs, ctx=ctx)
         a = a.squeeze(0).numpy()
         obs_prime, r, terminated, truncated, info = env.step(a)
         frames.append(env.render())

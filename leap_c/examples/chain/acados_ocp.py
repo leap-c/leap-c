@@ -11,7 +11,8 @@ from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 ChainAcadosParamInterface = Literal["global", "stagewise"]
 """Determines the exposed parameter interface of the controller.
@@ -20,71 +21,44 @@ while "stagewise" means that learnable parameters can vary between stages.
 """
 
 
-def create_chain_params(
-    param_interface: ChainAcadosParamInterface = "global",
-    n_mass: int = 5,
-    N_horizon: int = 30,
-) -> list[AcadosParameter]:
-    """Returns a list of parameters used in the chain controller.
-
-    Args:
-        param_interface: Determines the exposed parameter interface of the controller.
-        n_mass: Number of masses in the chain.
-        N_horizon: The number of steps in the MPC horizon.
-    """
-    q_diag_sqrt = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
-    r_diag_sqrt = 1e-1 * np.ones(3)
-
-    return [
-        # dynamics parameters
-        AcadosParameter(
-            "L", default=np.repeat([0.033, 0.033, 0.033], n_mass - 1)
-        ),  # rest length of spring [m]
-        AcadosParameter(
-            "D", default=np.repeat([1.0, 1.0, 1.0], n_mass - 1)
-        ),  # spring stiffness [N/m]
-        AcadosParameter(
-            "C", default=np.repeat([0.1, 0.1, 0.1], n_mass - 1)
-        ),  # damping coefficient [Ns/m]
-        AcadosParameter(
-            "m", default=np.repeat([0.033], n_mass - 1)
-        ),  # mass of each of the masses [kg]
-        AcadosParameter(
-            "w", default=np.repeat([0.0, 0.0, 0.0], n_mass - 2)
-        ),  # disturbance on intermediate masses [N]
-        # cost parameters
-        AcadosParameter(
-            "q_diag_sqrt",  # cost weights of state residuals
-            default=q_diag_sqrt,
-            space=gym.spaces.Box(low=0.5 * q_diag_sqrt, high=1.5 * q_diag_sqrt, dtype=np.float64),
-            interface="learnable",
-            end_stages=list(range(N_horizon + 1)) if param_interface == "stagewise" else [],
-        ),
-        AcadosParameter(
-            "r_diag_sqrt",  # cost weights of action residuals
-            default=r_diag_sqrt,
-            space=gym.spaces.Box(low=0.5 * r_diag_sqrt, high=1.5 * r_diag_sqrt, dtype=np.float64),
-            interface="learnable",
-            end_stages=list(range(N_horizon)) if param_interface == "stagewise" else [],
-        ),
-    ]
-
-
 def export_parametric_ocp(
-    param_manager: AcadosParameterManager,
+    param_interface: ChainAcadosParamInterface,
     x_ref: np.ndarray,
     fix_point: np.ndarray,
     name: str = "chain",
     N_horizon: int = 30,  # noqa: N803
     T_horizon: float = 6.0,
     n_mass: int = 5,
-) -> AcadosOcp:
+) -> tuple[AcadosOcp, AcadosParameterManager]:
     ocp = AcadosOcp()
 
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = T_horizon
 
-    param_manager.assign_to_ocp(ocp)
+    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
+
+    # Register only learnable parameters
+    q_diag_sqrt_val = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
+    r_diag_sqrt_val = 1e-1 * np.ones(3)
+
+    q_diag_sqrt = manager.register_parameter(
+        "q_diag_sqrt",
+        default=q_diag_sqrt_val,
+        space=gym.spaces.Box(
+            low=0.5 * q_diag_sqrt_val, high=1.5 * q_diag_sqrt_val, dtype=np.float64
+        ),
+        differentiable=True,
+        splits="stagewise" if param_interface == "stagewise" else "global",
+    )
+    r_diag_sqrt = manager.register_parameter(
+        "r_diag_sqrt",
+        default=r_diag_sqrt_val,
+        space=gym.spaces.Box(
+            low=0.5 * r_diag_sqrt_val, high=1.5 * r_diag_sqrt_val, dtype=np.float64
+        ),
+        differentiable=True,
+        splits="stagewise" if param_interface == "stagewise" else "global",
+    )
 
     ######## Model ########
     ocp.model.name = name
@@ -101,17 +75,18 @@ def export_parametric_ocp(
 
     x = ocp.model.x
     u = ocp.model.u
+
+    # Physical parameters (sunsetted "fix" interface)
     dyn_param_dict = OrderedDict(
         [
-            ("D", param_manager.get("D")),
-            ("L", param_manager.get("L")),
-            ("C", param_manager.get("C")),
-            ("m", param_manager.get("m")),
-            ("w", param_manager.get("w")),
+            ("D", np.repeat([1.0, 1.0, 1.0], n_mass - 1)),
+            ("L", np.repeat([0.033, 0.033, 0.033], n_mass - 1)),
+            ("C", np.repeat([0.1, 0.1, 0.1], n_mass - 1)),
+            ("m", np.repeat([0.033], n_mass - 1)),
+            ("w", np.repeat([0.0, 0.0, 0.0], n_mass - 2)),
         ]
     )
 
-    p_cat_sym = ca.vertcat(*[v for v in dyn_param_dict.values() if not isinstance(v, np.ndarray)])
     f_expl = define_f_expl_expr(
         x=x,
         u=u,
@@ -122,20 +97,17 @@ def export_parametric_ocp(
         f_expl,
         x.cat,
         u,
-        p_cat_sym,
+        ca.vertcat(manager.learnable_symbols, manager.non_learnable_symbols),
         T_horizon / N_horizon,  # type:ignore
     )
 
     ######## Cost ########
-    q_diag_sqrt = param_manager.get("q_diag_sqrt")
-    r_diag_sqrt = param_manager.get("r_diag_sqrt")
     Q = ca.diag(q_diag_sqrt**2)
     R = ca.diag(r_diag_sqrt**2)
     x_res = ocp.model.x.cat - x_ref
-    u = ocp.model.u
 
     ocp.cost.cost_type = "EXTERNAL"
-    ocp.model.cost_expr_ext_cost = 0.5 * (x_res.T @ Q @ x_res + u.T @ R @ u)
+    ocp.model.cost_expr_ext_cost = 0.5 * (x_res.T @ Q @ x_res + ocp.model.u.T @ R @ ocp.model.u)
     ocp.cost.cost_type_e = "EXTERNAL"
     ocp.model.cost_expr_ext_cost_e = 0.5 * (x_res.T @ Q @ x_res)
 
@@ -159,7 +131,7 @@ def export_parametric_ocp(
     if isinstance(ocp.model.x, struct_symSX):
         ocp.model.x = ocp.model.x.cat
 
-    return ocp
+    return ocp, manager
 
 
 class ChainInitializer(AcadosDiffMpcInitializer):

@@ -4,109 +4,90 @@ import matplotlib.pyplot as plt
 import numpy as np
 from acados_template import AcadosOcp, AcadosOcpSolver
 
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
-
-
-def make_default_msd_params(N_horizon: int = 100) -> tuple[AcadosParameter, ...]:
-    """Return a tuple of default parameters for the mass-spring-damper planner.
-
-    Args:
-        N_horizon: The number of steps in the MPC horizon
-
-    Returns:
-        Tuple of AcadosParameter objects for the mass-spring-damper system.
-
-    Note: The default parameters do not match the true parameter values used in the environment.
-    """
-    params = []
-    params.extend(
-        [
-            AcadosParameter(
-                name="q_diag_sqrt",
-                default=np.sqrt(np.array([5.0, 0.2])),
-                space=gym.spaces.Box(
-                    low=np.sqrt(np.array([0.1, 0.01])),
-                    high=np.sqrt(np.array([10.0, 1.0])),
-                    dtype=np.float64,
-                ),
-                interface="learnable",
-            ),
-            AcadosParameter(
-                name="r_diag_sqrt",
-                default=np.sqrt(np.array([0.08])),
-                space=gym.spaces.Box(
-                    low=np.sqrt(np.array([0.001])),
-                    high=np.sqrt(np.array([0.1])),
-                    dtype=np.float64,
-                ),
-                interface="learnable",
-            ),
-            AcadosParameter(
-                name="p_diag_sqrt",
-                default=np.sqrt(np.array([5.0, 0.5])),
-                space=gym.spaces.Box(
-                    low=np.sqrt(np.array([1.0, 0.1])),
-                    high=np.sqrt(np.array([10.0, 1.0])),
-                    dtype=np.float64,
-                ),
-                interface="learnable",
-            ),
-            AcadosParameter(
-                name="mass",
-                default=np.array([1.5]),
-                space=gym.spaces.Box(
-                    low=np.array([0.1]),
-                    high=np.array([10.0]),
-                    dtype=np.float64,
-                ),
-                interface="learnable",
-            ),
-            AcadosParameter(
-                name="damping",
-                default=np.array([0.7]),
-                space=gym.spaces.Box(
-                    low=np.array([0.0]),
-                    high=np.array([2.0]),
-                    dtype=np.float64,
-                ),
-                interface="learnable",
-            ),
-            AcadosParameter(
-                name="stiffness",
-                default=np.array([2.0]),
-                space=gym.spaces.Box(
-                    low=np.array([0.0]),
-                    high=np.array([5.0]),
-                    dtype=np.float64,
-                ),
-                interface="learnable",
-            ),
-        ]
-    )
-
-    return tuple(params)
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 
 def export_parametric_ocp(
-    param_manager: AcadosParameterManager,
     N_horizon: int,
     name: str = "mass_spring_damper",
     x0: np.ndarray | None = None,
-) -> AcadosOcp:
+) -> tuple[AcadosOcp, AcadosParameterManager]:
     """Export the mass-spring-damper OCP.
 
     Args:
-        param_manager: The parameter manager containing the parameters for the OCP.
         N_horizon: Number of time steps in the horizon.
         name: Name of the OCP model.
         x0: Initial state. If None, a default value is used.
 
     Returns:
-        AcadosOcp: The configured OCP object.
+        AcadosDiffOcp: The configured OCP object.
     """
     ocp = AcadosOcp()
+    ocp.solver_options.N_horizon = N_horizon
+    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
 
-    param_manager.assign_to_ocp(ocp)
+    # Register parameters
+    q_diag_sqrt = manager.register_parameter(
+        name="q_diag_sqrt",
+        default=np.sqrt(np.array([5.0, 0.2])),
+        space=gym.spaces.Box(
+            low=np.sqrt(np.array([0.1, 0.01])),
+            high=np.sqrt(np.array([10.0, 1.0])),
+            dtype=np.float64,
+        ),
+        differentiable=True,
+    )
+    r_diag_sqrt = manager.register_parameter(
+        name="r_diag_sqrt",
+        default=np.sqrt(np.array([0.08])),
+        space=gym.spaces.Box(
+            low=np.sqrt(np.array([0.001])),
+            high=np.sqrt(np.array([0.1])),
+            dtype=np.float64,
+        ),
+        differentiable=True,
+    )
+    p_diag_sqrt = manager.register_parameter(
+        name="p_diag_sqrt",
+        default=np.sqrt(np.array([5.0, 0.5])),
+        space=gym.spaces.Box(
+            low=np.sqrt(np.array([1.0, 0.1])),
+            high=np.sqrt(np.array([10.0, 1.0])),
+            dtype=np.float64,
+        ),
+        differentiable=True,
+    )
+    mass = manager.register_parameter(
+        name="mass",
+        default=np.array([1.5]),
+        space=gym.spaces.Box(
+            low=np.array([0.1]),
+            high=np.array([10.0]),
+            dtype=np.float64,
+        ),
+        differentiable=True,
+    )
+    damping = manager.register_parameter(
+        name="damping",
+        default=np.array([0.7]),
+        space=gym.spaces.Box(
+            low=np.array([0.0]),
+            high=np.array([2.0]),
+            dtype=np.float64,
+        ),
+        differentiable=True,
+    )
+    stiffness = manager.register_parameter(
+        name="stiffness",
+        default=np.array([2.0]),
+        space=gym.spaces.Box(
+            low=np.array([0.0]),
+            high=np.array([5.0]),
+            dtype=np.float64,
+        ),
+        differentiable=True,
+    )
 
     # Model
     ocp.model.name = name
@@ -120,11 +101,6 @@ def export_parametric_ocp(
 
     dt: float = 0.1  # Time step in seconds
 
-    # Get physical parameters
-    mass = param_manager.get("mass")
-    damping = param_manager.get("damping")
-    stiffness = param_manager.get("stiffness")
-
     # Parametric dynamics matrices for mass-spring-damper system
     # Continuous dynamics: x_dot = v, v_dot = F/m - (b/m)*v - (k/m)*x
     # Discretized using Euler method
@@ -137,10 +113,6 @@ def export_parametric_ocp(
     ocp.model.disc_dyn_expr = A @ ocp.model.x + B @ ocp.model.u
 
     # Cost function
-    q_diag_sqrt = param_manager.get("q_diag_sqrt")
-    r_diag_sqrt = param_manager.get("r_diag_sqrt")
-    p_diag_sqrt = param_manager.get("p_diag_sqrt")
-
     # Construct stage cost weight matrix W from sqrt diagonal
     W_sqrt = ca.diag(ca.vertcat(q_diag_sqrt, r_diag_sqrt))
     W = W_sqrt @ ca.transpose(W_sqrt)
@@ -185,25 +157,18 @@ def export_parametric_ocp(
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
 
-    return ocp
+    return ocp, manager
 
 
 if __name__ == "__main__":
     N_horizon = 100
-    param_manager = AcadosParameterManager(
-        make_default_msd_params(N_horizon=N_horizon),
-        N_horizon=N_horizon,
-    )
 
-    ocp = export_parametric_ocp(
-        param_manager=param_manager,
+    ocp, manager = export_parametric_ocp(
         N_horizon=N_horizon,
         x0=np.array([1.5, -1.0]),
     )
 
-    ocp.translate_initial_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-    ocp.translate_intermediate_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
-    ocp.translate_terminal_cost_term_to_external(cost_hessian=ocp.solver_options.hessian_approx)
+    manager.assign_to_ocp(ocp)
 
     ocp_solver = AcadosOcpSolver(ocp)
 

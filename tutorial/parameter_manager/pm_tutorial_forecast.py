@@ -34,9 +34,8 @@ class TempCtrlPlanner(AcadosPlanner):
 
     Overrides :meth:`forward` to:
     1. Extract the per-call outdoor temperature forecast from ``obs``.
-    2. Build the per-stage non-learnable parameter array via
-       :meth:`combine_non_learnable_parameter_values`, injecting the forecast.
-    3. Pass everything to the underlying :class:`AcadosDiffMpcTorch` solver.
+    2. Pass the forecast as a named override in the ``params`` dictionary.
+    3. Let :class:`AcadosDiffMpcTorch` assemble stagewise non-learnable values internally.
     """
 
     def forward(
@@ -64,15 +63,14 @@ class TempCtrlPlanner(AcadosPlanner):
         """
         state = obs["state"]
         temp_forecast = obs["outdoor_temp_forecast"]  # (batch_size, N_stages, 1)
-        batch_size = state.shape[0]
 
-        # Build per-stage non-learnable params with the actual forecast injected.
-        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
-            batch_size=batch_size,
-            outdoor_temp=temp_forecast,
+        return self.diff_mpc(
+            x0=state,
+            u0=action,
+            param=param,
+            params={"outdoor_temp": temp_forecast},
+            ctx=ctx,
         )
-
-        return self.diff_mpc(state, action, param, p_stagewise, ctx=ctx)
 
     def default_param(self, obs: ndarray | None) -> ndarray:
         return self.param_manager.learnable_default_flat

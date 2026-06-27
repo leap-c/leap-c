@@ -5,11 +5,17 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+import casadi as ca
 import numpy as np
 import torch
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
+from leap_c.ocp.acados.parameters import _define_starts_and_ends
+from leap_c.ocp.acados.torch import (
+    AcadosDiffMpcCtx,
+    AcadosDiffMpcTorch,
+    AcadosParameterManagerTorch,
+)
 
 
 def test_initialization_with_stagewise_varying_params(
@@ -68,6 +74,7 @@ def test_file_management(diff_mpc: AcadosDiffMpcTorch, tol: float = 1e-5) -> Non
     # Should reload the solver
     AcadosDiffMpcTorch(
         ocp=diff_mpc.diff_mpc_fun.ocp,
+        parameter_manager=diff_mpc.parameter_manager,
         initializer=diff_mpc.diff_mpc_fun.initializer,
         export_directory=export_directory,
     )
@@ -121,21 +128,7 @@ def test_statelessness(diff_mpc: AcadosDiffMpcTorch) -> None:
         A=p_global,
         reps=(diff_mpc.diff_mpc_fun.forward_batch_solver.n_batch_current, 1),
     )
-
-    p_stagewise = diff_mpc.diff_mpc_fun.ocp.parameter_values
-
-    assert p_stagewise is not None
-
-    p_stagewise = p_stagewise + np.ones(p_stagewise.shape) * 0.01
-
-    p_stagewise = np.tile(
-        A=p_stagewise,
-        reps=(
-            diff_mpc.diff_mpc_fun.forward_batch_solver.n_batch_current,
-            diff_mpc.diff_mpc_fun.ocp.solver_options.N_horizon + 1,  # type: ignore
-            1,
-        ),
-    )
+    p_global = torch.tensor(p_global, dtype=x0.dtype)
 
     solutions = []
     solutions.append(diff_mpc(x0=x0, u0=u0))
@@ -144,21 +137,20 @@ def test_statelessness(diff_mpc: AcadosDiffMpcTorch) -> None:
         diff_mpc(
             x0=x0 - 0.01,
             u0=u0 - 0.01,
-            p_global=p_global,
-            p_stagewise=p_stagewise,
+            params=unflatten_p_global(diff_mpc, p_global),
         )
     )
 
     solutions.append(diff_mpc(x0=x0, u0=u0))
 
-    assert not np.allclose(solutions[0][-1], solutions[1][-1]), (
+    assert not np.allclose(solutions[0][-1].detach().numpy(), solutions[1][-1].detach().numpy()), (
         "The solutions should be different due to different parameters."
     )
 
     for i, field_name in enumerate(["u0", "x", "u", "Q value"], start=1):
         np.testing.assert_allclose(
-            solutions[0][i],
-            solutions[2][i],
+            solutions[0][i].detach().numpy(),
+            solutions[2][i].detach().numpy(),
             err_msg=f"The solutions should have the same {field_name}.",
         )
 
@@ -255,9 +247,11 @@ def test_closed_loop(
         for step in range(100):
             # Need first dimension to be batch size
             x0 = np.array(x[-1].reshape(n_batch, nx))  # type: ignore
-            ctx, u0, _, _, _ = diff_mpc_k.forward(x0=torch.tensor(x0), p_global=p_global)  # type: ignore
+            ctx, u0, _, _, _ = diff_mpc_k.forward(
+                x0=torch.tensor(x0), params=unflatten_p_global(diff_mpc_k, p_global)
+            )  # type: ignore
             assert ctx.status == 0, f"Did not converge to a solution in step {step}"
-            u.append(u0)
+            u.append(u0.detach().numpy())
             x.append(diff_mpc_k.diff_mpc_fun.forward_batch_solver.ocp_solvers[0].get(1, "x"))
 
         x = np.array(x)
@@ -444,7 +438,10 @@ def test_forward(
             },
             {
                 "name": "x0_and_p_global",
-                "kwargs": {"x0": test_inputs.x0, "p_global": test_inputs.p_global},
+                "kwargs": {
+                    "x0": test_inputs.x0,
+                    "params": unflatten_p_global(diff_mpc_k, test_inputs.p_global),
+                },
                 "expected_output": "V",
             },
             {
@@ -452,7 +449,7 @@ def test_forward(
                 "kwargs": {
                     "x0": test_inputs.x0,
                     "u0": test_inputs.u0,
-                    "p_global": test_inputs.p_global,
+                    "params": unflatten_p_global(diff_mpc_k, test_inputs.p_global),
                 },
                 "expected_output": "Q",
             },
@@ -607,7 +604,7 @@ def check_gradients(
         """Create test function for du0/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, params=unflatten_p_global(diff_mpc, p_global))
 
         return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
 
@@ -615,7 +612,7 @@ def check_gradients(
         """Create test function for dV/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, params=unflatten_p_global(diff_mpc, p_global))
 
         return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
@@ -625,7 +622,7 @@ def check_gradients(
         """Create test function for dQ/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, u0=u0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, u0=u0, params=unflatten_p_global(diff_mpc, p_global))
 
         return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
@@ -635,7 +632,7 @@ def check_gradients(
         """Create test function for dQ/du0 gradient."""
 
         def forward_func(u0):
-            return diff_mpc.forward(x0=x0, u0=u0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, u0=u0, params=unflatten_p_global(diff_mpc, p_global))
 
         return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
@@ -643,7 +640,7 @@ def check_gradients(
         """Create test function for dx/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, params=unflatten_p_global(diff_mpc, p_global))
 
         return _create_backward_test_function(forward_func, lambda result: result[2])  # x
 
@@ -651,7 +648,7 @@ def check_gradients(
         """Create test function for du/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, params=unflatten_p_global(diff_mpc, p_global))
 
         return _create_backward_test_function(forward_func, lambda result: result[3])  # u
 
@@ -659,7 +656,7 @@ def check_gradients(
         """Create test function for dfakeu/dp_global gradient."""
 
         def forward_func(p_global):
-            return diff_mpc.forward(x0=x0, p_global=p_global)
+            return diff_mpc.forward(x0=x0, params=unflatten_p_global(diff_mpc, p_global))
 
         return _create_backward_test_function(
             forward_func,
@@ -804,3 +801,98 @@ def test_backward_nmpc(
     check_gradients(diff_mpc_indefinite_hess, n_batch, max_batch_size, dtype, noise_scale)
     print("Check stagewise diff_mpc===============================")
     check_gradients(diff_mpc_indefinite_hess_stagewise, n_batch, max_batch_size, dtype, noise_scale)
+
+
+def create_simple_diff_mpc(N_horizon: int = 5):
+    """Creates a minimal differentiable MPC for testing parameter gradients."""
+    ocp = AcadosOcp()
+    pm = AcadosParameterManagerTorch(N_horizon=N_horizon)
+
+    # define simple model
+    x = ca.SX.sym("x", 2)
+    u = ca.SX.sym("u", 1)
+
+    # system x_{k+1} = x_k + u_k
+    ocp.model.name = "simple_test_in_suite"
+    ocp.model.x = x
+    ocp.model.u = u
+    ocp.model.disc_dyn_expr = ca.vertcat(x[1], u[0])
+
+    # dummy param to avoid empty self.p crash
+    _ = pm.register_parameter("dummy_non_learnable", default=np.array([1.0]), differentiable=False)
+
+    Q_param = pm.register_parameter("Q", default=np.array([1.0, 1.0]), differentiable=True)
+    R_param = pm.register_parameter("R", default=np.array([0.1]), differentiable=True)
+
+    ocp.cost.cost_type = "EXTERNAL"
+    ocp.cost.cost_type_e = "EXTERNAL"
+
+    ocp.model.cost_expr_ext_cost = (
+        Q_param[0] * x[0] ** 2 + Q_param[1] * x[1] ** 2 + R_param[0] * u[0] ** 2
+    )
+    ocp.model.cost_expr_ext_cost_e = Q_param[0] * x[0] ** 2 + Q_param[1] * x[1] ** 2
+
+    ocp.solver_options.integrator_type = "DISCRETE"
+    ocp.solver_options.nlp_solver_type = "SQP"
+    ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+    ocp.solver_options.hessian_approx = "EXACT"
+    ocp.solver_options.tf = 5.0
+    ocp.solver_options.N_horizon = N_horizon
+
+    ocp.constraints.x0 = np.array([1.0, 1.0])
+    ocp.constraints.idxbu = np.array([0])
+    ocp.constraints.lbu = np.array([-1e10])
+    ocp.constraints.ubu = np.array([1e10])
+
+    return AcadosDiffMpcTorch(ocp=ocp, parameter_manager=pm)
+
+
+def unflatten_p_global(
+    diff_mpc: AcadosDiffMpcTorch,
+    p_global: torch.Tensor,
+) -> dict[str, torch.Tensor]:
+    pm = diff_mpc.parameter_manager
+    indices = pm._learnable_parameter_store.indices
+    params = {}
+    for name in pm.learnable_parameter_names:
+        param_def = pm.parameters[name]
+        if param_def.is_stage_varying:
+            starts, ends = _define_starts_and_ends(splits=param_def.splits, N_horizon=pm.N_horizon)
+            split_pieces = []
+            for start, end in zip(starts, ends):
+                key = f"{name}_{start}_{end}"
+                s, e = indices[key]
+                n_stages = end - start + 1
+                val = p_global[:, s:e]
+                split_pieces.append(val.unsqueeze(1).expand(-1, n_stages, -1))
+            reconstructed = torch.cat(split_pieces, dim=1)
+            if reconstructed.shape[-1] == 1:
+                reconstructed = reconstructed.squeeze(-1)
+            params[name] = reconstructed
+        else:
+            s, e = indices[name]
+            params[name] = p_global[:, s:e]
+    return params
+
+
+def test_params_dict_backward_simple() -> None:
+    diff_mpc = create_simple_diff_mpc(N_horizon=5)
+
+    x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64, requires_grad=True)
+
+    # Test Focus: Pass parameters dict
+    Q_tensor = torch.tensor([[1.0, 1.0]], dtype=torch.float64, requires_grad=True)
+    R_tensor = torch.tensor([[0.1]], dtype=torch.float64, requires_grad=True)
+    dummy_tensor = torch.tensor([[[1.0]] * 6], dtype=torch.float64, requires_grad=False)
+
+    params = {"Q": Q_tensor, "R": R_tensor, "dummy_non_learnable": dummy_tensor}
+
+    ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
+
+    loss = value.sum()
+    loss.backward()
+
+    assert Q_tensor.grad is not None
+    assert R_tensor.grad is not None
+    assert not torch.isnan(Q_tensor.grad).any()
+    assert not torch.isnan(R_tensor.grad).any()

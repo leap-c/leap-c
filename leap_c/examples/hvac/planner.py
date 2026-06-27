@@ -5,20 +5,19 @@ from typing import Any, Callable, Sequence
 import gymnasium as gym
 import numpy as np
 import torch
+from numpy import ndarray
 from scipy.constants import convert_temperature
 
 from leap_c.examples.hvac.acados_ocp import (
     HvacAcadosParamGranularity,
     HvacAcadosParamInterface,
     export_parametric_ocp,
-    make_default_hvac_params,
 )
 from leap_c.examples.hvac.utils import set_temperature_limits
 from leap_c.ocp.acados.data import (
     collate_acados_flattened_batch_iterate_fn,
     collate_acados_ocp_solver_input,
 )
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
@@ -73,6 +72,9 @@ class HvacPlannerConfig:
     N_horizon: int = 24 * 4 - 1  # 24 hours in 15 minutes time steps
     param_interface: HvacAcadosParamInterface = "reference_dynamics"
     param_granularity: HvacAcadosParamGranularity = "global"
+    ta_learnable: bool = False
+    solar_learnable: bool = False
+    price_learnable: bool = False
 
     discount_factor: float | None = None
     n_batch_init: int | None = None
@@ -115,7 +117,6 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
     def __init__(
         self,
         cfg: HvacPlannerConfig | None = None,
-        params: tuple[AcadosParameter, ...] | None = None,
         diff_mpc_kwargs: dict[str, Any] | None = None,
         export_directory: Path | None = None,
     ) -> None:
@@ -125,36 +126,26 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
             cfg: A configuration object containing high-level settings for the
                 MPC problem, such as horizon length. If not provided,
                 a default config is used.
-            params: An optional tuple of parameters to define the
-                ocp object. If not provided, default parameters for the HVAC
-                system will be created based on the cfg.
             diff_mpc_kwargs: Optional keyword arguments to pass to AcadosDiffMpcTorch.
             export_directory: An optional directory path where the generated
                 `acados` solver code will be exported.
         """
         self.cfg = HvacPlannerConfig() if cfg is None else cfg
 
-        params = (
-            make_default_hvac_params(
-                interface=self.cfg.param_interface,
-                granularity=self.cfg.param_granularity,
-                N_horizon=self.cfg.N_horizon,
-            )
-            if params is None
-            else params
-        )
-
-        param_manager = AcadosParameterManager(parameters=params, N_horizon=self.cfg.N_horizon)
-
-        ocp = export_parametric_ocp(
-            param_manager=param_manager,
+        ocp, param_manager = export_parametric_ocp(
+            interface=self.cfg.param_interface,
+            granularity=self.cfg.param_granularity,
             N_horizon=self.cfg.N_horizon,
+            ta_learnable=self.cfg.ta_learnable,
+            solar_learnable=self.cfg.solar_learnable,
+            price_learnable=self.cfg.price_learnable,
         )
 
         if diff_mpc_kwargs is None:
             diff_mpc_kwargs = {}
         diff_mpc = AcadosDiffMpcTorch(
             ocp,
+            param_manager,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
             n_batch_init=self.cfg.n_batch_init,
@@ -189,7 +180,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         self,
         obs: dict[str, torch.Tensor | dict[str, torch.Tensor]],
         action: torch.Tensor | None = None,
-        param: torch.Tensor | None = None,
+        params: dict[str, torch.Tensor | ndarray] | None = None,
         ctx: HvacPlannerCtx | None = None,
     ) -> tuple[
         HvacPlannerCtx, torch.Tensor | None, torch.Tensor, torch.Tensor | None, torch.Tensor
@@ -202,7 +193,7 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                 - state: tensor of shape (batch, 3) containing [Ti, Th, Te]
                 - forecast: dict with {temperature, solar, price}
             action: Not used in this planner.
-            param: Learnable parameters for the MPC.
+            params: Dictionary of learnable parameter overrides keyed by name.
             ctx: Optional context from previous invocation containing heater states.
 
         Returns:
@@ -214,11 +205,6 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         """
         batch_size = obs["time"]["quarter_hour"].shape[0]
         device = obs["time"]["quarter_hour"].device
-
-        # Use default parameters if none provided and there are learnable parameters
-        if param is None and self.param_manager._learnable_parameter_store.size > 0:
-            default_flat = torch.from_numpy(self.param_manager.learnable_default_flat).to(device)
-            param = default_flat.unsqueeze(0).expand(batch_size, -1)
 
         if not isinstance(ctx, HvacPlannerCtx):
             qh = torch.zeros((batch_size, 1), dtype=torch.float64, device=device)
@@ -245,54 +231,54 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         # references lb_Ti / ub_Ti via param_manager.get().
         self._set_stagewise_constraint_bounds(lb, ub, batch_size)
 
-        overwrites: dict = {}
-
-        sub_param: dict[str, torch.Tensor] = {}
-
+        params_dict: dict[str, torch.Tensor | ndarray] = {}
         render_info = {
             "lb_Ti": lb.reshape(batch_size, -1, 1),
             "ub_Ti": ub.reshape(batch_size, -1, 1),
         }
 
-        for key in self.param_manager.parameters.keys():
-            if self.param_manager.parameters[key].interface == "fix":
-                continue
+        # Build a flat default tensor for rendering learnable params not provided by caller
+        flat_default_params = self.param_manager.combine_learnable_parameters(
+            batch_size=batch_size, device=device, dtype=torch.float64
+        )
 
-            if not self.param_manager.has_learnable_param_pattern(f"{key}*"):
-                # If the forecast parameter is not learned, set it from the observation
+        for key in self.param_manager.parameters:
+            if key not in self.param_manager.learnable_parameter_names:
+                # Non-learnable forecast parameters: set from observation
                 if key in ["temperature", "solar", "price"]:
-                    # Get forecast from obs dict
-                    forecast_data = obs["forecast"][key]  # (batch_size, N_forecast)
-                    # Truncate/pad to match horizon + 1 stages
+                    forecast_data = obs["forecast"][key]
                     n_stages = self.cfg.N_horizon + 1
-                    overwrites[key] = (
+                    val = (
                         forecast_data[:, :n_stages]
                         .reshape(batch_size, -1, 1)
                         .detach()
                         .cpu()
                         .numpy()
                     )
-                    render_info[key] = overwrites[key]
+                    params_dict[key] = val
+                    render_info[key] = val
             else:
-                # If the forecast parameter is learned, extract its structured representation
-                sub_param[key] = self.param_manager.get_labeled_learnable_parameters(
-                    param, label=key
-                )
-                render_info[key] = sub_param[key].detach().cpu().numpy()
-
-        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
-            batch_size=batch_size, **overwrites
-        )
+                # Learnable parameter: pull from caller's params dict or use default
+                if params is not None and key in params:
+                    val = params[key]
+                    params_dict[key] = val
+                    render_info[key] = (
+                        val.detach().cpu().numpy() if isinstance(val, torch.Tensor) else val
+                    )
+                else:
+                    render_val = self.param_manager.get_labeled_learnable_parameters(
+                        flat_default_params, label=key
+                    )
+                    render_info[key] = render_val.detach().cpu().numpy()
 
         # Build state: [Ti, Th, Te, qh_prev]
         thermal_state = obs["state"]  # (batch_size, 3) - [Ti, Th, Te]
         state = torch.cat([thermal_state, qh], dim=1)  # type: ignore[arg-type]
 
         diff_mpc_ctx, _, x, u, value = self.diff_mpc(
-            state,
-            action,
-            param,
-            p_stagewise,
+            x0=state,
+            u0=action,
+            params=params_dict,
             ctx=ctx,
         )
 
@@ -302,7 +288,6 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         render_info["qh"] = x[:, :, 3].detach().cpu().numpy()  # Heater power trajectory [kW]
         render_info["u_trajectory"] = u.detach().cpu().numpy()  # Full action trajectory (qh [kW])
 
-        # TODO: Assuming ref_Ti and log_q_Ti are the only parameters that are learnable
         render_info["ref_Ti_min"] = convert_temperature(
             self.param_manager.parameters["ref_Ti"].space.low, "kelvin", "celsius"
         )
@@ -312,26 +297,27 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
         render_info["log_q_Ti_min"] = self.param_manager.parameters["log_q_Ti"].space.low
         render_info["log_q_Ti_max"] = self.param_manager.parameters["log_q_Ti"].space.high
 
-        # Dynamics parameters
+        # Dynamics parameters rendering
         dynamics_params = ["gAw", "Rea", "Rhi", "Rie", "Ch", "Ci", "Ce"]
         for key in dynamics_params:
-            if self.param_manager.has_learnable_param_pattern(f"{key}*"):
-                render_info[key] = (
-                    self.param_manager.get_labeled_learnable_parameters(param, label=key)
-                    .detach()
-                    .cpu()
-                    .numpy()
-                )
-            else:
-                # Use default value if not learnable
-                render_info[key] = self.param_manager.parameters[key].default
+            if key in render_info:
+                continue
+            if key in self.param_manager.parameters:
+                if self.param_manager.parameters[key].interface == "learnable":
+                    render_val = self.param_manager.get_labeled_learnable_parameters(
+                        flat_default_params, label=key
+                    )
+                    render_info[key] = render_val.detach().cpu().numpy()
+                else:
+                    render_info[key] = self.param_manager.parameters[key].default
 
         for key in ["temperature", "ref_Ti", "lb_Ti", "ub_Ti", "Ti", "Th", "Te"]:
-            render_info[key] = convert_temperature(
-                val=render_info[key],
-                old_scale="kelvin",
-                new_scale="celsius",
-            )
+            if key in render_info:
+                render_info[key] = convert_temperature(
+                    val=render_info[key],
+                    old_scale="kelvin",
+                    new_scale="celsius",
+                )
 
         ctx = HvacPlannerCtx(
             **vars(diff_mpc_ctx),
@@ -405,12 +391,15 @@ class HvacPlanner(AcadosPlanner[HvacPlannerCtx]):
                 # This parameter is learnable, add to overwrites
                 overwrites[key] = data
 
-        # Use parameter manager's efficient method
-        batch_param = self.param_manager.combine_default_learnable_parameter_values(
-            batch_size=n_batch, **overwrites
+        batch_param = (
+            self.param_manager.combine_learnable_parameters(
+                batch_size=n_batch, device="cpu", dtype=torch.float64, **overwrites
+            )
+            .detach()
+            .cpu()
+            .numpy()
         )
 
-        # Return single array if input was single observation
         return batch_param[0] if was_single else batch_param
 
     @property

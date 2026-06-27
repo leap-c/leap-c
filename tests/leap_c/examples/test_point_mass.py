@@ -1,9 +1,8 @@
 import numpy as np
 import torch
 
-from leap_c.examples.pointmass.acados_ocp import create_pointmass_params
 from leap_c.examples.pointmass.env import PointMassEnv
-from leap_c.examples.pointmass.planner import PointMassPlanner
+from leap_c.examples.pointmass.planner import PointMassControllerConfig, PointMassPlanner
 from leap_c.planner import ControllerFromPlanner
 
 
@@ -25,17 +24,15 @@ def test_run_closed_loop(n_iter: int = 200) -> None:
     env.state[:2] = start_pos
 
     # replace the default reference with the goal position
-    param = create_pointmass_params("global", x_ref_value=goal_x_ref)
-    planner = PointMassPlanner(params=param)
+    cfg = PointMassControllerConfig(param_interface="global", x_ref_value=goal_x_ref)
+    planner = PointMassPlanner(cfg=cfg)
     controller = ControllerFromPlanner(planner=planner)
 
-    default_param = controller.default_param(obs)
-    default_param = torch.as_tensor(default_param, dtype=torch.float32).unsqueeze(0)
     ctx = None
 
     for _ in range(n_iter - 1):
         obs = torch.as_tensor(obs, dtype=torch.float32).unsqueeze(0)
-        ctx, a = controller(obs, default_param, ctx=ctx)
+        ctx, a = controller(obs, ctx=ctx)
         a = a.squeeze(0).numpy()
         obs, r, terminated, truncated, info = env.step(a)
 

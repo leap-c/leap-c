@@ -6,6 +6,7 @@ import torch
 from gymnasium.spaces import Box, Space
 
 from leap_c.controller import ParameterizedController
+from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 from leap_c.torch.rl.mpc_actor import HierachicalMPCActor, HierachicalMPCActorConfig
 from leap_c.torch.rl.sac_fop import SacFopTrainerConfig
 from leap_c.torch.rl.sac_zop import SacZopTrainerConfig
@@ -17,15 +18,25 @@ class DummyCtx:
     status = torch.zeros(1)
 
 
+class DummyPlanner:
+    def __init__(self, param_dim: int) -> None:
+        self.param_manager = AcadosParameterManagerTorch(10)
+        self.param_manager.register_parameter("param", np.zeros((param_dim,)), differentiable=True)
+
+
 class DummyController(ParameterizedController):
     def __init__(self, param_dim: int) -> None:
         super().__init__()
         self._param_dim = param_dim
+        self.planner = DummyPlanner(param_dim)
 
     def forward(
-        self, obs: torch.Tensor, param: torch.Tensor, ctx=None
+        self,
+        obs: torch.Tensor,
+        params: dict[str, torch.Tensor | np.ndarray] | None = None,
+        ctx=None,
     ) -> tuple[DummyCtx, torch.Tensor]:
-        return DummyCtx(), param
+        return DummyCtx(), params["param"]
 
     @property
     def parameter_dim(self) -> int:

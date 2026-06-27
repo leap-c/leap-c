@@ -7,12 +7,10 @@ import torch
 from leap_c.examples.chain.acados_ocp import (
     ChainAcadosParamInterface,
     ChainInitializer,
-    create_chain_params,
     export_parametric_ocp,
 )
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
 from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 
@@ -70,7 +68,6 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     def __init__(
         self,
         cfg: ChainControllerConfig | None = None,
-        params: list[AcadosParameter] | None = None,
         export_directory: Path | None = None,
     ) -> None:
         """Initializes the ChainController.
@@ -79,34 +76,23 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             cfg: cfg: A configuration object containing high-level settings for the
                 MPC problem, such as horizon length and maximum force. If not provided,
                 a default config is used.
-            params: An optional list of parameters to define the
-                ocp object. If not provided, default parameters for the Chain
-                system will be created based on the cfg.
             export_directory: Directory to export the acados ocp files.
         """
         self.cfg = ChainControllerConfig() if cfg is None else cfg
-        params = (
-            create_chain_params(
-                self.cfg.param_interface,
-                self.cfg.n_mass,
-                N_horizon=self.cfg.N_horizon,
-            )
-            if params is None
-            else params
-        )
-
-        param_manager = AcadosParameterManager(
-            parameters=params,
-            N_horizon=self.cfg.N_horizon,  # type:ignore
-        )
 
         fix_point = np.zeros(3)
 
         # find resting reference position
-        rest_length = param_manager.parameters["L"].default[0]
+        rest_length = 0.033
         pos_last_mass_ref = fix_point + np.array([rest_length * (self.cfg.n_mass - 1), 0, 0])
 
-        dyn_param_dict = {k: param_manager.parameters[k].default for k in "LDCmw"}
+        dyn_param_dict = {
+            "L": np.repeat([0.033, 0.033, 0.033], self.cfg.n_mass - 1),
+            "D": np.repeat([1.0, 1.0, 1.0], self.cfg.n_mass - 1),
+            "C": np.repeat([0.1, 0.1, 0.1], self.cfg.n_mass - 1),
+            "m": np.repeat([0.033], self.cfg.n_mass - 1),
+            "w": np.repeat([0.0, 0.0, 0.0], self.cfg.n_mass - 2),
+        }
 
         resting_chain_solver = RestingChainSolver(
             n_mass=self.cfg.n_mass,
@@ -117,8 +103,8 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
         x_ref, _ = resting_chain_solver(p_last=pos_last_mass_ref)
 
-        ocp = export_parametric_ocp(
-            param_manager=param_manager,
+        ocp, param_manager = export_parametric_ocp(
+            param_interface=self.cfg.param_interface,
             x_ref=x_ref,
             fix_point=fix_point,
             N_horizon=self.cfg.N_horizon,
@@ -130,7 +116,8 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
         diff_mpc = AcadosDiffMpcTorch(
             ocp,
-            initializer,
+            param_manager,
+            initializer=initializer,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
             n_batch_init=self.cfg.n_batch_init,

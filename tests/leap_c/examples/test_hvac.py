@@ -6,9 +6,7 @@ import pytest
 import torch
 from torch.utils.data._utils.collate import collate, default_collate_fn_map
 
-from leap_c.examples.hvac.acados_ocp import make_default_hvac_params
 from leap_c.examples.hvac.planner import HvacPlanner, HvacPlannerConfig
-from leap_c.ocp.acados.parameters import AcadosParameter
 from leap_c.torch.rl.buffer import collate_dict_to_tensordict, pytree_tensor_to
 
 
@@ -262,44 +260,14 @@ def create_planner_with_custom_params(
     Returns:
         HvacPlanner with custom parameter configuration.
     """
-    # Get default params (now temperature, solar, price are non-learnable by default)
-    params = list(
-        make_default_hvac_params(
-            interface="reference", granularity="stagewise", N_horizon=N_horizon
-        )
-    )
-
-    # Modify the interface for temperature, solar, and price based on arguments
-    for i, param in enumerate(params):
-        if param.name == "temperature":
-            params[i] = AcadosParameter(
-                name=param.name,
-                default=param.default,
-                space=param.space,
-                interface="learnable" if ta_learnable else "non-learnable",
-                splits=param.splits,
-            )
-        elif param.name == "solar":
-            params[i] = AcadosParameter(
-                name=param.name,
-                default=param.default,
-                space=param.space,
-                interface="learnable" if solar_learnable else "non-learnable",
-                splits=param.splits,
-            )
-        elif param.name == "price":
-            params[i] = AcadosParameter(
-                name=param.name,
-                default=param.default,
-                space=param.space,
-                interface="learnable" if price_learnable else "non-learnable",
-                splits=param.splits,
-            )
-
     cfg = HvacPlannerConfig(
-        N_horizon=N_horizon, param_granularity="stagewise" if stagewise else "global"
+        N_horizon=N_horizon,
+        param_granularity="stagewise" if stagewise else "global",
+        ta_learnable=ta_learnable,
+        solar_learnable=solar_learnable,
+        price_learnable=price_learnable,
     )
-    return HvacPlanner(cfg=cfg, params=tuple(params))
+    return HvacPlanner(cfg=cfg)
 
 
 @pytest.mark.parametrize("batch_size", [1, 4])

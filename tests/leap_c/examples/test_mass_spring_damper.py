@@ -68,6 +68,12 @@ def plot_msd_solution(
 def test_solution(msd_controller):
     """Test that the OCP solver can solve for a given initial state."""
     ocp_solver = msd_controller.planner.diff_mpc.diff_mpc_fun.forward_batch_solver.ocp_solvers[0]
+
+    # Initialize p_global if necessary
+    ocp = ocp_solver.acados_ocp
+    if hasattr(ocp.model, "p_global") and ocp.model.p_global.shape[0] > 0:
+        ocp_solver.set_p_global_and_precompute_dependencies(ocp.p_global_values)
+
     # Set initial state away from origin
     x0 = np.array([1.5, -1.0])
     ocp_solver.solve_for_x0(x0)
@@ -172,13 +178,11 @@ def test_run_closed_loop(n_iter: int = 100) -> None:
     planner = MassSpringDamperPlanner()
     controller = ControllerFromPlanner(planner=planner)
 
-    default_param = controller.default_param(obs)
-    default_param = torch.as_tensor(default_param, dtype=torch.float32).unsqueeze(0)
     ctx = None
 
     for _ in range(n_iter):
         obs_tensor = torch.as_tensor(obs, dtype=torch.float32).unsqueeze(0)
-        ctx, a = controller(obs_tensor, default_param, ctx=ctx)
+        ctx, a = controller(obs_tensor, ctx=ctx)
         a = a.squeeze(0).numpy()
         obs, r, terminated, truncated, info = env.step(a)
 

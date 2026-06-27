@@ -1,4 +1,4 @@
-from dataclasses import asdict
+from dataclasses import fields
 from typing import Literal
 
 import casadi as ca
@@ -12,7 +12,8 @@ from leap_c.examples.hvac.dynamics import (
     HydronicParameters,
     transcribe_discrete_state_space,
 )
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 HvacAcadosParamInterface = Literal["reference", "reference_dynamics"]
 """Determines the exposed parameter interface of the planner.
@@ -24,165 +25,16 @@ HvacAcadosParamInterface = Literal["reference", "reference_dynamics"]
 HvacAcadosParamGranularity = Literal["global", "stagewise"] | int
 
 
-def make_default_hvac_params(
+def export_parametric_ocp(
     interface: HvacAcadosParamInterface,
     granularity: HvacAcadosParamGranularity,
-    N_horizon: int = 96,
-    hydronic_params: HydronicParameters | None = None,
-) -> tuple[AcadosParameter, ...]:
-    """Return a tuple of default parameters for the hvac planner.
-
-    Args:
-        interface: The parameter interface type.
-        granularity: The granularity of the parameters.
-        N_horizon: The number of steps in the MPC horizon
-            (default: 96, i.e., 24 hours in 15-minute steps).
-        hydronic_params: Optional HydronicParameters object.
-
-    Returns:
-        Tuple of AcadosParameter objects for the HVAC system.
-    """
-    hydronic_params = HydronicParameters() if hydronic_params is None else hydronic_params
-
-    # TODO: The default parameter shifts are currently hardcoded. This will be
-    # improved once the environment interface is refactored.
-    scaling_shifts = {
-        "gAw": 0.8,
-        "Rea": 0.8,
-        "Rhi": 0.8,
-        "Rie": 0.8,
-        "Ch": 0.8,
-        "Ci": 0.8,
-        "Ce": 0.8,
-    }
-    params = []
-
-    for k, v in asdict(hydronic_params.dynamics).items():
-        default_value = scaling_shifts[k] * np.array([v])
-        if k in scaling_shifts and "dynamics" in interface:
-            param_interface = "learnable"
-        else:
-            param_interface = "fix"
-
-        params.append(
-            AcadosParameter(
-                name=k,
-                default=default_value,
-                space=gym.spaces.Box(
-                    low=0.7 * np.array([v]), high=1.3 * np.array([v]), dtype=np.float64
-                ),
-                interface=param_interface,
-            )
-        )
-
-    if isinstance(granularity, int):
-        assert 1 <= granularity <= N_horizon, (
-            "Granularity must be between 0 and N_horizon (inclusive) when specified as an integer."
-        )
-        step = max(1, N_horizon // granularity)
-        end_stages = list(range(0, N_horizon + 1, step))
-        if end_stages[-1] != N_horizon:
-            end_stages.append(N_horizon)
-    else:
-        end_stages = list(range(N_horizon + 1)) if granularity == "stagewise" else []
-
-    params.extend(
-        [
-            AcadosParameter(
-                name="temperature",  # Ambient temperature in Kelvin
-                default=np.array([convert_temperature(20.0, "celsius", "kelvin")]),
-                space=gym.spaces.Box(
-                    low=np.array([convert_temperature(-20.0, "celsius", "kelvin")]),
-                    high=np.array([convert_temperature(40.0, "celsius", "kelvin")]),
-                    dtype=np.float64,
-                ),
-                interface="non-learnable",
-                end_stages=list(range(N_horizon + 1)),
-            ),
-            AcadosParameter(
-                name="solar",
-                default=np.array([200.0]),  # Solar radiation in W/m²
-                space=gym.spaces.Box(
-                    low=np.array([0.0]),
-                    high=np.array([2000.0]),
-                    dtype=np.float64,
-                ),
-                interface="non-learnable",
-                end_stages=list(range(N_horizon + 1)),
-            ),
-            AcadosParameter(
-                name="price",
-                default=np.array([0.15]),  # Electricity price in €/kWh
-                space=gym.spaces.Box(
-                    low=np.array([0.00]),
-                    high=np.array([10.0]),
-                    dtype=np.float64,
-                ),
-                interface="non-learnable",
-                end_stages=list(range(N_horizon + 1)),
-            ),
-        ]
-    )
-
-    # Comfort constraints for indoor temperature
-    # Note: lb_Ti and ub_Ti are set at runtime via constraints_set() in the planner,
-    # NOT as OCP parameters — they have no effect as parameters since the OCP model
-    # never calls param_manager.get("lb_Ti"/"ub_Ti").
-    params.extend(
-        [
-            AcadosParameter(
-                name="ref_Ti",  # Reference indoor temperature in Kelvin
-                default=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
-                space=gym.spaces.Box(
-                    low=np.array([convert_temperature(10.0, "celsius", "kelvin")]),
-                    high=np.array([convert_temperature(30.0, "celsius", "kelvin")]),
-                    dtype=np.float64,
-                ),
-                interface="learnable",
-                end_stages=end_stages,
-            ),
-            AcadosParameter(
-                name="backoff_Ti",  # Backoff temperature for indoor temperature in Kelvin
-                default=np.array([0.0]),
-                space=gym.spaces.Box(
-                    low=np.array([0.0]),
-                    high=np.array([2.0]),
-                    dtype=np.float64,
-                ),
-                interface="fix",
-                end_stages=end_stages,
-            ),
-        ]
-    )
-
-    params.extend(
-        [
-            AcadosParameter(
-                name="log_q_Ti",
-                default=np.array([-1.9]),  # log10 of the weight for indoor temperature residuals
-                space=gym.spaces.Box(low=np.array([-2.0]), high=np.array([1.0]), dtype=np.float64),
-                interface="learnable",
-                end_stages=end_stages,
-            ),
-            AcadosParameter(
-                name="q_dqh",
-                default=np.array([0.001]),  # weight for residuals of rate of change of heater power
-                space=gym.spaces.Box(low=np.array([0.0]), high=np.array([0.01]), dtype=np.float64),
-                interface="fix",
-                end_stages=end_stages,
-            ),
-        ]
-    )
-
-    return tuple(params)
-
-
-def export_parametric_ocp(
-    param_manager: AcadosParameterManager,
     N_horizon: int,
     name: str = "hvac",
-    x0: np.ndarray | None = None,
-) -> AcadosOcp:
+    hydronic_params: HydronicParameters | None = None,
+    ta_learnable: bool = False,
+    solar_learnable: bool = False,
+    price_learnable: bool = False,
+) -> tuple[AcadosOcp, AcadosParameterManager]:
     """Export the HVAC OCP.
 
     Augments the state with the previous input to encode the rate penalty.
@@ -192,64 +44,164 @@ def export_parametric_ocp(
     Params per stage: [Ta, solar, price]
     Bounds on Ti as box constraints.
 
-    Note: the rate penalty at k=0 uses qh_prev from x0, adding one extra term
-    compared to the mpax formulation (which sums from k=0 to N-2).
-
     Args:
-        param_manager: The parameter manager containing the parameters for the OCP.
+        interface: The parameter interface type.
+        granularity: The granularity of the parameters.
         N_horizon: Number of time steps in the horizon.
         name: Name of the OCP model.
-        x0: Initial state. If None, a default value is used.
-
+        hydronic_params: Optional HydronicParameters object.
+        ta_learnable: Whether ambient temperature is learnable.
+        solar_learnable: Whether solar radiation is learnable.
+        price_learnable: Whether electricity price is learnable.
 
     Returns:
-        AcadosOcp: The configured OCP object.
+        tuple[AcadosOcp, AcadosParameterManager]: The OCP object and its parameter manager.
     """
-    dt: float = 900.0  # Time step in seconds (15 minutes)
+    hydronic_params = HydronicParameters() if hydronic_params is None else hydronic_params
 
     ocp = AcadosOcp()
+    ocp.solver_options.N_horizon = N_horizon
 
-    param_manager.assign_to_ocp(ocp)
+    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
 
-    # Model
+    if isinstance(granularity, int):
+        assert 1 <= granularity <= N_horizon, (
+            "Granularity must be between 0 and N_horizon (inclusive) when specified as an integer."
+        )
+        step = max(1, N_horizon // granularity)
+        splits_list = list(range(0, N_horizon + 1, step))
+        if splits_list[-1] != N_horizon:
+            splits_list.append(N_horizon)
+        splits = splits_list
+    elif granularity == "stagewise":
+        splits = "stagewise"
+    else:
+        splits = "global"
+
+    # Register non-learnable forecast parameters
+    temperature = manager.register_parameter(
+        "temperature",
+        default=np.array([convert_temperature(20.0, "celsius", "kelvin")]),
+        space=gym.spaces.Box(
+            low=np.array([convert_temperature(-20.0, "celsius", "kelvin")]),
+            high=np.array([convert_temperature(40.0, "celsius", "kelvin")]),
+            dtype=np.float64,
+        ),
+        differentiable=ta_learnable,
+        splits=list(range(N_horizon + 1)),
+    )
+    solar = manager.register_parameter(
+        "solar",
+        default=np.array([200.0]),
+        space=gym.spaces.Box(
+            low=np.array([0.0]),
+            high=np.array([2000.0]),
+            dtype=np.float64,
+        ),
+        differentiable=solar_learnable,
+        splits=list(range(N_horizon + 1)),
+    )
+    price = manager.register_parameter(
+        "price",
+        default=np.array([0.15]),
+        space=gym.spaces.Box(
+            low=np.array([0.00]),
+            high=np.array([10.0]),
+            dtype=np.float64,
+        ),
+        differentiable=price_learnable,
+        splits=list(range(N_horizon + 1)),
+    )
+
+    # Register learnable reference parameters
+    manager.register_parameter(
+        "ref_Ti",
+        default=np.array([convert_temperature(21.0, "celsius", "kelvin")]),
+        space=gym.spaces.Box(
+            low=np.array([convert_temperature(10.0, "celsius", "kelvin")]),
+            high=np.array([convert_temperature(30.0, "celsius", "kelvin")]),
+            dtype=np.float64,
+        ),
+        differentiable=True,
+        splits=splits,
+    )
+
+    # Sunsetted "fix" parameters - they are now local python constants
+    q_dqh = np.array([0.001])
+
+    # Dynamics parameters (can be learnable if interface is reference_dynamics)
+    scaling_shifts = {
+        "gAw": 0.8,
+        "Rea": 0.8,
+        "Rhi": 0.8,
+        "Rie": 0.8,
+        "Ch": 0.8,
+        "Ci": 0.8,
+        "Ce": 0.8,
+    }
+
+    dyn_fields = {}
+    for f in fields(HydronicDynamicsParameters):
+        k = f.name
+        v = getattr(hydronic_params.dynamics, k)
+        default_value = scaling_shifts[k] * np.array([v]) if k in scaling_shifts else np.array([v])
+
+        if k in scaling_shifts and "dynamics" in interface:
+            # Register as learnable parameter
+            dyn_fields[k] = manager.register_parameter(
+                name=k,
+                default=default_value,
+                space=gym.spaces.Box(
+                    low=0.7 * np.array([v]), high=1.3 * np.array([v]), dtype=np.float64
+                ),
+                differentiable=True,
+            )
+        else:
+            # Keep as a fixed value constant
+            dyn_fields[k] = v
+
+    ######## Model ########
     ocp.model.name = name
 
-    # ── State: x_aug = [Ti, Th, Te, qh_prev] ─────────────────────────────────
+    # State: x_aug = [Ti, Th, Te, qh_prev]
     Ti = ca.SX.sym("Ti")
     Th = ca.SX.sym("Th")
     Te = ca.SX.sym("Te")
     qh_prev = ca.SX.sym("qh_prev")
     ocp.model.x = ca.vertcat(Ti, Th, Te, qh_prev)
 
-    # ── Input: qh [kW] ────────────────────────────────────────────────────────
+    # Input: qh [kW]
     qh = ca.SX.sym("qh")
     ocp.model.u = qh
 
-    # ── Discrete dynamics ─────────────────────────────────────────────────────
+    # Discrete dynamics
     Ad, Bd, Ed = transcribe_discrete_state_space(
-        dt=dt,
-        params=param_manager.recreate_dataclass(HydronicDynamicsParameters),
+        dt=900.0,
+        params=HydronicDynamicsParameters(**dyn_fields),
     )
     Bd_kW = Bd * 1e3  # W → kW for numerical conditioning
 
     x_phys = ca.vertcat(Ti, Th, Te)
-    d_vec = ca.vertcat(
-        param_manager.get("temperature"),  # Ambient temperature
-        param_manager.get("solar"),  # Solar radiation
-    )
+    d_vec = ca.vertcat(temperature, solar)
     x_next_phys = Ad @ x_phys + Bd_kW * qh + Ed @ d_vec
     ocp.model.disc_dyn_expr = ca.vertcat(x_next_phys, qh)
 
-    # ── Cost ──────────────────────────────────────────────────────────────────
+    # Cost parameters
+    manager.register_parameter(
+        "log_q_Ti",
+        default=np.array([-1.9]),
+        space=gym.spaces.Box(low=np.array([-2.0]), high=np.array([1.0]), dtype=np.float64),
+        differentiable=True,
+        splits=splits,
+    )
+
     ocp.cost.cost_type = "EXTERNAL"
     ocp.cost.cost_type_e = "EXTERNAL"
 
-    ocp.model.cost_expr_ext_cost = (
-        0.25 * param_manager.get("price") * qh + param_manager.get("q_dqh") * (qh - qh_prev) ** 2
-    )
+    ocp.model.cost_expr_ext_cost = 0.25 * price * qh + q_dqh * (qh - qh_prev) ** 2
     ocp.model.cost_expr_ext_cost_e = 1e-3 * (Ti - convert_temperature(20.0, "C", "K")) ** 2
 
-    # ── Constraints ───────────────────────────────────────────────────────────
+    ######## Constraints ########
     Ti_ic = convert_temperature(20.0, "C", "K")
     ocp.constraints.x0 = np.array([Ti_ic, Ti_ic, Ti_ic, 0.0])
 
@@ -272,12 +224,12 @@ def export_parametric_ocp(
     ocp.constraints.ubu = np.array([5.0])
     ocp.constraints.idxbu = np.array([0])
 
-    # ── Solver options ────────────────────────────────────────────────────────
-    ocp.solver_options.tf = N_horizon * dt
+    ######## Solver options ########
+    ocp.solver_options.tf = N_horizon * 900.0
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.integrator_type = "DISCRETE"
     ocp.solver_options.nlp_solver_type = "SQP"
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
 
-    return ocp
+    return ocp, manager

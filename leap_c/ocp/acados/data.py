@@ -17,8 +17,8 @@ class AcadosOcpSolverInput(NamedTuple):
         p_global: Global parameters, shape (batch_size, np_global), optional.
             If not provided, the default values set in the acados ocp object will be used.
         p_stagewise: Stage-wise parameters, shape (batch_size, N_horizon + 1, np_stagewise),
-            or (batch_size, N_horizon + 1, len(p_stagewise_sparse_idx),
-            if p_stagewise_sparse_idx is provided, optional.
+            or (batch_size, len(p_stagewise_sparse_idx), np_stagewise), if p_stagewise_sparse_idx is
+            provided, optional.
             If not provided, the default values set in the acados ocp object will be used.
             Has to be provided if p_stagewise_sparse_idx is provided.
         p_stagewise_sparse_idx: If provided, the indices determine which elements of the
