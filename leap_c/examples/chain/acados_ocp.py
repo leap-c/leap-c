@@ -13,7 +13,6 @@ from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 from leap_c.ocp.acados.parameters import AcadosParameterManager, stage_expanded_box
 
-
 ChainAcadosParamInterface = Literal["global", "stagewise"]
 """Determines the exposed parameter interface of the controller.
 "global" means that learnable parameters are the same for all stages of the horizon,

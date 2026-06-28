@@ -1,11 +1,10 @@
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Literal
 from warnings import warn
 
 import casadi as ca
 import gymnasium as gym
 import numpy as np
-
 from acados_template import AcadosOcp
 
 try:

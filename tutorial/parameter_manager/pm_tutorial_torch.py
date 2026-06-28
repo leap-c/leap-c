@@ -20,9 +20,8 @@ import numpy as np
 import torch
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import stage_expanded_box, AcadosParameterManager
+from leap_c.ocp.acados.parameters import AcadosParameterManager, stage_expanded_box
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
-
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
