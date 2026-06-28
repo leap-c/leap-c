@@ -10,16 +10,12 @@ from gymnasium import Env
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.planner import ControllerFromPlanner, ParameterizedPlanner
 
-ExampleEnvName = Literal[
-    "cartpole", "chain", "mass_spring_damper", "pointmass", "hvac", "hvac_continual"
-]
+ExampleEnvName = Literal["cartpole", "chain", "mass_spring_damper", "pointmass"]
 ENV_REGISTRY: dict[str, tuple[str, str]] = {
     "cartpole": ("leap_c.examples.cartpole.env", "CartPoleEnv"),
     "chain": ("leap_c.examples.chain.env", "ChainEnv"),
     "mass_spring_damper": ("leap_c.examples.mass_spring_damper.env", "MassSpringDamperEnv"),
     "pointmass": ("leap_c.examples.pointmass.env", "PointMassEnv"),
-    "hvac": ("leap_c.examples.hvac.env", "StochasticThreeStateRcEnv"),
-    "hvac_continual": ("leap_c.examples.hvac.env", "ContinualStochasticThreeStateRcEnv"),
 }
 
 
@@ -82,13 +78,6 @@ PLANNER_REGISTRY: dict[str, tuple[str, str, str, dict[str, Any]]] = {
         "PointMassControllerConfig",
         {"param_interface": "stagewise"},
     ),
-    "hvac": ("leap_c.examples.hvac.planner", "HvacPlanner", "HvacPlannerConfig", {}),
-    "hvac_stagewise": (
-        "leap_c.examples.hvac.planner",
-        "HvacPlanner",
-        "HvacPlannerConfig",
-        {"param_interface": "reference", "param_granularity": "stagewise"},
-    ),
 }
 ExamplePlannerName = Literal[
     "cartpole",
@@ -98,8 +87,6 @@ ExamplePlannerName = Literal[
     "mass_spring_damper",
     "pointmass",
     "pointmass_stagewise",
-    "hvac",
-    "hvac_stagewise",
 ]
 
 

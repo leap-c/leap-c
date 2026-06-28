@@ -5,7 +5,6 @@ import numpy as np
 from acados_template import AcadosOcp, AcadosOcpSolver
 
 from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 
 def export_parametric_ocp(
@@ -25,7 +24,7 @@ def export_parametric_ocp(
     """
     ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
-    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
+    manager = AcadosParameterManager(N_horizon=N_horizon)
 
     # Register parameters
     q_diag_sqrt = manager.register_parameter(

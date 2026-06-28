@@ -6,7 +6,7 @@ import torch
 from gymnasium.spaces import Box, Space
 
 from leap_c.controller import ParameterizedController
-from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
+from leap_c.ocp.acados.parameters import AcadosParameterManager
 from leap_c.torch.rl.mpc_actor import HierachicalMPCActor, HierachicalMPCActorConfig
 from leap_c.torch.rl.sac_fop import SacFopTrainerConfig
 from leap_c.torch.rl.sac_zop import SacZopTrainerConfig
@@ -20,7 +20,7 @@ class DummyCtx:
 
 class DummyPlanner:
     def __init__(self, param_dim: int) -> None:
-        self.param_manager = AcadosParameterManagerTorch(10)
+        self.param_manager = AcadosParameterManager(10)
         self.param_manager.register_parameter("param", np.zeros((param_dim,)), differentiable=True)
 
 

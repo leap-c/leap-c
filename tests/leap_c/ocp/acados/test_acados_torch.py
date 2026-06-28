@@ -10,11 +10,10 @@ import numpy as np
 import torch
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import _define_starts_and_ends
+from leap_c.ocp.acados.parameters import AcadosParameterManager, _define_starts_and_ends
 from leap_c.ocp.acados.torch import (
     AcadosDiffMpcCtx,
     AcadosDiffMpcTorch,
-    AcadosParameterManagerTorch,
 )
 
 
@@ -806,7 +805,7 @@ def test_backward_nmpc(
 def create_simple_diff_mpc(N_horizon: int = 5):
     """Creates a minimal differentiable MPC for testing parameter gradients."""
     ocp = AcadosOcp()
-    pm = AcadosParameterManagerTorch(N_horizon=N_horizon)
+    pm = AcadosParameterManager(N_horizon=N_horizon)
 
     # define simple model
     x = ca.SX.sym("x", 2)

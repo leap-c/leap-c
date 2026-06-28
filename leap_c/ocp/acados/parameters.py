@@ -1,4 +1,3 @@
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, Literal
 from warnings import warn
@@ -6,12 +5,23 @@ from warnings import warn
 import casadi as ca
 import gymnasium as gym
 import numpy as np
-import torch
+
+try:
+    import torch
+except ImportError:
+    torch = None  # type: ignore[assignment]
+
+try:
+    import jax
+    import jax.numpy as jnp
+except ImportError:
+    jax = None  # type: ignore[assignment]
+    jnp = None  # type: ignore[assignment]
 
 
 @dataclass
 class AcadosParameter:
-    """High-level parameter class for flexible optimization configuration with acados extensions.
+    """Parameter container for flexible parameter management with acados.
 
     It provides an interface for defining parameter sets without requiring knowledge of
     internal CasADi tools or acados interface details.
@@ -165,13 +175,13 @@ class _ParameterStore:
         return ca.vertcat(*list(self.symbols.values()))
 
 
-class AcadosParameterManager(ABC):
-    """Abstract base class for managing acados parameters.
+class AcadosParameterManager:
+    """acados parameter management.
 
     Handles parameter registration, validation, CasADi symbol creation, and provides default
-    numpy implementations for combining non-learnable parameters. Subclasses must implement
-    :meth:`combine_learnable_parameters` with framework-specific (e.g. torch) tensor operations
-    to preserve differentiability.
+    numpy implementations for combining parameters. Framework-specific methods
+    (e.g. :meth:`combine_learnable_parameters_torch`) preserve differentiability through the
+    composition.
 
     **Stage-varying learnable parameters** (``splits`` are not ``"global"``) are implemented via a
     one-hot *indicator* vector that is appended to the non-learnable parameters.  At stage ``k``
@@ -348,22 +358,155 @@ class AcadosParameterManager(ABC):
             self._store_non_learnable_parameter(parameter)
         return self.get(parameter.name)
 
-    @abstractmethod
-    def combine_learnable_parameters(self, batch_size: int | None, **overwrites: Any) -> np.ndarray:
-        """Combine learnable parameters into a single flat array (or tensor).
+    def combine_learnable_parameters_torch(
+        self,
+        batch_size: int | None = None,
+        device: "torch.device | None" = None,
+        dtype: "torch.dtype | None" = None,
+        **overwrites: "torch.Tensor | np.ndarray",
+    ) -> "torch.Tensor":
+        """Combine learnable parameters into a flat tensor, preserving differentiability.
 
-        Subclasses must implement this with framework-specific operations (e.g. torch)
-        to preserve differentiability through the composition.
+        Uses ``torch.cat``, indexing, and reshaping — all differentiable — so gradients
+        flow back to the original parameter tensors in the ``overwrites`` dict.
 
         Args:
-            batch_size: The batch size for the parameters.
-                Not needed if overwrites is provided.
-            **overwrites: Overwrite values for specific parameters.
+            batch_size: Batch size. Required.
+            device: Target device for the output tensor. Required.
+            dtype: Target dtype for the output tensor. Required.
+            **overwrites: Named parameter overrides as tensors or numpy arrays.
 
         Returns:
-            Array of shape ``(batch_size, N_learnable)`` with ``N_learnable`` being the total
-            number of learnable parameter values.
+            Tensor of shape ``(batch_size, N_learnable)``.
+
+        Raises:
+            ImportError: If torch is not installed.
         """
+        if torch is None:
+            raise ImportError(
+                "torch is required for combine_learnable_parameters_torch. "
+                "Install it with: pip install torch"
+            )
+
+        inferred_batch_size = next(iter(overwrites.values())).shape[0] if overwrites else None
+
+        if batch_size is not None and inferred_batch_size is not None:
+            if batch_size != inferred_batch_size:
+                raise ValueError(
+                    f"Provided batch_size={batch_size} does not match "
+                    f"inferred batch_size={inferred_batch_size} from overwrites."
+                )
+
+        batch_size = inferred_batch_size if inferred_batch_size is not None else batch_size or 1
+
+        batch_param = (
+            torch.from_numpy(self.learnable_default_flat)
+            .to(device, dtype)
+            .expand(batch_size, -1)
+            .clone()
+        )
+
+        if not overwrites:
+            return batch_param
+
+        for name, values in overwrites.items():
+            if name not in self.parameters:
+                raise ValueError(
+                    f"Parameter '{name}' not found. "
+                    f"Available parameters: {list(self.parameters.keys())}"
+                )
+
+            param = self.parameters[name]
+
+            if param.interface != "learnable":
+                raise ValueError(
+                    f"Parameter '{name}' has interface '{param.interface}', "
+                    "but only 'learnable' parameters can be used in this method."
+                )
+
+            if values.shape[0] != batch_size:
+                raise ValueError(
+                    f"Parameter '{name}' values have batch size {values.shape[0]}, "
+                    f"but expected {batch_size}."
+                )
+
+            if param.is_stage_varying:
+                Np1 = self.N_horizon + 1
+                if isinstance(param.splits, list):
+                    Np1 = param.splits[-1] + 1
+                if values.shape[1] != Np1:
+                    raise ValueError(
+                        f"Parameter '{name}' is stage-varying and requires shape "
+                        f"(batch_size, {Np1}, ...), but got shape {values.shape}."
+                    )
+
+        batch_param.requires_grad_()
+
+        for name in self.learnable_parameter_names:
+            param = self.parameters[name]
+            if name in overwrites:
+                val = overwrites[name]
+                if isinstance(val, np.ndarray):
+                    val = torch.from_numpy(val).to(device=device, dtype=dtype)
+                elif isinstance(val, torch.Tensor):
+                    val = val.to(device=device, dtype=dtype)
+            else:
+                val = None
+
+            if param.is_stage_varying:
+                starts, ends = _define_starts_and_ends(
+                    splits=param.splits, N_horizon=self.N_horizon
+                )
+                for start, end in zip(starts, ends):
+                    key = f"{name}_{start}_{end}"
+                    s, e = self._learnable_parameter_store.indices[key]
+                    if val is not None:
+                        batch_param = torch.cat(
+                            [
+                                batch_param[:, :s],
+                                val[:, start].reshape(batch_size, -1),
+                                batch_param[:, e:],
+                            ],
+                            dim=-1,
+                        )
+            else:
+                s, e = self._learnable_parameter_store.indices[name]
+                if val is not None:
+                    batch_param = torch.cat([batch_param[:, :s], val, batch_param[:, e:]], dim=-1)
+
+        return batch_param
+
+    def combine_learnable_parameters_jax(
+        self,
+        batch_size: int | None = None,
+        **overwrites: "jnp.ndarray | np.ndarray",
+    ) -> "jnp.ndarray":
+        """Combine learnable parameters into a flat JAX array, preserving differentiability.
+
+        .. note::
+            This method is a placeholder. Contributions implementing JAX-native operations
+            (e.g. using ``jax.numpy``) are welcome.
+
+        Args:
+            batch_size: Batch size.
+            **overwrites: Named parameter overrides as JAX or numpy arrays.
+
+        Returns:
+            JAX array of shape ``(batch_size, N_learnable)``.
+
+        Raises:
+            ImportError: If jax is not installed.
+            NotImplementedError: Until a JAX implementation is contributed.
+        """
+        if jax is None:
+            raise ImportError(
+                "jax is required for combine_learnable_parameters_jax. "
+                "Install it with: pip install jax jaxlib"
+            )
+        raise NotImplementedError(
+            "combine_learnable_parameters_jax is not yet implemented. "
+            "Contributions are welcome! See combine_learnable_parameters_torch for reference."
+        )
 
     def combine_non_learnable_parameters(
         self, batch_size: int | None = None, **overwrite: np.ndarray
@@ -499,30 +642,6 @@ class AcadosParameterManager(ABC):
             raise ValueError(
                 f"Unknown interface type for field '{name}': {self.parameters[name].interface}"
             )
-
-    def has_learnable_param_pattern(self, pattern: str) -> bool:
-        """Check if any parameter names match the given pattern.
-
-        Supports glob-style wildcards where '*' matches any characters.
-        For example, 'temperature_*_*' matches 'temperature_0_0', 'temperature_1_1', etc.
-
-        Args:
-            pattern: Pattern string with wildcards (*) to match against parameter names.
-
-        Returns:
-            True if any learnable parameter names match the pattern, False otherwise.
-
-        Example:
-            >>> planner.has_param_pattern('temperature_*_*')
-            True  # if parameters like temperature_0_0, temperature_1_1, etc. exist
-            >>> planner.has_param_pattern('nonexistent_*')
-            False
-        """
-        import fnmatch
-
-        return any(
-            fnmatch.fnmatch(name, pattern) for name in self._learnable_parameter_store.symbols
-        )
 
     # TODO (Mazen): I guess this needs to be deprecated. After separating, all the code should use
     # the dictionary API.
