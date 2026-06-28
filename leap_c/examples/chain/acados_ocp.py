@@ -1,6 +1,5 @@
 from collections import OrderedDict
 from copy import deepcopy
-from typing import Literal
 
 import casadi as ca
 import gymnasium as gym
@@ -12,17 +11,12 @@ from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
-from leap_c.ocp.acados.parameters import AcadosParameterManager, stagewise_broadcast
-
-ChainAcadosParamInterface = Literal["global", "stagewise"]
-"""Determines the exposed parameter interface of the controller.
-"global" means that learnable parameters are the same for all stages of the horizon,
-while "stagewise" means that learnable parameters can vary between stages.
-"""
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.utils.parameters import ParamSplits, stagewise_broadcast
 
 
 def export_parametric_ocp(
-    param_interface: ChainAcadosParamInterface,
+    param_splits: ParamSplits,
     x_ref: np.ndarray,
     fix_point: np.ndarray,
     name: str = "chain",
@@ -41,7 +35,7 @@ def export_parametric_ocp(
     q_diag_sqrt_val = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
     r_diag_sqrt_val = 1e-1 * np.ones(3)
 
-    splits = "stagewise" if param_interface == "stagewise" else "global"
+    splits = "stagewise" if param_splits == "stagewise" else "global"
     spaces = OrderedDict()
 
     q_diag_sqrt = manager.register_parameter(

@@ -6,13 +6,13 @@ import torch
 
 from leap_c.examples.cartpole.acados_ocp import (
     CartPoleAcadosCostType,
-    CartPoleAcadosParamInterface,
     export_parametric_ocp,
 )
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
 from leap_c.ocp.acados.planner import acados_sensitivity
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 from leap_c.planner import ParameterizedPlanner, SensitivityOptions
+from leap_c.utils.parameters import ParamSplits
 
 
 @dataclass(kw_only=True)
@@ -30,7 +30,7 @@ class CartPolePlannerConfig:
         x_threshold: Bounds of the box constraints of the maximum absolute position
             of the cart [m] (soft/slacked constraint)
         cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
-        param_interface: Determines the exposed parameter interface of the planner.
+        param_splits: Determines the exposed parameter interface of the planner.
         discount_factor: discount factor along the MPC horizon.
             If `None`, it defaults to the behavior of `AcadosOcpOptions.cost_scaling`.
         n_batch_init: Initially supported batch size of the batch OCP solver.
@@ -48,7 +48,7 @@ class CartPolePlannerConfig:
     x_threshold: float = 2.4
 
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS"
-    param_interface: CartPoleAcadosParamInterface = "global"
+    param_splits: ParamSplits = "global"
 
     discount_factor: float | None = None
     n_batch_init: int | None = None
@@ -91,7 +91,7 @@ class CartPolePlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
 
         super().__init__()
         ocp, param_manager, param_space, default_param = export_parametric_ocp(
-            param_interface=self.cfg.param_interface,
+            param_splits=self.cfg.param_splits,
             cost_type=self.cfg.cost_type,
             name="cartpole",
             N_horizon=self.cfg.N_horizon,
@@ -133,6 +133,9 @@ class CartPolePlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
         return self._param_space
 
     def default_param(self, obs: np.ndarray | torch.Tensor | None = None) -> np.ndarray:
+        # Broadcast the per-stage default to the batch shape implied by obs,
+        # e.g. obs (B, obs_dim) -> default (B, *param_shape).  Without obs the
+        # unbatched default is returned.
         default = np.asarray(self._default_param)
         if obs is not None and obs.ndim > 1:
             default = np.broadcast_to(default, (*obs.shape[:-1], *default.shape))

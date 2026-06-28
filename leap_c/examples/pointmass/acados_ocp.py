@@ -1,18 +1,16 @@
 from collections import OrderedDict
-from typing import Literal
 
 import casadi as ca
 import gymnasium as gym
 import numpy as np
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import AcadosParameterManager, stagewise_broadcast
-
-PointMassAcadosParamInterface = Literal["global", "stagewise"]
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.utils.parameters import ParamSplits, stagewise_broadcast
 
 
 def export_parametric_ocp(
-    param_interface: PointMassAcadosParamInterface,
+    param_splits: ParamSplits,
     name: str = "pointmass",
     Fmax: float = 10.0,
     N_horizon: int = 20,
@@ -34,7 +32,7 @@ def export_parametric_ocp(
     q_diag_sqrt_val = np.array([1.0, 1.0, 1.0, 1.0])
     r_diag_sqrt_val = np.array([0.1, 0.1])
 
-    splits = "stagewise" if param_interface == "stagewise" else "global"
+    splits = "stagewise" if param_splits == "stagewise" else "global"
     spaces: OrderedDict[str, gym.spaces.Box] = OrderedDict()
 
     def register_learnable(

@@ -522,12 +522,12 @@ def diff_mpc_indefinite_hess_stagewise(
 ) -> AcadosDiffMpcTorch:
     if request.param == "external":
         cfg = CartPolePlannerConfig(
-            cost_type="EXTERNAL", param_interface="stagewise", dtype=torch.float64
+            cost_type="EXTERNAL", param_splits="stagewise", dtype=torch.float64
         )
         return CartPolePlanner(cfg=cfg).diff_mpc
     elif request.param == "nonlinear_ls":
         cfg = CartPolePlannerConfig(
-            cost_type="NONLINEAR_LS", param_interface="stagewise", dtype=torch.float64
+            cost_type="NONLINEAR_LS", param_splits="stagewise", dtype=torch.float64
         )
         return CartPolePlanner(cfg=cfg).diff_mpc
     else:

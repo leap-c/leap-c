@@ -7,12 +7,8 @@ from acados_template import AcadosOcp
 
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.utils.parameters import ParamSplits
 
-CartPoleAcadosParamInterface = Literal["global", "stagewise"]
-"""Determines the exposed parameter interface of the controller.
-"global" means that learnable parameters are the same for all stages of the horizon,
-while "stagewise" means that learnable parameters can vary between stages.
-"""
 CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 """The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS". Both model the same cost function, 
 but the former uses an exact Hessian in the optimization, while the latter uses a 
@@ -21,7 +17,7 @@ Gauss-Newton Hessian approximation.
 
 
 def export_parametric_ocp(
-    param_interface: CartPoleAcadosParamInterface,
+    param_splits: ParamSplits,
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS",
     name: str = "cartpole",
     Fmax: float = 80.0,
@@ -43,7 +39,7 @@ def export_parametric_ocp(
         "xref1",
         default=np.array([0.0]),
         differentiable=True,
-        splits=param_interface,
+        splits=param_splits,
     )
     default_param = manager.default_param_dict(["xref1"])["xref1"]
     param_space = gym.spaces.Box(

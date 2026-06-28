@@ -6,13 +6,13 @@ import numpy as np
 import torch
 
 from leap_c.examples.pointmass.acados_ocp import (
-    PointMassAcadosParamInterface,
     export_parametric_ocp,
 )
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
 from leap_c.ocp.acados.planner import acados_sensitivity
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
 from leap_c.planner import ParameterizedPlanner, SensitivityOptions
+from leap_c.utils.parameters import ParamSplits
 
 
 @dataclass(kw_only=True)
@@ -23,7 +23,7 @@ class PointMassControllerConfig:
         N_horizon: The number of steps in the MPC horizon.
         T_horizon: The duration of the MPC horizon.
         Fmax: The maximum force that can be applied to the point mass.
-        param_interface: Determines the exposed parameter interface of the controller.
+        param_splits: Determines the exposed parameter interface of the controller.
         discount_factor: discount factor along the MPC horizon.
             If `None`, it defaults to the behavior of `AcadosOcpOptions.cost_scaling`.
         n_batch_init: Initially supported batch size of the batch OCP solver.
@@ -38,7 +38,7 @@ class PointMassControllerConfig:
     N_horizon: int = 20
     T_horizon: float = 2.0
     Fmax: float = 10.0
-    param_interface: PointMassAcadosParamInterface = "global"
+    param_splits: ParamSplits = "global"
     x_ref_value: np.ndarray | None = None
 
     discount_factor: float | None = None
@@ -81,7 +81,7 @@ class PointMassPlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
         super().__init__()
 
         ocp, param_manager, param_space, default_param = export_parametric_ocp(
-            param_interface=self.cfg.param_interface,
+            param_splits=self.cfg.param_splits,
             name="pointmass",
             N_horizon=self.cfg.N_horizon,
             T_horizon=self.cfg.T_horizon,
@@ -123,6 +123,9 @@ class PointMassPlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
         return self._param_space
 
     def default_param(self, obs: np.ndarray | torch.Tensor | None = None) -> dict[str, np.ndarray]:
+        # Broadcast each parameter's per-stage default to the batch shape implied
+        # by obs, e.g. obs (B, obs_dim) -> default[key] (B, *param_shape).
+        # Without obs the unbatched defaults are returned.
         default = {key: np.asarray(value) for key, value in self._default_param.items()}
         for key in default:
             if obs is not None and obs.ndim > 1:

@@ -109,6 +109,9 @@ class MassSpringDamperPlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
         return self._param_space
 
     def default_param(self, obs: np.ndarray | torch.Tensor | None = None) -> dict[str, np.ndarray]:
+        # Broadcast each parameter's per-stage default to the batch shape implied
+        # by obs, e.g. obs (B, obs_dim) -> default[key] (B, *param_shape).
+        # Without obs the unbatched defaults are returned.
         default = {key: np.asarray(value) for key, value in self._default_param.items()}
         for key in default:
             if obs is not None and obs.ndim > 1:

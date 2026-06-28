@@ -9,6 +9,7 @@ import numpy as np
 from acados_template import AcadosOcp
 
 from leap_c.utils.dependencies import require_jax, require_torch
+from leap_c.utils.parameters import ParamSplits, stagewise_broadcast
 
 if TYPE_CHECKING:
     import torch
@@ -49,7 +50,7 @@ class AcadosParameter:
     interface: Literal["learnable", "non-learnable"] = "learnable"
 
     # Additional acados-specific field
-    splits: list[int] | int | Literal["stagewise", "global"] = "global"
+    splits: ParamSplits = "global"
 
     @property
     def is_stage_varying(self) -> bool:
@@ -301,7 +302,7 @@ class AcadosParameterManager:
         default: np.ndarray,
         space: gym.spaces.Space | None = None,
         differentiable: bool = False,
-        splits: list[int] | int | Literal["stagewise", "global"] = "global",
+        splits: ParamSplits = "global",
     ) -> ca.SX | ca.MX:
         """Register a parameter and return a CasADi symbolic for immediate use.
 
@@ -693,20 +694,3 @@ def _define_starts_and_ends(
         raise ValueError(f"Invalid splits value: {splits}")
     starts = [0] + [v + 1 for v in ends if v + 1 <= N_horizon]
     return starts, ends
-
-
-def stagewise_broadcast(
-    value: np.ndarray,
-    splits: list[int] | int | Literal["stagewise", "global"],
-    N_horizon: int,
-) -> np.ndarray:
-    """Broadcast a single-stage value to the public stagewise parameter shape.
-
-    This helper intentionally returns a numpy array, not a Gymnasium space. Example planners can use
-    it for bounds and defaults while keeping the public ``gym.spaces.Box`` construction explicit.
-    """
-    value = np.asarray(value)
-    if splits == "global":
-        return value
-    Np1 = splits[-1] + 1 if isinstance(splits, list) else N_horizon + 1
-    return np.broadcast_to(value, (Np1, *value.shape))
