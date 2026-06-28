@@ -1,6 +1,6 @@
 """Parameter manager tutorial - register API with differentiable parameters.
 
-Demonstrates the ``AcadosParameterManagerTorch`` and ``AcadosDiffMpcTorch`` API
+Demonstrates the ``AcadosParameterManager`` and ``AcadosDiffMpcTorch`` API
 where parameters are registered with ``manager.register_parameter()``, which
 returns a CasADi symbolic for immediate use in the OCP model.
 
@@ -20,8 +20,9 @@ import numpy as np
 import torch
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import stage_expanded_box
-from leap_c.ocp.acados.torch import AcadosDiffMpcTorch, AcadosParameterManagerTorch
+from leap_c.ocp.acados.parameters import stage_expanded_box, AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
@@ -36,7 +37,7 @@ if __name__ == "__main__":
     rng = np.random.default_rng(seed=0)
 
     # ── Build parameter manager and register parameters ──────────────────────
-    manager = AcadosParameterManagerTorch(N_horizon=N_HORIZON)
+    manager = AcadosParameterManager(N_horizon=N_HORIZON)
 
     # Non-learnable: ambient temperature, changed per call, no gradient.
     outdoor_temp = manager.register_parameter(

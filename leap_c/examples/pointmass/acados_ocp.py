@@ -6,7 +6,6 @@ import numpy as np
 from acados_template import AcadosOcp
 
 from leap_c.ocp.acados.parameters import AcadosParameterManager, stage_expanded_box
-from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 PointMassAcadosParamInterface = Literal["global", "stagewise"]
 
@@ -24,7 +23,7 @@ def export_parametric_ocp(
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = T_horizon
 
-    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
+    manager = AcadosParameterManager(N_horizon=N_horizon)
 
     dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
 

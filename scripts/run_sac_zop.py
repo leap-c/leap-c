@@ -40,14 +40,14 @@ def create_cfg(
     cfg = RunSacZopConfig()
     cfg.env = env
     cfg.controller = controller if controller is not None else env
-    cfg.extractor = "identity" if env != "hvac" else "hvac"
+    cfg.extractor = "identity"
 
     # ---- Section: cfg.trainer ----
     cfg.trainer.seed = seed
     cfg.trainer.train_steps = 1_000_000 if env == "pointmass" else 200_000
     cfg.trainer.train_start = 0
-    cfg.trainer.val_freq = 10_000 if env != "hvac" else 50_000
-    cfg.trainer.val_num_rollouts = 20 if env != "hvac" else 100
+    cfg.trainer.val_freq = 10_000
+    cfg.trainer.val_num_rollouts = 20
     cfg.trainer.val_deterministic = True
     cfg.trainer.val_num_render_rollouts = 0
     cfg.trainer.val_render_mode = "rgb_array"
@@ -67,13 +67,6 @@ def create_cfg(
     cfg.trainer.num_critics = 2
     cfg.trainer.update_freq = 4
 
-    if env == "hvac":
-        cfg.trainer.log.cumulative_metrics = [
-            "train/money_spent",
-            "train/energy_kwh",
-            "train/constraint_violation",
-        ]
-
     # ---- Section: cfg.trainer.log ----
     cfg.trainer.log.verbose = True
     cfg.trainer.log.interval = 1000
@@ -92,7 +85,7 @@ def create_cfg(
     cfg.trainer.actor.noise = "param"
     cfg.trainer.actor.extractor_name = cfg.extractor
     cfg.trainer.actor.distribution_name = "squashed_gaussian"
-    cfg.trainer.actor.residual = True if env == "hvac" else False
+    cfg.trainer.actor.residual = False
     cfg.trainer.actor.entropy_correction = False
 
     # ---- Section: cfg.trainer.actor.mlp ----

@@ -15,125 +15,8 @@ from leap_c.ocp.acados.diff_mpc import (
     AcadosDiffMpcSensitivityOptions,
 )
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
-from leap_c.ocp.acados.parameters import (
-    AcadosParameterManager,
-    _define_starts_and_ends,
-)
+from leap_c.ocp.acados.parameters import AcadosParameterManager
 from leap_c.planner import ParameterizedPlanner
-
-
-class AcadosParameterManagerTorch(AcadosParameterManager):
-    """Parameter manager using torch operations for differentiable parameter combination.
-
-    Uses ``torch.cat``, indexing, and reshaping — all differentiable — so gradients
-    flow back to the original parameter tensors in the ``params`` dict.
-    """
-
-    def combine_learnable_parameters(
-        self,
-        batch_size: int | None = None,
-        device: torch.device | None = None,
-        dtype: torch.dtype | None = None,
-        **overwrites: torch.Tensor | np.ndarray,
-    ) -> torch.Tensor:
-        """Combine learnable parameters into a flat tensor, preserving differentiability.
-
-        Args:
-            batch_size: Batch size. Required.
-            device: Target device for the output tensor. Required.
-            dtype: Target dtype for the output tensor. Required.
-            **overwrites: Named parameter overrides as tensors or numpy arrays.
-
-        Returns:
-            Tensor of shape ``(batch_size, N_learnable)``.
-        """
-        inferred_batch_size = next(iter(overwrites.values())).shape[0] if overwrites else None
-
-        if batch_size is not None and inferred_batch_size is not None:
-            if batch_size != inferred_batch_size:
-                raise ValueError(
-                    f"Provided batch_size={batch_size} does not match "
-                    f"inferred batch_size={inferred_batch_size} from overwrites."
-                )
-
-        batch_size = inferred_batch_size if inferred_batch_size is not None else batch_size or 1
-
-        batch_param = (
-            torch.from_numpy(self.learnable_default_flat)
-            .to(device, dtype)
-            .expand(batch_size, -1)
-            .clone()
-        )
-
-        if not overwrites:
-            return batch_param
-
-        for name, values in overwrites.items():
-            if name not in self.parameters:
-                raise ValueError(
-                    f"Parameter '{name}' not found. "
-                    f"Available parameters: {list(self.parameters.keys())}"
-                )
-
-            param = self.parameters[name]
-
-            if param.interface != "learnable":
-                raise ValueError(
-                    f"Parameter '{name}' has interface '{param.interface}', "
-                    "but only 'learnable' parameters can be used in this method."
-                )
-
-            if values.shape[0] != batch_size:
-                raise ValueError(
-                    f"Parameter '{name}' values have batch size {values.shape[0]}, "
-                    f"but expected {batch_size}."
-                )
-
-            if param.is_stage_varying:
-                Np1 = self.N_horizon + 1
-                if isinstance(param.splits, list):
-                    Np1 = param.splits[-1] + 1
-                if values.shape[1] != Np1:
-                    raise ValueError(
-                        f"Parameter '{name}' is stage-varying and requires shape "
-                        f"(batch_size, {Np1}, ...), but got shape {values.shape}."
-                    )
-
-        batch_param.requires_grad_()
-
-        for name in self.learnable_parameter_names:
-            param = self.parameters[name]
-            if name in overwrites:
-                val = overwrites[name]
-                if isinstance(val, np.ndarray):
-                    val = torch.from_numpy(val).to(device=device, dtype=dtype)
-                elif isinstance(val, torch.Tensor):
-                    val = val.to(device=device, dtype=dtype)
-            else:
-                val = None
-
-            if param.is_stage_varying:
-                starts, ends = _define_starts_and_ends(
-                    splits=param.splits, N_horizon=self.N_horizon
-                )
-                for start, end in zip(starts, ends):
-                    key = f"{name}_{start}_{end}"
-                    s, e = self._learnable_parameter_store.indices[key]
-                    if val is not None:
-                        batch_param = torch.cat(
-                            [
-                                batch_param[:, :s],
-                                val[:, start].reshape(batch_size, -1),
-                                batch_param[:, e:],
-                            ],
-                            dim=-1,
-                        )
-            else:
-                s, e = self._learnable_parameter_store.indices[name]
-                if val is not None:
-                    batch_param = torch.cat([batch_param[:, :s], val, batch_param[:, e:]], dim=-1)
-
-        return batch_param
 
 
 class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
@@ -144,9 +27,11 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
     computation with respect to various inputs (see `AcadosDiffMpcCtx`).
 
     Accepts a plain ``AcadosOcp`` together with a parameter manager.  The parameter manager's
-    :meth:`~AcadosParameterManagerTorch.combine_learnable_parameters` is called in the forward pass
-    to build a flat differentiable tensor from the ``params`` dict.  The learnable parameter space
-    is supplied externally as a ``gym.spaces.Dict`` and returned verbatim by :attr:`param_space`.
+    :meth:`~AcadosParameterManager.combine_learnable_parameters_torch` is called in the forward
+    pass to build a flat differentiable tensor from the ``params`` dict.
+    The learnable parameter space is supplied externally as a ``gym.spaces.Dict``
+    and returned verbatim by :attr:`param_space`.
+
 
     Attributes:
         diff_mpc_fun: The differentiable MPC function wrapper for acados.
@@ -156,13 +41,14 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
 
     diff_mpc_fun: AcadosDiffMpcFunction
     autograd_fun: type[torch.autograd.Function]
-    parameter_manager: AcadosParameterManagerTorch
+    parameter_manager: AcadosParameterManager
 
     def __init__(
         self,
         ocp: AcadosOcp,
         parameter_manager: AcadosParameterManagerTorch,
         param_space: gym.spaces.Dict,
+
         initializer: AcadosDiffMpcInitializer | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
@@ -265,7 +151,7 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
                     non_learnable_overwrites[name] = val
 
         # Build flat p_global differentiably
-        p_global = self.parameter_manager.combine_learnable_parameters(
+        p_global = self.parameter_manager.combine_learnable_parameters_torch(
             batch_size=batch_size,
             device=device,
             dtype=x0.dtype,
@@ -285,6 +171,7 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
         value = value.to(dtype=self.dtype)
         return ctx, u_star, x, u, value  # type:ignore
 
+    # TODO (Dirk): This is probably not needed anymore...
     def set_constraint_bounds(
         self,
         lbx: np.ndarray,
@@ -306,6 +193,7 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
                 solver.constraints_set(stage, "lbx", lbx[i, j])
                 solver.constraints_set(stage, "ubx", ubx[i, j])
 
+    # TODO (Mazen): This is not needed anymore.
     def sensitivity(self, ctx, field_name: AcadosDiffMpcSensitivityOptions) -> np.ndarray:
         """Retrieves a specific sensitivity field from the context object.
 

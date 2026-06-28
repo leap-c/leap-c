@@ -12,7 +12,7 @@ from leap_c.ocp.acados.parameters import (
     AcadosParameter,
     AcadosParameterManager,
 )
-from leap_c.ocp.acados.torch import AcadosDiffMpcTorch, AcadosParameterManagerTorch
+from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
 def _param_space_from_manager(pm: AcadosParameterManager) -> gym.spaces.Dict:
@@ -397,7 +397,7 @@ def acados_test_ocp(
     ocp = AcadosOcp()
     ocp.solver_options = ocp_options
 
-    param_manager = AcadosParameterManagerTorch(N_horizon=ocp.solver_options.N_horizon)
+    param_manager = AcadosParameterManager(N_horizon=ocp.solver_options.N_horizon)
     for param in nominal_params:
         param_manager.register_parameter(
             name=param.name,
@@ -479,7 +479,7 @@ def acados_test_ocp_with_stagewise_varying_params(
     ocp = AcadosOcp()
     ocp.solver_options = ocp_options
 
-    param_manager = AcadosParameterManagerTorch(N_horizon=ocp.solver_options.N_horizon)
+    param_manager = AcadosParameterManager(N_horizon=ocp.solver_options.N_horizon)
     for param in nominal_stagewise_params:
         param_manager.register_parameter(
             name=param.name,

@@ -7,7 +7,7 @@ from acados_template import AcadosOcp
 
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.parameters import AcadosParameterManager, stage_expanded_box
-from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
+
 
 CartPoleAcadosParamInterface = Literal["global", "stagewise"]
 """Determines the exposed parameter interface of the controller.
@@ -36,7 +36,7 @@ def export_parametric_ocp(
 
     dt = ocp.solver_options.tf / ocp.solver_options.N_horizon
 
-    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
+    manager = AcadosParameterManager(N_horizon=N_horizon)
 
     spaces: list[tuple[str, gym.spaces.Box]] = []
 

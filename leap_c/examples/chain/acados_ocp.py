@@ -12,7 +12,7 @@ from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 from leap_c.ocp.acados.parameters import AcadosParameterManager, stage_expanded_box
-from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
+
 
 ChainAcadosParamInterface = Literal["global", "stagewise"]
 """Determines the exposed parameter interface of the controller.
@@ -35,7 +35,7 @@ def export_parametric_ocp(
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = T_horizon
 
-    manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
+    manager = AcadosParameterManager(N_horizon=N_horizon)
 
     # Register only learnable parameters
     q_diag_sqrt_val = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
