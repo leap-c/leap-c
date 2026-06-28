@@ -52,10 +52,6 @@ class DummyController(ParameterizedController):
             np.array([20.0] * self._param_dim, np.float32),
         )
 
-    def jacobian_action_param(self, ctx: DummyCtx) -> np.ndarray:
-        """Return identity Jacobian for DummyController (action = param)."""
-        return np.eye(self._param_dim)[np.newaxis, :, :]  # Shape: (1, param_dim, param_dim)
-
 
 def test_default_param_initialization_zop():
     """Test parameter noise mode with residual learning."""

@@ -1,27 +1,16 @@
-"""Compare two ways of retrieving the sensitivity of the MPC solution w.r.t. ``xref1``.
+"""Compare ways of retrieving the sensitivity of the MPC solution w.r.t. ``xref1``.
 
-Path A (current API): ``AcadosPlanner.sensitivity(ctx, name)``.
-Path B (simplification): ``torch.autograd.functional.jacobian`` over the
-``AcadosDiffMpcTorch`` layer.
+Path A: ``diff_mpc.diff_mpc_fun.sensitivity(ctx, field)`` (low-level acados API).
+Path B: ``functional.jacobian`` called twice, cold (naive: 2 forward solves).
+Path C: ``functional.jacobian`` called twice, warmstarted via ``ctx``.
+Path D: ``functional.jacobian`` once, returning both outputs (typical: 1 solve).
+Path E: same as D but warmstarted via ``ctx``.
+Finite differences: central difference as ground-truth reference.
 
-Both should yield identical numbers because the autograd backward of the diff-mpc
-layer calls the same acados sensitivity routines that ``.sensitivity(...)`` uses.
-
-On top of the correctness check, this script times each path and profiles the hot
-paths with ``cProfile``. Path A and Path B are *not* apples-to-apples as written:
-Path A reuses a populated ``ctx`` (its per-field sensitivity cache plus the
-backward-solver factorization cached in ``_PREPARE_BACKWARD_CACHE``), whereas
-every ``torch.autograd.functional.jacobian`` call in Path B re-runs a fresh
-forward solve with an empty ctx cache. To make the comparison fair we therefore
-also time ``pathB_fair`` (a single shared forward solve) and break down the
-caching effects (cold vs. cached sensitivity reads).
+All paths should yield identical numbers. The script prints a compact correctness
+summary, timing summary, and a theoretical cost breakdown.
 """
 
-import cProfile
-import io
-import pstats
-import tempfile
-from pathlib import Path
 from timeit import default_timer
 
 import torch
@@ -29,18 +18,11 @@ import torch
 from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
 
 WARMUP = 2
-REPEATS = 10
-PROFILE_TOP_N = 25
-PROFILE_DIR = Path(tempfile.gettempdir())
+REPEATS = 50
 
 
 def time_call(fn, *, warmup: int = WARMUP, repeats: int = REPEATS) -> tuple[float, float]:
-    """Return ``(best, mean)`` wall-clock seconds for ``fn`` over ``repeats`` runs.
-
-    Runs ``warmup`` untimed calls first so one-time costs (acados sanity checks,
-    backward-solver factorization, prepare caches) are excluded from the steady
-    state numbers.
-    """
+    """Return ``(best, mean)`` wall-clock seconds for ``fn`` over ``repeats`` runs."""
     for _ in range(warmup):
         fn()
     samples = []
@@ -52,12 +34,7 @@ def time_call(fn, *, warmup: int = WARMUP, repeats: int = REPEATS) -> tuple[floa
 
 
 def _jacobian_via_grad(output: torch.Tensor, inp: torch.Tensor) -> torch.Tensor:
-    """Jacobian of ``output`` w.r.t. ``inp`` from a single shared forward graph.
-
-    One reverse pass per output element, all reusing the same graph
-    (``retain_graph=True``). Mirrors what ``torch.autograd.functional.jacobian``
-    does internally, but lets us share one forward solve across several outputs.
-    """
+    """Jacobian via a manual ``torch.autograd.grad`` loop (reuses existing graph)."""
     flat = output.reshape(-1)
     rows = []
     for i in range(flat.numel()):
@@ -68,90 +45,118 @@ def _jacobian_via_grad(output: torch.Tensor, inp: torch.Tensor) -> torch.Tensor:
     return torch.stack(rows)
 
 
-def profile(name: str, fn) -> None:
-    """Profile a single call of ``fn`` with cProfile: print top-N + save ``.prof``."""
-    pr = cProfile.Profile()
-    pr.enable()
-    fn()
-    pr.disable()
+def finite_diff_jacobian(fn, p: torch.Tensor, eps: float = 1e-6) -> torch.Tensor:
+    """Central difference Jacobian of ``fn(p)`` w.r.t. ``p``.
 
-    out_path = PROFILE_DIR / f"compare_sensitivity_{name}.prof"
-    pr.dump_stats(str(out_path))
+    Perturbs each element of ``p`` by ``±eps`` and evaluates ``fn``.
+    Cost: ``2 * p.numel()`` forward solves.
+    """
+    out0 = fn(p)
+    n_out = out0.reshape(-1).numel()
+    n_in = p.reshape(-1).numel()
+    jac = torch.zeros(n_out, n_in, dtype=p.dtype)
+    for i in range(n_in):
+        p_plus = p.clone().reshape(-1)
+        p_plus[i] += eps
+        out_plus = fn(p_plus.reshape_as(p)).reshape(-1)
+        p_minus = p.clone().reshape(-1)
+        p_minus[i] -= eps
+        out_minus = fn(p_minus.reshape_as(p)).reshape(-1)
+        jac[:, i] = (out_plus - out_minus) / (2 * eps)
+    return jac.reshape(*out0.shape, *p.shape)
 
-    stream = io.StringIO()
-    pstats.Stats(pr, stream=stream).sort_stats("cumulative").print_stats(PROFILE_TOP_N)
-    print(f"\n=== cProfile: {name} (top {PROFILE_TOP_N} by cumulative time) ===")
-    print(stream.getvalue())
-    print(f"saved: {out_path}  (open with: snakeviz {out_path})")
+
+def max_diff(a: torch.Tensor, b: torch.Tensor) -> float:
+    """Max absolute difference between two tensors (squeezed)."""
+    return (a.squeeze() - b.squeeze()).abs().max().item()
 
 
 def main() -> None:
-    # 1. Build the planner. float64 gives a clean numerical comparison.
-    t0 = default_timer()
     cfg = CartPolePlannerConfig(param_interface="stagewise", dtype=torch.float64)
     planner = CartPolePlanner(cfg)
-    t_build = default_timer() - t0
-    diff_mpc = planner.diff_mpc  # the AcadosDiffMpcTorch == "mpc_layer"
+    diff_mpc = planner.diff_mpc
 
-    # 2. Inputs (batch size 1, off-equilibrium so sensitivities are nonzero and the
-    #    action/position constraints stay inactive).
     x0 = torch.tensor([[0.0, 0.2, 0.0, 0.0]], dtype=torch.float64)
-    # stagewise -> one value per node, shape (B, N_horizon + 1, 1)
     xref1 = 0.1 * torch.ones((1, cfg.N_horizon + 1, 1), dtype=torch.float64)
 
-    # 3. Path A: current API.
-    ctx, u0, x, u, value = diff_mpc(x0=x0, params={"xref1": xref1})
-    du0_dp_A = torch.as_tensor(planner.sensitivity(ctx, "du0_dp"))  # (B, nu, N+1)
-    dvalue_dp_A = torch.as_tensor(planner.sensitivity(ctx, "dvalue_dp"))  # (B, 1, N+1)
+    # --- compute sensitivities via all paths ---
+    ctx, *_ = diff_mpc(x0=x0, params={"xref1": xref1})
+    du0_dp_A = torch.as_tensor(diff_mpc.diff_mpc_fun.sensitivity(ctx, "du0_dp_global"))
+    dvalue_dp_A = torch.as_tensor(diff_mpc.diff_mpc_fun.sensitivity(ctx, "dvalue_dp_global"))
 
-    # 4. Path B: standard PyTorch autograd over the diff-mpc layer.
     du0_dp_B = torch.autograd.functional.jacobian(
         lambda p: diff_mpc(x0=x0, params={"xref1": p})[1], xref1
-    )  # (B, nu) + xref1.shape
+    )
     dvalue_dp_B = torch.autograd.functional.jacobian(
         lambda p: diff_mpc(x0=x0, params={"xref1": p})[4], xref1
-    )  # (B, 1) + xref1.shape
+    )
 
-    # 4b. Fair Path B: a single shared forward solve, then both jacobians off the
-    #     same graph (so it is comparable to Path A's single forward solve).
     p = xref1.detach().clone().requires_grad_(True)
     _, u0_p, _, _, value_p = diff_mpc(x0=x0, params={"xref1": p})
     du0_dp_Bfair = _jacobian_via_grad(u0_p, p)
     dvalue_dp_Bfair = _jacobian_via_grad(value_p, p)
 
-    # 5. Compare. With the stagewise interface the sensitivities are vectors (one
-    #    entry per node), so print the full squeezed tensors.
-    torch.set_printoptions(precision=8, sci_mode=False)
-    print("du0/dxref1")
-    print("  planner :", du0_dp_A.squeeze())
-    print("  autograd:", du0_dp_B.squeeze())
-    print("dvalue/dxref1")
-    print("  planner :", dvalue_dp_A.squeeze())
-    print("  autograd:", dvalue_dp_B.squeeze())
-
-    assert torch.allclose(du0_dp_A.squeeze(), du0_dp_B.squeeze(), atol=1e-6), (
-        "du0/dxref1 mismatch between planner.sensitivity and autograd.jacobian"
+    ctx_warm, *_ = diff_mpc(x0=x0, params={"xref1": xref1})
+    du0_dp_C = torch.autograd.functional.jacobian(
+        lambda p: diff_mpc(x0=x0, params={"xref1": p}, ctx=ctx_warm)[1], xref1
     )
-    assert torch.allclose(dvalue_dp_A.squeeze(), dvalue_dp_B.squeeze(), atol=1e-6), (
-        "dvalue/dxref1 mismatch between planner.sensitivity and autograd.jacobian"
-    )
-    assert torch.allclose(du0_dp_A.squeeze(), du0_dp_Bfair.squeeze(), atol=1e-6), (
-        "du0/dxref1 mismatch between planner.sensitivity and the fair autograd path"
-    )
-    assert torch.allclose(dvalue_dp_A.squeeze(), dvalue_dp_Bfair.squeeze(), atol=1e-6), (
-        "dvalue/dxref1 mismatch between planner.sensitivity and the fair autograd path"
+    dvalue_dp_C = torch.autograd.functional.jacobian(
+        lambda p: diff_mpc(x0=x0, params={"xref1": p}, ctx=ctx_warm)[4], xref1
     )
 
-    print("OK: AcadosPlanner.sensitivity matches torch.autograd.functional.jacobian.")
+    du0_dp_D, dvalue_dp_D = torch.autograd.functional.jacobian(
+        lambda p: diff_mpc(x0=x0, params={"xref1": p})[1::3], xref1
+    )
+    du0_dp_E, dvalue_dp_E = torch.autograd.functional.jacobian(
+        lambda p: diff_mpc(x0=x0, params={"xref1": p}, ctx=ctx_warm)[1::3], xref1
+    )
 
-    # 6. Timing. Each path callable is self-contained so it can be repeated.
+    du0_dp_FD = finite_diff_jacobian(lambda p: diff_mpc(x0=x0, params={"xref1": p})[1], xref1)
+    dvalue_dp_FD = finite_diff_jacobian(lambda p: diff_mpc(x0=x0, params={"xref1": p})[4], xref1)
+
+    # --- correctness summary ---
+    path_descriptions = {
+        "pathA": "diff_mpc_fun.sensitivity(ctx, field) — low-level API (1 fwd + 2 adjoint).",
+        "pathB": "functional.jacobian ×2, cold — naive (2 cold fwds + 2 adjoint).",
+        "pathB_fair": "grad loop on shared graph — 1 cold fwd + 2 grad loops.",
+        "pathC": "functional.jacobian ×2, warmstarted via ctx (2 warm fwds + 2 adjoint).",
+        "pathD": "functional.jacobian ×1, lambda returns (u0, value) — typical (1 cold fwd).",
+        "pathE": "Same as D, warmstarted via ctx (1 warm fwd).",
+        "finite_diff": "Central finite differences (2 * p.numel() fwds) — ground truth.",
+    }
+
+    paths = {
+        "pathB": (du0_dp_B, dvalue_dp_B),
+        "pathB_fair": (du0_dp_Bfair, dvalue_dp_Bfair),
+        "pathC": (du0_dp_C, dvalue_dp_C),
+        "pathD": (du0_dp_D, dvalue_dp_D),
+        "pathE": (du0_dp_E, dvalue_dp_E),
+        "finite_diff": (du0_dp_FD, dvalue_dp_FD),
+    }
+
+    print("=== path descriptions ===")
+    for name, desc in path_descriptions.items():
+        print(f"  {name:<16} {desc}")
+
+    print("\n=== correctness (max abs diff vs pathA) ===")
+    print(f"{'path':<16}{'du0/dp':>14}{'dvalue/dp':>14}")
+    for name, (d_u0, d_val) in paths.items():
+        err_u0 = max_diff(du0_dp_A, d_u0)
+        err_val = max_diff(dvalue_dp_A, d_val)
+        print(f"{name:<16}{err_u0:>14.2e}{err_val:>14.2e}")
+        tol = 1e-4 if name == "finite_diff" else 1e-6
+        assert err_u0 < tol, f"{name} du0/dp mismatch (err={err_u0:.2e}, tol={tol:.0e})"
+        assert err_val < tol, f"{name} dvalue/dp mismatch (err={err_val:.2e}, tol={tol:.0e})"
+    print("OK: all paths match.")
+
+    # --- timing ---
     def forward_call():
         diff_mpc(x0=x0, params={"xref1": xref1})
 
     def path_a_call():
         ctx_a, *_ = diff_mpc(x0=x0, params={"xref1": xref1})
-        planner.sensitivity(ctx_a, "du0_dp")
-        planner.sensitivity(ctx_a, "dvalue_dp")
+        diff_mpc.diff_mpc_fun.sensitivity(ctx_a, "du0_dp_global")
+        diff_mpc.diff_mpc_fun.sensitivity(ctx_a, "dvalue_dp_global")
 
     def path_b_call():
         torch.autograd.functional.jacobian(lambda p: diff_mpc(x0=x0, params={"xref1": p})[1], xref1)
@@ -163,53 +168,46 @@ def main() -> None:
         _jacobian_via_grad(u0_pp, pp)
         _jacobian_via_grad(value_pp, pp)
 
+    def path_c_call():
+        torch.autograd.functional.jacobian(
+            lambda p: diff_mpc(x0=x0, params={"xref1": p}, ctx=ctx_warm)[1], xref1
+        )
+        torch.autograd.functional.jacobian(
+            lambda p: diff_mpc(x0=x0, params={"xref1": p}, ctx=ctx_warm)[4], xref1
+        )
+
+    def path_d_call():
+        torch.autograd.functional.jacobian(
+            lambda p: diff_mpc(x0=x0, params={"xref1": p})[1::3], xref1
+        )
+
+    def path_e_call():
+        torch.autograd.functional.jacobian(
+            lambda p: diff_mpc(x0=x0, params={"xref1": p}, ctx=ctx_warm)[1::3], xref1
+        )
+
     results = {
-        "build (1x, cold)": (t_build, t_build),
         "forward solve": time_call(forward_call),
-        "pathA (solve + 2 sens)": time_call(path_a_call),
-        "pathB (2x autograd jac)": time_call(path_b_call),
-        "pathB_fair (shared solve)": time_call(path_b_fair_call),
+        "pathA (sensitivity API)": time_call(path_a_call),
+        "pathB (jacobian 2x cold)": time_call(path_b_call),
+        "pathB_fair (grad loop)": time_call(path_b_fair_call),
+        "pathC (jacobian 2x warm)": time_call(path_c_call),
+        "pathD (jacobian 1x cold)": time_call(path_d_call),
+        "pathE (jacobian 1x warm)": time_call(path_e_call),
     }
     print(f"\n=== timing summary over {REPEATS} repeats (ms) ===")
     print(f"{'path':<28}{'best':>10}{'mean':>10}")
     for name, (best, mean) in results.items():
         print(f"{name:<28}{best * 1e3:>10.3f}{mean * 1e3:>10.3f}")
 
-    # 7. Caching breakdown: same fresh ctx each pass, time each step in order so the
-    #    per-ctx sensitivity cache and _PREPARE_BACKWARD_CACHE effects are visible.
-    for _ in range(WARMUP):
-        c, *_ = diff_mpc(x0=x0, params={"xref1": xref1})
-        planner.sensitivity(c, "du0_dp")
-        planner.sensitivity(c, "dvalue_dp")
-
-    acc = [0.0, 0.0, 0.0, 0.0]
-    for _ in range(REPEATS):
-        t0 = default_timer()
-        ctx_c, *_ = diff_mpc(x0=x0, params={"xref1": xref1})
-        acc[0] += default_timer() - t0
-
-        t0 = default_timer()
-        planner.sensitivity(ctx_c, "du0_dp")  # cold: factorize backward solver + compute
-        acc[1] += default_timer() - t0
-
-        t0 = default_timer()
-        planner.sensitivity(ctx_c, "dvalue_dp")  # factorization reused (cache hit) + compute
-        acc[2] += default_timer() - t0
-
-        t0 = default_timer()
-        planner.sensitivity(ctx_c, "du0_dp")  # ctx sensitivity cache hit (no compute)
-        acc[3] += default_timer() - t0
-    solve_t, du0_cold, dvalue_warm, du0_cached = (a / REPEATS * 1e3 for a in acc)
-
-    print(f"\n=== caching breakdown, mean over {REPEATS} passes (ms) ===")
-    print(f"forward solve                 : {solve_t:9.4f}")
-    print(f"du0_dp   cold (ctx factorize) : {du0_cold:9.4f}")
-    print(f"dvalue_dp warm (factorize     : {dvalue_warm:9.4f}  <- _PREPARE_BACKWARD_CACHE reused")
-    print(f"du0_dp   cached (ctx cache)   : {du0_cached:9.4f}  <- per-ctx sensitivity cache hit")
-
-    # 8. Profiling with the standard library (single call each).
-    profile("pathA", path_a_call)
-    profile("pathB", path_b_call)
+    print("\n=== theoretical cost breakdown (per call, N=nu) ===")
+    print(f"{'path':<28}{'fwd':>8}{'factor':>10}{'adjoint':>10}{'einsum':>10}")
+    print(f"{'pathA (sensitivity API)':<28}{'1 cold':>8}{1:>10}{2:>10}{0:>10}")
+    print(f"{'pathB (jacobian 2x cold)':<28}{'2 cold':>8}{2:>10}{2:>10}{'2N':>10}")
+    print(f"{'pathB_fair (grad loop)':<28}{'1 cold':>8}{1:>10}{2:>10}{'2N':>10}")
+    print(f"{'pathC (jacobian 2x warm)':<28}{'2 warm':>8}{2:>10}{2:>10}{'2N':>10}")
+    print(f"{'pathD (jacobian 1x cold)':<28}{'1 cold':>8}{1:>10}{2:>10}{'2N':>10}")
+    print(f"{'pathE (jacobian 1x warm)':<28}{'1 warm':>8}{1:>10}{2:>10}{'2N':>10}")
 
 
 if __name__ == "__main__":
