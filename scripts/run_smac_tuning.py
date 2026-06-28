@@ -10,7 +10,7 @@ Requirements:
     pip install smac>=2.0.0
 
 Usage:
-    python scripts/run_smac_tuning.py --env hvac --controller hvac --n_trials 100
+    python scripts/run_smac_tuning.py --env cartpole --controller cartpole --n_trials 100
 """
 
 from argparse import ArgumentParser
