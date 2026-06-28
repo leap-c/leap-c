@@ -121,8 +121,9 @@ class CartPolePlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
         params: torch.Tensor | None = None,
         ctx: AcadosDiffMpcCtx | None = None,
     ):
-        params_dict = {"xref1": params}
-        return self.diff_mpc(x0=obs, u0=action, params=params_dict, ctx=ctx)
+        if params is not None:
+            params = {"xref1": params}
+        return self.diff_mpc(x0=obs, u0=action, params=params, ctx=ctx)
 
     def sensitivity(self, ctx: AcadosDiffMpcCtx, name: SensitivityOptions) -> np.ndarray:
         return acados_sensitivity(self.diff_mpc, ctx, name)
