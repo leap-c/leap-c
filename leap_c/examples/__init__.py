@@ -10,9 +10,7 @@ from gymnasium import Env
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.planner import ControllerFromPlanner, ParameterizedPlanner
 
-ExampleEnvName = Literal[
-    "cartpole", "chain", "mass_spring_damper", "pointmass"
-]
+ExampleEnvName = Literal["cartpole", "chain", "mass_spring_damper", "pointmass"]
 ENV_REGISTRY: dict[str, tuple[str, str]] = {
     "cartpole": ("leap_c.examples.cartpole.env", "CartPoleEnv"),
     "chain": ("leap_c.examples.chain.env", "ChainEnv"),
