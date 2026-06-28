@@ -643,31 +643,6 @@ class AcadosParameterManager:
                 f"Unknown interface type for field '{name}': {self.parameters[name].interface}"
             )
 
-    # TODO (Jasper): We can remove this after removing hvac.
-    def has_learnable_param_pattern(self, pattern: str) -> bool:
-        """Check if any parameter names match the given pattern.
-
-        Supports glob-style wildcards where '*' matches any characters.
-        For example, 'temperature_*_*' matches 'temperature_0_0', 'temperature_1_1', etc.
-
-        Args:
-            pattern: Pattern string with wildcards (*) to match against parameter names.
-
-        Returns:
-            True if any learnable parameter names match the pattern, False otherwise.
-
-        Example:
-            >>> planner.has_param_pattern('temperature_*_*')
-            True  # if parameters like temperature_0_0, temperature_1_1, etc. exist
-            >>> planner.has_param_pattern('nonexistent_*')
-            False
-        """
-        import fnmatch
-
-        return any(
-            fnmatch.fnmatch(name, pattern) for name in self._learnable_parameter_store.symbols
-        )
-
     # TODO (Mazen): I guess this needs to be deprecated. After separating, all the code should use
     # the dictionary API.
     def get_labeled_learnable_parameters(
