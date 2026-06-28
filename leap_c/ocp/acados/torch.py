@@ -29,6 +29,9 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
     Accepts a plain ``AcadosOcp`` together with a parameter manager.  The parameter manager's
     :meth:`~AcadosParameterManager.combine_learnable_parameters_torch` is called in the forward
     pass to build a flat differentiable tensor from the ``params`` dict.
+    The learnable parameter space is supplied externally as a ``gym.spaces.Dict``
+    and returned verbatim by :attr:`param_space`.
+
 
     Attributes:
         diff_mpc_fun: The differentiable MPC function wrapper for acados.
@@ -44,6 +47,7 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
         self,
         ocp: AcadosOcp,
         parameter_manager: AcadosParameterManager,
+        parameter_space: gym.spaces.Dict,
         initializer: AcadosDiffMpcInitializer | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
@@ -61,6 +65,8 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
             ocp: The acados OCP object.  Must not yet have ``model.p`` / ``model.p_global`` set
                 (they will be set by ``assign_to_ocp``).
             parameter_manager: A parameter manager with registered parameters.
+            parameter_space: A ``gym.spaces.Dict`` describing the learnable parameter space,
+                keyed by parameter name.  Returned verbatim by the :attr:`param_space` property.
             initializer: The initializer used to provide initial guesses for the solver.
                 Uses a zero iterate by default.
             discount_factor: An optional discount factor for the sensitivity problem.
@@ -83,13 +89,14 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
             verbose=verbose,
         )
         self.parameter_manager = parameter_manager
+        self._param_space = parameter_space
         self.autograd_fun = create_autograd_function(self.diff_mpc_fun)
         self.dtype = torch.get_default_dtype() if dtype is None else dtype
 
     @property
-    def param_space(self) -> gym.Space:
+    def param_space(self) -> gym.spaces.Dict:
         """Describes the parameter space of the planner."""
-        return self.parameter_manager.get_param_space()
+        return self._param_space
 
     def default_param(self, obs: np.ndarray | None = None) -> np.ndarray:
         """Provides a default parameter configuration for the planner."""

@@ -22,7 +22,7 @@ from leap_c.torch.rl.sac import SacCritic, SacTrainerConfig
 from leap_c.torch.rl.utils import soft_target_update
 from leap_c.torch.utils.seed import mk_seed
 from leap_c.trainer import Trainer
-from leap_c.utils.gym import seed_env, wrap_env
+from leap_c.utils.gym import flatten_param_space, seed_env, wrap_env
 
 
 @dataclass(kw_only=True)
@@ -98,7 +98,7 @@ class SacZopTrainer(Trainer[SacZopTrainerConfig, CtxType], Generic[CtxType]):
         """
         super().__init__(cfg, val_env, output_path, device)
 
-        param_space: spaces.Box = controller.param_space
+        param_space: spaces.Box = flatten_param_space(controller.param_space)
         obs_space = train_env.observation_space
         act_space = train_env.action_space
         action_dim = prod(act_space.shape)

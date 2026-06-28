@@ -46,19 +46,39 @@ def seed_env(
     return env.reset(seed=seed, options=options)
 
 
+def flatten_param_space(space: spaces.Space) -> spaces.Box:
+    """Flatten a parameter space into a single flat ``Box``.
+
+    Controllers expose ``param_space`` as a ``gym.spaces.Dict`` keyed by learnable
+    parameter name (constructed in registration order). RL and tuning code that needs a
+    flat parameter vector flattens it here; the flattened order matches the canonical
+    learnable-parameter order. A ``Box`` is returned unchanged.
+
+    Args:
+        space: The parameter space (``Dict`` or ``Box``).
+
+    Returns:
+        spaces.Box: The flattened parameter space.
+    """
+    if isinstance(space, spaces.Box):
+        return space
+    return spaces.flatten_space(space)
+
+
 def check_params_not_in_space(
     param: np.ndarray,
-    param_space: spaces.Box,
+    param_space: spaces.Space,
 ) -> list[tuple[int, float, float, float]]:
     """Check which parameters are not within the param_space bounds.
 
     Args:
         param: Array of parameter values
-        param_space: Parameter space with bounds
+        param_space: Parameter space with bounds (``Dict`` or ``Box``)
 
     Returns:
         List of tuples (index, param_value, low_bound, high_bound) for out-of-bounds params
     """
+    param_space = flatten_param_space(param_space)
     if param_space.contains(param):
         return []
 

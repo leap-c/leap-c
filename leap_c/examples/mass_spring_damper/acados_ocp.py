@@ -11,7 +11,7 @@ def export_parametric_ocp(
     N_horizon: int,
     name: str = "mass_spring_damper",
     x0: np.ndarray | None = None,
-) -> tuple[AcadosOcp, AcadosParameterManager]:
+) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Dict]:
     """Export the mass-spring-damper OCP.
 
     Args:
@@ -26,66 +26,86 @@ def export_parametric_ocp(
     ocp.solver_options.N_horizon = N_horizon
     manager = AcadosParameterManager(N_horizon=N_horizon)
 
-    # Register parameters
+    # Register parameters (all global, so spaces are stored as-is)
+    spaces: list[tuple[str, gym.spaces.Box]] = []
+
     q_diag_sqrt = manager.register_parameter(
         name="q_diag_sqrt",
         default=np.sqrt(np.array([5.0, 0.2])),
-        space=gym.spaces.Box(
-            low=np.sqrt(np.array([0.1, 0.01])),
-            high=np.sqrt(np.array([10.0, 1.0])),
-            dtype=np.float64,
-        ),
         differentiable=True,
+    )
+    spaces.append(
+        (
+            "q_diag_sqrt",
+            gym.spaces.Box(
+                low=np.sqrt(np.array([0.1, 0.01])),
+                high=np.sqrt(np.array([10.0, 1.0])),
+                dtype=np.float64,
+            ),
+        )
     )
     r_diag_sqrt = manager.register_parameter(
         name="r_diag_sqrt",
         default=np.sqrt(np.array([0.08])),
-        space=gym.spaces.Box(
-            low=np.sqrt(np.array([0.001])),
-            high=np.sqrt(np.array([0.1])),
-            dtype=np.float64,
-        ),
         differentiable=True,
+    )
+    spaces.append(
+        (
+            "r_diag_sqrt",
+            gym.spaces.Box(
+                low=np.sqrt(np.array([0.001])),
+                high=np.sqrt(np.array([0.1])),
+                dtype=np.float64,
+            ),
+        )
     )
     p_diag_sqrt = manager.register_parameter(
         name="p_diag_sqrt",
         default=np.sqrt(np.array([5.0, 0.5])),
-        space=gym.spaces.Box(
-            low=np.sqrt(np.array([1.0, 0.1])),
-            high=np.sqrt(np.array([10.0, 1.0])),
-            dtype=np.float64,
-        ),
         differentiable=True,
+    )
+    spaces.append(
+        (
+            "p_diag_sqrt",
+            gym.spaces.Box(
+                low=np.sqrt(np.array([1.0, 0.1])),
+                high=np.sqrt(np.array([10.0, 1.0])),
+                dtype=np.float64,
+            ),
+        )
     )
     mass = manager.register_parameter(
         name="mass",
         default=np.array([1.5]),
-        space=gym.spaces.Box(
-            low=np.array([0.1]),
-            high=np.array([10.0]),
-            dtype=np.float64,
-        ),
         differentiable=True,
+    )
+    spaces.append(
+        (
+            "mass",
+            gym.spaces.Box(low=np.array([0.1]), high=np.array([10.0]), dtype=np.float64),
+        )
     )
     damping = manager.register_parameter(
         name="damping",
         default=np.array([0.7]),
-        space=gym.spaces.Box(
-            low=np.array([0.0]),
-            high=np.array([2.0]),
-            dtype=np.float64,
-        ),
         differentiable=True,
+    )
+    spaces.append(
+        (
+            "damping",
+            gym.spaces.Box(low=np.array([0.0]), high=np.array([2.0]), dtype=np.float64),
+        )
     )
     stiffness = manager.register_parameter(
         name="stiffness",
         default=np.array([2.0]),
-        space=gym.spaces.Box(
-            low=np.array([0.0]),
-            high=np.array([5.0]),
-            dtype=np.float64,
-        ),
         differentiable=True,
+    )
+    spaces.append(
+        (
+            "stiffness",
+            gym.spaces.Box(low=np.array([0.0]), high=np.array([5.0]), dtype=np.float64),
+        )
     )
 
     # Model
@@ -156,7 +176,7 @@ def export_parametric_ocp(
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
 
-    return ocp, manager
+    return ocp, manager, gym.spaces.Dict(spaces)
 
 
 if __name__ == "__main__":

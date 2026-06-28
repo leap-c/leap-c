@@ -57,7 +57,7 @@ class AcadosPlanner(ParameterizedPlanner[CtxType], Generic[CtxType]):
         return self.diff_mpc.sensitivity(ctx, TO_ACADOS_DIFFMPC_SENSOPTS[name])
 
     @property
-    def param_space(self) -> gym.Space:
+    def param_space(self) -> gym.spaces.Dict:
         return self.diff_mpc.param_space
 
     def default_param(self, obs: np.ndarray) -> np.ndarray:
