@@ -15,6 +15,29 @@ from leap_c.ocp.acados.parameters import (
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch, AcadosParameterManagerTorch
 
 
+def _param_space_from_manager(pm: AcadosParameterManager) -> gym.spaces.Dict:
+    """Build a learnable-parameter Dict from a manager's store (test-only helper).
+
+    Mirrors how examples construct ``param_space`` for ``AcadosDiffMpcTorch``; keys are
+    the stored (possibly stage-split) symbol names, so ``flatten_space`` reproduces the
+    flat learnable vector.
+    """
+    store = pm._learnable_parameter_store
+    return gym.spaces.Dict(
+        [
+            (
+                name,
+                gym.spaces.Box(
+                    low=store.lb[name].reshape(store.defaults[name].shape),
+                    high=store.ub[name].reshape(store.defaults[name].shape),
+                    dtype=np.float64,
+                ),
+            )
+            for name in store.symbols
+        ]
+    )
+
+
 @pytest.fixture(scope="session")
 def nominal_params() -> tuple[AcadosParameter, ...]:
     return (
@@ -518,6 +541,7 @@ def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpcTorch:
     return AcadosDiffMpcTorch(
         ocp=acados_test_ocp,
         parameter_manager=pm,
+        param_space=_param_space_from_manager(pm),
         initializer=None,
         discount_factor=None,
         dtype=torch.float64,
@@ -534,6 +558,7 @@ def diff_mpc_with_stagewise_varying_params(
     return AcadosDiffMpcTorch(
         ocp=acados_test_ocp_with_stagewise_varying_params,
         parameter_manager=pm,
+        param_space=_param_space_from_manager(pm),
         initializer=None,
         discount_factor=None,
         dtype=torch.float64,

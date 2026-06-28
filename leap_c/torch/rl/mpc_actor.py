@@ -17,6 +17,7 @@ from leap_c.torch.nn.bounded_distributions import (
 )
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
 from leap_c.torch.nn.mlp import Mlp, MlpConfig
+from leap_c.utils.gym import flatten_param_space
 
 
 class StochasticMPCActorOutput(NamedTuple):
@@ -147,7 +148,7 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
         self.residual = cfg.residual and cfg.noise == "param"
         self.entropy_correction = cfg.entropy_correction and cfg.noise == "param"
 
-        param_space: spaces.Box = controller.param_space
+        param_space: spaces.Box = flatten_param_space(controller.param_space)
         param_dim = param_space.shape[0]
         action_dim = prod(action_space.shape)
 

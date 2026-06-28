@@ -10,6 +10,7 @@ from acados_template import AcadosOcp, AcadosOcpSolver
 from leap_c.ocp.acados.parameters import (
     AcadosParameter,
     _define_starts_and_ends,
+    stage_expanded_box,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch, AcadosParameterManagerTorch
 
@@ -402,31 +403,29 @@ def test_mixed_parameter_types_and_interfaces():
         assert key in non_learnable_keys
 
 
-def test_get_param_space():
-    """Test get_param_space method."""
-    manager = AcadosParameterManagerTorch(N_horizon=5)
-    manager.register_parameter(
-        name="bounded",
-        default=np.array([1.0, 2.0]),
-        space=gym.spaces.Box(low=np.array([0.0, -1.0]), high=np.array([10.0, 20.0])),
-        differentiable=True,
-    )
-    manager.register_parameter(name="unbounded", default=np.array([3.0]), differentiable=True)
+def test_stage_expanded_box():
+    """`stage_expanded_box` tiles single-stage bounds across a parameter's stage blocks."""
+    box = gym.spaces.Box(low=np.array([0.0, 5.0]), high=np.array([50.0, 100.0]), dtype=np.float64)
 
-    # Should return flattened arrays
-    expected_lb = np.array([0.0, -1.0, -np.inf], dtype=np.float32)  # unbounded gets default -inf
-    expected_ub = np.array([10.0, 20.0, +np.inf], dtype=np.float32)  # unbounded gets default +inf
+    # global -> returned unchanged
+    assert stage_expanded_box(box, "global", 10) is box
 
-    np.testing.assert_array_equal(manager.get_param_space().low, expected_lb)
-    np.testing.assert_array_equal(manager.get_param_space().high, expected_ub)
+    # list splits [2, 5, 8, 10] -> 4 blocks; bounds tiled per block
+    expanded = stage_expanded_box(box, [2, 5, 8, 10], 10)
+    assert expanded.shape == (8,)
+    np.testing.assert_array_equal(expanded.low, np.tile(np.array([0.0, 5.0]), 4))
+    np.testing.assert_array_equal(expanded.high, np.tile(np.array([50.0, 100.0]), 4))
+
+    # "stagewise" -> one block per stage (N + 1)
+    scalar = gym.spaces.Box(low=np.array([0.0]), high=np.array([20.0]), dtype=np.float64)
+    assert stage_expanded_box(scalar, "stagewise", 5).shape == (6,)
 
 
-def test_get_param_space_with_variable_splits():
-    """Test get_param_space method with parameters that have variable splits.
+def test_variable_splits_parameter_layout():
+    """Registered stage-varying parameters create one learnable block per stage segment.
 
-    The parameter space should scale up according to the number of stage variations
-    and dimensions of each parameter.
-    Each stage variation should create a separate entry in the parameter space.
+    The flat learnable vector scales with the number of stage variations and the
+    dimension of each parameter.
     """
     N_horizon = 10
     manager = AcadosParameterManagerTorch(N_horizon=N_horizon)
@@ -466,115 +465,9 @@ def test_get_param_space_with_variable_splits():
         space=gym.spaces.Box(low=np.array([-10.0]), high=np.array([10.0])),
         differentiable=True,
     )
-    param_space = manager.get_param_space()
-
-    # Expected space dimensions:
-    # - scalar: 3 stage variations × 1 dimension = 3 elements
-    # - vector: 4 stage variations × 2 dimensions = 8 elements
-    # - scalar_unbounded: 5 stage variations × 1 dimension = 5 elements
-    # - matrix: 2 stage variations × 9 dimensions (3x3) = 18 elements
-    # - regular_param: 1 × 1 dimension = 1 element
-    # Total: 3 + 8 + 5 + 18 + 1 = 35 elements
-    expected_total_dims = 35
-
-    assert isinstance(param_space, gym.spaces.Box)
-    assert param_space.shape == (expected_total_dims,)
-
-    # Verify bounds are replicated correctly for staged parameters
-    expected_low = np.array(
-        [
-            # scalar (3 variations): [0.0, 0.0, 0.0]
-            0.0,
-            0.0,
-            0.0,
-            # vector (4 variations × 2 dims): [0.0, 5.0, 0.0, 5.0, 0.0, 5.0, 0.0, 5.0]
-            0.0,
-            5.0,
-            0.0,
-            5.0,
-            0.0,
-            5.0,
-            0.0,
-            5.0,
-            # scalar_unbounded (5 variations): [-inf, -inf, -inf, -inf, -inf]
-            -np.inf,
-            -np.inf,
-            -np.inf,
-            -np.inf,
-            -np.inf,
-            # matrix (2 variations × 9 dims): [-5.0 repeated 18 times]
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,  # First variation
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,
-            -5.0,  # Second variation
-            # regular_param: [-10.0]
-            -10.0,
-        ],
-        dtype=np.float32,
-    )
-
-    expected_high = np.array(
-        [
-            # scalar (3 variations): [20.0, 20.0, 20.0]
-            20.0,
-            20.0,
-            20.0,
-            # vector (4 variations × 2 dims): [50.0, 100.0, ...]
-            50.0,
-            100.0,
-            50.0,
-            100.0,
-            50.0,
-            100.0,
-            50.0,
-            100.0,
-            # scalar_unbounded (5 variations): [+inf, +inf, +inf, +inf, +inf]
-            np.inf,
-            np.inf,
-            np.inf,
-            np.inf,
-            np.inf,
-            # matrix (2 variations × 9 dims): [15.0 repeated 18 times]
-            15.0,
-            15.0,
-            15.0,
-            15.0,
-            15.0,
-            15.0,
-            15.0,
-            15.0,
-            15.0,  # First variation
-            15.0,
-            15.0,
-            15.0,
-            15.0,
-            15.0,
-            15.0,
-            15.0,
-            15.0,
-            15.0,  # Second variation
-            # regular_param: [10.0]
-            10.0,
-        ],
-        dtype=np.float32,
-    )
-
-    np.testing.assert_array_equal(param_space.low, expected_low)
-    np.testing.assert_array_equal(param_space.high, expected_high)
+    # The flat learnable vector scales with stage variations and dimensions:
+    #   scalar 3 + vector 8 + scalar_unbounded 5 + matrix 18 + regular_param 1 = 35
+    assert manager.learnable_default_flat.size == 35
 
     # Verify learnable parameter keys match expected staged parameter names
     learnable_keys = list(manager._learnable_parameter_store.symbols.keys())

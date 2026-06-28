@@ -27,6 +27,7 @@ from torch.utils.data._utils.collate import default_collate
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import default_controller_code_path, default_output_path
 from leap_c.torch.rl.buffer import pytree_tensor_to
+from leap_c.utils.gym import flatten_param_space
 
 
 @dataclass
@@ -97,7 +98,7 @@ class ControllerTuner:
         self.env = create_env(cfg.env)
         self.controller = create_controller(cfg.controller, reuse_code_base_dir=reuse_code_dir)
 
-        self.param_space = self.controller.param_space
+        self.param_space = flatten_param_space(self.controller.param_space)
 
         self.config_space = self._build_config_space()
 

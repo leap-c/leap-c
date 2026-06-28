@@ -5,7 +5,7 @@ import gymnasium as gym
 import numpy as np
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.ocp.acados.parameters import AcadosParameterManager, stage_expanded_box
 from leap_c.ocp.acados.torch import AcadosParameterManagerTorch
 
 PointMassAcadosParamInterface = Literal["global", "stagewise"]
@@ -18,7 +18,7 @@ def export_parametric_ocp(
     N_horizon: int = 20,
     T_horizon: float = 2.0,
     x_ref_value: np.ndarray | None = None,
-) -> tuple[AcadosOcp, AcadosParameterManager]:
+) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Dict]:
     ocp = AcadosOcp()
 
     ocp.solver_options.N_horizon = N_horizon
@@ -34,46 +34,85 @@ def export_parametric_ocp(
     q_diag_sqrt_val = np.array([1.0, 1.0, 1.0, 1.0])
     r_diag_sqrt_val = np.array([0.1, 0.1])
 
+    splits = "stagewise" if param_interface == "stagewise" else "global"
+    spaces: list[tuple[str, gym.spaces.Box]] = []
+
     # Register learnable parameters
     q_diag_sqrt = manager.register_parameter(
         "q_diag_sqrt",
         default=q_diag_sqrt_val,
-        space=gym.spaces.Box(
-            low=0.5 * q_diag_sqrt_val, high=1.5 * q_diag_sqrt_val, dtype=np.float64
-        ),
         differentiable=True,
-        splits="stagewise" if param_interface == "stagewise" else "global",
+        splits=splits,
+    )
+    spaces.append(
+        (
+            "q_diag_sqrt",
+            stage_expanded_box(
+                gym.spaces.Box(
+                    low=0.5 * q_diag_sqrt_val, high=1.5 * q_diag_sqrt_val, dtype=np.float64
+                ),
+                splits,
+                N_horizon,
+            ),
+        )
     )
     r_diag_sqrt = manager.register_parameter(
         "r_diag_sqrt",
         default=r_diag_sqrt_val,
-        space=gym.spaces.Box(
-            low=0.5 * r_diag_sqrt_val, high=1.5 * r_diag_sqrt_val, dtype=np.float64
-        ),
         differentiable=True,
-        splits="stagewise" if param_interface == "stagewise" else "global",
+        splits=splits,
+    )
+    spaces.append(
+        (
+            "r_diag_sqrt",
+            stage_expanded_box(
+                gym.spaces.Box(
+                    low=0.5 * r_diag_sqrt_val, high=1.5 * r_diag_sqrt_val, dtype=np.float64
+                ),
+                splits,
+                N_horizon,
+            ),
+        )
     )
     x_ref = manager.register_parameter(
         "x_ref",
         default=x_ref_value,
-        space=gym.spaces.Box(
-            low=np.array([0.0, 0.0, -20.0, -20.0]),
-            high=np.array([4.0, 1.0, 20.0, 20.0]),
-            dtype=np.float64,
-        ),
         differentiable=True,
-        splits="stagewise" if param_interface == "stagewise" else "global",
+        splits=splits,
+    )
+    spaces.append(
+        (
+            "x_ref",
+            stage_expanded_box(
+                gym.spaces.Box(
+                    low=np.array([0.0, 0.0, -20.0, -20.0]),
+                    high=np.array([4.0, 1.0, 20.0, 20.0]),
+                    dtype=np.float64,
+                ),
+                splits,
+                N_horizon,
+            ),
+        )
     )
     u_ref = manager.register_parameter(
         "u_ref",
         default=np.array([0.0, 0.0]),
-        space=gym.spaces.Box(
-            low=np.array([-10.0, -10.0]),
-            high=np.array([10.0, 10.0]),
-            dtype=np.float64,
-        ),
         differentiable=True,
-        splits="stagewise" if param_interface == "stagewise" else "global",
+        splits=splits,
+    )
+    spaces.append(
+        (
+            "u_ref",
+            stage_expanded_box(
+                gym.spaces.Box(
+                    low=np.array([-10.0, -10.0]),
+                    high=np.array([10.0, 10.0]),
+                    dtype=np.float64,
+                ),
+                splits,
+                N_horizon,
+            ),
+        )
     )
 
     # Dynamics physical constants (sunsetted "fix" interface)
@@ -143,4 +182,4 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
 
-    return ocp, manager
+    return ocp, manager, gym.spaces.Dict(spaces)

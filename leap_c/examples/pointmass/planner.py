@@ -76,7 +76,7 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         """
         self.cfg = PointMassControllerConfig() if cfg is None else cfg
 
-        ocp, param_manager = export_parametric_ocp(
+        ocp, param_manager, param_space = export_parametric_ocp(
             param_interface=self.cfg.param_interface,
             name="pointmass",
             N_horizon=self.cfg.N_horizon,
@@ -88,6 +88,7 @@ class PointMassPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc = AcadosDiffMpcTorch(
             ocp,
             param_manager,
+            param_space=param_space,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
             n_batch_init=self.cfg.n_batch_init,

@@ -103,7 +103,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
         x_ref, _ = resting_chain_solver(p_last=pos_last_mass_ref)
 
-        ocp, param_manager = export_parametric_ocp(
+        ocp, param_manager, param_space = export_parametric_ocp(
             param_interface=self.cfg.param_interface,
             x_ref=x_ref,
             fix_point=fix_point,
@@ -117,6 +117,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc = AcadosDiffMpcTorch(
             ocp,
             param_manager,
+            param_space=param_space,
             initializer=initializer,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,

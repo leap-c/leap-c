@@ -68,7 +68,7 @@ class MassSpringDamperPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         """
         self.cfg = MassSpringDamperPlannerConfig() if cfg is None else cfg
 
-        ocp, param_manager = export_parametric_ocp(
+        ocp, param_manager, param_space = export_parametric_ocp(
             N_horizon=self.cfg.N_horizon,
             name="mass_spring_damper",
             x0=np.array([1.0, 0.0]),
@@ -77,6 +77,7 @@ class MassSpringDamperPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc = AcadosDiffMpcTorch(
             ocp,
             param_manager,
+            param_space=param_space,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
             n_batch_init=self.cfg.n_batch_init,

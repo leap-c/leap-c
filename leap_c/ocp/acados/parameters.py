@@ -7,6 +7,7 @@ import casadi as ca
 import gymnasium as gym
 import numpy as np
 import torch
+from acados_template import AcadosOcp
 
 
 @dataclass
@@ -420,31 +421,6 @@ class AcadosParameterManager(ABC):
         )
         return batch_parameter_values
 
-    def get_param_space(
-        self, dtype: type[np.floating[Any]] | type[np.integer[Any]] = np.float32
-    ) -> gym.Space:
-        """Return the combined Gym space for the learnable parameters.
-
-        Args:
-            dtype: The desired data type for the spaces.
-        """
-        store = self._learnable_parameter_store
-        learnable_spaces = [
-            gym.spaces.Box(
-                low=store.lb[name].reshape(store.defaults[name].shape),
-                high=store.ub[name].reshape(store.defaults[name].shape),
-                dtype=dtype,
-            )
-            for name in store.symbols
-        ]
-
-        if not learnable_spaces:
-            return gym.spaces.Box(low=np.empty(0, dtype), high=np.empty(0, dtype), dtype=dtype)
-        elif len(learnable_spaces) == 1:
-            return learnable_spaces[0]
-        else:
-            return gym.spaces.utils.flatten_space(gym.spaces.Tuple(learnable_spaces))
-
     def get(self, name: str) -> ca.SX | ca.MX | np.ndarray:
         """Get the symbolic variable for a parameter.
 
@@ -553,7 +529,7 @@ class AcadosParameterManager(ABC):
         idx = [slice(s, e) for s, e in idx]
         return param_values[..., np.r_[*idx]].reshape(-1, len(keys))
 
-    def assign_to_ocp(self, ocp) -> None:
+    def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Synchronize the parameter manager's symbols and defaults onto the OCP.
 
         Sets ``model.p``, ``model.p_global``, ``parameter_values``, and ``p_global_values``
@@ -575,6 +551,7 @@ def _define_starts_and_ends(
     splits: list[int] | int | Literal["stagewise"], N_horizon: int
 ) -> tuple[list[int], list[int]]:
     """Define the start and end indices for stage-varying parameters."""
+    # TODO (dirk): Document the usage of this function and the expected output format.
     if splits == "stagewise":
         ends = list(range(N_horizon + 1))
     elif isinstance(splits, int):
@@ -590,3 +567,35 @@ def _define_starts_and_ends(
         raise ValueError(f"Invalid splits value: {splits}")
     starts = [0] + [v + 1 for v in ends if v + 1 <= N_horizon]
     return starts, ends
+
+
+def stage_expanded_box(
+    box: gym.spaces.Box,
+    splits: list[int] | int | Literal["stagewise", "global"],
+    N_horizon: int,
+) -> gym.spaces.Box:
+    """Tile a single-stage box across a parameter's stage blocks.
+
+    For a stage-varying learnable parameter, the flat learnable slice equals the
+    single-stage dimension times the number of stage blocks (see
+    :func:`_define_starts_and_ends`). This helper tiles the single-stage bounds across
+    those blocks so that ``gym.spaces.utils.flatten_space`` of the resulting space matches
+    that flat slice. For ``"global"`` parameters (a single block) the box is returned
+    unchanged.
+
+    Args:
+        box: The single-stage box describing one stage's bounds.
+        splits: The parameter's ``splits`` value (as passed to ``register_parameter``).
+        N_horizon: Horizon length ``N``.
+    """
+    if splits == "global":
+        return box
+    starts, _ = _define_starts_and_ends(splits, N_horizon)
+    n_blocks = len(starts)
+    if n_blocks == 1:
+        return box
+    return gym.spaces.Box(
+        low=np.tile(box.low, n_blocks),
+        high=np.tile(box.high, n_blocks),
+        dtype=box.dtype,
+    )
