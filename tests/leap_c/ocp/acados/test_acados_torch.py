@@ -75,7 +75,7 @@ def test_file_management(diff_mpc: AcadosDiffMpcTorch, tol: float = 1e-5) -> Non
     AcadosDiffMpcTorch(
         ocp=diff_mpc.diff_mpc_fun.ocp,
         parameter_manager=diff_mpc.parameter_manager,
-        param_space=diff_mpc.param_space,
+        parameter_space=diff_mpc.param_space,
         initializer=diff_mpc.diff_mpc_fun.initializer,
         export_directory=export_directory,
     )
@@ -851,7 +851,7 @@ def create_simple_diff_mpc(N_horizon: int = 5):
             ("R", gym.spaces.Box(low=-np.inf, high=np.inf, shape=(1,), dtype=np.float64)),
         ]
     )
-    return AcadosDiffMpcTorch(ocp=ocp, parameter_manager=pm, param_space=param_space)
+    return AcadosDiffMpcTorch(ocp=ocp, parameter_manager=pm, parameter_space=param_space)
 
 
 def unflatten_p_global(

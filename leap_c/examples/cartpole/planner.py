@@ -98,7 +98,7 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc = AcadosDiffMpcTorch(
             ocp=ocp,
             parameter_manager=param_manager,
-            param_space=param_space,
+            parameter_space=param_space,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
             n_batch_init=self.cfg.n_batch_init,

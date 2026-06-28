@@ -118,7 +118,7 @@ if __name__ == "__main__":
     ocp.solver_options.integrator_type = "DISCRETE"
 
     # ── Build differentiable MPC planner ─────────────────────────────────────
-    diff_mpc = AcadosDiffMpcTorch(ocp, manager, param_space=gym.spaces.Dict(spaces))
+    diff_mpc = AcadosDiffMpcTorch(ocp, manager, parameter_space=gym.spaces.Dict(spaces))
 
     # ── Solve with non-default learnable parameters ─────────────────────────
     x0_batch = torch.tensor(rng.uniform(10.0, 30.0, size=(BATCH_SIZE, 1)))

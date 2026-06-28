@@ -117,7 +117,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc = AcadosDiffMpcTorch(
             ocp,
             param_manager,
-            param_space=param_space,
+            parameter_space=param_space,
             initializer=initializer,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,

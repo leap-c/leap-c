@@ -47,7 +47,7 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
         self,
         ocp: AcadosOcp,
         parameter_manager: AcadosParameterManager,
-        param_space: gym.spaces.Dict,
+        parameter_space: gym.spaces.Dict,
         initializer: AcadosDiffMpcInitializer | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
@@ -65,7 +65,7 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
             ocp: The acados OCP object.  Must not yet have ``model.p`` / ``model.p_global`` set
                 (they will be set by ``assign_to_ocp``).
             parameter_manager: A parameter manager with registered parameters.
-            param_space: A ``gym.spaces.Dict`` describing the learnable parameter space,
+            parameter_space: A ``gym.spaces.Dict`` describing the learnable parameter space,
                 keyed by parameter name.  Returned verbatim by the :attr:`param_space` property.
             initializer: The initializer used to provide initial guesses for the solver.
                 Uses a zero iterate by default.
@@ -89,7 +89,7 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
             verbose=verbose,
         )
         self.parameter_manager = parameter_manager
-        self._param_space = param_space
+        self._param_space = parameter_space
         self.autograd_fun = create_autograd_function(self.diff_mpc_fun)
         self.dtype = torch.get_default_dtype() if dtype is None else dtype
 
