@@ -46,9 +46,8 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
     def __init__(
         self,
         ocp: AcadosOcp,
-        parameter_manager: AcadosParameterManagerTorch,
+        parameter_manager: AcadosParameterManager,
         param_space: gym.spaces.Dict,
-
         initializer: AcadosDiffMpcInitializer | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
