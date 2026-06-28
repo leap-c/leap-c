@@ -50,19 +50,20 @@ def flatten_param_space(space: spaces.Space) -> spaces.Box:
     """Flatten a parameter space into a single flat ``Box``.
 
     Controllers expose ``param_space`` as a ``gym.spaces.Dict`` keyed by learnable
-    parameter name (constructed in registration order). RL and tuning code that needs a
-    flat parameter vector flattens it here; the flattened order matches the canonical
-    learnable-parameter order. A ``Box`` is returned unchanged.
+    parameter name (constructed in registration order), or as a ``gym.spaces.Box``.
+    RL and tuning code that needs a flat parameter vector flattens it here; the
+    flattened order matches the canonical learnable-parameter order.
 
     Args:
         space: The parameter space (``Dict`` or ``Box``).
 
     Returns:
-        spaces.Box: The flattened parameter space.
+        spaces.Box: The flattened 1D parameter space.
     """
-    if isinstance(space, spaces.Box):
-        return space
-    return spaces.flatten_space(space)
+    flat_space = spaces.flatten_space(space)
+    if not isinstance(flat_space, spaces.Box):
+        raise NotImplementedError(f"Cannot flatten space of type {type(space)} into a Box.")
+    return flat_space
 
 
 def check_params_not_in_space(

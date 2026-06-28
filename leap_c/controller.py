@@ -88,7 +88,7 @@ class ParameterizedController(nn.Module, Generic[CtxType], metaclass=ABCMeta):
         ...
 
     @abstractmethod
-    def default_param(self, obs: Any) -> ndarray:
+    def default_param(self, obs: Any) -> Any:
         """Provides a default parameter configuration for the controller.
 
         Args:
@@ -96,6 +96,6 @@ class ParameterizedController(nn.Module, Generic[CtxType], metaclass=ABCMeta):
                 default parameters. Can be `None` if not needed.
 
         Returns:
-            array: A default parameter array matching the expected shape of `param` in `forward`.
+            A default parameter value matching the structure of :attr:`param_space`.
         """
         ...

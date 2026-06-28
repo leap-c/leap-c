@@ -11,8 +11,10 @@ from leap_c.examples.chain.acados_ocp import (
 )
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
-from leap_c.ocp.acados.planner import AcadosPlanner
+from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
+from leap_c.ocp.acados.planner import acados_sensitivity
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
+from leap_c.planner import ParameterizedPlanner, SensitivityOptions
 
 
 @dataclass(kw_only=True)
@@ -50,7 +52,7 @@ class ChainControllerConfig:
     dtype: torch.dtype | None = None
 
 
-class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
+class ChainPlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
     """Acados-based controller for the hanging `Chain` system.
 
     The state and action correspond to the observation and action of the `Chain` environment. The
@@ -64,6 +66,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     """
 
     cfg: ChainControllerConfig
+    collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,
@@ -79,6 +82,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             export_directory: Directory to export the acados ocp files.
         """
         self.cfg = ChainControllerConfig() if cfg is None else cfg
+        super().__init__()
 
         fix_point = np.zeros(3)
 
@@ -103,7 +107,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
         x_ref, _ = resting_chain_solver(p_last=pos_last_mass_ref)
 
-        ocp, param_manager, param_space = export_parametric_ocp(
+        ocp, param_manager, param_space, default_param = export_parametric_ocp(
             param_interface=self.cfg.param_interface,
             x_ref=x_ref,
             fix_point=fix_point,
@@ -117,7 +121,6 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc = AcadosDiffMpcTorch(
             ocp,
             param_manager,
-            parameter_space=param_space,
             initializer=initializer,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
@@ -125,4 +128,30 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             num_threads_batch_solver=self.cfg.num_threads_batch_solver,
             dtype=self.cfg.dtype,
         )
-        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
+        self.param_manager = param_manager
+        self.diff_mpc = diff_mpc
+        self._param_space = param_space
+        self._default_param = default_param
+
+    def forward(
+        self,
+        obs: torch.Tensor,
+        action: torch.Tensor | None = None,
+        params: dict[str, torch.Tensor | np.ndarray] | None = None,
+        ctx: AcadosDiffMpcCtx | None = None,
+    ):
+        return self.diff_mpc(x0=obs, u0=action, params=params, ctx=ctx)
+
+    def sensitivity(self, ctx: AcadosDiffMpcCtx, name: SensitivityOptions) -> np.ndarray:
+        return acados_sensitivity(self.diff_mpc, ctx, name)
+
+    @property
+    def param_space(self):
+        return self._param_space
+
+    def default_param(self, obs: np.ndarray | torch.Tensor | None = None) -> dict[str, np.ndarray]:
+        default = {key: np.asarray(value) for key, value in self._default_param.items()}
+        for key in default:
+            if obs is not None and obs.ndim > 1:
+                default[key] = np.broadcast_to(default[key], (*obs.shape[:-1], *default[key].shape))
+        return default

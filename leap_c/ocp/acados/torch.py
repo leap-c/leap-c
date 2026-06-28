@@ -3,7 +3,6 @@
 from collections.abc import Sequence
 from pathlib import Path
 
-import gymnasium as gym
 import numpy as np
 import torch
 from acados_template import AcadosOcp
@@ -16,21 +15,18 @@ from leap_c.ocp.acados.diff_mpc import (
 )
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.planner import ParameterizedPlanner
 
 
-class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
+class AcadosDiffMpcTorch(torch.nn.Module):
     """PyTorch module for differentiable MPC based on acados.
 
     This module wraps acados solvers to enable their use in differentiable machine learning
     pipelines. It provides an autograd compatible forward method and supports sensitivity
     computation with respect to various inputs (see `AcadosDiffMpcCtx`).
 
-    Accepts a plain ``AcadosOcp`` together with a parameter manager.  The parameter manager's
+    Accepts a plain ``AcadosOcp`` together with a parameter manager. The parameter manager's
     :meth:`~AcadosParameterManager.combine_learnable_parameters_torch` is called in the forward
     pass to build a flat differentiable tensor from the ``params`` dict.
-    The learnable parameter space is supplied externally as a ``gym.spaces.Dict``
-    and returned verbatim by :attr:`param_space`.
 
 
     Attributes:
@@ -47,7 +43,6 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
         self,
         ocp: AcadosOcp,
         parameter_manager: AcadosParameterManager,
-        parameter_space: gym.spaces.Dict,
         initializer: AcadosDiffMpcInitializer | None = None,
         discount_factor: float | None = None,
         export_directory: Path | None = None,
@@ -65,8 +60,6 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
             ocp: The acados OCP object.  Must not yet have ``model.p`` / ``model.p_global`` set
                 (they will be set by ``assign_to_ocp``).
             parameter_manager: A parameter manager with registered parameters.
-            parameter_space: A ``gym.spaces.Dict`` describing the learnable parameter space,
-                keyed by parameter name.  Returned verbatim by the :attr:`param_space` property.
             initializer: The initializer used to provide initial guesses for the solver.
                 Uses a zero iterate by default.
             discount_factor: An optional discount factor for the sensitivity problem.
@@ -89,21 +82,8 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
             verbose=verbose,
         )
         self.parameter_manager = parameter_manager
-        self._param_space = parameter_space
         self.autograd_fun = create_autograd_function(self.diff_mpc_fun)
         self.dtype = torch.get_default_dtype() if dtype is None else dtype
-
-    @property
-    def param_space(self) -> gym.spaces.Dict:
-        """Describes the parameter space of the planner."""
-        return self._param_space
-
-    def default_param(self, obs: np.ndarray | None = None) -> np.ndarray:
-        """Provides a default parameter configuration for the planner."""
-        default = self.parameter_manager.learnable_default_flat
-        if obs is None or obs.ndim <= 1:
-            return default
-        return np.broadcast_to(default, (*obs.shape[:-1], default.size))
 
     def forward(
         self,
@@ -138,7 +118,7 @@ class AcadosDiffMpcTorch(ParameterizedPlanner[AcadosDiffMpcCtx]):
         # Separate learnable (tensor) and non-learnable (numpy) overrides
         learnable_overwrites: dict[str, torch.Tensor | np.ndarray] = {}
         non_learnable_overwrites: dict[str, np.ndarray] = {}
-        if params:
+        if params is not None:
             for name in self.parameter_manager.learnable_parameter_names:
                 if name in params:
                     learnable_overwrites[name] = params[name]

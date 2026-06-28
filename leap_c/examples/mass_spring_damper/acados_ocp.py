@@ -1,3 +1,5 @@
+from collections import OrderedDict
+
 import casadi as ca
 import gymnasium as gym
 import matplotlib.pyplot as plt
@@ -11,7 +13,7 @@ def export_parametric_ocp(
     N_horizon: int,
     name: str = "mass_spring_damper",
     x0: np.ndarray | None = None,
-) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Dict]:
+) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Dict, dict[str, np.ndarray]]:
     """Export the mass-spring-damper OCP.
 
     Args:
@@ -25,87 +27,55 @@ def export_parametric_ocp(
     ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
     manager = AcadosParameterManager(N_horizon=N_horizon)
+    spaces: OrderedDict[str, gym.spaces.Box] = OrderedDict()
 
-    # Register parameters (all global, so spaces are stored as-is)
-    spaces: list[tuple[str, gym.spaces.Box]] = []
+    def register_learnable(
+        name: str, default: np.ndarray, low: np.ndarray, high: np.ndarray
+    ) -> ca.SX | ca.MX:
+        symbol = manager.register_parameter(
+            name=name,
+            default=default,
+            differentiable=True,
+        )
+        spaces[name] = gym.spaces.Box(low=low, high=high, dtype=np.float64)
+        return symbol
 
-    q_diag_sqrt = manager.register_parameter(
+    # Register parameters (all global)
+    q_diag_sqrt = register_learnable(
         name="q_diag_sqrt",
         default=np.sqrt(np.array([5.0, 0.2])),
-        differentiable=True,
+        low=np.sqrt(np.array([0.1, 0.01])),
+        high=np.sqrt(np.array([10.0, 1.0])),
     )
-    spaces.append(
-        (
-            "q_diag_sqrt",
-            gym.spaces.Box(
-                low=np.sqrt(np.array([0.1, 0.01])),
-                high=np.sqrt(np.array([10.0, 1.0])),
-                dtype=np.float64,
-            ),
-        )
-    )
-    r_diag_sqrt = manager.register_parameter(
+    r_diag_sqrt = register_learnable(
         name="r_diag_sqrt",
         default=np.sqrt(np.array([0.08])),
-        differentiable=True,
+        low=np.sqrt(np.array([0.001])),
+        high=np.sqrt(np.array([0.1])),
     )
-    spaces.append(
-        (
-            "r_diag_sqrt",
-            gym.spaces.Box(
-                low=np.sqrt(np.array([0.001])),
-                high=np.sqrt(np.array([0.1])),
-                dtype=np.float64,
-            ),
-        )
-    )
-    p_diag_sqrt = manager.register_parameter(
+    p_diag_sqrt = register_learnable(
         name="p_diag_sqrt",
         default=np.sqrt(np.array([5.0, 0.5])),
-        differentiable=True,
+        low=np.sqrt(np.array([1.0, 0.1])),
+        high=np.sqrt(np.array([10.0, 1.0])),
     )
-    spaces.append(
-        (
-            "p_diag_sqrt",
-            gym.spaces.Box(
-                low=np.sqrt(np.array([1.0, 0.1])),
-                high=np.sqrt(np.array([10.0, 1.0])),
-                dtype=np.float64,
-            ),
-        )
-    )
-    mass = manager.register_parameter(
+    mass = register_learnable(
         name="mass",
         default=np.array([1.5]),
-        differentiable=True,
+        low=np.array([0.1]),
+        high=np.array([10.0]),
     )
-    spaces.append(
-        (
-            "mass",
-            gym.spaces.Box(low=np.array([0.1]), high=np.array([10.0]), dtype=np.float64),
-        )
-    )
-    damping = manager.register_parameter(
+    damping = register_learnable(
         name="damping",
         default=np.array([0.7]),
-        differentiable=True,
+        low=np.array([0.0]),
+        high=np.array([2.0]),
     )
-    spaces.append(
-        (
-            "damping",
-            gym.spaces.Box(low=np.array([0.0]), high=np.array([2.0]), dtype=np.float64),
-        )
-    )
-    stiffness = manager.register_parameter(
+    stiffness = register_learnable(
         name="stiffness",
         default=np.array([2.0]),
-        differentiable=True,
-    )
-    spaces.append(
-        (
-            "stiffness",
-            gym.spaces.Box(low=np.array([0.0]), high=np.array([5.0]), dtype=np.float64),
-        )
+        low=np.array([0.0]),
+        high=np.array([5.0]),
     )
 
     # Model
@@ -176,13 +146,15 @@ def export_parametric_ocp(
     ocp.solver_options.hessian_approx = "EXACT"
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
 
-    return ocp, manager, gym.spaces.Dict(spaces)
+    param_space = gym.spaces.Dict(spaces)
+
+    return ocp, manager, param_space, manager.default_param_dict(param_space.keys())
 
 
 if __name__ == "__main__":
     N_horizon = 100
 
-    ocp, manager = export_parametric_ocp(
+    ocp, manager, _, _ = export_parametric_ocp(
         N_horizon=N_horizon,
         x0=np.array([1.5, -1.0]),
     )

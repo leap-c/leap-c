@@ -7,8 +7,10 @@ import torch
 from leap_c.examples.mass_spring_damper.acados_ocp import (
     export_parametric_ocp,
 )
-from leap_c.ocp.acados.planner import AcadosPlanner
+from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
+from leap_c.ocp.acados.planner import acados_sensitivity
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
+from leap_c.planner import ParameterizedPlanner, SensitivityOptions
 
 
 @dataclass(kw_only=True)
@@ -38,7 +40,7 @@ class MassSpringDamperPlannerConfig:
     dtype: torch.dtype | None = None
 
 
-class MassSpringDamperPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
+class MassSpringDamperPlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
     """Acados-based planner for the mass-spring-damper system.
 
     The state corresponds to [position, velocity] and the action is [force].
@@ -51,6 +53,7 @@ class MassSpringDamperPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     """
 
     cfg: MassSpringDamperPlannerConfig
+    collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,
@@ -67,8 +70,9 @@ class MassSpringDamperPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
                 `acados` solver code will be exported.
         """
         self.cfg = MassSpringDamperPlannerConfig() if cfg is None else cfg
+        super().__init__()
 
-        ocp, param_manager, param_space = export_parametric_ocp(
+        ocp, param_manager, param_space, default_param = export_parametric_ocp(
             N_horizon=self.cfg.N_horizon,
             name="mass_spring_damper",
             x0=np.array([1.0, 0.0]),
@@ -77,11 +81,36 @@ class MassSpringDamperPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc = AcadosDiffMpcTorch(
             ocp,
             param_manager,
-            parameter_space=param_space,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
             n_batch_init=self.cfg.n_batch_init,
             num_threads_batch_solver=self.cfg.num_threads_batch_solver,
             dtype=self.cfg.dtype,
         )
-        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
+        self.param_manager = param_manager
+        self.diff_mpc = diff_mpc
+        self._param_space = param_space
+        self._default_param = default_param
+
+    def forward(
+        self,
+        obs: torch.Tensor,
+        action: torch.Tensor | None = None,
+        params: dict[str, torch.Tensor | np.ndarray] | None = None,
+        ctx: AcadosDiffMpcCtx | None = None,
+    ):
+        return self.diff_mpc(x0=obs, u0=action, params=params, ctx=ctx)
+
+    def sensitivity(self, ctx: AcadosDiffMpcCtx, name: SensitivityOptions) -> np.ndarray:
+        return acados_sensitivity(self.diff_mpc, ctx, name)
+
+    @property
+    def param_space(self):
+        return self._param_space
+
+    def default_param(self, obs: np.ndarray | torch.Tensor | None = None) -> dict[str, np.ndarray]:
+        default = {key: np.asarray(value) for key, value in self._default_param.items()}
+        for key in default:
+            if obs is not None and obs.ndim > 1:
+                default[key] = np.broadcast_to(default[key], (*obs.shape[:-1], *default[key].shape))
+        return default

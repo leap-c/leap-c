@@ -28,6 +28,7 @@ from leap_c.run import (
     validate_torch_dtype_arg,
 )
 from leap_c.torch.rl.buffer import ReplayBuffer
+from leap_c.torch.utils import gym as torch_gym
 from leap_c.torch.utils.seed import mk_seed
 from leap_c.trainer import Trainer, TrainerConfig
 from leap_c.utils.gym import seed_env, wrap_env
@@ -151,13 +152,19 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
             else:
                 obs_batched = self.collate_fn([obs])
                 if self.loaded_param is not None:
-                    param = self.loaded_param
+                    param = torch_gym.unflatten(
+                        self.controller.param_space,
+                        torch.from_numpy(self.loaded_param).to(self.device),
+                    )
                 else:
                     param = self.controller.default_param(obs_batched)
-                param_tensor = torch.from_numpy(param).to(self.device)
-                policy_ctx, action_tensor = self.controller(
-                    obs_batched, param_tensor, ctx=policy_ctx
-                )
+                    if isinstance(param, dict):
+                        param = {
+                            k: torch.as_tensor(v, device=self.device) for k, v in param.items()
+                        }
+                    else:
+                        param = torch.from_numpy(param).to(self.device)
+                policy_ctx, action_tensor = self.controller(obs_batched, param, ctx=policy_ctx)
                 action = action_tensor[0].cpu().numpy()
 
             obs_prime, reward, is_terminated, is_truncated, info = self.train_env.step(action)
@@ -179,11 +186,17 @@ class BaselineTrainer(Trainer[BaselineTrainerConfig, Any]):
 
         obs_batched = self.collate_fn([obs])
         if self.loaded_param is not None:
-            param = self.loaded_param
+            param = torch_gym.unflatten(
+                self.controller.param_space,
+                torch.from_numpy(self.loaded_param).to(self.device),
+            )
         else:
             param = self.controller.default_param(obs_batched)
-        param_tensor = torch.from_numpy(param).to(self.device)
-        ctx, action = self.controller(obs_batched, param_tensor, ctx=state)
+            if isinstance(param, dict):
+                param = {k: torch.as_tensor(v, device=self.device) for k, v in param.items()}
+            else:
+                param = torch.from_numpy(param).to(self.device)
+        ctx, action = self.controller(obs_batched, param, ctx=state)
         action = action.cpu().numpy()[0]
         return action, ctx, ctx.log
 

@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import torch
 
 from leap_c.examples.cartpole.acados_ocp import (
@@ -8,8 +9,10 @@ from leap_c.examples.cartpole.acados_ocp import (
     CartPoleAcadosParamInterface,
     export_parametric_ocp,
 )
-from leap_c.ocp.acados.planner import AcadosPlanner
+from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
+from leap_c.ocp.acados.planner import acados_sensitivity
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
+from leap_c.planner import ParameterizedPlanner, SensitivityOptions
 
 
 @dataclass(kw_only=True)
@@ -53,7 +56,7 @@ class CartPolePlannerConfig:
     dtype: torch.dtype | None = None
 
 
-class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
+class CartPolePlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
     """Acados-based planner for `CartPole`, aka inverted pendulum.
 
     The state and action correspond to the observation and action of the CartPole environment.
@@ -68,6 +71,7 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     """
 
     cfg: CartPolePlannerConfig
+    collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,
@@ -85,7 +89,8 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         """
         self.cfg = CartPolePlannerConfig() if cfg is None else cfg
 
-        ocp, param_manager, param_space = export_parametric_ocp(
+        super().__init__()
+        ocp, param_manager, param_space, default_param = export_parametric_ocp(
             param_interface=self.cfg.param_interface,
             cost_type=self.cfg.cost_type,
             name="cartpole",
@@ -98,11 +103,36 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc = AcadosDiffMpcTorch(
             ocp=ocp,
             parameter_manager=param_manager,
-            parameter_space=param_space,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
             n_batch_init=self.cfg.n_batch_init,
             num_threads_batch_solver=self.cfg.num_threads_batch_solver,
             dtype=self.cfg.dtype,
         )
-        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
+        self.param_manager = param_manager
+        self.diff_mpc = diff_mpc
+        self._param_space = param_space
+        self._default_param = default_param
+
+    def forward(
+        self,
+        obs: torch.Tensor,
+        action: torch.Tensor | None = None,
+        params: torch.Tensor | None = None,
+        ctx: AcadosDiffMpcCtx | None = None,
+    ):
+        params_dict = {"xref1": params}
+        return self.diff_mpc(x0=obs, u0=action, params=params_dict, ctx=ctx)
+
+    def sensitivity(self, ctx: AcadosDiffMpcCtx, name: SensitivityOptions) -> np.ndarray:
+        return acados_sensitivity(self.diff_mpc, ctx, name)
+
+    @property
+    def param_space(self):
+        return self._param_space
+
+    def default_param(self, obs: np.ndarray | torch.Tensor | None = None) -> np.ndarray:
+        default = np.asarray(self._default_param)
+        if obs is not None and obs.ndim > 1:
+            default = np.broadcast_to(default, (*obs.shape[:-1], *default.shape))
+        return default

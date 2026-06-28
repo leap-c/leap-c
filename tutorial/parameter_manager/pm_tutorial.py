@@ -1,63 +1,55 @@
 """Parameter manager tutorial - basic usage with default non-learnable parameters.
 
 Demonstrates:
-- Building an AcadosParameterManager from a parameter list
-- combine_non_learnable_parameter_values: packing per-stage non-learnable values
-- combine_default_learnable_parameter_values: packing a batch of learnable values
+- Building an AcadosParameterManager via ``register_parameter``
+- ``combine_non_learnable_parameters``: packing per-stage non-learnable values
+- ``combine_learnable_parameters_torch``: packing a batch of learnable values
   with a stage-varying price overwrite
-- Running AcadosPlanner.forward with the default p_stagewise (outdoor_temp at its
-  default value for every stage)
+- Running ``AcadosDiffMpcTorch.forward`` with the default p_stagewise (outdoor_temp
+  at its default value for every stage)
 """
 
 import numpy as np
 import torch
-from utils import BATCH_SIZE, N_HORIZON, build_ocp, make_params
+from utils import BATCH_SIZE, N_HORIZON, build_manager, build_ocp
 
-from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.ocp.acados.planner import AcadosPlanner
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 if __name__ == "__main__":
     rng = np.random.default_rng(seed=0)
 
-    # ── Build manager, OCP, and planner ──────────────────────────────────────
-    manager = AcadosParameterManager(make_params(N_HORIZON), N_horizon=N_HORIZON)
+    manager = build_manager(N_HORIZON)
     ocp = build_ocp(manager, N_HORIZON)
-    diff_mpc = AcadosDiffMpcTorch(ocp)
-    planner = AcadosPlanner(param_manager=manager, diff_mpc=diff_mpc)
+    diff_mpc = AcadosDiffMpcTorch(ocp, manager)
 
-    N_stages = N_HORIZON + 1  # 11 stages (0 .. 10)
+    N_stages = N_HORIZON + 1
 
-    # ── Illustrate combine_non_learnable_parameter_values ────────────────────
-    # Pass an outdoor temperature forecast; shape must be (batch_size, N_stages, param_dim).
+    # ── Illustrate combine_non_learnable_parameters ─────────────────────────
     temp_forecast = rng.uniform(5.0, 25.0, size=(BATCH_SIZE, N_stages, 1))
-    p_stagewise = manager.combine_non_learnable_parameter_values(
+    p_stagewise = manager.combine_non_learnable_parameters(
         batch_size=BATCH_SIZE,
         outdoor_temp=temp_forecast,
     )
-    # p_stagewise[:, k, :] is the full non-learnable parameter vector at stage k.
-    print(f"p_stagewise shape: {p_stagewise.shape}")  # (4, 11, n_nonlearnable)
+    print(f"p_stagewise shape: {p_stagewise.shape}")
 
-    # ── Illustrate combine_default_learnable_parameter_values ────────────────
-    # Overwrite the stage-varying price with a forecast.
-    # For stage-varying params the shape is (batch_size, N_stages, param_dim);
-    # the manager picks the value at the start of each block.
+    # ── Illustrate combine_learnable_parameters_torch ────────────────────────
     price_forecast = rng.uniform(0.05, 0.40, size=(BATCH_SIZE, N_stages, 1))
-    p_global = manager.combine_default_learnable_parameter_values(
+    p_global = manager.combine_learnable_parameters_torch(
         batch_size=BATCH_SIZE,
-        price=price_forecast,
+        device=torch.device("cpu"),
+        dtype=torch.float64,
+        price=torch.as_tensor(price_forecast, dtype=torch.float64),
     )
-    print(f"p_global shape:    {p_global.shape}")  # (4, N_learnable)
+    print(f"p_global shape:    {p_global.shape}")
 
-    # ── Run the planner ───────────────────────────────────────────────────────
-    # AcadosPlanner.forward calls combine_non_learnable_parameter_values internally
-    # using the default outdoor_temp (20 degC every stage).  To supply a real
-    # forecast at solve time, see pm_tutorial_forecast.py.
-    x0_batch = torch.tensor(rng.uniform(15.0, 25.0, size=(BATCH_SIZE, 1)))
-    param = torch.tensor(manager.combine_default_learnable_parameter_values(batch_size=BATCH_SIZE))
+    # ── Run the solver ────────────────────────────────────────────────────────
+    x0_batch = torch.tensor(rng.uniform(15.0, 25.0, size=(BATCH_SIZE, 1)), dtype=torch.float64)
+    p_global_default = manager.combine_learnable_parameters_torch(
+        batch_size=BATCH_SIZE, device=torch.device("cpu"), dtype=torch.float64
+    )
 
-    ctx, u0, x, u, value = planner.forward(obs=x0_batch, param=param)
+    ctx, u0, x, u, value = diff_mpc(x0=x0_batch, params={})
 
-    print(f"ctx.status: {ctx.status}")  # [0 0 0 0] means all solves succeeded
+    print(f"ctx.status: {ctx.status}")
     print(f"u0.shape:   {u0.shape}")
     print(f"value:      {value.squeeze().tolist()}")

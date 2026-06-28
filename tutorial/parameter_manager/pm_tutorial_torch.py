@@ -20,7 +20,7 @@ import numpy as np
 import torch
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import AcadosParameterManager, stage_expanded_box
+from leap_c.ocp.acados.parameters import AcadosParameterManager
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 # ── Constants ────────────────────────────────────────────────────────────────
@@ -45,8 +45,7 @@ if __name__ == "__main__":
         differentiable=False,
     )
     # The learnable parameter space is built externally as a gym.spaces.Dict, keyed by
-    # parameter name and in registration order. Stage-varying boxes are tiled across their
-    # stage blocks with stage_expanded_box so flatten_space matches the flat learnable vector.
+    # parameter name and in registration order.
     spaces: list[tuple[str, gym.spaces.Box]] = []
 
     # Learnable: comfort setpoint, constant across all stages.
@@ -72,10 +71,10 @@ if __name__ == "__main__":
     spaces.append(
         (
             "price",
-            stage_expanded_box(
-                gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float64),
-                [4, N_HORIZON],
-                N_HORIZON,
+            gym.spaces.Box(
+                low=np.zeros((N_HORIZON + 1, 1)),
+                high=np.ones((N_HORIZON + 1, 1)),
+                dtype=np.float64,
             ),
         )
     )
@@ -118,7 +117,7 @@ if __name__ == "__main__":
     ocp.solver_options.integrator_type = "DISCRETE"
 
     # ── Build differentiable MPC planner ─────────────────────────────────────
-    diff_mpc = AcadosDiffMpcTorch(ocp, manager, parameter_space=gym.spaces.Dict(spaces))
+    diff_mpc = AcadosDiffMpcTorch(ocp, manager)
 
     # ── Solve with non-default learnable parameters ─────────────────────────
     x0_batch = torch.tensor(rng.uniform(10.0, 30.0, size=(BATCH_SIZE, 1)))

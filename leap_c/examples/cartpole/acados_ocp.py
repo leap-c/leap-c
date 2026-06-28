@@ -6,7 +6,7 @@ import numpy as np
 from acados_template import AcadosOcp
 
 from leap_c.examples.utils.casadi import integrate_erk4
-from leap_c.ocp.acados.parameters import AcadosParameterManager, stage_expanded_box
+from leap_c.ocp.acados.parameters import AcadosParameterManager
 
 CartPoleAcadosParamInterface = Literal["global", "stagewise"]
 """Determines the exposed parameter interface of the controller.
@@ -28,7 +28,7 @@ def export_parametric_ocp(
     x_threshold: float = 2.4,
     N_horizon: int = 50,
     T_horizon: float = 2.0,
-) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Dict]:
+) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Box, np.ndarray]:
     ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = T_horizon
@@ -37,30 +37,20 @@ def export_parametric_ocp(
 
     manager = AcadosParameterManager(N_horizon=N_horizon)
 
-    spaces: list[tuple[str, gym.spaces.Box]] = []
-
-    # Reference parameters (non-learnable / learnable)
+    # Non-learnable reference parameters
     xref0 = manager.register_parameter("xref0", default=np.array([0.0]))
-    xref1_splits = "stagewise" if param_interface == "stagewise" else "global"
     xref1 = manager.register_parameter(
         "xref1",
         default=np.array([0.0]),
         differentiable=True,
-        splits=xref1_splits,
+        splits=param_interface,
     )
-    spaces.append(
-        (
-            "xref1",
-            stage_expanded_box(
-                gym.spaces.Box(
-                    low=np.array([-2.0 * np.pi]),
-                    high=np.array([2.0 * np.pi]),
-                    dtype=np.float64,
-                ),
-                xref1_splits,
-                N_horizon,
-            ),
-        )
+    default_param = manager.default_param_dict(["xref1"])["xref1"]
+    param_space = gym.spaces.Box(
+        low=-2.0 * np.pi,
+        high=2.0 * np.pi,
+        shape=default_param.shape,
+        dtype=np.float64,
     )
 
     xref2 = manager.register_parameter("xref2", default=np.array([0.0]))
@@ -176,4 +166,4 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
 
-    return ocp, manager, gym.spaces.Dict(spaces)
+    return ocp, manager, param_space, default_param

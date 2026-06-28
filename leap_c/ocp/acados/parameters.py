@@ -1,5 +1,6 @@
+from collections.abc import Iterable
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import TYPE_CHECKING, Any, Literal
 from warnings import warn
 
 import casadi as ca
@@ -7,17 +8,10 @@ import gymnasium as gym
 import numpy as np
 from acados_template import AcadosOcp
 
-try:
-    import torch
-except ImportError:
-    torch = None  # type: ignore[assignment]
+from leap_c.utils.dependencies import require_jax, require_torch
 
-try:
-    import jax
-    import jax.numpy as jnp
-except ImportError:
-    jax = None  # type: ignore[assignment]
-    jnp = None  # type: ignore[assignment]
+if TYPE_CHECKING:
+    import torch
 
 
 @dataclass
@@ -383,11 +377,7 @@ class AcadosParameterManager:
         Raises:
             ImportError: If torch is not installed.
         """
-        if torch is None:
-            raise ImportError(
-                "torch is required for combine_learnable_parameters_torch. "
-                "Install it with: pip install torch"
-            )
+        torch = require_torch()
 
         inferred_batch_size = next(iter(overwrites.values())).shape[0] if overwrites else None
 
@@ -480,8 +470,8 @@ class AcadosParameterManager:
     def combine_learnable_parameters_jax(
         self,
         batch_size: int | None = None,
-        **overwrites: "jnp.ndarray | np.ndarray",
-    ) -> "jnp.ndarray":
+        **overwrites: Any,
+    ) -> Any:
         """Combine learnable parameters into a flat JAX array, preserving differentiability.
 
         .. note::
@@ -499,11 +489,7 @@ class AcadosParameterManager:
             ImportError: If jax is not installed.
             NotImplementedError: Until a JAX implementation is contributed.
         """
-        if jax is None:
-            raise ImportError(
-                "jax is required for combine_learnable_parameters_jax. "
-                "Install it with: pip install jax jaxlib"
-            )
+        require_jax()
         raise NotImplementedError(
             "combine_learnable_parameters_jax is not yet implemented. "
             "Contributions are welcome! See combine_learnable_parameters_torch for reference."
@@ -623,9 +609,9 @@ class AcadosParameterManager:
     # the dictionary API.
     def get_labeled_learnable_parameters(
         self,
-        param_values: np.ndarray | torch.Tensor,
+        param_values: Any,
         label: str,
-    ) -> np.ndarray | torch.Tensor:
+    ) -> Any:
         """Get a structured representation of the learnable parameters from flat values.
 
         Args:
@@ -647,6 +633,27 @@ class AcadosParameterManager:
         idx = [self._learnable_parameter_store.indices[key] for key in keys]
         idx = [slice(s, e) for s, e in idx]
         return param_values[..., np.r_[*idx]].reshape(-1, len(keys))
+
+    def default_param_dict(self, keys: Iterable[str]) -> dict[str, np.ndarray]:
+        """Return parameter defaults for the given ``keys``.
+
+        Stage-varying learnable defaults are explicitly expanded to
+        ``(N + 1, *default.shape)`` because planner-facing structured parameter
+        spaces carry the stage dimension directly.  Non-learnable defaults are
+        returned as-is (they have no splits).
+        """
+        defaults = {}
+        for key in keys:
+            if key not in self.parameters:
+                raise ValueError(
+                    f"Parameter '{key}' not found. Available parameters: {list(self.parameters)}"
+                )
+            param = self.parameters[key]
+            default = np.asarray(param.default)
+            if param.interface == "learnable" and param.is_stage_varying:
+                default = stagewise_broadcast(default, param.splits, self.N_horizon)
+            defaults[key] = default
+        return defaults
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Synchronize the parameter manager's symbols and defaults onto the OCP.
@@ -688,33 +695,18 @@ def _define_starts_and_ends(
     return starts, ends
 
 
-def stage_expanded_box(
-    box: gym.spaces.Box,
+def stagewise_broadcast(
+    value: np.ndarray,
     splits: list[int] | int | Literal["stagewise", "global"],
     N_horizon: int,
-) -> gym.spaces.Box:
-    """Tile a single-stage box across a parameter's stage blocks.
+) -> np.ndarray:
+    """Broadcast a single-stage value to the public stagewise parameter shape.
 
-    For a stage-varying learnable parameter, the flat learnable slice equals the
-    single-stage dimension times the number of stage blocks (see
-    :func:`_define_starts_and_ends`). This helper tiles the single-stage bounds across
-    those blocks so that ``gym.spaces.utils.flatten_space`` of the resulting space matches
-    that flat slice. For ``"global"`` parameters (a single block) the box is returned
-    unchanged.
-
-    Args:
-        box: The single-stage box describing one stage's bounds.
-        splits: The parameter's ``splits`` value (as passed to ``register_parameter``).
-        N_horizon: Horizon length ``N``.
+    This helper intentionally returns a numpy array, not a Gymnasium space. Example planners can use
+    it for bounds and defaults while keeping the public ``gym.spaces.Box`` construction explicit.
     """
+    value = np.asarray(value)
     if splits == "global":
-        return box
-    starts, _ = _define_starts_and_ends(splits, N_horizon)
-    n_blocks = len(starts)
-    if n_blocks == 1:
-        return box
-    return gym.spaces.Box(
-        low=np.tile(box.low, n_blocks),
-        high=np.tile(box.high, n_blocks),
-        dtype=box.dtype,
-    )
+        return value
+    Np1 = splits[-1] + 1 if isinstance(splits, list) else N_horizon + 1
+    return np.broadcast_to(value, (Np1, *value.shape))

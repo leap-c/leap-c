@@ -5,67 +5,51 @@ import gymnasium as gym
 import numpy as np
 from acados_template import AcadosModel, AcadosOcp
 
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
+from leap_c.ocp.acados.parameters import AcadosParameterManager
 
-# ── Constants ────────────────────────────────────────────────────────────────
+N_HORIZON = 10
+BATCH_SIZE = 4
 
-N_HORIZON = 10  # MPC horizon length; stages 0 .. N_HORIZON (inclusive)
-BATCH_SIZE = 4  # number of parallel problem instances
-
-# Thermal model constants [RC circuit]
-R_THERMAL = 2.0  # thermal resistance [h·degC/kW]
-C_THERMAL = 1.5  # thermal capacitance [kWh/degC]
+R_THERMAL = 2.0
+C_THERMAL = 1.5
 
 
-# ── Parameter list ────────────────────────────────────────────────────────────
-
-
-def make_params(N_horizon: int = N_HORIZON) -> list[AcadosParameter]:
-    """Return the canonical parameter list for the temperature-control tutorial OCP.
+def build_manager(N_horizon: int = N_HORIZON) -> AcadosParameterManager:
+    """Build and return the parameter manager for the temperature-control tutorial.
 
     Parameters:
-        - ``dt``               fixed time step [h]  (interface: "fix")
-        - ``outdoor_temp``     ambient temperature [degC]  (interface: "non-learnable")
-        - ``comfort_setpoint`` comfort reference temperature [degC]  (interface: "learnable")
+        - ``dt``               fixed time step [h]  (non-learnable)
+        - ``outdoor_temp``     ambient temperature [degC]  (non-learnable)
+        - ``comfort_setpoint`` comfort reference temperature [degC]  (learnable)
         - ``price``            electricity price [EUR/kWh], two stage blocks
-          (interface: "learnable")
+          (learnable)
     """
-    return [
-        # Fixed: known constant, baked into the solver at compile time.
-        AcadosParameter(
-            name="dt",
-            default=np.array([0.25]),  # 15-minute time step [h]
-            interface="fix",
-        ),
-        # Non-learnable: changes every solver call (e.g. a weather forecast),
-        # but is NOT differentiated through.
-        AcadosParameter(
-            name="outdoor_temp",
-            default=np.array([20.0]),  # ambient temperature [degC]
-            interface="non-learnable",
-        ),
-        # Learnable, constant across stages: a single scalar the learning
-        # algorithm can adjust.
-        AcadosParameter(
-            name="comfort_setpoint",
-            default=np.array([21.0]),
-            space=gym.spaces.Box(low=np.array([15.0]), high=np.array([28.0]), dtype=np.float64),
-            interface="learnable",
-        ),
-        # Learnable, stage-varying: two price blocks.
-        # block 0: stages 0-4, block 1: stages 5-N_horizon
-        # The manager handles the indicator mechanism automatically.
-        AcadosParameter(
-            name="price",
-            default=np.array([0.15]),  # electricity price [EUR/kWh]
-            space=gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float64),
-            interface="learnable",
-            splits=[4, N_horizon],
-        ),
-    ]
+    manager = AcadosParameterManager(N_horizon=N_horizon)
 
-
-# ── OCP builder ───────────────────────────────────────────────────────────────
+    manager.register_parameter(
+        name="dt",
+        default=np.array([0.25]),
+        differentiable=False,
+    )
+    manager.register_parameter(
+        name="outdoor_temp",
+        default=np.array([20.0]),
+        differentiable=False,
+    )
+    manager.register_parameter(
+        name="comfort_setpoint",
+        default=np.array([21.0]),
+        space=gym.spaces.Box(low=np.array([15.0]), high=np.array([28.0]), dtype=np.float64),
+        differentiable=True,
+    )
+    manager.register_parameter(
+        name="price",
+        default=np.array([0.15]),
+        space=gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float64),
+        differentiable=True,
+        splits=[4, N_horizon],
+    )
+    return manager
 
 
 def build_ocp(manager: AcadosParameterManager, N_horizon: int = N_HORIZON) -> AcadosOcp:
@@ -89,26 +73,19 @@ def build_ocp(manager: AcadosParameterManager, N_horizon: int = N_HORIZON) -> Ac
     model = AcadosModel()
     model.name = "temp_ctrl"
 
-    # State: room temperature [degC]
     T = ca.SX.sym("T")
     model.x = T
 
-    # Control: heating power [kW]
     q = ca.SX.sym("q")
     model.u = q
 
-    # Retrieve parameters.
-    # "fix" returns a numpy array; index [0] to get a plain scalar for CasADi arithmetic.
-    # All other interfaces return CasADi SX expressions.
-    dt = manager.get("dt")[0]  # numpy scalar
-    outdoor_temp = manager.get("outdoor_temp")  # CasADi SX, from p (per-stage)
-    comfort_ref = manager.get("comfort_setpoint")  # CasADi SX, from p_global
-    price = manager.get("price")  # CasADi SX, stage-aware weighted sum
+    dt = manager.get("dt")
+    outdoor_temp = manager.get("outdoor_temp")
+    comfort_ref = manager.get("comfort_setpoint")
+    price = manager.get("price")
 
-    # Discrete-time RC dynamics
     model.disc_dyn_expr = T + dt * ((outdoor_temp - T) / (R_THERMAL * C_THERMAL) + q / C_THERMAL)
 
-    # Costs
     model.cost_expr_ext_cost = (T - comfort_ref) ** 2 + price * q
     model.cost_expr_ext_cost_e = (T - comfort_ref) ** 2
 
@@ -117,8 +94,6 @@ def build_ocp(manager: AcadosParameterManager, N_horizon: int = N_HORIZON) -> Ac
 
     ocp.model = model
 
-    # Provide a nominal x0 so acados allocates lbx/ubx at stage 0.
-    # The actual value is overwritten at each solve call by AcadosDiffMpcTorch.
     ocp.constraints.x0 = np.array([20.0])
 
     ocp.solver_options.tf = N_horizon * dt
