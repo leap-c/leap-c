@@ -148,4 +148,4 @@ def export_parametric_ocp(
     param_space = gym.spaces.Dict(spaces)
     default_param = manager.default_param_dict(param_space.keys())
 
-    return ocp, manager, param_space, default_param 
+    return ocp, manager, param_space, default_param
