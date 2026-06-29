@@ -505,7 +505,7 @@ def test_sensitivity(
         ctx, u0, x, u, value = diff_mpc_k.forward(x0=test_inputs.x0)
 
         results = {
-            field: diff_mpc_k.sensitivity(ctx=ctx, field_name=field)  # type: ignore
+            field: diff_mpc_k.diff_mpc_fun.sensitivity(ctx=ctx, field_name=field)  # type: ignore
             for field in ["dvalue_dp_global", "dvalue_dx0"]
         }
 
@@ -531,7 +531,9 @@ def test_sensitivity(
         )
 
         ctx, u0, x, u, value = diff_mpc_k.forward(x0=test_inputs.x0, u0=test_inputs.u0)
-        results["dvalue_du0"] = diff_mpc_k.sensitivity(ctx=ctx, field_name="dvalue_du0")
+        results["dvalue_du0"] = diff_mpc_k.diff_mpc_fun.sensitivity(
+            ctx=ctx, field_name="dvalue_du0"
+        )
 
         assert results["dvalue_du0"].shape == (
             n_batch,
@@ -542,6 +544,134 @@ def test_sensitivity(
             f"{(n_batch, diff_mpc_k.diff_mpc_fun.ocp.dims.nu)},"
             " "
             f"Got: {results['dvalue_du0'].shape}"
+        )
+
+
+def test_jacobian_matches_sensitivity(
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
+    n_batch: int = 2,
+    dtype: torch.dtype = torch.float64,
+) -> None:
+    """Test that ``torch.autograd.functional.jacobian`` matches low-level acados sensitivities.
+
+    Runs the check for both a *global* learnable parameter (``xref_e``) and a *stage-varying*
+    one (``xref``). For each, ``du0/dp`` and ``dvalue/dp`` retrieved via:
+      - ``diff_mpc_fun.sensitivity(ctx, "du0_dp_global")`` (ground truth from acados adjoint).
+      - ``functional.jacobian`` cold (no ctx, fresh forward solve).
+      - ``functional.jacobian`` warm (ctx warmstart).
+      - ``functional.jacobian`` with intermediate no-op ops on the param (distracting graph nodes).
+
+    All paths must agree within ``atol=1e-6``.
+    """
+    for param_name in ["xref_e", "xref"]:  # global, then stage-varying
+        _check_jacobian_matches_sensitivity(
+            diff_mpc_with_stagewise_varying_params, param_name, n_batch, dtype
+        )
+
+
+def _check_jacobian_matches_sensitivity(
+    diff_mpc: AcadosDiffMpcTorch,
+    param_name: str,
+    n_batch: int,
+    dtype: torch.dtype,
+) -> None:
+    """Check ``functional.jacobian`` against acados sensitivities for a single parameter.
+
+    Handles both global parameters (override shape ``(B, ds)``) and stage-varying ones
+    (override shape ``(B, Np1, ds)``, whose stage blocks occupy a single contiguous,
+    stage-major slice of ``p_global``).
+    """
+    ocp = diff_mpc.diff_mpc_fun.ocp
+    manager = diff_mpc.parameter_manager
+    indices = manager._learnable_parameter_store.indices
+    param_def = manager.parameters[param_name]
+    assert param_name in manager.learnable_parameter_names, (
+        f"{param_name} not in learnable params: {manager.learnable_parameter_names}"
+    )
+
+    # Build x0 and an in-bounds learnable-param override (default + 0.1).
+    x0 = torch.tensor(ocp.constraints.x0, dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
+    base = torch.tensor(param_def.default, dtype=dtype) + 0.1  # (ds,)
+
+    if param_def.is_stage_varying:
+        # Stage-varying override must have shape (B, Np1, ds); its blocks occupy a single
+        # contiguous p_global slice, laid out stage-major (matching a row-major (Np1, ds) flatten).
+        starts, ends = _define_starts_and_ends(param_def.splits, manager.N_horizon)
+        blocks = list(zip(starts, ends))  # [(0, 0), ..., (9, 9)]
+        Np1 = (
+            param_def.splits[-1] + 1
+            if isinstance(param_def.splits, list)
+            else manager.N_horizon + 1
+        )
+        param = base.reshape(1, 1, -1).repeat(n_batch, Np1, 1).detach().requires_grad_(True)
+        s = indices[f"{param_name}_{blocks[0][0]}_{blocks[0][1]}"][0]
+        e = indices[f"{param_name}_{blocks[-1][0]}_{blocks[-1][1]}"][1]
+    else:
+        param = base.unsqueeze(0).repeat(n_batch, 1).detach().requires_grad_(True)  # (B, ds)
+        s, e = indices[param_name]
+
+    # Ground truth: low-level acados sensitivity, sliced to this param's p_global block(s).
+    ctx, u0, x, u, value = diff_mpc(x0=x0, params={param_name: param})
+    du0_dp_global = torch.as_tensor(diff_mpc.diff_mpc_fun.sensitivity(ctx, "du0_dp_global"))
+    dvalue_dp_global = torch.as_tensor(diff_mpc.diff_mpc_fun.sensitivity(ctx, "dvalue_dp_global"))
+    du0_dp_ref = du0_dp_global[:, :, s:e]  # (B, nu, width)
+    dvalue_dp_ref = dvalue_dp_global[:, :, s:e]  # (B, 1, width)
+
+    # Helper: extract per-batch Jacobian, flattened to match the p_global slice order.
+    def _extract_batch_jac(jac: torch.Tensor) -> torch.Tensor:
+        # jac: (B, K, B, *param_dims) -> (B, K, *param_dims) -> (B, K, prod(param_dims))
+        diag = jac[torch.arange(n_batch), :, torch.arange(n_batch)]
+        return diag.reshape(n_batch, diag.shape[1], -1)
+
+    # Cold jacobian (no ctx)
+    j_u0_cold = _extract_batch_jac(
+        torch.autograd.functional.jacobian(
+            lambda p: diff_mpc(x0=x0, params={param_name: p})[1], param
+        )
+    )
+    j_val_cold = _extract_batch_jac(
+        torch.autograd.functional.jacobian(
+            lambda p: diff_mpc(x0=x0, params={param_name: p})[4], param
+        )
+    )
+
+    # Warm jacobian (with ctx warmstart)
+    j_u0_warm = _extract_batch_jac(
+        torch.autograd.functional.jacobian(
+            lambda p: diff_mpc(x0=x0, params={param_name: p}, ctx=ctx)[1], param
+        )
+    )
+    j_val_warm = _extract_batch_jac(
+        torch.autograd.functional.jacobian(
+            lambda p: diff_mpc(x0=x0, params={param_name: p}, ctx=ctx)[4], param
+        )
+    )
+
+    # Distracting intermediate ops (no-op on values, but adds graph nodes)
+    j_u0_distract = _extract_batch_jac(
+        torch.autograd.functional.jacobian(
+            lambda p: diff_mpc(x0=x0, params={param_name: p * 1.0 + 0.0 - 0.0})[1], param
+        )
+    )
+    j_val_distract = _extract_batch_jac(
+        torch.autograd.functional.jacobian(
+            lambda p: diff_mpc(x0=x0, params={param_name: p * 1.0 + 0.0 - 0.0})[4], param
+        )
+    )
+
+    # Compare all paths
+    for name, (j_u0, j_val) in {
+        "cold": (j_u0_cold, j_val_cold),
+        "warm": (j_u0_warm, j_val_warm),
+        "distract": (j_u0_distract, j_val_distract),
+    }.items():
+        err_u0 = (j_u0 - du0_dp_ref).abs().max().item()
+        err_val = (j_val - dvalue_dp_ref).abs().max().item()
+        assert err_u0 < 1e-6, (
+            f"du0/dp mismatch ({param_name}, {name}): max err={err_u0:.2e} (tol=1e-6)"
+        )
+        assert err_val < 1e-6, (
+            f"dvalue/dp mismatch ({param_name}, {name}): max err={err_val:.2e} (tol=1e-6)"
         )
 
 
