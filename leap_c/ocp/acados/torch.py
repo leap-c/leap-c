@@ -2,6 +2,7 @@
 
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Literal
 
 import numpy as np
 import torch
@@ -14,6 +15,16 @@ from leap_c.ocp.acados.diff_mpc import (
 )
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 from leap_c.ocp.acados.parameters import AcadosParameterManager
+
+AcadosDiffMpcSensitivityOptions = Literal[
+    "du0_dp_global",
+    "dx_dp_global",
+    "du_dp_global",
+    "dvalue_dp_global",
+    "dvalue_du0",
+    "du0_dx0",
+    "dvalue_dx0",
+]
 
 
 class AcadosDiffMpcTorch(torch.nn.Module):
