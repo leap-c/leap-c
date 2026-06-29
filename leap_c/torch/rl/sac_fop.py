@@ -199,9 +199,14 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
                 )
 
                 # Log the gradients of the solution map wrt. params
-                dudp = self.pi.controller.jacobian_action_param(ctx=pi_o.ctx)
-                dudp_norm = np.linalg.matrix_norm(dudp[mask_status])
-                zero_grads = np.isclose(dudp_norm, np.zeros_like(dudp_norm))
+                # NOTE: Computing the full Jacobian, but we only need the diagonal.
+                # Can be slow for large batches. Look into vectorized computations.
+                j = torch.autograd.functional.jacobian(
+                    lambda p: self.pi.controller(o, self.pi._param_to_dict(p), ctx=pi_o.ctx)[1],
+                    pi_o.param.detach(),
+                )
+                dudp_norm = torch.linalg.matrix_norm(j[mask_status])
+                zero_grads = torch.isclose(dudp_norm, torch.zeros_like(dudp_norm)).to(torch.float32)
 
                 # Mask observations (works with TensorDict for dict observations)
                 o = o[mask_status]

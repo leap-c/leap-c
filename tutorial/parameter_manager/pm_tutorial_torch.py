@@ -12,6 +12,9 @@ Two parameter types:
 
 Stage-varying learnable parameters (e.g. electricity price with two blocks)
 use the ``splits`` argument.
+
+Sensitivities (e.g. ``du0/dp``) are retrieved with standard PyTorch autograd
+(``torch.autograd.functional.jacobian``) — no custom sensitivity API needed.
 """
 
 import casadi as ca
@@ -140,3 +143,20 @@ if __name__ == "__main__":
     print(f"u0.shape:   {u0.shape}")
     print(f"value:      {value.squeeze().tolist()}")
     print(f"price.grad: {price_tensor.grad}")
+
+    # ── Retrieve sensitivities via PyTorch autograd ──────────────────────────
+    # Instead of a custom sensitivity API, use torch.autograd.functional.jacobian.
+    # This computes du0/dprice (how the first action changes w.r.t. the price parameter).
+    # The lambda re-solves the MPC (warmstarted by ctx), then runs nu backward passes.
+    j_u0 = torch.autograd.functional.jacobian(
+        lambda p: diff_mpc(x0_batch, params={"price": p}, ctx=ctx)[1],
+        price_tensor,
+    )
+    print(f"\nJacobian du0/dprice shape: {j_u0.shape}")
+
+    # Similarly, dvalue/dprice (how the cost changes w.r.t. the price parameter):
+    j_val = torch.autograd.functional.jacobian(
+        lambda p: diff_mpc(x0_batch, params={"price": p}, ctx=ctx)[4],
+        price_tensor,
+    )
+    print(f"Jacobian dvalue/dprice shape: {j_val.shape}")

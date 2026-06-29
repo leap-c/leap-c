@@ -45,10 +45,6 @@ class DummyController(ParameterizedController):
             np.array([20.0] * self._param_dim, np.float32),
         )
 
-    def jacobian_action_param(self, ctx: DummyCtx) -> np.ndarray:
-        """Return identity Jacobian for DummyController (action = param)."""
-        return np.eye(self._param_dim)[np.newaxis, :, :]  # Shape: (1, param_dim, param_dim)
-
 
 class StructuredDummyController(DummyController):
     def forward(

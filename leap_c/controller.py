@@ -59,24 +59,6 @@ class ParameterizedController(nn.Module, Generic[CtxType], metaclass=ABCMeta):
         """
         ...
 
-    def jacobian_action_param(self, ctx: CtxType) -> ndarray:
-        """Computes `da/dp`, the Jacobian of the action with respect to the parameters.
-
-        This can be used by methods for regularization.
-
-        Args:
-            ctx (CtxType): The context object from the `forward` pass.
-
-        Returns:
-            array: The Jacobian of the initial action with respect to the parameters.
-
-        Raises:
-            NotImplementedError: If jacobian_action_param is not implemented.
-        """
-        raise NotImplementedError(
-            f"{self.__class__.__name__} does not implement `jacobian_action_param`"
-        )
-
     @property
     @abstractmethod
     def param_space(self) -> gym.Space:

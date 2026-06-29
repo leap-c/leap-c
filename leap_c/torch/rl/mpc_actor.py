@@ -243,8 +243,16 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
 
             # apply entropy correction if enabled
             if self.entropy_correction:
-                j = self.controller.jacobian_action_param(ctx)
-                j = torch.from_numpy(j).to(param.device)
+                # NOTE: Computing the full Jacobian, but we only need the diagonal.
+                # Can be slow for large batches. Look into vectorized computations.
+                j = torch.autograd.functional.jacobian(
+                    lambda p: self.controller(obs, self._param_to_dict(p), ctx=ctx)[1],
+                    param,
+                )
+                # j: (B, A, B, D) — extract per-sample Jacobians (B, A, D)
+                b = param.shape[0]
+                j = j[torch.arange(b), :, torch.arange(b), :]
+
                 jtj = j @ j.transpose(1, 2)
                 correction = (
                     torch.det(jtj + 1e-3 * torch.eye(jtj.shape[1], device=jtj.device)).sqrt().log()
