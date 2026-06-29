@@ -10,7 +10,7 @@ Requirements:
     pip install smac>=2.0.0
 
 Usage:
-    python scripts/run_smac_tuning.py --env cartpole --controller cartpole --n_trials 100
+    python scripts/run_smac_tuning.py --env cartpole --controller cartpole --n-trials 100
 """
 
 from argparse import ArgumentParser
@@ -25,7 +25,7 @@ from smac import HyperparameterOptimizationFacade, Scenario
 from torch.utils.data._utils.collate import default_collate
 
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
-from leap_c.run import default_controller_code_path, default_output_path
+from leap_c.run import resolve_output_path, resolve_reuse_code_dir
 from leap_c.torch.rl.buffer import pytree_tensor_to
 from leap_c.utils.gym import flatten_param_space
 
@@ -273,34 +273,32 @@ class ControllerTuner:
             wandb.finish()
 
 
-def main() -> None:
-    """Main entry point for SMAC tuning."""
+if __name__ == "__main__":
     parser = ArgumentParser(description="SMAC-based hyperparameter tuning for controllers")
     parser.add_argument("--env", type=str, default="hvac", help="Environment name")
     parser.add_argument(
         "--controller", type=str, default=None, help="Controller name (defaults to env)"
     )
-    parser.add_argument("--n_trials", type=int, default=100, help="Number of SMAC trials")
-    parser.add_argument("--n_rollouts", type=int, default=10, help="Rollouts per evaluation")
-    parser.add_argument("--max_steps", type=int, default=None, help="Max steps per rollout")
+    parser.add_argument("--n-trials", type=int, default=100, help="Number of SMAC trials")
+    parser.add_argument("--n-rollouts", type=int, default=10, help="Rollouts per evaluation")
+    parser.add_argument("--max-steps", type=int, default=None, help="Max steps per rollout")
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-    parser.add_argument("--output_dir", type=Path, default=None, help="Output directory")
+    parser.add_argument("--output-path", type=Path, default=None, help="Output directory")
     parser.add_argument(
-        "-r", "--reuse_code", action="store_true", help="Reuse compiled code for faster startup"
+        "-r", "--reuse-code", action="store_true", help="Reuse compiled code for faster startup"
     )
-    parser.add_argument("--reuse_code_dir", type=Path, default=None)
+    parser.add_argument(
+        "--reuse-code-dir", type=Path, default=None, help="Directory for compiled code"
+    )
     parser.add_argument("--use-wandb", action="store_true", help="Log results to wandb")
     parser.add_argument("--wandb-entity", type=str, default=None, help="Wandb entity")
     parser.add_argument("--wandb-project", type=str, default="leap-c-smac", help="Wandb project")
     args = parser.parse_args()
 
-    # Set defaults
     controller = args.controller if args.controller else args.env
-    output_dir = (
-        args.output_dir
-        if args.output_dir
-        else default_output_path(seed=args.seed, tags=["smac", args.env, controller])
-    )
+    tags = ["smac", args.env, controller]
+    output_dir = resolve_output_path(args, tags)
+    reuse_code_dir = resolve_reuse_code_dir(args)
 
     cfg = SmacTuningConfig(
         env=args.env,
@@ -328,14 +326,6 @@ def main() -> None:
         else {},
     )
 
-    # Determine code reuse directory
-    if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = default_controller_code_path()
-    elif args.reuse_code_dir is not None:
-        reuse_code_dir = args.reuse_code_dir
-    else:
-        reuse_code_dir = None
-
     # Run tuning
     tuner = ControllerTuner(cfg, reuse_code_dir=reuse_code_dir)
     try:
@@ -353,7 +343,3 @@ def main() -> None:
 
     finally:
         tuner.close()
-
-
-if __name__ == "__main__":
-    main()

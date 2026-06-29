@@ -1,20 +1,20 @@
 """Main script to run SAC-ZOP experiments."""
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, get_args
+from typing import Literal
 
 import torch
 
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import (
-    default_controller_code_path,
-    default_name,
-    default_output_path,
+    add_common_args,
+    default_ckpt_modus,
     init_run,
-    validate_torch_device_arg,
-    validate_torch_dtype_arg,
+    resolve_output_path,
+    resolve_reuse_code_dir,
+    setup_wandb,
 )
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac_zop import SacZopTrainer, SacZopTrainerConfig
@@ -134,91 +134,13 @@ if __name__ == "__main__":
     parser = ArgumentParser(
         description="Training of SAC-ZOP agents.", formatter_class=ArgumentDefaultsHelpFormatter
     )
-    group = parser.add_argument_group("Run settings")
-    group.add_argument(
-        "--output-path", type=Path, default=None, help="Path to outputs (e.g., logs)."
-    )
-    group.add_argument(
-        "--device", type=validate_torch_device_arg, default="cpu", help="Device to run on."
-    )
-    group.add_argument(
-        "--dtype",
-        type=validate_torch_dtype_arg,
-        default="float32",
-        help="Data type to use during training and evaluation.",
-    )
-    group.add_argument("--seed", type=int, default=0, help="RNG seed.")
-    group.add_argument(
-        "-r",
-        "--reuse-code",
-        action="store_true",
-        help="Reuse compiled code. The first time this is run, it will compile the code.",
-    )
-    group.add_argument(
-        "--reuse-code-dir", type=Path, default=None, help="Directory for compiled code."
-    )
-    group = parser.add_argument_group("Train and eval")
-    group.add_argument(
-        "--env",
-        type=str,
-        choices=get_args(ExampleEnvName),
-        default="cartpole",
-        help="Environment to train on.",
-    )
-    group.add_argument(
-        "--controller",
-        type=str,
-        choices=get_args(ExampleControllerName),
-        default=None,
-        help="MPC controller to use as actor. If not provided, it is taken from `--env`.",
-    )
-    group.add_argument("--with-val", action="store_true", help="Enables validation environment.")
-    group.add_argument(
-        "--ckpt-modus",
-        type=str,
-        default=None,
-        choices=["none", "last", "all", "best"],
-        help="Checkpoint mode. Defaults to 'best' with --with-val, 'last' otherwise.",
-    )
-    group = parser.add_argument_group("W&B logging")
-    group.add_argument("--use-wandb", action="store_true", help="Whether to use W&B logging.")
-    group.add_argument("--wandb-entity", type=str, default=None, help="W&B entity name.")
-    group.add_argument("--wandb-project", type=str, default="leap-c", help="W&B project name.")
-    group.add_argument("--wandb-group", type=str, default="SAC-ZOP", help="W&B group name.")
+    add_common_args(parser, has_controller=True, has_with_val=True, wandb_group_default="SAC-ZOP")
     args = parser.parse_args()
 
-    if args.ckpt_modus is not None:
-        ckpt_modus = args.ckpt_modus
-    elif args.with_val:
-        ckpt_modus = "best"
-    else:
-        ckpt_modus = "last"
-
-    cfg = create_cfg(args.env, args.controller, args.seed, ckpt_modus)
-
-    if args.use_wandb:
-        config_dict = asdict(cfg)
-        cfg.trainer.log.wandb_logger = True
-        cfg.trainer.log.wandb_init_kwargs = {
-            "entity": args.wandb_entity,
-            "project": args.wandb_project,
-            "group": args.wandb_group,
-            "name": default_name(args.seed, tags=["sac_zop", args.env, args.controller]),
-            "config": config_dict,
-        }
-
-    if args.output_path is None:
-        output_path = default_output_path(
-            seed=args.seed, tags=["sac_zop", args.env, args.controller]
-        )
-    else:
-        output_path = args.output_path
-
-    if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = default_controller_code_path()
-    elif args.reuse_code_dir is not None:
-        reuse_code_dir = args.reuse_code_dir
-    else:
-        reuse_code_dir = None
+    cfg = create_cfg(args.env, args.controller, args.seed, default_ckpt_modus(args))
+    tags = ["sac_zop", args.env, args.controller]
+    setup_wandb(args, cfg, tags)
+    output_path = resolve_output_path(args, tags)
+    reuse_code_dir = resolve_reuse_code_dir(args)
 
     run_sac_zop(cfg, output_path, args.device, args.dtype, reuse_code_dir, args.with_val)

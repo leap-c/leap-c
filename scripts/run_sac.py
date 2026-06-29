@@ -1,19 +1,19 @@
 """Main script to run SAC experiments."""
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Literal, get_args
+from typing import Literal
 
 import torch
 
 from leap_c.examples import ExampleEnvName, create_env
 from leap_c.run import (
-    default_name,
-    default_output_path,
+    add_common_args,
+    default_ckpt_modus,
     init_run,
-    validate_torch_device_arg,
-    validate_torch_dtype_arg,
+    resolve_output_path,
+    setup_wandb,
 )
 from leap_c.torch.nn.extractor import ExtractorName
 from leap_c.torch.rl.sac import SacTrainer, SacTrainerConfig
@@ -122,66 +122,12 @@ if __name__ == "__main__":
     parser = ArgumentParser(
         description="Training of SAC agents.", formatter_class=ArgumentDefaultsHelpFormatter
     )
-    group = parser.add_argument_group("Run settings")
-    group.add_argument(
-        "--output-path", type=Path, default=None, help="Path to outputs (e.g., logs)."
-    )
-    group.add_argument(
-        "--device", type=validate_torch_device_arg, default="cpu", help="Device to run on."
-    )
-    group.add_argument(
-        "--dtype",
-        type=validate_torch_dtype_arg,
-        default="float32",
-        help="Data type to use during training and evaluation.",
-    )
-    group.add_argument("--seed", type=int, default=0, help="RNG seed.")
-    group = parser.add_argument_group("Train and eval")
-    group.add_argument(
-        "--env",
-        type=str,
-        choices=get_args(ExampleEnvName),
-        default="cartpole",
-        help="Environment to train on.",
-    )
-    group.add_argument("--with-val", action="store_true", help="Enables validation environment.")
-    group.add_argument(
-        "--ckpt-modus",
-        type=str,
-        default=None,
-        choices=["none", "last", "all", "best"],
-        help="Checkpoint mode. Defaults to 'best' with --with-val, 'last' otherwise.",
-    )
-    group = parser.add_argument_group("W&B logging")
-    group.add_argument("--use-wandb", action="store_true", help="Whether to use W&B logging.")
-    group.add_argument("--wandb-entity", type=str, default=None, help="W&B entity name.")
-    group.add_argument("--wandb-project", type=str, default="leap-c", help="W&B project name.")
-    group.add_argument("--wandb-group", type=str, default="SAC", help="W&B group name.")
+    add_common_args(parser, has_controller=False, has_with_val=True, wandb_group_default="SAC")
     args = parser.parse_args()
 
-    if args.output_path is None:
-        output_path = default_output_path(seed=args.seed, tags=["sac", args.env])
-    else:
-        output_path = args.output_path
-
-    if args.ckpt_modus is not None:
-        ckpt_modus = args.ckpt_modus
-    elif args.with_val:
-        ckpt_modus = "best"
-    else:
-        ckpt_modus = "last"
-
-    cfg = create_cfg(args.env, args.seed, ckpt_modus)
-
-    if args.use_wandb:
-        config_dict = asdict(cfg)
-        cfg.trainer.log.wandb_logger = True
-        cfg.trainer.log.wandb_init_kwargs = {
-            "entity": args.wandb_entity,
-            "project": args.wandb_project,
-            "group": args.wandb_group,
-            "name": default_name(args.seed, tags=["sac", args.env]),
-            "config": config_dict,
-        }
+    cfg = create_cfg(args.env, args.seed, default_ckpt_modus(args))
+    tags = ["sac", args.env]
+    setup_wandb(args, cfg, tags)
+    output_path = resolve_output_path(args, tags)
 
     run_sac(cfg, output_path, args.device, args.dtype, args.with_val)
