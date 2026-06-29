@@ -12,27 +12,58 @@ from gymnasium import Env, spaces
 
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.torch.nn.extractor import ExtractorName, get_extractor_cls
+from leap_c.torch.nn.mlp import MlpConfig
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.rl.mpc_actor import (
     HierachicalMPCActor,
     HierachicalMPCActorConfig,
     StochasticMPCActorOutput,
 )
-from leap_c.torch.rl.sac import SacCritic, SacTrainerConfig
+from leap_c.torch.rl.sac import SacCritic
 from leap_c.torch.rl.utils import soft_target_update
 from leap_c.torch.utils.seed import mk_seed
-from leap_c.trainer import Trainer
+from leap_c.trainer import Trainer, TrainerConfig
 from leap_c.utils.gym import flatten_param_space, seed_env, wrap_env
 
 
 @dataclass(kw_only=True)
-class SacZopTrainerConfig(SacTrainerConfig):
+class SacZopTrainerConfig(TrainerConfig):
     """Specific settings for the Zop trainer.
 
     Attributes:
+        critic_mlp: The configuration for the Q-networks (critics).
+        batch_size: The batch size for training.
+        buffer_size: The size of the replay buffer.
+        gamma: The discount factor.
+        tau: The soft update factor for the target networks.
+        soft_update_freq: The frequency of soft updates (in steps).
+        lr_q: The learning rate for the Q-networks.
+        lr_pi: The learning rate for the policy network.
+        lr_alpha: The learning rate for the temperature parameter.
+            Can be set to None to avoid updating the temperature.
+        init_alpha: The initial temperature parameter.
+        target_entropy: The minimum target entropy for the policy.
+            If `None`, it is set automatically depending on dimensions of the action space.
+        entropy_reward_bonus: Whether to add an entropy bonus to the reward.
+        num_critics: The number of critic networks.
+        update_freq: The frequency of updating the networks (in steps).
         actor: Configuration for the HierachicalMPCActor.
     """
 
+    critic_mlp: MlpConfig = field(default_factory=MlpConfig)
+    batch_size: int = 64
+    buffer_size: int = 1000000
+    gamma: float = 0.99
+    tau: float = 0.005
+    soft_update_freq: int = 1
+    lr_q: float = 1e-4
+    lr_pi: float = 1e-4
+    lr_alpha: float | None = 1e-3
+    init_alpha: float = 0.01
+    target_entropy: float | None = None
+    entropy_reward_bonus: bool = True
+    num_critics: int = 2
+    update_freq: int = 4
     actor: HierachicalMPCActorConfig = field(
         default_factory=lambda: HierachicalMPCActorConfig(residual=False)
     )
