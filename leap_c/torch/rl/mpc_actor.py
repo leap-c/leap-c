@@ -246,7 +246,9 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
                 # NOTE: Computing the full Jacobian, but we only need the diagonal.
                 # Can be slow for large batches. Look into vectorized computations.
                 j = torch.autograd.functional.jacobian(
-                    lambda p: self.controller(obs, self._param_to_dict(p), ctx=ctx)[1],
+                    lambda p: self.controller(
+                        obs, torch_gym.unflatten(self.param_space, p), ctx=ctx
+                    )[1],
                     param,
                 )
                 # j: (B, A, B, D) — extract per-sample Jacobians (B, A, D)
