@@ -24,7 +24,7 @@ def test_run_closed_loop(n_iter: int = 200) -> None:
     env.state[:2] = start_pos
 
     # replace the default reference with the goal position
-    cfg = PointMassControllerConfig(param_splits="global", x_ref_value=goal_x_ref)
+    cfg = PointMassControllerConfig(x_ref_value=goal_x_ref)
     planner = PointMassPlanner(cfg=cfg)
     controller = ControllerFromPlanner(planner=planner)
 

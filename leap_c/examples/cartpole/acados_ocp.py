@@ -7,6 +7,7 @@ from acados_template import AcadosOcp
 
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.utils.parameters import ParamSplits
 
 CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 """The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS". Both model the same cost function, 
@@ -22,6 +23,7 @@ def export_parametric_ocp(
     x_threshold: float = 2.4,
     N_horizon: int = 50,
     T_horizon: float = 2.0,
+    param_splits: ParamSplits = "global",
 ) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Box, np.ndarray]:
     ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
@@ -37,7 +39,7 @@ def export_parametric_ocp(
         "xref1",
         default=np.array([0.0]),
         differentiable=True,
-        splits="global",
+        splits=param_splits,
     )
     default_param = manager.default_param_dict(["xref1"])["xref1"]
     param_space = gym.spaces.Box(

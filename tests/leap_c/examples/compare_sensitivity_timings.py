@@ -15,7 +15,9 @@ from timeit import default_timer
 
 import torch
 
-from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
+from leap_c.examples.cartpole.acados_ocp import export_parametric_ocp
+from leap_c.examples.cartpole.planner import CartPolePlannerConfig
+from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 WARMUP = 2
 REPEATS = 50
@@ -72,9 +74,18 @@ def max_diff(a: torch.Tensor, b: torch.Tensor) -> float:
 
 
 def main() -> None:
-    cfg = CartPolePlannerConfig(param_interface="stagewise", dtype=torch.float64)
-    planner = CartPolePlanner(cfg)
-    diff_mpc = planner.diff_mpc
+    cfg = CartPolePlannerConfig(dtype=torch.float64)
+    # Stage-wise xref1 is selected at the OCP-export level (no longer a config knob).
+    ocp, param_manager, _, _ = export_parametric_ocp(
+        cost_type=cfg.cost_type,
+        name="cartpole_stagewise",
+        N_horizon=cfg.N_horizon,
+        T_horizon=cfg.T_horizon,
+        Fmax=cfg.Fmax,
+        x_threshold=cfg.x_threshold,
+        param_splits="stagewise",
+    )
+    diff_mpc = AcadosDiffMpcTorch(ocp=ocp, parameter_manager=param_manager, dtype=cfg.dtype)
 
     x0 = torch.tensor([[0.0, 0.2, 0.0, 0.0]], dtype=torch.float64)
     xref1 = 0.1 * torch.ones((1, cfg.N_horizon + 1, 1), dtype=torch.float64)

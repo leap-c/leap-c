@@ -7,6 +7,7 @@ import pytest
 import torch
 from acados_template import AcadosOcp, AcadosOcpOptions
 
+from leap_c.examples.cartpole.acados_ocp import export_parametric_ocp
 from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
 from leap_c.ocp.acados.parameters import (
     AcadosParameter,
@@ -521,17 +522,30 @@ def diff_mpc_indefinite_hess_stagewise(
     request: pytest.FixtureRequest,
 ) -> AcadosDiffMpcTorch:
     if request.param == "external":
-        cfg = CartPolePlannerConfig(
-            cost_type="EXTERNAL", param_splits="stagewise", dtype=torch.float64
-        )
-        return CartPolePlanner(cfg=cfg).diff_mpc
+        cost_type = "EXTERNAL"
     elif request.param == "nonlinear_ls":
-        cfg = CartPolePlannerConfig(
-            cost_type="NONLINEAR_LS", param_splits="stagewise", dtype=torch.float64
-        )
-        return CartPolePlanner(cfg=cfg).diff_mpc
+        cost_type = "NONLINEAR_LS"
     else:
         raise ValueError("Unknown request parameter.")
+
+    # Build the cartpole OCP with a stage-wise param
+    cfg = CartPolePlannerConfig(cost_type=cost_type, dtype=torch.float64)
+    ocp, param_manager, _, _ = export_parametric_ocp(
+        cost_type=cfg.cost_type,
+        name="cartpole_stagewise",
+        N_horizon=cfg.N_horizon,
+        T_horizon=cfg.T_horizon,
+        Fmax=cfg.Fmax,
+        x_threshold=cfg.x_threshold,
+        param_splits="stagewise",
+    )
+    return AcadosDiffMpcTorch(
+        ocp=ocp,
+        parameter_manager=param_manager,
+        initializer=None,
+        discount_factor=None,
+        dtype=cfg.dtype,
+    )
 
 
 @pytest.fixture(scope="session")
