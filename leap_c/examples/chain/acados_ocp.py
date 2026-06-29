@@ -12,11 +12,10 @@ from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.utils.parameters import ParamSplits, stagewise_broadcast
+from leap_c.utils.parameters import stagewise_broadcast
 
 
 def export_parametric_ocp(
-    param_splits: ParamSplits,
     x_ref: np.ndarray,
     fix_point: np.ndarray,
     name: str = "chain",
@@ -35,7 +34,7 @@ def export_parametric_ocp(
     q_diag_sqrt_val = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
     r_diag_sqrt_val = 1e-1 * np.ones(3)
 
-    splits = "stagewise" if param_splits == "stagewise" else "global"
+    splits = "global"
     spaces = OrderedDict()
 
     q_diag_sqrt = manager.register_parameter(

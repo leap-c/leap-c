@@ -29,7 +29,7 @@ def export_parametric_ocp(
     manager = AcadosParameterManager(N_horizon=N_horizon)
     spaces: OrderedDict[str, gym.spaces.Box] = OrderedDict()
 
-    def register_learnable(
+    def register_differentiable(
         name: str, default: np.ndarray, low: np.ndarray, high: np.ndarray
     ) -> ca.SX | ca.MX:
         symbol = manager.register_parameter(
@@ -41,37 +41,37 @@ def export_parametric_ocp(
         return symbol
 
     # Register parameters (all global)
-    q_diag_sqrt = register_learnable(
+    q_diag_sqrt = register_differentiable(
         name="q_diag_sqrt",
         default=np.sqrt(np.array([5.0, 0.2])),
         low=np.sqrt(np.array([0.1, 0.01])),
         high=np.sqrt(np.array([10.0, 1.0])),
     )
-    r_diag_sqrt = register_learnable(
+    r_diag_sqrt = register_differentiable(
         name="r_diag_sqrt",
         default=np.sqrt(np.array([0.08])),
         low=np.sqrt(np.array([0.001])),
         high=np.sqrt(np.array([0.1])),
     )
-    p_diag_sqrt = register_learnable(
+    p_diag_sqrt = register_differentiable(
         name="p_diag_sqrt",
         default=np.sqrt(np.array([5.0, 0.5])),
         low=np.sqrt(np.array([1.0, 0.1])),
         high=np.sqrt(np.array([10.0, 1.0])),
     )
-    mass = register_learnable(
+    mass = register_differentiable(
         name="mass",
         default=np.array([1.5]),
         low=np.array([0.1]),
         high=np.array([10.0]),
     )
-    damping = register_learnable(
+    damping = register_differentiable(
         name="damping",
         default=np.array([0.7]),
         low=np.array([0.0]),
         high=np.array([2.0]),
     )
-    stiffness = register_learnable(
+    stiffness = register_differentiable(
         name="stiffness",
         default=np.array([2.0]),
         low=np.array([0.0]),
