@@ -18,6 +18,9 @@
 # For HuggingFace Spaces, the default (last) target is used automatically.
 # ==============================================================
 
+ARG CUDA_IMAGE=nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
+ARG TORCH_CUDA_INDEX=https://download.pytorch.org/whl/cu128
+
 
 # ----------------------------------------------------------
 # Stage: base
@@ -166,8 +169,6 @@ CMD ["marimo", "edit", "--host", "0.0.0.0", "-p", "7860", "--no-token"]
 # GPU image with CUDA and PyTorch GPU.
 # Local/manual only — not built by CI by default.
 # ----------------------------------------------------------
-ARG CUDA_IMAGE=nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
-ARG TORCH_CUDA_INDEX=https://download.pytorch.org/whl/cu128
 FROM ${CUDA_IMAGE} AS gpu
 
 ENV DEBIAN_FRONTEND=noninteractive
