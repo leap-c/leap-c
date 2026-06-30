@@ -1,14 +1,17 @@
 """Module for running experiments."""
 
 import datetime
-from argparse import ArgumentTypeError
+from argparse import ArgumentParser, ArgumentTypeError, Namespace
 from collections.abc import Iterable
+from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, get_args
 
 import torch
+from yaml import safe_dump
 
 import leap_c
+from leap_c.examples import ExampleControllerName, ExampleEnvName
 from leap_c.trainer import CtxType, Trainer, TrainerConfigType
 from leap_c.utils.cfg import cfg_as_python
 from leap_c.utils.git import log_git_hash_and_diff
@@ -50,6 +53,161 @@ def default_controller_code_path() -> Path:
     return OUTPUT_DIR / "controller_code"
 
 
+def add_common_args(
+    parser: ArgumentParser,
+    *,
+    has_controller: bool,
+    has_with_val: bool,
+    wandb_group_default: str,
+) -> dict[str, Any]:
+    """Add common command-line arguments shared across run scripts.
+
+    Args:
+        parser: The argument parser to add arguments to.
+        has_controller: Whether to add controller-related args (--controller, --reuse-code*).
+        has_with_val: Whether to add validation-related args (--with-val, --ckpt-modus).
+        wandb_group_default: Default value for --wandb-group.
+
+    Returns:
+        A dict mapping group names ("run", "eval", "wandb") to the argument groups,
+        so the caller can add script-specific args to the same groups.
+    """
+    run_group = parser.add_argument_group("Run settings")
+    run_group.add_argument(
+        "--output-path", type=Path, default=None, help="Path to outputs (e.g., logs)."
+    )
+    run_group.add_argument(
+        "--device", type=validate_torch_device_arg, default="cpu", help="Device to run on."
+    )
+    run_group.add_argument(
+        "--dtype",
+        type=validate_torch_dtype_arg,
+        default="float32",
+        help="Data type to use during training and evaluation.",
+    )
+    run_group.add_argument("--seed", type=int, default=0, help="RNG seed.")
+
+    if has_controller:
+        run_group.add_argument(
+            "-r",
+            "--reuse-code",
+            action="store_true",
+            help="Reuse compiled code. The first time this is run, it will compile the code.",
+        )
+        run_group.add_argument(
+            "--reuse-code-dir", type=Path, default=None, help="Directory for compiled code."
+        )
+
+    eval_group = parser.add_argument_group("Train and eval")
+    eval_group.add_argument(
+        "--env",
+        type=str,
+        choices=get_args(ExampleEnvName),
+        default="cartpole",
+        help="Environment to train on.",
+    )
+
+    if has_controller:
+        eval_group.add_argument(
+            "--controller",
+            type=str,
+            choices=get_args(ExampleControllerName),
+            default=None,
+            help="MPC controller to use as actor. If not provided, it is taken from `--env`.",
+        )
+
+    if has_with_val:
+        eval_group.add_argument(
+            "--with-val", action="store_true", help="Enables validation environment."
+        )
+        eval_group.add_argument(
+            "--ckpt-modus",
+            type=str,
+            default=None,
+            choices=["none", "last", "all", "best"],
+            help="Checkpoint mode. Defaults to 'best' with --with-val, 'last' otherwise.",
+        )
+
+    wandb_group = parser.add_argument_group("W&B logging")
+    wandb_group.add_argument("--use-wandb", action="store_true", help="Whether to use W&B logging.")
+    wandb_group.add_argument("--wandb-entity", type=str, default=None, help="W&B entity name.")
+    wandb_group.add_argument(
+        "--wandb-project", type=str, default="leap-c", help="W&B project name."
+    )
+    wandb_group.add_argument(
+        "--wandb-group", type=str, default=wandb_group_default, help="W&B group name."
+    )
+
+    return {"run": run_group, "eval": eval_group, "wandb": wandb_group}
+
+
+def default_ckpt_modus(args: Namespace) -> Literal["best", "last", "all", "none"]:
+    """Return the checkpoint mode, defaulting based on --with-val.
+
+    Args:
+        args: Parsed argparse namespace with `ckpt_modus` and `with_val` attributes.
+
+    Returns:
+        The resolved checkpoint mode.
+    """
+    if args.ckpt_modus is not None:
+        return args.ckpt_modus
+    if args.with_val:
+        return "best"
+    return "last"
+
+
+def resolve_output_path(args: Namespace, tags: Iterable[Any] | None = None) -> Path:
+    """Resolve the output path, using a default if not provided.
+
+    Args:
+        args: Parsed argparse namespace with `output_path` and `seed` attributes.
+        tags: Tags for the default output path name.
+
+    Returns:
+        The resolved output path.
+    """
+    if args.output_path is None:
+        return default_output_path(seed=args.seed, tags=tags)
+    return args.output_path
+
+
+def resolve_reuse_code_dir(args: Namespace) -> Path | None:
+    """Resolve the reuse code directory from parsed args.
+
+    Args:
+        args: Parsed argparse namespace with `reuse_code` and `reuse_code_dir` attributes.
+
+    Returns:
+        The resolved reuse code directory, or None if not reusing code.
+    """
+    if args.reuse_code and args.reuse_code_dir is None:
+        return default_controller_code_path()
+    if args.reuse_code_dir is not None:
+        return args.reuse_code_dir
+    return None
+
+
+def setup_wandb(args: Namespace, cfg, tags: Iterable[Any] | None = None) -> None:
+    """Set up W&B logging on the config if --use-wandb is set.
+
+    Args:
+        args: Parsed argparse namespace with wandb-related attributes.
+        cfg: The run config dataclass with a `trainer.log` nested config.
+        tags: Tags for the default run name.
+    """
+    if not args.use_wandb:
+        return
+    cfg.trainer.log.wandb_logger = True
+    cfg.trainer.log.wandb_init_kwargs = {
+        "entity": args.wandb_entity,
+        "project": args.wandb_project,
+        "group": args.wandb_group,
+        "name": default_name(args.seed, tags=tags),
+        "config": asdict(cfg),
+    }
+
+
 def init_run(trainer: Trainer[TrainerConfigType, CtxType], cfg, output_path: str | Path) -> None:
     """Init function to run experiments.
 
@@ -73,6 +231,10 @@ def init_run(trainer: Trainer[TrainerConfigType, CtxType], cfg, output_path: str
     print("\nConfiguration:")
     print(cfg_as_python(cfg))
     print("\n")
+
+    # persist the run config as yaml for potential future loading
+    with open(output_path / "run_config.yaml", "w") as f:
+        safe_dump(asdict(cfg), f)
 
     if continue_run and (output_path / "ckpts").exists():
         trainer.load(output_path)

@@ -46,7 +46,6 @@ class CrossQZopConfig(TrainerConfig):
         entropy_reward_bonus: Add entropy bonus to reward.
         num_critics: Number of critics.
         update_freq: Update frequency.
-        distribution_name: Bounded distribution type.
     """
 
     actor: HierachicalMPCActorConfig = field(
@@ -66,7 +65,6 @@ class CrossQZopConfig(TrainerConfig):
     entropy_reward_bonus: bool = True
     num_critics: int = 2
     update_freq: int = 4
-    distribution_name: str = "squashed_gaussian"
 
 
 class CrossQZop(Trainer[CrossQZopConfig, CtxType], Generic[CtxType]):

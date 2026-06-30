@@ -8,9 +8,9 @@ a good estimate of performance.
 """
 
 from argparse import ArgumentDefaultsHelpFormatter, ArgumentParser
-from dataclasses import asdict, dataclass, field
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Generator, Literal, get_args
+from typing import Any, Generator, Literal
 
 import gymnasium as gym
 import numpy as np
@@ -20,12 +20,11 @@ from numpy import ndarray
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.examples import ExampleControllerName, ExampleEnvName, create_controller, create_env
 from leap_c.run import (
-    default_controller_code_path,
-    default_name,
-    default_output_path,
+    add_common_args,
     init_run,
-    validate_torch_device_arg,
-    validate_torch_dtype_arg,
+    resolve_output_path,
+    resolve_reuse_code_dir,
+    setup_wandb,
 )
 from leap_c.torch.rl.buffer import ReplayBuffer
 from leap_c.torch.utils import gym as torch_gym
@@ -312,70 +311,28 @@ if __name__ == "__main__":
         description="Training of baseline controllers.",
         formatter_class=ArgumentDefaultsHelpFormatter,
     )
-    group = parser.add_argument_group("Run settings")
-    group.add_argument(
-        "--output-path", type=Path, default=None, help="Path to outputs (e.g., logs)."
+    groups = add_common_args(
+        parser, has_controller=True, has_with_val=False, wandb_group_default="baseline"
     )
-    group.add_argument(
-        "--device", type=validate_torch_device_arg, default="cpu", help="Device to run on."
-    )
-    group.add_argument(
-        "--dtype",
-        type=validate_torch_dtype_arg,
-        default="float32",
-        help="Data type to use during training and evaluation.",
-    )
-    group.add_argument("--seed", type=int, default=0, help="RNG seed.")
-    group.add_argument(
-        "-r",
-        "--reuse-code",
-        action="store_true",
-        help="Reuse compiled code. The first time this is run, it will compile the code.",
-    )
-    group.add_argument(
-        "--reuse-code-dir", type=Path, default=None, help="Directory for compiled code."
-    )
-    group = parser.add_argument_group("Train and eval")
-    group.add_argument(
-        "--env",
-        type=str,
-        choices=get_args(ExampleEnvName),
-        default="cartpole",
-        help="Environment to train on.",
-    )
-    group.add_argument(
-        "--controller",
-        type=str,
-        choices=get_args(ExampleControllerName),
-        default=None,
-        help="MPC controller to use as actor. If not provided, it is taken from `--env`.",
-    )
-    group.add_argument(
+    groups["eval"].add_argument(
         "--policy-type",
         type=str,
         default="controller",
         choices=["controller", "random"],
         help="The type of policy to run. If `random`, the controller will not be used.",
     )
-    group.add_argument(
+    groups["eval"].add_argument(
         "--only-train",
         action="store_true",
         help="Run training episodes over time (for comparison with RL methods). "
         "Without this flag, validation episodes are run instead.",
     )
-    group.add_argument(
+    groups["eval"].add_argument(
         "--param-ckpt",
         type=Path,
         default=None,
         help="Controller parameters to load from a SMAC run.",
     )
-
-    group = parser.add_argument_group("W&B logging")
-    group.add_argument("--use-wandb", action="store_true", help="Whether to use W&B logging.")
-    group.add_argument("--wandb-entity", type=str, default=None, help="W&B entity name.")
-    group.add_argument("--wandb-project", type=str, default="leap-c", help="W&B project name.")
-    group.add_argument("--wandb-group", type=str, default="baseline", help="W&B group name.")
-
     args = parser.parse_args()
 
     cfg = create_cfg(
@@ -386,32 +343,9 @@ if __name__ == "__main__":
         policy_type=args.policy_type,
         param_ckpt=args.param_ckpt,
     )
-
-    if args.use_wandb:
-        config_dict = asdict(cfg)
-        cfg.trainer.log.wandb_logger = True
-        cfg.trainer.log.wandb_init_kwargs = {
-            "entity": args.wandb_entity,
-            "project": args.wandb_project,
-            "name": default_name(
-                args.seed, tags=["baseline", args.policy_type, args.env, str(args.controller)]
-            ),
-            "config": config_dict,
-        }
-
-    if args.output_path is None:
-        output_path = default_output_path(
-            seed=args.seed,
-            tags=["baseline", args.policy_type, args.env, str(args.controller)],
-        )
-    else:
-        output_path = args.output_path
-
-    if args.reuse_code and args.reuse_code_dir is None:
-        reuse_code_dir = default_controller_code_path()
-    elif args.reuse_code_dir is not None:
-        reuse_code_dir = args.reuse_code_dir
-    else:
-        reuse_code_dir = None
+    tags = ["baseline", args.policy_type, args.env, str(args.controller)]
+    setup_wandb(args, cfg, tags)
+    output_path = resolve_output_path(args, tags)
+    reuse_code_dir = resolve_reuse_code_dir(args)
 
     run_baseline(cfg, output_path, args.device, args.dtype, reuse_code_dir, args.only_train)
