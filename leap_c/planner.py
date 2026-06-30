@@ -1,17 +1,13 @@
 """Module defining the abstract interface for differentiable, parameterized planners in PyTorch."""
 
 from abc import ABCMeta, abstractmethod
-from typing import Any, Callable, Generic, Literal
+from typing import Any, Callable, Generic
 
 import gymnasium as gym
 from numpy import ndarray
 from torch import Tensor, nn
 
 from leap_c.controller import CtxType, ParameterizedController
-
-SensitivityOptions = Literal[
-    "du0_dp", "dx_dp", "du_dp", "dvalue_dp", "dvalue_daction", "du0_dx0", "dvalue_dx0"
-]
 
 
 class ParameterizedPlanner(nn.Module, Generic[CtxType], metaclass=ABCMeta):
@@ -58,14 +54,13 @@ class ParameterizedPlanner(nn.Module, Generic[CtxType], metaclass=ABCMeta):
         ...
 
     @property
-    @abstractmethod
     def param_space(self) -> gym.Space:
         """Describes the parameter space of the planner.
 
         Returns:
             Gymnasium.Space: An object describing the valid space of parameters.
         """
-        ...
+        return self._param_space
 
     @abstractmethod
     def default_param(self, obs: ndarray | None) -> Any:

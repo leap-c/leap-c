@@ -7,7 +7,7 @@ from acados_template import AcadosOcp
 
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.utils.parameters import ParamSplits
+from leap_c.utils.parameters import ParamSplits, n_segments
 
 CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 """The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS". Both model the same cost function, 
@@ -33,15 +33,28 @@ def export_parametric_ocp(
 
     manager = AcadosParameterManager(N_horizon=N_horizon)
 
-    # Non-learnable reference parameters
+    # Learnable reference parameter xref1.
+    # `param_splits` controls how xref1 varies across the MPC horizon:
+    #   - "global" (default): one value shared across all stages -> shape (1,).
+    #   - "stagewise":        one independent value per stage     -> shape (N+1, 1).
+    #   - list[int], e.g. [2, N]: explicit stage boundaries         -> shape (len(splits), 1).
+    #
+    # For "global" the default / bounds are passed directly. For other splits,
+    # broadcast the per-segment default to the per-stage shape, e.g.
+    # n_segments("stagewise", 5) -> 6 -> np.broadcast_to(default, (6, 1)).
     xref0 = manager.register_parameter("xref0", default=np.array([0.0]))
+    default_xref1 = np.array([0.0])
     xref1 = manager.register_parameter(
         "xref1",
-        default=np.array([0.0]),
+        default=default_xref1,
         differentiable=True,
         splits=param_splits,
     )
-    default_param = manager.default_param_dict(["xref1"])["xref1"]
+    n = n_segments(param_splits, N_horizon)
+    if n == 1:
+        default_param = default_xref1
+    else:
+        default_param = np.broadcast_to(default_xref1, (n, *default_xref1.shape))
     param_space = gym.spaces.Box(
         low=-2.0 * np.pi,
         high=2.0 * np.pi,

@@ -11,9 +11,9 @@ from leap_c.ocp.acados.parameters import (
     AcadosParameter,
     AcadosParameterManager,
     _define_starts_and_ends,
-    stagewise_broadcast,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+from leap_c.utils.parameters import n_segments
 
 
 def test_acados_param_manager_basic_initialization():
@@ -404,30 +404,12 @@ def test_mixed_parameter_types_and_interfaces():
         assert key in non_learnable_keys
 
 
-def test_default_param_dict_returns_all_keys_and_expands_stagewise_defaults():
-    manager = AcadosParameterManager(N_horizon=5)
-    manager.register_parameter("global", default=np.array([1.0, 2.0]), differentiable=True)
-    manager.register_parameter(
-        "stagewise", default=np.array([3.0]), differentiable=True, splits="stagewise"
-    )
-    manager.register_parameter("nonlearnable", default=np.array([4.0]), differentiable=False)
-
-    defaults = manager.default_param_dict(["global", "stagewise", "nonlearnable"])
-
-    assert set(defaults) == {"global", "stagewise", "nonlearnable"}
-    np.testing.assert_array_equal(defaults["global"], np.array([1.0, 2.0]))
-    assert defaults["stagewise"].shape == (6, 1)
-    np.testing.assert_array_equal(defaults["stagewise"], np.full((6, 1), 3.0))
-    np.testing.assert_array_equal(defaults["nonlearnable"], np.array([4.0]))
-
-
-def test_stagewise_broadcast_expands_single_stage_values():
-    value = np.array([1.0, 2.0])
-
-    np.testing.assert_array_equal(stagewise_broadcast(value, "global", 5), value)
-    expanded = stagewise_broadcast(value, "stagewise", 5)
-    assert expanded.shape == (6, 2)
-    np.testing.assert_array_equal(expanded, np.broadcast_to(value, (6, 2)))
+def test_n_segments_returns_expected_counts():
+    assert n_segments("global", 5) == 1
+    assert n_segments("stagewise", 5) == 6
+    assert n_segments(3, 5) == 3
+    assert n_segments([2, 5], 5) == 2
+    assert n_segments([0, 4, 9], 9) == 3
 
 
 def test_variable_splits_parameter_layout():

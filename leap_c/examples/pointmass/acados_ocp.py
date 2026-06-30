@@ -6,7 +6,6 @@ import numpy as np
 from acados_template import AcadosOcp
 
 from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.utils.parameters import stagewise_broadcast
 
 
 def export_parametric_ocp(
@@ -33,6 +32,7 @@ def export_parametric_ocp(
 
     splits = "global"
     spaces: OrderedDict[str, gym.spaces.Box] = OrderedDict()
+    defaults: dict[str, np.ndarray] = {}
 
     def register_learnable(
         name: str, default: np.ndarray, low: np.ndarray, high: np.ndarray
@@ -44,10 +44,11 @@ def export_parametric_ocp(
             splits=splits,
         )
         spaces[name] = gym.spaces.Box(
-            low=stagewise_broadcast(low, splits, N_horizon),
-            high=stagewise_broadcast(high, splits, N_horizon),
+            low=low,
+            high=high,
             dtype=np.float64,
         )
+        defaults[name] = default
         return symbol
 
     q_diag_sqrt = register_learnable(
@@ -143,6 +144,6 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver_ric_alg = 1
 
     param_space = gym.spaces.Dict(spaces)
-    default_param = manager.default_param_dict(param_space.keys())
+    default_param = defaults
 
     return ocp, manager, param_space, default_param

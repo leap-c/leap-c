@@ -9,9 +9,9 @@ from leap_c.examples.cartpole.acados_ocp import (
     export_parametric_ocp,
 )
 from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
-from leap_c.ocp.acados.planner import acados_sensitivity
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
-from leap_c.planner import ParameterizedPlanner, SensitivityOptions
+from leap_c.planner import ParameterizedPlanner
+from leap_c.utils.parameters import broadcast_default_param
 
 
 @dataclass(kw_only=True)
@@ -121,18 +121,5 @@ class CartPolePlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
             params = {"xref1": params}
         return self.diff_mpc(x0=obs, u0=action, params=params, ctx=ctx)
 
-    def sensitivity(self, ctx: AcadosDiffMpcCtx, name: SensitivityOptions) -> np.ndarray:
-        return acados_sensitivity(self.diff_mpc, ctx, name)
-
-    @property
-    def param_space(self):
-        return self._param_space
-
     def default_param(self, obs: np.ndarray | torch.Tensor | None = None) -> np.ndarray:
-        # Broadcast the per-stage default to the batch shape implied by obs,
-        # e.g. obs (B, obs_dim) -> default (B, *param_shape).  Without obs the
-        # unbatched default is returned.
-        default = np.asarray(self._default_param)
-        if obs is not None and obs.ndim > 1:
-            default = np.broadcast_to(default, (*obs.shape[:-1], *default.shape))
-        return default
+        return broadcast_default_param(self._default_param, obs)

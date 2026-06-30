@@ -12,7 +12,6 @@ from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
 from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.utils.parameters import stagewise_broadcast
 
 
 def export_parametric_ocp(
@@ -44,8 +43,8 @@ def export_parametric_ocp(
         splits=splits,
     )
     spaces["q_diag_sqrt"] = gym.spaces.Box(
-        low=stagewise_broadcast(0.5 * q_diag_sqrt_val, splits, N_horizon),
-        high=stagewise_broadcast(1.5 * q_diag_sqrt_val, splits, N_horizon),
+        low=0.5 * q_diag_sqrt_val,
+        high=1.5 * q_diag_sqrt_val,
         dtype=np.float64,
     )
 
@@ -56,8 +55,8 @@ def export_parametric_ocp(
         splits=splits,
     )
     spaces["r_diag_sqrt"] = gym.spaces.Box(
-        low=stagewise_broadcast(0.5 * r_diag_sqrt_val, splits, N_horizon),
-        high=stagewise_broadcast(1.5 * r_diag_sqrt_val, splits, N_horizon),
+        low=0.5 * r_diag_sqrt_val,
+        high=1.5 * r_diag_sqrt_val,
         dtype=np.float64,
     )
 
@@ -133,7 +132,8 @@ def export_parametric_ocp(
         ocp.model.x = ocp.model.x.cat
 
     param_space = gym.spaces.Dict(spaces)
-    return ocp, manager, param_space, manager.default_param_dict(param_space.keys())
+    default_param = {"q_diag_sqrt": q_diag_sqrt_val, "r_diag_sqrt": r_diag_sqrt_val}
+    return ocp, manager, param_space, default_param
 
 
 class ChainInitializer(AcadosDiffMpcInitializer):

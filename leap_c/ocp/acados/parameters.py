@@ -1,4 +1,3 @@
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal
 from warnings import warn
@@ -9,7 +8,7 @@ import numpy as np
 from acados_template import AcadosOcp
 
 from leap_c.utils.dependencies import require_jax, require_torch
-from leap_c.utils.parameters import ParamSplits, stagewise_broadcast
+from leap_c.utils.parameters import ParamSplits
 
 if TYPE_CHECKING:
     import torch
@@ -634,27 +633,6 @@ class AcadosParameterManager:
         idx = [self._learnable_parameter_store.indices[key] for key in keys]
         idx = [slice(s, e) for s, e in idx]
         return param_values[..., np.r_[*idx]].reshape(-1, len(keys))
-
-    def default_param_dict(self, keys: Iterable[str]) -> dict[str, np.ndarray]:
-        """Return parameter defaults for the given ``keys``.
-
-        Stage-varying learnable defaults are explicitly expanded to
-        ``(N + 1, *default.shape)`` because planner-facing structured parameter
-        spaces carry the stage dimension directly.  Non-learnable defaults are
-        returned as-is (they have no splits).
-        """
-        defaults = {}
-        for key in keys:
-            if key not in self.parameters:
-                raise ValueError(
-                    f"Parameter '{key}' not found. Available parameters: {list(self.parameters)}"
-                )
-            param = self.parameters[key]
-            default = np.asarray(param.default)
-            if param.interface == "learnable" and param.is_stage_varying:
-                default = stagewise_broadcast(default, param.splits, self.N_horizon)
-            defaults[key] = default
-        return defaults
 
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Synchronize the parameter manager's symbols and defaults onto the OCP.

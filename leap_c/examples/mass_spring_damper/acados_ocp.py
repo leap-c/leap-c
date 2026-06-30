@@ -28,6 +28,7 @@ def export_parametric_ocp(
     ocp.solver_options.N_horizon = N_horizon
     manager = AcadosParameterManager(N_horizon=N_horizon)
     spaces: OrderedDict[str, gym.spaces.Box] = OrderedDict()
+    defaults: dict[str, np.ndarray] = {}
 
     def register_differentiable(
         name: str, default: np.ndarray, low: np.ndarray, high: np.ndarray
@@ -38,6 +39,7 @@ def export_parametric_ocp(
             differentiable=True,
         )
         spaces[name] = gym.spaces.Box(low=low, high=high, dtype=np.float64)
+        defaults[name] = default
         return symbol
 
     # Register parameters (all global)
@@ -148,7 +150,7 @@ def export_parametric_ocp(
 
     param_space = gym.spaces.Dict(spaces)
 
-    return ocp, manager, param_space, manager.default_param_dict(param_space.keys())
+    return ocp, manager, param_space, defaults
 
 
 if __name__ == "__main__":
