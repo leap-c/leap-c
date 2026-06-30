@@ -168,7 +168,6 @@ The following are set in all final images:
 
 The `.github/workflows/docker.yml` workflow builds and pushes images to `ghcr.io/leap-c/leap-c` on:
 - Tag releases (`v*`) — builds `notebook` and `cpu`
-- Nightly at 02:00 UTC — builds `notebook` only
 - Manual dispatch — choose `notebook`, `cpu`, `gpu`, or `all`
 
 The `runtime` stage is built first to warm the cache. Then `cpu` and `notebook` reuse the cached layers, making them fast to build. Registry cache (`type=registry`) is used for persistence across runs.

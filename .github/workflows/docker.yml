@@ -3,9 +3,6 @@ name: Docker
 on:
   push:
     tags: ["v*"]
-  schedule:
-    # Nightly build at 02:00 UTC — catches upstream acados/PyTorch changes
-    - cron: "0 2 * * *"
   workflow_dispatch:
     inputs:
       target:
