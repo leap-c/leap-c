@@ -170,7 +170,9 @@ The `.github/workflows/docker.yml` workflow builds and pushes images to `ghcr.io
 - Tag releases (`v*`) — builds `notebook` and `cpu`
 - Manual dispatch — choose `notebook`, `cpu`, or `all`
 
-The `runtime` stage is built first to warm the cache. Then `cpu` and `notebook` reuse the cached layers, making them fast to build. Registry cache (`type=registry`) is used for persistence across runs.
+The workflow builds `linux/amd64` and `linux/arm64` images in parallel on native GitHub runners, then creates a multi-arch manifest tag (for example `:notebook`). Docker automatically pulls the correct architecture for each user.
+
+Each target/architecture pair uses its own registry cache (for example `buildcache-notebook-amd64`), so rebuilds can reuse expensive layers such as acados, PyTorch, and Python dependencies.
 
 Notebook files are copied after the Python package installation layer. This means changes under `notebooks/` do not force acados, PyTorch, or leap-c dependencies to reinstall during Docker rebuilds.
 

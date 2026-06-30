@@ -15,13 +15,36 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
-  # ── Build the shared runtime stage and push as a cache image ─────────────
-  runtime:
-    name: Runtime (cache warm)
-    runs-on: ubuntu-latest
+  build:
+    name: Build ${{ matrix.target }} (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
+    if: >-
+      github.event_name == 'push' ||
+      github.event.inputs.target == matrix.target ||
+      github.event.inputs.target == 'all'
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: notebook
+            arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - target: notebook
+            arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
+          - target: cpu
+            arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - target: cpu
+            arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -43,32 +66,34 @@ jobs:
         shell: bash
         run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
-      - name: Build runtime (cache warm)
+      - name: Build and push arch image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          target: runtime
-          platforms: linux/amd64,linux/arm64
-          push: false
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache,mode=max
+          target: ${{ matrix.target }}
+          platforms: ${{ matrix.platform }}
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:${{ matrix.target }}-${{ matrix.arch }}
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-${{ matrix.target }}-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-${{ matrix.target }}-${{ matrix.arch }},mode=max
 
-  # ── Build and push notebook (default) ───────────────────────────────────
-  notebook:
-    name: Notebook
-    needs: runtime
+  manifest:
+    name: Create manifests
+    needs: build
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event.inputs.target == 'notebook' || github.event.inputs.target == 'all'
     permissions:
       contents: read
       packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [notebook, cpu]
+    if: >-
+      github.event_name == 'push' ||
+      github.event.inputs.target == matrix.target ||
+      github.event.inputs.target == 'all'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -84,84 +109,26 @@ jobs:
         shell: bash
         run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
 
-      - name: Generate tags
-        id: tags
+      - name: Create multi-arch manifest
         shell: bash
         run: |
           IMAGE="${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}"
-          TAGS="${IMAGE}:notebook,${IMAGE}:latest"
+          TARGET="${{ matrix.target }}"
+          TAGS="-t ${IMAGE}:${TARGET}"
+
+          if [ "$TARGET" = "notebook" ]; then
+            TAGS="${TAGS} -t ${IMAGE}:latest"
+          fi
 
           if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
             VERSION="${GITHUB_REF#refs/tags/v}"
-            TAGS="${TAGS},${IMAGE}:v${VERSION},${IMAGE}:v${VERSION}-notebook"
+            TAGS="${TAGS} -t ${IMAGE}:v${VERSION}-${TARGET}"
+            if [ "$TARGET" = "notebook" ]; then
+              TAGS="${TAGS} -t ${IMAGE}:v${VERSION}"
+            fi
           fi
 
-          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push notebook
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: notebook
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache,mode=max
-
-  # ── Build and push cpu (optional, on release or manual) ──────────────────
-  cpu:
-    name: CPU
-    needs: runtime
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event.inputs.target == 'cpu' || github.event.inputs.target == 'all'
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Log in to Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Repository name (lowercase)
-        id: repo
-        shell: bash
-        run: echo "name=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_OUTPUT"
-
-      - name: Generate tags
-        id: tags
-        shell: bash
-        run: |
-          IMAGE="${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}"
-          TAGS="${IMAGE}:cpu"
-
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            VERSION="${GITHUB_REF#refs/tags/v}"
-            TAGS="${TAGS},${IMAGE}:v${VERSION}-cpu"
-          fi
-
-          echo "tags=${TAGS}" >> "$GITHUB_OUTPUT"
-
-      - name: Build and push cpu
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          target: cpu
-          platforms: linux/amd64,linux/arm64
-          push: true
-          tags: ${{ steps.tags.outputs.tags }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache,mode=max
+          docker buildx imagetools create \
+            ${TAGS} \
+            "${IMAGE}:${TARGET}-amd64" \
+            "${IMAGE}:${TARGET}-arm64"
