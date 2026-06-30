@@ -154,23 +154,6 @@ CMD ["/bin/bash"]
 
 
 # ----------------------------------------------------------
-# Stage: notebook
-# Interactive marimo notebook server for tutorials and HuggingFace Spaces.
-# This is the default build target.
-# ----------------------------------------------------------
-FROM runtime AS notebook
-
-WORKDIR /home/leap/leap-c/notebooks
-
-EXPOSE 7860
-
-HEALTHCHECK --interval=30s --timeout=3s \
-    CMD curl -f http://localhost:7860/health || exit 1
-
-CMD ["marimo", "edit", "--host", "0.0.0.0", "-p", "7860", "--no-token"]
-
-
-# ----------------------------------------------------------
 # Stage: gpu
 # GPU image with CUDA and PyTorch GPU.
 # Local/manual only — not built by CI by default.
@@ -237,3 +220,21 @@ RUN python -c "import acados_template; import leap_c; print('leap-c ready')"
 
 WORKDIR /workspace
 CMD ["/bin/bash"]
+
+
+# ----------------------------------------------------------
+# Stage: notebook
+# Interactive marimo notebook server for tutorials and HuggingFace Spaces.
+# This is the default build target — it must remain the LAST stage so
+# that `docker build` (no --target) and HuggingFace Spaces select it.
+# ----------------------------------------------------------
+FROM runtime AS notebook
+
+WORKDIR /home/leap/leap-c/notebooks
+
+EXPOSE 7860
+
+HEALTHCHECK --interval=30s --timeout=3s \
+    CMD curl -f http://localhost:7860/health || exit 1
+
+CMD ["marimo", "edit", "--host", "0.0.0.0", "-p", "7860", "--no-token"]

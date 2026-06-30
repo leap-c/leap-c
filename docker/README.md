@@ -47,9 +47,13 @@ git submodule update --init --recursive
 ### Notebook (marimo) — default target
 
 ```bash
-docker build -t leap-c:notebook .
+docker build --target notebook -t leap-c:notebook .
 docker run -it --rm -p 7860:7860 leap-c:notebook
 ```
+
+`notebook` is the last (default) stage, so `--target notebook` is optional —
+`docker build -t leap-c:notebook .` builds the same image. Passing it
+explicitly keeps the build correct even if the Dockerfile stage order changes.
 
 Open <http://localhost:7860> in your browser.
 
