@@ -1,0 +1,43 @@
+# Git
+.git
+.github
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# UV
+uv.lock
+
+# Development artifacts
+exp/
+wandb/
+output/
+docs/_build/
+*.mp4
+*.csv
+*.png
+*.so
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# Acados generated code (regenerated inside container)
+c_generated_code/
+acados_ocp_nlp.json

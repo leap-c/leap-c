@@ -76,6 +76,53 @@ See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.to
 In the [troubleshooting tab](https://leap-c.github.io/leap-c/troubleshooting.html),
 we highlight how to fix common problems arising while using leap-c with VS Code.
 
+## Docker
+
+A multi-stage `Dockerfile` is provided at the repository root, offering pre-built
+acados, PyTorch, and leap-c in a reproducible environment.
+
+### Prerequisites
+
+Initialize the acados submodule:
+
+```bash
+git submodule update --init --recursive
+```
+
+### CPU
+
+```bash
+docker build --target cpu -t leap-c:cpu .
+docker run -it --rm -v "$(pwd):/workspace" -w /workspace leap-c:cpu
+```
+
+### GPU
+
+```bash
+docker build --target gpu -t leap-c:gpu .
+docker run -it --rm --gpus all -v "$(pwd):/workspace" -w /workspace leap-c:gpu
+```
+
+### Interactive notebooks (marimo)
+
+The default build target launches a [marimo](https://marimo.io) notebook server:
+
+```bash
+docker build -t leap-c:notebook .
+docker run -it --rm -p 7860:7860 leap-c:notebook
+```
+
+Open <http://localhost:7860> in your browser.
+
+### VS Code Dev Container
+
+The repository includes a `.devcontainer/devcontainer.json` for one-click setup in
+VS Code. Open the repository, press `Ctrl+Shift+P`, and select
+**Dev Containers: Reopen in Container**.
+
+See [`docker/README.md`](https://github.com/leap-c/leap-c/blob/main/docker/README.md)
+for advanced configuration and troubleshooting.
+
 ## Windows
 
 We recommend to use [WSL (Windows Subsystem for Linux)](https://ubuntu.com/desktop/wsl) and then following the guide above.

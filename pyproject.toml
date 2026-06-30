@@ -77,6 +77,9 @@ tuning = [
   "ConfigSpace",
 ]
 wandb = ["wandb==0.20.1"]
+notebook = [
+  "marimo>=0.13.0",
+]
 
 [tool.setuptools]
 packages = ["leap_c"]
