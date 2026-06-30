@@ -96,9 +96,9 @@ ENV PATH="/opt/acados/bin:${PATH}"
 
 USER leap
 
-# Install Python 3.11 via uv and create a virtual environment
-RUN uv python install 3.11 && \
-    uv venv --python 3.11 /home/leap/.venv
+# Install Python 3.12 via uv and create a virtual environment
+RUN uv python install 3.12 && \
+    uv venv --python 3.12 /home/leap/.venv
 
 ENV VIRTUAL_ENV=/home/leap/.venv
 ENV PATH="/home/leap/.venv/bin:${PATH}"
@@ -163,9 +163,9 @@ ENV PATH="/opt/acados/bin:${PATH}"
 
 USER leap
 
-# Install Python 3.11 via uv and create a virtual environment
-RUN uv python install 3.11 && \
-    uv venv --python 3.11 /home/leap/.venv
+# Install Python 3.12 via uv and create a virtual environment
+RUN uv python install 3.12 && \
+    uv venv --python 3.12 /home/leap/.venv
 
 ENV VIRTUAL_ENV=/home/leap/.venv
 ENV PATH="/home/leap/.venv/bin:${PATH}"
