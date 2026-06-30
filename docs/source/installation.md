@@ -76,6 +76,26 @@ See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.to
 In the [troubleshooting tab](https://leap-c.github.io/leap-c/troubleshooting.html),
 we highlight how to fix common problems arising while using leap-c with VS Code.
 
+## Docker (optional fallback)
+
+Docker is an optional fallback for users who want a reproducible environment with
+pre-built acados without compiling it locally. For regular development, we recommend
+the native installation above.
+
+Pre-built images are published to GitHub Container Registry. To run the interactive
+marimo notebook server (no build required):
+
+```bash
+docker run -it --rm -p 7860:7860 ghcr.io/leap-c/leap-c:notebook
+```
+
+Open <http://localhost:7860> in your browser. For persisting notebook edits, using
+the CPU shell image, and the full local-build/GPU/Dev Container instructions, see
+[Running Notebooks](notebooks.md).
+
+For advanced Docker configuration, Dockerfile stages, CI, and troubleshooting, see
+[`docker/README.md`](https://github.com/leap-c/leap-c/blob/main/docker/README.md).
+
 ## Windows
 
 We recommend to use [WSL (Windows Subsystem for Linux)](https://ubuntu.com/desktop/wsl) and then following the guide above.

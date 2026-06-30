@@ -1,0 +1,28 @@
+{
+  "name": "leap-c",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": "..",
+    "target": "cpu"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "ms-python.python",
+        "ms-vscode.cpptools",
+        "ms-toolsai.jupyter"
+      ],
+      "settings": {
+        "python.defaultInterpreterPath": "/home/leap/.venv/bin/python",
+        "python.terminal.activateEnvironment": true
+      }
+    }
+  },
+  "remoteUser": "leap",
+  "workspaceMount": "source=${localWorkspaceFolder},target=/home/leap/leap-c,type=bind,consistency=cached",
+  "workspaceFolder": "/home/leap/leap-c",
+  "mounts": [
+    "source=leap-c-uv-cache,target=/home/leap/.cache/uv,type=volume"
+  ],
+  "postCreateCommand": "uv pip install -e '.[dev]' --quiet && pre-commit install"
+}

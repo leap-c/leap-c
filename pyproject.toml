@@ -77,6 +77,9 @@ tuning = [
   "ConfigSpace",
 ]
 wandb = ["wandb==0.20.1"]
+notebook = [
+  "marimo>=0.13.0",
+]
 
 [tool.setuptools]
 packages = ["leap_c"]
@@ -91,7 +94,7 @@ testpaths = "tests"
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-extend-exclude = ["external"]
+extend-exclude = ["external", "notebooks"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

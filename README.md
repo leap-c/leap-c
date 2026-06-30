@@ -22,6 +22,9 @@
 
 Please see the [Getting started section](https://leap-c.github.io/leap-c/getting_started/index.html).
 
+To run the interactive marimo notebooks locally or via the pre-built Docker image,
+see [Running Notebooks](https://leap-c.github.io/leap-c/notebooks.html).
+
 ## Questions?
 
 Open a new thread or browse the existing ones on the [GitHub discussions](https://github.com/leap-c/leap-c/discussions) page.
