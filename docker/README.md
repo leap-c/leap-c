@@ -4,7 +4,7 @@ Reproducible containerized development environment for leap-c with pre-built aca
 
 ## Pre-built images
 
-Images are published to GitHub Container Registry on release tags, nightly, and manual workflow dispatch:
+Images are published to GitHub Container Registry on release tags and manual workflow dispatch:
 
 ```bash
 # Notebook / marimo (x86_64 + ARM64) — also tagged as :latest
@@ -176,7 +176,7 @@ The `.github/workflows/docker.yml` workflow builds and pushes images to `ghcr.io
 
 The workflow builds `linux/amd64` and `linux/arm64` images in parallel on native GitHub runners, then creates a multi-arch manifest tag (for example `:notebook`). Docker automatically pulls the correct architecture for each user.
 
-Each target/architecture pair uses its own registry cache (for example `buildcache-notebook-amd64`), so rebuilds can reuse expensive layers such as acados, PyTorch, and Python dependencies.
+Each architecture uses a shared registry cache (for example `buildcache-amd64`), so rebuilds can reuse expensive layers such as acados, PyTorch, and Python dependencies across targets.
 
 Notebook files are copied after the Python package installation layer. This means changes under `notebooks/` do not force acados, PyTorch, or leap-c dependencies to reinstall during Docker rebuilds.
 

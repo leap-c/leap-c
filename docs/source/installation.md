@@ -78,8 +78,19 @@ we highlight how to fix common problems arising while using leap-c with VS Code.
 
 ## Docker
 
-A multi-stage `Dockerfile` is provided at the repository root, offering pre-built
-acados, PyTorch, and leap-c in a reproducible environment.
+Pre-built images are available on GitHub Container Registry — no build required:
+
+```bash
+# Interactive marimo notebook server
+docker run -it --rm -p 7860:7860 ghcr.io/leap-c/leap-c:notebook
+
+# CPU shell for development
+docker run -it --rm -v "$(pwd):/workspace" -w /workspace ghcr.io/leap-c/leap-c:cpu
+```
+
+Images are multi-arch (linux/amd64 + linux/arm64). Docker automatically pulls the right image for your machine, including Apple Silicon Macs.
+
+Alternatively, build from source:
 
 ### Prerequisites
 
