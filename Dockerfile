@@ -128,14 +128,19 @@ RUN uv pip install torch --index-url https://download.pytorch.org/whl/cpu
 # Install marimo (small, but needed for both targets)
 RUN uv pip install "marimo>=0.13.0"
 
-# Copy the rest of the leap-c source
-COPY --chown=leap:leap . /home/leap/leap-c
+# Copy the Python package source needed for the editable install. Notebooks are
+# copied later so notebook-only edits do not invalidate dependency layers.
+COPY --chown=leap:leap README.md LICENSE /home/leap/leap-c/
+COPY --chown=leap:leap leap_c /home/leap/leap-c/leap_c
 
 # Install leap-c with rendering and notebook extras
 RUN uv pip install -e ".[rendering,notebook]"
 
 # Verify installation
 RUN python -c "import acados_template; import leap_c; print('leap-c ready')"
+
+# Copy notebooks after installation for fast notebook-only rebuilds.
+COPY --chown=leap:leap notebooks /home/leap/leap-c/notebooks
 
 
 # ----------------------------------------------------------

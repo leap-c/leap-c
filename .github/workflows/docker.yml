@@ -49,7 +49,7 @@ jobs:
           context: .
           file: ./Dockerfile
           target: runtime
-          platforms: linux/amd64
+          platforms: linux/amd64,linux/arm64
           push: false
           cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache
           cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache,mode=max

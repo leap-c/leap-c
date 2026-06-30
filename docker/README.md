@@ -172,6 +172,8 @@ The `.github/workflows/docker.yml` workflow builds and pushes images to `ghcr.io
 
 The `runtime` stage is built first to warm the cache. Then `cpu` and `notebook` reuse the cached layers, making them fast to build. Registry cache (`type=registry`) is used for persistence across runs.
 
+Notebook files are copied after the Python package installation layer. This means changes under `notebooks/` do not force acados, PyTorch, or leap-c dependencies to reinstall during Docker rebuilds.
+
 ## Troubleshooting
 
 ### GPU not detected
