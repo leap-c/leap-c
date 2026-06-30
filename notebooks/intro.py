@@ -94,7 +94,12 @@ def _(x_traj):
     time = [i * 0.25 / 5 for i in range(n_steps)]  # T_horizon/N_horizon from default config
 
     fig, axes = plt.subplots(2, 2, figsize=(10, 6))
-    labels = ["Cart Position [m]", "Pole Angle [rad]", "Cart Velocity [m/s]", "Pole Ang. Vel. [rad/s]"]
+    labels = [
+        "Cart Position [m]",
+        "Pole Angle [rad]",
+        "Cart Velocity [m/s]",
+        "Pole Ang. Vel. [rad/s]",
+    ]
 
     for ax, label, data in zip(axes.flat, labels, traj.T):
         ax.plot(time, data, "-o", markersize=3)
