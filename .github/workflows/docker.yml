@@ -62,8 +62,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:notebook-${{ matrix.arch }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-notebook-${{ matrix.arch }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-notebook-${{ matrix.arch }},mode=max
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-${{ matrix.arch }},mode=max
 
   notebook-manifest:
     name: Notebook manifest
@@ -106,7 +106,7 @@ jobs:
             "${IMAGE}:notebook-arm64"
 
   cpu-build:
-    name: CPU (${{ matrix.arch }})
+    name: CPU
     runs-on: ${{ matrix.runner }}
     if: github.event_name == 'push' || github.event.inputs.target == 'cpu' || github.event.inputs.target == 'all'
     permissions:
@@ -152,8 +152,8 @@ jobs:
           platforms: ${{ matrix.platform }}
           push: true
           tags: ${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:cpu-${{ matrix.arch }}
-          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-cpu-${{ matrix.arch }}
-          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-cpu-${{ matrix.arch }},mode=max
+          cache-from: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-${{ matrix.arch }}
+          cache-to: type=registry,ref=${{ env.REGISTRY }}/${{ steps.repo.outputs.name }}:buildcache-${{ matrix.arch }},mode=max
 
   cpu-manifest:
     name: CPU manifest
