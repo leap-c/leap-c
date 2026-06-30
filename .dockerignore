@@ -3,11 +3,11 @@
 .github
 
 # Python
-__pycache__/
-*.py[cod]
-*.egg-info/
+**/__pycache__
+**/*.py[cod]
+**/*.egg-info/
 .eggs/
-build/
+**/build/
 dist/
 .venv/
 venv/

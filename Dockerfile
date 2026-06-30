@@ -45,6 +45,7 @@ RUN useradd -m -s /bin/bash leap && \
     chmod 0440 /etc/sudoers.d/leap
 
 ENV HOME=/home/leap
+ENV LD_LIBRARY_PATH=""
 
 
 # ----------------------------------------------------------
