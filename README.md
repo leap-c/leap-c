@@ -18,17 +18,12 @@
 
 `leap-c` can be set up by following the [installation guide](https://leap-c.github.io/leap-c/installation.html).
 
-Docker images with pre-built acados are also available:
-
-```bash
-docker run -it --rm -p 7860:7860 ghcr.io/leap-c/leap-c:notebook
-```
-
-See [`docker/README.md`](docker/README.md) for details.
-
 ## Usage
 
 Please see the [Getting started section](https://leap-c.github.io/leap-c/getting_started/index.html).
+
+To run the interactive marimo notebooks locally or via the pre-built Docker image,
+see [Running Notebooks](https://leap-c.github.io/leap-c/notebooks.html).
 
 ## Questions?
 

@@ -76,63 +76,25 @@ See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.to
 In the [troubleshooting tab](https://leap-c.github.io/leap-c/troubleshooting.html),
 we highlight how to fix common problems arising while using leap-c with VS Code.
 
-## Docker
+## Docker (optional fallback)
 
-Pre-built images are available on GitHub Container Registry — no build required:
+Docker is an optional fallback for users who want a reproducible environment with
+pre-built acados without compiling it locally. For regular development, we recommend
+the native installation above.
+
+Pre-built images are published to GitHub Container Registry. To run the interactive
+marimo notebook server (no build required):
 
 ```bash
-# Interactive marimo notebook server
 docker run -it --rm -p 7860:7860 ghcr.io/leap-c/leap-c:notebook
-
-# CPU shell for development
-docker run -it --rm -v "$(pwd):/workspace" -w /workspace ghcr.io/leap-c/leap-c:cpu
 ```
 
-Images are multi-arch (linux/amd64 + linux/arm64). Docker automatically pulls the right image for your machine, including Apple Silicon Macs.
+Open <http://localhost:7860> in your browser. For persisting notebook edits, using
+the CPU shell image, and the full local-build/GPU/Dev Container instructions, see
+[Running Notebooks](notebooks.md).
 
-Alternatively, build from source:
-
-### Prerequisites
-
-Initialize the acados submodule:
-
-```bash
-git submodule update --init --recursive
-```
-
-### CPU
-
-```bash
-docker build --target cpu -t leap-c:cpu .
-docker run -it --rm -v "$(pwd):/workspace" -w /workspace leap-c:cpu
-```
-
-### GPU
-
-```bash
-docker build --target gpu -t leap-c:gpu .
-docker run -it --rm --gpus all -v "$(pwd):/workspace" -w /workspace leap-c:gpu
-```
-
-### Interactive notebooks (marimo)
-
-The default build target launches a [marimo](https://marimo.io) notebook server:
-
-```bash
-docker build -t leap-c:notebook .
-docker run -it --rm -p 7860:7860 leap-c:notebook
-```
-
-Open <http://localhost:7860> in your browser.
-
-### VS Code Dev Container
-
-The repository includes a `.devcontainer/devcontainer.json` for one-click setup in
-VS Code. Open the repository, press `Ctrl+Shift+P`, and select
-**Dev Containers: Reopen in Container**.
-
-See [`docker/README.md`](https://github.com/leap-c/leap-c/blob/main/docker/README.md)
-for advanced configuration and troubleshooting.
+For advanced Docker configuration, Dockerfile stages, CI, and troubleshooting, see
+[`docker/README.md`](https://github.com/leap-c/leap-c/blob/main/docker/README.md).
 
 ## Windows
 
