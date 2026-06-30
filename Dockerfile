@@ -2,12 +2,15 @@
 # ==============================================================
 # leap-c Dockerfile
 #
-# Multi-stage build providing CPU, GPU, and notebook (marimo) targets.
+# Multi-stage build with a shared runtime stage:
+#
+#   base → acados-builder → runtime → cpu / notebook
+#                                   ↘ gpu (local/manual only)
 #
 # Usage:
+#   Notebook:     docker build -t leap-c:notebook .   (default target)
 #   CPU dev:      docker build --target cpu -t leap-c:cpu .
 #   GPU dev:      docker build --target gpu -t leap-c:gpu .
-#   Notebook:     docker build -t leap-c:notebook .   (default target)
 #
 # Prerequisites:
 #   git submodule update --init --recursive
@@ -79,10 +82,12 @@ RUN mkdir -p /opt/acados/bin && \
 
 
 # ----------------------------------------------------------
-# Stage: cpu
-# Final CPU image with PyTorch CPU and leap-c.
+# Stage: runtime
+# Heavy shared layer: acados + Python 3.12 + PyTorch CPU +
+# acados_template + leap-c + marimo.
+# Both `cpu` and `notebook` branch from this stage.
 # ----------------------------------------------------------
-FROM base AS cpu
+FROM base AS runtime
 
 # Copy acados build artifacts (libraries, headers, Tera renderer)
 COPY --from=acados-builder --chown=leap:leap /opt/acados/lib /opt/acados/lib
@@ -104,18 +109,23 @@ ENV VIRTUAL_ENV=/home/leap/.venv
 ENV PATH="/home/leap/.venv/bin:${PATH}"
 
 # --- Cache-efficient dependency installation ---
-# Copy acados_template first (small, rarely changes) and install it.
-# This pulls in numpy, scipy, etc. from PyPI.
+# Copy pyproject.toml first so dependency layers cache independently of source
+COPY --chown=leap:leap pyproject.toml /home/leap/leap-c/pyproject.toml
+WORKDIR /home/leap/leap-c
+
+# Copy acados_template and install it (pulls numpy, scipy, etc.)
 COPY --chown=leap:leap external/acados/interfaces/acados_template \
-     /home/leap/leap-c/external/acados/interfaces/acados_template
-RUN uv pip install /home/leap/leap-c/external/acados/interfaces/acados_template
+     external/acados/interfaces/acados_template
+RUN uv pip install external/acados/interfaces/acados_template
 
 # Install PyTorch CPU (large download, cached independently of leap-c source)
 RUN uv pip install torch --index-url https://download.pytorch.org/whl/cpu
 
+# Install marimo (small, but needed for both targets)
+RUN uv pip install "marimo>=0.13.0"
+
 # Copy the rest of the leap-c source
 COPY --chown=leap:leap . /home/leap/leap-c
-WORKDIR /home/leap/leap-c
 
 # Install leap-c with rendering and notebook extras
 RUN uv pip install -e ".[rendering,notebook]"
@@ -123,15 +133,42 @@ RUN uv pip install -e ".[rendering,notebook]"
 # Verify installation
 RUN python -c "import acados_template; import leap_c; print('leap-c ready')"
 
+
+# ----------------------------------------------------------
+# Stage: cpu
+# Thin shell image for local development.
+# ----------------------------------------------------------
+FROM runtime AS cpu
+
 WORKDIR /workspace
 CMD ["/bin/bash"]
 
 
 # ----------------------------------------------------------
-# Stage: gpu
-# Final GPU image with CUDA and PyTorch GPU.
+# Stage: notebook
+# Interactive marimo notebook server for tutorials and HuggingFace Spaces.
+# This is the default build target.
 # ----------------------------------------------------------
-FROM nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04 AS gpu
+FROM runtime AS notebook
+
+WORKDIR /home/leap/leap-c/notebooks
+
+EXPOSE 7860
+
+HEALTHCHECK --interval=30s --timeout=3s \
+    CMD curl -f http://localhost:7860/health || exit 1
+
+CMD ["marimo", "edit", "--host", "0.0.0.0", "-p", "7860", "--no-token"]
+
+
+# ----------------------------------------------------------
+# Stage: gpu
+# GPU image with CUDA and PyTorch GPU.
+# Local/manual only — not built by CI by default.
+# ----------------------------------------------------------
+ARG CUDA_IMAGE=nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
+ARG TORCH_CUDA_INDEX=https://download.pytorch.org/whl/cu128
+FROM ${CUDA_IMAGE} AS gpu
 
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -171,16 +208,19 @@ ENV VIRTUAL_ENV=/home/leap/.venv
 ENV PATH="/home/leap/.venv/bin:${PATH}"
 
 # --- Cache-efficient dependency installation ---
-COPY --chown=leap:leap external/acados/interfaces/acados_template \
-     /home/leap/leap-c/external/acados/interfaces/acados_template
-RUN uv pip install /home/leap/leap-c/external/acados/interfaces/acados_template
+COPY --chown=leap:leap pyproject.toml /home/leap/leap-c/pyproject.toml
+WORKDIR /home/leap/leap-c
 
-# Install PyTorch GPU (CUDA 12.8)
-RUN uv pip install torch --index-url https://download.pytorch.org/whl/cu128
+COPY --chown=leap:leap external/acados/interfaces/acados_template \
+     external/acados/interfaces/acados_template
+RUN uv pip install external/acados/interfaces/acados_template
+
+# Install PyTorch GPU (CUDA)
+ARG TORCH_CUDA_INDEX
+RUN uv pip install torch --index-url ${TORCH_CUDA_INDEX}
 
 # Copy the rest of the leap-c source
 COPY --chown=leap:leap . /home/leap/leap-c
-WORKDIR /home/leap/leap-c
 
 # Install leap-c with rendering and notebook extras
 RUN uv pip install -e ".[rendering,notebook]"
@@ -190,21 +230,3 @@ RUN python -c "import acados_template; import leap_c; print('leap-c ready')"
 
 WORKDIR /workspace
 CMD ["/bin/bash"]
-
-
-# ----------------------------------------------------------
-# Stage: notebook
-# Interactive marimo notebook server for tutorials and HuggingFace Spaces.
-# Extends the CPU image — the default build target.
-# ----------------------------------------------------------
-FROM cpu AS notebook
-
-USER leap
-WORKDIR /home/leap/leap-c/notebooks
-
-EXPOSE 7860
-
-HEALTHCHECK --interval=30s --timeout=3s \
-    CMD curl -f http://localhost:7860/health || exit 1
-
-CMD ["marimo", "edit", "--host", "0.0.0.0", "-p", "7860", "--no-token"]
