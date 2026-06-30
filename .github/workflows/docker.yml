@@ -2,6 +2,7 @@ name: Docker
 
 on:
   push:
+    branches: [feat/uv_docker]
     tags: ["v*"]
   schedule:
     # Nightly build at 02:00 UTC — catches upstream acados/PyTorch changes
