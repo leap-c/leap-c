@@ -90,27 +90,27 @@ def _(x_traj):
     # x_traj shape: (batch, horizon+1, state_dim)
     # State: [cart_pos, pole_angle, cart_vel, pole_angular_vel]
     traj = x_traj[0].detach().numpy()
-    n_steps = traj.shape[0]
-    time = [i * 0.25 / 5 for i in range(n_steps)]  # T_horizon/N_horizon from default config
+    n_state_steps = traj.shape[0]
+    state_time = [i * 0.25 / 5 for i in range(n_state_steps)]  # T_horizon/N_horizon
 
-    fig, axes = plt.subplots(2, 2, figsize=(10, 6))
-    labels = [
+    state_fig, state_axes = plt.subplots(2, 2, figsize=(10, 6))
+    state_labels = [
         "Cart Position [m]",
         "Pole Angle [rad]",
         "Cart Velocity [m/s]",
         "Pole Ang. Vel. [rad/s]",
     ]
 
-    for ax, label, data in zip(axes.flat, labels, traj.T):
-        ax.plot(time, data, "-o", markersize=3)
+    for ax, label, data in zip(state_axes.flat, state_labels, traj.T):
+        ax.plot(state_time, data, "-o", markersize=3)
         ax.set_xlabel("Time [s]")
         ax.set_ylabel(label)
         ax.grid(True)
 
-    fig.suptitle("Planned State Trajectory")
-    fig.tight_layout()
-    fig
-    return fig, plt
+    state_fig.suptitle("Planned State Trajectory")
+    state_fig.tight_layout()
+    state_fig
+    return plt, state_fig
 
 
 @app.cell
@@ -118,18 +118,18 @@ def _(plt, u_traj):
     # u_traj shape: (batch, horizon, control_dim)
     # Control: [force on cart]
     u = u_traj[0].detach().numpy()
-    n_steps = u.shape[0]
-    time = [i * 0.25 / 5 for i in range(n_steps)]
+    n_control_steps = u.shape[0]
+    control_time = [i * 0.25 / 5 for i in range(n_control_steps)]
 
-    fig2, ax = plt.subplots(figsize=(8, 3))
-    ax.plot(time, u, "-o", markersize=3, color="tab:orange")
-    ax.set_xlabel("Time [s]")
-    ax.set_ylabel("Force [N]")
-    ax.set_title("Planned Control Trajectory")
-    ax.grid(True)
-    fig2.tight_layout()
-    fig2
-    return fig2,
+    control_fig, control_ax = plt.subplots(figsize=(8, 3))
+    control_ax.plot(control_time, u, "-o", markersize=3, color="tab:orange")
+    control_ax.set_xlabel("Time [s]")
+    control_ax.set_ylabel("Force [N]")
+    control_ax.set_title("Planned Control Trajectory")
+    control_ax.grid(True)
+    control_fig.tight_layout()
+    control_fig
+    return (control_fig,)
 
 
 if __name__ == "__main__":
