@@ -441,9 +441,10 @@ def _(mo):
     penalises the force more, so both the policy $F_0^{*}$ and the value $V$
     vary **smoothly** with it.
 
-    We then check the analytic policy gradient at one sweep point: the exact
-    solution sensitivity from the solver's KKT system should match both the
-    slope of the swept curve and a finite difference.
+    We solve the whole sweep in **one batched call** and read back the value, the
+    policy, and both exact gradients (`du0_dp_global`, `dvalue_dp_global`) at every
+    sweep point at once. Drag the slider below to move `r_diag_sqrt`: the tangent
+    slides along both curves using those precomputed gradients — no solve per drag.
     """)
     return
 
@@ -451,63 +452,90 @@ def _(mo):
 @app.cell
 def _(diff_mpc, np, torch):
     x0_far = torch.tensor([[0.05, 0.0]])  # near the origin — the force never saturates
-    r_sweep = np.linspace(0.2, 1.2, 25)  # 25 <= n_batch_init (64): one batched solve
+    r_sweep = np.linspace(0.2, 1.2, 41)  # 41 <= n_batch_init (64): a single batched solve
 
-    # Sweep r_diag_sqrt across the batch in a single call.
-    x0_batch = x0_far.repeat(len(r_sweep), 1)
-    sweep_params = {"r_diag_sqrt": torch.tensor(r_sweep).reshape(-1, 1)}
-    _, u0_sweep, _, _, value_sweep = diff_mpc(x0=x0_batch, params=sweep_params)
+    # One batched solve over the whole r-sweep. From its single context we read
+    # back the value, the policy, AND both exact gradients at *every* sweep point
+    # at once — so moving the slider below never triggers another solve.
+    _x0_batch = x0_far.repeat(len(r_sweep), 1)
+    _r_param = torch.tensor(r_sweep).reshape(-1, 1).requires_grad_(True)
+    _ctx, _u0_sweep, _, _, _value_sweep = diff_mpc(
+        x0=_x0_batch, params={"r_diag_sqrt": _r_param}
+    )
 
-    u0_curve = u0_sweep.detach().numpy().ravel()
-    v_curve = value_sweep.detach().numpy().ravel()
+    u0_curve = _u0_sweep.detach().numpy().ravel()  # policy F₀*(r), shape (B,)
+    v_curve = _value_sweep.detach().numpy().ravel()  # value  V(r),   shape (B,)
 
-    # The whole point: the force bound is inactive everywhere on this sweep.
-    assert np.abs(u0_curve).max() < 0.5 - 1e-3
-    return r_sweep, u0_curve, v_curve, x0_far
-
-
-@app.cell
-def _(diff_mpc, np, plt, r_sweep, torch, u0_curve, v_curve, x0_far):
-    r0 = 0.4  # a point mid-sweep, well away from the force bound
-
-    # Analytic gradient via autograd through the solver (exact KKT sensitivity).
-    r_param = torch.tensor([[r0]], requires_grad=True)
-    ctx0, u0_0, _, _, value_0 = diff_mpc(x0=x0_far, params={"r_diag_sqrt": r_param})
-    du0_dr = torch.autograd.grad(u0_0.sum(), r_param, retain_graph=True)[0].item()
-    dV_dr = torch.autograd.grad(value_0.sum(), r_param)[0].item()
-
-    # The same number via the explicit solution-sensitivity accessor. du0_dp_global
-    # is (B, nu, P) over the flat learnable vector; locate the r_diag_sqrt column
-    # from the manager's registration order (no hard-coded index).
+    # Locate the r_diag_sqrt column in the flat p_global from the manager's
+    # registration order (no hard-coded index).
     _pm = diff_mpc.parameter_manager
     _offset = 0
     for _name in _pm.learnable_parameter_names:
         if _name == "r_diag_sqrt":
             break
         _offset += _pm.parameters[_name].default.size
-    du0_dp = diff_mpc.diff_mpc_fun.sensitivity(ctx0, "du0_dp_global")
-    du0_dr_sens = float(du0_dp[0, 0, _offset])
-    assert np.isclose(du0_dr, du0_dr_sens, rtol=1e-3, atol=1e-6)
 
-    # Finite-difference cross-check — the ground truth that the gradient is right.
-    def _u0_at(r):
-        _, u0_r, _, _, _ = diff_mpc(x0=x0_far, params={"r_diag_sqrt": torch.tensor([[r]])})
-        return u0_r.item()
+    # Exact KKT sensitivities for the whole batch, straight off the single ctx:
+    # du0_dp_global is (B, nu, P) and dvalue_dp_global is (B, 1, P).
+    _du0_dp = diff_mpc.diff_mpc_fun.sensitivity(_ctx, "du0_dp_global")
+    _dV_dp = diff_mpc.diff_mpc_fun.sensitivity(_ctx, "dvalue_dp_global")
+    du0_dr_curve = _du0_dp[:, 0, _offset]  # dF₀*/dr at each sweep point, (B,)
+    dV_dr_curve = _dV_dp[:, 0, _offset]  # dV/dr    at each sweep point, (B,)
 
-    h = 1e-2
-    du0_dr_fd = (_u0_at(r0 + h) - _u0_at(r0 - h)) / (2 * h)
-    assert np.isclose(du0_dr, du0_dr_fd, rtol=5e-2, atol=1e-3)
+    # Verify the batched sensitivities against batched autograd on the same solve.
+    # Each batch element depends only on its own r_i, so differentiating the summed
+    # output recovers the per-point gradients — one backward pass, no per-point loop.
+    _du0_dr_auto = torch.autograd.grad(_u0_sweep.sum(), _r_param, retain_graph=True)[0]
+    _dV_dr_auto = torch.autograd.grad(_value_sweep.sum(), _r_param)[0]
+    assert np.allclose(du0_dr_curve, _du0_dr_auto.numpy().ravel(), rtol=1e-3, atol=1e-6)
+    assert np.allclose(dV_dr_curve, _dV_dr_auto.numpy().ravel(), rtol=1e-3, atol=1e-6)
 
-    u0_r0 = u0_0.item()
-    v_r0 = value_0.item()
+    # The whole point: the force bound is inactive everywhere on this sweep.
+    assert np.abs(u0_curve).max() < 0.5 - 1e-3
+    return dV_dr_curve, du0_dr_curve, r_sweep, u0_curve, v_curve
 
-    # Plot the swept policy and value, with the analytic tangent overlaid at r0.
+
+@app.cell
+def _(mo, r_sweep):
+    # The slider snaps to the precomputed sweep points (gradients exist only there).
+    r_slider = mo.ui.slider(
+        start=0,
+        stop=len(r_sweep) - 1,
+        step=1,
+        value=len(r_sweep) // 3,  # start mid-sweep, well away from the force bound
+        label="sweep index for r_diag_sqrt",
+        show_value=True,
+    )
+    return (r_slider,)
+
+
+@app.cell
+def _(
+    dV_dr_curve,
+    du0_dr_curve,
+    mo,
+    np,
+    plt,
+    r_slider,
+    r_sweep,
+    u0_curve,
+    v_curve,
+):
+    # No solve here — the slider just picks one precomputed sweep point and we
+    # redraw the tangent from the cached curves/gradients, so it updates instantly.
+    _i = r_slider.value
+    r0 = float(r_sweep[_i])
+    u0_r0 = float(u0_curve[_i])
+    v_r0 = float(v_curve[_i])
+    du0_dr = float(du0_dr_curve[_i])
+    dV_dr = float(dV_dr_curve[_i])
+
     grad_fig, grad_axes = plt.subplots(1, 2, figsize=(11, 4.5))
-    tan = np.array([r_sweep.min(), r_sweep.max()])
+    _tan = np.array([r_sweep.min(), r_sweep.max()])
 
     grad_axes[0].plot(r_sweep, u0_curve, "-o", markersize=3, label="policy F₀*(r)")
     grad_axes[0].plot(
-        tan, u0_r0 + du0_dr * (tan - r0), "--", color="tab:red",
+        _tan, u0_r0 + du0_dr * (_tan - r0), "--", color="tab:red",
         label=f"tangent  dF₀/dr = {du0_dr:.3f}",
     )
     grad_axes[0].plot([r0], [u0_r0], "s", color="tab:red")
@@ -516,7 +544,7 @@ def _(diff_mpc, np, plt, r_sweep, torch, u0_curve, v_curve, x0_far):
 
     grad_axes[1].plot(r_sweep, v_curve, "-o", markersize=3, color="tab:green", label="value V(r)")
     grad_axes[1].plot(
-        tan, v_r0 + dV_dr * (tan - r0), "--", color="tab:red",
+        _tan, v_r0 + dV_dr * (_tan - r0), "--", color="tab:red",
         label=f"tangent  dV/dr = {dV_dr:.3f}",
     )
     grad_axes[1].plot([r0], [v_r0], "s", color="tab:red")
@@ -527,27 +555,40 @@ def _(diff_mpc, np, plt, r_sweep, torch, u0_curve, v_curve, x0_far):
         ax_g.set_xlabel("r_diag_sqrt")
         ax_g.grid(True, alpha=0.3)
         ax_g.legend()
-    grad_fig.suptitle(f"Analytic gradient vs. sweep at x₀ = [0.05, 0], r = {r0}")
+
+    # Pin the y-axes to the data curves so the sliding tangent — which can shoot
+    # far past the data where the gradient is steep — is clipped rather than
+    # rescaling the axes on every drag.
+    _u_lo, _u_hi = float(u0_curve.min()), float(u0_curve.max())
+    _u_pad = (_u_hi - _u_lo) * 0.08
+    grad_axes[0].set_ylim(_u_lo - _u_pad, _u_hi + _u_pad)
+
+    _v_lo, _v_hi = float(v_curve.min()), float(v_curve.max())
+    _v_pad = (_v_hi - _v_lo) * 0.08
+    grad_axes[1].set_ylim(_v_lo - _v_pad, _v_hi + _v_pad)
+
+    grad_fig.suptitle(f"Analytic tangent at x₀ = [0.05, 0], r_diag_sqrt = {r0:.3f}")
     grad_fig.tight_layout()
-    grad_fig
-    return dV_dr, du0_dr, du0_dr_fd, du0_dr_sens, r0, u0_r0
+    mo.vstack([r_slider, grad_fig])
+    return dV_dr, du0_dr, r0, u0_r0, v_r0
 
 
 @app.cell
-def _(dV_dr, du0_dr, du0_dr_fd, du0_dr_sens, mo, r0, u0_r0):
+def _(dV_dr, du0_dr, mo, r0, u0_r0, v_r0):
     mo.md(f"""
-    At `r_diag_sqrt = {r0}` (force `F₀* = {u0_r0:.4f}` N, strictly inside the
-    ±0.5 bound) the policy gradient is:
+    At `r_diag_sqrt = {r0:.3f}` (force `F₀* = {u0_r0:.4f}` N, strictly inside the
+    ±0.5 bound, value `V = {v_r0:.4f}`) the exact gradients — read straight from
+    the single batched solve — are:
 
-    - **∂F₀/∂r via `.backward()`:** `{du0_dr:.5f}`
-    - **∂F₀/∂r via `sensitivity(ctx, "du0_dp_global")`:** `{du0_dr_sens:.5f}`
-    - **∂F₀/∂r via finite difference:** `{du0_dr_fd:.5f}`
-    - **∂V/∂r via `.backward()`:** `{dV_dr:.5f}`
+    - **∂F₀/∂r:** `{du0_dr:.5f}`
+    - **∂V/∂r:** `{dV_dr:.5f}`
 
-    All three routes for the policy gradient agree, and the tangent lies flush
-    with the swept curve — the sensitivity is exact where no constraint binds.
-    Contrast this with the saturated case above, where the force sits on the
-    bound and its gradient would collapse to ≈ 0.
+    Drag the slider to move `r_diag_sqrt`: the tangent slides along both curves
+    using gradients that were **all precomputed in one batched solve** (the batched
+    `sensitivity(ctx, ...)` was cross-checked against batched autograd above), so
+    every tangent is exact where no constraint binds. Contrast this with the
+    saturated case above, where the force sits on the bound and its gradient would
+    collapse to ≈ 0.
     """)
     return
 
