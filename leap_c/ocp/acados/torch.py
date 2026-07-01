@@ -167,28 +167,6 @@ class AcadosDiffMpcTorch(torch.nn.Module):
         value = value.to(dtype=self.dtype)
         return ctx, u_star, x, u, value  # type:ignore
 
-    # TODO (Dirk): This is probably not needed anymore...
-    def set_constraint_bounds(
-        self,
-        lbx: np.ndarray,
-        ubx: np.ndarray,
-        stages: Sequence[int],
-    ) -> None:
-        """Set lbx/ubx constraints on the forward solvers for the given stages.
-
-        Args:
-            lbx: Lower bounds, shape ``(batch_size, len(stages), constraint_dim)``.
-            ubx: Upper bounds, shape ``(batch_size, len(stages), constraint_dim)``.
-            stages: Stage indices at which to apply the bounds.
-        """
-        solvers = self.diff_mpc_fun.forward_batch_solver.ocp_solvers
-        batch_size = lbx.shape[0]
-        for i in range(batch_size):
-            solver = solvers[i]
-            for j, stage in enumerate(stages):
-                solver.constraints_set(stage, "lbx", lbx[i, j])
-                solver.constraints_set(stage, "ubx", ubx[i, j])
-
     def extra_repr(self) -> str:
         ocp = self.diff_mpc_fun.ocp
         N = ocp.solver_options.N_horizon
