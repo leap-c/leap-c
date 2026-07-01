@@ -29,6 +29,7 @@ extensions = [
     "sphinx.ext.mathjax",  # For math equations
     "sphinx.ext.intersphinx",  # For linking to other documentation
     "myst_parser",  # Add this for Markdown support
+    "sphinxcontrib.mermaid",  # Render Mermaid diagrams in Markdown
 ]
 
 # Add this to enable Markdown files

@@ -55,7 +55,8 @@ docs = [
   "furo==2024.8.6",
   "myst-parser==4.0.1",
   "sphinx-autoapi==3.8.0",
-  "sphinx-autobuild==2025.8.25"
+  "sphinx-autobuild==2025.8.25",
+  "sphinxcontrib-mermaid==1.0.0"
 ]
 hvac = [
   "pandas==2.3.0",
