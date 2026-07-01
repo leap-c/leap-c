@@ -426,6 +426,132 @@ def _(diff_mpc, mo, torch, x0):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Policy gradient away from the constraints
+
+    At $x_0 = [0.5,\,0]$ the optimal force rides the $\pm 0.5$ bound, so the
+    policy is locally *flat* in the parameters and $\partial F_0^{*}/\partial p$
+    is clipped towards zero.
+
+    To see the gradient cleanly we move to a near-origin state
+    $x_0 = [0.05,\,0]$, where the force stays strictly inside $(-0.5, 0.5)$, and
+    sweep the (square-root) control-cost weight `r_diag_sqrt`. A larger weight
+    penalises the force more, so both the policy $F_0^{*}$ and the value $V$
+    vary **smoothly** with it.
+
+    We then check the analytic policy gradient at one sweep point: the exact
+    solution sensitivity from the solver's KKT system should match both the
+    slope of the swept curve and a finite difference.
+    """)
+    return
+
+
+@app.cell
+def _(diff_mpc, np, torch):
+    x0_far = torch.tensor([[0.05, 0.0]])  # near the origin — the force never saturates
+    r_sweep = np.linspace(0.2, 1.2, 25)  # 25 <= n_batch_init (64): one batched solve
+
+    # Sweep r_diag_sqrt across the batch in a single call.
+    x0_batch = x0_far.repeat(len(r_sweep), 1)
+    sweep_params = {"r_diag_sqrt": torch.tensor(r_sweep).reshape(-1, 1)}
+    _, u0_sweep, _, _, value_sweep = diff_mpc(x0=x0_batch, params=sweep_params)
+
+    u0_curve = u0_sweep.detach().numpy().ravel()
+    v_curve = value_sweep.detach().numpy().ravel()
+
+    # The whole point: the force bound is inactive everywhere on this sweep.
+    assert np.abs(u0_curve).max() < 0.5 - 1e-3
+    return r_sweep, u0_curve, v_curve, x0_far
+
+
+@app.cell
+def _(diff_mpc, np, plt, r_sweep, torch, u0_curve, v_curve, x0_far):
+    r0 = 0.4  # a point mid-sweep, well away from the force bound
+
+    # Analytic gradient via autograd through the solver (exact KKT sensitivity).
+    r_param = torch.tensor([[r0]], requires_grad=True)
+    ctx0, u0_0, _, _, value_0 = diff_mpc(x0=x0_far, params={"r_diag_sqrt": r_param})
+    du0_dr = torch.autograd.grad(u0_0.sum(), r_param, retain_graph=True)[0].item()
+    dV_dr = torch.autograd.grad(value_0.sum(), r_param)[0].item()
+
+    # The same number via the explicit solution-sensitivity accessor. du0_dp_global
+    # is (B, nu, P) over the flat learnable vector; locate the r_diag_sqrt column
+    # from the manager's registration order (no hard-coded index).
+    _pm = diff_mpc.parameter_manager
+    _offset = 0
+    for _name in _pm.learnable_parameter_names:
+        if _name == "r_diag_sqrt":
+            break
+        _offset += _pm.parameters[_name].default.size
+    du0_dp = diff_mpc.diff_mpc_fun.sensitivity(ctx0, "du0_dp_global")
+    du0_dr_sens = float(du0_dp[0, 0, _offset])
+    assert np.isclose(du0_dr, du0_dr_sens, rtol=1e-3, atol=1e-6)
+
+    # Finite-difference cross-check — the ground truth that the gradient is right.
+    def _u0_at(r):
+        _, u0_r, _, _, _ = diff_mpc(x0=x0_far, params={"r_diag_sqrt": torch.tensor([[r]])})
+        return u0_r.item()
+
+    h = 1e-2
+    du0_dr_fd = (_u0_at(r0 + h) - _u0_at(r0 - h)) / (2 * h)
+    assert np.isclose(du0_dr, du0_dr_fd, rtol=5e-2, atol=1e-3)
+
+    u0_r0 = u0_0.item()
+    v_r0 = value_0.item()
+
+    # Plot the swept policy and value, with the analytic tangent overlaid at r0.
+    grad_fig, grad_axes = plt.subplots(1, 2, figsize=(11, 4.5))
+    tan = np.array([r_sweep.min(), r_sweep.max()])
+
+    grad_axes[0].plot(r_sweep, u0_curve, "-o", markersize=3, label="policy F₀*(r)")
+    grad_axes[0].plot(
+        tan, u0_r0 + du0_dr * (tan - r0), "--", color="tab:red",
+        label=f"tangent  dF₀/dr = {du0_dr:.3f}",
+    )
+    grad_axes[0].plot([r0], [u0_r0], "s", color="tab:red")
+    grad_axes[0].set_ylabel("First action F₀* [N]")
+    grad_axes[0].set_title("Policy vs. control weight")
+
+    grad_axes[1].plot(r_sweep, v_curve, "-o", markersize=3, color="tab:green", label="value V(r)")
+    grad_axes[1].plot(
+        tan, v_r0 + dV_dr * (tan - r0), "--", color="tab:red",
+        label=f"tangent  dV/dr = {dV_dr:.3f}",
+    )
+    grad_axes[1].plot([r0], [v_r0], "s", color="tab:red")
+    grad_axes[1].set_ylabel("Value V")
+    grad_axes[1].set_title("Value vs. control weight")
+
+    for ax_g in grad_axes:
+        ax_g.set_xlabel("r_diag_sqrt")
+        ax_g.grid(True, alpha=0.3)
+        ax_g.legend()
+    grad_fig.suptitle(f"Analytic gradient vs. sweep at x₀ = [0.05, 0], r = {r0}")
+    grad_fig.tight_layout()
+    grad_fig
+    return dV_dr, du0_dr, du0_dr_fd, du0_dr_sens, r0, u0_r0
+
+
+@app.cell
+def _(dV_dr, du0_dr, du0_dr_fd, du0_dr_sens, mo, r0, u0_r0):
+    mo.md(f"""
+    At `r_diag_sqrt = {r0}` (force `F₀* = {u0_r0:.4f}` N, strictly inside the
+    ±0.5 bound) the policy gradient is:
+
+    - **∂F₀/∂r via `.backward()`:** `{du0_dr:.5f}`
+    - **∂F₀/∂r via `sensitivity(ctx, "du0_dp_global")`:** `{du0_dr_sens:.5f}`
+    - **∂F₀/∂r via finite difference:** `{du0_dr_fd:.5f}`
+    - **∂V/∂r via `.backward()`:** `{dV_dr:.5f}`
+
+    All three routes for the policy gradient agree, and the tangent lies flush
+    with the swept curve — the sensitivity is exact where no constraint binds.
+    Contrast this with the saturated case above, where the force sits on the
+    bound and its gradient would collapse to ≈ 0.
+    """)
+    return
+
+
 @app.cell
 def _():
     return
