@@ -17,8 +17,8 @@ from leap_c.utils.parameters import broadcast_default_param
 
 
 @dataclass(kw_only=True)
-class ChainControllerConfig:
-    """Configuration for the Chain controller.
+class ChainPlannerConfig:
+    """Configuration for the Chain planner.
 
     Attributes:
         N_horizon: The number of steps in the MPC horizon.
@@ -49,7 +49,7 @@ class ChainControllerConfig:
 
 
 class ChainPlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
-    """Acados-based controller for the hanging `Chain` system.
+    """Acados-based planner for the hanging `Chain` system.
 
     The state and action correspond to the observation and action of the `Chain` environment. The
     cost function takes the form of a weighted least-squares cost on the full state and action and
@@ -61,23 +61,23 @@ class ChainPlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
             such as horizon length.
     """
 
-    cfg: ChainControllerConfig
+    cfg: ChainPlannerConfig
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,
-        cfg: ChainControllerConfig | None = None,
+        cfg: ChainPlannerConfig | None = None,
         export_directory: Path | None = None,
     ) -> None:
-        """Initializes the ChainController.
+        """Initializes the ChainPlanner.
 
         Args:
-            cfg: cfg: A configuration object containing high-level settings for the
-                MPC problem, such as horizon length and maximum force. If not provided,
+            cfg: A configuration object containing high-level settings for the
+                MPC problem, such as horizon length. If not provided,
                 a default config is used.
             export_directory: Directory to export the acados ocp files.
         """
-        self.cfg = ChainControllerConfig() if cfg is None else cfg
+        self.cfg = ChainPlannerConfig() if cfg is None else cfg
         super().__init__()
 
         fix_point = np.zeros(3)

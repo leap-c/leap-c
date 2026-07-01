@@ -3,13 +3,13 @@ import pytest
 import torch
 
 from leap_c.examples.chain.env import ChainEnv, ChainEnvConfig
-from leap_c.examples.chain.planner import ChainControllerConfig, ChainPlanner
+from leap_c.examples.chain.planner import ChainPlanner, ChainPlannerConfig
 from leap_c.planner import ControllerFromPlanner
 
 
 @pytest.fixture(scope="module")
 def chain_controller():
-    cfg = ChainControllerConfig(n_mass=3)
+    cfg = ChainPlannerConfig(n_mass=3)
     planner = ChainPlanner(cfg)
     return ControllerFromPlanner(planner)
 

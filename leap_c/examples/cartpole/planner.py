@@ -75,7 +75,7 @@ class CartPolePlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
         cfg: CartPolePlannerConfig | None = None,
         export_directory: Path | None = None,
     ) -> None:
-        """Initializes the CartPoleController.
+        """Initializes the CartPolePlanner.
 
         Args:
             cfg: A configuration object containing high-level settings for the
