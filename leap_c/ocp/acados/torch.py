@@ -135,6 +135,13 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             for name in self.parameter_manager.non_learnable_parameter_names:
                 if name in params:
                     val = params[name]
+                    if isinstance(val, torch.Tensor) and val.requires_grad:
+                        raise ValueError(
+                            f"Parameter '{name}' was registered as non-differentiable "
+                            "but received a tensor with requires_grad=True. "
+                            "Either register it with differentiable=True, or pass "
+                            ".detach() to suppress this error."
+                        )
                     if isinstance(val, torch.Tensor):
                         val = val.detach().cpu().numpy()
                     non_learnable_overwrites[name] = val
