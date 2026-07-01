@@ -1,15 +1,14 @@
 import re
 
 import casadi as ca
-import gymnasium as gym
 import numpy as np
 import pytest
 import torch
 from acados_template import AcadosOcp, AcadosOcpSolver
 
 from leap_c.ocp.acados.parameters import (
-    AcadosParameter,
     AcadosParameterManager,
+    _AcadosParameter,
     _define_starts_and_ends,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
@@ -149,138 +148,6 @@ def test_parameter_interface_non_differentiable_no_vary_stages():
             manager._non_differentiable_parameter_store.defaults["matrix_non_differentiable"],
             np.array([[4.0, 5.0], [6.0, 7.0]]),
         )
-
-
-def test_parameter_bounds_differentiable():
-    """Test parameter bounds for differentiable parameters."""
-    manager = AcadosParameterManager(N_horizon=5)
-    manager.register_parameter(
-        name="unbounded",
-        default=np.array([1.0]),
-        differentiable=True,
-    )
-    manager.register_parameter(
-        name="lower_bounded",
-        default=np.array([2.0]),
-        space=gym.spaces.Box(low=np.array([0.0]), high=np.array([np.inf])),
-        differentiable=True,
-    )
-    manager.register_parameter(
-        name="upper_bounded",
-        default=np.array([3.0]),
-        space=gym.spaces.Box(low=np.array([-np.inf]), high=np.array([10.0])),
-        differentiable=True,
-    )
-    manager.register_parameter(
-        name="fully_bounded",
-        default=np.array([4.0, 5.0]),
-        space=gym.spaces.Box(low=np.array([-1.0, -2.0]), high=np.array([10.0, 20.0])),
-        differentiable=True,
-    )
-    manager.register_parameter(
-        name="matrix_lower_bounded",
-        default=np.array([[1.0, 2.0], [3.0, 4.0]]),
-        space=gym.spaces.Box(
-            low=np.array([[0.0, 0.0], [0.0, 0.0]]),
-            high=np.array([[np.inf, np.inf], [np.inf, np.inf]]),
-        ),
-        differentiable=True,
-    )
-    manager.register_parameter(
-        name="matrix_upper_bounded",
-        default=np.array([[1.0, 2.0], [3.0, 4.0]]),
-        space=gym.spaces.Box(
-            low=np.array([[-np.inf, -np.inf], [-np.inf, -np.inf]]),
-            high=np.array([[10.0, 20.0], [30.0, 40.0]]),
-        ),
-        differentiable=True,
-    )
-    manager.register_parameter(
-        name="matrix_bounded",
-        default=np.array([[1.0, 2.0], [3.0, 4.0]]),
-        space=gym.spaces.Box(
-            low=np.array([[0.0, 0.0], [0.0, 0.0]]),
-            high=np.array([[10.0, 20.0], [30.0, 40.0]]),
-        ),
-        differentiable=True,
-    )
-
-    # Test that bounds are set correctly for each parameter (CasADi format)
-    # lower_bounded should have lower bound set
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.lb["lower_bounded"], np.array([0.0])
-    )
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.ub["lower_bounded"], np.array([+np.inf])
-    )
-
-    # upper_bounded should have upper bound set
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.lb["upper_bounded"], np.array([-np.inf])
-    )
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.ub["upper_bounded"], np.array([10.0])
-    )
-
-    # fully_bounded should have both bounds set
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.lb["fully_bounded"], np.array([-1.0, -2.0])
-    )
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.ub["fully_bounded"], np.array([10.0, 20.0])
-    )
-
-    # matrix_lower_bounded should have matrix bounds set (preserves matrix shape)
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.ub["matrix_lower_bounded"],
-        np.array([[np.inf, np.inf], [np.inf, np.inf]]),
-    )
-
-    # matrix_upper_bounded should have matrix bounds set (preserves matrix shape)
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.lb["matrix_upper_bounded"],
-        np.array([[-np.inf, -np.inf], [-np.inf, -np.inf]]),
-    )
-
-    # matrix_bounded should have matrix bounds set (preserves matrix shape)
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.lb["matrix_bounded"],
-        np.array([[0.0, 0.0], [0.0, 0.0]]),
-    )
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.ub["matrix_bounded"],
-        np.array([[10.0, 20.0], [30.0, 40.0]]),
-    )
-
-
-def test_parameter_bounds_differentiable_with_vary_stages():
-    """Test parameter bounds for differentiable parameters with vary_stages."""
-    N_horizon = 5
-    manager = AcadosParameterManager(N_horizon=N_horizon)
-    manager.register_parameter(
-        name="bounded_staged",
-        default=np.array([5.0]),
-        space=gym.spaces.Box(low=np.array([0.0]), high=np.array([10.0])),
-        differentiable=True,
-        splits=[3, N_horizon],
-    )
-
-    # Should have bounds set for both staged parameters
-    assert "bounded_staged_0_3" in manager._differentiable_parameter_store.lb
-    assert "bounded_staged_4_5" in manager._differentiable_parameter_store.lb
-
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.lb["bounded_staged_0_3"], np.array([0.0])
-    )
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.ub["bounded_staged_0_3"], np.array([10.0])
-    )
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.lb["bounded_staged_4_5"], np.array([0.0])
-    )
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.ub["bounded_staged_4_5"], np.array([10.0])
-    )
 
 
 def test_vary_stages_last_element_not_valid():
@@ -423,14 +290,12 @@ def test_variable_splits_parameter_layout():
     manager.register_parameter(
         name="scalar",
         default=np.array([5.0]),
-        space=gym.spaces.Box(low=np.array([0.0]), high=np.array([20.0])),
         differentiable=True,
         splits=[3, 7, N_horizon],
     )
     manager.register_parameter(
         name="vector",
         default=np.array([10.0, 15.0]),
-        space=gym.spaces.Box(low=np.array([0.0, 5.0]), high=np.array([50.0, 100.0])),
         differentiable=True,
         splits=[2, 5, 8, N_horizon],
     )
@@ -443,17 +308,12 @@ def test_variable_splits_parameter_layout():
     manager.register_parameter(
         name="matrix",
         default=np.array([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0], [7.0, 8.0, 9.0]]),
-        space=gym.spaces.Box(
-            low=np.array([[-5.0, -5.0, -5.0], [-5.0, -5.0, -5.0], [-5.0, -5.0, -5.0]]),
-            high=np.array([[15.0, 15.0, 15.0], [15.0, 15.0, 15.0], [15.0, 15.0, 15.0]]),
-        ),
         differentiable=True,
         splits=[4, N_horizon],
     )
     manager.register_parameter(
         name="regular_param",
         default=np.array([1.0]),
-        space=gym.spaces.Box(low=np.array([-10.0]), high=np.array([10.0])),
         differentiable=True,
     )
     # The flat differentiable vector scales with stage variations and dimensions:
@@ -614,10 +474,6 @@ def test_large_dimension_parameters():
     manager.register_parameter(
         name="matrix_param",
         default=np.array([[1.0, 2.0], [3.0, 4.0]]),
-        space=gym.spaces.Box(
-            low=np.array([[0.0, 0.0], [0.0, 0.0]]),
-            high=np.array([[10.0, 10.0], [10.0, 10.0]]),
-        ),
         differentiable=True,
     )
 
@@ -626,17 +482,9 @@ def test_large_dimension_parameters():
 
     # CasADi preserves matrix shapes
     expected_value = np.array([[1.0, 2.0], [3.0, 4.0]])
-    expected_lb = np.array([[0.0, 0.0], [0.0, 0.0]])
-    expected_ub = np.array([[10.0, 10.0], [10.0, 10.0]])
 
     np.testing.assert_array_equal(
         manager._differentiable_parameter_store.defaults["matrix_param"], expected_value
-    )
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.lb["matrix_param"], expected_lb
-    )
-    np.testing.assert_array_equal(
-        manager._differentiable_parameter_store.ub["matrix_param"], expected_ub
     )
 
     # Test that 3D arrays raise an error
@@ -648,28 +496,9 @@ def test_large_dimension_parameters():
             "Parameter shape: (2, 2, 2)"
         ),
     ):
-        AcadosParameter(
+        _AcadosParameter(
             name="tensor_param",
             default=np.array([[[1.0, 2.0], [3.0, 4.0]], [[5.0, 6.0], [7.0, 8.0]]]),
-            interface="differentiable",
-        )
-
-    # Test that 3D space bounds raise an error
-    with pytest.raises(
-        ValueError,
-        match=re.escape(
-            "Parameter 'tensor_bounds_param' space has 3 dimensions, "
-            "but CasADi only supports arrays up to 2 dimensions. "
-            "Space shape: (2, 2, 2)"
-        ),
-    ):
-        AcadosParameter(
-            name="tensor_bounds_param",
-            default=np.array([[1.0, 2.0], [3.0, 4.0]]),
-            space=gym.spaces.Box(
-                low=np.array([[[0.0, 0.0], [0.0, 0.0]], [[0.0, 0.0], [0.0, 0.0]]]),
-                high=np.array([[[10.0, 10.0], [10.0, 10.0]], [[10.0, 10.0], [10.0, 10.0]]]),
-            ),
             interface="differentiable",
         )
 
@@ -836,7 +665,7 @@ def test_combine_parameter_values_complex():
 
 def test_param_manager_combine_parameter_values(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
-    nominal_stagewise_params: tuple[AcadosParameter, ...],
+    nominal_stagewise_params: tuple[_AcadosParameter, ...],
     rng: np.random.Generator,
 ) -> None:
     """Test the addition of parameters to the AcadosParamManager.
@@ -861,7 +690,6 @@ def test_param_manager_combine_parameter_values(
         acados_param_manager.register_parameter(
             name=param.name,
             default=param.default,
-            space=param.space,
             differentiable=(param.interface == "differentiable"),
             splits=param.splits,
         )
@@ -1164,7 +992,7 @@ def test_acados_parameter_overwrite_shape_and_broadcasted_default(splits, expect
     """overwrite_shape and broadcasted_default agree across split types."""
     N_horizon = 5
     default = np.array([1.0])
-    param = AcadosParameter(name="p", default=default, interface="differentiable", splits=splits)
+    param = _AcadosParameter(name="p", default=default, interface="differentiable", splits=splits)
 
     shape = param.overwrite_shape(N_horizon)
     bd = param.broadcasted_default(N_horizon)
@@ -1184,7 +1012,7 @@ def test_acados_parameter_overwrite_shape_and_broadcasted_default_matrix():
     N_horizon = 5
     default = np.array([[1.0, 2.0], [3.0, 4.0]])
     for splits, expected_n_segments in [("stagewise", 6), ([2, 5], 2), (3, 3)]:
-        param = AcadosParameter(
+        param = _AcadosParameter(
             name="p", default=default, interface="differentiable", splits=splits
         )
         shape = param.overwrite_shape(N_horizon)
@@ -1283,6 +1111,54 @@ def test_combine_differentiable_parameters_torch_defaults(splits, expected_n_seg
     bd = manager.parameters["p"].broadcasted_default(N_horizon)
     expected = np.tile(bd.reshape(-1), (batch_size, 1))
     np.testing.assert_array_equal(result, expected)
+
+
+@pytest.mark.parametrize(
+    "splits,expected_n_segments",
+    [
+        ("global", 1),
+        ("stagewise", 6),
+        ([2, 5], 2),
+        (3, 3),
+    ],
+)
+def test_combine_non_differentiable_parameters_defaults(splits, expected_n_segments):
+    """combine_non_differentiable_parameters with no overwrites tiles defaults across batch/stages.
+
+    A differentiable parameter with the given ``splits`` is registered (which injects an
+    indicator into the non-differentiable store when stage-varying) alongside a plain
+    non-differentiable parameter. The non-differentiable defaults must be tiled across the
+    batch and stage dimensions, and the indicator (if present) must be set to the identity.
+    """
+    N_horizon = 5
+    nd_default = np.array([42.0])
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(name="nd", default=nd_default, differentiable=False)
+    manager.register_parameter(
+        name="d", default=np.array([1.0]), differentiable=True, splits=splits
+    )
+
+    batch_size = 3
+    result = manager.combine_non_differentiable_parameters(batch_size=batch_size)
+
+    # The non-differentiable param is tiled across batch and stages.
+    s_nd, e_nd = manager._non_differentiable_parameter_store.indices["nd"]
+    expected_nd = np.tile(nd_default, (batch_size, N_horizon + 1, 1))
+    np.testing.assert_array_equal(result[:, :, s_nd:e_nd], expected_nd)
+
+    if splits == "global":
+        # No indicator injected for a global differentiable param.
+        assert "indicator" not in manager._non_differentiable_parameter_store.symbols
+    else:
+        # Indicator is present and set to the identity matrix (one-hot per stage).
+        s_ind, e_ind = manager._non_differentiable_parameter_store.indices["indicator"]
+        for stage in range(N_horizon + 1):
+            expected_indicator = np.zeros(N_horizon + 1)
+            expected_indicator[stage] = 1.0
+            np.testing.assert_array_equal(
+                result[:, stage, s_ind:e_ind],
+                np.tile(expected_indicator, (batch_size, 1)),
+            )
 
 
 def test_combine_differentiable_parameters_torch_uncovered_terminal_stage():
@@ -1497,6 +1373,14 @@ def test_define_starts_and_ends_stagewise():
     assert ends == [0, 1, 2, 3]
 
 
+def test_define_starts_and_ends_global():
+    """Test starts/ends for global splits: one segment covering all stages."""
+    starts, ends = _define_starts_and_ends(splits="global", N_horizon=5)
+
+    assert starts == [0]
+    assert ends == [5]
+
+
 def test_define_starts_and_ends_list_splits():
     """Test starts/ends for explicit list splits."""
     starts, ends = _define_starts_and_ends(splits=[2, 5], N_horizon=5)
@@ -1513,6 +1397,20 @@ def test_define_starts_and_ends_int_splits_balanced():
     assert ends == [1, 3, 4]
 
 
+@pytest.mark.parametrize("invalid_splits", ["foo", 0, -1, 3.5, [1, "a"], None])
+def test_define_starts_and_ends_invalid_raises(invalid_splits):
+    """Invalid splits values raise ValueError immediately."""
+    with pytest.raises(ValueError, match="Invalid splits value"):
+        _define_starts_and_ends(splits=invalid_splits, N_horizon=5)
+
+
+def test_define_starts_and_ends_docstring_example():
+    """The docstring example: _define_starts_and_ends([2, 5], 5) -> ([0, 3], [2, 5])."""
+    starts, ends = _define_starts_and_ends(splits=[2, 5], N_horizon=5)
+    assert starts == [0, 3]
+    assert ends == [2, 5]
+
+
 def test_acados_parameter_splits_empty_list_raises():
     """Test empty splits list raises a ValueError."""
     with pytest.raises(
@@ -1522,7 +1420,7 @@ def test_acados_parameter_splits_empty_list_raises():
             " global parameter, please set splits='global' instead."
         ),
     ):
-        AcadosParameter(
+        _AcadosParameter(
             name="empty_splits",
             default=np.array([1.0]),
             interface="differentiable",
@@ -1538,7 +1436,7 @@ def test_acados_parameter_splits_unsorted_list_raises():
             "Parameter 'unsorted_splits' splits [3, 1] are not sorted in ascending order."
         ),
     ):
-        AcadosParameter(
+        _AcadosParameter(
             name="unsorted_splits",
             default=np.array([1.0]),
             interface="differentiable",
@@ -1555,7 +1453,7 @@ def test_acados_parameter_splits_invalid_int_raises():
             "`>1`. If you meant to define a global parameter, please set splits='global'"
         ),
     ):
-        AcadosParameter(
+        _AcadosParameter(
             name="invalid_int_splits",
             default=np.array([1.0]),
             interface="differentiable",

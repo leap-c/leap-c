@@ -1,9 +1,9 @@
-"""Parameter manager tutorial - basic usage with default non-learnable parameters.
+"""Parameter manager tutorial - basic usage with default non-differentiable parameters.
 
 Demonstrates:
 - Building an AcadosParameterManager via ``register_parameter``
-- ``combine_non_learnable_parameters``: packing per-stage non-learnable values
-- ``combine_learnable_parameters_torch``: packing a batch of learnable values
+- ``combine_non_differentiable_parameters``: packing per-stage non-differentiable values
+- ``combine_differentiable_parameters_torch``: packing a batch of differentiable values
   with a stage-varying price overwrite
 - Running ``AcadosDiffMpcTorch.forward`` with the default p_stagewise (outdoor_temp
   at its default value for every stage)
@@ -24,17 +24,17 @@ if __name__ == "__main__":
 
     N_stages = N_HORIZON + 1
 
-    # ── Illustrate combine_non_learnable_parameters ─────────────────────────
+    # ── Illustrate combine_non_differentiable_parameters ────────────────────
     temp_forecast = rng.uniform(5.0, 25.0, size=(BATCH_SIZE, N_stages, 1))
-    p_stagewise = manager.combine_non_learnable_parameters(
+    p_stagewise = manager.combine_non_differentiable_parameters(
         batch_size=BATCH_SIZE,
         outdoor_temp=temp_forecast,
     )
     print(f"p_stagewise shape: {p_stagewise.shape}")
 
-    # ── Illustrate combine_learnable_parameters_torch ────────────────────────
+    # ── Illustrate combine_differentiable_parameters_torch ───────────────────
     price_forecast = rng.uniform(0.05, 0.40, size=(BATCH_SIZE, N_stages, 1))
-    p_global = manager.combine_learnable_parameters_torch(
+    p_global = manager.combine_differentiable_parameters_torch(
         batch_size=BATCH_SIZE,
         device=torch.device("cpu"),
         dtype=torch.float64,
@@ -44,7 +44,7 @@ if __name__ == "__main__":
 
     # ── Run the solver ────────────────────────────────────────────────────────
     x0_batch = torch.tensor(rng.uniform(15.0, 25.0, size=(BATCH_SIZE, 1)), dtype=torch.float64)
-    p_global_default = manager.combine_learnable_parameters_torch(
+    p_global_default = manager.combine_differentiable_parameters_torch(
         batch_size=BATCH_SIZE, device=torch.device("cpu"), dtype=torch.float64
     )
 

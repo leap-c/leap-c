@@ -5,12 +5,12 @@ where parameters are registered with ``manager.register_parameter()``, which
 returns a CasADi symbolic for immediate use in the OCP model.
 
 Two parameter types:
-  - **Non-learnable** (``differentiable=False``): changed at runtime but no
+  - **Non-differentiable** (``differentiable=False``): changed at runtime but no
     gradient flows through them (e.g. weather forecast).
-  - **Learnable** (``differentiable=True``): differentiable; gradients from
+  - **Differentiable** (``differentiable=True``): differentiable; gradients from
     ``value.sum().backward()`` flow back to the input tensor.
 
-Stage-varying learnable parameters (e.g. electricity price with two blocks)
+Stage-varying differentiable parameters (e.g. electricity price with two blocks)
 use the ``splits`` argument.
 
 Sensitivities (e.g. ``du0/dp``) are retrieved with standard PyTorch autograd
@@ -18,7 +18,6 @@ Sensitivities (e.g. ``du0/dp``) are retrieved with standard PyTorch autograd
 """
 
 import casadi as ca
-import gymnasium as gym
 import numpy as np
 import torch
 from acados_template import AcadosOcp
@@ -41,45 +40,26 @@ if __name__ == "__main__":
     # ── Build parameter manager and register parameters ──────────────────────
     manager = AcadosParameterManager(N_horizon=N_HORIZON)
 
-    # Non-learnable: ambient temperature, changed per call, no gradient.
+    # Non-differentiable: ambient temperature, changed per call, no gradient.
     outdoor_temp = manager.register_parameter(
         name="outdoor_temp",
         default=np.array([20.0]),
         differentiable=False,
     )
-    # The learnable parameter space is built externally as a gym.spaces.Dict, keyed by
-    # parameter name and in registration order.
-    spaces: list[tuple[str, gym.spaces.Box]] = []
 
-    # Learnable: comfort setpoint, constant across all stages.
+    # Differentiable: comfort setpoint, constant across all stages.
     comfort_ref = manager.register_parameter(
         name="comfort_setpoint",
         default=np.array([21.0]),
         differentiable=True,
     )
-    spaces.append(
-        (
-            "comfort_setpoint",
-            gym.spaces.Box(low=np.array([15.0]), high=np.array([28.0]), dtype=np.float64),
-        )
-    )
-    # Learnable and stage-varying: two price blocks.
+    # Differentiable and stage-varying: two price blocks.
     # Block 0 (stages 0-3) and block 1 (stages 4-N_HORIZON).
     price = manager.register_parameter(
         name="price",
         default=np.array([0.15]),
         differentiable=True,
         splits=[4, N_HORIZON],
-    )
-    spaces.append(
-        (
-            "price",
-            gym.spaces.Box(
-                low=np.zeros((N_HORIZON + 1, 1)),
-                high=np.ones((N_HORIZON + 1, 1)),
-                dtype=np.float64,
-            ),
-        )
     )
 
     dt = 0.25  # 15-minute time step [h]
@@ -122,16 +102,16 @@ if __name__ == "__main__":
     # ── Build differentiable MPC planner ─────────────────────────────────────
     diff_mpc = AcadosDiffMpcTorch(ocp, manager)
 
-    # ── Solve with non-default learnable parameters ─────────────────────────
+    # ── Solve with non-default differentiable parameters ────────────────────
     x0_batch = torch.tensor(rng.uniform(10.0, 30.0, size=(BATCH_SIZE, 1)))
 
-    # Price forecast: stage-varying, shape (batch_size, N_horizon + 1, 1).
-    # With splits=[4, N_HORIZON]:
-    #   Block 0 (stages 0-4) reads val[:, 0]
-    #   Block 1 (stages 5-20) reads val[:, 5]
-    price_array = np.zeros((BATCH_SIZE, N_HORIZON + 1))
+    # Price forecast: stage-varying, shape (batch_size, n_segments).
+    # With splits=[4, N_HORIZON] there are 2 segments:
+    #   Segment 0 (stages 0-4) reads val[:, 0]
+    #   Segment 1 (stages 5-20) reads val[:, 1]
+    price_array = np.zeros((BATCH_SIZE, 2))
     price_array[:, 0] = [0.015, 0.20, 0.25, 0.30]
-    price_array[:, 5] = [0.020, 0.25, 0.30, 0.35]
+    price_array[:, 1] = [0.020, 0.25, 0.30, 0.35]
     price_tensor = torch.tensor(price_array, dtype=torch.float64, requires_grad=True)
 
     ctx, u0, x, u, value = diff_mpc(x0_batch, params={"price": price_tensor})

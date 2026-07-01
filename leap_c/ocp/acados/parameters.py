@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Any, Literal
 from warnings import warn
 
 import casadi as ca
-import gymnasium as gym
 import numpy as np
 from acados_template import AcadosOcp
 
@@ -16,7 +15,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class AcadosParameter:
+class _AcadosParameter:
     """Parameter container for flexible parameter management with acados.
 
     It provides an interface for defining parameter sets without requiring knowledge of
@@ -25,8 +24,6 @@ class AcadosParameter:
     Attributes:
         name: The name identifier for the parameter.
         default: The parameter's default numerical value(s).
-        space: A gym.spaces.Space defining the valid parameter space.
-            Only used for differentiable parameters. Defaults to `None` (unbounded).
         interface: Parameter interface type.
             Either `"non-differentiable"` (not exposed to the learning interface, but will be
             changeable parameters also after creation of the solver), or `"differentiable"`
@@ -46,7 +43,6 @@ class AcadosParameter:
     # Fields from base Parameter class
     name: str
     default: np.ndarray
-    space: gym.spaces.Space | None = None
     interface: Literal["differentiable", "non-differentiable"] = "differentiable"
 
     # Additional acados-specific field
@@ -86,40 +82,13 @@ class AcadosParameter:
                 f"Parameter shape: {self.default.shape}"
             )
 
-        if self.interface == "differentiable":
-            if isinstance(self.space, gym.spaces.Box):
-                if len(self.space.shape) > 2:
-                    raise ValueError(
-                        f"Parameter '{self.name}' space has {len(self.space.shape)} dimensions, "
-                        f"but CasADi only supports arrays up to 2 dimensions. "
-                        f"Space shape: {self.space.shape}"
-                    )
-            elif self.space is None:
-                self.space = gym.spaces.Box(
-                    low=-np.inf,
-                    high=np.inf,
-                    shape=np.shape(self.default),
-                )
-            else:
-                raise NotImplementedError(
-                    f"Parameter '{self.name}' has space of type {type(self.space)}, "
-                    "but currently only gym.spaces.Box is supported."
-                )
-        else:
-            if self.space is not None:
-                warn(
-                    f"Parameter '{self.name}' with interface '{self.interface}' defines space."
-                    " The space will be ignored as only 'differentiable' parameters supports it.",
-                    UserWarning,
-                    stacklevel=2,
-                )
-            if self.splits != "global":
-                warn(
-                    f"Parameter '{self.name}' with interface '{self.interface}' defines splits."
-                    " The splits will be ignored as only 'differentiable' parameters supports it.",
-                    UserWarning,
-                    stacklevel=2,
-                )
+        if self.interface != "differentiable" and self.splits != "global":
+            warn(
+                f"Parameter '{self.name}' with interface '{self.interface}' defines splits."
+                " The splits will be ignored as only 'differentiable' parameters supports it.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     def overwrite_shape(self, N_horizon: int) -> tuple:
         if self.splits == "global":
@@ -147,8 +116,6 @@ class _ParameterStore:
     symbols: dict[str, ca.SX | ca.MX] = field(default_factory=dict)
     indices: dict[str, tuple[int, int]] = field(default_factory=dict)
     defaults: dict[str, np.ndarray] = field(default_factory=dict)
-    lb: dict[str, np.ndarray] = field(default_factory=dict)
-    ub: dict[str, np.ndarray] = field(default_factory=dict)
     _size: int = field(default=0, init=False)
 
     @property
@@ -160,17 +127,11 @@ class _ParameterStore:
         name: str,
         symbol: ca.SX | ca.MX,
         default: np.ndarray,
-        lb: np.ndarray | None = None,
-        ub: np.ndarray | None = None,
     ) -> None:
         n = default.size
         self.symbols[name] = symbol
         self.indices[name] = (self._size, self._size + n)
         self.defaults[name] = default
-        if lb is not None:
-            self.lb[name] = lb
-        if ub is not None:
-            self.ub[name] = ub
         self._size += n
 
     def get_values(self) -> np.ndarray:
@@ -203,7 +164,7 @@ class AcadosParameterManager:
         for all stage-varying differentiable parameters.
 
     Attributes:
-        parameters: Dictionary of parameter names to AcadosParameter instances.
+        parameters: Dictionary of parameter names to _AcadosParameter instances.
         N_horizon: The horizon length for the ocp.
         casadi_type: The CasADi symbolic type used for the parameters, either "SX" or "MX".
         differentiable_default_flat:
@@ -214,7 +175,7 @@ class AcadosParameterManager:
         non_differentiable_symbols: CasADi SX/MX expression for the non-differentiable parameters.
     """
 
-    parameters: dict[str, AcadosParameter]
+    parameters: dict[str, _AcadosParameter]
     N_horizon: int
     casadi_type: Literal["SX", "MX"]
     _differentiable_parameter_store: _ParameterStore
@@ -326,11 +287,11 @@ class AcadosParameterManager:
         else:
             raise ValueError(f"Unsupported casadi_type: {casadi_type}")
 
-    def _store_differentiable_parameter(self, parameter: AcadosParameter) -> None:
+    def _store_differentiable_parameter(self, parameter: _AcadosParameter) -> None:
         if parameter.is_stage_varying:
             self._need_indicator = True
             if "indicator" not in self._non_differentiable_parameter_store.symbols:
-                indicator = AcadosParameter(
+                indicator = _AcadosParameter(
                     name="indicator",
                     default=np.zeros(self.N_horizon + 1),
                     interface="non-differentiable",
@@ -345,16 +306,12 @@ class AcadosParameterManager:
                 # e.g. price_0_10, price_11_20, etc.
                 p_name = f"{parameter.name}_{start}_{end}"
                 symbol = self._create_symbol(p_name, parameter.default.size, self.casadi_type)
-                self._differentiable_parameter_store.add(
-                    p_name, symbol, parameter.default, parameter.space.low, parameter.space.high
-                )
+                self._differentiable_parameter_store.add(p_name, symbol, parameter.default)
         else:
             symbol = self._create_symbol(parameter.name, parameter.default.size, self.casadi_type)
-            self._differentiable_parameter_store.add(
-                parameter.name, symbol, parameter.default, parameter.space.low, parameter.space.high
-            )
+            self._differentiable_parameter_store.add(parameter.name, symbol, parameter.default)
 
-    def _store_non_differentiable_parameter(self, parameter: AcadosParameter) -> None:
+    def _store_non_differentiable_parameter(self, parameter: _AcadosParameter) -> None:
         symbol = self._create_symbol(parameter.name, parameter.default.size, self.casadi_type)
         self._non_differentiable_parameter_store.add(parameter.name, symbol, parameter.default)
 
@@ -384,7 +341,6 @@ class AcadosParameterManager:
         self,
         name: str,
         default: np.ndarray,
-        space: gym.spaces.Space | None = None,
         differentiable: bool = False,
         splits: ParamSplits = "global",
     ) -> ca.SX | ca.MX:
@@ -396,12 +352,11 @@ class AcadosParameterManager:
         Args:
             name: The name of the parameter.
             default: The default value(s) for the parameter.
-            space: A gymnasium space defining valid parameter values (for differentiable params).
             differentiable: If True, the parameter supports sensitivities (differentiable).
                 If False, the parameter is changeable at runtime but not differentiable
                 (non-differentiable). Defaults to ``False``.
             splits: Defines how the parameter varies across stages. See
-                :class:`AcadosParameter` for details. Defaults to ``"global"``.
+                :class:`_AcadosParameter` for details. Defaults to ``"global"``.
 
         Returns:
             A CasADi symbolic expression for the parameter.
@@ -409,10 +364,9 @@ class AcadosParameterManager:
         if self._finalized:
             raise ValueError("Cannot register parameters after assigning to OCP")
 
-        parameter = AcadosParameter(
+        parameter = _AcadosParameter(
             name=name,
             default=default,
-            space=space,
             interface="differentiable" if differentiable else "non-differentiable",
             splits=splits,
         )
@@ -692,35 +646,6 @@ class AcadosParameterManager:
                 f"Unknown interface type for field '{name}': {self.parameters[name].interface}"
             )
 
-    # TODO (Mazen): I guess this needs to be deprecated. After separating, all the code should use
-    # the dictionary API.
-    def get_labeled_differentiable_parameters(
-        self,
-        param_values: Any,
-        label: str,
-    ) -> Any:
-        """Get a structured representation of the differentiable parameters from flat values.
-
-        Args:
-            param_values: Flat numpy array of differentiable parameter values.
-            label: Substring to filter parameters by name.
-
-        Returns:
-            A numpy array or torch Tensor corresponding to the parameters
-            matching the label.
-        """
-        if label is None:
-            raise ValueError("Label must be provided to filter differentiable parameters.")
-
-        keys = [key for key in self._differentiable_parameter_store.symbols if label in key]
-
-        if keys == []:
-            raise ValueError(f"No differentiable parameters found with label '{label}'.")
-
-        idx = [self._differentiable_parameter_store.indices[key] for key in keys]
-        idx = [slice(s, e) for s, e in idx]
-        return param_values[..., np.r_[*idx]].reshape(-1, len(keys))
-
     def assign_to_ocp(self, ocp: AcadosOcp) -> None:
         """Synchronize the parameter manager's symbols and defaults onto the OCP.
 
@@ -737,12 +662,38 @@ class AcadosParameterManager:
         ocp.p_global_values = self.differentiable_default_flat
 
 
-def _define_starts_and_ends(
-    splits: list[int] | int | Literal["stagewise"], N_horizon: int
-) -> tuple[list[int], list[int]]:
-    """Define the start and end indices for stage-varying parameters."""
-    # TODO (dirk): Document the usage of this function and the expected output format.
-    if splits == "stagewise":
+def _define_starts_and_ends(splits: ParamSplits, N_horizon: int) -> tuple[list[int], list[int]]:
+    """Compute the start and end stage indices for each segment given a splits policy.
+
+    Args:
+        splits: The split policy. Must be one of ``"global"``, ``"stagewise"``, a
+            positive ``int`` (number of equal-sized segments), or a ``list[int]`` of
+            ascending stage boundaries.
+        N_horizon: The horizon length. Stages are indexed ``0`` to ``N_horizon``
+            (inclusive), giving ``N_horizon + 1`` stages in total.
+
+    Returns:
+        A ``(starts, ends)`` pair of lists of equal length, where ``starts[i]`` and
+        ``ends[i]`` are the inclusive start and end stage indices of segment ``i``.
+
+    Example:
+        ``_define_starts_and_ends([2, 5], 5)`` returns ``([0, 3], [2, 5])`` — two
+        segments covering stages 0-2 and 3-5.
+    """
+    if not (
+        splits in ("global", "stagewise")
+        or (isinstance(splits, int) and splits > 0)
+        or (isinstance(splits, list) and all(isinstance(x, int) for x in splits))
+    ):
+        raise ValueError(
+            f"Invalid splits value: {splits!r}. Expected 'global', 'stagewise', a positive int, "
+            "or a list[int]."
+        )
+
+    if splits == "global":
+        # A single segment covering all stages 0..N_horizon.
+        ends = [N_horizon]
+    elif splits == "stagewise":
         ends = list(range(N_horizon + 1))
     elif isinstance(splits, int):
         split_size = (N_horizon + 1) // splits
@@ -753,7 +704,5 @@ def _define_starts_and_ends(
         ends = (np.cumsum(sizes) - 1).tolist()
     elif isinstance(splits, list):
         ends = splits
-    else:
-        raise ValueError(f"Invalid splits value: {splits}")
     starts = [0] + [v + 1 for v in ends if v + 1 <= N_horizon]
     return starts, ends

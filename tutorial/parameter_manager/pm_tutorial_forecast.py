@@ -1,10 +1,10 @@
-"""Parameter manager tutorial - forecast-aware solve with non-default learnable params.
+"""Parameter manager tutorial - forecast-aware solve with non-default differentiable params.
 
 Demonstrates:
 - Using ``AcadosDiffMpcTorch`` directly to solve with per-call outdoor temperature
-  forecast via ``combine_non_learnable_parameters``
-- Passing non-default learnable parameter values (custom comfort setpoint and
-  stage-varying price) via ``combine_learnable_parameters_torch``
+  forecast via ``combine_non_differentiable_parameters``
+- Passing non-default differentiable parameter values (custom comfort setpoint and
+  stage-varying price) via ``combine_differentiable_parameters_torch``
 """
 
 import numpy as np
@@ -26,13 +26,13 @@ if __name__ == "__main__":
     state = torch.tensor(rng.uniform(15.0, 25.0, size=(BATCH_SIZE, 1)), dtype=torch.float64)
     temp_forecast = rng.uniform(5.0, 25.0, size=(BATCH_SIZE, N_stages, 1))
 
-    # ── Non-default learnable parameters ─────────────────────────────────────
+    # ── Non-default differentiable parameters ────────────────────────────────
     comfort_values = torch.tensor(np.array([[19.0], [21.0], [23.0], [22.5]]), dtype=torch.float64)
     price_forecast = torch.tensor(
         rng.uniform(0.05, 0.40, size=(BATCH_SIZE, N_stages, 1)), dtype=torch.float64
     )
 
-    p_global = manager.combine_learnable_parameters_torch(
+    p_global = manager.combine_differentiable_parameters_torch(
         batch_size=BATCH_SIZE,
         device=torch.device("cpu"),
         dtype=torch.float64,

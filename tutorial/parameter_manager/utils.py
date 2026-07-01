@@ -1,7 +1,6 @@
 """Shared constants and OCP construction for the parameter manager tutorials."""
 
 import casadi as ca
-import gymnasium as gym
 import numpy as np
 from acados_template import AcadosModel, AcadosOcp
 
@@ -18,11 +17,11 @@ def build_manager(N_horizon: int = N_HORIZON) -> AcadosParameterManager:
     """Build and return the parameter manager for the temperature-control tutorial.
 
     Parameters:
-        - ``dt``               fixed time step [h]  (non-learnable)
-        - ``outdoor_temp``     ambient temperature [degC]  (non-learnable)
-        - ``comfort_setpoint`` comfort reference temperature [degC]  (learnable)
+        - ``dt``               fixed time step [h]  (non-differentiable)
+        - ``outdoor_temp``     ambient temperature [degC]  (non-differentiable)
+        - ``comfort_setpoint`` comfort reference temperature [degC]  (differentiable)
         - ``price``            electricity price [EUR/kWh], two stage blocks
-          (learnable)
+          (differentiable)
     """
     manager = AcadosParameterManager(N_horizon=N_horizon)
 
@@ -39,13 +38,11 @@ def build_manager(N_horizon: int = N_HORIZON) -> AcadosParameterManager:
     manager.register_parameter(
         name="comfort_setpoint",
         default=np.array([21.0]),
-        space=gym.spaces.Box(low=np.array([15.0]), high=np.array([28.0]), dtype=np.float64),
         differentiable=True,
     )
     manager.register_parameter(
         name="price",
         default=np.array([0.15]),
-        space=gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float64),
         differentiable=True,
         splits=[4, N_horizon],
     )
