@@ -778,9 +778,6 @@ def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
         x0=torch.tensor(x0, dtype=torch.float32).reshape(1, -1),
     )
 
-    for key, val in sol_forward.items():
-        print(f"sol_forward_{key} u:", val[3])
-
     out = ["ctx", "u0", "x", "u", "value"]
     for idx, label in enumerate(out[1:]):
         assert np.allclose(
@@ -885,8 +882,6 @@ def test_combine_differentiable_parameters_torch_stagewise():
         differentiable=True,
         splits=[N_horizon],
     )
-
-    print(manager._differentiable_parameter_store.indices.keys())
 
     batch_size = 2
     # Provide per-segment forecasts: shape (batch_size, n_segments)
