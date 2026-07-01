@@ -1,6 +1,5 @@
 """Central interface to use acados in PyTorch."""
 
-from collections.abc import Sequence
 from pathlib import Path
 from typing import Literal
 
