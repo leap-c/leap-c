@@ -7,6 +7,7 @@ from pathlib import Path
 
 import casadi as ca
 import numpy as np
+import pytest
 import torch
 from acados_template import AcadosOcp
 
@@ -1048,3 +1049,61 @@ def test_repr_module() -> None:
     assert "AcadosParameterManager(" not in r
     # The parameters section is present.
     assert "  parameters:" in r
+
+
+def test_guard_non_differentiable_requires_grad_raises() -> None:
+    diff_mpc = create_simple_diff_mpc(N_horizon=5)
+
+    x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64)
+    dummy_tensor = torch.tensor([[[1.0]] * 6], dtype=torch.float64, requires_grad=True)
+
+    params = {"dummy_non_differentiable": dummy_tensor}
+
+    with pytest.raises(ValueError) as excinfo:
+        diff_mpc(x0=x0, params=params)
+
+    msg = str(excinfo.value)
+    assert "requires_grad=True" in msg
+    assert "differentiable=True" in msg
+
+
+def test_guard_non_differentiable_detached_works() -> None:
+    diff_mpc = create_simple_diff_mpc(N_horizon=5)
+
+    x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64)
+    dummy_tensor = torch.tensor([[[1.0]] * 6], dtype=torch.float64, requires_grad=True).detach()
+
+    params = {"dummy_non_differentiable": dummy_tensor}
+
+    ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
+
+    assert np.all(ctx.status == 0)
+
+
+def test_guard_non_differentiable_numpy_works() -> None:
+    diff_mpc = create_simple_diff_mpc(N_horizon=5)
+
+    x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64)
+    dummy_array = np.array([[[1.0]] * 6], dtype=np.float64)
+
+    params = {"dummy_non_differentiable": dummy_array}
+    ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
+
+    assert np.all(ctx.status == 0)
+
+
+def test_guard_differentiable_requires_grad_works() -> None:
+    diff_mpc = create_simple_diff_mpc(N_horizon=5)
+
+    x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64)
+    Q_tensor = torch.tensor([[1.0, 1.0]], dtype=torch.float64, requires_grad=True)
+    dummy_tensor = torch.tensor([[[1.0]] * 6], dtype=torch.float64, requires_grad=True).detach()
+
+    params = {"Q": Q_tensor, "dummy_non_differentiable": dummy_tensor}
+    ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
+
+    assert np.all(ctx.status == 0)
+
+    value.sum().backward()
+    assert Q_tensor.grad is not None
+    assert not torch.isnan(Q_tensor.grad).any()
