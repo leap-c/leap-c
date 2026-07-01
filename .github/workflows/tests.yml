@@ -22,7 +22,7 @@ jobs:
 
     steps:
       - name: Checkout leap-c
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: ${{github.workspace}}/leap_c
           submodules: "recursive"
@@ -44,11 +44,12 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         if: env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ env.CODECOV_TOKEN }}
           name: ${{ matrix.test-group.env }}-${{ matrix.test-group.script }}
           flags: integration-tests
+          verbose: true
 
   unit_tests:
     name: Unit Tests
@@ -60,7 +61,7 @@ jobs:
 
     steps:
       - name: Checkout leap-c
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           path: ${{github.workspace}}/leap_c
           submodules: "recursive"
@@ -79,8 +80,9 @@ jobs:
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
         if: env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v4
+        uses: codecov/codecov-action@v7
         with:
           token: ${{ env.CODECOV_TOKEN }}
           name: unit-tests-${{ matrix.python-version }}
           flags: unit-tests
+          verbose: true
