@@ -43,13 +43,15 @@ class ParameterizedPlanner(nn.Module, Generic[CtxType], metaclass=ABCMeta):
             ctx (CtxType, optional): Optional internal context passed between invocations.
 
         Returns:
-            ctx (CtxType): A context object containing any intermediate values needed for backward
-                computation and further invocations.
-            u0 (Tensor, optional): The computed initial control action. Is `None` if
-                the action is already provided.
-            x (Tensor): The computed sequence of states. Expected shape `(N+1, *state_dims)`.
-            u (Tensor): The computed sequence of controls. Expected shape `(N, *control_dims)`.
-            value (Tensor): The cost value of the computed trajectory.
+            A tuple ``(ctx, u0, x, u, value)`` where:
+
+            - ctx (CtxType): A context object containing any intermediate values needed
+              for backward computation and further invocations.
+            - u0 (Tensor, optional): The computed initial control action. Is ``None`` if
+              the action is already provided.
+            - x (Tensor): The computed sequence of states. Expected shape ``(N+1, *state_dims)``.
+            - u (Tensor): The computed sequence of controls. Expected shape ``(N, *control_dims)``.
+            - value (Tensor): The cost value of the computed trajectory.
         """
         ...
 
@@ -115,9 +117,11 @@ class ControllerFromPlanner(ParameterizedController[CtxType], Generic[CtxType]):
             ctx (CtxType, optional): Optional internal context passed between invocations.
 
         Returns:
-            ctx (CtxType): A context object containing any intermediate values needed for backward
-                computation and further invocations.
-            action (Tensor): The computed first action from the planned trajectory.
+            A tuple ``(ctx, action)`` where:
+
+            - ctx (CtxType): A context object containing any intermediate values needed
+              for backward computation and further invocations.
+            - action (Tensor): The computed first action from the planned trajectory.
         """
         return self.planner.forward(obs, params=params, ctx=ctx)[:2]
 

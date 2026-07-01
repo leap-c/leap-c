@@ -50,11 +50,13 @@ def episode_rollout(
     Yields:
         The first dictionary containing the information about the rollout, at least containing the
         following keys:
-         - `"score"`: The cumulative reward of the episode,
-         - `"length"`: The length of the episode,
-         - `"terminated"`: Whether it terminated,
-         - `"truncated"`: Whether it truncated,
-         - `"inference_time"`: The average inference time of the policy per step.
+
+        - ``"score"``: The cumulative reward of the episode,
+        - ``"length"``: The length of the episode,
+        - ``"terminated"``: Whether it terminated,
+        - ``"truncated"``: Whether it truncated,
+        - ``"inference_time"``: The average inference time of the policy per step.
+
         The second dictionary containing statistics returned by the policy.
     """
 

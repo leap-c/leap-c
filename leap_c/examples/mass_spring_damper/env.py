@@ -54,50 +54,53 @@ class MassSpringDamperEnvConfig:
 class MassSpringDamperEnv(MatplotlibRenderEnv):
     """A simple 1D mass-spring-damper environment with position and velocity states.
 
-    The dynamics follow a discrete-time mass-spring-damper system:
-    ```
-        x[k+1] = x[k] + dt * v[k]
-        v[k+1] = v[k] + dt * (F[k]/m - (b/m)*v[k] - (k/m)*x[k])
-    ```
+    The dynamics, observation space, action space, reward, and termination are
+    described below::
 
-    where `m` is mass, `b` is damping coefficient, and `k` is spring stiffness.
+        The dynamics follow a discrete-time mass-spring-damper system:
+        ```
+            x[k+1] = x[k] + dt * v[k]
+            v[k+1] = v[k] + dt * (F[k]/m - (b/m)*v[k] - (k/m)*x[k])
+        ```
 
-    Observation Space:
-    ------------------
-    The observation is a `ndarray` with shape `(2,)` and dtype `np.float32` representing:
-    | Num | Observation         | Min        | Max        |
-    |-----|---------------------|------------|------------|
-    | 0   | position (x)        | x_min      | x_max      |
-    | 1   | velocity (v)        | v_min      | v_max      |
+        where `m` is mass, `b` is damping coefficient, and `k` is spring stiffness.
 
-    Action Space:
-    -------------
-    The action is a `ndarray` with shape `(1,)` and dtype `np.float32`
-    representing the applied force, bounded by `[F_min, F_max]`.
+        Observation Space:
+        ------------------
+        The observation is a `ndarray` with shape `(2,)` and dtype `np.float32` representing:
+        | Num | Observation         | Min        | Max        |
+        |-----|---------------------|------------|------------|
+        | 0   | position (x)        | x_min      | x_max      |
+        | 1   | velocity (v)        | v_min      | v_max      |
 
-    Reward:
-    -------
-    The reward is the negative mass-spring-damper cost:
-    ```
-        r = -(x^T Q x + u^T R u)
-    ```
-    where `Q` and `R` are the state and control cost matrices.
+        Action Space:
+        -------------
+        The action is a `ndarray` with shape `(1,)` and dtype `np.float32`
+        representing the applied force, bounded by `[F_min, F_max]`.
 
-    Termination:
-    ------------
-    The episode terminates if:
-    - The agent leaves the allowed state space (position or velocity out of bounds)
+        Reward:
+        -------
+        The reward is the negative mass-spring-damper cost:
+        ```
+            r = -(x^T Q x + u^T R u)
+        ```
+        where `Q` and `R` are the state and control cost matrices.
 
-    Truncation:
-    -----------
-    The episode is truncated if the maximum time is exceeded.
+        Termination:
+        ------------
+        The episode terminates if:
+        - The agent leaves the allowed state space (position or velocity out of bounds)
 
-    Info:
-    -----
-    The info dictionary contains:
-    - `"task"`: {`"violation"`: bool, `"success"`: bool}
-      - violation: True if out of bounds
-      - success: True if close to origin with low velocity
+        Truncation:
+        -----------
+        The episode is truncated if the maximum time is exceeded.
+
+        Info:
+        -----
+        The info dictionary contains:
+        - `"task"`: {`"violation"`: bool, `"success"`: bool}
+          - violation: True if out of bounds
+          - success: True if close to origin with low velocity
 
     Attributes:
         cfg: Configuration object for the environment.
