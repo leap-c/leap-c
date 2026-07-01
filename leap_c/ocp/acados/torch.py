@@ -35,7 +35,7 @@ class AcadosDiffMpcTorch(torch.nn.Module):
     computation with respect to various inputs (see `AcadosDiffMpcCtx`).
 
     Accepts a plain ``AcadosOcp`` together with a parameter manager. The parameter manager's
-    :meth:`~AcadosParameterManager.combine_learnable_parameters_torch` is called in the forward
+    :meth:`~AcadosParameterManager.combine_differentiable_parameters_torch` is called in the forward
     pass to build a flat differentiable tensor from the ``params`` dict.
 
 
@@ -112,7 +112,7 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             x0: Initial states with shape ``(B, x_dim)``.
             u0: Initial actions with shape ``(B, u_dim)``. Defaults to ``None``.
             params: A dictionary containing named parameter overrides.  Values may be
-                torch tensors (learnable) or numpy arrays (non-learnable).
+                torch tensors (differentiable) or numpy arrays (non-differentiable).
             ctx: An object for storing context. If provided, it will be used to warmstart the solve.
 
         Returns:
@@ -125,14 +125,14 @@ class AcadosDiffMpcTorch(torch.nn.Module):
         batch_size = x0.shape[0]
         device = x0.device
 
-        # Separate learnable (tensor) and non-learnable (numpy) overrides
-        learnable_overwrites: dict[str, torch.Tensor | np.ndarray] = {}
-        non_learnable_overwrites: dict[str, np.ndarray] = {}
+        # Separate differentiable (tensor) and non-differentiable (numpy) overrides
+        differentiable_overwrites: dict[str, torch.Tensor | np.ndarray] = {}
+        non_differentiable_overwrites: dict[str, np.ndarray] = {}
         if params is not None:
-            for name in self.parameter_manager.learnable_parameter_names:
+            for name in self.parameter_manager.differentiable_parameter_names:
                 if name in params:
-                    learnable_overwrites[name] = params[name]
-            for name in self.parameter_manager.non_learnable_parameter_names:
+                    differentiable_overwrites[name] = params[name]
+            for name in self.parameter_manager.non_differentiable_parameter_names:
                 if name in params:
                     val = params[name]
                     if isinstance(val, torch.Tensor) and val.requires_grad:
@@ -144,19 +144,19 @@ class AcadosDiffMpcTorch(torch.nn.Module):
                         )
                     if isinstance(val, torch.Tensor):
                         val = val.detach().cpu().numpy()
-                    non_learnable_overwrites[name] = val
+                    non_differentiable_overwrites[name] = val
 
         # Build flat p_global differentiably
-        p_global = self.parameter_manager.combine_learnable_parameters_torch(
+        p_global = self.parameter_manager.combine_differentiable_parameters_torch(
             batch_size=batch_size,
             device=device,
             dtype=x0.dtype,
-            **learnable_overwrites,
+            **differentiable_overwrites,
         )
 
-        # Build p_stagewise (non-learnable, no gradient needed)
-        p_stagewise_np = self.parameter_manager.combine_non_learnable_parameters(
-            batch_size=batch_size, **non_learnable_overwrites
+        # Build p_stagewise (non-differentiable, no gradient needed)
+        p_stagewise_np = self.parameter_manager.combine_non_differentiable_parameters(
+            batch_size=batch_size, **non_differentiable_overwrites
         )
         p_stagewise = torch.from_numpy(p_stagewise_np).to(device=device, dtype=x0.dtype)
 

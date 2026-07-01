@@ -34,7 +34,7 @@ def export_parametric_ocp(
     spaces: OrderedDict[str, gym.spaces.Box] = OrderedDict()
     defaults: dict[str, np.ndarray] = {}
 
-    def register_learnable(
+    def register_differentiable(
         name: str, default: np.ndarray, low: np.ndarray, high: np.ndarray
     ) -> ca.SX | ca.MX:
         symbol = manager.register_parameter(
@@ -51,25 +51,25 @@ def export_parametric_ocp(
         defaults[name] = default
         return symbol
 
-    q_diag_sqrt = register_learnable(
+    q_diag_sqrt = register_differentiable(
         "q_diag_sqrt",
         default=q_diag_sqrt_val,
         low=0.5 * q_diag_sqrt_val,
         high=1.5 * q_diag_sqrt_val,
     )
-    r_diag_sqrt = register_learnable(
+    r_diag_sqrt = register_differentiable(
         "r_diag_sqrt",
         default=r_diag_sqrt_val,
         low=0.5 * r_diag_sqrt_val,
         high=1.5 * r_diag_sqrt_val,
     )
-    x_ref = register_learnable(
+    x_ref = register_differentiable(
         "x_ref",
         default=x_ref_value,
         low=np.array([0.0, 0.0, -20.0, -20.0]),
         high=np.array([4.0, 1.0, 20.0, 20.0]),
     )
-    u_ref = register_learnable(
+    u_ref = register_differentiable(
         "u_ref",
         default=np.array([0.0, 0.0]),
         low=np.array([-10.0, -10.0]),

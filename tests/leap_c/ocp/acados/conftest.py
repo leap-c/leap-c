@@ -17,13 +17,13 @@ from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
 def _param_space_from_manager(pm: AcadosParameterManager) -> gym.spaces.Dict:
-    """Build a learnable-parameter Dict from a manager's store (test-only helper).
+    """Build a differentiable-parameter Dict from a manager's store (test-only helper).
 
     Mirrors how examples construct ``param_space`` for ``AcadosDiffMpcTorch``; keys are
     the stored (possibly stage-split) symbol names, so ``flatten_space`` reproduces the
-    flat learnable vector.
+    flat differentiable vector.
     """
-    store = pm._learnable_parameter_store
+    store = pm._differentiable_parameter_store
     return gym.spaces.Dict(
         [
             (
@@ -45,17 +45,17 @@ def nominal_params() -> tuple[AcadosParameter, ...]:
         AcadosParameter(
             name="m",
             default=np.array([1.0]),
-            interface="non-learnable",
+            interface="non-differentiable",
         ),
         AcadosParameter(
             name="cx",
             default=np.array([0.1]),
-            interface="non-learnable",
+            interface="non-differentiable",
         ),
         AcadosParameter(
             name="cy",
             default=np.array([0.1]),
-            interface="non-learnable",
+            interface="non-differentiable",
         ),
         AcadosParameter(
             name="q_diag",
@@ -63,13 +63,13 @@ def nominal_params() -> tuple[AcadosParameter, ...]:
             space=gym.spaces.Box(
                 low=np.array([0.5, 0.5, 0.5, 0.5]), high=np.array([1.5, 1.5, 1.5, 1.5])
             ),
-            interface="learnable",
+            interface="differentiable",
         ),
         AcadosParameter(
             name="r_diag",
             default=np.array([0.1, 0.1]),
             space=gym.spaces.Box(low=np.array([0.05, 0.05]), high=np.array([0.15, 0.15])),
-            interface="learnable",
+            interface="differentiable",
         ),
         AcadosParameter(
             name="q_diag_e",
@@ -77,7 +77,7 @@ def nominal_params() -> tuple[AcadosParameter, ...]:
             space=gym.spaces.Box(
                 low=np.array([0.5, 0.5, 0.5, 0.5]), high=np.array([1.5, 1.5, 1.5, 1.5])
             ),
-            interface="learnable",
+            interface="differentiable",
         ),
         AcadosParameter(
             name="xref",
@@ -86,13 +86,13 @@ def nominal_params() -> tuple[AcadosParameter, ...]:
                 low=np.array([-1.0, -1.0, -1.0, -1.0]),
                 high=np.array([1.0, 1.0, 1.0, 1.0]),
             ),
-            interface="learnable",
+            interface="differentiable",
         ),
         AcadosParameter(
             name="uref",
             default=np.array([0.0, 0.0]),
             space=gym.spaces.Box(low=np.array([-1.0, -1.0]), high=np.array([1.0, 1.0])),
-            interface="learnable",
+            interface="differentiable",
         ),
         AcadosParameter(
             name="xref_e",
@@ -101,7 +101,7 @@ def nominal_params() -> tuple[AcadosParameter, ...]:
                 low=np.array([-1.0, -1.0, -1.0, -1.0]),
                 high=np.array([1.0, 1.0, 1.0, 1.0]),
             ),
-            interface="learnable",
+            interface="differentiable",
         ),
     )
 
@@ -404,7 +404,7 @@ def acados_test_ocp(
             name=param.name,
             default=param.default,
             space=param.space,
-            differentiable=(param.interface == "learnable"),
+            differentiable=(param.interface == "differentiable"),
             splits=param.splits,
         )
 
@@ -486,7 +486,7 @@ def acados_test_ocp_with_stagewise_varying_params(
             name=param.name,
             default=param.default,
             space=param.space,
-            differentiable=(param.interface == "learnable"),
+            differentiable=(param.interface == "differentiable"),
             splits=param.splits,
         )
 
