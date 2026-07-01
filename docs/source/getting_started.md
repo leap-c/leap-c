@@ -83,6 +83,48 @@ passing it evaluates the state-action value $Q(\bar{x}_0, u_0)$.) Calling `value
 then propagates **exact** gradients $\partial u_0^\star / \partial p$ and $\partial V / \partial p$
 back to the learnable parameter tensors.
 
+## Minimal example
+
+A complete use of the layer — register the learnable parameters, build the module, solve, and
+differentiate through the solve — reads like this:
+
+```python
+import numpy as np
+import torch
+
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+
+# 1. Register parameters. The manager returns CasADi symbols to use in the OCP.
+#    differentiable=True  -> learnable, exact gradients (shared acados p_global)
+#    differentiable=False -> runtime model value, not learned (acados p)
+manager = AcadosParameterManager(N_horizon=20)
+Q = manager.register_parameter("Q", np.array([1.0, 1.0]), differentiable=True)
+R = manager.register_parameter("R", np.array([0.1]), differentiable=True)
+mass = manager.register_parameter("mass", np.array([1.0]), differentiable=False)
+
+# 2. Build the AcadosOcp from those symbols (dynamics, cost, constraints).
+#    acados-specific; see "Define a differentiable MPC" for the full definition.
+ocp = build_point_mass_ocp(manager, Q, R, mass)
+
+# 3. Wrap the OCP and its parameters into a differentiable torch.nn.Module.
+diff_mpc = AcadosDiffMpcTorch(ocp, manager)
+
+# 4. Solve a batch of OCPs for an initial state, overriding a parameter by name.
+x0 = torch.tensor([[1.0, 0.0]], dtype=torch.float64)                  # (batch, n_x)
+Q_t = torch.tensor([[1.0, 1.0]], dtype=torch.float64, requires_grad=True)
+ctx, u0, x, u, value = diff_mpc(x0, params={"Q": Q_t})
+
+# u0 is the first optimal action; differentiate the solution end to end.
+value.sum().backward()          # exact gradients w.r.t. differentiable params
+print(u0, Q_t.grad)
+```
+
+`build_point_mass_ocp` stands in for the acados OCP construction, which uses the symbols
+returned above in the dynamics and cost. See
+[Define a differentiable MPC](define_differentiable_mpc.md) for the full, runnable version
+(the OCP body spelled out) and the accompanying explanation.
+
 ## Next steps
 
 - [Define a differentiable MPC](define_differentiable_mpc.md) — a complete, runnable example that
