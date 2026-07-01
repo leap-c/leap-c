@@ -10,9 +10,10 @@ from gymnasium import Env
 from leap_c.controller import CtxType, ParameterizedController
 from leap_c.planner import ControllerFromPlanner, ParameterizedPlanner
 
-ExampleEnvName = Literal["cartpole", "chain", "mass_spring_damper", "pointmass"]
+ExampleEnvName = Literal["cartpole", "cartpole_balance", "chain", "mass_spring_damper", "pointmass"]
 ENV_REGISTRY: dict[str, tuple[str, str]] = {
     "cartpole": ("leap_c.examples.cartpole.env", "CartPoleEnv"),
+    "cartpole_balance": ("leap_c.examples.cartpole.env", "CartPoleBalanceEnv"),
     "chain": ("leap_c.examples.chain.env", "ChainEnv"),
     "mass_spring_damper": ("leap_c.examples.mass_spring_damper.env", "MassSpringDamperEnv"),
     "pointmass": ("leap_c.examples.pointmass.env", "PointMassEnv"),
@@ -47,7 +48,7 @@ PLANNER_REGISTRY: dict[str, tuple[str, str, str, dict[str, Any]]] = {
         "CartPolePlannerConfig",
         {},
     ),
-    "chain": ("leap_c.examples.chain.planner", "ChainPlanner", "ChainControllerConfig", {}),
+    "chain": ("leap_c.examples.chain.planner", "ChainPlanner", "ChainPlannerConfig", {}),
     "mass_spring_damper": (
         "leap_c.examples.mass_spring_damper.planner",
         "MassSpringDamperPlanner",
@@ -57,7 +58,7 @@ PLANNER_REGISTRY: dict[str, tuple[str, str, str, dict[str, Any]]] = {
     "pointmass": (
         "leap_c.examples.pointmass.planner",
         "PointMassPlanner",
-        "PointMassControllerConfig",
+        "PointMassPlannerConfig",
         {},
     ),
 }
@@ -91,8 +92,8 @@ def _create_from_registry(
     cfg_cls = getattr(module, cfg_cls_name, None)
     if cls is None or cfg_cls is None:
         raise ValueError(
-            f"Planner class '{cls_name}' or config class '{cfg_cls_name}' not found in module "
-            f"'{module_path}'."
+            f"{kind.capitalize()} class '{cls_name}' or config class '{cfg_cls_name}' not found "
+            f"in module '{module_path}'."
         )
 
     cfg = cfg_cls(**default_cfg_kwargs, **kwargs)

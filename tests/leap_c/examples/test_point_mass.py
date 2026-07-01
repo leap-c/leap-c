@@ -2,7 +2,7 @@ import numpy as np
 import torch
 
 from leap_c.examples.pointmass.env import PointMassEnv
-from leap_c.examples.pointmass.planner import PointMassControllerConfig, PointMassPlanner
+from leap_c.examples.pointmass.planner import PointMassPlanner, PointMassPlannerConfig
 from leap_c.planner import ControllerFromPlanner
 
 
@@ -24,7 +24,7 @@ def test_run_closed_loop(n_iter: int = 200) -> None:
     env.state[:2] = start_pos
 
     # replace the default reference with the goal position
-    cfg = PointMassControllerConfig(x_ref_value=goal_x_ref)
+    cfg = PointMassPlannerConfig(x_ref_value=goal_x_ref)
     planner = PointMassPlanner(cfg=cfg)
     controller = ControllerFromPlanner(planner=planner)
 

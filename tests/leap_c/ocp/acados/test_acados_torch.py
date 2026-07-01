@@ -1,6 +1,5 @@
 import copy
 import platform
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -857,26 +856,15 @@ def check_gradients(
     ]
 
     # Run gradient checks
-    times = dict()
     for test_name, test_func, test_input, config in test_cases:
-        try:
-            start_time = time.time()
-            print(f"{test_name} gradient check running")
-            torch.autograd.gradcheck(
-                func=test_func,
-                inputs=test_input,
-                atol=config.atol,
-                rtol=config.rtol,
-                eps=config.eps,
-                raise_exception=True,
-            )
-            times[test_name] = time.time() - start_time
-            if test_name == "dx/dp_global" or test_name == "du/dp_global":
-                pass
-            print(f"✓ {test_name} gradient check passed")
-        except Exception:
-            raise
-    print(f"Times taken in seconds for batch_size {n_batch}: {times}.")
+        torch.autograd.gradcheck(
+            func=test_func,
+            inputs=test_input,
+            atol=config.atol,
+            rtol=config.rtol,
+            eps=config.eps,
+            raise_exception=True,
+        )
 
 
 def create_grid(offset, num):
@@ -901,9 +889,7 @@ def test_backward_lmpc(
         dtype: PyTorch data type for tensors
         noise_scale: Scale factor for noise added to parameters
     """
-    print("Check non-stagewise diff_mpc===========================")
     check_gradients(diff_mpc, n_batch, max_batch_size, dtype, noise_scale)
-    print("Check stagewise diff_mpc===============================")
     check_gradients(
         diff_mpc_with_stagewise_varying_params, n_batch, max_batch_size, dtype, noise_scale
     )

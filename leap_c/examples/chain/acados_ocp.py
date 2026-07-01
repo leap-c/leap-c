@@ -18,7 +18,7 @@ def export_parametric_ocp(
     x_ref: np.ndarray,
     fix_point: np.ndarray,
     name: str = "chain",
-    N_horizon: int = 30,  # noqa: N803
+    N_horizon: int = 30,
     T_horizon: float = 6.0,
     n_mass: int = 5,
 ) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Dict, dict[str, np.ndarray]]:
