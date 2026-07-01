@@ -120,6 +120,19 @@ class AcadosParameter:
                     stacklevel=2,
                 )
 
+    def overwrite_shape(self, N_horizon: int) -> tuple:
+        if self.splits == "global":
+            return self.default.shape
+        _, ends = _define_starts_and_ends(self.splits, N_horizon)
+        return (len(ends), *self.default.shape)
+
+    def broadcasted_default(self, N_horizon: int) -> np.ndarray:
+        if self.splits == "global":
+            return self.default
+        _, ends = _define_starts_and_ends(self.splits, N_horizon)
+        n_segments = len(ends)
+        return np.tile(self.default, (n_segments, *([1] * self.default.ndim)))
+
 
 @dataclass
 class _ParameterStore:
@@ -422,13 +435,11 @@ class AcadosParameterManager:
                 )
 
             if param.is_stage_varying:
-                Np1 = self.N_horizon + 1
-                if isinstance(param.splits, list):
-                    Np1 = param.splits[-1] + 1
-                if values.shape[1] != Np1:
+                expected_n_segments = param.overwrite_shape(self.N_horizon)[0]
+                if values.shape[1] != expected_n_segments:
                     raise ValueError(
                         f"Parameter '{name}' is stage-varying and requires shape "
-                        f"(batch_size, {Np1}, ...), but got shape {values.shape}."
+                        f"(batch_size, {expected_n_segments}, ...), but got shape {values.shape}."
                     )
 
         batch_param.requires_grad_()
@@ -448,14 +459,14 @@ class AcadosParameterManager:
                 starts, ends = _define_starts_and_ends(
                     splits=param.splits, N_horizon=self.N_horizon
                 )
-                for start, end in zip(starts, ends):
+                for seg_idx, (start, end) in enumerate(zip(starts, ends)):
                     key = f"{name}_{start}_{end}"
                     s, e = self._learnable_parameter_store.indices[key]
                     if val is not None:
                         batch_param = torch.cat(
                             [
                                 batch_param[:, :s],
-                                val[:, start].reshape(batch_size, -1),
+                                val[:, seg_idx].reshape(batch_size, -1),
                                 batch_param[:, e:],
                             ],
                             dim=-1,

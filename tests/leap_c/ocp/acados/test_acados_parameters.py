@@ -1053,14 +1053,10 @@ def test_combine_learnable_parameters_torch_stagewise():
     print(manager._learnable_parameter_store.indices.keys())
 
     batch_size = 2
-    # Provide stage-varying forecasts: shape (batch_size, N_horizon + 1)
-    temperature_forecast = np.array(
-        [[15.0, 16.0, 17.0, 18.0, 19.0, 20.0], [25.0, 26.0, 27.0, 28.0, 29.0, 30.0]]
-    )
+    # Provide per-segment forecasts: shape (batch_size, n_segments)
+    temperature_forecast = np.array([[15.0, 16.0], [25.0, 26.0]])
 
-    price_forecast = np.array(
-        [[5.0, 6.0, 7.0, 8.0, 9.0, 10.0], [15.0, 16.0, 17.0, 18.0, 19.0, 20.0]]
-    )
+    price_forecast = np.array([[5.0], [15.0]])
 
     result = (
         manager.combine_learnable_parameters_torch(
@@ -1078,12 +1074,12 @@ def test_combine_learnable_parameters_torch_stagewise():
         "temperature_3_5"
     ]
 
-    # For batch 0: stages 0-2 should all have first block value, stages 3-5 second block
+    # For batch 0: segment 0 -> temperature_0_2, segment 1 -> temperature_3_5
     np.testing.assert_array_equal(
         result[0, temp_0_2_idx_start:temp_0_2_idx_end], temperature_forecast[0, 0]
     )
     np.testing.assert_array_equal(
-        result[0, temp_3_5_idx_start:temp_3_5_idx_end], temperature_forecast[0, 3]
+        result[0, temp_3_5_idx_start:temp_3_5_idx_end], temperature_forecast[0, 1]
     )
 
     # For batch 1
@@ -1091,7 +1087,7 @@ def test_combine_learnable_parameters_torch_stagewise():
         result[1, temp_0_2_idx_start:temp_0_2_idx_end], temperature_forecast[1, 0]
     )
     np.testing.assert_array_equal(
-        result[1, temp_3_5_idx_start:temp_3_5_idx_end], temperature_forecast[1, 3]
+        result[1, temp_3_5_idx_start:temp_3_5_idx_end], temperature_forecast[1, 1]
     )
 
     # Verify price (single stage block 0-5)
@@ -1138,11 +1134,182 @@ def test_combine_learnable_parameters_torch_errors():
         ).detach().numpy()
 
     # Test error for wrong shape in stagewise parameter
-    with pytest.raises(ValueError, match="requires shape \\(batch_size, 6"):
+    with pytest.raises(ValueError, match="requires shape \\(batch_size, 2"):
         manager.combine_learnable_parameters_torch(
             batch_size=2,
-            temperature=np.array([[1.0], [2.0]]),  # Should be (2, 6)
+            temperature=np.array([[1.0], [2.0]]),  # Should be (2, 2)
         ).detach().numpy()
+
+
+@pytest.mark.parametrize(
+    "splits,expected_n_segments",
+    [
+        ("global", 1),
+        ("stagewise", 6),
+        ([2, 5], 2),
+        (3, 3),
+    ],
+)
+def test_acados_parameter_overwrite_shape_and_broadcasted_default(splits, expected_n_segments):
+    """overwrite_shape and broadcasted_default agree across split types."""
+    N_horizon = 5
+    default = np.array([1.0])
+    param = AcadosParameter(name="p", default=default, interface="learnable", splits=splits)
+
+    shape = param.overwrite_shape(N_horizon)
+    bd = param.broadcasted_default(N_horizon)
+
+    if splits == "global":
+        assert shape == default.shape
+        assert bd.shape == default.shape
+        np.testing.assert_array_equal(bd, default)
+    else:
+        assert shape == (expected_n_segments, *default.shape)
+        assert bd.shape == shape
+        np.testing.assert_array_equal(bd, np.tile(default, (expected_n_segments, 1)))
+
+
+def test_acados_parameter_overwrite_shape_and_broadcasted_default_matrix():
+    """overwrite_shape/broadcasted_default preserve trailing dims for 2-d defaults."""
+    N_horizon = 5
+    default = np.array([[1.0, 2.0], [3.0, 4.0]])
+    for splits, expected_n_segments in [("stagewise", 6), ([2, 5], 2), (3, 3)]:
+        param = AcadosParameter(name="p", default=default, interface="learnable", splits=splits)
+        shape = param.overwrite_shape(N_horizon)
+        assert shape == (expected_n_segments, 2, 2)
+        bd = param.broadcasted_default(N_horizon)
+        assert bd.shape == (expected_n_segments, 2, 2)
+        np.testing.assert_array_equal(bd, np.tile(default, (expected_n_segments, 1, 1)))
+
+
+def test_combine_learnable_parameters_torch_list_splits():
+    """Combine with list splits [2, 5] indexes by segment, not by stage start."""
+    N_horizon = 5
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(
+        name="p", default=np.array([1.0]), differentiable=True, splits=[2, N_horizon]
+    )
+
+    batch_size = 2
+    values = np.array([[15.0, 25.0], [16.0, 26.0]])
+    result = (
+        manager.combine_learnable_parameters_torch(batch_size=batch_size, p=values).detach().numpy()
+    )
+
+    s0, e0 = manager._learnable_parameter_store.indices["p_0_2"]
+    s1, e1 = manager._learnable_parameter_store.indices["p_3_5"]
+    np.testing.assert_array_equal(result[0, s0:e0], [15.0])
+    np.testing.assert_array_equal(result[0, s1:e1], [25.0])
+    np.testing.assert_array_equal(result[1, s0:e0], [16.0])
+    np.testing.assert_array_equal(result[1, s1:e1], [26.0])
+
+
+def test_combine_learnable_parameters_torch_int_splits():
+    """Combine with int splits indexes each of the n_segments segments."""
+    N_horizon = 5
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(name="p", default=np.array([1.0]), differentiable=True, splits=3)
+
+    starts, ends = _define_starts_and_ends(3, N_horizon)
+    batch_size = 2
+    values = np.array([[10.0, 20.0, 30.0], [11.0, 21.0, 31.0]])
+    result = (
+        manager.combine_learnable_parameters_torch(batch_size=batch_size, p=values).detach().numpy()
+    )
+
+    for seg_idx, (start, end) in enumerate(zip(starts, ends)):
+        s, e = manager._learnable_parameter_store.indices[f"p_{start}_{end}"]
+        np.testing.assert_array_equal(result[0, s:e], values[0, seg_idx])
+        np.testing.assert_array_equal(result[1, s:e], values[1, seg_idx])
+
+
+def test_combine_learnable_parameters_torch_literal_stagewise():
+    """Combine with literal stagewise splits accepts (batch, N+1, ...)."""
+    N_horizon = 5
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(
+        name="p", default=np.array([1.0]), differentiable=True, splits="stagewise"
+    )
+
+    starts, ends = _define_starts_and_ends("stagewise", N_horizon)
+    batch_size = 2
+    values = np.array([[0.0, 1.0, 2.0, 3.0, 4.0, 5.0], [10.0, 11.0, 12.0, 13.0, 14.0, 15.0]])
+    result = (
+        manager.combine_learnable_parameters_torch(batch_size=batch_size, p=values).detach().numpy()
+    )
+
+    for seg_idx, (start, end) in enumerate(zip(starts, ends)):
+        s, e = manager._learnable_parameter_store.indices[f"p_{start}_{end}"]
+        np.testing.assert_array_equal(result[0, s:e], values[0, seg_idx])
+        np.testing.assert_array_equal(result[1, s:e], values[1, seg_idx])
+
+
+@pytest.mark.parametrize(
+    "splits,expected_n_segments",
+    [
+        ("global", 1),
+        ("stagewise", 6),
+        ([2, 5], 2),
+        (3, 3),
+    ],
+)
+def test_combine_learnable_parameters_torch_defaults(splits, expected_n_segments):
+    """Combine with no overwrites returns broadcasted_default tiled across batch."""
+    N_horizon = 5
+    default = np.array([7.0])
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(name="p", default=default, differentiable=True, splits=splits)
+
+    batch_size = 3
+    result = manager.combine_learnable_parameters_torch(batch_size=batch_size).numpy()
+    bd = manager.parameters["p"].broadcasted_default(N_horizon)
+    expected = np.tile(bd.reshape(-1), (batch_size, 1))
+    np.testing.assert_array_equal(result, expected)
+
+
+def test_combine_learnable_parameters_torch_uncovered_terminal_stage():
+    """splits=[2, 4] with N_horizon=5 -> 2 segments (0:2), (3:4); stage 5 uncovered."""
+    N_horizon = 5
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(
+        name="p", default=np.array([1.0]), differentiable=True, splits=[2, 4]
+    )
+
+    assert manager.parameters["p"].overwrite_shape(N_horizon) == (2, 1)
+    starts, ends = _define_starts_and_ends([2, 4], N_horizon)
+    assert list(zip(starts, ends)) == [(0, 2), (3, 4)]
+
+    batch_size = 2
+    values = np.array([[15.0, 25.0], [16.0, 26.0]])
+    result = (
+        manager.combine_learnable_parameters_torch(batch_size=batch_size, p=values).detach().numpy()
+    )
+
+    s0, e0 = manager._learnable_parameter_store.indices["p_0_2"]
+    s1, e1 = manager._learnable_parameter_store.indices["p_3_4"]
+    np.testing.assert_array_equal(result[0, s0:e0], [15.0])
+    np.testing.assert_array_equal(result[0, s1:e1], [25.0])
+    np.testing.assert_array_equal(result[1, s0:e0], [16.0])
+    np.testing.assert_array_equal(result[1, s1:e1], [26.0])
+
+
+def test_combine_learnable_parameters_torch_gradient_flow():
+    """Gradients flow from combine output back to per-segment overwrite tensors."""
+    N_horizon = 5
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(
+        name="p", default=np.array([1.0]), differentiable=True, splits=[2, N_horizon]
+    )
+
+    values = torch.tensor([[15.0, 25.0], [16.0, 26.0]], dtype=torch.float64, requires_grad=True)
+    result = manager.combine_learnable_parameters_torch(
+        batch_size=2, device=torch.device("cpu"), dtype=torch.float64, p=values
+    )
+    result.sum().backward()
+
+    assert values.grad is not None
+    assert values.grad.shape == values.shape
+    np.testing.assert_allclose(values.grad.numpy(), np.ones((2, 2)))
 
 
 def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
