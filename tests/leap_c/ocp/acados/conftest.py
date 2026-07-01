@@ -1,7 +1,6 @@
 from dataclasses import asdict
 
 import casadi as ca
-import gymnasium as gym
 import numpy as np
 import pytest
 import torch
@@ -10,97 +9,58 @@ from acados_template import AcadosOcp, AcadosOcpOptions
 from leap_c.examples.cartpole.acados_ocp import export_parametric_ocp
 from leap_c.examples.cartpole.planner import CartPolePlanner, CartPolePlannerConfig
 from leap_c.ocp.acados.parameters import (
-    AcadosParameter,
     AcadosParameterManager,
+    _AcadosParameter,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
 
-def _param_space_from_manager(pm: AcadosParameterManager) -> gym.spaces.Dict:
-    """Build a differentiable-parameter Dict from a manager's store (test-only helper).
-
-    Mirrors how examples construct ``param_space`` for ``AcadosDiffMpcTorch``; keys are
-    the stored (possibly stage-split) symbol names, so ``flatten_space`` reproduces the
-    flat differentiable vector.
-    """
-    store = pm._differentiable_parameter_store
-    return gym.spaces.Dict(
-        [
-            (
-                name,
-                gym.spaces.Box(
-                    low=store.lb[name].reshape(store.defaults[name].shape),
-                    high=store.ub[name].reshape(store.defaults[name].shape),
-                    dtype=np.float64,
-                ),
-            )
-            for name in store.symbols
-        ]
-    )
-
-
 @pytest.fixture(scope="session")
-def nominal_params() -> tuple[AcadosParameter, ...]:
+def nominal_params() -> tuple[_AcadosParameter, ...]:
     return (
-        AcadosParameter(
+        _AcadosParameter(
             name="m",
             default=np.array([1.0]),
             interface="non-differentiable",
         ),
-        AcadosParameter(
+        _AcadosParameter(
             name="cx",
             default=np.array([0.1]),
             interface="non-differentiable",
         ),
-        AcadosParameter(
+        _AcadosParameter(
             name="cy",
             default=np.array([0.1]),
             interface="non-differentiable",
         ),
-        AcadosParameter(
+        _AcadosParameter(
             name="q_diag",
             default=np.array([1.0, 1.0, 1.0, 1.0]),
-            space=gym.spaces.Box(
-                low=np.array([0.5, 0.5, 0.5, 0.5]), high=np.array([1.5, 1.5, 1.5, 1.5])
-            ),
             interface="differentiable",
         ),
-        AcadosParameter(
+        _AcadosParameter(
             name="r_diag",
             default=np.array([0.1, 0.1]),
-            space=gym.spaces.Box(low=np.array([0.05, 0.05]), high=np.array([0.15, 0.15])),
             interface="differentiable",
         ),
-        AcadosParameter(
+        _AcadosParameter(
             name="q_diag_e",
             default=np.array([1.0, 1.0, 1.0, 1.0]),
-            space=gym.spaces.Box(
-                low=np.array([0.5, 0.5, 0.5, 0.5]), high=np.array([1.5, 1.5, 1.5, 1.5])
-            ),
             interface="differentiable",
         ),
-        AcadosParameter(
+        _AcadosParameter(
             name="xref",
             default=np.array([0.0, 0.0, 0.0, 0.0]),
-            space=gym.spaces.Box(
-                low=np.array([-1.0, -1.0, -1.0, -1.0]),
-                high=np.array([1.0, 1.0, 1.0, 1.0]),
-            ),
             interface="differentiable",
         ),
-        AcadosParameter(
+        _AcadosParameter(
             name="uref",
             default=np.array([0.0, 0.0]),
-            space=gym.spaces.Box(low=np.array([-1.0, -1.0]), high=np.array([1.0, 1.0])),
             interface="differentiable",
         ),
-        AcadosParameter(
+        _AcadosParameter(
             name="xref_e",
             default=np.array([0.0, 0.0, 0.0, 0.0]),
-            space=gym.spaces.Box(
-                low=np.array([-1.0, -1.0, -1.0, -1.0]),
-                high=np.array([1.0, 1.0, 1.0, 1.0]),
-            ),
             interface="differentiable",
         ),
     )
@@ -175,9 +135,9 @@ def ocp_options(request: pytest.FixtureRequest) -> AcadosOcpOptions:
 
 @pytest.fixture(scope="session")
 def nominal_stagewise_params(
-    nominal_params: tuple[AcadosParameter, ...],
+    nominal_params: tuple[_AcadosParameter, ...],
     ocp_options: AcadosOcpOptions,
-) -> tuple[AcadosParameter, ...]:
+) -> tuple[_AcadosParameter, ...]:
     """Copy nominal_params and modify specific parameters to be stagewise."""
     N_horizon = ocp_options.N_horizon
     # Override specific fields for stage-wise parameters
@@ -194,7 +154,7 @@ def nominal_stagewise_params(
             # Create new parameter with overridden fields
             kwargs = asdict(param)
             kwargs.update(stagewise_overrides[param.name])
-            modified_params.append(AcadosParameter(**kwargs))
+            modified_params.append(_AcadosParameter(**kwargs))
         else:
             modified_params.append(param)
 
@@ -204,7 +164,7 @@ def nominal_stagewise_params(
 @pytest.fixture(scope="session")
 def acados_test_ocp_no_p_global(
     ocp_options: AcadosOcpOptions,
-    nominal_params: tuple[AcadosParameter, ...],
+    nominal_params: tuple[_AcadosParameter, ...],
 ) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp"
@@ -389,7 +349,7 @@ def define_constraints(ocp: AcadosOcp, param_manager: AcadosParameterManager) ->
 @pytest.fixture(scope="session", params=["external", "nonlinear_ls"])
 def acados_test_ocp(
     ocp_options: AcadosOcpOptions,
-    nominal_params: tuple[AcadosParameter, ...],
+    nominal_params: tuple[_AcadosParameter, ...],
     request: pytest.FixtureRequest,
 ) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
@@ -403,7 +363,6 @@ def acados_test_ocp(
         param_manager.register_parameter(
             name=param.name,
             default=param.default,
-            space=param.space,
             differentiable=(param.interface == "differentiable"),
             splits=param.splits,
         )
@@ -472,7 +431,7 @@ def acados_test_ocp(
 @pytest.fixture(scope="session")
 def acados_test_ocp_with_stagewise_varying_params(
     ocp_options: AcadosOcpOptions,
-    nominal_stagewise_params: tuple[AcadosParameter, ...],
+    nominal_stagewise_params: tuple[_AcadosParameter, ...],
 ) -> AcadosOcp:
     """Define a simple AcadosOcp for testing purposes."""
     name = "test_ocp_with_stagewise_varying_params"
@@ -485,7 +444,6 @@ def acados_test_ocp_with_stagewise_varying_params(
         param_manager.register_parameter(
             name=param.name,
             default=param.default,
-            space=param.space,
             differentiable=(param.interface == "differentiable"),
             splits=param.splits,
         )

@@ -1051,7 +1051,7 @@ def test_repr_module() -> None:
     assert "  parameters:" in r
 
 
-def test_guard_non_learnable_requires_grad_raises() -> None:
+def test_guard_non_differentiable_requires_grad_raises() -> None:
     diff_mpc = create_simple_diff_mpc(N_horizon=5)
 
     x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64)
@@ -1067,7 +1067,7 @@ def test_guard_non_learnable_requires_grad_raises() -> None:
     assert "differentiable=True" in msg
 
 
-def test_guard_non_learnable_detached_works() -> None:
+def test_guard_non_differentiable_detached_works() -> None:
     diff_mpc = create_simple_diff_mpc(N_horizon=5)
 
     x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64)
@@ -1080,20 +1080,19 @@ def test_guard_non_learnable_detached_works() -> None:
     assert np.all(ctx.status == 0)
 
 
-def test_guard_non_learnable_numpy_works() -> None:
+def test_guard_non_differentiable_numpy_works() -> None:
     diff_mpc = create_simple_diff_mpc(N_horizon=5)
 
     x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64)
     dummy_array = np.array([[[1.0]] * 6], dtype=np.float64)
 
     params = {"dummy_non_differentiable": dummy_array}
-
     ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
 
     assert np.all(ctx.status == 0)
 
 
-def test_guard_learnable_requires_grad_works() -> None:
+def test_guard_differentiable_requires_grad_works() -> None:
     diff_mpc = create_simple_diff_mpc(N_horizon=5)
 
     x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64)
@@ -1101,7 +1100,6 @@ def test_guard_learnable_requires_grad_works() -> None:
     dummy_tensor = torch.tensor([[[1.0]] * 6], dtype=torch.float64, requires_grad=True).detach()
 
     params = {"Q": Q_tensor, "dummy_non_differentiable": dummy_tensor}
-
     ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
 
     assert np.all(ctx.status == 0)
