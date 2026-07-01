@@ -1,6 +1,5 @@
 from typing import Any, Callable, TypeAlias
 
-import numpy as np
 from gymnasium import Env, spaces
 from gymnasium.core import ActType, ObsType
 from gymnasium.wrappers import OrderEnforcing, RecordEpisodeStatistics
@@ -64,31 +63,3 @@ def flatten_param_space(space: spaces.Space) -> spaces.Box:
     if not isinstance(flat_space, spaces.Box):
         raise NotImplementedError(f"Cannot flatten space of type {type(space)} into a Box.")
     return flat_space
-
-
-def check_params_not_in_space(
-    param: np.ndarray,
-    param_space: spaces.Space,
-) -> list[tuple[int, float, float, float]]:
-    """Check which parameters are not within the param_space bounds.
-
-    Args:
-        param: Array of parameter values
-        param_space: Parameter space with bounds (``Dict`` or ``Box``)
-
-    Returns:
-        List of tuples (index, param_value, low_bound, high_bound) for out-of-bounds params
-    """
-    param_space = flatten_param_space(param_space)
-    if param_space.contains(param):
-        return []
-
-    out_of_bounds = []
-    low = param_space.low
-    high = param_space.high
-
-    for i, (p, l, h) in enumerate(zip(param, low, high)):
-        if p < l or p > h:
-            out_of_bounds.append((i, p, l, h))
-
-    return out_of_bounds
