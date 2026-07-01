@@ -15,8 +15,8 @@ from leap_c.utils.parameters import broadcast_default_param
 
 
 @dataclass(kw_only=True)
-class PointMassControllerConfig:
-    """Configuration for the PointMass controller.
+class PointMassPlannerConfig:
+    """Configuration for the PointMass planner.
 
     Attributes:
         N_horizon: The number of steps in the MPC horizon.
@@ -45,7 +45,7 @@ class PointMassControllerConfig:
 
 
 class PointMassPlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
-    """Acados-based controller for the `PointMass` system.
+    """Acados-based planner for the `PointMass` system.
 
     The state corresponds to the observation of the `PointMass` environment, without the wind force.
     The cost function takes a weighted least-squares form, and the dynamics correspond to the ones
@@ -58,15 +58,15 @@ class PointMassPlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
             such as horizon length.
     """
 
-    cfg: PointMassControllerConfig
+    cfg: PointMassPlannerConfig
     collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,
-        cfg: PointMassControllerConfig | None = None,
+        cfg: PointMassPlannerConfig | None = None,
         export_directory: Path | None = None,
     ) -> None:
-        """Initializes the PointMassController.
+        """Initializes the PointMassPlanner.
 
         Args:
             cfg: A configuration object containing high-level settings for the
@@ -74,7 +74,7 @@ class PointMassPlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
                 If not provided, a default config is used.
             export_directory: Optional directory for generated acados solver code.
         """
-        self.cfg = PointMassControllerConfig() if cfg is None else cfg
+        self.cfg = PointMassPlannerConfig() if cfg is None else cfg
         super().__init__()
 
         ocp, param_manager, param_space, default_param = export_parametric_ocp(

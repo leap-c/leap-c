@@ -67,7 +67,7 @@ class ParameterizedPlanner(nn.Module, Generic[CtxType], metaclass=ABCMeta):
         """Provides a default parameter configuration for the planner.
 
         Args:
-            obs (array, optional): Observation input to the controller (e.g., state vector), used to
+            obs (array, optional): Observation input to the planner (e.g., state vector), used to
                 condition the default parameters. Can be `None` if not needed.
 
         Returns:

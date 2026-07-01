@@ -1,293 +1,225 @@
 # Parameter Management in Acados OCPs
 
-This tutorial walks through `AcadosParameter` and `AcadosParameterManager` - the two
-classes that control how numerical parameters flow into an acados Optimal Control Problem
-(OCP) and, optionally, into a learning loop via `AcadosPlanner`.
+This tutorial walks through `AcadosParameterManager` — the class that controls how numerical
+parameters flow into an acados Optimal Control Problem (OCP) and, optionally, into a learning
+loop via `AcadosDiffMpcTorch`.
 
-## Parameter types at a glance
+You register each parameter once with `manager.register_parameter(...)`, which returns a CasADi
+symbol you drop straight into your dynamics, cost, and constraint expressions. At solve time you
+pass a dict of named parameter values to `AcadosDiffMpcTorch`; the manager routes each value to the
+right place (per-stage `p` or shared `p_global`) internally.
 
-Every parameter has an `interface` that determines its role:
+## Parameter interfaces at a glance
 
-| Interface | Symbolic in OCP? | Changeable after solver creation? | Exposed to learning? |
-|---|---|---|---|
-| `"fix"` | No (constant) | No | No |
-| `"non-learnable"` | Yes (`p`, per-stage) | Yes | No |
-| `"learnable"` | Yes (`p_global`, shared) | Yes | Yes (gradients available) |
+Every parameter has one of two interfaces, selected by the `differentiable` flag:
+
+| `differentiable` | Interface | Symbolic in OCP | Changeable after solver creation | Exposed to learning |
+|---|---|---|---|---|
+| `False` | `"non-differentiable"` | Yes (`p`, per-stage) | Yes | No |
+| `True` | `"differentiable"` | Yes (`p_global`, shared) | Yes | Yes (gradients / sensitivities) |
+
+A value that never changes (e.g. the time step `dt`) does not need to be a parameter at all — use a
+plain Python constant. There is no separate "fixed" interface.
+
+Stage-varying differentiable parameters (e.g. an electricity price with two blocks) are declared
+with the `splits` argument, covered in the "Stage-varying parameters and `splits`" section below.
 
 ## Minimal example
 
-The scenario below is a 10-step temperature-control problem with one parameter of each type,
-plus a stage-varying learnable parameter to illustrate the indicator mechanism.
+The scenario below is an `N_horizon`-step temperature-control problem with a non-differentiable
+outdoor-temperature parameter, a differentiable comfort setpoint, and a stage-varying differentiable
+price. It mirrors the runnable script `tutorial/parameter_manager/pm_tutorial_torch.py`.
 
-### Step 1 - Define parameters
+### Step 1 — Register parameters
 
-> **Canonical location:** `tutorial/parameter_manager/utils.py::make_params()`
-
-```python
-import gymnasium as gym
-import numpy as np
-from leap_c.ocp.acados.parameters import AcadosParameter, AcadosParameterManager
-
-N_horizon = 10  # stages 0 .. 10 (inclusive)
-
-params = [
-    # Fixed: known constant, baked into the solver at compile time.
-    AcadosParameter(
-        name="dt",
-        default=np.array([0.25]),   # 15-minute time step [h]
-        interface="fix",
-    ),
-
-    # Non-learnable: changes every call (e.g. a weather forecast),
-    # but is NOT differentiated through.
-    AcadosParameter(
-        name="outdoor_temp",
-        default=np.array([20.0]),   # ambient temperature [degC]
-        interface="non-learnable",
-    ),
-
-    # Learnable, constant across stages: a single scalar the learning
-    # algorithm can adjust.
-    AcadosParameter(
-        name="comfort_setpoint",
-        default=np.array([21.0]),
-        space=gym.spaces.Box(low=np.array([15.0]), high=np.array([28.0]), dtype=np.float64),
-        interface="learnable",
-    ),
-
-    # Learnable, stage-varying: two price blocks - one for stages 0-4,
-    # another for stages 5-10.  The manager handles the indicator mechanism
-    # automatically; you still call get("price") once in the OCP formulation.
-    AcadosParameter(
-        name="price",
-        default=np.array([0.15]),   # electricity price [EUR/kWh]
-        space=gym.spaces.Box(low=np.array([0.0]), high=np.array([1.0]), dtype=np.float64),
-        interface="learnable",
-        end_stages=[4, N_horizon],  # block 0: stages 0-4, block 1: stages 5-10
-    ),
-]
-
-manager = AcadosParameterManager(params, N_horizon=N_horizon)
-```
-
-### Step 2 - Use symbolic variables in the OCP formulation
-
-Inside the function that builds your `AcadosOcp`, retrieve each parameter's CasADi
-expression (or constant numpy value for `"fix"`) via `manager.get()`.
-
-> **Canonical location:** `tutorial/parameter_manager/utils.py::build_ocp()`
+`register_parameter` returns a real CasADi symbol (not a placeholder) that you can use immediately.
 
 ```python
-import numpy as np
-from acados_template import AcadosOcp, AcadosModel
 import casadi as ca
-
-def build_ocp(manager: AcadosParameterManager, N_horizon: int) -> AcadosOcp:
-    ocp = AcadosOcp()
-    model = AcadosModel()
-    model.name = "temp_ctrl"
-
-    # State: room temperature [degC]
-    T = ca.SX.sym("T")
-    model.x = T
-
-    # Control: heating power [kW]
-    q = ca.SX.sym("q")
-    model.u = q
-
-    # Retrieve parameters - "fix" returns a numpy array, others return CasADi expressions.
-    dt             = manager.get("dt")[0]            # numpy scalar (unwrap from array)
-    outdoor_temp   = manager.get("outdoor_temp")     # CasADi SX, from p (per-stage)
-    comfort_ref    = manager.get("comfort_setpoint") # CasADi SX, from p_global
-    price          = manager.get("price")            # CasADi SX expression, stage-aware
-                                                     # (weighted sum over price_0_4 / price_5_10)
-
-    # Discrete-time dynamics: simple RC model
-    R, C = 2.0, 1.5   # thermal resistance, capacitance
-    model.disc_dyn_expr = T + dt * ((outdoor_temp - T) / (R * C) + q / C)
-
-    # Stage cost: comfort deviation + price-weighted energy
-    model.cost_expr_ext_cost = (T - comfort_ref) ** 2 + price * q
-    # Terminal cost: comfort deviation only (no control at terminal stage)
-    model.cost_expr_ext_cost_e = (T - comfort_ref) ** 2
-
-    ocp.cost.cost_type   = "EXTERNAL"
-    ocp.cost.cost_type_e = "EXTERNAL"
-
-    ocp.model = model
-
-    # Provide a nominal x0 so acados allocates lbx/ubx at stage 0.
-    # The actual value is overwritten at each solve call by AcadosDiffMpcTorch.
-    ocp.constraints.x0 = np.array([20.0])
-
-    ocp.solver_options.tf               = N_horizon * dt
-    ocp.solver_options.N_horizon        = N_horizon
-    ocp.solver_options.qp_solver        = "PARTIAL_CONDENSING_HPIPM"
-    ocp.solver_options.hessian_approx   = "EXACT"
-    ocp.solver_options.integrator_type  = "DISCRETE"
-    return ocp
-```
-
-### Step 3 - Set values at runtime
-
-#### Non-learnable parameters: `combine_non_learnable_parameter_values`
-
-Call this before each solver invocation to pack a batch of per-stage parameter arrays.
-Pass stage-wise forecasts as `(batch_size, N_horizon + 1, param_dim)` arrays in `overwrite`.
-
-> **See also:** `tutorial/parameter_manager/pm_tutorial.py` (lines that build `p_stagewise`)
-
-```python
-rng = np.random.default_rng(seed=0)
-
-batch_size = 4
-N_stages   = N_horizon + 1  # 11 stages (0 .. 10)
-
-# Outdoor temperature forecast: shape (batch_size, N_stages, 1)
-temp_forecast = rng.uniform(5.0, 25.0, size=(batch_size, N_stages, 1))
-
-# Returns shape (batch_size, N_stages, n_nonlearnable)
-p_stagewise = manager.combine_non_learnable_parameter_values(
-    batch_size=batch_size,
-    outdoor_temp=temp_forecast,
-)
-# p_stagewise[:,k,:] is the non-learnable parameter vector at stage k.
-```
-
-Without `overwrite`, all stages use the default value declared in `AcadosParameter`.
-
-#### Learnable parameters: `combine_default_learnable_parameter_values`
-
-Use this to create an initial parameter batch, optionally overwriting specific entries.
-For stage-varying parameters the overwrite array must have shape
-`(batch_size, N_horizon + 1, param_dim)` - the manager picks the value at the *start* of
-each block.
-
-> **See also:** `tutorial/parameter_manager/pm_tutorial_forecast.py` (non-default learnable params block)
-
-```python
-# Stage-wise price forecast: shape (batch_size, N_stages, 1)
-price_forecast = rng.uniform(0.05, 0.40, size=(batch_size, N_stages, 1))
-
-# Per-batch comfort setpoint: shape (batch_size, 1)
-comfort_values = np.array([[19.0], [21.0], [23.0], [22.5]])
-
-# Returns shape (batch_size, N_learnable).
-# Starts from defaults and replaces the named entries.
-param = manager.combine_default_learnable_parameter_values(
-    comfort_setpoint=comfort_values,
-    price=price_forecast,  # block 0 value taken from stage 0, block 1 from stage 5
-)
-```
-
-## The indicator mechanism
-
-`price` has two stage blocks (`end_stages=[4, 10]`).  Internally the manager stores
-`price_0_4` and `price_5_10` in `p_global`, and appends an `indicator` vector of length
-`N_horizon + 1` to `p`.  At stage `k`, `indicator[k] = 1` and all other entries are zero.
-
-`manager.get("price")` returns:
-
-```python
-sum(indicator[0:5]) * price_0_4 + sum(indicator[5:11]) * price_5_10
-```
-
-This single CasADi expression evaluates to the correct block value at every stage without
-any conditional logic in the OCP.
-
-`combine_non_learnable_parameter_values` sets the indicator automatically - you never
-have to touch it manually.  If you bypass this method and leave the indicator all-zero,
-every stage silently evaluates to zero for all stage-varying learnable parameters.
-
-## Using with AcadosPlanner
-
-### Basic usage
-
-`AcadosPlanner` wraps the above pattern.  Its `forward` method calls
-`combine_non_learnable_parameter_values` internally using the default values for all
-non-learnable parameters; the caller only needs to supply the initial state and the
-learnable parameter tensor `param`.
-
-> **Complete example:** `tutorial/parameter_manager/pm_tutorial.py`
-
-```python
-from leap_c.ocp.acados.planner import AcadosPlanner
-from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
-
-ocp      = build_ocp(manager, N_horizon)
-diff_mpc = AcadosDiffMpcTorch(ocp)
-planner  = AcadosPlanner(param_manager=manager, diff_mpc=diff_mpc)
-
-# p_global batch: shape (batch_size, N_learnable)
-param = manager.combine_default_learnable_parameter_values(batch_size=batch_size)
-
-# planner.forward calls combine_non_learnable_parameter_values internally
-# (outdoor_temp stays at its default 20 degC for every stage)
-ctx, u0, x, u, value = planner.forward(obs=x0_batch, param=param)
-```
-
-### Forecast-aware planner (subclassing `AcadosPlanner`)
-
-When non-learnable parameters must be set from per-call data (e.g. a live weather
-forecast), subclass `AcadosPlanner` and override `forward`.  The override should:
-
-1. Extract the forecast from the observation dict.
-2. Call `combine_non_learnable_parameter_values` with the overwrite to build `p_stagewise`.
-3. Pass `p_stagewise` directly to `self.diff_mpc`.
-
-> **Complete example:** `tutorial/parameter_manager/pm_tutorial_forecast.py`
-
-```python
-from typing import Any
 import numpy as np
 import torch
-from leap_c.ocp.acados.diff_mpc import AcadosDiffMpcCtx
-from leap_c.ocp.acados.planner import AcadosPlanner
+from acados_template import AcadosOcp
 
-class TempCtrlPlanner(AcadosPlanner):
-    """Planner that injects an outdoor temperature forecast at every solve call."""
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
 
-    def forward(
-        self,
-        obs: dict[str, Any],
-        action: torch.Tensor | None = None,
-        param: torch.Tensor | None = None,
-        ctx: AcadosDiffMpcCtx | None = None,
-    ):
-        state         = obs["state"]                    # (batch_size, 1)
-        temp_forecast = obs["outdoor_temp_forecast"]    # (batch_size, N_stages, 1)
-        batch_size    = state.shape[0]
+N_horizon = 20  # stages 0 .. N_horizon (inclusive)
 
-        # Build per-stage non-learnable params with the forecast injected.
-        p_stagewise = self.param_manager.combine_non_learnable_parameter_values(
-            batch_size=batch_size,
-            outdoor_temp=temp_forecast,
-        )
+manager = AcadosParameterManager(N_horizon=N_horizon)
 
-        return self.diff_mpc(state, action, param, p_stagewise, ctx=ctx)
-```
-
-The caller assembles the observation dict and non-default learnable params, then calls
-`forward` as usual:
-
-```python
-planner = TempCtrlPlanner(param_manager=manager, diff_mpc=diff_mpc)
-
-obs = {
-    "state":                 x0_batch,       # torch.Tensor (batch_size, 1)
-    "outdoor_temp_forecast": temp_forecast,  # np.ndarray  (batch_size, N_stages, 1)
-}
-
-# Non-default learnable params: per-batch comfort setpoint + stage-varying price
-param = torch.tensor(
-    manager.combine_default_learnable_parameter_values(
-        comfort_setpoint=comfort_values,  # (batch_size, 1)
-        price=price_forecast,             # (batch_size, N_stages, 1)
-    )
+# Non-differentiable: ambient temperature, changed per call, no gradient.
+outdoor_temp = manager.register_parameter(
+    name="outdoor_temp",
+    default=np.array([20.0]),   # ambient temperature [degC]
+    differentiable=False,
 )
 
-ctx, u0, x, u, value = planner.forward(obs=obs, param=param)
+# Differentiable, constant across stages: a single scalar the learner can adjust.
+comfort_ref = manager.register_parameter(
+    name="comfort_setpoint",
+    default=np.array([21.0]),
+    differentiable=True,
+)
+
+# Differentiable and stage-varying: two price blocks.
+# With splits=[4, N_horizon]: block 0 covers stages 0-4, block 1 covers stages 5-N_horizon.
+price = manager.register_parameter(
+    name="price",
+    default=np.array([0.15]),   # electricity price [EUR/kWh]
+    differentiable=True,
+    splits=[4, N_horizon],
+)
 ```
+
+### Step 2 — Build the OCP with the returned symbols
+
+Use the symbols returned by `register_parameter` directly. (You can also retrieve any registered
+symbol later with `manager.get(name)`, which is handy when parameter registration and OCP
+construction live in separate functions — see `tutorial/parameter_manager/utils.py`.)
+
+```python
+R_THERMAL, C_THERMAL = 2.0, 1.5  # thermal resistance, capacitance
+dt = 0.25                        # 15-minute time step [h] — a plain constant, not a parameter
+
+ocp = AcadosOcp()
+ocp.model.name = "temp_ctrl"
+
+# State: room temperature [degC]
+T = ca.SX.sym("T")
+ocp.model.x = T
+
+# Control: heating power [kW]
+q = ca.SX.sym("q")
+ocp.model.u = q
+
+# Discrete-time RC dynamics using the registered symbols.
+ocp.model.disc_dyn_expr = T + dt * ((outdoor_temp - T) / (R_THERMAL * C_THERMAL) + q / C_THERMAL)
+
+# Stage cost: comfort deviation + price-weighted energy; terminal cost: comfort deviation only.
+ocp.cost.cost_type = "EXTERNAL"
+ocp.cost.cost_type_e = "EXTERNAL"
+ocp.model.cost_expr_ext_cost = (T - comfort_ref) ** 2 + price * q
+ocp.model.cost_expr_ext_cost_e = (T - comfort_ref) ** 2
+
+# Provide a nominal x0 so acados allocates lbx/ubx at stage 0; the actual value is supplied per solve.
+ocp.constraints.x0 = np.array([20.0])
+ocp.constraints.lbu = np.array([-1.0])
+ocp.constraints.ubu = np.array([1.0])
+ocp.constraints.idxbu = np.array([0])
+
+ocp.solver_options.tf = N_horizon * dt
+ocp.solver_options.N_horizon = N_horizon
+ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
+ocp.solver_options.hessian_approx = "EXACT"
+ocp.solver_options.integrator_type = "DISCRETE"
+```
+
+### Step 3 — Wrap in `AcadosDiffMpcTorch` and solve
+
+`AcadosDiffMpcTorch` takes the OCP and its manager. Call it with the initial state and a `params`
+dict of named overrides; any parameter you omit keeps its registered default.
+
+```python
+diff_mpc = AcadosDiffMpcTorch(ocp, manager)
+
+rng = np.random.default_rng(seed=0)
+x0_batch = torch.tensor(rng.uniform(10.0, 30.0, size=(4, 1)))
+
+# Stage-varying price override: shape (batch_size, n_segments); splits=[4, N_horizon] -> 2 segments.
+price_tensor = torch.tensor(
+    [[0.015, 0.020], [0.20, 0.25], [0.25, 0.30], [0.30, 0.35]],
+    dtype=torch.float64,
+    requires_grad=True,
+)
+
+ctx, u0, x, u, value = diff_mpc(x0_batch, params={"price": price_tensor})
+# ctx.status == [0, 0, 0, 0] means all four solves succeeded.
+```
+
+### Step 4 — Gradients and sensitivities
+
+Because `AcadosDiffMpcTorch` is a differentiable `nn.Module`, standard PyTorch autograd works: back-
+propagate through the solution, or use `torch.autograd.functional.jacobian` for full sensitivities.
+No custom sensitivity API is needed.
+
+```python
+# Backpropagate the summed value through the solver to the price tensor.
+value.sum().backward()
+print(price_tensor.grad)
+
+# du0/dprice: how the first action changes w.r.t. the price parameter.
+# Re-solving warmstarted from ctx keeps this cheap.
+j_u0 = torch.autograd.functional.jacobian(
+    lambda p: diff_mpc(x0_batch, params={"price": p}, ctx=ctx)[1],
+    price_tensor,
+)
+```
+
+## Stage-varying parameters and `splits`
+
+`splits` controls how a differentiable parameter varies across the horizon (it is only used for
+differentiable parameters). It accepts:
+
+- `list[int]`: sorted, ascending stage boundaries; the parameter takes one value per resulting
+  segment. With `N_horizon = 9` and `splits=[4, 9]`, the parameter is constant over stages 0–4
+  and takes a second value over stages 5–9. The last boundary must be `N_horizon` or `N_horizon - 1`.
+- `int`: that many equal-sized segments.
+- `"stagewise"`: one value per stage (equivalent to `list(range(N_horizon + 1))`).
+- `"global"` (default): a single value shared across all stages.
+
+Internally, stage variation is implemented with a one-hot **indicator** vector appended to the
+non-differentiable parameters. The manager stores each block in `p_global` and `manager.get("price")`
+returns a single indicator-gated expression that evaluates to the correct block value at every stage
+— no conditional logic in the OCP. The indicator is set for you by
+`combine_non_differentiable_parameters` (and by `AcadosDiffMpcTorch` when it packs the per-stage
+parameters). If the indicator were left all-zero, every stage would silently evaluate to zero for the
+stage-varying parameters.
+
+## Setting values at runtime
+
+The primary path is the `params` dict passed to `AcadosDiffMpcTorch`, keyed by parameter name. It
+accepts both differentiable and non-differentiable overrides together; the manager routes each to the
+right internal array:
+
+```python
+temp_forecast = rng.uniform(5.0, 25.0, size=(4, N_horizon + 1, 1))  # per-stage, non-differentiable
+comfort_values = torch.tensor([[19.0], [21.0], [23.0], [22.5]], dtype=torch.float64)
+
+ctx, u0, x, u, value = diff_mpc(
+    x0=x0_batch,
+    params={
+        "outdoor_temp": temp_forecast,       # non-differentiable, per-stage forecast
+        "comfort_setpoint": comfort_values,  # differentiable, per-batch scalar
+        "price": price_tensor,               # differentiable, stage-varying
+    },
+)
+```
+
+If you need the packed arrays directly (for inspection or a custom solve loop), two lower-level
+helpers build them explicitly:
+
+- `combine_non_differentiable_parameters(batch_size=..., **overwrite)` returns the per-stage array of
+  shape `(batch_size, N_horizon + 1, n_non_differentiable)`. Overwrites are `(batch_size,
+  N_horizon + 1, pdim)` arrays; omitted parameters use their defaults, and the indicator is filled in
+  automatically.
+- `combine_differentiable_parameters_torch(batch_size=..., device=..., dtype=..., **overwrite)`
+  returns the `p_global` tensor of shape `(batch_size, n_differentiable)`. For a stage-varying
+  parameter the overwrite is `(batch_size, n_segments)` (one value per block).
+
+```python
+p_stagewise = manager.combine_non_differentiable_parameters(
+    batch_size=4,
+    outdoor_temp=temp_forecast,
+)
+p_global = manager.combine_differentiable_parameters_torch(
+    batch_size=4,
+    device=torch.device("cpu"),
+    dtype=torch.float64,
+    price=price_tensor,
+)
+```
+
+A `combine_differentiable_parameters_jax` counterpart is available for JAX-based workflows.
 
 ## Complete implementations
 
@@ -295,6 +227,7 @@ The runnable scripts for this tutorial live in `tutorial/parameter_manager/`:
 
 | File | What it shows |
 |---|---|
-| `tutorial/parameter_manager/utils.py` | Shared constants (`N_HORIZON`, `BATCH_SIZE`), `make_params()`, `build_ocp()` |
-| `tutorial/parameter_manager/pm_tutorial.py` | Basic `AcadosPlanner` usage; default non-learnable params; `combine_*` illustration |
-| `tutorial/parameter_manager/pm_tutorial_forecast.py` | `TempCtrlPlanner` subclass; forecast in obs dict; non-default learnable params |
+| `utils.py` | Shared constants (`N_HORIZON`, `BATCH_SIZE`), `build_manager()`, `build_ocp()` (registration split from OCP construction, using `manager.get()`) |
+| `pm_tutorial_torch.py` | Self-contained end-to-end example: `register_parameter`, `AcadosDiffMpcTorch`, `backward()`, and `torch.autograd.functional.jacobian` sensitivities |
+| `pm_tutorial.py` | Basic solve with default non-differentiable params; `combine_*` illustration |
+| `pm_tutorial_forecast.py` | Forecast-aware solve: per-call `outdoor_temp` plus non-default `comfort_setpoint` and `price` via the `params` dict |

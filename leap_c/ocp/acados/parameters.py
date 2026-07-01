@@ -497,10 +497,10 @@ class AcadosParameterManager:
         # Create a batch of parameter values - if indicators are not needed and no overwrites are
         # passed, just return a broadcasted view to avoid unnecessary memory allocation; otherwise,
         # create a tiled array (is writeable, so indicators and overwrites can be applied afterward)
-        nonlearn_param_default_flat = self._non_differentiable_parameter_store.get_values()
+        non_differentiable_default_flat = self._non_differentiable_parameter_store.get_values()
         if not (self._need_indicator or overwrite):
-            return np.broadcast_to(nonlearn_param_default_flat, expected_shape)
-        batch_parameter_values = np.tile(nonlearn_param_default_flat, (batch_size, Np1, 1))
+            return np.broadcast_to(non_differentiable_default_flat, expected_shape)
+        batch_parameter_values = np.tile(non_differentiable_default_flat, (batch_size, Np1, 1))
 
         # Set indicator for each stage
         if self._need_indicator:

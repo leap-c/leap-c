@@ -19,10 +19,12 @@ def export_parametric_ocp(
     Args:
         N_horizon: Number of time steps in the horizon.
         name: Name of the OCP model.
-        x0: Initial state. If None, a default value is used.
+        x0: Initial state.
 
     Returns:
-        AcadosDiffOcp: The configured OCP object.
+        A tuple ``(ocp, parameter_manager, param_space, defaults)``: the configured
+        :class:`AcadosOcp`, its :class:`AcadosParameterManager`, the parameter space, and
+        the default parameter values.
     """
     ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon

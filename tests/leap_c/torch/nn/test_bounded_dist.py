@@ -131,16 +131,6 @@ def test_squashed_gaussian_log_prob(single_sample: bool) -> None:
         [TanhTransform(), AffineTransform(distribution.loc, distribution.scale)],
     )
     expected_log_prob = expected_distribution.log_prob(samples).sum(-1)
-    # NOTE: full expression for debugging purposes
-    # std = log_std.exp()
-    # samples_bounded = (samples - distribution.loc) / distribution.scale
-    # samples_inversed = samples_bounded.arctanh()
-    # expected_log_prob = -(
-    #     0.5 * log(2 * pi)
-    #     + log_std
-    #     + 0.5 * ((samples_inversed - mean) / std).square()
-    #     + (distribution.scale * (1 - samples_bounded.square()) + 1e-6).log()
-    # )
 
     # assert the log probs match where finite
     # NOTE: `expected_log_prob` can be nonfinite when samples are too close to the boundary due to
