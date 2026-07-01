@@ -1,4 +1,4 @@
-# Getting Started
+# Define a differentiable MPC
 
 `leap-c` provides **differentiable model predictive control (MPC)**: it wraps a
 state-of-the-art numerical optimal-control solver — acados' `AcadosOcpSolver` — so that a
@@ -153,7 +153,7 @@ The `differentiable` flag chosen in Step 1 is the core concept of the parameter 
 Differentiable parameters can also vary across the horizon (e.g. a time-of-use price) via the
 `splits` argument. For the full treatment — stage-varying `splits`, runtime value packing, and
 the lower-level `combine_*` helpers — see the
-[parameter management tutorial](../tutorials/parameter_manager.md).
+[parameter management guide](parameter_management.md).
 
 ## Building a planner for a custom environment
 
@@ -179,7 +179,7 @@ the parameters (reinforcement or imitation learning), wrap a planner in a
 
 ## Next steps
 
-- [Parameter management tutorial](../tutorials/parameter_manager.md) — the full parameter API.
-- [Core API](../api/index.md) — the main user-facing classes.
+- [Parameter management](parameter_management.md) — the full parameter API.
+- [Core API](api/index.md) — the main user-facing classes.
 - [Examples](https://github.com/leap-c/leap-c/tree/main/leap_c/examples) — complete environments
   and planners.

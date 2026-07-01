@@ -38,6 +38,10 @@ source_suffix = {
     ".md": "markdown",
 }
 
+# Enable LaTeX math in Markdown ($...$ inline, $$...$$ blocks, and amsmath
+# environments). mathjax (above) only wires up the JS renderer.
+myst_enable_extensions = ["dollarmath", "amsmath"]
+
 # -- AutoAPI -----------------------------------------------------------------
 # Parses the source tree directly (without importing leap_c), so the docs build
 # even when acados is not compiled. Private (_-prefixed), dunder, and imported
