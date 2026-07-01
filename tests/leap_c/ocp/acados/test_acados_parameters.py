@@ -1562,3 +1562,99 @@ def test_acados_parameter_splits_invalid_int_raises():
             interface="differentiable",
             splits=1,
         )
+
+
+def test_repr_empty_manager():
+    """Repr of an empty manager shows zero flat sizes and both section headers, no rows."""
+    m = AcadosParameterManager(N_horizon=5)
+    r = repr(m)
+    assert "differentiable_flat=0" in r
+    assert "non_differentiable_flat=0" in r
+    assert "  differentiable:" in r
+    assert "  non-differentiable:" in r
+    # No data rows: only the header line plus the two section header lines.
+    assert len(r.splitlines()) == 3
+    assert "indicator" not in r
+
+
+def test_repr_global_only():
+    """Repr of a global differentiable + non-differentiable param shows expected shapes."""
+    m = AcadosParameterManager(N_horizon=5)
+    m.register_parameter("Q", default=np.array([1.0, 2.0]), differentiable=True)
+    m.register_parameter("mass", default=np.array([3.0]), differentiable=False)
+    r = repr(m)
+    lines = r.splitlines()
+    # Header + section + col-header + row for diff; section + col-header + row for non-diff.
+    assert lines[0].startswith("AcadosParameterManager(N_horizon=5, casadi_type='SX',")
+    assert "  differentiable:" in r
+    assert "  non-differentiable:" in r
+    # Global diff row: splits=global, shape is default.shape (2,)
+    assert "Q" in r and "global" in r and "(2,)" in r
+    # Non-diff row: shape is (N+1, *default.shape) = (6, 1)
+    assert "mass" in r and "(6, 1)" in r
+
+
+def test_repr_stagewise():
+    """Repr of a stagewise differentiable param shows broadcasted default and (N+1, ...) shape."""
+    N = 5
+    m = AcadosParameterManager(N_horizon=N)
+    m.register_parameter("price", default=np.array([1.0]), differentiable=True, splits="stagewise")
+    r = repr(m)
+    # Stage-varying shape is (N+1, *default.shape) = (6, 1)
+    assert "stagewise" in r
+    assert "(6, 1)" in r
+    # Broadcasted default has N+1 tiled entries on a single line.
+    assert "[[1.], [1.], [1.], [1.], [1.], [1.]]" in r
+
+
+def test_repr_list_splits():
+    """Repr of a [2, 5] splits param shows 2 segments and 2 tiled defaults."""
+    N = 5
+    m = AcadosParameterManager(N_horizon=N)
+    m.register_parameter("price", default=np.array([1.0]), differentiable=True, splits=[2, 5])
+    r = repr(m)
+    assert "[2, 5]" in r
+    # 2 segments -> shape (2, 1), default tiled to 2 entries.
+    assert "(2, 1)" in r
+    assert "[[1.], [1.]]" in r
+
+
+def test_repr_matrix_default_single_line():
+    """Repr of a 2-d matrix default renders single-line (no embedded newlines)."""
+    m = AcadosParameterManager(N_horizon=5)
+    m.register_parameter(
+        "mat",
+        default=np.array([[1.0, 2.0], [3.0, 4.0]]),
+        differentiable=True,
+    )
+    r = repr(m)
+    # The default appears on a single line within its row (no line breaks inside).
+    assert "[[1., 2.], [3., 4.]]" in r
+
+
+def test_repr_large_default_truncated():
+    """Repr of a large default (20 elements) is truncated with ellipsis on a single line."""
+    m = AcadosParameterManager(N_horizon=5)
+    m.register_parameter("big", default=np.zeros(20), differentiable=True)
+    r = repr(m)
+    assert "..." in r
+    # Single-line rendering: the truncated array does not introduce extra newlines.
+    for line in r.splitlines():
+        if "big" in line:
+            assert "..." in line
+
+
+def test_repr_indicator_hidden_but_counted():
+    """The auto-injected indicator is hidden from rows but counted in non_differentiable_flat."""
+    N = 5
+    m = AcadosParameterManager(N_horizon=N)
+    # A stage-varying differentiable param triggers indicator injection (size N+1=6).
+    m.register_parameter("p", default=np.array([1.0]), differentiable=True, splits="stagewise")
+    m.register_parameter("mass", default=np.array([2.0]), differentiable=False)
+    r = repr(m)
+    # Indicator must not appear as a row.
+    assert "indicator" not in r
+    # mass default contributes 1; indicator contributes N+1 = 6; total 7.
+    assert "non_differentiable_flat=7" in r
+    # Only 'mass' shows up as a non-differentiable data row.
+    assert "  non-differentiable:" in r

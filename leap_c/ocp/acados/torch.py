@@ -188,3 +188,37 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             for j, stage in enumerate(stages):
                 solver.constraints_set(stage, "lbx", lbx[i, j])
                 solver.constraints_set(stage, "ubx", ubx[i, j])
+
+    def extra_repr(self) -> str:
+        ocp = self.diff_mpc_fun.ocp
+        N = ocp.solver_options.N_horizon
+        nx = ocp.dims.nx
+        nu = ocp.dims.nu
+        ct = self.parameter_manager.casadi_type
+        return f"N_horizon={N}, nx={nx}, nu={nu}, casadi_type='{ct}'"
+
+    def __repr__(self) -> str:
+        ocp = self.diff_mpc_fun.ocp
+        N = ocp.solver_options.N_horizon
+        nx = ocp.dims.nx
+        nu = ocp.dims.nu
+        sections = self.parameter_manager._repr_sections()
+        sections_indented = "\n".join(
+            "  " + line if line else line for line in sections.splitlines()
+        )
+        return (
+            "AcadosDiffMpcTorch(\n"
+            f"  {self.extra_repr()}\n"
+            "  inputs:\n"
+            f"    x0       (B, {nx})     initial states\n"
+            f"    u0       (B, {nu})     fixates first-stage control (optional)\n"
+            "    params   dict       parameter overrides (see parameters)\n"
+            "  outputs:\n"
+            f"    u_star   (B, {nu})     optimal first-stage control (= u0 if given)\n"
+            f"    x        (B, {N + 1}, {nx})  state trajectory\n"
+            f"    u        (B, {N}, {nu})    control trajectory\n"
+            "    value    (B, 1)      cost (V(x0), or Q(x0, u0) when u0 given)\n"
+            "  parameters:\n"
+            f"{sections_indented}\n"
+            ")"
+        )
