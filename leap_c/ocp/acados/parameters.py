@@ -643,8 +643,6 @@ class AcadosParameterManager:
         Args:
             ocp: An acados ``AcadosOcp`` instance.
         """
-        if self._finalized:
-            return
         self._finalized = True
         ocp.model.p = self.non_learnable_symbols
         ocp.model.p_global = self.learnable_symbols
