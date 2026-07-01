@@ -132,7 +132,7 @@ class CartPoleEnv(gym.Env):
             g=self.cfg.gravity,
             M=self.cfg.masscart,
             m=self.cfg.masspole,
-            l=self.cfg.length,  # noqa E741
+            l=self.cfg.length,
         ):
             _, theta, dx, dtheta = x
             F = u.item()
