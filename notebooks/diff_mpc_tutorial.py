@@ -82,10 +82,10 @@ def _(mo):
 
     We regulate a 1-D mass-spring-damper to the origin. The state is
     $x = [\,p,\ v\,]$ (position, velocity) and the control is the force $F$.
-    With mass $m$, damping $b$ and stiffness $k$, the (Euler-discretised)
+    With mass $m$, damping $c$ and stiffness $k$, the (Euler-discretised)
     dynamics are $x_{t+1} = A\,x_t + B\,F_t$ with
 
-    $$A = \begin{bmatrix} 1 & \Delta t \\ -\Delta t\,k/m & 1 - \Delta t\,b/m \end{bmatrix},
+    $$A = \begin{bmatrix} 1 & \Delta t \\ -\Delta t\,k/m & 1 - \Delta t\,c/m \end{bmatrix},
     \qquad B = \begin{bmatrix} 0 \\ \Delta t / m \end{bmatrix}.$$
 
     The cost is a quadratic regulator to zero, with diagonal weights stored
@@ -101,11 +101,25 @@ def _(mo):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.image(
+        src=str(mo.notebook_dir() / "assets" / "mass_spring_damper.svg"),
+        width=440,
+        caption=(
+            "The mass-spring-damper we regulate: a block of mass m on a spring "
+            "(stiffness k) and a damper (constant c), driven by the force F. "
+            "Its displacement x ≡ our position p; the velocity v = ẋ completes "
+            "the state x = [p, v]. Diagram by Ilmari Karonen, public domain "
+            "(Wikimedia Commons)."
+        ),
+    )
+    return
+
+
 @app.cell
 def _(AcadosOcp, AcadosParameterManager, ca, np):
     def export_ocp(N_horizon, dt):
-        # Build the parameter manager and the OCP together, returning both as a fresh
-        # pair on every call. Keeps marimo re-runs safe.
         manager = AcadosParameterManager(N_horizon=N_horizon)
 
         def register(name, default):
@@ -114,9 +128,12 @@ def _(AcadosOcp, AcadosParameterManager, ca, np):
                 name=name, default=default, differentiable=True
             )
 
+        # Cost parameters
         q_diag_sqrt = register("q_diag_sqrt", np.sqrt(np.array([5.0, 0.2])))
         r_diag_sqrt = register("r_diag_sqrt", np.sqrt(np.array([0.08])))
         p_diag_sqrt = register("p_diag_sqrt", np.sqrt(np.array([5.0, 0.5])))
+
+        # Model parameters
         mass = register("mass", np.array([1.5]))
         damping = register("damping", np.array([0.7]))
         stiffness = register("stiffness", np.array([2.0]))
