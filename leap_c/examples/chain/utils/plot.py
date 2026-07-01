@@ -118,7 +118,6 @@ def plot_chain_position_traj(simX, yPosWall=None):
     nx = simX.shape[1]
     N = simX.shape[0]
     M = int((nx / 3 - 1) / 2)
-    # plt.title('Chain position trajectory')
 
     for i in range(M + 1):
         plt.subplot(M + 1, 3, 3 * i + 1)
@@ -300,15 +299,6 @@ def animate_chain_position(
     pos_z = np.hstack((xPosFirstMass[2] * np.ones((Nsim, 1)), pos[:, 2::3]))
 
     # limits in all three dimensions
-
-    # ylim_x = (np.amin( pos_x), np.amax( pos_x))
-    # ylim_y = (np.amin( pos_y), np.amax( pos_y))
-    # ylim_z = (np.amin( pos_z), np.amax( pos_z))
-    # eps = 1e-12
-    # if np.abs(ylim_x[0] - ylim_x[1]) < eps:
-    #     ylim_x[0] += 1e-3
-    #     ylim_x[0] += 1e-3
-
     ylim_x = get_plot_lims(pos_x)
     ylim_y = get_plot_lims(pos_y)
     if yPosWall is not None:
