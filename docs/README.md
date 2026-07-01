@@ -12,7 +12,14 @@ The rendered site is published to GitHub Pages at <https://leap-c.github.io/leap
 
 ## Prerequisites
 
-Install the documentation dependencies (the `docs` extra) into your environment:
+Install the documentation dependencies (the `docs` extra) into your environment.
+Recommended (uv):
+
+```bash
+uv pip install -e ".[docs]"
+```
+
+Alternatively (pip):
 
 ```bash
 pip install -e ".[docs]"
@@ -86,18 +93,19 @@ docs dependency added to `pyproject.toml` is picked up automatically.
 ## Troubleshooting
 
 - **`sphinx-build: command not found` or import errors** — the `docs` extra is not installed
-  in the active environment. Run `pip install -e ".[docs]"`.
-- **Broken `python` / `pyenv` shim** — build in a dedicated virtual environment:
+  in the active environment. Run `uv pip install -e ".[docs]"` (or `pip install -e ".[docs]"`).
+- **Broken `python` / `pyenv` shim** — build with this project's package manager,
+  [uv](https://docs.astral.sh/uv/), from the repository root; it needs no pre-existing
+  environment:
+
+  ```bash
+  uv run --extra docs sphinx-build docs/source docs/build/html
+  ```
+
+  Alternatively, build in a dedicated virtual environment:
 
   ```bash
   python3 -m venv .venv-docs && . .venv-docs/bin/activate
   pip install -e ".[docs]"
   make html
-  ```
-
-  Or, using this project's package manager, [uv](https://docs.astral.sh/uv/), from the
-  repository root:
-
-  ```bash
-  uv run --extra docs sphinx-build docs/source docs/build/html
   ```

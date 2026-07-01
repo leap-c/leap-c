@@ -6,7 +6,13 @@ You can run these notebooks either locally (recommended for development) or via 
 
 ## Local setup
 
-First complete the [native installation](installation.md), then install the notebook extras:
+First complete the [native installation](installation.md), then install the notebook extras. Recommended (uv):
+
+```bash
+uv pip install -e ".[notebook]"
+```
+
+Alternatively (pip):
 
 ```bash
 pip install -e ".[notebook]"
