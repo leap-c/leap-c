@@ -1027,3 +1027,24 @@ def test_params_dict_backward_simple() -> None:
     assert R_tensor.grad is not None
     assert not torch.isnan(Q_tensor.grad).any()
     assert not torch.isnan(R_tensor.grad).any()
+
+
+def test_repr_module() -> None:
+    """repr(module) shows the AcadosDiffMpcTorch header, extra_repr, I/O rows, and params."""
+    diff_mpc = create_simple_diff_mpc(N_horizon=5)
+    r = repr(diff_mpc)
+
+    # Header line.
+    assert "AcadosDiffMpcTorch(" in r
+    # extra_repr line with concrete dims.
+    assert "N_horizon=5, nx=2, nu=1, casadi_type='SX'" in r
+    # I/O rows.
+    assert "x0" in r and "initial states" in r
+    assert "u0" in r
+    assert "value" in r and "V(x0)" in r and "Q(x0, u0)" in r
+    # Embedded manager sections: at least one param name appears, no manager header line.
+    assert "Q" in r
+    assert "R" in r
+    assert "AcadosParameterManager(" not in r
+    # The parameters section is present.
+    assert "  parameters:" in r
