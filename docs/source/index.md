@@ -37,3 +37,11 @@ notebooks
 tutorials/parameter_manager
 troubleshooting
 ```
+
+```{toctree}
+:maxdepth: 2
+:caption: API Reference
+
+api/index
+api/generated/leap_c/index
+```

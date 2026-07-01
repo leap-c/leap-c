@@ -28,7 +28,7 @@ with the `splits` argument, covered in the "Stage-varying parameters and `splits
 
 The scenario below is an `N_horizon`-step temperature-control problem with a non-differentiable
 outdoor-temperature parameter, a differentiable comfort setpoint, and a stage-varying differentiable
-price. It mirrors the runnable script `tutorial/parameter_manager/pm_tutorial_torch.py`.
+price.
 
 ### Step 1 — Register parameters
 
@@ -75,7 +75,7 @@ price = manager.register_parameter(
 
 Use the symbols returned by `register_parameter` directly. (You can also retrieve any registered
 symbol later with `manager.get(name)`, which is handy when parameter registration and OCP
-construction live in separate functions — see `tutorial/parameter_manager/utils.py`.)
+construction live in separate functions.)
 
 ```python
 R_THERMAL, C_THERMAL = 2.0, 1.5  # thermal resistance, capacitance
@@ -220,14 +220,3 @@ p_global = manager.combine_differentiable_parameters_torch(
 ```
 
 A `combine_differentiable_parameters_jax` counterpart is available for JAX-based workflows.
-
-## Complete implementations
-
-The runnable scripts for this tutorial live in `tutorial/parameter_manager/`:
-
-| File | What it shows |
-|---|---|
-| `utils.py` | Shared constants (`N_HORIZON`, `BATCH_SIZE`), `build_manager()`, `build_ocp()` (registration split from OCP construction, using `manager.get()`) |
-| `pm_tutorial_torch.py` | Self-contained end-to-end example: `register_parameter`, `AcadosDiffMpcTorch`, `backward()`, and `torch.autograd.functional.jacobian` sensitivities |
-| `pm_tutorial.py` | Basic solve with default non-differentiable params; `combine_*` illustration |
-| `pm_tutorial_forecast.py` | Forecast-aware solve: per-call `outdoor_temp` plus non-default `comfort_setpoint` and `price` via the `params` dict |
