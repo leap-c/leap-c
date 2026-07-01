@@ -530,7 +530,8 @@ def test_get_method_non_differentiable_parameters():
     # Should return the symbolic variable
     result = manager.get("non_differentiable_param")
 
-    # Check that result has type ca.SX and shape (1,1) and that its name is "differentiable_param"
+    # Check that result has type ca.SX and shape (1,1) and that its name is
+    # "non_differentiable_param"
     assert isinstance(result, ca.SX)
     assert result.shape == (1, 1)
     assert result.str() == "non_differentiable_param"
