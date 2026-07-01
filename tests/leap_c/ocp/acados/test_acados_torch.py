@@ -1049,6 +1049,8 @@ def test_repr_module() -> None:
     assert "AcadosParameterManager(" not in r
     # The parameters section is present.
     assert "  parameters:" in r
+
+
 def test_guard_non_learnable_requires_grad_raises() -> None:
     diff_mpc = create_simple_diff_mpc(N_horizon=5)
 
