@@ -1036,7 +1036,7 @@ def test_guard_non_learnable_requires_grad_raises() -> None:
     x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64)
     dummy_tensor = torch.tensor([[[1.0]] * 6], dtype=torch.float64, requires_grad=True)
 
-    params = {"dummy_non_learnable": dummy_tensor}
+    params = {"dummy_non_differentiable": dummy_tensor}
 
     with pytest.raises(ValueError) as excinfo:
         diff_mpc(x0=x0, params=params)
@@ -1052,7 +1052,7 @@ def test_guard_non_learnable_detached_works() -> None:
     x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64)
     dummy_tensor = torch.tensor([[[1.0]] * 6], dtype=torch.float64, requires_grad=True).detach()
 
-    params = {"dummy_non_learnable": dummy_tensor}
+    params = {"dummy_non_differentiable": dummy_tensor}
 
     ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
 
@@ -1065,7 +1065,7 @@ def test_guard_non_learnable_numpy_works() -> None:
     x0 = torch.tensor([[1.0, 1.0]], dtype=torch.float64)
     dummy_array = np.array([[[1.0]] * 6], dtype=np.float64)
 
-    params = {"dummy_non_learnable": dummy_array}
+    params = {"dummy_non_differentiable": dummy_array}
 
     ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
 
@@ -1079,7 +1079,7 @@ def test_guard_learnable_requires_grad_works() -> None:
     Q_tensor = torch.tensor([[1.0, 1.0]], dtype=torch.float64, requires_grad=True)
     dummy_tensor = torch.tensor([[[1.0]] * 6], dtype=torch.float64, requires_grad=True).detach()
 
-    params = {"Q": Q_tensor, "dummy_non_learnable": dummy_tensor}
+    params = {"Q": Q_tensor, "dummy_non_differentiable": dummy_tensor}
 
     ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
 
