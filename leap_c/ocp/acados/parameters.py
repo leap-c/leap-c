@@ -25,13 +25,13 @@ class AcadosParameter:
         name: The name identifier for the parameter.
         default: The parameter's default numerical value(s).
         space: A gym.spaces.Space defining the valid parameter space.
-            Only used for learnable parameters. Defaults to `None` (unbounded).
+            Only used for differentiable parameters. Defaults to `None` (unbounded).
         interface: Parameter interface type.
-            Either `"non-learnable"` (not exposed to the learning interface, but will be changeable
-            parameters also after creation of the solver), or `"learnable"` (parameters directly
-            exposed to the learning interface, in particular supporting sensitivities). Defaults to
-            `"learnable"`.
-        splits: Defines how the parameter varies across stages. Only used for the `"learnable"`
+            Either `"non-differentiable"` (not exposed to the learning interface, but will be
+            changeable parameters also after creation of the solver), or `"differentiable"`
+            (parameters directly exposed to the learning interface, in particular supporting
+            sensitivities). Defaults to `"differentiable"`.
+        splits: Defines how the parameter varies across stages. Only used for the `"differentiable"`
             interface. Accepts:
             - `list[int]`: Sorted (ascending) stage boundaries. The parameter takes one value per
             resulting segment. Example: with `9` stages (`0` to `9`) and `splits = [4, 9]`, the
@@ -46,7 +46,7 @@ class AcadosParameter:
     name: str
     default: np.ndarray
     space: gym.spaces.Space | None = None
-    interface: Literal["learnable", "non-learnable"] = "learnable"
+    interface: Literal["differentiable", "non-differentiable"] = "differentiable"
 
     # Additional acados-specific field
     splits: ParamSplits = "global"
@@ -85,7 +85,7 @@ class AcadosParameter:
                 f"Parameter shape: {self.default.shape}"
             )
 
-        if self.interface == "learnable":
+        if self.interface == "differentiable":
             if isinstance(self.space, gym.spaces.Box):
                 if len(self.space.shape) > 2:
                     raise ValueError(
@@ -108,14 +108,14 @@ class AcadosParameter:
             if self.space is not None:
                 warn(
                     f"Parameter '{self.name}' with interface '{self.interface}' defines space."
-                    " The space will be ignored as only 'learnable' parameters supports it.",
+                    " The space will be ignored as only 'differentiable' parameters supports it.",
                     UserWarning,
                     stacklevel=2,
                 )
             if self.splits != "global":
                 warn(
                     f"Parameter '{self.name}' with interface '{self.interface}' defines splits."
-                    " The splits will be ignored as only 'learnable' parameters supports it.",
+                    " The splits will be ignored as only 'differentiable' parameters supports it.",
                     UserWarning,
                     stacklevel=2,
                 )
@@ -188,62 +188,68 @@ class AcadosParameterManager:
 
     Handles parameter registration, validation, CasADi symbol creation, and provides default
     numpy implementations for combining parameters. Framework-specific methods
-    (e.g. :meth:`combine_learnable_parameters_torch`) preserve differentiability through the
+    (e.g. :meth:`combine_differentiable_parameters_torch`) preserve differentiability through the
     composition.
 
-    **Stage-varying learnable parameters** (``splits`` are not ``"global"``) are implemented via a
-    one-hot *indicator* vector that is appended to the non-learnable parameters.  At stage ``k``
-    only ``indicator[k]`` is 1; :meth:`get` returns a weighted sum over all stage blocks so the
-    same symbolic expression evaluates to the correct block value at every stage.
+    **Stage-varying differentiable parameters** (``splits`` are not ``"global"``) are implemented
+    via a one-hot *indicator* vector that is appended to the non-differentiable parameters.  At
+    stage ``k`` only ``indicator[k]`` is 1; :meth:`get` returns a weighted sum over all stage
+    blocks so the same symbolic expression evaluates to the correct block value at every stage.
 
     .. warning::
         If you forget to set the indicator correctly in
-        :meth:`combine_non_learnable_parameters`, every stage will silently evaluate to zero
-        for all stage-varying learnable parameters.
+        :meth:`combine_non_differentiable_parameters`, every stage will silently evaluate to zero
+        for all stage-varying differentiable parameters.
 
     Attributes:
         parameters: Dictionary of parameter names to AcadosParameter instances.
         N_horizon: The horizon length for the ocp.
         casadi_type: The CasADi symbolic type used for the parameters, either "SX" or "MX".
-        learnable_default_flat: Learnable parameters' default values as a flattened NDArray.
-        non_learnable_default_flat: Non-learnable parameters' default values as a flattened NDArray.
-        learnable_symbols: CasADi SX/MX expression for the learnable parameters.
-        non_learnable_symbols: CasADi SX/MX expression for the non-learnable parameters.
+        differentiable_default_flat:
+            Differentiable parameters' default values as a flattened NDArray.
+        non_differentiable_default_flat:
+            Non-differentiable parameters' default values as a flattened NDArray.
+        differentiable_symbols: CasADi SX/MX expression for the differentiable parameters.
+        non_differentiable_symbols: CasADi SX/MX expression for the non-differentiable parameters.
     """
 
     parameters: dict[str, AcadosParameter]
     N_horizon: int
     casadi_type: Literal["SX", "MX"]
-    _learnable_parameter_store: _ParameterStore
-    _non_learnable_parameter_store: _ParameterStore
+    _differentiable_parameter_store: _ParameterStore
+    _non_differentiable_parameter_store: _ParameterStore
     _need_indicator: bool
     _finalized: bool
 
     @property
-    def learnable_default_flat(self) -> np.ndarray:
-        return self._learnable_parameter_store.get_values()
+    def differentiable_default_flat(self) -> np.ndarray:
+        return self._differentiable_parameter_store.get_values()
 
     @property
-    def non_learnable_default_flat(self) -> np.ndarray:
-        return self._non_learnable_parameter_store.get_values()
+    def non_differentiable_default_flat(self) -> np.ndarray:
+        return self._non_differentiable_parameter_store.get_values()
 
     @property
-    def learnable_parameter_names(self) -> list[str]:
-        return [name for name, param in self.parameters.items() if param.interface == "learnable"]
-
-    @property
-    def non_learnable_parameter_names(self) -> list[str]:
+    def differentiable_parameter_names(self) -> list[str]:
         return [
-            name for name, param in self.parameters.items() if param.interface == "non-learnable"
+            name for name, param in self.parameters.items() if param.interface == "differentiable"
         ]
 
     @property
-    def learnable_symbols(self) -> ca.SX | ca.MX:
-        return self._learnable_parameter_store.get_symbols()
+    def non_differentiable_parameter_names(self) -> list[str]:
+        return [
+            name
+            for name, param in self.parameters.items()
+            if param.interface == "non-differentiable"
+        ]
 
     @property
-    def non_learnable_symbols(self) -> ca.SX | ca.MX:
-        return self._non_learnable_parameter_store.get_symbols()
+    def differentiable_symbols(self) -> ca.SX | ca.MX:
+        return self._differentiable_parameter_store.get_symbols()
+
+    @property
+    def non_differentiable_symbols(self) -> ca.SX | ca.MX:
+        return self._non_differentiable_parameter_store.get_symbols()
 
     @staticmethod
     def _create_symbol(name: str, size: int, casadi_type: Literal["SX", "MX"]) -> ca.SX | ca.MX:
@@ -254,16 +260,16 @@ class AcadosParameterManager:
         else:
             raise ValueError(f"Unsupported casadi_type: {casadi_type}")
 
-    def _store_learnable_parameter(self, parameter: AcadosParameter) -> None:
+    def _store_differentiable_parameter(self, parameter: AcadosParameter) -> None:
         if parameter.is_stage_varying:
             self._need_indicator = True
-            if "indicator" not in self._non_learnable_parameter_store.symbols:
+            if "indicator" not in self._non_differentiable_parameter_store.symbols:
                 indicator = AcadosParameter(
                     name="indicator",
                     default=np.zeros(self.N_horizon + 1),
-                    interface="non-learnable",
+                    interface="non-differentiable",
                 )
-                self._store_non_learnable_parameter(indicator)
+                self._store_non_differentiable_parameter(indicator)
             starts, ends = _define_starts_and_ends(
                 splits=parameter.splits, N_horizon=self.N_horizon
             )
@@ -273,18 +279,18 @@ class AcadosParameterManager:
                 # e.g. price_0_10, price_11_20, etc.
                 p_name = f"{parameter.name}_{start}_{end}"
                 symbol = self._create_symbol(p_name, parameter.default.size, self.casadi_type)
-                self._learnable_parameter_store.add(
+                self._differentiable_parameter_store.add(
                     p_name, symbol, parameter.default, parameter.space.low, parameter.space.high
                 )
         else:
             symbol = self._create_symbol(parameter.name, parameter.default.size, self.casadi_type)
-            self._learnable_parameter_store.add(
+            self._differentiable_parameter_store.add(
                 parameter.name, symbol, parameter.default, parameter.space.low, parameter.space.high
             )
 
-    def _store_non_learnable_parameter(self, parameter: AcadosParameter) -> None:
+    def _store_non_differentiable_parameter(self, parameter: AcadosParameter) -> None:
         symbol = self._create_symbol(parameter.name, parameter.default.size, self.casadi_type)
-        self._non_learnable_parameter_store.add(parameter.name, symbol, parameter.default)
+        self._non_differentiable_parameter_store.add(parameter.name, symbol, parameter.default)
 
     def __init__(
         self,
@@ -303,8 +309,8 @@ class AcadosParameterManager:
         self.parameters = {}
         self.N_horizon = N_horizon
         self.casadi_type = casadi_type
-        self._learnable_parameter_store = _ParameterStore()
-        self._non_learnable_parameter_store = _ParameterStore()
+        self._differentiable_parameter_store = _ParameterStore()
+        self._non_differentiable_parameter_store = _ParameterStore()
         self._need_indicator = False
         self._finalized = False
 
@@ -324,10 +330,10 @@ class AcadosParameterManager:
         Args:
             name: The name of the parameter.
             default: The default value(s) for the parameter.
-            space: A gymnasium space defining valid parameter values (for learnable params).
-            differentiable: If True, the parameter supports sensitivities (learnable).
+            space: A gymnasium space defining valid parameter values (for differentiable params).
+            differentiable: If True, the parameter supports sensitivities (differentiable).
                 If False, the parameter is changeable at runtime but not differentiable
-                (non-learnable). Defaults to ``False``.
+                (non-differentiable). Defaults to ``False``.
             splits: Defines how the parameter varies across stages. See
                 :class:`AcadosParameter` for details. Defaults to ``"global"``.
 
@@ -341,7 +347,7 @@ class AcadosParameterManager:
             name=name,
             default=default,
             space=space,
-            interface="learnable" if differentiable else "non-learnable",
+            interface="differentiable" if differentiable else "non-differentiable",
             splits=splits,
         )
         if isinstance(parameter.splits, list):
@@ -360,20 +366,20 @@ class AcadosParameterManager:
                     f" number of stages {self.N_horizon + 1}."
                 )
         self.parameters[parameter.name] = parameter
-        if parameter.interface == "learnable":
-            self._store_learnable_parameter(parameter)
-        if parameter.interface == "non-learnable":
-            self._store_non_learnable_parameter(parameter)
+        if parameter.interface == "differentiable":
+            self._store_differentiable_parameter(parameter)
+        if parameter.interface == "non-differentiable":
+            self._store_non_differentiable_parameter(parameter)
         return self.get(parameter.name)
 
-    def combine_learnable_parameters_torch(
+    def combine_differentiable_parameters_torch(
         self,
         batch_size: int | None = None,
         device: "torch.device | None" = None,
         dtype: "torch.dtype | None" = None,
         **overwrites: "torch.Tensor | np.ndarray",
     ) -> "torch.Tensor":
-        """Combine learnable parameters into a flat tensor, preserving differentiability.
+        """Combine differentiable parameters into a flat tensor, preserving differentiability.
 
         Uses ``torch.cat``, indexing, and reshaping — all differentiable — so gradients
         flow back to the original parameter tensors in the ``overwrites`` dict.
@@ -385,7 +391,7 @@ class AcadosParameterManager:
             **overwrites: Named parameter overrides as tensors or numpy arrays.
 
         Returns:
-            Tensor of shape ``(batch_size, N_learnable)``.
+            Tensor of shape ``(batch_size, N_differentiable)``.
 
         Raises:
             ImportError: If torch is not installed.
@@ -404,7 +410,7 @@ class AcadosParameterManager:
         batch_size = inferred_batch_size if inferred_batch_size is not None else batch_size or 1
 
         batch_param = (
-            torch.from_numpy(self.learnable_default_flat)
+            torch.from_numpy(self.differentiable_default_flat)
             .to(device, dtype)
             .expand(batch_size, -1)
             .clone()
@@ -422,10 +428,10 @@ class AcadosParameterManager:
 
             param = self.parameters[name]
 
-            if param.interface != "learnable":
+            if param.interface != "differentiable":
                 raise ValueError(
                     f"Parameter '{name}' has interface '{param.interface}', "
-                    "but only 'learnable' parameters can be used in this method."
+                    "but only 'differentiable' parameters can be used in this method."
                 )
 
             if values.shape[0] != batch_size:
@@ -444,7 +450,7 @@ class AcadosParameterManager:
 
         batch_param.requires_grad_()
 
-        for name in self.learnable_parameter_names:
+        for name in self.differentiable_parameter_names:
             param = self.parameters[name]
             if name in overwrites:
                 val = overwrites[name]
@@ -461,7 +467,7 @@ class AcadosParameterManager:
                 )
                 for seg_idx, (start, end) in enumerate(zip(starts, ends)):
                     key = f"{name}_{start}_{end}"
-                    s, e = self._learnable_parameter_store.indices[key]
+                    s, e = self._differentiable_parameter_store.indices[key]
                     if val is not None:
                         batch_param = torch.cat(
                             [
@@ -472,18 +478,18 @@ class AcadosParameterManager:
                             dim=-1,
                         )
             else:
-                s, e = self._learnable_parameter_store.indices[name]
+                s, e = self._differentiable_parameter_store.indices[name]
                 if val is not None:
                     batch_param = torch.cat([batch_param[:, :s], val, batch_param[:, e:]], dim=-1)
 
         return batch_param
 
-    def combine_learnable_parameters_jax(
+    def combine_differentiable_parameters_jax(
         self,
         batch_size: int | None = None,
         **overwrites: Any,
     ) -> Any:
-        """Combine learnable parameters into a flat JAX array, preserving differentiability.
+        """Combine differentiable parameters into a flat JAX array, preserving differentiability.
 
         .. note::
             This method is a placeholder. Contributions implementing JAX-native operations
@@ -494,7 +500,7 @@ class AcadosParameterManager:
             **overwrites: Named parameter overrides as JAX or numpy arrays.
 
         Returns:
-            JAX array of shape ``(batch_size, N_learnable)``.
+            JAX array of shape ``(batch_size, N_differentiable)``.
 
         Raises:
             ImportError: If jax is not installed.
@@ -502,14 +508,14 @@ class AcadosParameterManager:
         """
         require_jax()
         raise NotImplementedError(
-            "combine_learnable_parameters_jax is not yet implemented. "
-            "Contributions are welcome! See combine_learnable_parameters_torch for reference."
+            "combine_differentiable_parameters_jax is not yet implemented. "
+            "Contributions are welcome! See combine_differentiable_parameters_torch for reference."
         )
 
-    def combine_non_learnable_parameters(
+    def combine_non_differentiable_parameters(
         self, batch_size: int | None = None, **overwrite: np.ndarray
     ) -> np.ndarray:
-        """Combine all non-learnable parameters into a single numpy array.
+        """Combine all non-differentiable parameters into a single numpy array.
 
         Args:
             batch_size: The batch size for the parameters.
@@ -527,19 +533,19 @@ class AcadosParameterManager:
         # Resolve to 1 if empty, will result in one batch sample of default values.
         batch_size = next(iter(overwrite.values())).shape[0] if overwrite else batch_size or 1
         Np1 = self.N_horizon + 1
-        expected_shape = (batch_size, Np1, self._non_learnable_parameter_store.size)
+        expected_shape = (batch_size, Np1, self._non_differentiable_parameter_store.size)
 
         # Create a batch of parameter values - if indicators are not needed and no overwrites are
         # passed, just return a broadcasted view to avoid unnecessary memory allocation; otherwise,
         # create a tiled array (is writeable, so indicators and overwrites can be applied afterward)
-        nonlearn_param_default_flat = self._non_learnable_parameter_store.get_values()
+        nondiff_param_default_flat = self._non_differentiable_parameter_store.get_values()
         if not (self._need_indicator or overwrite):
-            return np.broadcast_to(nonlearn_param_default_flat, expected_shape)
-        batch_parameter_values = np.tile(nonlearn_param_default_flat, (batch_size, Np1, 1))
+            return np.broadcast_to(nondiff_param_default_flat, expected_shape)
+        batch_parameter_values = np.tile(nondiff_param_default_flat, (batch_size, Np1, 1))
 
         # Set indicator for each stage
         if self._need_indicator:
-            s, e = self._non_learnable_parameter_store.indices["indicator"]
+            s, e = self._non_differentiable_parameter_store.indices["indicator"]
             batch_parameter_values[:, :, s:e] = np.eye(Np1)
 
         # Overwrite the values in the batch
@@ -552,7 +558,7 @@ class AcadosParameterManager:
         # see https://numpy.org/doc/2.1/reference/generated/numpy.isfortran.html
         # and reshape if needed or raise an error.
         for key, val in overwrite.items():
-            s, e = self._non_learnable_parameter_store.indices[key]
+            s, e = self._non_differentiable_parameter_store.indices[key]
             batch_parameter_values[:, :, s:e] = val.reshape(batch_size, Np1, -1)
 
         assert batch_parameter_values.shape == expected_shape, (
@@ -564,18 +570,18 @@ class AcadosParameterManager:
     def get(self, name: str) -> ca.SX | ca.MX | np.ndarray:
         """Get the symbolic variable for a parameter.
 
-        For stage-varying learnable parameters (those with ``splits``), the returned
+        For stage-varying differentiable parameters (those with ``splits``), the returned
         expression is a weighted sum over all stage blocks, gated by the ``indicator`` vector
-        in the non-learnable parameters.  The expression evaluates to the correct block value
+        in the non-differentiable parameters.  The expression evaluates to the correct block value
         at each stage, but **only if the indicator is set correctly** via
-        :meth:`combine_non_learnable_parameters`.  If the indicator is all-zero (e.g. the
+        :meth:`combine_non_differentiable_parameters`.  If the indicator is all-zero (e.g. the
         default), every stage silently evaluates to zero for these parameters.
 
         Args:
             name: The name of the parameter to retrieve.
 
         Returns:
-            - CasADi ``SX``/``MX`` expression for ``"learnable"`` and ``"non-learnable"``
+            - CasADi ``SX``/``MX`` expression for ``"differentiable"`` and ``"non-differentiable"``
               parameters.
 
         Raises:
@@ -585,7 +591,7 @@ class AcadosParameterManager:
             raise ValueError(f"Unknown name: {name}. Available names: {', '.join(self.parameters)}")
 
         if (
-            self.parameters[name].interface == "learnable"
+            self.parameters[name].interface == "differentiable"
             and self.parameters[name].is_stage_varying
         ):
             starts, ends = _define_starts_and_ends(
@@ -596,21 +602,25 @@ class AcadosParameterManager:
             for start, end in zip(starts, ends):
                 indicators.append(
                     ca.sum(
-                        self._non_learnable_parameter_store.symbols["indicator"][start : end + 1]
+                        self._non_differentiable_parameter_store.symbols["indicator"][
+                            start : end + 1
+                        ]
                     )
                 )
-                variables.append(self._learnable_parameter_store.symbols[f"{name}_{start}_{end}"])
+                variables.append(
+                    self._differentiable_parameter_store.symbols[f"{name}_{start}_{end}"]
+                )
 
             terms = []
             for indicator, variable in zip(indicators, variables):
                 terms.append(indicator * variable)
             return sum(terms)
 
-        if self.parameters[name].interface == "learnable":
-            return self._learnable_parameter_store.symbols[name]
+        if self.parameters[name].interface == "differentiable":
+            return self._differentiable_parameter_store.symbols[name]
 
-        if self.parameters[name].interface == "non-learnable":
-            return self._non_learnable_parameter_store.symbols[name]
+        if self.parameters[name].interface == "non-differentiable":
+            return self._non_differentiable_parameter_store.symbols[name]
         else:
             raise ValueError(
                 f"Unknown interface type for field '{name}': {self.parameters[name].interface}"
@@ -618,15 +628,15 @@ class AcadosParameterManager:
 
     # TODO (Mazen): I guess this needs to be deprecated. After separating, all the code should use
     # the dictionary API.
-    def get_labeled_learnable_parameters(
+    def get_labeled_differentiable_parameters(
         self,
         param_values: Any,
         label: str,
     ) -> Any:
-        """Get a structured representation of the learnable parameters from flat values.
+        """Get a structured representation of the differentiable parameters from flat values.
 
         Args:
-            param_values: Flat numpy array of learnable parameter values.
+            param_values: Flat numpy array of differentiable parameter values.
             label: Substring to filter parameters by name.
 
         Returns:
@@ -634,14 +644,14 @@ class AcadosParameterManager:
             matching the label.
         """
         if label is None:
-            raise ValueError("Label must be provided to filter learnable parameters.")
+            raise ValueError("Label must be provided to filter differentiable parameters.")
 
-        keys = [key for key in self._learnable_parameter_store.symbols if label in key]
+        keys = [key for key in self._differentiable_parameter_store.symbols if label in key]
 
         if keys == []:
-            raise ValueError(f"No learnable parameters found with label '{label}'.")
+            raise ValueError(f"No differentiable parameters found with label '{label}'.")
 
-        idx = [self._learnable_parameter_store.indices[key] for key in keys]
+        idx = [self._differentiable_parameter_store.indices[key] for key in keys]
         idx = [slice(s, e) for s, e in idx]
         return param_values[..., np.r_[*idx]].reshape(-1, len(keys))
 
@@ -655,10 +665,10 @@ class AcadosParameterManager:
             ocp: An acados ``AcadosOcp`` instance.
         """
         self._finalized = True
-        ocp.model.p = self.non_learnable_symbols
-        ocp.model.p_global = self.learnable_symbols
-        ocp.parameter_values = self.non_learnable_default_flat
-        ocp.p_global_values = self.learnable_default_flat
+        ocp.model.p = self.non_differentiable_symbols
+        ocp.model.p_global = self.differentiable_symbols
+        ocp.parameter_values = self.non_differentiable_default_flat
+        ocp.p_global_values = self.differentiable_default_flat
 
 
 def _define_starts_and_ends(

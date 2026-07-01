@@ -29,7 +29,7 @@ def export_parametric_ocp(
 
     manager = AcadosParameterManager(N_horizon=N_horizon)
 
-    # Register only learnable parameters
+    # Register only differentiable parameters
     q_diag_sqrt_val = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
     r_diag_sqrt_val = 1e-1 * np.ones(3)
 
@@ -97,7 +97,7 @@ def export_parametric_ocp(
         f_expl,
         x.cat,
         u,
-        ca.vertcat(manager.learnable_symbols, manager.non_learnable_symbols),
+        ca.vertcat(manager.differentiable_symbols, manager.non_differentiable_symbols),
         T_horizon / N_horizon,  # type:ignore
     )
 

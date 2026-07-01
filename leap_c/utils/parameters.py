@@ -6,7 +6,7 @@ import numpy as np
 from torch import Tensor
 
 ParamSplits = list[int] | int | Literal["stagewise", "global"]
-"""How a learnable parameter varies across the MPC horizon.
+"""How a differentiable parameter varies across the MPC horizon.
 
 - ``"global"``: one value shared across all stages.
 - ``"stagewise"``: one independent value per stage (``N+1`` values total).

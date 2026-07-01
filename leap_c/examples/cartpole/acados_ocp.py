@@ -33,7 +33,7 @@ def export_parametric_ocp(
 
     manager = AcadosParameterManager(N_horizon=N_horizon)
 
-    # Learnable reference parameter xref1.
+    # Differentiable reference parameter xref1.
     # `param_splits` controls how xref1 varies across the MPC horizon:
     #   - "global" (default): one value shared across all stages -> shape (1,).
     #   - "stagewise":        one independent value per stage     -> shape (N+1, 1).
@@ -106,7 +106,7 @@ def export_parametric_ocp(
         f_expl=f_expl,
         x=ocp.model.x,
         u=ocp.model.u,
-        p=ca.vertcat(manager.learnable_symbols, manager.non_learnable_symbols),
+        p=ca.vertcat(manager.differentiable_symbols, manager.non_differentiable_symbols),
         dt=dt,
     )
 

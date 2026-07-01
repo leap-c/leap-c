@@ -49,10 +49,10 @@ def seed_env(
 def flatten_param_space(space: spaces.Space) -> spaces.Box:
     """Flatten a parameter space into a single flat ``Box``.
 
-    Controllers expose ``param_space`` as a ``gym.spaces.Dict`` keyed by learnable
+    Controllers expose ``param_space`` as a ``gym.spaces.Dict`` keyed by differentiable
     parameter name (constructed in registration order), or as a ``gym.spaces.Box``.
     RL and tuning code that needs a flat parameter vector flattens it here; the
-    flattened order matches the canonical learnable-parameter order.
+    flattened order matches the canonical differentiable-parameter order.
 
     Args:
         space: The parameter space (``Dict`` or ``Box``).

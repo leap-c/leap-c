@@ -44,7 +44,7 @@ class AcadosDiffMpcCtx:
         solver_input: The input used for the forward pass.
         needs_input_grad: A list of booleans indicating which inputs require gradients.
         du0_dp_global: Sensitivity of the control solution of the initial stage with respect to
-            acados global parameters (i.e., learnable parameters).
+            acados global parameters (i.e., differentiable parameters).
         du0_dx0: Sensitivity of the control solution of the initial stage with respect to the
             initial state.
         dvalue_du0: Sensitivity of the objective value solution with respect to the control input of
@@ -52,9 +52,9 @@ class AcadosDiffMpcCtx:
         dvalue_dx0: Sensitivity of the objective value solution solution with respect to the initial
             state.
         dx_dp_global: Sensitivity of the whole state trajectory solution with respect to acados
-            global parameters (i.e., learnable parameters).
+            global parameters (i.e., differentiable parameters).
         du_dp_global: Sensitivity of the whole control trajectory solution with respect to acados
-            global parameters (i.e., learnable parameters).
+            global parameters (i.e., differentiable parameters).
         dvalue_dp_global: Sensitivity of the objective value solution with respect to acados global.
     """
 
@@ -188,9 +188,9 @@ class AcadosDiffMpcFunction(DiffFunction):
                 the solve (e.g., by using the saved iterate).
             x0: Initial states with shape ``(B, x_dim)``.
             u0: Initial actions with shape ``(B, u_dim)``. Defaults to ``None``.
-            p_global: Flat learnable parameters, shape ``(B, N_learnable)``.
-            p_stagewise: Stage-wise non-learnable parameters, shape
-                ``(B, N_horizon + 1, N_non_learnable)``.
+            p_global: Flat differentiable parameters, shape ``(B, N_differentiable)``.
+            p_stagewise: Stage-wise non-differentiable parameters, shape
+                ``(B, N_horizon + 1, N_non_differentiable)``.
             p_stagewise_sparse_idx: Not yet supported.
 
         Returns:

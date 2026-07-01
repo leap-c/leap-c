@@ -552,7 +552,7 @@ def test_jacobian_matches_sensitivity(
 ) -> None:
     """Test that ``torch.autograd.functional.jacobian`` matches low-level acados sensitivities.
 
-    Runs the check for both a *global* learnable parameter (``xref_e``) and a *stage-varying*
+    Runs the check for both a *global* differentiable parameter (``xref_e``) and a *stage-varying*
     one (``xref``). For each, ``du0/dp`` and ``dvalue/dp`` retrieved via:
       - ``diff_mpc_fun.sensitivity(ctx, "du0_dp_global")`` (ground truth from acados adjoint).
       - ``functional.jacobian`` cold (no ctx, fresh forward solve).
@@ -581,13 +581,13 @@ def _check_jacobian_matches_sensitivity(
     """
     ocp = diff_mpc.diff_mpc_fun.ocp
     manager = diff_mpc.parameter_manager
-    indices = manager._learnable_parameter_store.indices
+    indices = manager._differentiable_parameter_store.indices
     param_def = manager.parameters[param_name]
-    assert param_name in manager.learnable_parameter_names, (
-        f"{param_name} not in learnable params: {manager.learnable_parameter_names}"
+    assert param_name in manager.differentiable_parameter_names, (
+        f"{param_name} not in differentiable params: {manager.differentiable_parameter_names}"
     )
 
-    # Build x0 and an in-bounds learnable-param override (default + 0.1).
+    # Build x0 and an in-bounds differentiable-param override (default + 0.1).
     x0 = torch.tensor(ocp.constraints.x0, dtype=dtype).unsqueeze(0).repeat(n_batch, 1)
     base = torch.tensor(param_def.default, dtype=dtype) + 0.1  # (ds,)
 
@@ -948,7 +948,9 @@ def create_simple_diff_mpc(N_horizon: int = 5):
     ocp.model.disc_dyn_expr = ca.vertcat(x[1], u[0])
 
     # dummy param to avoid empty self.p crash
-    _ = pm.register_parameter("dummy_non_learnable", default=np.array([1.0]), differentiable=False)
+    _ = pm.register_parameter(
+        "dummy_non_differentiable", default=np.array([1.0]), differentiable=False
+    )
 
     Q_param = pm.register_parameter("Q", default=np.array([1.0, 1.0]), differentiable=True)
     R_param = pm.register_parameter("R", default=np.array([0.1]), differentiable=True)
@@ -981,9 +983,9 @@ def unflatten_p_global(
     p_global: torch.Tensor,
 ) -> dict[str, torch.Tensor]:
     pm = diff_mpc.parameter_manager
-    indices = pm._learnable_parameter_store.indices
+    indices = pm._differentiable_parameter_store.indices
     params = {}
-    for name in pm.learnable_parameter_names:
+    for name in pm.differentiable_parameter_names:
         param_def = pm.parameters[name]
         if param_def.is_stage_varying:
             starts, ends = _define_starts_and_ends(splits=param_def.splits, N_horizon=pm.N_horizon)
@@ -1014,7 +1016,7 @@ def test_params_dict_backward_simple() -> None:
     R_tensor = torch.tensor([[0.1]], dtype=torch.float64, requires_grad=True)
     dummy_tensor = torch.tensor([[[1.0]] * 6], dtype=torch.float64, requires_grad=False)
 
-    params = {"Q": Q_tensor, "R": R_tensor, "dummy_non_learnable": dummy_tensor}
+    params = {"Q": Q_tensor, "R": R_tensor, "dummy_non_differentiable": dummy_tensor}
 
     ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
 
