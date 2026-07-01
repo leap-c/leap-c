@@ -16,7 +16,7 @@ runs:
 
     - name: Cache acados Binaries
       id: cache-acados
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: |
           ${{ inputs.acados-source-dir }}/build
