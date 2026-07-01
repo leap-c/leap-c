@@ -1,7 +1,7 @@
 """Module defining the abstract interface for differentiable, parameterized planners in PyTorch."""
 
 from abc import ABCMeta, abstractmethod
-from typing import Callable, Generic
+from typing import Any, Callable, Generic
 
 import gymnasium as gym
 from numpy import ndarray
@@ -27,7 +27,7 @@ class ParameterizedPlanner(nn.Module, Generic[CtxType], metaclass=ABCMeta):
         self,
         obs: Tensor,
         action: Tensor | None = None,
-        params: dict[str, Tensor | ndarray] | None = None,
+        params: Any = None,
         ctx: CtxType | None = None,
     ) -> tuple[CtxType, Tensor | None, Tensor, Tensor | None]:
         """Computes state and control trajectories from an observation.
@@ -38,8 +38,8 @@ class ParameterizedPlanner(nn.Module, Generic[CtxType], metaclass=ABCMeta):
         Args:
             obs (Tensor): Initial observation input to the planner (e.g., state vector).
             action (Tensor, optional): Optional initial action.
-            params (dict[str, Tensor | ndarray], optional): Parameters that define the behavior of
-                the planner, as a dictionary keyed by the parameters names'.
+            params: Parameters that define the behavior of the planner, matching
+                :attr:`param_space`.
             ctx (CtxType, optional): Optional internal context passed between invocations.
 
         Returns:
@@ -54,17 +54,16 @@ class ParameterizedPlanner(nn.Module, Generic[CtxType], metaclass=ABCMeta):
         ...
 
     @property
-    @abstractmethod
     def param_space(self) -> gym.Space:
         """Describes the parameter space of the planner.
 
         Returns:
             Gymnasium.Space: An object describing the valid space of parameters.
         """
-        ...
+        return self._param_space
 
     @abstractmethod
-    def default_param(self, obs: ndarray | None) -> ndarray:
+    def default_param(self, obs: ndarray | None) -> Any:
         """Provides a default parameter configuration for the planner.
 
         Args:
@@ -104,15 +103,15 @@ class ControllerFromPlanner(ParameterizedController[CtxType], Generic[CtxType]):
     def forward(
         self,
         obs: Tensor,
-        params: dict[str, Tensor | ndarray] | None = None,
+        params: Any = None,
         ctx: CtxType | None = None,
     ) -> tuple[CtxType, Tensor]:
         """Computes the first action from the planner's trajectory.
 
         Args:
             obs (Tensor): Observation input to the controller (e.g., state vector).
-            params (dict[str, Tensor | ndarray], optional): Parameters that define the behavior of
-                the controller, as a dictionary keyed by the parameters names'.
+            params: Parameters that define the behavior of the controller, matching the wrapped
+                planner's :attr:`param_space`.
             ctx (CtxType, optional): Optional internal context passed between invocations.
 
         Returns:
@@ -131,7 +130,7 @@ class ControllerFromPlanner(ParameterizedController[CtxType], Generic[CtxType]):
         """
         return self.planner.param_space
 
-    def default_param(self, obs: ndarray | None) -> ndarray:
+    def default_param(self, obs: ndarray | None) -> Any:
         """Provides a default parameter configuration for the underlying planner.
 
         Args:

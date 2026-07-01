@@ -5,14 +5,15 @@ import numpy as np
 import torch
 
 from leap_c.examples.chain.acados_ocp import (
-    ChainAcadosParamInterface,
     ChainInitializer,
     export_parametric_ocp,
 )
 from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.chain.utils.resting_chain_solver import RestingChainSolver
-from leap_c.ocp.acados.planner import AcadosPlanner
+from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
+from leap_c.planner import ParameterizedPlanner
+from leap_c.utils.parameters import broadcast_default_param
 
 
 @dataclass(kw_only=True)
@@ -26,8 +27,6 @@ class ChainControllerConfig:
         T_horizon: The duration of the MPC horizon. One step during planning
             will equal T_horizon/N_horizon simulation time.
         n_mass: The number of masses in the chain.
-        param_interface: Determines the exposed paramete interface of the
-            controller.
         discount_factor: discount factor along the MPC horizon.
             If `None`, it defaults to the behavior of `AcadosOcpOptions.cost_scaling`.
         n_batch_init: Initially supported batch size of the batch OCP solver.
@@ -42,7 +41,6 @@ class ChainControllerConfig:
     N_horizon: int = 20
     T_horizon: float = 0.25
     n_mass: int = 5
-    param_interface: ChainAcadosParamInterface = "global"
 
     discount_factor: float | None = None
     n_batch_init: int | None = None
@@ -50,7 +48,7 @@ class ChainControllerConfig:
     dtype: torch.dtype | None = None
 
 
-class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
+class ChainPlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
     """Acados-based controller for the hanging `Chain` system.
 
     The state and action correspond to the observation and action of the `Chain` environment. The
@@ -64,6 +62,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     """
 
     cfg: ChainControllerConfig
+    collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,
@@ -79,6 +78,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             export_directory: Directory to export the acados ocp files.
         """
         self.cfg = ChainControllerConfig() if cfg is None else cfg
+        super().__init__()
 
         fix_point = np.zeros(3)
 
@@ -103,8 +103,7 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
 
         x_ref, _ = resting_chain_solver(p_last=pos_last_mass_ref)
 
-        ocp, param_manager, param_space = export_parametric_ocp(
-            param_interface=self.cfg.param_interface,
+        ocp, param_manager, param_space, default_param = export_parametric_ocp(
             x_ref=x_ref,
             fix_point=fix_point,
             N_horizon=self.cfg.N_horizon,
@@ -117,7 +116,6 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc = AcadosDiffMpcTorch(
             ocp,
             param_manager,
-            parameter_space=param_space,
             initializer=initializer,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
@@ -125,4 +123,19 @@ class ChainPlanner(AcadosPlanner[AcadosDiffMpcCtx]):
             num_threads_batch_solver=self.cfg.num_threads_batch_solver,
             dtype=self.cfg.dtype,
         )
-        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
+        self.param_manager = param_manager
+        self.diff_mpc = diff_mpc
+        self._param_space = param_space
+        self._default_param = default_param
+
+    def forward(
+        self,
+        obs: torch.Tensor,
+        action: torch.Tensor | None = None,
+        params: dict[str, torch.Tensor | np.ndarray] | None = None,
+        ctx: AcadosDiffMpcCtx | None = None,
+    ):
+        return self.diff_mpc(x0=obs, u0=action, params=params, ctx=ctx)
+
+    def default_param(self, obs: np.ndarray | torch.Tensor | None = None) -> dict[str, np.ndarray]:
+        return broadcast_default_param(self._default_param, obs)

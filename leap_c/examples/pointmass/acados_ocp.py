@@ -1,23 +1,20 @@
-from typing import Literal
+from collections import OrderedDict
 
 import casadi as ca
 import gymnasium as gym
 import numpy as np
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import AcadosParameterManager, stage_expanded_box
-
-PointMassAcadosParamInterface = Literal["global", "stagewise"]
+from leap_c.ocp.acados.parameters import AcadosParameterManager
 
 
 def export_parametric_ocp(
-    param_interface: PointMassAcadosParamInterface,
     name: str = "pointmass",
     Fmax: float = 10.0,
     N_horizon: int = 20,
     T_horizon: float = 2.0,
     x_ref_value: np.ndarray | None = None,
-) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Dict]:
+) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Dict, dict[str, np.ndarray]]:
     ocp = AcadosOcp()
 
     ocp.solver_options.N_horizon = N_horizon
@@ -33,85 +30,50 @@ def export_parametric_ocp(
     q_diag_sqrt_val = np.array([1.0, 1.0, 1.0, 1.0])
     r_diag_sqrt_val = np.array([0.1, 0.1])
 
-    splits = "stagewise" if param_interface == "stagewise" else "global"
-    spaces: list[tuple[str, gym.spaces.Box]] = []
+    splits = "global"
+    spaces: OrderedDict[str, gym.spaces.Box] = OrderedDict()
+    defaults: dict[str, np.ndarray] = {}
 
-    # Register learnable parameters
-    q_diag_sqrt = manager.register_parameter(
+    def register_learnable(
+        name: str, default: np.ndarray, low: np.ndarray, high: np.ndarray
+    ) -> ca.SX | ca.MX:
+        symbol = manager.register_parameter(
+            name,
+            default=default,
+            differentiable=True,
+            splits=splits,
+        )
+        spaces[name] = gym.spaces.Box(
+            low=low,
+            high=high,
+            dtype=np.float64,
+        )
+        defaults[name] = default
+        return symbol
+
+    q_diag_sqrt = register_learnable(
         "q_diag_sqrt",
         default=q_diag_sqrt_val,
-        differentiable=True,
-        splits=splits,
+        low=0.5 * q_diag_sqrt_val,
+        high=1.5 * q_diag_sqrt_val,
     )
-    spaces.append(
-        (
-            "q_diag_sqrt",
-            stage_expanded_box(
-                gym.spaces.Box(
-                    low=0.5 * q_diag_sqrt_val, high=1.5 * q_diag_sqrt_val, dtype=np.float64
-                ),
-                splits,
-                N_horizon,
-            ),
-        )
-    )
-    r_diag_sqrt = manager.register_parameter(
+    r_diag_sqrt = register_learnable(
         "r_diag_sqrt",
         default=r_diag_sqrt_val,
-        differentiable=True,
-        splits=splits,
+        low=0.5 * r_diag_sqrt_val,
+        high=1.5 * r_diag_sqrt_val,
     )
-    spaces.append(
-        (
-            "r_diag_sqrt",
-            stage_expanded_box(
-                gym.spaces.Box(
-                    low=0.5 * r_diag_sqrt_val, high=1.5 * r_diag_sqrt_val, dtype=np.float64
-                ),
-                splits,
-                N_horizon,
-            ),
-        )
-    )
-    x_ref = manager.register_parameter(
+    x_ref = register_learnable(
         "x_ref",
         default=x_ref_value,
-        differentiable=True,
-        splits=splits,
+        low=np.array([0.0, 0.0, -20.0, -20.0]),
+        high=np.array([4.0, 1.0, 20.0, 20.0]),
     )
-    spaces.append(
-        (
-            "x_ref",
-            stage_expanded_box(
-                gym.spaces.Box(
-                    low=np.array([0.0, 0.0, -20.0, -20.0]),
-                    high=np.array([4.0, 1.0, 20.0, 20.0]),
-                    dtype=np.float64,
-                ),
-                splits,
-                N_horizon,
-            ),
-        )
-    )
-    u_ref = manager.register_parameter(
+    u_ref = register_learnable(
         "u_ref",
         default=np.array([0.0, 0.0]),
-        differentiable=True,
-        splits=splits,
-    )
-    spaces.append(
-        (
-            "u_ref",
-            stage_expanded_box(
-                gym.spaces.Box(
-                    low=np.array([-10.0, -10.0]),
-                    high=np.array([10.0, 10.0]),
-                    dtype=np.float64,
-                ),
-                splits,
-                N_horizon,
-            ),
-        )
+        low=np.array([-10.0, -10.0]),
+        high=np.array([10.0, 10.0]),
     )
 
     # Dynamics physical constants (sunsetted "fix" interface)
@@ -181,4 +143,7 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
 
-    return ocp, manager, gym.spaces.Dict(spaces)
+    param_space = gym.spaces.Dict(spaces)
+    default_param = defaults
+
+    return ocp, manager, param_space, default_param

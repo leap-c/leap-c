@@ -1,5 +1,5 @@
+from collections import OrderedDict
 from copy import deepcopy
-from typing import Literal, OrderedDict
 
 import casadi as ca
 import gymnasium as gym
@@ -11,24 +11,17 @@ from leap_c.examples.chain.dynamics import define_f_expl_expr
 from leap_c.examples.utils.casadi import integrate_erk4
 from leap_c.ocp.acados.data import AcadosOcpSolverInput
 from leap_c.ocp.acados.initializer import AcadosDiffMpcInitializer
-from leap_c.ocp.acados.parameters import AcadosParameterManager, stage_expanded_box
-
-ChainAcadosParamInterface = Literal["global", "stagewise"]
-"""Determines the exposed parameter interface of the controller.
-"global" means that learnable parameters are the same for all stages of the horizon,
-while "stagewise" means that learnable parameters can vary between stages.
-"""
+from leap_c.ocp.acados.parameters import AcadosParameterManager
 
 
 def export_parametric_ocp(
-    param_interface: ChainAcadosParamInterface,
     x_ref: np.ndarray,
     fix_point: np.ndarray,
     name: str = "chain",
     N_horizon: int = 30,  # noqa: N803
     T_horizon: float = 6.0,
     n_mass: int = 5,
-) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Dict]:
+) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Dict, dict[str, np.ndarray]]:
     ocp = AcadosOcp()
 
     ocp.solver_options.N_horizon = N_horizon
@@ -40,8 +33,8 @@ def export_parametric_ocp(
     q_diag_sqrt_val = np.ones(3 * (n_mass - 1) + 3 * (n_mass - 2))
     r_diag_sqrt_val = 1e-1 * np.ones(3)
 
-    splits = "stagewise" if param_interface == "stagewise" else "global"
-    spaces: list[tuple[str, gym.spaces.Box]] = []
+    splits = "global"
+    spaces = OrderedDict()
 
     q_diag_sqrt = manager.register_parameter(
         "q_diag_sqrt",
@@ -49,35 +42,22 @@ def export_parametric_ocp(
         differentiable=True,
         splits=splits,
     )
-    spaces.append(
-        (
-            "q_diag_sqrt",
-            stage_expanded_box(
-                gym.spaces.Box(
-                    low=0.5 * q_diag_sqrt_val, high=1.5 * q_diag_sqrt_val, dtype=np.float64
-                ),
-                splits,
-                N_horizon,
-            ),
-        )
+    spaces["q_diag_sqrt"] = gym.spaces.Box(
+        low=0.5 * q_diag_sqrt_val,
+        high=1.5 * q_diag_sqrt_val,
+        dtype=np.float64,
     )
+
     r_diag_sqrt = manager.register_parameter(
         "r_diag_sqrt",
         default=r_diag_sqrt_val,
         differentiable=True,
         splits=splits,
     )
-    spaces.append(
-        (
-            "r_diag_sqrt",
-            stage_expanded_box(
-                gym.spaces.Box(
-                    low=0.5 * r_diag_sqrt_val, high=1.5 * r_diag_sqrt_val, dtype=np.float64
-                ),
-                splits,
-                N_horizon,
-            ),
-        )
+    spaces["r_diag_sqrt"] = gym.spaces.Box(
+        low=0.5 * r_diag_sqrt_val,
+        high=1.5 * r_diag_sqrt_val,
+        dtype=np.float64,
     )
 
     ######## Model ########
@@ -151,7 +131,9 @@ def export_parametric_ocp(
     if isinstance(ocp.model.x, struct_symSX):
         ocp.model.x = ocp.model.x.cat
 
-    return ocp, manager, gym.spaces.Dict(spaces)
+    param_space = gym.spaces.Dict(spaces)
+    default_param = {"q_diag_sqrt": q_diag_sqrt_val, "r_diag_sqrt": r_diag_sqrt_val}
+    return ocp, manager, param_space, default_param
 
 
 class ChainInitializer(AcadosDiffMpcInitializer):

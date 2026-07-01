@@ -17,14 +17,15 @@ from leap_c.torch.nn.bounded_distributions import (
 )
 from leap_c.torch.nn.extractor import Extractor, ExtractorName, get_extractor_cls
 from leap_c.torch.nn.mlp import Mlp, MlpConfig
-from leap_c.utils.gym import flatten_param_space
+from leap_c.torch.utils import gym as torch_gym
 
 
 class StochasticMPCActorOutput(NamedTuple):
     """Output of the hierarchical MPC actor's forward pass.
 
     Attributes:
-        param: The predicted parameters (which have been input into the controller).
+        param: The predicted flattened parameters. Structured parameters are passed to the
+            controller.
         log_prob: The log-probability of the distribution that led to the action. Can be either from
           the parameter or action distribution, depending on the noise mode.
         stats: A dictionary containing statistics from internal modules.
@@ -124,6 +125,8 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
     mlp: Mlp
     param_distribution: BoundedDistribution
     action_distribution: BoundedDistribution | None
+    param_space: gym.Space
+    flat_param_space: spaces.Box
     residual: bool
     entropy_correction: bool
 
@@ -148,8 +151,9 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
         self.residual = cfg.residual and cfg.noise == "param"
         self.entropy_correction = cfg.entropy_correction and cfg.noise == "param"
 
-        param_space: spaces.Box = flatten_param_space(controller.param_space)
-        param_dim = param_space.shape[0]
+        self.param_space = controller.param_space
+        self.flat_param_space = torch_gym.flatten_space(self.param_space)
+        param_dim = self.flat_param_space.shape[0]
         action_dim = prod(action_space.shape)
 
         # create extractor
@@ -160,7 +164,7 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
         if cfg.noise == "param":
             # parameter noise: distribution for parameters
             self.param_distribution = get_bounded_distribution(
-                cfg.distribution_name, space=param_space, **cfg.distribution_kwargs
+                cfg.distribution_name, space=self.flat_param_space, **cfg.distribution_kwargs
             )
 
             self.action_distribution = None
@@ -170,7 +174,7 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             # action noise: deterministic param transform + action distribution
             # Note: param_distribution is used deterministically
             self.param_distribution = get_bounded_distribution(
-                "squashed_gaussian", space=param_space, **cfg.distribution_kwargs
+                "squashed_gaussian", space=self.flat_param_space, **cfg.distribution_kwargs
             )
             self.action_distribution = get_bounded_distribution(
                 cfg.distribution_name, space=action_space, **cfg.distribution_kwargs
@@ -186,66 +190,6 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
             output_sizes=output_sizes,
             mlp_cfg=cfg.mlp,
         )
-
-    # TODO (Mazen): this should also be removed, the actors should produce a dictionary instead of
-    # flat parameters.
-    def _param_to_dict(self, flat_param: torch.Tensor) -> dict[str, torch.Tensor]:
-        """Convert a flat parameter tensor to a dict for the dict-based controller API.
-
-        The flat parameter tensor is the output of the distribution (RL system).
-        This method splits it into named entries expected by the controller, using
-        the planner's parameter manager to determine the structure.
-
-        Args:
-            flat_param: Flat parameter tensor ``(batch_size, total_learnable_dim)``.
-
-        Returns:
-            Dict mapping parameter names to their values. Stage-varying parameters
-            get shape ``(batch_size, N_horizon + 1, pdim)``; global parameters
-            get shape ``(batch_size, pdim)``.
-        """
-        planner = getattr(self.controller, "planner", None)
-        if planner is None:
-            raise TypeError(
-                f"Cannot convert flat parameters to dict: controller "
-                f"({type(self.controller).__name__}) has no `.planner` attribute."
-            )
-        manager = getattr(planner, "param_manager", None)
-        if manager is None:
-            raise TypeError(
-                f"Cannot convert flat parameters to dict: planner "
-                f"({type(planner).__name__}) has no `param_manager` attribute."
-            )
-
-        store = manager._learnable_parameter_store
-        Np1 = manager.N_horizon + 1
-        batch_size = flat_param.shape[0]
-
-        param_dict = {}
-        for name in manager.learnable_parameter_names:
-            param_def = manager.parameters[name]
-            pdim = param_def.default.size
-
-            if param_def.is_stage_varying:
-                val = torch.zeros(
-                    batch_size,
-                    Np1,
-                    pdim,
-                    dtype=flat_param.dtype,
-                    device=flat_param.device,
-                )
-                for stored_name, (si, ei) in store.indices.items():
-                    if stored_name.startswith(f"{name}_"):
-                        suffix = stored_name[len(name) + 1 :]
-                        start, end = (int(x) for x in suffix.split("_"))
-                        block_val = flat_param[..., si:ei].reshape(batch_size, pdim)
-                        val[:, start : end + 1, :] = block_val.unsqueeze(1)
-                param_dict[name] = val
-            else:
-                si, ei = store.indices[name]
-                param_dict[name] = flat_param[..., si:ei]
-
-        return param_dict
 
     def forward(
         self,
@@ -271,7 +215,10 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
         if self.action_distribution is None:
             # parameter noise mode
             dist_params = self.mlp(e)
-            anchor = self.controller.default_param(obs) if self.residual else None
+            anchor = None
+            if self.residual:
+                anchor = torch_gym.flatten(self.param_space, self.controller.default_param(obs))
+                anchor = anchor.to(device=dist_params[0].device, dtype=dist_params[0].dtype)
 
             param, log_prob, stats = self.param_distribution(
                 *dist_params,
@@ -283,8 +230,8 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
                 return StochasticMPCActorOutput(param, log_prob, stats)
 
             # get action from controller
-            param_dict = self._param_to_dict(param)
-            ctx, action = self.controller(obs, param_dict, ctx=ctx)
+            params = torch_gym.unflatten(self.param_space, param)
+            ctx, action = self.controller(obs, params, ctx=ctx)
 
             # Store distribution info in context for rendering/debugging
             ctx.param_distribution_info = {
@@ -299,7 +246,9 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
                 # NOTE: Computing the full Jacobian, but we only need the diagonal.
                 # Can be slow for large batches. Look into vectorized computations.
                 j = torch.autograd.functional.jacobian(
-                    lambda p: self.controller(obs, self._param_to_dict(p), ctx=ctx)[1],
+                    lambda p: self.controller(
+                        obs, torch_gym.unflatten(self.param_space, p), ctx=ctx
+                    )[1],
                     param,
                 )
                 # j: (B, A, B, D) — extract per-sample Jacobians (B, A, D)
@@ -325,8 +274,8 @@ class HierachicalMPCActor(nn.Module, Generic[CtxType]):
         param, _, param_stats = self.param_distribution(param_mean, deterministic=True, anchor=None)
 
         # get action from controller
-        param_dict = self._param_to_dict(param)
-        ctx, action_mpc = self.controller(obs, param_dict, ctx=ctx)
+        params = torch_gym.unflatten(self.param_space, param)
+        ctx, action_mpc = self.controller(obs, params, ctx=ctx)
 
         # add noise to action - use MPC action as anchor
         action, log_prob, action_stats = self.action_distribution(

@@ -6,13 +6,9 @@ import numpy as np
 from acados_template import AcadosOcp
 
 from leap_c.examples.utils.casadi import integrate_erk4
-from leap_c.ocp.acados.parameters import AcadosParameterManager, stage_expanded_box
+from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.utils.parameters import ParamSplits, n_segments
 
-CartPoleAcadosParamInterface = Literal["global", "stagewise"]
-"""Determines the exposed parameter interface of the controller.
-"global" means that learnable parameters are the same for all stages of the horizon,
-while "stagewise" means that learnable parameters can vary between stages.
-"""
 CartPoleAcadosCostType = Literal["EXTERNAL", "NONLINEAR_LS"]
 """The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS". Both model the same cost function, 
 but the former uses an exact Hessian in the optimization, while the latter uses a 
@@ -21,14 +17,14 @@ Gauss-Newton Hessian approximation.
 
 
 def export_parametric_ocp(
-    param_interface: CartPoleAcadosParamInterface,
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS",
     name: str = "cartpole",
     Fmax: float = 80.0,
     x_threshold: float = 2.4,
     N_horizon: int = 50,
     T_horizon: float = 2.0,
-) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Dict]:
+    param_splits: ParamSplits = "global",
+) -> tuple[AcadosOcp, AcadosParameterManager, gym.spaces.Box, np.ndarray]:
     ocp = AcadosOcp()
     ocp.solver_options.N_horizon = N_horizon
     ocp.solver_options.tf = T_horizon
@@ -37,30 +33,33 @@ def export_parametric_ocp(
 
     manager = AcadosParameterManager(N_horizon=N_horizon)
 
-    spaces: list[tuple[str, gym.spaces.Box]] = []
-
-    # Reference parameters (non-learnable / learnable)
+    # Learnable reference parameter xref1.
+    # `param_splits` controls how xref1 varies across the MPC horizon:
+    #   - "global" (default): one value shared across all stages -> shape (1,).
+    #   - "stagewise":        one independent value per stage     -> shape (N+1, 1).
+    #   - list[int], e.g. [2, N]: explicit stage boundaries         -> shape (len(splits), 1).
+    #
+    # For "global" the default / bounds are passed directly. For other splits,
+    # broadcast the per-segment default to the per-stage shape, e.g.
+    # n_segments("stagewise", 5) -> 6 -> np.broadcast_to(default, (6, 1)).
     xref0 = manager.register_parameter("xref0", default=np.array([0.0]))
-    xref1_splits = "stagewise" if param_interface == "stagewise" else "global"
+    default_xref1 = np.array([0.0])
     xref1 = manager.register_parameter(
         "xref1",
-        default=np.array([0.0]),
+        default=default_xref1,
         differentiable=True,
-        splits=xref1_splits,
+        splits=param_splits,
     )
-    spaces.append(
-        (
-            "xref1",
-            stage_expanded_box(
-                gym.spaces.Box(
-                    low=np.array([-2.0 * np.pi]),
-                    high=np.array([2.0 * np.pi]),
-                    dtype=np.float64,
-                ),
-                xref1_splits,
-                N_horizon,
-            ),
-        )
+    n = n_segments(param_splits, N_horizon)
+    if n == 1:
+        default_param = default_xref1
+    else:
+        default_param = np.broadcast_to(default_xref1, (n, *default_xref1.shape))
+    param_space = gym.spaces.Box(
+        low=-2.0 * np.pi,
+        high=2.0 * np.pi,
+        shape=default_param.shape,
+        dtype=np.float64,
     )
 
     xref2 = manager.register_parameter("xref2", default=np.array([0.0]))
@@ -176,4 +175,4 @@ def export_parametric_ocp(
     ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
     ocp.solver_options.qp_solver_ric_alg = 1
 
-    return ocp, manager, gym.spaces.Dict(spaces)
+    return ocp, manager, param_space, default_param

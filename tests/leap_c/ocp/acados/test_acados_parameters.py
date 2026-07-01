@@ -11,9 +11,9 @@ from leap_c.ocp.acados.parameters import (
     AcadosParameter,
     AcadosParameterManager,
     _define_starts_and_ends,
-    stage_expanded_box,
 )
 from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+from leap_c.utils.parameters import n_segments
 
 
 def test_acados_param_manager_basic_initialization():
@@ -404,22 +404,12 @@ def test_mixed_parameter_types_and_interfaces():
         assert key in non_learnable_keys
 
 
-def test_stage_expanded_box():
-    """`stage_expanded_box` tiles single-stage bounds across a parameter's stage blocks."""
-    box = gym.spaces.Box(low=np.array([0.0, 5.0]), high=np.array([50.0, 100.0]), dtype=np.float64)
-
-    # global -> returned unchanged
-    assert stage_expanded_box(box, "global", 10) is box
-
-    # list splits [2, 5, 8, 10] -> 4 blocks; bounds tiled per block
-    expanded = stage_expanded_box(box, [2, 5, 8, 10], 10)
-    assert expanded.shape == (8,)
-    np.testing.assert_array_equal(expanded.low, np.tile(np.array([0.0, 5.0]), 4))
-    np.testing.assert_array_equal(expanded.high, np.tile(np.array([50.0, 100.0]), 4))
-
-    # "stagewise" -> one block per stage (N + 1)
-    scalar = gym.spaces.Box(low=np.array([0.0]), high=np.array([20.0]), dtype=np.float64)
-    assert stage_expanded_box(scalar, "stagewise", 5).shape == (6,)
+def test_n_segments_returns_expected_counts():
+    assert n_segments("global", 5) == 1
+    assert n_segments("stagewise", 5) == 6
+    assert n_segments(3, 5) == 3
+    assert n_segments([2, 5], 5) == 2
+    assert n_segments([0, 4, 9], 9) == 3
 
 
 def test_variable_splits_parameter_layout():

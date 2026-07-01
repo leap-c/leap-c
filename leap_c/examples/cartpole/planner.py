@@ -1,15 +1,17 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import torch
 
 from leap_c.examples.cartpole.acados_ocp import (
     CartPoleAcadosCostType,
-    CartPoleAcadosParamInterface,
     export_parametric_ocp,
 )
-from leap_c.ocp.acados.planner import AcadosPlanner
+from leap_c.ocp.acados.diff_mpc import collate_acados_diff_mpc_ctx
 from leap_c.ocp.acados.torch import AcadosDiffMpcCtx, AcadosDiffMpcTorch
+from leap_c.planner import ParameterizedPlanner
+from leap_c.utils.parameters import broadcast_default_param
 
 
 @dataclass(kw_only=True)
@@ -27,7 +29,6 @@ class CartPolePlannerConfig:
         x_threshold: Bounds of the box constraints of the maximum absolute position
             of the cart [m] (soft/slacked constraint)
         cost_type: The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS".
-        param_interface: Determines the exposed parameter interface of the planner.
         discount_factor: discount factor along the MPC horizon.
             If `None`, it defaults to the behavior of `AcadosOcpOptions.cost_scaling`.
         n_batch_init: Initially supported batch size of the batch OCP solver.
@@ -45,7 +46,6 @@ class CartPolePlannerConfig:
     x_threshold: float = 2.4
 
     cost_type: CartPoleAcadosCostType = "NONLINEAR_LS"
-    param_interface: CartPoleAcadosParamInterface = "global"
 
     discount_factor: float | None = None
     n_batch_init: int | None = None
@@ -53,7 +53,7 @@ class CartPolePlannerConfig:
     dtype: torch.dtype | None = None
 
 
-class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
+class CartPolePlanner(ParameterizedPlanner[AcadosDiffMpcCtx]):
     """Acados-based planner for `CartPole`, aka inverted pendulum.
 
     The state and action correspond to the observation and action of the CartPole environment.
@@ -68,6 +68,7 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
     """
 
     cfg: CartPolePlannerConfig
+    collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}
 
     def __init__(
         self,
@@ -85,8 +86,8 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         """
         self.cfg = CartPolePlannerConfig() if cfg is None else cfg
 
-        ocp, param_manager, param_space = export_parametric_ocp(
-            param_interface=self.cfg.param_interface,
+        super().__init__()
+        ocp, param_manager, param_space, default_param = export_parametric_ocp(
             cost_type=self.cfg.cost_type,
             name="cartpole",
             N_horizon=self.cfg.N_horizon,
@@ -98,11 +99,27 @@ class CartPolePlanner(AcadosPlanner[AcadosDiffMpcCtx]):
         diff_mpc = AcadosDiffMpcTorch(
             ocp=ocp,
             parameter_manager=param_manager,
-            parameter_space=param_space,
             discount_factor=self.cfg.discount_factor,
             export_directory=export_directory,
             n_batch_init=self.cfg.n_batch_init,
             num_threads_batch_solver=self.cfg.num_threads_batch_solver,
             dtype=self.cfg.dtype,
         )
-        super().__init__(param_manager=param_manager, diff_mpc=diff_mpc)
+        self.param_manager = param_manager
+        self.diff_mpc = diff_mpc
+        self._param_space = param_space
+        self._default_param = default_param
+
+    def forward(
+        self,
+        obs: torch.Tensor,
+        action: torch.Tensor | None = None,
+        params: torch.Tensor | None = None,
+        ctx: AcadosDiffMpcCtx | None = None,
+    ):
+        if params is not None:
+            params = {"xref1": params}
+        return self.diff_mpc(x0=obs, u0=action, params=params, ctx=ctx)
+
+    def default_param(self, obs: np.ndarray | torch.Tensor | None = None) -> np.ndarray:
+        return broadcast_default_param(self._default_param, obs)

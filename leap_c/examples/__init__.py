@@ -47,19 +47,7 @@ PLANNER_REGISTRY: dict[str, tuple[str, str, str, dict[str, Any]]] = {
         "CartPolePlannerConfig",
         {},
     ),
-    "cartpole_stagewise": (
-        "leap_c.examples.cartpole.planner",
-        "CartPolePlanner",
-        "CartPolePlannerConfig",
-        {"param_interface": "stagewise"},
-    ),
     "chain": ("leap_c.examples.chain.planner", "ChainPlanner", "ChainControllerConfig", {}),
-    "chain_stagewise": (
-        "leap_c.examples.chain.planner",
-        "ChainPlanner",
-        "ChainControllerConfig",
-        {"param_interface": "stagewise"},
-    ),
     "mass_spring_damper": (
         "leap_c.examples.mass_spring_damper.planner",
         "MassSpringDamperPlanner",
@@ -72,21 +60,12 @@ PLANNER_REGISTRY: dict[str, tuple[str, str, str, dict[str, Any]]] = {
         "PointMassControllerConfig",
         {},
     ),
-    "pointmass_stagewise": (
-        "leap_c.examples.pointmass.planner",
-        "PointMassPlanner",
-        "PointMassControllerConfig",
-        {"param_interface": "stagewise"},
-    ),
 }
 ExamplePlannerName = Literal[
     "cartpole",
-    "cartpole_stagewise",
     "chain",
-    "chain_stagewise",
     "mass_spring_damper",
     "pointmass",
-    "pointmass_stagewise",
 ]
 
 

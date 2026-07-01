@@ -21,6 +21,7 @@ from leap_c.torch.rl.mpc_actor import (
 )
 from leap_c.torch.rl.sac import SacCritic
 from leap_c.torch.rl.utils import soft_target_update
+from leap_c.torch.utils import gym as torch_gym
 from leap_c.torch.utils.seed import mk_seed
 from leap_c.trainer import Trainer, TrainerConfig
 from leap_c.utils.gym import flatten_param_space, seed_env, wrap_env
@@ -233,7 +234,9 @@ class SacFopTrainer(Trainer[SacFopTrainerConfig, CtxType], Generic[CtxType]):
                 # NOTE: Computing the full Jacobian, but we only need the diagonal.
                 # Can be slow for large batches. Look into vectorized computations.
                 j = torch.autograd.functional.jacobian(
-                    lambda p: self.pi.controller(o, self.pi._param_to_dict(p), ctx=pi_o.ctx)[1],
+                    lambda p: self.pi.controller(
+                        o, torch_gym.unflatten(self.pi.param_space, p), ctx=pi_o.ctx
+                    )[1],
                     pi_o.param.detach(),
                 )
                 dudp_norm = torch.linalg.matrix_norm(j[mask_status])
