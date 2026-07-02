@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "leap-c"
 version = "2025.0.0"
-dependencies = ["acados-template", "casadi", "numpy>=1.26.0"]
+dependencies = ["casadi", "numpy>=1.26.0"]
 
 requires-python = ">=3.11"
 maintainers = [
@@ -39,9 +39,6 @@ dev = ["leap_c[docs]", "leap_c[test]", "leap_c[torch]", "pre-commit", "ruff"]
 
 [tool.setuptools.packages.find]
 include = ["leap_c*"]
-
-[tool.uv.sources]
-acados-template = { path = "external/acados/interfaces/acados_template", editable = true }
 
 [project.urls]
 Repository = "https://github.com/leap-c/leap-c"

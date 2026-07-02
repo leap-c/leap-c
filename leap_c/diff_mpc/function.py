@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from functools import cache
 from pathlib import Path
-from typing import Callable, Literal, Sequence
+from typing import Literal
 
 import numpy as np
 from acados_template import AcadosOcp
@@ -12,8 +12,6 @@ from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 from leap_c.autograd.function import DiffFunction
 from leap_c.diff_mpc.data import (
     AcadosOcpSolverInput,
-    collate_acados_flattened_batch_iterate_fn,
-    collate_acados_ocp_solver_input,
 )
 from leap_c.diff_mpc.initializer import (
     AcadosDiffMpcInitializer,
@@ -74,18 +72,6 @@ class AcadosDiffMpcCtx:
     dx_dp_global: np.ndarray | None = None
     du_dp_global: np.ndarray | None = None
     dvalue_dp_global: np.ndarray | None = None
-
-
-def collate_acados_diff_mpc_ctx(
-    batch: Sequence[AcadosDiffMpcCtx], collate_fn_map: dict[str, Callable] | None = None
-) -> AcadosDiffMpcCtx:
-    """Collates a batch of AcadosDiffMpcCtx objects into a single object."""
-    return AcadosDiffMpcCtx(
-        iterate=collate_acados_flattened_batch_iterate_fn([ctx.iterate for ctx in batch]),
-        log=None,
-        status=np.array([ctx.status for ctx in batch]),
-        solver_input=collate_acados_ocp_solver_input([ctx.solver_input for ctx in batch]),
-    )
 
 
 AcadosDiffMpcSensitivityOptions = Literal[
