@@ -3,7 +3,6 @@
 from pathlib import Path
 
 import numpy as np
-import torch
 from acados_template import AcadosOcp
 
 from leap_c.autograd.torch import create_autograd_function
@@ -18,6 +17,9 @@ from leap_c.repr import (
     format_diff_mpc_module_extra_repr,
     format_diff_mpc_module_repr,
 )
+from leap_c.utils.dependencies import require_torch
+
+torch = require_torch()
 
 
 class AcadosDiffMpcLayerTorch(torch.nn.Module, AcadosDiffMpcLayer[torch.Tensor]):
