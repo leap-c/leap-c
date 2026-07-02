@@ -40,8 +40,8 @@ import numpy as np
 import torch
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+from leap_c.torch import AcadosDiffMpcTorch
+from leap_c.parameters import AcadosParameterManager
 
 N_horizon = 20  # stages 0 .. N_horizon (inclusive)
 

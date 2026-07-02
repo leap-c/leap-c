@@ -5,87 +5,40 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "leap-c"
 version = "2025.0.0"
-dependencies = [
-  "casadi",
-  "gymnasium==1.1.1",
-  "numpy>=1.26.0",
-  "torch>=2.0.0",
-  "scipy==1.15.2",
-  "PyYAML==6.0.2",
-  "tensordict>=0.10.0"
-]
+dependencies = ["casadi", "numpy>=1.26.0"]
 
 requires-python = ">=3.11"
 maintainers = [
-  { name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" },
-  { name = "Jasper Hoffmann", email = "hoffmaja@informatik.uni-freiburg.de" },
-  { name = "Leonard Fichtner", email = "leonard.fichtner@imtek.uni-freiburg.de" },
+    { name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" },
+    { name = "Jasper Hoffmann", email = "hoffmaja@informatik.uni-freiburg.de" },
+    { name = "Leonard Fichtner", email = "leonard.fichtner@imtek.uni-freiburg.de" },
 ]
 description = "Learning Predictive Control"
 readme = "README.md"
 license = { file = "LICENSE.txt" }
-keywords = [
-  "Reinforcement Learning",
-  "Imitation Learning",
-  "Model Predictive Control",
-]
+keywords = ["Model Predictive Control"]
 classifiers = [
-  "Development Status :: 4 - Beta",
-  "Programming Language :: Python",
+    "Development Status :: 4 - Beta",
+    "Programming Language :: Python",
 ]
 
 [project.optional-dependencies]
-test = [
-  "pytest==8.4.0",
-  "pytest-cov==7.0.0",
-  "pygame==2.6.1",
-  "moviepy==2.2.1",
-  "tensorboard==2.19.0",
-  "gymnasium[mujoco]==1.1.1",
-  "numpy-quaternion==2024.0.8",
-  "matplotlib==3.10.5",
-  "PyQt5==5.15.11"
-]
-rendering = [
-  "pygame==2.6.1",
-  "moviepy==2.2.1"
-]
+test = ["pytest", "pytest-cov"]
+torch = ["torch>=2.0.0"]
+jax = ["jax"]
+notebooks = ["marimo>=0.13.0"]
 docs = [
-  "sphinx==8.2.3",
-  "furo==2024.8.6",
-  "myst-parser==4.0.1",
-  "sphinx-autoapi==3.8.0",
-  "sphinx-autobuild==2025.8.25",
-  "sphinxcontrib-mermaid==1.0.0"
+    "sphinx",
+    "furo",
+    "myst-parser",
+    "sphinx-autoapi",
+    "sphinx-autobuild",
+    "sphinxcontrib-mermaid",
 ]
-hvac = [
-  "pandas==2.3.0",
-  "openmeteo-requests==1.7.4",
-  "retry-requests==2.0.0",
-  "requests-cache==1.2.1",
-  "requests<2.34.0"
-]
-dev = [
-  "leap_c[rendering]",
-  "leap_c[docs]",
-  "leap_c[test]",
-  "leap_c[hvac]",
-  "leap_c[tuning]",
-  "leap_c[wandb]",
-  "pre-commit==4.3.0",
-  "ruff==0.12.12"
-]
-tuning = [
-  "smac>=2.0.0",
-  "ConfigSpace",
-]
-wandb = ["wandb==0.20.1"]
-notebook = [
-  "marimo>=0.13.0",
-]
+dev = ["leap_c[docs]", "leap_c[test]", "leap_c[torch]", "pre-commit", "ruff"]
 
-[tool.setuptools]
-packages = ["leap_c"]
+[tool.setuptools.packages.find]
+include = ["leap_c*"]
 
 [project.urls]
 Repository = "https://github.com/leap-c/leap-c"
@@ -104,20 +57,14 @@ convention = "google"
 
 [tool.ruff.lint]
 ignore = [
-  "E741",
-  "D100",  # Ignore missing docstrings
-  "D101",
-  "D102",
-  "D103",
-  "D104",
-  "D105",
-  "D106",
-  "D107",
+    "E741",
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D106",
+    "D107",
 ]
-extend-select = [
-    "D",
-    "I",
-    "NPY",
-    "UP045",
-    "E501",
-]
+extend-select = ["D", "I", "NPY", "UP045", "E501"]
