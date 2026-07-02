@@ -2,20 +2,24 @@
 
 leap-c ships interactive [marimo](https://marimo.io) notebooks (see the `notebooks/` folder) that demonstrate how to formulate and solve optimal control problems with the differentiable acados layer.
 
+Available notebooks:
+
+- `notebooks/minimal_mpc.py`: scalar integrator MPC plus batched warm-start collation.
+
 You can run these notebooks either locally (recommended for development) or via a pre-built Docker image (a convenient fallback if you do not want to build acados yourself).
 
 ## Local setup
 
-First complete the [native installation](installation.md), then install the notebook extras. Recommended (uv):
+First complete the [native installation](installation.md), then install the notebook and torch extras. Recommended (uv):
 
 ```bash
-uv pip install -e ".[notebooks]"
+uv pip install -e ".[notebooks,torch]"
 ```
 
 Alternatively (pip):
 
 ```bash
-pip install -e ".[notebooks]"
+pip install -e ".[notebooks,torch]"
 ```
 
 Launch the marimo server from the repository root:
