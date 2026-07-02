@@ -11,17 +11,17 @@ from leap_c.diff_mpc.function import (
     AcadosDiffMpcFunction,
 )
 from leap_c.diff_mpc.initializer import AcadosDiffMpcInitializer
-from leap_c.parameters.base import AcadosParameterManager
-from leap_c.repr import (
+from leap_c.parameters import AcadosParameterManager
+from leap_c.utils.dependencies import require_torch
+from leap_c.utils.repr import (
     format_diff_mpc_module_extra_repr,
     format_diff_mpc_module_repr,
 )
-from leap_c.utils.dependencies import require_torch
 
 torch = require_torch()
 
 
-class AcadosDiffMpcLayerTorch(torch.nn.Module):
+class AcadosDiffMpcTorch(torch.nn.Module):
     """PyTorch module for differentiable MPC based on acados.
 
     This module wraps acados solvers to enable their use in differentiable machine learning
@@ -54,7 +54,7 @@ class AcadosDiffMpcLayerTorch(torch.nn.Module):
         dtype: torch.dtype | None = None,
         verbose: bool = True,
     ) -> None:
-        """Initializes the AcadosDiffMpcLayerTorch module.
+        """Initializes the AcadosDiffMpcTorch module.
 
         Calls ``parameter_manager.assign_to_ocp(ocp)`` to synchronise CasADi symbols and default
         values onto the OCP, then creates the solvers.

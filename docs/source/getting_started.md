@@ -40,22 +40,22 @@ map differentiable in $p$.
 
 ## The differentiable-MPC interface
 
-{py:class}`~leap_c.torch.AcadosDiffMpcLayerTorch` implements the solution map above as a
+{py:class}`~leap_c.torch.AcadosDiffMpcTorch` implements the solution map above as a
 `torch.nn.Module`. You build one from an `AcadosOcp` (the problem — dynamics, cost, constraints)
-and an {py:class}`~leap_c.parameters.base.AcadosParameterManager` (which numbers are
+and an {py:class}`~leap_c.parameters.AcadosParameterManager` (which numbers are
 learnable), then call it like any module:
 
 ```{mermaid}
 flowchart LR
   OCP["AcadosOcp<br/>(dynamics, cost, constraints)"] --> DMPC
   PM["AcadosParameterManager<br/>(differentiable vs. runtime params)"] --> DMPC
-  DMPC["AcadosDiffMpcLayerTorch<br/>(torch.nn.Module)"] --> PIPE["your PyTorch model<br/>/ training loop"]
+  DMPC["AcadosDiffMpcTorch<br/>(torch.nn.Module)"] --> PIPE["your PyTorch model<br/>/ training loop"]
 ```
 
 Its public interface is just a constructor and a `forward`:
 
 ```python
-class AcadosDiffMpcLayerTorch(torch.nn.Module):
+class AcadosDiffMpcTorch(torch.nn.Module):
 
     def __init__(
         self,
@@ -68,7 +68,7 @@ class AcadosDiffMpcLayerTorch(torch.nn.Module):
 Its public interface is just a constructor and a `forward`:
 
 ```python
-class AcadosDiffMpcLayerTorch(torch.nn.Module):
+class AcadosDiffMpcTorch(torch.nn.Module):
 
     def __init__(
         self,
@@ -105,8 +105,8 @@ differentiate through the solve — reads like this:
 import numpy as np
 import torch
 
-from leap_c.torch import AcadosDiffMpcLayerTorch
-from leap_c.parameters.base import AcadosParameterManager
+from leap_c.torch import AcadosDiffMpcTorch
+from leap_c.parameters import AcadosParameterManager
 
 # 1. Register parameters. The manager returns CasADi symbols to use in the OCP.
 #    differentiable=True  -> learnable, exact gradients (shared acados p_global)
@@ -121,7 +121,7 @@ mass = manager.register_parameter("mass", np.array([1.0]), differentiable=False)
 ocp = build_point_mass_ocp(manager, Q, R, mass)
 
 # 3. Wrap the OCP and its parameters into a differentiable torch.nn.Module.
-diff_mpc = AcadosDiffMpcLayerTorch(ocp, manager)
+diff_mpc = AcadosDiffMpcTorch(ocp, manager)
 
 # 4. Solve a batch of OCPs for an initial state, overriding a parameter by name.
 x0 = torch.tensor([[1.0, 0.0]], dtype=torch.float64)                  # (batch, n_x)

@@ -2,11 +2,11 @@
 
 This tutorial walks through `AcadosParameterManager` — the class that controls how numerical
 parameters flow into an acados Optimal Control Problem (OCP) and, optionally, into a learning
-loop via `AcadosDiffMpcLayerTorch`.
+loop via `AcadosDiffMpcTorch`.
 
 You register each parameter once with `manager.register_parameter(...)`, which returns a CasADi
 symbol you drop straight into your dynamics, cost, and constraint expressions. At solve time you
-pass a dict of named parameter values to `AcadosDiffMpcLayerTorch`; the manager routes each value to the
+pass a dict of named parameter values to `AcadosDiffMpcTorch`; the manager routes each value to the
 right place (per-stage `p` or shared `p_global`) internally.
 
 ## Parameter interfaces at a glance
@@ -40,8 +40,8 @@ import numpy as np
 import torch
 from acados_template import AcadosOcp
 
-from leap_c.torch import AcadosDiffMpcLayerTorch
-from leap_c.parameters.base import AcadosParameterManager
+from leap_c.torch import AcadosDiffMpcTorch
+from leap_c.parameters import AcadosParameterManager
 
 N_horizon = 20  # stages 0 .. N_horizon (inclusive)
 
@@ -114,13 +114,13 @@ ocp.solver_options.hessian_approx = "EXACT"
 ocp.solver_options.integrator_type = "DISCRETE"
 ```
 
-### Step 3 — Wrap in `AcadosDiffMpcLayerTorch` and solve
+### Step 3 — Wrap in `AcadosDiffMpcTorch` and solve
 
-`AcadosDiffMpcLayerTorch` takes the OCP and its manager. Call it with the initial state and a `params`
+`AcadosDiffMpcTorch` takes the OCP and its manager. Call it with the initial state and a `params`
 dict of named overrides; any parameter you omit keeps its registered default.
 
 ```python
-diff_mpc = AcadosDiffMpcLayerTorch(ocp, manager)
+diff_mpc = AcadosDiffMpcTorch(ocp, manager)
 
 rng = np.random.default_rng(seed=0)
 x0_batch = torch.tensor(rng.uniform(10.0, 30.0, size=(4, 1)))
@@ -138,7 +138,7 @@ ctx, u0, x, u, value = diff_mpc(x0_batch, params={"price": price_tensor})
 
 ### Step 4 — Gradients and sensitivities
 
-Because `AcadosDiffMpcLayerTorch` is a differentiable `nn.Module`, standard PyTorch autograd works: back-
+Because `AcadosDiffMpcTorch` is a differentiable `nn.Module`, standard PyTorch autograd works: back-
 propagate through the solution, or use `torch.autograd.functional.jacobian` for full sensitivities.
 No custom sensitivity API is needed.
 
@@ -171,13 +171,13 @@ Internally, stage variation is implemented with a one-hot **indicator** vector a
 non-differentiable parameters. The manager stores each block in `p_global` and `manager.get("price")`
 returns a single indicator-gated expression that evaluates to the correct block value at every stage
 — no conditional logic in the OCP. The indicator is set for you by
-`combine_non_differentiable_parameters` (and by `AcadosDiffMpcLayerTorch` when it packs the per-stage
+`combine_non_differentiable_parameters` (and by `AcadosDiffMpcTorch` when it packs the per-stage
 parameters). If the indicator were left all-zero, every stage would silently evaluate to zero for the
 stage-varying parameters.
 
 ## Setting values at runtime
 
-The primary path is the `params` dict passed to `AcadosDiffMpcLayerTorch`, keyed by parameter name. It
+The primary path is the `params` dict passed to `AcadosDiffMpcTorch`, keyed by parameter name. It
 accepts both differentiable and non-differentiable overrides together; the manager routes each to the
 right internal array:
 

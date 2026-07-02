@@ -10,16 +10,16 @@ import pytest
 import torch
 from acados_template import AcadosOcp
 
-from leap_c.parameters.base import AcadosParameterManager
+from leap_c.parameters import AcadosParameterManager
 from leap_c.torch import (
     AcadosDiffMpcCtx,
-    AcadosDiffMpcLayerTorch,
+    AcadosDiffMpcTorch,
 )
 from leap_c.utils.parameters import _define_starts_and_ends
 
 
 def test_initialization_with_stagewise_varying_params(
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcLayerTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
 ) -> None:
     """Test the initialization of the AcadosImplicitLayer with stagewise varying parameters."""
     assert diff_mpc_with_stagewise_varying_params is not None, (
@@ -27,12 +27,12 @@ def test_initialization_with_stagewise_varying_params(
     )
 
 
-def test_initialization(diff_mpc: AcadosDiffMpcLayerTorch) -> None:
+def test_initialization(diff_mpc: AcadosDiffMpcTorch) -> None:
     assert diff_mpc is not None, "diff_mpc should not be None after initialization."
 
 
-def test_file_management(diff_mpc: AcadosDiffMpcLayerTorch, tol: float = 1e-5) -> None:
-    """Test file management of AcadosDiffMpcLayerTorch for solver reloading and code export.
+def test_file_management(diff_mpc: AcadosDiffMpcTorch, tol: float = 1e-5) -> None:
+    """Test file management of AcadosDiffMpcTorch for solver reloading and code export.
 
     Args:
         diff_mpc: The differentiable mpc object containing
@@ -72,7 +72,7 @@ def test_file_management(diff_mpc: AcadosDiffMpcLayerTorch, tol: float = 1e-5) -
     last_modified = files[0].stat().st_mtime
 
     # Should reload the solver
-    AcadosDiffMpcLayerTorch(
+    AcadosDiffMpcTorch(
         ocp=diff_mpc.diff_mpc_fun.ocp,
         parameter_manager=diff_mpc.parameter_manager,
         initializer=diff_mpc.diff_mpc_fun.initializer,
@@ -86,8 +86,8 @@ def test_file_management(diff_mpc: AcadosDiffMpcLayerTorch, tol: float = 1e-5) -
     )
 
 
-def test_statelessness(diff_mpc: AcadosDiffMpcLayerTorch) -> None:
-    """Test the statelessness of AcadosDiffMpcLayerTorch.
+def test_statelessness(diff_mpc: AcadosDiffMpcTorch) -> None:
+    """Test the statelessness of AcadosDiffMpcTorch.
 
     The test verifies that the layer produces consistent outputs for identical inputs and
     different outputs for modified parameters.
@@ -155,8 +155,8 @@ def test_statelessness(diff_mpc: AcadosDiffMpcLayerTorch) -> None:
         )
 
 
-def test_backup_functionality(diff_mpc: AcadosDiffMpcLayerTorch) -> None:
-    """Test the backup functionality of AcadosDiffMpcLayerTorch.
+def test_backup_functionality(diff_mpc: AcadosDiffMpcTorch) -> None:
+    """Test the backup functionality of AcadosDiffMpcTorch.
 
     This test verifies that the backup mechanism in the implicit layer can
     restore a corrupted iterate to a valid state and produce consistent
@@ -165,7 +165,7 @@ def test_backup_functionality(diff_mpc: AcadosDiffMpcLayerTorch) -> None:
     restores the iterate correctly.
 
     Args:
-        diff_mpc: The AcadosDiffMpcLayerTorch to be tested.
+        diff_mpc: The AcadosDiffMpcTorch to be tested.
 
     Raises:
         AssertionError: If the solver does not converge or if the solutions
@@ -206,11 +206,11 @@ def test_backup_functionality(diff_mpc: AcadosDiffMpcLayerTorch) -> None:
 
 
 def test_closed_loop(
-    diff_mpc: AcadosDiffMpcLayerTorch,
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcLayerTorch,
+    diff_mpc: AcadosDiffMpcTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
     tol: float = 1e-1,
 ) -> None:
-    """Tests the closed-loop behavior of a system controlled by AcadosDiffMpcLayerTorch.
+    """Tests the closed-loop behavior of a system controlled by AcadosDiffMpcTorch.
 
     This function simulates a closed-loop system for 100 steps, where the control
     inputs are computed using the provided implicit layer. It verifies that the
@@ -300,7 +300,7 @@ class AcadosTestInputs:
 
 
 def _setup_test_inputs(
-    diff_mpc: AcadosDiffMpcLayerTorch,
+    diff_mpc: AcadosDiffMpcTorch,
     n_batch: int,
     dtype: torch.dtype,
     noise_scale: float,
@@ -347,14 +347,14 @@ def _setup_test_inputs(
 
 
 def test_forward(
-    diff_mpc: AcadosDiffMpcLayerTorch,
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcLayerTorch,
+    diff_mpc: AcadosDiffMpcTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
     n_batch: int = 4,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.05,
     verbosity: int = 0,
 ) -> None:
-    """Test the forward method of AcadosDiffMpcLayerTorch with different input combinations.
+    """Test the forward method of AcadosDiffMpcTorch with different input combinations.
 
     Args:
         diff_mpc: The differentiable mpc to test
@@ -367,7 +367,7 @@ def test_forward(
     """
 
     def _run_single_forward_test(
-        diff_mpc: AcadosDiffMpcLayerTorch,
+        diff_mpc: AcadosDiffMpcTorch,
         forward_kwargs: dict[str, torch.Tensor],
         expected_output_type: str,
         n_batch: int,
@@ -469,14 +469,14 @@ def test_forward(
 
 
 def test_sensitivity(
-    diff_mpc: AcadosDiffMpcLayerTorch,
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcLayerTorch,
+    diff_mpc: AcadosDiffMpcTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
     n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
 ) -> None:
-    """Test sensitivity of AcadosDiffMpcLayerTorch to changes in parameters.
+    """Test sensitivity of AcadosDiffMpcTorch to changes in parameters.
 
     Args:
         diff_mpc: The differentiable mpc to test
@@ -547,7 +547,7 @@ def test_sensitivity(
 
 
 def test_jacobian_matches_sensitivity(
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcLayerTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
     n_batch: int = 2,
     dtype: torch.dtype = torch.float64,
 ) -> None:
@@ -569,7 +569,7 @@ def test_jacobian_matches_sensitivity(
 
 
 def _check_jacobian_matches_sensitivity(
-    diff_mpc: AcadosDiffMpcLayerTorch,
+    diff_mpc: AcadosDiffMpcTorch,
     param_name: str,
     n_batch: int,
     dtype: torch.dtype,
@@ -675,7 +675,7 @@ def _check_jacobian_matches_sensitivity(
 
 
 def check_gradients(
-    diff_mpc: AcadosDiffMpcLayerTorch,
+    diff_mpc: AcadosDiffMpcTorch,
     n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
@@ -706,7 +706,7 @@ def check_gradients(
         return test_func
 
     # note: result 0:ctx, 1:u0, 2:x, 3:u, 4:value
-    def _create_du0dx0_test(diff_mpc: AcadosDiffMpcLayerTorch) -> Callable:
+    def _create_du0dx0_test(diff_mpc: AcadosDiffMpcTorch) -> Callable:
         """Create test function for du0/dx0 gradient."""
 
         def forward_func(x0):
@@ -714,7 +714,7 @@ def check_gradients(
 
         return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
 
-    def _create_dVdx0_test(diff_mpc: AcadosDiffMpcLayerTorch) -> Callable:
+    def _create_dVdx0_test(diff_mpc: AcadosDiffMpcTorch) -> Callable:
         """Create test function for dV/dx0 gradient."""
 
         def forward_func(x0):
@@ -722,7 +722,7 @@ def check_gradients(
 
         return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
-    def _create_dQdx0_test(diff_mpc: AcadosDiffMpcLayerTorch, u0: torch.Tensor) -> Callable:
+    def _create_dQdx0_test(diff_mpc: AcadosDiffMpcTorch, u0: torch.Tensor) -> Callable:
         """Create test function for dQ/dx0 gradient."""
 
         def forward_func(x0):
@@ -730,7 +730,7 @@ def check_gradients(
 
         return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
-    def _create_du0dp_global_test(diff_mpc: AcadosDiffMpcLayerTorch, x0: torch.Tensor) -> Callable:
+    def _create_du0dp_global_test(diff_mpc: AcadosDiffMpcTorch, x0: torch.Tensor) -> Callable:
         """Create test function for du0/dp_global gradient."""
 
         def forward_func(p_global):
@@ -738,7 +738,7 @@ def check_gradients(
 
         return _create_backward_test_function(forward_func, lambda result: result[1])  # u0
 
-    def _create_dVdp_global_test(diff_mpc: AcadosDiffMpcLayerTorch, x0: torch.Tensor) -> Callable:
+    def _create_dVdp_global_test(diff_mpc: AcadosDiffMpcTorch, x0: torch.Tensor) -> Callable:
         """Create test function for dV/dp_global gradient."""
 
         def forward_func(p_global):
@@ -747,7 +747,7 @@ def check_gradients(
         return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
     def _create_dQdp_global_test(
-        diff_mpc: AcadosDiffMpcLayerTorch, x0: torch.Tensor, u0: torch.Tensor
+        diff_mpc: AcadosDiffMpcTorch, x0: torch.Tensor, u0: torch.Tensor
     ) -> Callable:
         """Create test function for dQ/dp_global gradient."""
 
@@ -757,7 +757,7 @@ def check_gradients(
         return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
     def _create_dQdu0_test(
-        diff_mpc: AcadosDiffMpcLayerTorch, x0: torch.Tensor, p_global: torch.Tensor
+        diff_mpc: AcadosDiffMpcTorch, x0: torch.Tensor, p_global: torch.Tensor
     ) -> Callable:
         """Create test function for dQ/du0 gradient."""
 
@@ -766,7 +766,7 @@ def check_gradients(
 
         return _create_backward_test_function(forward_func, lambda result: result[4])  # value
 
-    def _create_dxdp_global_test(diff_mpc: AcadosDiffMpcLayerTorch, x0: torch.Tensor) -> Callable:
+    def _create_dxdp_global_test(diff_mpc: AcadosDiffMpcTorch, x0: torch.Tensor) -> Callable:
         """Create test function for dx/dp_global gradient."""
 
         def forward_func(p_global):
@@ -774,7 +774,7 @@ def check_gradients(
 
         return _create_backward_test_function(forward_func, lambda result: result[2])  # x
 
-    def _create_dudp_global_test(diff_mpc: AcadosDiffMpcLayerTorch, x0: torch.Tensor) -> Callable:
+    def _create_dudp_global_test(diff_mpc: AcadosDiffMpcTorch, x0: torch.Tensor) -> Callable:
         """Create test function for du/dp_global gradient."""
 
         def forward_func(p_global):
@@ -782,9 +782,7 @@ def check_gradients(
 
         return _create_backward_test_function(forward_func, lambda result: result[3])  # u
 
-    def _create_dhvacudp_global_test(
-        diff_mpc: AcadosDiffMpcLayerTorch, x0: torch.Tensor
-    ) -> Callable:
+    def _create_dhvacudp_global_test(diff_mpc: AcadosDiffMpcTorch, x0: torch.Tensor) -> Callable:
         """Create test function for dfakeu/dp_global gradient."""
 
         def forward_func(p_global):
@@ -875,14 +873,14 @@ def create_grid(offset, num):
 
 
 def test_backward_lmpc(
-    diff_mpc: AcadosDiffMpcLayerTorch,
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcLayerTorch,
+    diff_mpc: AcadosDiffMpcTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
     n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
 ) -> None:
-    """Test backward pass of AcadosDiffMpcLayerTorch using finite differences.
+    """Test backward pass of AcadosDiffMpcTorch using finite differences.
 
     Args:
         diff_mpc: The differentiable mpc to test
@@ -899,14 +897,14 @@ def test_backward_lmpc(
 
 
 def test_backward_nmpc(
-    diff_mpc: AcadosDiffMpcLayerTorch,
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcLayerTorch,
+    diff_mpc: AcadosDiffMpcTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
     n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
     noise_scale: float = 0.1,
 ) -> None:
-    """Test backward pass of AcadosDiffMpcLayerTorch using finite differences.
+    """Test backward pass of AcadosDiffMpcTorch using finite differences.
 
     Args:
         diff_mpc: Differentiable mpc containing an indefinite full hessian.
@@ -967,11 +965,11 @@ def create_simple_diff_mpc(N_horizon: int = 5):
     ocp.constraints.lbu = np.array([-1e10])
     ocp.constraints.ubu = np.array([1e10])
 
-    return AcadosDiffMpcLayerTorch(ocp=ocp, parameter_manager=pm)
+    return AcadosDiffMpcTorch(ocp=ocp, parameter_manager=pm)
 
 
 def unflatten_p_global(
-    diff_mpc: AcadosDiffMpcLayerTorch,
+    diff_mpc: AcadosDiffMpcTorch,
     p_global: torch.Tensor,
 ) -> dict[str, torch.Tensor]:
     pm = diff_mpc.parameter_manager
@@ -1022,12 +1020,12 @@ def test_params_dict_backward_simple() -> None:
 
 
 def test_repr_module() -> None:
-    """repr(module) shows the AcadosDiffMpcLayerTorch header, extra_repr, I/O rows, and params."""
+    """repr(module) shows the AcadosDiffMpcTorch header, extra_repr, I/O rows, and params."""
     diff_mpc = create_simple_diff_mpc(N_horizon=5)
     r = repr(diff_mpc)
 
     # Header line.
-    assert "AcadosDiffMpcLayerTorch(" in r
+    assert "AcadosDiffMpcTorch(" in r
     # extra_repr line with concrete dims.
     assert "N_horizon=5, nx=2, nu=1, casadi_type='SX'" in r
     # I/O rows.

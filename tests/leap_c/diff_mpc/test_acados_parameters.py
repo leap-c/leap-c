@@ -6,9 +6,9 @@ import pytest
 import torch
 from acados_template import AcadosOcp, AcadosOcpSolver
 
-from leap_c.parameters.base import AcadosParameterManager
+from leap_c.parameters import AcadosParameterManager
 from leap_c.parameters.data import _AcadosParameter
-from leap_c.torch import AcadosDiffMpcLayerTorch
+from leap_c.torch import AcadosDiffMpcTorch
 from leap_c.utils.parameters import _define_starts_and_ends, n_segments
 
 
@@ -751,8 +751,8 @@ def test_param_manager_combine_parameter_values(
 
 
 def test_diff_mpc_with_stagewise_params_equivalent_to_diff_mpc(
-    diff_mpc: AcadosDiffMpcLayerTorch,
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcLayerTorch,
+    diff_mpc: AcadosDiffMpcTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
 ) -> None:
     """Test diff_mpc with stagewise varying parameters is equivalent diff_mpc.
 
@@ -1202,8 +1202,8 @@ def test_combine_differentiable_parameters_torch_gradient_flow():
 
 def test_stagewise_solution_matches_global_solver_for_initial_reference_change(
     acados_test_ocp_no_p_global: AcadosOcp,
-    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcLayerTorch,
-    diff_mpc: AcadosDiffMpcLayerTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcTorch,
+    diff_mpc: AcadosDiffMpcTorch,
     rng: np.random.Generator,
 ) -> None:
     """Test stagewise solution matches global solver for initial reference change.

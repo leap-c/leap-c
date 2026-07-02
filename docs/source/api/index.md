@@ -3,14 +3,20 @@
 The main user-facing interfaces of leap-c. Each entry links to its full,
 type-annotated reference page.
 
-- {py:class}`~leap_c.torch.AcadosDiffMpcLayerTorch` — the central interface:
+- {py:class}`~leap_c.torch.AcadosDiffMpcTorch` — the central interface:
   wraps an acados OCP solver as a differentiable PyTorch module.
-- {py:class}`~leap_c.parameters.base.AcadosParameterManager` — define and
+- {py:class}`~leap_c.parameters.AcadosParameterManager` — define and
   manage the parameters of an acados OCP without touching CasADi/acados internals.
+- {py:data}`~leap_c.utils.ACADOS_DIFF_MPC_COLLATE_FN_MAP` — custom collate rule for
+  batching `AcadosDiffMpcCtx` objects in replay buffers, data loaders, or downstream code.
+- {py:func}`~leap_c.utils.collate_torch` — PyTorch default collation plus the leap-c
+  context rule, useful when batching warm-start contexts.
 
 ```{autoapisummary}
-leap_c.torch.AcadosDiffMpcLayerTorch
-leap_c.parameters.base.AcadosParameterManager
+leap_c.torch.AcadosDiffMpcTorch
+leap_c.parameters.AcadosParameterManager
+leap_c.utils.ACADOS_DIFF_MPC_COLLATE_FN_MAP
+leap_c.utils.collate_torch
 ```
 
 The complete, auto-generated reference (including developer/internal modules) is

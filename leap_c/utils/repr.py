@@ -9,7 +9,7 @@ import numpy as np
 from acados_template import AcadosOcp
 
 if TYPE_CHECKING:
-    from leap_c.parameters.base import AcadosParameterManager
+    from leap_c.parameters import AcadosParameterManager
 
 
 def _format_array(arr: np.ndarray) -> str:

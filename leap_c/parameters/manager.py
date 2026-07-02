@@ -81,7 +81,7 @@ class AcadosParameterManager:
         return self._non_differentiable_parameter_store.get_symbols()
 
     def __repr__(self) -> str:
-        from leap_c.repr import format_parameter_manager_repr
+        from leap_c.utils.repr import format_parameter_manager_repr
 
         return format_parameter_manager_repr(self)
 

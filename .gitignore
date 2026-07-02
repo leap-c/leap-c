@@ -8,7 +8,6 @@ wandb
 # acados stuff
 c_generated_code*
 acados_ocp_nlp.json
-external/
 
 .vscode
 .idea
