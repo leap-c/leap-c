@@ -1,0 +1,65 @@
+name: acados-ci image
+
+on:
+  pull_request:
+    paths:
+      - docker/acados-ci/Dockerfile
+      - docker/acados-ci/README.md
+      - .github/workflows/acados-ci-image.yml
+      - external/acados/**
+  push:
+    branches: [main]
+    paths:
+      - docker/acados-ci/Dockerfile
+      - docker/acados-ci/README.md
+      - .github/workflows/acados-ci-image.yml
+      - external/acados/**
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: leap-c/acados-ci
+
+jobs:
+  build:
+    name: build amd64
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: docker/acados-ci/Dockerfile
+          push: ${{ github.event_name != 'pull_request' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:ubuntu24.04
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha,scope=acados-ci-amd64
+          cache-to: type=gha,scope=acados-ci-amd64,mode=max
+
+      - name: Smoke test image
+        run: |
+          docker run --rm \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:ubuntu24.04 \
+            bash -lc 'for py in 3.11 3.12 3.13; do uv venv --python ${py} /tmp/venv-${py}; . /tmp/venv-${py}/bin/activate; uv pip install /opt/acados/interfaces/acados_template; python -c "import acados_template; print(\"acados_template ok\")"; deactivate; done; test -x /opt/acados/bin/t_renderer; test -d /opt/acados/lib'
