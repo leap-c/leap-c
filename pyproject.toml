@@ -7,12 +7,8 @@ name = "leap-c"
 version = "2025.0.0"
 dependencies = [
   "casadi",
-  "gymnasium==1.1.1",
   "numpy>=1.26.0",
   "torch>=2.0.0",
-  "scipy==1.15.2",
-  "PyYAML==6.0.2",
-  "tensordict>=0.10.0"
 ]
 
 requires-python = ">=3.11"
@@ -25,8 +21,6 @@ description = "Learning Predictive Control"
 readme = "README.md"
 license = { file = "LICENSE.txt" }
 keywords = [
-  "Reinforcement Learning",
-  "Imitation Learning",
   "Model Predictive Control",
 ]
 classifiers = [
@@ -36,52 +30,22 @@ classifiers = [
 
 [project.optional-dependencies]
 test = [
-  "pytest==8.4.0",
-  "pytest-cov==7.0.0",
-  "pygame==2.6.1",
-  "moviepy==2.2.1",
-  "tensorboard==2.19.0",
-  "gymnasium[mujoco]==1.1.1",
-  "numpy-quaternion==2024.0.8",
-  "matplotlib==3.10.5",
-  "PyQt5==5.15.11"
-]
-rendering = [
-  "pygame==2.6.1",
-  "moviepy==2.2.1"
+  "pytest",
+  "pytest-cov",
 ]
 docs = [
-  "sphinx==8.2.3",
-  "furo==2024.8.6",
-  "myst-parser==4.0.1",
-  "sphinx-autoapi==3.8.0",
-  "sphinx-autobuild==2025.8.25",
-  "sphinxcontrib-mermaid==1.0.0"
-]
-hvac = [
-  "pandas==2.3.0",
-  "openmeteo-requests==1.7.4",
-  "retry-requests==2.0.0",
-  "requests-cache==1.2.1",
-  "requests<2.34.0"
+  "sphinx",
+  "furo",
+  "myst-parser",
+  "sphinx-autoapi",
+  "sphinx-autobuild",
+  "sphinxcontrib-mermaid",
 ]
 dev = [
-  "leap_c[rendering]",
   "leap_c[docs]",
   "leap_c[test]",
-  "leap_c[hvac]",
-  "leap_c[tuning]",
-  "leap_c[wandb]",
-  "pre-commit==4.3.0",
-  "ruff==0.12.12"
-]
-tuning = [
-  "smac>=2.0.0",
-  "ConfigSpace",
-]
-wandb = ["wandb==0.20.1"]
-notebook = [
-  "marimo>=0.13.0",
+  "pre-commit",
+  "ruff",
 ]
 
 [tool.setuptools]
@@ -105,7 +69,7 @@ convention = "google"
 [tool.ruff.lint]
 ignore = [
   "E741",
-  "D100",  # Ignore missing docstrings
+  "D100",
   "D101",
   "D102",
   "D103",
