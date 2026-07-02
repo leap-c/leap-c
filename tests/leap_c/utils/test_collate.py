@@ -7,7 +7,7 @@ from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
 
 from leap_c.diff_mpc.data import AcadosOcpSolverInput
 from leap_c.diff_mpc.function import AcadosDiffMpcCtx
-from leap_c.utils import collate_acados_diff_mpc_ctx, collate_torch
+from leap_c.utils.collate import collate_acados_diff_mpc_ctx, collate_torch
 
 
 def _make_ctx(status: int = 0, x0: np.ndarray | None = None) -> AcadosDiffMpcCtx:
