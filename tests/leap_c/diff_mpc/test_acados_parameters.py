@@ -6,9 +6,9 @@ import pytest
 import torch
 from acados_template import AcadosOcp, AcadosOcpSolver
 
-from leap_c.acados_torch import AcadosDiffMpcLayerTorch
 from leap_c.parameters.base import AcadosParameterManager
 from leap_c.parameters.data import _AcadosParameter
+from leap_c.torch import AcadosDiffMpcLayerTorch
 from leap_c.utils.parameters import _define_starts_and_ends, n_segments
 
 

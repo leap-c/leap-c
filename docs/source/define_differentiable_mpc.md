@@ -4,7 +4,7 @@
 state-of-the-art numerical optimal-control solver — acados' `AcadosOcpSolver` — so that a
 whole MPC controller can live inside a PyTorch learning pipeline and be trained end to end.
 
-The central interface is {py:class}`~leap_c.acados_torch.AcadosDiffMpcLayerTorch`, a
+The central interface is {py:class}`~leap_c.torch.AcadosDiffMpcLayerTorch`, a
 `torch.nn.Module`. Its `forward` solves a (batched) optimal control problem with acados; its
 `backward` returns *exact* gradients of the solution with respect to the problem's parameters.
 Because it is an ordinary `nn.Module`, you can drop it into any model, compose it with neural
@@ -16,7 +16,7 @@ To build one you need three things:
 2. an {py:class}`~leap_c.parameters.base.AcadosParameterManager` declaring which numbers
    in that problem are **differentiable** (learnable, shared `p_global`) and which are
    **non-differentiable** (runtime-settable model values, per-stage `p`);
-3. {py:class}`~leap_c.acados_torch.AcadosDiffMpcLayerTorch`, which wraps the two.
+3. {py:class}`~leap_c.torch.AcadosDiffMpcLayerTorch`, which wraps the two.
 
 ```{mermaid}
 flowchart LR
@@ -43,7 +43,7 @@ import torch
 from acados_template import AcadosOcp
 
 from leap_c.parameters.base import AcadosParameterManager
-from leap_c.acados_torch import AcadosDiffMpcLayerTorch
+from leap_c.torch import AcadosDiffMpcLayerTorch
 
 N_horizon = 20  # stages 0 .. N_horizon (inclusive)
 dt = 0.05       # time step [s] — a plain constant, not a parameter

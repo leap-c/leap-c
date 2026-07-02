@@ -13,7 +13,7 @@ resolution-markers = [
 [[package]]
 name = "acados-template"
 version = "0.5.1"
-source = { directory = "external/acados/interfaces/acados_template" }
+source = { editable = "external/acados/interfaces/acados_template" }
 dependencies = [
     { name = "casadi" },
     { name = "cython" },
@@ -997,7 +997,7 @@ torch = [
 
 [package.metadata]
 requires-dist = [
-    { name = "acados-template", directory = "external/acados/interfaces/acados_template" },
+    { name = "acados-template", editable = "external/acados/interfaces/acados_template" },
     { name = "casadi" },
     { name = "furo", marker = "extra == 'docs'" },
     { name = "jax", marker = "extra == 'jax'" },

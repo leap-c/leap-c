@@ -11,7 +11,6 @@ from leap_c.diff_mpc.function import (
     AcadosDiffMpcFunction,
 )
 from leap_c.diff_mpc.initializer import AcadosDiffMpcInitializer
-from leap_c.layer import AcadosDiffMpcLayer
 from leap_c.parameters.base import AcadosParameterManager
 from leap_c.repr import (
     format_diff_mpc_module_extra_repr,
@@ -22,7 +21,7 @@ from leap_c.utils.dependencies import require_torch
 torch = require_torch()
 
 
-class AcadosDiffMpcLayerTorch(torch.nn.Module, AcadosDiffMpcLayer[torch.Tensor]):
+class AcadosDiffMpcLayerTorch(torch.nn.Module):
     """PyTorch module for differentiable MPC based on acados.
 
     This module wraps acados solvers to enable their use in differentiable machine learning
@@ -74,9 +73,10 @@ class AcadosDiffMpcLayerTorch(torch.nn.Module, AcadosDiffMpcLayer[torch.Tensor])
             verbose: Whether to print solver generation output.
 
         """
-        super().__init__(
+        super().__init__()
+        parameter_manager.assign_to_ocp(ocp)
+        self.diff_mpc_fun = AcadosDiffMpcFunction(
             ocp=ocp,
-            parameter_manager=parameter_manager,
             initializer=initializer,
             discount_factor=discount_factor,
             export_directory=export_directory,
@@ -84,6 +84,7 @@ class AcadosDiffMpcLayerTorch(torch.nn.Module, AcadosDiffMpcLayer[torch.Tensor])
             num_threads_batch_solver=num_threads_batch_solver,
             verbose=verbose,
         )
+        self.parameter_manager = parameter_manager
         self.autograd_fun = create_autograd_function(self.diff_mpc_fun)
         self.dtype = torch.get_default_dtype() if dtype is None else dtype
 

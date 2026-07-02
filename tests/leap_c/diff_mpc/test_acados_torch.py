@@ -10,11 +10,11 @@ import pytest
 import torch
 from acados_template import AcadosOcp
 
-from leap_c.acados_torch import (
+from leap_c.parameters.base import AcadosParameterManager
+from leap_c.torch import (
     AcadosDiffMpcCtx,
     AcadosDiffMpcLayerTorch,
 )
-from leap_c.parameters.base import AcadosParameterManager
 from leap_c.utils.parameters import _define_starts_and_ends
 
 
@@ -899,8 +899,8 @@ def test_backward_lmpc(
 
 
 def test_backward_nmpc(
-    diff_mpc_indefinite_hess: AcadosDiffMpcLayerTorch,
-    diff_mpc_indefinite_hess_stagewise: AcadosDiffMpcLayerTorch,
+    diff_mpc: AcadosDiffMpcLayerTorch,
+    diff_mpc_with_stagewise_varying_params: AcadosDiffMpcLayerTorch,
     n_batch: int = 4,
     max_batch_size: int = 10,
     dtype: torch.dtype = torch.float64,
@@ -909,17 +909,20 @@ def test_backward_nmpc(
     """Test backward pass of AcadosDiffMpcLayerTorch using finite differences.
 
     Args:
-        diff_mpc_indefinite_hess: Differentiable mpc containing an indefinite full hessian.
-        diff_mpc_indefinite_hess_stagewise: Like the above mpc, but with stagewise parameters.
+        diff_mpc: Differentiable mpc containing an indefinite full hessian.
+        diff_mpc_with_stagewise_varying_params: Like the above mpc, but with stagewise parameters.
         n_batch: Number of batch samples to generate
         max_batch_size: Maximum allowed batch size for performance
         dtype: PyTorch data type for tensors
         noise_scale: Scale factor for noise added to parameters
     """
     print("Check non-stagewise diff_mpc===========================")
-    check_gradients(diff_mpc_indefinite_hess, n_batch, max_batch_size, dtype, noise_scale)
+    check_gradients(diff_mpc, n_batch, max_batch_size, dtype, noise_scale)
     print("Check stagewise diff_mpc===============================")
-    check_gradients(diff_mpc_indefinite_hess_stagewise, n_batch, max_batch_size, dtype, noise_scale)
+    check_gradients(
+        diff_mpc_with_stagewise_varying_params,
+        n_batch, max_batch_size, dtype, noise_scale
+    )
 
 
 def create_simple_diff_mpc(N_horizon: int = 5):

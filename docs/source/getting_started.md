@@ -40,7 +40,7 @@ map differentiable in $p$.
 
 ## The differentiable-MPC interface
 
-{py:class}`~leap_c.acados_torch.AcadosDiffMpcLayerTorch` implements the solution map above as a
+{py:class}`~leap_c.torch.AcadosDiffMpcLayerTorch` implements the solution map above as a
 `torch.nn.Module`. You build one from an `AcadosOcp` (the problem — dynamics, cost, constraints)
 and an {py:class}`~leap_c.parameters.base.AcadosParameterManager` (which numbers are
 learnable), then call it like any module:
@@ -105,7 +105,7 @@ differentiate through the solve — reads like this:
 import numpy as np
 import torch
 
-from leap_c.acados_torch import AcadosDiffMpcLayerTorch
+from leap_c.torch import AcadosDiffMpcLayerTorch
 from leap_c.parameters.base import AcadosParameterManager
 
 # 1. Register parameters. The manager returns CasADi symbols to use in the OCP.

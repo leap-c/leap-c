@@ -4,6 +4,8 @@ This notebook demonstrates solving a CartPole MPC problem using leap-c's
 differentiable acados layer.
 """
 
+# TODO: Need to be refactored.
+
 import marimo
 
 __generated_with = "0.13.0"
