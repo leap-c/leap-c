@@ -1,0 +1,66 @@
+leap_c.ocp.acados.utils.create_solver
+=====================================
+
+.. py:module:: leap_c.ocp.acados.utils.create_solver
+
+.. autoapi-nested-parse::
+
+   Utilities for creating an AcadosOcpBatchSolver from an AcadosOcp object.
+
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.ocp.acados.utils.create_solver.create_batch_solver
+   leap_c.ocp.acados.utils.create_solver.create_forward_backward_batch_solvers
+   leap_c.ocp.acados.utils.create_solver.make_ocp_sensitivity_compatible
+
+
+Module Contents
+---------------
+
+.. py:function:: create_batch_solver(ocp: acados_template.AcadosOcp, export_directory: str | pathlib.Path | None = None, discount_factor: float | None = None, n_batch_init: int = 256, num_threads: int = 4, verbose: bool = True) -> acados_template.AcadosOcpBatchSolver
+
+   Create an AcadosOcpBatchSolver from an AcadosOcp object.
+
+   :param ocp: Acados optimal control problem formulation.
+   :param export_directory: Directory to export the generated code. If None, a
+                            temporary directory is created and the directory is cleaned afterwards.
+   :param discount_factor: Discount factor. If None, acados default cost
+                           scaling is used, i.e. dt for intermediate stages, 1 for terminal stage.
+   :param n_batch_init: Initially supported batch size of the batch OCP solver.
+                        Using larger batches will trigger a delay for the creation of more solvers.
+   :param num_threads: Number of threads used in the batch solver.
+   :param verbose: Whether to print the code generation output.
+
+
+.. py:function:: create_forward_backward_batch_solvers(ocp: acados_template.AcadosOcp, sensitivity_ocp: acados_template.AcadosOcp | None = None, export_directory: str | pathlib.Path | None = None, discount_factor: float | None = None, n_batch_init: int = 256, num_threads: int = 4, verbose: bool = True) -> tuple[acados_template.AcadosOcpBatchSolver, acados_template.AcadosOcpBatchSolver]
+
+   Create a batch solver for solving the MPC problems (forward solver).
+
+   If this solver is suitable for computing sensitivities, it will also be returned as backward
+   solver (the solver for computing sensitivities). Otherwise,
+   a second batch solver will be created, which is suitable for computing sensitivities.
+
+   :param ocp: Acados optimal control problem formulation for the forward solver.
+   :param sensitivity_ocp: Acados optimal control problem formulation for the backward solver.
+                           If None, this will be derived from the given `ocp`.
+   :param export_directory: Directory to export generated code. If none,
+                            a unique temporary directory is created.
+   :param discount_factor: Discount factor for the solver. If not provided,
+                           acados default weighting is used
+                           (i.e., 1/N_horizon for intermediate stages, 1 for terminal stage).
+   :param n_batch_init: Initially supported batch size of the batch OCP solver.
+                        Using larger batches will trigger a delay for the creation of more solvers.
+   :param num_threads: Number of threads used in the batch solver.
+   :param verbose: Whether to print the code generation output.
+
+
+.. py:function:: make_ocp_sensitivity_compatible(sensitivity_ocp: acados_template.AcadosOcp)
+
+   Make the given ocp compatible with sensitivity computation.
+
+

@@ -1,0 +1,370 @@
+leap_c.examples.pointmass.env
+=============================
+
+.. py:module:: leap_c.examples.pointmass.env
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.examples.pointmass.env.DifficultyLevel
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.examples.pointmass.env.Circle
+   leap_c.examples.pointmass.env.PointMassEnv
+   leap_c.examples.pointmass.env.PointMassEnvConfig
+   leap_c.examples.pointmass.env.WindField
+   leap_c.examples.pointmass.env.WindParcour
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.examples.pointmass.env.define_transition_matrices
+
+
+Module Contents
+---------------
+
+.. py:class:: Circle
+
+   .. py:method:: sample(rng: numpy.random.Generator) -> numpy.ndarray
+
+
+   .. py:attribute:: pos
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: radius
+      :type:  float
+
+
+.. py:class:: PointMassEnv(render_mode: str | None = None, cfg: PointMassEnvConfig | None = None)
+
+   Bases: :py:obj:`leap_c.examples.utils.matplotlib_env.MatplotlibRenderEnv`
+
+
+   A 2D point mass navigation environment with wind disturbances.
+
+   The observation space, action space, reward, and termination are described
+   below::
+
+       Observation Space:
+       ------------------
+       The observation is a `ndarray` with shape `(6,)` and dtype `np.float32` representing:
+       | Num | Observation         | Min        | Max        |
+       |-----|---------------------|------------|------------|
+       | 0   | x-position          | 0.0        | 4.0        |
+       | 1   | y-position          | 0.0        | 1.0        |
+       | 2   | x-velocity          | -max_v     | max_v      |
+       | 3   | y-velocity          | -max_v     | max_v      |
+       | 4   | wind force (x)      | -max_wind  | max_wind   |
+       | 5   | wind force (y)      | -max_wind  | max_wind   |
+
+       Action Space:
+       -------------
+       The action is a `ndarray` with shape `(2,)` and dtype `np.float32`
+       representing the force applied in x and y directions.
+       Each component is bounded by [-Fmax, Fmax] which will be enforced by
+       clipping the input action in each step.
+
+       Reward:
+       -------
+       The agent receives a small reward for progressing towards the goal in the x-direction
+       and a large bonus for reaching the goal quickly.
+       - Distance reward: r_dist = 1 - abs(x - goal_x) / (x_max - x_min)
+       - Goal reward: r_goal = 60 * (1 - 0.5 * t / max_time) if goal reached, else 0
+       - Total reward: r = 0.1 * r_dist + r_goal
+
+       Termination:
+       ------------
+       The episode terminates if:
+       - The agent leaves the allowed state space (out of bounds, also including velocity limits)
+       - The agent reaches the goal region
+
+       Truncation:
+       -----------
+       The episode is truncated if the maximum time is exceeded.
+
+       Info:
+       -----
+       The info dictionary contains:
+       - "task": {"violation": bool, "success": bool}
+         - violation: True if out of bounds
+         - success: True if goal reached
+
+   :ivar cfg: Configuration object for the environment.
+   :ivar state_low: Lower bounds for the Pointmass position and velocity.
+   :ivar state_high: Upper bounds for the Pointmass position and velocity.
+   :ivar observation_space: The observation space of the environment.
+   :ivar action_space: The action space of the environment.
+   :ivar A: State transition matrix for the point mass dynamics.
+   :ivar B: Control input matrix for the point mass dynamics.
+   :ivar start: The starting position will be sampled in this Circle.
+   :ivar goal: The goal is reached if the pointmass enters this Circle.
+   :ivar wind_field: WindField object representing the wind disturbances.
+   :ivar state: Current state of the environment (position and velocity).
+   :ivar action: Last action taken (used in rendering).
+   :ivar time: Elapsed time in the current episode.
+   :ivar trajectory: List of states visited during the episode (used in rendering).
+   :ivar trajectory_plot: object representing the trajectory in the rendering.
+   :ivar agent_plot: object representing the agent in the rendering.
+   :ivar action_arrow_patch: object representing the action arrow in the rendering.
+
+
+
+   .. py:method:: reset(*, seed: int | None = None, options: dict | None = None) -> tuple[Any, dict]
+
+      Resets the environment to an initial internal state, returning an initial observation and info.
+
+      This method generates a new starting state often with some randomness to ensure that the agent explores the
+      state space and learns a generalised policy about the environment. This randomness can be controlled
+      with the ``seed`` parameter otherwise if the environment already has a random number generator and
+      :meth:`reset` is called with ``seed=None``, the RNG is not reset.
+
+      Therefore, :meth:`reset` should (in the typical use case) be called with a seed right after initialization and then never again.
+
+      For Custom environments, the first line of :meth:`reset` should be ``super().reset(seed=seed)`` which implements
+      the seeding correctly.
+
+      .. versionchanged:: v0.25
+
+          The ``return_info`` parameter was removed and now info is expected to be returned.
+
+      :param seed: The seed that is used to initialize the environment's PRNG (`np_random`) and
+                   the read-only attribute `np_random_seed`.
+                   If the environment does not already have a PRNG and ``seed=None`` (the default option) is passed,
+                   a seed will be chosen from some source of entropy (e.g. timestamp or /dev/urandom).
+                   However, if the environment already has a PRNG and ``seed=None`` is passed, the PRNG will *not* be reset
+                   and the env's :attr:`np_random_seed` will *not* be altered.
+                   If you pass an integer, the PRNG will be reset even if it already exists.
+                   Usually, you want to pass an integer *right after the environment has been initialized and then never again*.
+                   Please refer to the minimal example above to see this paradigm in action.
+      :type seed: optional int
+      :param options: Additional information to specify how the environment is reset (optional,
+                      depending on the specific environment)
+      :type options: optional dict
+
+      :returns:
+
+                Observation of the initial state. This will be an element of :attr:`observation_space`
+                    (typically a numpy array) and is analogous to the observation returned by :meth:`step`.
+                info (dictionary):  This dictionary contains auxiliary information complementing ``observation``. It should be analogous to
+                    the ``info`` returned by :meth:`step`.
+      :rtype: observation (ObsType)
+
+
+
+   .. py:method:: step(action: numpy.ndarray) -> tuple[Any, float, bool, bool, dict]
+
+      Execute one time step within the environment.
+
+      :param action: Force applied in the x and y directions.
+
+      :returns:     - observation: Next observation (position, velocity, wind force).
+                    - reward: Reward for this step.
+                    - terminated: Whether the episode terminated.
+                    - truncated: Whether the episode was truncated.
+                    - info: Dictionary with task information.
+      :rtype: Tuple containing
+
+
+
+   .. py:attribute:: A
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: B
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: action
+      :type:  numpy.ndarray | None
+
+
+   .. py:attribute:: action_arrow_patch
+      :type:  matplotlib.patches.FancyArrowPatch | None
+
+
+   .. py:attribute:: action_high
+
+
+   .. py:attribute:: action_low
+
+
+   .. py:attribute:: action_space
+      :type:  gymnasium.spaces.Box
+
+
+   .. py:attribute:: agent_plot
+      :type:  matplotlib.lines.Line2D | None
+
+
+   .. py:attribute:: cfg
+      :type:  PointMassEnvConfig
+
+
+   .. py:attribute:: goal
+      :type:  Circle
+
+
+   .. py:attribute:: metadata
+
+
+   .. py:attribute:: observation_space
+      :type:  gymnasium.spaces.Box
+
+
+   .. py:attribute:: start
+      :type:  Circle
+
+
+   .. py:attribute:: state
+      :type:  numpy.ndarray | None
+
+
+   .. py:attribute:: state_high
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: state_low
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: time
+      :type:  float
+
+
+   .. py:attribute:: trajectory
+      :type:  list[numpy.ndarray]
+      :value: []
+
+
+
+   .. py:attribute:: trajectory_plot
+      :type:  matplotlib.lines.Line2D | None
+
+
+   .. py:attribute:: wind_field
+      :type:  WindField
+
+
+.. py:class:: PointMassEnvConfig
+
+   Configuration for the PointMass environment.
+
+
+   .. py:attribute:: Fmax
+      :type:  float
+      :value: 10.0
+
+
+
+   .. py:attribute:: cx
+      :type:  float
+      :value: 15
+
+
+
+   .. py:attribute:: cy
+      :type:  float
+      :value: 15
+
+
+
+   .. py:attribute:: difficulty
+      :type:  DifficultyLevel
+      :value: 'hard'
+
+
+
+   .. py:attribute:: dt
+      :type:  float
+      :value: 0.1
+
+
+
+   .. py:attribute:: m
+      :type:  float
+      :value: 1.0
+
+
+
+   .. py:attribute:: max_time
+      :type:  float
+      :value: 10.0
+
+
+
+   .. py:attribute:: max_v
+      :type:  float
+      :value: 20.0
+
+
+
+   .. py:attribute:: max_wind_force
+      :type:  float
+      :value: 10.5
+
+
+
+.. py:class:: WindField
+
+   Bases: :py:obj:`abc.ABC`
+
+
+   Helper class that provides a standard way to create an ABC using
+   inheritance.
+
+
+   .. py:method:: plot_XY(xlim: tuple[float, float], ylim: tuple[float, float]) -> tuple[numpy.ndarray, numpy.ndarray]
+
+
+   .. py:method:: plot_wind_field(ax: matplotlib.axes.Axes, xlim: tuple[float, float], ylim: tuple[float, float], max_len=0.15)
+
+
+.. py:class:: WindParcour(magnitude: float = 10.0, difficulty: DifficultyLevel = 'easy')
+
+   Bases: :py:obj:`WindField`
+
+
+   Helper class that provides a standard way to create an ABC using
+   inheritance.
+
+
+   .. py:method:: plot_XY(xlim: tuple[float, float], ylim: tuple[float, float]) -> tuple[numpy.ndarray, numpy.ndarray]
+
+
+   .. py:method:: plot_wind_field(ax: matplotlib.axes.Axes, xlim: tuple[float, float], ylim: tuple[float, float])
+
+
+   .. py:attribute:: magnitude
+      :value: 10.0
+
+
+
+.. py:function:: define_transition_matrices(m: float, cx: float, cy: float, dt: float) -> tuple[numpy.ndarray, numpy.ndarray]
+
+   Define the transition matrices A and B for the point mass dynamics.
+
+   :param m: Mass of the point mass.
+   :param cx: Damping coefficient in x direction.
+   :param cy: Damping coefficient in y direction.
+   :param dt: Time step for the discrete dynamics.
+
+   :returns: State transition matrix.
+             B: Control input matrix.
+   :rtype: A
+
+
+.. py:data:: DifficultyLevel
+

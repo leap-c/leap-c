@@ -1,0 +1,104 @@
+leap_c.ocp.acados.torch
+=======================
+
+.. py:module:: leap_c.ocp.acados.torch
+
+.. autoapi-nested-parse::
+
+   Central interface to use acados in PyTorch.
+
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.ocp.acados.torch.AcadosDiffMpcSensitivityOptions
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.ocp.acados.torch.AcadosDiffMpcTorch
+
+
+Module Contents
+---------------
+
+.. py:class:: AcadosDiffMpcTorch(ocp: acados_template.AcadosOcp, parameter_manager: leap_c.ocp.acados.parameters.AcadosParameterManager, initializer: leap_c.ocp.acados.initializer.AcadosDiffMpcInitializer | None = None, discount_factor: float | None = None, export_directory: pathlib.Path | None = None, n_batch_init: int | None = None, num_threads_batch_solver: int | None = None, dtype: torch.dtype | None = None, verbose: bool = True)
+
+   Bases: :py:obj:`torch.nn.Module`
+
+
+   PyTorch module for differentiable MPC based on acados.
+
+   This module wraps acados solvers to enable their use in differentiable machine learning
+   pipelines. It provides an autograd compatible forward method and supports sensitivity
+   computation with respect to various inputs (see `AcadosDiffMpcCtx`).
+
+   Accepts a plain ``AcadosOcp`` together with a parameter manager. The parameter manager's
+   :meth:`~AcadosParameterManager.combine_differentiable_parameters_torch` is called in the forward
+   pass to build a flat differentiable tensor from the ``params`` dict.
+
+
+   :ivar diff_mpc_fun: The differentiable MPC function wrapper for acados.
+   :ivar autograd_fun: A PyTorch autograd function created from ``diff_mpc_fun``.
+   :ivar parameter_manager: The parameter manager instance.
+
+
+
+   .. py:method:: extra_repr() -> str
+
+      Return the extra representation of the module.
+
+      To print customized extra information, you should re-implement
+      this method in your own modules. Both single-line and multi-line
+      strings are acceptable.
+
+
+
+   .. py:method:: forward(x0: torch.Tensor, u0: torch.Tensor | None = None, params: dict[str, torch.Tensor | numpy.ndarray] | None = None, ctx: leap_c.ocp.acados.diff_mpc.AcadosDiffMpcCtx | None = None) -> tuple[leap_c.ocp.acados.diff_mpc.AcadosDiffMpcCtx, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+
+      Performs the forward pass by solving the provided problem instances.
+
+      Builds flat ``p_global`` and ``p_stagewise`` arrays from the ``params`` dict using the
+      parameter manager, then calls the underlying differentiable MPC function.  Gradients flow
+      back through ``p_global`` to the individual parameter tensors provided in ``params``.
+
+      :param x0: Initial states with shape ``(B, x_dim)``.
+      :param u0: Initial actions with shape ``(B, u_dim)``. Defaults to ``None``.
+      :param params: A dictionary containing named parameter overrides.  Values may be
+                     torch tensors (differentiable) or numpy arrays (non-differentiable).
+      :param ctx: An object for storing context. If provided, it will be used to warmstart the solve.
+
+      :returns: A new context object from solving the problems.
+                u0: Solution of initial control input.
+                x: The solution of the whole state trajectory.
+                u: The solution of the whole control trajectory.
+                value: The cost value of the computed trajectory.
+      :rtype: ctx
+
+
+
+   .. py:attribute:: autograd_fun
+      :type:  type[torch.autograd.Function]
+
+
+   .. py:attribute:: diff_mpc_fun
+      :type:  leap_c.ocp.acados.diff_mpc.AcadosDiffMpcFunction
+
+
+   .. py:attribute:: dtype
+      :value: None
+
+
+
+   .. py:attribute:: parameter_manager
+      :type:  leap_c.ocp.acados.parameters.AcadosParameterManager
+
+
+.. py:data:: AcadosDiffMpcSensitivityOptions
+

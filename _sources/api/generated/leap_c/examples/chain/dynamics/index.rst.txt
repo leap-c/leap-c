@@ -1,0 +1,48 @@
+leap_c.examples.chain.dynamics
+==============================
+
+.. py:module:: leap_c.examples.chain.dynamics
+
+.. autoapi-nested-parse::
+
+   Chain dynamics functions.
+
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.examples.chain.dynamics.create_discrete_casadi_dynamics
+   leap_c.examples.chain.dynamics.define_f_expl_expr
+
+
+Module Contents
+---------------
+
+.. py:function:: create_discrete_casadi_dynamics(n_mass: int, dt: float) -> casadi.Function
+
+   Create a discrete dynamics function for the chain system.
+
+   :param n_mass: Number of masses in the chain.
+   :param dt: Time step for the discrete dynamics.
+
+   :returns: A CasADi function representing the discrete dynamics.
+
+
+.. py:function:: define_f_expl_expr(x: casadi.tools.struct_symSX, u: casadi.SX, p: dict[str, numpy.ndarray | casadi.SX], fix_point: casadi.SX = ca.SX.zeros(3)) -> casadi.SX
+
+   Define CasADi symbolic chain dynamics.
+
+   This version accepts parameters as a dictionary for compatibility with
+   the RestingChainSolver.
+
+   :param x: State vector containing positions and velocities
+   :param u: Control input (velocity of last mass)
+   :param p: Parameter dictionary with keys ["m", "D", "L", "C", "w"]
+   :param fix_point: Fixed point position (anchor)
+
+   :returns: State derivative as CasADi expression
+
+

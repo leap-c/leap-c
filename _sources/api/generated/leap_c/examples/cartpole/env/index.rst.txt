@@ -1,0 +1,385 @@
+leap_c.examples.cartpole.env
+============================
+
+.. py:module:: leap_c.examples.cartpole.env
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.examples.cartpole.env.CartPoleBalanceEnv
+   leap_c.examples.cartpole.env.CartPoleEnv
+   leap_c.examples.cartpole.env.CartPoleEnvConfig
+
+
+Module Contents
+---------------
+
+.. py:class:: CartPoleBalanceEnv(render_mode: str | None = None, cfg: CartPoleEnvConfig | None = None)
+
+   Bases: :py:obj:`CartPoleEnv`
+
+
+   The same as the CartPoleEnv, but start at slightly disbalanced upright position.
+
+   In more detail, the reward is 1 for every step the pole is balanced, and the episode terminates
+   if the pole angle is more than 12 rad away from the upright position (theta = 0).
+
+   :ivar theta_threshold: The maximum absolute angle of the pole before termination [rad]
+
+
+
+   .. py:method:: init_state(options: dict | None) -> numpy.ndarray
+
+
+   .. py:method:: step(action: numpy.ndarray) -> tuple[numpy.ndarray, float, bool, bool, dict]
+
+      Execute one time step, terminating if the pole leaves the balance region.
+
+      :param action: Force applied to the cart.
+
+      :returns:     - observation: Next observation `[x, theta, dx, dtheta]`.
+                    - reward: Reward for this step (`1.0` while balancing, else `0.0`).
+                    - terminated: Whether the episode terminated.
+                    - truncated: Whether the episode was truncated.
+                    - info: Dictionary with task information.
+      :rtype: Tuple containing
+
+
+
+   .. py:attribute:: observation_space
+
+
+   .. py:attribute:: theta_threshold
+      :type:  float
+
+
+.. py:class:: CartPoleEnv(render_mode: str | None = None, cfg: CartPoleEnvConfig | None = None)
+
+   Bases: :py:obj:`gymnasium.Env`
+
+
+   An environment of a pendulum on a cart for swinging a pole upright and holding it there.
+
+   The observation space, action space, reward, and termination are described
+   below::
+
+       Observation Space:
+       ------------------
+
+       The observation is a `ndarray` with shape `(4,)` and dtype `np.float32`
+       representing the state of the system.
+
+       | Num | Observation           | Min                 | Max               |
+       |-----|-----------------------|---------------------|-------------------|
+       | 0   | Cart Position         | -2*x_threshold      | 2*x_threshold     |
+       | 1   | Pole Angle (theta)    | -2pi                | 2pi               |
+       | 2   | Cart Velocity         | -Inf                | Inf               |
+       | 3   | Pole Angular Velocity | -Inf                | Inf               |
+
+       NOTE: Like in the original CartPole environment, the range above for the cart position
+       denotes the possible range of the cart's center of mass in the observation space,
+       but the episode terminates if it leaves the interval (-x_threshold, x_threshold) already.
+       NOTE: The pole angle is actually bounded between -2pi and 2pi by always adding/subtracting
+       (in the negative / in the positive case) the highest multiple of 2pi
+       until the pole angle is within the bounds again.
+       NOTE: Contrary to the original CartPoleEnv, the state space here is arranged like
+       [x, theta, dx, dtheta] instead of [x, dx, theta, dtheta].
+       NOTE: A positive angle theta is interpreted as counterclockwise rotation.
+       An angle of 0 means the pole is pointing upwards.
+
+
+       Action Space:
+       -------------
+
+       The action is a `ndarray` with shape `(1,)` which can take values in the range (-Fmax, Fmax)
+       indicating the direction of the fixed force the cart is pushed with
+       (action > 0 -> push right).
+
+
+       Reward:
+       -------
+       Since this is an environment for the swingup task, the agent achieves maximum reward
+       when the pole is upright (theta = 0) and minimum reward when the pole
+       is hanging down (theta = pi or theta = -pi). In particular, the reward is symmetric around 0
+       and bounded between 0 and 0.1 in each step.
+
+
+       Terminates:
+       -----------
+       If the cart position is outside of the x_threshold interval (-x_threshold, x_threshold).
+
+       Truncates:
+       ----------
+       After max_time seconds of simulation time.
+
+       Info:
+       -----
+       The info dictionary contains:
+       - "task": {"violation": bool, "success": bool}
+         - violation: True if out of bounds
+         - success: True if the pole was upright in the last 10 steps.
+
+   :ivar cfg: Configuration for the environment.
+   :ivar reset_needed: A flag indicating whether the environment needs to be reset
+                       before the next step.
+   :ivar t: The current time in the episode (since the last reset).
+   :ivar x: The current state of the system.
+   :ivar integrator: A function that performs one integration step of the system dynamics.
+   :ivar x_trajectory: A list of states representing the states of the episode so far.
+   :ivar action_space: The action space of the environment.
+   :ivar observation_space: The observation space of the environment.
+   :ivar render_mode: The mode to render with. Supported modes are: human, rgb_array, None.
+   :ivar pos_trajectory: A list of cart positions representing a planned trajectory
+                         (e.g., from the controller). Only used for rendering.
+   :ivar pole_end_trajectory: A list of pole end positions representing a planned trajectory
+                              of the pole end (e.g., from the controller). Only used for rendering.
+   :ivar screen_width: The width of the rendering screen.
+   :ivar screen_height: The height of the rendering screen.
+   :ivar window: The pygame window used for rendering.
+   :ivar clock: The pygame clock used for rendering.
+
+
+
+   .. py:method:: calc_pole_end(x_coord: float, theta: float, length: float) -> tuple[float, float]
+
+
+   .. py:method:: close()
+
+      After the user has finished using the environment, close contains the code necessary to "clean up" the environment.
+
+      This is critical for closing rendering windows, database or HTTP connections.
+      Calling ``close`` on an already closed environment has no effect and won't raise an error.
+
+
+
+   .. py:method:: include_this_state_trajectory_to_rendering(state_trajectory: numpy.ndarray)
+
+      Meant for setting a state trajectory for rendering.
+
+      If a state trajectory is not set before the next call of render,
+      the rendering will not render a state trajectory.
+
+      NOTE: The record_video wrapper of gymnasium will call render() AFTER every step.
+      This means if you use the wrapper,
+      make a step,
+      calculate action and state trajectory from the observations,
+      and input the state trajectory with this function before taking the next step,
+      the picture being rendered after this next step will be showing
+      the trajectory planned BEFORE DOING the step.
+
+
+
+   .. py:method:: init_state(options: dict | None) -> numpy.ndarray
+
+
+   .. py:method:: render()
+
+      Compute the render frames as specified by :attr:`render_mode` during the initialization of the environment.
+
+      The environment's :attr:`metadata` render modes (`env.metadata["render_modes"]`) should contain the possible
+      ways to implement the render modes. In addition, list versions for most render modes is achieved through
+      `gymnasium.make` which automatically applies a wrapper to collect rendered frames.
+
+      .. note::
+
+         As the :attr:`render_mode` is known during ``__init__``, the objects used to render the environment state
+         should be initialised in ``__init__``.
+
+      By convention, if the :attr:`render_mode` is:
+
+      - None (default): no render is computed.
+      - "human": The environment is continuously rendered in the current display or terminal, usually for human consumption.
+        This rendering should occur during :meth:`step` and :meth:`render` doesn't need to be called. Returns ``None``.
+      - "rgb_array": Return a single frame representing the current state of the environment.
+        A frame is a ``np.ndarray`` with shape ``(x, y, 3)`` representing RGB values for an x-by-y pixel image.
+      - "ansi": Return a strings (``str``) or ``StringIO.StringIO`` containing a terminal-style text representation
+        for each time step. The text can include newlines and ANSI escape sequences (e.g. for colors).
+      - "rgb_array_list" and "ansi_list": List based version of render modes are possible (except Human) through the
+        wrapper, :py:class:`gymnasium.wrappers.RenderCollection` that is automatically applied during ``gymnasium.make(..., render_mode="rgb_array_list")``.
+        The frames collected are popped after :meth:`render` is called or :meth:`reset`.
+
+      .. note:: Make sure that your class's :attr:`metadata` ``"render_modes"`` key includes the list of supported modes.
+
+      .. versionchanged:: 0.25.0
+
+          The render function was changed to no longer accept parameters, rather these parameters should be specified
+          in the environment initialised, i.e., ``gymnasium.make("CartPole-v1", render_mode="human")``
+
+
+
+   .. py:method:: reset(*, seed: int | None = None, options: dict | None = None) -> tuple[numpy.ndarray, dict]
+
+      Resets the environment to an initial internal state, returning an initial observation and info.
+
+      This method generates a new starting state often with some randomness to ensure that the agent explores the
+      state space and learns a generalised policy about the environment. This randomness can be controlled
+      with the ``seed`` parameter otherwise if the environment already has a random number generator and
+      :meth:`reset` is called with ``seed=None``, the RNG is not reset.
+
+      Therefore, :meth:`reset` should (in the typical use case) be called with a seed right after initialization and then never again.
+
+      For Custom environments, the first line of :meth:`reset` should be ``super().reset(seed=seed)`` which implements
+      the seeding correctly.
+
+      .. versionchanged:: v0.25
+
+          The ``return_info`` parameter was removed and now info is expected to be returned.
+
+      :param seed: The seed that is used to initialize the environment's PRNG (`np_random`) and
+                   the read-only attribute `np_random_seed`.
+                   If the environment does not already have a PRNG and ``seed=None`` (the default option) is passed,
+                   a seed will be chosen from some source of entropy (e.g. timestamp or /dev/urandom).
+                   However, if the environment already has a PRNG and ``seed=None`` is passed, the PRNG will *not* be reset
+                   and the env's :attr:`np_random_seed` will *not* be altered.
+                   If you pass an integer, the PRNG will be reset even if it already exists.
+                   Usually, you want to pass an integer *right after the environment has been initialized and then never again*.
+                   Please refer to the minimal example above to see this paradigm in action.
+      :type seed: optional int
+      :param options: Additional information to specify how the environment is reset (optional,
+                      depending on the specific environment)
+      :type options: optional dict
+
+      :returns:
+
+                Observation of the initial state. This will be an element of :attr:`observation_space`
+                    (typically a numpy array) and is analogous to the observation returned by :meth:`step`.
+                info (dictionary):  This dictionary contains auxiliary information complementing ``observation``. It should be analogous to
+                    the ``info`` returned by :meth:`step`.
+      :rtype: observation (ObsType)
+
+
+
+   .. py:method:: step(action: numpy.ndarray) -> tuple[numpy.ndarray, float, bool, bool, dict]
+
+      Execute one time step within the environment.
+
+      :param action: Force applied to the cart.
+
+      :returns:     - observation: Next observation `[x, theta, dx, dtheta]`.
+                    - reward: Reward for this step (swing-up reward).
+                    - terminated: Whether the episode terminated.
+                    - truncated: Whether the episode was truncated.
+                    - info: Dictionary with task information.
+      :rtype: Tuple containing
+
+
+
+   .. py:attribute:: action_space
+      :type:  gymnasium.spaces.Box
+
+
+   .. py:attribute:: cfg
+      :type:  CartPoleEnvConfig
+
+
+   .. py:attribute:: clock
+      :type:  Any
+
+
+   .. py:attribute:: integrator
+      :type:  Callable
+
+
+   .. py:attribute:: metadata
+
+
+   .. py:attribute:: observation_space
+      :type:  gymnasium.spaces.Box
+
+
+   .. py:attribute:: pole_end_trajectory
+      :type:  list[tuple[float, float]] | None
+
+
+   .. py:attribute:: pos_trajectory
+      :type:  list[float] | None
+
+
+   .. py:attribute:: render_mode
+      :type:  str | None
+
+
+   .. py:attribute:: reset_needed
+      :type:  bool
+
+
+   .. py:attribute:: screen_height
+      :type:  int
+
+
+   .. py:attribute:: screen_width
+      :type:  int
+
+
+   .. py:attribute:: t
+      :type:  float
+
+
+   .. py:attribute:: window
+      :type:  Any
+
+
+   .. py:attribute:: x
+      :type:  numpy.ndarray | None
+
+
+   .. py:attribute:: x_trajectory
+      :type:  list[numpy.ndarray]
+
+
+.. py:class:: CartPoleEnvConfig
+
+   Configuration for the CartPole environment.
+
+
+   .. py:attribute:: Fmax
+      :type:  float
+      :value: 80.0
+
+
+
+   .. py:attribute:: dt
+      :type:  float
+      :value: 0.05
+
+
+
+   .. py:attribute:: gravity
+      :type:  float
+      :value: 9.81
+
+
+
+   .. py:attribute:: length
+      :type:  float
+      :value: 0.8
+
+
+
+   .. py:attribute:: masscart
+      :type:  float
+      :value: 1.0
+
+
+
+   .. py:attribute:: masspole
+      :type:  float
+      :value: 0.1
+
+
+
+   .. py:attribute:: max_time
+      :type:  float
+      :value: 10.0
+
+
+
+   .. py:attribute:: x_threshold
+      :type:  float
+      :value: 2.4
+
+
+

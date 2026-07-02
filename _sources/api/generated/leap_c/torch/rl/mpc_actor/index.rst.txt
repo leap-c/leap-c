@@ -1,0 +1,223 @@
+leap_c.torch.rl.mpc_actor
+=========================
+
+.. py:module:: leap_c.torch.rl.mpc_actor
+
+.. autoapi-nested-parse::
+
+   Provides stochastic MPC actors.
+
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.torch.rl.mpc_actor.HierachicalMPCActor
+   leap_c.torch.rl.mpc_actor.HierachicalMPCActorConfig
+   leap_c.torch.rl.mpc_actor.StochasticMPCActorOutput
+
+
+Module Contents
+---------------
+
+.. py:class:: HierachicalMPCActor(cfg: HierachicalMPCActorConfig, observation_space: gymnasium.Space, action_space: gymnasium.Space, controller: leap_c.controller.ParameterizedController[leap_c.controller.CtxType])
+
+   Bases: :py:obj:`torch.nn.Module`, :py:obj:`Generic`\ [\ :py:obj:`leap_c.controller.CtxType`\ ]
+
+
+   Hierarchical MPC actor.
+
+   Implements a two-level hierarchy:
+   1. High-level policy predicts controller parameters
+   2. Low-level controller computes actions from parameters
+
+   Noise can be injected at either level, controlled by action_distribution_name:
+
+   Parameter noise mode (noise="param"):
+       - Stochastic parameters → Deterministic controller → Deterministic actions
+       - Noise is added to controller parameters before execution
+       - Supports residual learning (parameters as offsets from defaults)
+       - Supports entropy correction based on action-to-parameter Jacobian
+
+   Action noise mode (noise="action"):
+       - Deterministic parameters → Deterministic controller → Stochastic actions
+       - Controller parameters are predicted deterministically
+       - Noise is added to controller output actions
+       - For Beta distribution: MPC action serves as the anchor/mode
+
+   :ivar controller: The parameterized controller (low-level policy).
+   :ivar extractor: Feature extractor for observations.
+   :ivar mlp: MLP that outputs distribution parameters (high-level policy).
+   :ivar param_distribution: Bounded distribution for parameters.
+   :ivar action_distribution: Bounded distribution for actions (None in parameter noise mode).
+   :ivar residual: Whether to use residual learning (parameter noise mode only).
+   :ivar entropy_correction: Whether to apply Jacobian-based entropy correction
+                             (parameter noise mode only).
+
+
+
+   .. py:method:: forward(obs: torch.Tensor, ctx: leap_c.controller.CtxType | None = None, deterministic: bool = False, only_param: bool = False) -> StochasticMPCActorOutput
+
+      Sample parameters/actions from the hierarchical policy.
+
+      :param obs: Observations.
+      :param ctx: Optional controller context for warm-starting the low-level controller.
+      :param deterministic: If True, use deterministic mode (no sampling from distributions).
+      :param only_param: If True, only return parameters without computing actions.
+                         Only applicable in parameter noise mode.
+
+      :returns: Actor output containing parameters, log probabilities, statistics, and actions.
+
+
+
+   .. py:attribute:: action_distribution
+      :type:  leap_c.torch.nn.bounded_distributions.BoundedDistribution | None
+
+
+   .. py:attribute:: cfg
+
+
+   .. py:attribute:: controller
+      :type:  leap_c.controller.ParameterizedController[leap_c.controller.CtxType]
+
+
+   .. py:attribute:: entropy_correction
+      :type:  bool
+
+
+   .. py:attribute:: extractor
+      :type:  leap_c.torch.nn.extractor.Extractor
+
+
+   .. py:attribute:: flat_param_space
+      :type:  gymnasium.spaces.Box
+
+
+   .. py:attribute:: mlp
+      :type:  leap_c.torch.nn.mlp.Mlp
+
+
+   .. py:attribute:: param_distribution
+      :type:  leap_c.torch.nn.bounded_distributions.BoundedDistribution
+
+
+   .. py:attribute:: param_space
+      :type:  gymnasium.Space
+
+
+   .. py:attribute:: residual
+      :type:  bool
+
+
+.. py:class:: HierachicalMPCActorConfig
+
+   Configuration for HierachicalMPCActor.
+
+   :ivar noise: Where to inject noise - "param" for parameter space, "action" for action space.
+   :ivar extractor_name: The name of the feature extractor to use.
+   :ivar mlp: The configuration for the MLP predicting distribution parameters.
+   :ivar distribution_name: The name of the bounded distribution for sampling.
+                            In "param" mode: distribution for sampling parameters.
+                            In "action" mode: distribution for sampling actions (params are deterministic).
+   :ivar distribution_kwargs: Additional keyword arguments for the distribution constructor.
+   :ivar residual: Whether to use residual learning (param = default_param + learned_param).
+                   Only applicable in parameter noise mode (noise="param").
+   :ivar entropy_correction: Whether to apply entropy correction based on the Jacobian.
+                             Only applicable in parameter noise mode (noise="param").
+
+
+
+   .. py:attribute:: distribution_kwargs
+      :type:  dict[str, Any]
+
+
+   .. py:attribute:: distribution_name
+      :type:  leap_c.torch.nn.bounded_distributions.BoundedDistributionName
+      :value: 'squashed_gaussian'
+
+
+
+   .. py:attribute:: entropy_correction
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: extractor_name
+      :type:  leap_c.torch.nn.extractor.ExtractorName
+      :value: 'identity'
+
+
+
+   .. py:attribute:: mlp
+      :type:  leap_c.torch.nn.mlp.MlpConfig
+
+
+   .. py:attribute:: noise
+      :type:  Literal['param', 'action']
+      :value: 'param'
+
+
+
+   .. py:attribute:: residual
+      :type:  bool
+      :value: False
+
+
+
+.. py:class:: StochasticMPCActorOutput
+
+   Bases: :py:obj:`NamedTuple`
+
+
+   Output of the hierarchical MPC actor's forward pass.
+
+   :ivar param: The predicted flattened parameters. Structured parameters are passed to the
+                controller.
+   :ivar log_prob: The log-probability of the distribution that led to the action. Can be either from
+                   the parameter or action distribution, depending on the noise mode.
+   :ivar stats: A dictionary containing statistics from internal modules.
+   :ivar action: The action output by the controller (None if only_param=True).
+   :ivar status: The status of the MPC solver (0 if successful).
+   :ivar ctx: The context object containing information about the MPC solve.
+
+
+
+   .. py:method:: select(mask: torch.Tensor) -> Self
+
+      Select a subset of the output based on the given mask. Discards stats and ctx.
+
+
+
+   .. py:attribute:: action
+      :type:  torch.Tensor | None
+      :value: None
+
+
+
+   .. py:attribute:: ctx
+      :type:  leap_c.controller.CtxType | None
+      :value: None
+
+
+
+   .. py:attribute:: log_prob
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: param
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: stats
+      :type:  dict[str, float]
+
+
+   .. py:attribute:: status
+      :type:  torch.Tensor | None
+      :value: None
+
+
+

@@ -1,0 +1,1009 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../../">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../genindex.html" /><link rel="search" title="Search" href="../../../../search.html" />
+
+    <!-- Generated with Sphinx 8.2.3 and Furo 2024.08.06 -->
+        <title>leap_c.torch.nn.bounded_distributions - leap-c 2025 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/styles/furo-extensions.css?v=302659d7" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../../index.html"><div class="brand">leap-c 2025 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../../index.html">
+  
+  
+  <span class="sidebar-brand-text">leap-c 2025 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../define_differentiable_mpc.html">Define a differentiable MPC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../parameter_management.html">Parameter Management in Acados OCPs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../notebooks.html">Running Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../troubleshooting.html">Troubleshooting usability with VS Code</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api/index.html">Core API</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/index.html">leap_c</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of leap_c</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/autograd/index.html">leap_c.autograd</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of leap_c.autograd</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/autograd/function/index.html">leap_c.autograd.function</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/autograd/torch/index.html">leap_c.autograd.torch</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/controller/index.html">leap_c.controller</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/index.html">leap_c.examples</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of leap_c.examples</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/index.html">leap_c.examples.cartpole</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of leap_c.examples.cartpole</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/acados_ocp/index.html">leap_c.examples.cartpole.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/env/index.html">leap_c.examples.cartpole.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/planner/index.html">leap_c.examples.cartpole.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/index.html">leap_c.examples.chain</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of leap_c.examples.chain</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/acados_ocp/index.html">leap_c.examples.chain.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/dynamics/index.html">leap_c.examples.chain.dynamics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/env/index.html">leap_c.examples.chain.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/planner/index.html">leap_c.examples.chain.planner</a></li>
+<li class="toctree-l4 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/index.html">leap_c.examples.chain.utils</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of leap_c.examples.chain.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/ellipsoid/index.html">leap_c.examples.chain.utils.ellipsoid</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/plot/index.html">leap_c.examples.chain.utils.plot</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/resting_chain_solver/index.html">leap_c.examples.chain.utils.resting_chain_solver</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/index.html">leap_c.examples.mass_spring_damper</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of leap_c.examples.mass_spring_damper</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/acados_ocp/index.html">leap_c.examples.mass_spring_damper.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/env/index.html">leap_c.examples.mass_spring_damper.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/planner/index.html">leap_c.examples.mass_spring_damper.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/index.html">leap_c.examples.pointmass</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of leap_c.examples.pointmass</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/acados_ocp/index.html">leap_c.examples.pointmass.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/env/index.html">leap_c.examples.pointmass.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/planner/index.html">leap_c.examples.pointmass.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/utils/index.html">leap_c.examples.utils</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of leap_c.examples.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/utils/casadi/index.html">leap_c.examples.utils.casadi</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/utils/matplotlib_env/index.html">leap_c.examples.utils.matplotlib_env</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/index.html">leap_c.ocp</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of leap_c.ocp</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/index.html">leap_c.ocp.acados</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of leap_c.ocp.acados</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/data/index.html">leap_c.ocp.acados.data</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/diff_mpc/index.html">leap_c.ocp.acados.diff_mpc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/initializer/index.html">leap_c.ocp.acados.initializer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/parameters/index.html">leap_c.ocp.acados.parameters</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/repr/index.html">leap_c.ocp.acados.repr</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/torch/index.html">leap_c.ocp.acados.torch</a></li>
+<li class="toctree-l4 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/index.html">leap_c.ocp.acados.utils</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of leap_c.ocp.acados.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/create_solver/index.html">leap_c.ocp.acados.utils.create_solver</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/delete_directory_hook/index.html">leap_c.ocp.acados.utils.delete_directory_hook</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/prepare_solver/index.html">leap_c.ocp.acados.utils.prepare_solver</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/solve/index.html">leap_c.ocp.acados.utils.solve</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/planner/index.html">leap_c.planner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/run/index.html">leap_c.run</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/index.html">leap_c.torch</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of leap_c.torch</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/index.html">leap_c.torch.nn</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of leap_c.torch.nn</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html">leap_c.torch.nn.bounded_distributions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/extractor/index.html">leap_c.torch.nn.extractor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/mlp/index.html">leap_c.torch.nn.mlp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/scale/index.html">leap_c.torch.nn.scale</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/index.html">leap_c.torch.rl</a><input class="toctree-checkbox" id="toctree-checkbox-15" name="toctree-checkbox-15" role="switch" type="checkbox"/><label for="toctree-checkbox-15"><div class="visually-hidden">Toggle navigation of leap_c.torch.rl</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/buffer/index.html">leap_c.torch.rl.buffer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/crossq/index.html">leap_c.torch.rl.crossq</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/crossq_zop/index.html">leap_c.torch.rl.crossq_zop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/mpc_actor/index.html">leap_c.torch.rl.mpc_actor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/sac/index.html">leap_c.torch.rl.sac</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/sac_fop/index.html">leap_c.torch.rl.sac_fop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/sac_zop/index.html">leap_c.torch.rl.sac_zop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/utils/index.html">leap_c.torch.rl.utils</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/utils/index.html">leap_c.torch.utils</a><input class="toctree-checkbox" id="toctree-checkbox-16" name="toctree-checkbox-16" role="switch" type="checkbox"/><label for="toctree-checkbox-16"><div class="visually-hidden">Toggle navigation of leap_c.torch.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/utils/gym/index.html">leap_c.torch.utils.gym</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/utils/seed/index.html">leap_c.torch.utils.seed</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/trainer/index.html">leap_c.trainer</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/utils/index.html">leap_c.utils</a><input class="toctree-checkbox" id="toctree-checkbox-17" name="toctree-checkbox-17" role="switch" type="checkbox"/><label for="toctree-checkbox-17"><div class="visually-hidden">Toggle navigation of leap_c.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/cfg/index.html">leap_c.utils.cfg</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/dependencies/index.html">leap_c.utils.dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/git/index.html">leap_c.utils.git</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/gym/index.html">leap_c.utils.gym</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/latexify/index.html">leap_c.utils.latexify</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/logger/index.html">leap_c.utils.logger</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/parameters/index.html">leap_c.utils.parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/rollout/index.html">leap_c.utils.rollout</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for leap_c.torch.nn.bounded_distributions</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Provides a simple distributional layer that allows policies to respect action bounds.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">abc</span><span class="w"> </span><span class="kn">import</span> <span class="n">abstractmethod</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">log</span><span class="p">,</span> <span class="n">pi</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">gymnasium.spaces</span><span class="w"> </span><span class="kn">import</span> <span class="n">Box</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="kn">import</span> <span class="n">ndarray</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">numpy.typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">ArrayLike</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch.distributions.beta</span><span class="w"> </span><span class="kn">import</span> <span class="n">Beta</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">torch.nn.functional</span><span class="w"> </span><span class="kn">import</span> <span class="n">softplus</span>
+
+<span class="n">BoundedDistributionName</span> <span class="o">=</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;squashed_gaussian&quot;</span><span class="p">,</span> <span class="s2">&quot;scaled_beta&quot;</span><span class="p">,</span> <span class="s2">&quot;mode_concentration_beta&quot;</span><span class="p">]</span>
+
+
+<div class="viewcode-block" id="BoundedDistribution">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.BoundedDistribution">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">BoundedDistribution</span><span class="p">(</span><span class="n">torch</span><span class="o">.</span><span class="n">nn</span><span class="o">.</span><span class="n">Module</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;An abstract class for bounded distributions.&quot;&quot;&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">space</span><span class="p">:</span> <span class="n">Box</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the bounded distribution.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            space: The space the output is bounded to.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If the provided space is not bounded.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">space</span><span class="o">.</span><span class="n">low</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">1</span> <span class="ow">or</span> <span class="ow">not</span> <span class="n">space</span><span class="o">.</span><span class="n">is_bounded</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="s2">&quot;The provided space must be a 1d bounded space to support scaling and shifting.&quot;</span>
+            <span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">()</span>
+
+<div class="viewcode-block" id="BoundedDistribution.forward">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.BoundedDistribution.forward">[docs]</a>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="o">*</span><span class="n">defining_parameters</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">deterministic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">anchor</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">sample_shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sample from the distribution.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            *defining_parameters: The parameters defining the distribution, such as mean and log</span>
+<span class="sd">                standard deviation for a Gaussian distribution, or alpha and beta parameters for a</span>
+<span class="sd">                Beta distribution.</span>
+<span class="sd">                These parameters are expected to be broadcastable with the bounds of the space</span>
+<span class="sd">                provided at construction, and have shape `(*, event_dim)` with `event_dim` the</span>
+<span class="sd">                dimension of said space and `*` any shape for the batched distributions.</span>
+<span class="sd">            deterministic: If `deterministic` is `True`, the mode of the distribution is used</span>
+<span class="sd">                instead of sampling.</span>
+<span class="sd">            anchor: An optional tensor/array to shift the distribution&#39;s mean/mode towards. Used in</span>
+<span class="sd">                residual policies where the output distribution models an offset to the anchor.</span>
+<span class="sd">                Must be broadcastable to `(*, event_dim)`.</span>
+<span class="sd">            sample_shape: The shape of the samples to be drawn from the distribution. This allows</span>
+<span class="sd">                for drawing multiple samples at once from each distribution in the batch.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A tuple containing the samples with shape `(*sample_shape, *, event_dim)`, the</span>
+<span class="sd">            corresponding log-probabilities, and a dictionary of stats.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="o">...</span></div>
+
+
+<div class="viewcode-block" id="BoundedDistribution.parameter_size">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.BoundedDistribution.parameter_size">[docs]</a>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">parameter_size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Returns param size required to define the distribution for the given output dim.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            output_dim: The dimensionality of the output space (e.g., action space).</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A tuple of integers, each integer specifying the size of one parameter required to</span>
+<span class="sd">            define the distribution in the forward pass.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="o">...</span></div>
+
+
+<div class="viewcode-block" id="BoundedDistribution.inverse">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.BoundedDistribution.inverse">[docs]</a>
+    <span class="nd">@abstractmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">inverse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">normalized_x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply the inverse transformation to the input tensor.</span>
+
+<span class="sd">        The inverse transform is meant to translate the input from the bounded space to the squashed</span>
+<span class="sd">        interval (e.g., `[0,1]` or `[-1,1]`) .</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            normalized_x: The input tensor.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The inverse transformed tensor.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="o">...</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="get_bounded_distribution">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.get_bounded_distribution">[docs]</a>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_bounded_distribution</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="n">BoundedDistributionName</span><span class="p">,</span> <span class="o">**</span><span class="n">kwargs</span><span class="p">:</span> <span class="n">Any</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">BoundedDistribution</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Create an instance of a bounded distribution by name.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        name ({&quot;squashed_gaussian&quot;, &quot;scaled_beta&quot;, &quot;mode_concentration_beta&quot;}): The name of the</span>
+<span class="sd">            bounded distribution</span>
+<span class="sd">        kwargs: Additional keyword arguments passed to the constructor of the bounded distribution.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        BoundedDistribution: The newly created instance.</span>
+
+<span class="sd">    Raises:</span>
+<span class="sd">        ValueError: If the provided name does not correspond to a known bounded distribution.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">match</span> <span class="n">name</span><span class="p">:</span>
+        <span class="k">case</span> <span class="s2">&quot;squashed_gaussian&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">SquashedGaussian</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">case</span> <span class="s2">&quot;scaled_beta&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ScaledBeta</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">case</span> <span class="s2">&quot;mode_concentration_beta&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ModeConcentrationBeta</span><span class="p">(</span><span class="o">**</span><span class="n">kwargs</span><span class="p">)</span>
+        <span class="k">case</span><span class="w"> </span><span class="k">_</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown bounded distribution: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="SquashedGaussian">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.SquashedGaussian">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SquashedGaussian</span><span class="p">(</span><span class="n">BoundedDistribution</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A squashed Gaussian.</span>
+
+<span class="sd">    Samples the output from a Gaussian distribution specified by the input, and then squashes the</span>
+<span class="sd">    result with a `tanh` function. Finally, the output of the `tanh` function is scaled and shifted</span>
+<span class="sd">    to match the space.</span>
+
+<span class="sd">    Can for example be used to enforce certain action bounds of a stochastic policy.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        scale: The scale of the space-fitting transform.</span>
+<span class="sd">        loc: The location of the space-fitting transform (for shifting).</span>
+<span class="sd">        log_std_min: The minimum value for the logarithm of the standard deviation.</span>
+<span class="sd">        log_std_max: The maximum value for the logarithm of the standard deviation.</span>
+<span class="sd">        padding: The amount of padding to distance the action of the bounds, when using the inverse</span>
+<span class="sd">            transformation for the anchoring. This improves numerical stability.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">scale</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">loc</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">log_std_min</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">log_std_max</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">padding</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">space</span><span class="p">:</span> <span class="n">Box</span><span class="p">,</span>
+        <span class="n">log_std_min</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="o">-</span><span class="mf">4.0</span><span class="p">,</span>
+        <span class="n">log_std_max</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="mf">2.0</span><span class="p">,</span>
+        <span class="n">padding</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="mf">1e-4</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the `SquashedGaussian` module.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            space: Space the output should fit to.</span>
+<span class="sd">            log_std_min: The minimum value for the logarithm of the standard deviation.</span>
+<span class="sd">            log_std_max: The maximum value for the logarithm of the standard deviation.</span>
+<span class="sd">            padding: The amount of padding to distance the action of the bounds, when using the</span>
+<span class="sd">                inverse transformation for the anchoring. This improves numerical stability.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If the provided space is not bounded.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">space</span><span class="p">)</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">get_default_dtype</span><span class="p">()</span>
+        <span class="n">dev</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">get_default_device</span><span class="p">()</span>
+        <span class="n">loc</span> <span class="o">=</span> <span class="p">(</span><span class="n">space</span><span class="o">.</span><span class="n">high</span> <span class="o">+</span> <span class="n">space</span><span class="o">.</span><span class="n">low</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span>
+        <span class="n">scale</span> <span class="o">=</span> <span class="p">(</span><span class="n">space</span><span class="o">.</span><span class="n">high</span> <span class="o">-</span> <span class="n">space</span><span class="o">.</span><span class="n">low</span><span class="p">)</span> <span class="o">/</span> <span class="mf">2.0</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;loc&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">loc</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">scale</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;log_std_min&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">log_std_min</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;log_std_max&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">log_std_max</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;padding&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">padding</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+
+<div class="viewcode-block" id="SquashedGaussian.forward">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.SquashedGaussian.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">mean</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">log_std</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">deterministic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">anchor</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">sample_shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sample from the `SquashedGaussian` distribution.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            mean: The mean of the normal distribution with shape `(*, event_dim)`, where `event_dim`</span>
+<span class="sd">                is the dimension of space provided at construction.</span>
+<span class="sd">            log_std: The logarithm of the standard deviation of the normal distribution, of the same</span>
+<span class="sd">                shape as the mean (i.e., assuming independent dimensions). Will be clamped according</span>
+<span class="sd">                to the attributes of this class. Must be broadcastable to `(*, event_dim)`.</span>
+<span class="sd">                If `None`, the output is deterministic (no noise added to `mean`; same as for</span>
+<span class="sd">                `deterministic == True`).</span>
+<span class="sd">            deterministic: If `True`, the output will just be `spacefitting(tanh(mean))`, with no</span>
+<span class="sd">                sampling taking place.</span>
+<span class="sd">            anchor: An optional tensor/array to shift the distribution&#39;s mean towards. Used in</span>
+<span class="sd">                residual policies where the output distribution models an offset to the anchor.</span>
+<span class="sd">                Must be broadcastable to `(*, event_dim)`.</span>
+<span class="sd">            sample_shape: The shape of the samples to be drawn from the distribution. This allows</span>
+<span class="sd">                for drawing multiple samples at once from each distribution in the batch.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Output sampled from the `SquashedGaussian` with shape `(*sample_shape, *, event_dim)`,</span>
+<span class="sd">            the log probability of this output, and a statistics dict containing the standard</span>
+<span class="sd">            deviation.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">anchor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># Convert anchor to tensor if it&#39;s a numpy array</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">anchor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                <span class="n">anchor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">anchor</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">mean</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">mean</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+            <span class="c1"># ensure anchor is within action space bounds</span>
+            <span class="k">assert</span> <span class="p">(</span><span class="n">anchor</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span> <span class="ow">and</span> <span class="p">(</span>
+                <span class="n">anchor</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span>
+            <span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span> <span class="s2">&quot;Anchor point must be within action space bounds.&quot;</span>
+
+            <span class="c1"># Use out-of-place operation to avoid modifying view</span>
+            <span class="n">inv_anchor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span><span class="n">anchor</span><span class="p">)</span>
+            <span class="n">mean</span> <span class="o">=</span> <span class="n">mean</span> <span class="o">+</span> <span class="n">inv_anchor</span>
+
+        <span class="c1"># sample and compute log probability - if deterministic, use the mean and assign 0 log_prob</span>
+        <span class="n">stats</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="k">if</span> <span class="n">deterministic</span> <span class="ow">or</span> <span class="n">log_std</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">out_shape</span> <span class="o">=</span> <span class="n">sample_shape</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">broadcast_shapes</span><span class="p">(</span><span class="n">mean</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="n">mean</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">out_shape</span><span class="p">)</span>
+            <span class="n">log_prob</span> <span class="o">=</span> <span class="n">mean</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">(())</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">out_shape</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">std</span> <span class="o">=</span> <span class="n">log_std</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">log_std_min</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_std_max</span><span class="p">)</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>
+            <span class="n">out_shape</span> <span class="o">=</span> <span class="n">sample_shape</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">broadcast_shapes</span><span class="p">(</span><span class="n">mean</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="n">std</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">addcmul</span><span class="p">(</span><span class="n">mean</span><span class="p">,</span> <span class="n">std</span><span class="p">,</span> <span class="n">mean</span><span class="o">.</span><span class="n">new_empty</span><span class="p">(</span><span class="n">out_shape</span><span class="p">)</span><span class="o">.</span><span class="n">normal_</span><span class="p">())</span>
+            <span class="n">log_prob</span> <span class="o">=</span> <span class="o">-</span><span class="mf">0.5</span> <span class="o">*</span> <span class="p">((</span><span class="n">y</span> <span class="o">-</span> <span class="n">mean</span><span class="p">)</span> <span class="o">/</span> <span class="n">std</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">()</span> <span class="o">-</span> <span class="n">log_std</span> <span class="o">-</span> <span class="mf">0.5</span> <span class="o">*</span> <span class="n">log</span><span class="p">(</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">pi</span><span class="p">)</span>
+            <span class="n">stats</span><span class="p">[</span><span class="s2">&quot;gaussian_unsquashed_std&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="n">std</span><span class="o">.</span><span class="n">prod</span><span class="p">(</span><span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+
+        <span class="c1"># adjust log_prob with tanh correction (reformulated as softplus for numerical stability;</span>
+        <span class="c1"># see `torch.distributions.transforms.TanhTransform.log_abs_det_jacobian` for reference) and</span>
+        <span class="c1"># scaling correction</span>
+        <span class="n">tanh_correction</span> <span class="o">=</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="p">(</span><span class="n">log</span><span class="p">(</span><span class="mf">2.0</span><span class="p">)</span> <span class="o">-</span> <span class="n">y</span> <span class="o">-</span> <span class="n">softplus</span><span class="p">(</span><span class="o">-</span><span class="mf">2.0</span> <span class="o">*</span> <span class="n">y</span><span class="p">))</span>
+        <span class="n">log_prob</span> <span class="o">=</span> <span class="p">(</span><span class="n">log_prob</span> <span class="o">-</span> <span class="n">tanh_correction</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">.</span><span class="n">log</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+        <span class="c1"># map to desired bounds - pad the scale slightly to avoid rare bound violations</span>
+        <span class="n">padded_scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">-</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">padding</span><span class="p">)</span>
+        <span class="n">y_scaled</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">addcmul</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loc</span><span class="p">,</span> <span class="n">padded_scale</span><span class="p">,</span> <span class="n">y</span><span class="o">.</span><span class="n">tanh</span><span class="p">())</span>
+        <span class="k">return</span> <span class="n">y_scaled</span><span class="p">,</span> <span class="n">log_prob</span><span class="p">,</span> <span class="n">stats</span></div>
+
+
+<div class="viewcode-block" id="SquashedGaussian.parameter_size">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.SquashedGaussian.parameter_size">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">parameter_size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">output_dim</span></div>
+
+
+<div class="viewcode-block" id="SquashedGaussian.inverse">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.SquashedGaussian.inverse">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">inverse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply the inverse transformation to the input tensor.</span>
+
+<span class="sd">        The inverse transformation is a descale and then `arctanh`. For numerical stability, the</span>
+<span class="sd">        input is slightly padded away (by `padding`) from the bounds before applying `arctanh`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x: The input tensor.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The inverse squashed tensor, scaled and shifted to match the action space.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">padded_scale</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span> <span class="o">*</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">padding</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc</span><span class="p">)</span> <span class="o">/</span> <span class="n">padded_scale</span>
+        <span class="k">return</span> <span class="n">torch</span><span class="o">.</span><span class="n">arctanh</span><span class="p">(</span><span class="n">y</span><span class="p">)</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ScaledBeta">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.ScaledBeta">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ScaledBeta</span><span class="p">(</span><span class="n">BoundedDistribution</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A unimodal scaled Beta distribution.</span>
+
+<span class="sd">    Samples the output from a Beta distribution specified by the input, and then scales and shifts</span>
+<span class="sd">    the result to match the space. Unomodality is ensured by enforcing `alpha, beta &gt; 1`.</span>
+
+<span class="sd">    Can for example be used to enforce certain action bounds of a stochastic policy.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        scale: The scale of the space-fitting transform (for scaling).</span>
+<span class="sd">        loc: The location of the space-fitting transform (for shifting).</span>
+<span class="sd">        log_alpha_min: The minimum value for the logarithm of the alpha parameter.</span>
+<span class="sd">        log_beta_min: The minimum value for the logarithm of the beta parameter.</span>
+<span class="sd">        log_alpha_max: The maximum value for the logarithm of the alpha parameter.</span>
+<span class="sd">        log_beta_max: The maximum value for the logarithm of the beta parameter.</span>
+<span class="sd">        padding: The amount of padding to distance the action of the bounds, when using the inverse</span>
+<span class="sd">            transformation for the anchoring. This improves numerical stability.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">scale</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">loc</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">log_alpha_min</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">log_alpha_max</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">log_beta_min</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">log_beta_max</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">padding</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">space</span><span class="p">:</span> <span class="n">Box</span><span class="p">,</span>
+        <span class="n">log_alpha_min</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="o">-</span><span class="mf">10.0</span><span class="p">,</span>
+        <span class="n">log_beta_min</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="o">-</span><span class="mf">10.0</span><span class="p">,</span>
+        <span class="n">log_alpha_max</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="mf">10.0</span><span class="p">,</span>
+        <span class="n">log_beta_max</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="mf">10.0</span><span class="p">,</span>
+        <span class="n">padding</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="mf">1e-4</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the `ScaledBeta` module.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            space: Space the output should fit to.</span>
+<span class="sd">            log_alpha_min: The minimum value for the logarithm of the alpha parameter.</span>
+<span class="sd">            log_beta_min: The minimum value for the logarithm of the beta parameter.</span>
+<span class="sd">            log_alpha_max: The maximum value for the logarithm of the alpha parameter.</span>
+<span class="sd">            log_beta_max: The maximum value for the logarithm of the beta parameter.</span>
+<span class="sd">            padding: The amount of padding to distance the action of the bounds, when using the</span>
+<span class="sd">                inverse transformation for the anchoring. This improves numerical stability.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If the provided space is not bounded.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">space</span><span class="p">)</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">get_default_dtype</span><span class="p">()</span>
+        <span class="n">dev</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">get_default_device</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">space</span><span class="o">.</span><span class="n">high</span> <span class="o">-</span> <span class="n">space</span><span class="o">.</span><span class="n">low</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;loc&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">space</span><span class="o">.</span><span class="n">low</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;log_alpha_min&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">log_alpha_min</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;log_beta_min&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">log_beta_min</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;log_alpha_max&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">log_alpha_max</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;log_beta_max&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">log_beta_max</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;padding&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">padding</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+
+<div class="viewcode-block" id="ScaledBeta.forward">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.ScaledBeta.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">log_alpha</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">log_beta</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">deterministic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">anchor</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">sample_shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sample from the `ScaledBeta` distribution.</span>
+
+<span class="sd">        Note that `alpha` and `beta` are enforced to be `&gt; 1` to ensure concavity.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            log_alpha: The logarithm of the alpha parameter of the Beta distribution, with shape</span>
+<span class="sd">                `(*, event_dim)`, where `event_dim` is the shape of space provided at construction.</span>
+<span class="sd">            log_beta: The logarithm of the beta parameter of the Beta distribution. Must be</span>
+<span class="sd">                broadcastable to `(*, event_dim)`.</span>
+<span class="sd">            deterministic: If `True`, the output will just be `spacefitting(mode)`, with no</span>
+<span class="sd">                sampling taking place.</span>
+<span class="sd">            anchor: An optional tensor/array to shift the distribution&#39;s mode towards. Used in</span>
+<span class="sd">                residual policies where the output distribution models an offset to the anchor.</span>
+<span class="sd">                Must be broadcastable to `(*, event_dim)`.</span>
+<span class="sd">            sample_shape: The shape of the samples to be drawn from the distribution. This allows</span>
+<span class="sd">                for drawing multiple samples at once from each distribution in the batch.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            An output sampled from the `ScaledBeta` distribution with shape</span>
+<span class="sd">            `(*sample_shape, *, event_dim)`, the log probability of this output, and an empty stats</span>
+<span class="sd">            dict.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># add 1+eps to ensure concavity and existance of mode (alpha, beta &gt; 1)</span>
+        <span class="n">offset</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">log_alpha</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span>
+        <span class="n">alpha</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">log_alpha</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_alpha_min</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_alpha_max</span><span class="p">)</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>
+        <span class="n">beta</span> <span class="o">=</span> <span class="n">offset</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">clamp</span><span class="p">(</span><span class="n">log_beta</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_beta_min</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_beta_max</span><span class="p">)</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>
+
+        <span class="k">if</span> <span class="n">anchor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># convert anchor to tensor if it&#39;s a numpy array</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">anchor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                <span class="n">anchor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">anchor</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">alpha</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">alpha</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+            <span class="c1"># get current mode and translate from [0, 1] to [-inf, inf] logit space</span>
+            <span class="n">logit_mode</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">special</span><span class="o">.</span><span class="n">logit</span><span class="p">((</span><span class="n">alpha</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span> <span class="o">/</span> <span class="p">(</span><span class="n">alpha</span> <span class="o">+</span> <span class="n">beta</span> <span class="o">-</span> <span class="mi">2</span><span class="p">))</span>
+
+            <span class="c1"># translate the anchor from [lb, ub] to [0, 1] to [-inf, inf] logit space</span>
+            <span class="n">logit_inv_anchor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">special</span><span class="o">.</span><span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span><span class="n">anchor</span><span class="p">))</span>
+
+            <span class="c1"># sum the modes in logit space, and then translate back to [0, 1] space (with padding)</span>
+            <span class="n">logit_mode</span> <span class="o">=</span> <span class="n">logit_mode</span> <span class="o">+</span> <span class="n">logit_inv_anchor</span>
+            <span class="n">mode</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">addcmul</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">padding</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">padding</span><span class="p">,</span> <span class="n">logit_mode</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">())</span>
+
+            <span class="c1"># update alpha and beta to reflect the new mode while keeping concentration constant</span>
+            <span class="n">concentration</span> <span class="o">=</span> <span class="n">alpha</span> <span class="o">+</span> <span class="n">beta</span>
+            <span class="n">alpha</span> <span class="o">=</span> <span class="mf">1.0</span> <span class="o">+</span> <span class="n">mode</span> <span class="o">*</span> <span class="p">(</span><span class="n">concentration</span> <span class="o">-</span> <span class="mf">2.0</span><span class="p">)</span>
+            <span class="n">beta</span> <span class="o">=</span> <span class="n">concentration</span> <span class="o">-</span> <span class="n">alpha</span>
+
+        <span class="c1"># if deterministic, use the mode as sample; otherwise, create a Beta distribution and sample</span>
+        <span class="c1"># from it via the reparameterization trick to preserve differentiability</span>
+        <span class="n">dist</span> <span class="o">=</span> <span class="n">Beta</span><span class="p">(</span><span class="n">alpha</span><span class="p">,</span> <span class="n">beta</span><span class="p">)</span>
+        <span class="n">y</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">dist</span><span class="o">.</span><span class="n">mode</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">sample_shape</span> <span class="o">+</span> <span class="n">alpha</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="k">if</span> <span class="n">deterministic</span>
+            <span class="k">else</span> <span class="n">dist</span><span class="o">.</span><span class="n">rsample</span><span class="p">(</span><span class="n">sample_shape</span><span class="p">)</span>
+        <span class="p">)</span>
+        <span class="n">y_scaled</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">addcmul</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+        <span class="c1"># update log probability to reflect scaling</span>
+        <span class="n">log_prob</span> <span class="o">=</span> <span class="n">dist</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">y</span><span class="p">)</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">.</span><span class="n">log</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+        <span class="c1"># NOTE: we could return the mean of alpha and beta as stats, but I think they should at</span>
+        <span class="c1"># least be investigated for each action dimension independently</span>
+        <span class="k">return</span> <span class="n">y_scaled</span><span class="p">,</span> <span class="n">log_prob</span><span class="p">,</span> <span class="p">{}</span></div>
+
+
+<div class="viewcode-block" id="ScaledBeta.parameter_size">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.ScaledBeta.parameter_size">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">parameter_size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">output_dim</span></div>
+
+
+<div class="viewcode-block" id="ScaledBeta.inverse">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.ScaledBeta.inverse">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">inverse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply the inverse transformation from `[lb, ub]` to `[0, 1]`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x: The input tensor.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The inverse scaled tensor.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span></div>
+</div>
+
+
+
+<div class="viewcode-block" id="ModeConcentrationBeta">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.ModeConcentrationBeta">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">ModeConcentrationBeta</span><span class="p">(</span><span class="n">BoundedDistribution</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Beta distribution parameterized by mode and total concentration.</span>
+
+<span class="sd">    This distribution is parameterized similarly to `SquashedGaussian`:</span>
+<span class="sd">    - logit_mode: The logit of the mode of the distribution</span>
+<span class="sd">    - log_conc: The logarithm of the concentration parameter</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        scale: The scale of the space-fitting transform (for scaling).</span>
+<span class="sd">        loc: The location of the space-fitting transform (for shifting).</span>
+<span class="sd">        log_conc_min: The minimum value for the logarithm of the concentration.</span>
+<span class="sd">        log_conc_max: The maximum value for the logarithm of the concentration.</span>
+<span class="sd">        padding: The amount of padding to distance the action of the bounds, when using the inverse</span>
+<span class="sd">            transformation for the anchoring. This improves numerical stability.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">scale</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">loc</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">log_conc_min</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">log_conc_max</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+    <span class="n">padding</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">space</span><span class="p">:</span> <span class="n">Box</span><span class="p">,</span>
+        <span class="n">log_conc_min</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="n">log</span><span class="p">(</span><span class="mf">2.0</span><span class="p">),</span>
+        <span class="n">log_conc_max</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="n">log</span><span class="p">(</span><span class="mf">100.0</span><span class="p">),</span>
+        <span class="n">padding</span><span class="p">:</span> <span class="n">ArrayLike</span> <span class="o">=</span> <span class="mf">1e-4</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize `ModeConcentrationBeta` distribution.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            space: Space the output should fit to.</span>
+<span class="sd">            log_conc_min: The minimum value for the logarithm of the concentration.</span>
+<span class="sd">            log_conc_max: The maximum value for the logarithm of the concentration.</span>
+<span class="sd">            padding: The amount of padding to distance the action of the bounds, when using the</span>
+<span class="sd">                inverse transformation for the anchoring. This improves numerical stability.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If the provided space is not bounded, or if `log_conc_min` is less than</span>
+<span class="sd">                `log(2)`.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">dt</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">get_default_dtype</span><span class="p">()</span>
+        <span class="n">dev</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">get_default_device</span><span class="p">()</span>
+        <span class="n">log_conc_min</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">log_conc_min</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">)</span>
+        <span class="k">if</span> <span class="p">(</span><span class="n">log_conc_min</span> <span class="o">&lt;</span> <span class="n">log</span><span class="p">(</span><span class="mf">2.0</span><span class="p">))</span><span class="o">.</span><span class="n">any</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">():</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;`log_conc_min` must be at least `log(2)` to ensure unimodality.&quot;</span><span class="p">)</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">space</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;scale&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">space</span><span class="o">.</span><span class="n">high</span> <span class="o">-</span> <span class="n">space</span><span class="o">.</span><span class="n">low</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;loc&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">space</span><span class="o">.</span><span class="n">low</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;log_conc_min&quot;</span><span class="p">,</span> <span class="n">log_conc_min</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;log_conc_max&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">log_conc_max</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">register_buffer</span><span class="p">(</span><span class="s2">&quot;padding&quot;</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">padding</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dt</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">dev</span><span class="p">))</span>
+
+<div class="viewcode-block" id="ModeConcentrationBeta.forward">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.ModeConcentrationBeta.forward">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">forward</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">logit_mode</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">logit_log_conc</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span>
+        <span class="n">deterministic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">anchor</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span> <span class="o">|</span> <span class="n">ndarray</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">sample_shape</span><span class="p">:</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]</span> <span class="o">=</span> <span class="p">(),</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Sample from the `ModeConcentrationBeta` distribution.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            logit_mode: The logit of the mode of the Beta distribution (unbounded). This number is</span>
+<span class="sd">                later squashed through a sigmoid to ensure it lies in the valid `[0, 1]` interval.</span>
+<span class="sd">                Must be broadcastable to `(*, event_dim)`, where `event_dim` is the dimension of</span>
+<span class="sd">                space provided at construction.</span>
+<span class="sd">            logit_log_conc: The logit of the logarithm of the concentration parameter, of the same</span>
+<span class="sd">                shape as the mode (i.e., assuming independent dimensions). The logit is forced to</span>
+<span class="sd">                the bounded interval `[log_conc_min, log_conc_max]` via a sigmoid; then, it is</span>
+<span class="sd">                exponentiated.</span>
+<span class="sd">                Must be also broadcastable to `(*, event_dim)`.</span>
+<span class="sd">            deterministic: If `True`, the output will just be `spacefitting(mode)`, with no sampling</span>
+<span class="sd">                taking place.</span>
+<span class="sd">            anchor: An optional tensor/array to shift the distribution&#39;s mode towards. Used in</span>
+<span class="sd">                residual policies where the output distribution models an offset to the anchor.</span>
+<span class="sd">                Must be broadcastable to `(*, event_dim)`.</span>
+<span class="sd">            sample_shape: The shape of the samples to be drawn from the distribution. This allows</span>
+<span class="sd">                for drawing multiple samples at once from each distribution in the batch.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            An output sampled from the `ModeConcentrationBeta` distribution with shape</span>
+<span class="sd">            `(*sample_shape, *, event_dim)`, the log probability of this output, and an empty stats</span>
+<span class="sd">            dict.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">anchor</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="c1"># convert anchor to tensor if it&#39;s a numpy array</span>
+            <span class="k">if</span> <span class="ow">not</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">anchor</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                <span class="n">anchor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">as_tensor</span><span class="p">(</span><span class="n">anchor</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">logit_mode</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">logit_mode</span><span class="o">.</span><span class="n">device</span><span class="p">)</span>
+
+            <span class="c1"># ensure anchor is within action space bounds</span>
+            <span class="k">assert</span> <span class="p">(</span><span class="n">anchor</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">()</span> <span class="ow">and</span> <span class="p">(</span><span class="n">anchor</span> <span class="o">&lt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="p">)</span><span class="o">.</span><span class="n">all</span><span class="p">(),</span> <span class="p">(</span>
+                <span class="s2">&quot;Anchor point must be within action space bounds.&quot;</span>
+            <span class="p">)</span>
+
+            <span class="c1"># use out-of-place operation to avoid modifying view</span>
+            <span class="n">logit_inv_anchor</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">special</span><span class="o">.</span><span class="n">logit</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">inverse</span><span class="p">(</span><span class="n">anchor</span><span class="p">))</span>
+            <span class="n">logit_mode</span> <span class="o">=</span> <span class="n">logit_mode</span> <span class="o">+</span> <span class="n">logit_inv_anchor</span>
+
+        <span class="c1"># translate mode from [0, 1] to [padding, 1-padding]</span>
+        <span class="n">mode</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">addcmul</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">padding</span><span class="p">,</span> <span class="mf">1.0</span> <span class="o">-</span> <span class="mf">2.0</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">padding</span><span class="p">,</span> <span class="n">logit_mode</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">())</span>
+
+        <span class="c1"># translate log_conc from [log_conc_min+eps, log_conc_max] and then exponentiate</span>
+        <span class="c1"># NOTE: concentration must be &gt; 2 to ensure unimodality</span>
+        <span class="n">log_conc_min</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_conc_min</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">finfo</span><span class="p">(</span><span class="n">logit_log_conc</span><span class="o">.</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">eps</span>
+        <span class="n">log_conc</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">addcmul</span><span class="p">(</span>
+            <span class="n">log_conc_min</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_conc_max</span> <span class="o">-</span> <span class="n">log_conc_min</span><span class="p">,</span> <span class="n">logit_log_conc</span><span class="o">.</span><span class="n">sigmoid</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="n">concentration</span> <span class="o">=</span> <span class="n">log_conc</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span>
+
+        <span class="c1"># generate sample - if deterministic, use mode directly</span>
+        <span class="k">if</span> <span class="n">deterministic</span><span class="p">:</span>
+            <span class="n">out_shape</span> <span class="o">=</span> <span class="n">sample_shape</span> <span class="o">+</span> <span class="n">torch</span><span class="o">.</span><span class="n">broadcast_shapes</span><span class="p">(</span><span class="n">mode</span><span class="o">.</span><span class="n">shape</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="n">mode</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">out_shape</span><span class="p">)</span>
+            <span class="n">log_prob</span> <span class="o">=</span> <span class="n">mode</span><span class="o">.</span><span class="n">new_zeros</span><span class="p">(())</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">out_shape</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="c1"># sample from Beta distribution</span>
+            <span class="n">distr</span> <span class="o">=</span> <span class="n">Beta</span><span class="p">(</span><span class="n">alpha</span> <span class="o">:=</span> <span class="p">(</span><span class="mf">1.0</span> <span class="o">+</span> <span class="n">mode</span> <span class="o">*</span> <span class="p">(</span><span class="n">concentration</span> <span class="o">-</span> <span class="mf">2.0</span><span class="p">)),</span> <span class="n">concentration</span> <span class="o">-</span> <span class="n">alpha</span><span class="p">)</span>
+            <span class="n">y</span> <span class="o">=</span> <span class="n">distr</span><span class="o">.</span><span class="n">rsample</span><span class="p">(</span><span class="n">sample_shape</span><span class="p">)</span>
+            <span class="n">log_prob</span> <span class="o">=</span> <span class="n">distr</span><span class="o">.</span><span class="n">log_prob</span><span class="p">(</span><span class="n">y</span><span class="p">)</span>
+
+        <span class="c1"># scale from [0, 1] to [lb, ub]</span>
+        <span class="n">y_scaled</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">addcmul</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">loc</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="p">,</span> <span class="n">y</span><span class="p">)</span>
+
+        <span class="c1"># update log probability to reflect scaling</span>
+        <span class="n">log_prob</span> <span class="o">=</span> <span class="n">log_prob</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span><span class="o">.</span><span class="n">log</span><span class="p">()</span><span class="o">.</span><span class="n">sum</span><span class="p">()</span>
+
+        <span class="c1"># NOTE: we could return the mean of alpha and beta as stats, but I think they should at</span>
+        <span class="c1"># least be investigated for each action dimension independently</span>
+        <span class="k">return</span> <span class="n">y_scaled</span><span class="p">,</span> <span class="n">log_prob</span><span class="p">,</span> <span class="p">{}</span></div>
+
+
+<div class="viewcode-block" id="ModeConcentrationBeta.parameter_size">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.ModeConcentrationBeta.parameter_size">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">parameter_size</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">output_dim</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="o">...</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="n">output_dim</span><span class="p">,</span> <span class="n">output_dim</span></div>
+
+
+<div class="viewcode-block" id="ModeConcentrationBeta.inverse">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html#leap_c.torch.nn.bounded_distributions.ModeConcentrationBeta.inverse">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">inverse</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">x</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Apply the inverse transformation from `[lb, ub]` to `[0, 1]`.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            x: The input tensor.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            The inverse scaled tensor.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">return</span> <span class="p">(</span><span class="n">x</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">loc</span><span class="p">)</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">scale</span></div>
+</div>
+
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2025-2026, Dirk, Jasper, Leonard
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../../_static/documentation_options.js?v=cb975c41"></script>
+    <script src="../../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../_static/scripts/furo.js?v=5fa4622c"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
+window.addEventListener("load", () => mermaid.run());
+</script>
+    </body>
+</html>

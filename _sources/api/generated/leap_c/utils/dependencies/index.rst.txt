@@ -1,0 +1,28 @@
+leap_c.utils.dependencies
+=========================
+
+.. py:module:: leap_c.utils.dependencies
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.utils.dependencies.require_jax
+   leap_c.utils.dependencies.require_torch
+
+
+Module Contents
+---------------
+
+.. py:function:: require_jax() -> types.ModuleType
+
+   Import jax lazily and cache it for helpers that require it.
+
+
+.. py:function:: require_torch() -> types.ModuleType
+
+   Import torch lazily and cache it for helpers that require it.
+
+

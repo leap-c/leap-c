@@ -1,0 +1,154 @@
+leap_c.examples.chain.planner
+=============================
+
+.. py:module:: leap_c.examples.chain.planner
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.examples.chain.planner.ChainPlanner
+   leap_c.examples.chain.planner.ChainPlannerConfig
+
+
+Module Contents
+---------------
+
+.. py:class:: ChainPlanner(cfg: ChainPlannerConfig | None = None, export_directory: pathlib.Path | None = None)
+
+   Bases: :py:obj:`leap_c.planner.ParameterizedPlanner`\ [\ :py:obj:`leap_c.ocp.acados.torch.AcadosDiffMpcCtx`\ ]
+
+
+   Acados-based planner for the hanging `Chain` system.
+
+   The state and action correspond to the observation and action of the `Chain` environment. The
+   cost function takes the form of a weighted least-squares cost on the full state and action and
+   the dynamics correspond to the simulated ODE also found in the `Chain` environment (using RK4).
+   The inequality constraints are box constraints on the action.
+
+   :ivar cfg: A configuration object containing high-level settings for the MPC problem,
+              such as horizon length.
+
+
+
+   .. py:method:: default_param(obs: numpy.ndarray | torch.Tensor | None = None) -> dict[str, numpy.ndarray]
+
+      Provides a default parameter configuration for the planner.
+
+      :param obs: Observation input to the planner (e.g., state vector), used to
+                  condition the default parameters. Can be `None` if not needed.
+      :type obs: array, optional
+
+      :returns: A default parameter array matching the expected shape of `param` in `forward`.
+      :rtype: array
+
+
+
+   .. py:method:: forward(obs: torch.Tensor, action: torch.Tensor | None = None, params: dict[str, torch.Tensor | numpy.ndarray] | None = None, ctx: leap_c.ocp.acados.torch.AcadosDiffMpcCtx | None = None)
+
+      Computes state and control trajectories from an observation.
+
+      State and control trajectories are computation can be given optional initial
+      action, parameters, and internal context.
+
+      :param obs: Initial observation input to the planner (e.g., state vector).
+      :type obs: Tensor
+      :param action: Optional initial action.
+      :type action: Tensor, optional
+      :param params: Parameters that define the behavior of the planner, matching
+                     :attr:`param_space`.
+      :param ctx: Optional internal context passed between invocations.
+      :type ctx: CtxType, optional
+
+      :returns:
+
+                - ctx (CtxType): A context object containing any intermediate values needed
+                  for backward computation and further invocations.
+                - u0 (Tensor, optional): The computed initial control action. Is ``None`` if
+                  the action is already provided.
+                - x (Tensor): The computed sequence of states. Expected shape ``(N+1, *state_dims)``.
+                - u (Tensor): The computed sequence of controls. Expected shape ``(N, *control_dims)``.
+                - value (Tensor): The cost value of the computed trajectory.
+      :rtype: A tuple ``(ctx, u0, x, u, value)`` where
+
+
+
+   .. py:attribute:: cfg
+      :type:  ChainPlannerConfig
+
+
+   .. py:attribute:: collate_fn_map
+
+
+   .. py:attribute:: diff_mpc
+
+
+   .. py:attribute:: param_manager
+
+
+.. py:class:: ChainPlannerConfig
+
+   Configuration for the Chain planner.
+
+   :ivar N_horizon: The number of steps in the MPC horizon.
+                    The MPC will have N+1 nodes (the nodes 0...N-1 and the terminal
+                    node N).
+   :ivar T_horizon: The duration of the MPC horizon. One step during planning
+                    will equal T_horizon/N_horizon simulation time.
+   :ivar n_mass: The number of masses in the chain.
+   :ivar discount_factor: discount factor along the MPC horizon.
+                          If `None`, it defaults to the behavior of `AcadosOcpOptions.cost_scaling`.
+   :ivar n_batch_init: Initially supported batch size of the batch OCP solver.
+                       Using larger batches will trigger a delay for the creation of more solvers.
+                       If `None`, a default value is used.
+   :ivar num_threads_batch_solver: Number of parallel threads to use for the batch OCP solver.
+                                   If `None`, a default value is used.
+   :ivar dtype: Type the planner output tensors will automatically be cast to. If `None`, PyTorch
+                default dtype is used.
+
+
+
+   .. py:attribute:: N_horizon
+      :type:  int
+      :value: 20
+
+
+
+   .. py:attribute:: T_horizon
+      :type:  float
+      :value: 0.25
+
+
+
+   .. py:attribute:: discount_factor
+      :type:  float | None
+      :value: None
+
+
+
+   .. py:attribute:: dtype
+      :type:  torch.dtype | None
+      :value: None
+
+
+
+   .. py:attribute:: n_batch_init
+      :type:  int | None
+      :value: None
+
+
+
+   .. py:attribute:: n_mass
+      :type:  int
+      :value: 5
+
+
+
+   .. py:attribute:: num_threads_batch_solver
+      :type:  int | None
+      :value: None
+
+
+

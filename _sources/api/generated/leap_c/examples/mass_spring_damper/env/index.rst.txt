@@ -1,0 +1,304 @@
+leap_c.examples.mass_spring_damper.env
+======================================
+
+.. py:module:: leap_c.examples.mass_spring_damper.env
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.examples.mass_spring_damper.env.env
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.examples.mass_spring_damper.env.MassSpringDamperEnv
+   leap_c.examples.mass_spring_damper.env.MassSpringDamperEnvConfig
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.examples.mass_spring_damper.env.plot_optimal_value_and_policy
+
+
+Module Contents
+---------------
+
+.. py:class:: MassSpringDamperEnv(render_mode: str | None = None, cfg: MassSpringDamperEnvConfig | None = None)
+
+   Bases: :py:obj:`leap_c.examples.utils.matplotlib_env.MatplotlibRenderEnv`
+
+
+   A simple 1D mass-spring-damper environment with position and velocity states.
+
+   The dynamics, observation space, action space, reward, and termination are
+   described below::
+
+       The dynamics follow a discrete-time mass-spring-damper system:
+       ```
+           x[k+1] = x[k] + dt * v[k]
+           v[k+1] = v[k] + dt * (F[k]/m - (b/m)*v[k] - (k/m)*x[k])
+       ```
+
+       where `m` is mass, `b` is damping coefficient, and `k` is spring stiffness.
+
+       Observation Space:
+       ------------------
+       The observation is a `ndarray` with shape `(2,)` and dtype `np.float32` representing:
+       | Num | Observation         | Min        | Max        |
+       |-----|---------------------|------------|------------|
+       | 0   | position (x)        | x_min      | x_max      |
+       | 1   | velocity (v)        | v_min      | v_max      |
+
+       Action Space:
+       -------------
+       The action is a `ndarray` with shape `(1,)` and dtype `np.float32`
+       representing the applied force, bounded by `[F_min, F_max]`.
+
+       Reward:
+       -------
+       The reward is the negative mass-spring-damper cost:
+       ```
+           r = -(x^T Q x + u^T R u)
+       ```
+       where `Q` and `R` are the state and control cost matrices.
+
+       Termination:
+       ------------
+       The episode terminates if:
+       - The agent leaves the allowed state space (position or velocity out of bounds)
+
+       Truncation:
+       -----------
+       The episode is truncated if the maximum time is exceeded.
+
+       Info:
+       -----
+       The info dictionary contains:
+       - `"task"`: {`"violation"`: bool, `"success"`: bool}
+         - violation: True if out of bounds
+         - success: True if close to origin with low velocity
+
+   :ivar cfg: Configuration object for the environment.
+   :ivar observation_space: The observation space of the environment.
+   :ivar action_space: The action space of the environment.
+   :ivar A: State transition matrix `(2x2)`.
+   :ivar B: Control input matrix `(2x1)`.
+   :ivar state: Current state `[x, v]`.
+   :ivar time: Elapsed time in the current episode.
+   :ivar trajectory: List of states visited during the episode (used in rendering).
+   :ivar trajectory_x_plot: Line object for position trajectory.
+   :ivar trajectory_v_plot: Line object for velocity trajectory.
+   :ivar action_plot: Line object for action trajectory.
+
+
+
+   .. py:method:: reset(*, seed: int | None = None, options: dict | None = None) -> tuple[numpy.ndarray, dict]
+
+      Reset the environment to an initial state.
+
+      :param seed: Random seed for reproducibility.
+      :param options: Additional reset options.
+                      - "mode": `"train"` samples from a wider range, otherwise samples near origin.
+
+      :returns:     - observation: Initial observation `[x, v]`.
+                    - info: Empty dictionary.
+      :rtype: Tuple containing
+
+
+
+   .. py:method:: step(action: numpy.ndarray) -> tuple[numpy.ndarray, float, bool, bool, dict]
+
+      Execute one time step within the environment.
+
+      :param action: Control input (force).
+
+      :returns:     - observation: Next observation `[x, v]`.
+                    - reward: Reward for this step (negative mass-spring-damper cost).
+                    - terminated: Whether the episode terminated.
+                    - truncated: Whether the episode was truncated.
+                    - info: Dictionary with task information.
+      :rtype: Tuple containing
+
+
+
+   .. py:attribute:: A
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: B
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: action_plot
+      :type:  matplotlib.lines.Line2D | None
+
+
+   .. py:attribute:: action_space
+      :type:  gymnasium.spaces.Box
+
+
+   .. py:attribute:: actions
+      :type:  list[numpy.ndarray]
+
+
+   .. py:attribute:: cfg
+      :type:  MassSpringDamperEnvConfig
+
+
+   .. py:attribute:: metadata
+
+
+   .. py:attribute:: observation_space
+      :type:  gymnasium.spaces.Box
+
+
+   .. py:attribute:: state
+      :type:  numpy.ndarray | None
+
+
+   .. py:attribute:: time
+      :type:  float
+
+
+   .. py:attribute:: trajectory
+      :type:  list[numpy.ndarray]
+
+
+   .. py:attribute:: trajectory_v_plot
+      :type:  matplotlib.lines.Line2D | None
+
+
+   .. py:attribute:: trajectory_x_plot
+      :type:  matplotlib.lines.Line2D | None
+
+
+.. py:class:: MassSpringDamperEnvConfig
+
+   Configuration for the MassSpringDamper environment.
+
+   :ivar dt: Time step in seconds.
+   :ivar q_diag_sqrt: Square root of diagonal `Q` matrix elements.
+   :ivar r_diag_sqrt: Square root of diagonal `R` matrix elements.
+   :ivar x_min: Minimum position.
+   :ivar x_max: Maximum position.
+   :ivar v_min: Minimum velocity.
+   :ivar v_max: Maximum velocity.
+   :ivar F_min: Minimum force.
+   :ivar F_max: Maximum force.
+   :ivar max_time: Maximum time for an episode in seconds.
+   :ivar mass: Mass of the system (kg).
+   :ivar damping: Damping coefficient (Ns/m).
+   :ivar stiffness: Spring stiffness coefficient (N/m).
+
+
+
+   .. py:attribute:: F_max
+      :type:  float
+      :value: 0.5
+
+
+
+   .. py:attribute:: F_min
+      :type:  float
+      :value: -0.5
+
+
+
+   .. py:attribute:: damping
+      :type:  float
+      :value: 0.1
+
+
+
+   .. py:attribute:: dt
+      :type:  float
+      :value: 0.1
+
+
+
+   .. py:attribute:: mass
+      :type:  float
+      :value: 1.0
+
+
+
+   .. py:attribute:: max_time
+      :type:  float
+      :value: 5.0
+
+
+
+   .. py:attribute:: q_diag_sqrt
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: r_diag_sqrt
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: stiffness
+      :type:  float
+      :value: 0.5
+
+
+
+   .. py:attribute:: v_max
+      :type:  float
+      :value: 2.0
+
+
+
+   .. py:attribute:: v_min
+      :type:  float
+      :value: -2.0
+
+
+
+   .. py:attribute:: x_max
+      :type:  float
+      :value: 2.0
+
+
+
+   .. py:attribute:: x_min
+      :type:  float
+      :value: -2.0
+
+
+
+.. py:function:: plot_optimal_value_and_policy(env: MassSpringDamperEnv | None = None, A: numpy.ndarray | None = None, B: numpy.ndarray | None = None, Q: numpy.ndarray | None = None, R: numpy.ndarray | None = None, x_min: float = -2.0, x_max: float = 2.0, v_min: float = -2.0, v_max: float = 2.0, n_points: int = 101) -> tuple[matplotlib.pyplot.Figure, numpy.ndarray]
+
+   Plot heatmaps of the optimal mass-spring-damper value function and policy.
+
+   This function solves the discrete-time algebraic Riccati equation (DARE)
+   to compute the optimal value function `V(x) = x^T P x` and the optimal
+   policy `u*(x) = -K x`, then visualizes them as 2D heatmaps.
+
+   :param env: MassSpringDamper environment to extract matrices from.
+               If `None`, must provide `A`, `B`, `Q`, `R`.
+   :param A: State transition matrix `(2x2)`. If `None`, extracted from `env`.
+   :param B: Control input matrix `(2x1)`. If `None`, extracted from `env`.
+   :param Q: State cost matrix `(2x2)`. If `None`, extracted from `env`.
+   :param R: Control cost matrix `(1x1)`. If `None`, extracted from `env`.
+   :param x_min: Minimum position value for the grid.
+   :param x_max: Maximum position value for the grid.
+   :param v_min: Minimum velocity value for the grid.
+   :param v_max: Maximum velocity value for the grid.
+   :param n_points: Number of grid points in each dimension.
+
+   :returns: Tuple of (figure, axes) containing the heatmap plots.
+
+   :raises ValueError: If neither `env` nor all matrices (`A`, `B`, `Q`, `R`) are provided.
+
+
+.. py:data:: env
+

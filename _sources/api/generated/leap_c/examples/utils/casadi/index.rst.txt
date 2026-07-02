@@ -1,0 +1,30 @@
+leap_c.examples.utils.casadi
+============================
+
+.. py:module:: leap_c.examples.utils.casadi
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.examples.utils.casadi.integrate_erk4
+
+
+Module Contents
+---------------
+
+.. py:function:: integrate_erk4(f_expl: casadi.SX, x: casadi.SX, u: casadi.SX, p: casadi.SX, dt: float) -> casadi.SX
+
+   Integrate dynamics using the explicit RK4 method.
+
+   :param f_expl: The explicit dynamics function.
+   :param x: The state vector.
+   :param u: The control input vector.
+   :param p: The parameter vector.
+   :param dt: The time step for integration.
+
+   :returns: The updated state vector after integration.
+
+

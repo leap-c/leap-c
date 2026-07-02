@@ -1,0 +1,35 @@
+leap_c.utils.cfg
+================
+
+.. py:module:: leap_c.utils.cfg
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.utils.cfg.cfg_as_python
+   leap_c.utils.cfg.update_dataclass_from_dict
+
+
+Module Contents
+---------------
+
+.. py:function:: cfg_as_python(obj: Any, root_name: str = 'cfg') -> str
+
+   Prints a dataclass as a Python script.
+
+   We assume that each node in the dataclass has a default value.
+
+   :param obj: The dataclass object to print.
+   :param root_name: The name of the root variable in the output.
+
+   :returns: A string representing the dataclass as a Python script.
+
+
+.. py:function:: update_dataclass_from_dict(dataclass_instance, update_dict)
+
+   Recursively update a dataclass instance with values from a dictionary.
+
+

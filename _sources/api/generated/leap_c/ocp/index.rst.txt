@@ -1,0 +1,15 @@
+leap_c.ocp
+==========
+
+.. py:module:: leap_c.ocp
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /api/generated/leap_c/ocp/acados/index
+
+

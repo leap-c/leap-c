@@ -1,0 +1,315 @@
+leap_c.trainer
+==============
+
+.. py:module:: leap_c.trainer
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.trainer.TrainerConfigType
+   leap_c.trainer.ValReportScoreOptions
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.trainer.Trainer
+   leap_c.trainer.TrainerConfig
+   leap_c.trainer.TrainerState
+
+
+Module Contents
+---------------
+
+.. py:class:: Trainer(cfg: TrainerConfigType, eval_env: gymnasium.Env | None, output_path: str | pathlib.Path, device: int | str | torch.device, wrappers: list[leap_c.utils.gym.WrapperType] | None = None)
+
+   Bases: :py:obj:`abc.ABC`, :py:obj:`torch.nn.Module`, :py:obj:`Generic`\ [\ :py:obj:`TrainerConfigType`\ , :py:obj:`leap_c.controller.CtxType`\ ]
+
+
+   A trainer provides the implementation of an algorithm.
+
+   It is responsible for training the components of the algorithm and
+   for interacting with the environment.
+
+   :ivar cfg: The configuration for the trainer.
+   :ivar output_path: The path to the output directory.
+   :ivar eval_env: The evaluation/validation environment.
+   :ivar state: The state of the trainer.
+   :ivar device: The device on which the trainer is running.
+   :ivar logger: The logger for the trainer.
+
+
+
+   .. py:method:: act(obs: numpy.ndarray, deterministic: bool = False, state: leap_c.controller.CtxType | None = None) -> tuple[numpy.ndarray, leap_c.controller.CtxType | None, dict[str, float] | None]
+      :abstractmethod:
+
+
+      Act based on the observation.
+
+      This is intended for rollouts (= interaction with the environment).
+
+      :param obs: The observation for which the action should be determined.
+      :type obs: Any
+      :param deterministic: If `True`, the action is drawn deterministically.
+      :type deterministic: bool
+      :param state: The state of the policy. Useful, if, e.g., the policy is recurrent or includes
+                    an MPC planner which might want to pass warmstarting information.
+                    Note, that at the start of an episode, the state is assumed to be `None`.
+
+      :returns: The action, the state of the policy and potential solving stats.
+
+
+
+   .. py:method:: load(path: str | pathlib.Path) -> None
+
+      Loads the state of a trainer from disk.
+
+      :param path: The path to the checkpoint folder.
+
+
+
+   .. py:method:: periodic_ckpt_modules() -> list[str]
+
+      Returns the modules that should be checkpointed periodically.
+
+      This is used for example for tracking policy parameters over time.
+
+
+
+   .. py:method:: report_stats(group: str, stats: dict[str, float | numpy.ndarray], verbose: bool = False, with_smoothing: bool = True) -> None
+
+      Report the statistics of the training loop.
+
+      If the statistics are a numpy array, the array is split into multiple
+      statistics of the form `"key_{i}"`.
+
+      :param group: The group of the statistics.
+      :param stats: The statistics to be reported.
+      :param verbose: If `True`, the statistics will only be logged in verbosity mode.
+      :param with_smoothing: If `True`, the statistics are smoothed with a moving window.
+                             This also results in the statistics being only reported at specific
+                             intervals.
+
+
+
+   .. py:method:: run() -> float
+
+      Runs the training loop.
+
+      If no evaluation environment is provided, the training loop is run without evaluation.
+
+      :returns: The reported score based on `cfg.val_report_score` or the cummulative train score.
+
+
+
+   .. py:method:: save(path: str | pathlib.Path | None = None) -> None
+
+      Save the trainer state in a checkpoint folder.
+
+      If the path is `None`, the checkpoint is saved in the output path of the trainer. The
+      `state_dict` is split into different parts. For example if the trainer has as submodule
+      `"pi"` and `"q"`, the `state_dict` is saved separately as `"pi.ckpt"` and `"q.ckpt"`.
+      Additionally, the optimizers are saved as `"optimizers.ckpt"` and the trainer state is saved
+      as `"trainer_state.ckpt"`.
+
+      :param path: The folder where to save the checkpoint.
+
+
+
+   .. py:method:: singleton_ckpt_modules() -> list[str]
+
+      Returns the modules that should be checkpointed only once.
+
+      Replay Buffers often should not be stored multiple times as there is overlap.
+
+
+
+   .. py:method:: train_loop() -> Generator[tuple[int, float], None, None]
+      :abstractmethod:
+
+
+      The main training loop.
+
+      For simplicity, we use an Iterator here, to make the training loop as simple as
+      possible. To make your own code compatible use the yield statement to return the
+      number of steps your train loop did. If yield does not always return `1`, the validation
+      might be performed not exactly at the specified interval.
+
+      :Yields: The number of steps the training loop did.
+               The training score over these steps.
+
+
+
+   .. py:method:: validate() -> float
+
+      Validate the policy on the validation environment.
+
+      The validation runs the policy deterministically and returns the mean of the cumulative
+      reward over all validation episodes.
+
+      :returns: The mean return over all validation episodes.
+
+      .. note::
+
+         This method neither sets the trainer to eval mode nor disables gradient computations. It
+         is the caller's responsibility to do so via `trainer.eval()` as well as `torch.no_grad`
+         or `torch.inference_mode` context managers.
+
+
+
+   .. py:attribute:: cfg
+      :type:  TrainerConfigType
+
+
+   .. py:attribute:: device
+      :type:  torch.device
+
+
+   .. py:attribute:: eval_env
+      :type:  gymnasium.Env | None
+
+
+   .. py:attribute:: logger
+      :type:  leap_c.utils.logger.Logger
+
+
+   .. py:property:: optimizers
+      :type: list[torch.optim.Optimizer]
+
+
+      If provided, optimizers are also checkpointed.
+
+
+   .. py:attribute:: output_path
+      :type:  pathlib.Path
+
+
+   .. py:attribute:: rng
+
+
+   .. py:attribute:: state
+      :type:  TrainerState
+
+
+.. py:class:: TrainerConfig
+
+   Contains the necessary information for the training loop.
+
+   :param seed: The seed for the training.
+   :param train_steps: The number of steps in the training loop.
+   :param train_start: The number of training steps before training starts (e.g., to collect some data
+                       first).
+   :param val_freq: The frequency (in steps) at which validation episodes will be run.
+   :param val_num_rollouts: The number of episode rollouts during validation.
+   :param val_deterministic: If True, the policy will act deterministically during validation.
+   :param val_render_mode: The mode in which the episodes will be rendered.
+   :param val_report_score: Whether to report the cummulative score,
+                            the final evaluation score or the best evaluation score of the validation rollouts.
+   :param ckpt_modus: Models are potentially saved after each validation. This controls which of the
+                      models to save:
+                      - `"best"`: only the best model according to the validation score is saved
+                      - `"last"`: only the model of the last validation is saved
+                      - `"all"`: the models of every validation are saved
+                      - `"none"`: no models are saved.
+   :param log: The configuration for the logger.
+
+
+   .. py:attribute:: ckpt_modus
+      :type:  Literal['best', 'last', 'all', 'none']
+      :value: 'best'
+
+
+
+   .. py:attribute:: log
+      :type:  leap_c.utils.logger.LoggerConfig
+
+
+   .. py:attribute:: seed
+      :type:  int
+      :value: 0
+
+
+
+   .. py:attribute:: train_start
+      :type:  int
+      :value: 0
+
+
+
+   .. py:attribute:: train_steps
+      :type:  int
+      :value: 100000
+
+
+
+   .. py:attribute:: val_deterministic
+      :type:  bool
+      :value: True
+
+
+
+   .. py:attribute:: val_freq
+      :type:  int
+      :value: 10000
+
+
+
+   .. py:attribute:: val_num_render_rollouts
+      :type:  int
+      :value: 1
+
+
+
+   .. py:attribute:: val_num_rollouts
+      :type:  int
+      :value: 10
+
+
+
+   .. py:attribute:: val_render_mode
+      :type:  str | None
+      :value: 'rgb_array'
+
+
+
+   .. py:attribute:: val_report_score
+      :type:  ValReportScoreOptions
+      :value: 'cum'
+
+
+
+.. py:class:: TrainerState
+
+   The state of a trainer.
+
+   :ivar step: The current step of the training loop.
+   :ivar scores: A list containing the scores of the validation episodes.
+   :ivar max_score: The maximum score of the validation episodes.
+
+
+
+   .. py:attribute:: max_score
+      :type:  float
+
+
+   .. py:attribute:: scores
+      :type:  list[float]
+      :value: []
+
+
+
+   .. py:attribute:: step
+      :type:  int
+      :value: 0
+
+
+
+.. py:data:: TrainerConfigType
+
+.. py:data:: ValReportScoreOptions
+

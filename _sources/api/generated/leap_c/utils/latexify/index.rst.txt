@@ -1,0 +1,33 @@
+leap_c.utils.latexify
+=====================
+
+.. py:module:: leap_c.utils.latexify
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.utils.latexify.latex_plot_context
+
+
+Module Contents
+---------------
+
+.. py:function:: latex_plot_context(**kw: Any) -> Iterator[None]
+
+   A context manager that temporarily applies LaTeX-style settings to Matplotlib plots.
+
+   :param \*\*kw: Any additional Matplotlib rcParams to override the LaTeX defaults.
+
+   Automatically disables 'text.usetex' if LaTeX is not available in PATH.
+
+   Usage:
+       with latex_plot_context():
+           # LaTeX-styled plot
+
+       with latex_plot_context(font_size=14, axes_titlesize=16):
+           # override some defaults
+
+

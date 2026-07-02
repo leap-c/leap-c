@@ -1,0 +1,169 @@
+leap_c.utils.logger
+===================
+
+.. py:module:: leap_c.utils.logger
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.utils.logger.GroupCumulativeTracker
+   leap_c.utils.logger.GroupWindowTracker
+   leap_c.utils.logger.Logger
+   leap_c.utils.logger.LoggerConfig
+
+
+Module Contents
+---------------
+
+.. py:class:: GroupCumulativeTracker(interval: int)
+
+   A simple cumulative statistics tracker.
+
+   This tracker accumulates statistics over time and provides cumulative values.
+   When `update` is called, the statistics are added to the running totals.
+   Reports are yielded at each interval boundary (like regret curves).
+
+   Reports at interval 0 (first interval boundary at timestamp `interval - 1`).
+
+
+   .. py:method:: update(timestamp: int, stats: dict[str, float]) -> collections.abc.Generator[tuple[int, dict[str, float]], None, None]
+
+      Add statistics to the tracker and yield reports at interval boundaries.
+
+      This method adds the statistics to the cumulative tracker. If the timestamp
+      crosses one or more interval boundaries since the last report, it yields
+      the cumulative statistics for each crossed boundary.
+
+      :param timestamp: The timestamp of the statistics.
+      :param stats: The statistics to be added.
+
+      :Yields: Tuples of (report_timestamp, cumulative_stats) for each interval boundary.
+
+
+
+.. py:class:: GroupWindowTracker(interval: int, window_size: int)
+
+   A moving window statistics tracker for smoothing metrics.
+
+   This tracker maintains a sliding window of statistics and computes moving
+   averages over the window. Statistics are reported at fixed interval boundaries,
+   with each report containing the average of all values within the window.
+
+   This is useful for reducing noise in high-frequency metrics like losses or
+   rewards during training and reducing the number of logged entries.
+
+
+   .. py:method:: update(timestamp: int, stats: dict[str, float]) -> collections.abc.Generator[tuple[int, dict[str, float]], None, None]
+
+      Add timestamp and statistics to the tracker.
+
+      This method adds the timestamp and statistics to the tracker. If the
+      statistics are larger than the window size, the oldest statistics are
+      removed. The statistics are smoothed with a moving window, if an
+      interval is passed. This method might report multiple statistics at once.
+
+      :param timestamp: The timestamp of the statistics.
+      :param stats: The statistics to be added.
+
+      :returns: `None` if the statistics are not ready to be reported, or a tuple of report timestamps
+                and statistics.
+
+
+
+.. py:class:: Logger(cfg: LoggerConfig, output_path: str | pathlib.Path)
+
+   A simple logger for statistics.
+
+   This logger can write statistics to CSV, TensorBoard, and Weights & Biases.
+
+   # TODO (Jasper): Logging statistics to the console.
+
+   :ivar cfg: The configuration for the logger.
+   :ivar output_path: The path to save the logs.
+   :ivar window_trackers: A dictionary of window trackers for smoothing statistics.
+   :ivar cumulative_trackers: A dictionary of cumulative trackers for regret-style metrics.
+
+
+
+   .. py:attribute:: cfg
+      :type:  LoggerConfig
+
+
+   .. py:attribute:: cumulative_trackers
+      :type:  dict[str, GroupCumulativeTracker]
+
+
+   .. py:attribute:: output_path
+      :type:  pathlib.Path
+
+
+   .. py:attribute:: window_trackers
+      :type:  dict[str, GroupWindowTracker]
+
+
+.. py:class:: LoggerConfig
+
+   Contains the necessary information for logging.
+
+   :param verbose: If `True`, the logger will collect also verbose statistics.
+   :param interval: The interval at which statistics will be logged (in steps).
+   :param window: The moving window size for the smoothed statistics (in steps).
+   :param csv_logger: If `True`, the statistics will be logged to a CSV file.
+   :param tensorboard_logger: If `True`, the statistics will be logged to TensorBoard.
+   :param wandb_logger: If `True`, the statistics will be logged to Weights & Biases.
+   :param wandb_init_kwargs: The kwargs to pass to wandb.init. If `"dir"` is not specified, it is set
+                             to `output_path / "wandb"`.
+   :param cumulative_metrics: A list of metrics that should be tracked cumulatively.
+                              These metrics are summed up over time (e.g., "money_spent", "energy_consumption").
+                              Metrics not in this list are treated as instantaneous or smoothed/averaged.
+
+
+   .. py:attribute:: csv_logger
+      :type:  bool
+      :value: True
+
+
+
+   .. py:attribute:: cumulative_metrics
+      :type:  list[str]
+      :value: []
+
+
+
+   .. py:attribute:: interval
+      :type:  int
+      :value: 1000
+
+
+
+   .. py:attribute:: tensorboard_logger
+      :type:  bool
+      :value: True
+
+
+
+   .. py:attribute:: verbose
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: wandb_init_kwargs
+      :type:  dict[str, Any]
+
+
+   .. py:attribute:: wandb_logger
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: window
+      :type:  int
+      :value: 10000
+
+
+

@@ -1,0 +1,130 @@
+leap_c.torch.rl.buffer
+======================
+
+.. py:module:: leap_c.torch.rl.buffer
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.torch.rl.buffer.ReplayBuffer
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.torch.rl.buffer.collate_dict_to_tensordict
+   leap_c.torch.rl.buffer.pytree_tensor_to
+
+
+Module Contents
+---------------
+
+.. py:class:: ReplayBuffer(buffer_limit: int, device: int | str | torch.device | None = None, tensor_dtype: torch.dtype | None = None, collate_fn_map: dict[tuple | tuple[type, Ellipsis], Callable] | None = None)
+
+   Bases: :py:obj:`torch.nn.Module`
+
+
+   Replay buffer for storing transitions.
+
+   The replay buffer is a `deque` that stores transitions in a FIFO manner. The buffer has a
+   maximum size, and when the buffer is full, the oldest transitions are discarded when appending a
+   new one.
+
+   :ivar buffer: A deque that stores the transitions.
+   :ivar device: The device to which all sampled tensors will be cast.
+   :ivar collate_fn_map: The collate function map that informs the buffer how to form batches.
+                         For more information, please refer to the official pytorch documentation, e.g.,
+                         https://docs.pytorch.org/docs/stable/data.html#torch.utils.data.default_collate .
+   :ivar tensor_dtype: The data type to which the tensors will be cast.
+
+
+
+   .. py:method:: collate(batch: Any) -> Any
+
+      Collate a batch of data according to the collate function map.
+
+      After collating, move and cast all tensors in the
+      collated batch (must be a pytree structure).
+
+      :param batch: The batch of data to collate.
+
+      :returns: The collated batch.
+
+
+
+   .. py:method:: get_extra_state() -> dict
+
+      State of the replay buffer.
+
+      This interface is used by `state_dict` and `load_state_dict` of `nn.Module`.
+
+
+
+   .. py:method:: put(data: Any) -> None
+
+      Put the data into the replay buffer. If the buffer is full, the oldest data is discarded.
+
+      :param data: The data to put into the buffer.
+                   It should be collatable according to the `collate` function.
+
+
+
+   .. py:method:: sample(n: int) -> Any
+
+      Sample a mini-batch from the replay buffer, and collate it.
+
+      The collate is according to the `collate` function of this class.
+
+      :param n: The number of samples to draw.
+
+
+
+   .. py:method:: set_extra_state(state: dict) -> None
+
+      Set the state dict of the replay buffer.
+
+      This interface is used by `state_dict` and `load_state_dict` of `nn.Module`.
+
+      :param state: The state dict to set.
+
+
+
+   .. py:attribute:: buffer
+      :type:  collections.deque
+
+
+   .. py:attribute:: collate_fn_map
+      :type:  dict[tuple | tuple[type, Ellipsis], Callable]
+
+
+   .. py:attribute:: device
+      :type:  torch.device
+
+
+   .. py:attribute:: tensor_dtype
+      :type:  torch.dtype
+
+
+.. py:function:: collate_dict_to_tensordict(batch: list, *, collate_fn_map=None) -> tensordict.TensorDict
+
+   Collate a batch of dicts into a `TensorDict`.
+
+   This custom collation handler converts `dict` observations to `TensorDict` automatically during
+   batch collation, enabling proper batching of `dict` observations in the replay buffer.
+
+   :param batch: A list of dictionaries to collate.
+   :param collate_fn_map: The collate function map (ignored, kept for compatibility).
+
+   :returns: A `TensorDict` with collated data and `batch_size=[len(batch)]`.
+
+
+.. py:function:: pytree_tensor_to(pytree: Any, device: int | str | torch.device, tensor_dtype: torch.dtype) -> Any
+
+   Convert tensors in the pytree to tensor_dtype and move them to device.
+
+

@@ -1,0 +1,48 @@
+leap_c.examples.chain.utils.ellipsoid
+=====================================
+
+.. py:module:: leap_c.examples.chain.utils.ellipsoid
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.examples.chain.utils.ellipsoid.Ellipsoid
+
+
+Module Contents
+---------------
+
+.. py:class:: Ellipsoid(center: numpy.ndarray, radii: numpy.ndarray, seed: int = 0)
+
+   .. py:method:: plot_points(points: numpy.ndarray) -> matplotlib.pyplot.Figure
+
+
+   .. py:method:: plot_surface() -> matplotlib.pyplot.Figure
+
+
+   .. py:method:: sample_within_range(phi_range: list[float, float], theta_range: list[float, float], size: int) -> numpy.ndarray
+
+
+   .. py:method:: spherical_to_cartesian(phi: numpy.ndarray | float, theta: numpy.ndarray | float) -> numpy.ndarray
+
+
+   .. py:attribute:: center
+
+
+   .. py:attribute:: radii
+
+
+   .. py:attribute:: rng
+
+
+   .. py:attribute:: seed
+      :value: 0
+
+
+
+   .. py:attribute:: surface
+
+

@@ -1,0 +1,151 @@
+leap_c.run
+==========
+
+.. py:module:: leap_c.run
+
+.. autoapi-nested-parse::
+
+   Module for running experiments.
+
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.run.OUTPUT_DIR
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.run.add_common_args
+   leap_c.run.default_ckpt_modus
+   leap_c.run.default_controller_code_path
+   leap_c.run.default_name
+   leap_c.run.default_output_path
+   leap_c.run.init_run
+   leap_c.run.resolve_output_path
+   leap_c.run.resolve_reuse_code_dir
+   leap_c.run.setup_wandb
+   leap_c.run.validate_torch_device_arg
+   leap_c.run.validate_torch_dtype_arg
+
+
+Module Contents
+---------------
+
+.. py:function:: add_common_args(parser: argparse.ArgumentParser, *, has_controller: bool, has_with_val: bool, wandb_group_default: str) -> dict[str, Any]
+
+   Add common command-line arguments shared across run scripts.
+
+   :param parser: The argument parser to add arguments to.
+   :param has_controller: Whether to add controller-related args (--controller, --reuse-code*).
+   :param has_with_val: Whether to add validation-related args (--with-val, --ckpt-modus).
+   :param wandb_group_default: Default value for --wandb-group.
+
+   :returns: A dict mapping group names ("run", "eval", "wandb") to the argument groups,
+             so the caller can add script-specific args to the same groups.
+
+
+.. py:function:: default_ckpt_modus(args: argparse.Namespace) -> Literal['best', 'last', 'all', 'none']
+
+   Return the checkpoint mode, defaulting based on --with-val.
+
+   :param args: Parsed argparse namespace with `ckpt_modus` and `with_val` attributes.
+
+   :returns: The resolved checkpoint mode.
+
+
+.. py:function:: default_controller_code_path() -> pathlib.Path
+
+   Returns the default path to store compiled controller code.
+
+   :returns: A `Path` to the default directory for compiled controller code.
+
+
+.. py:function:: default_name(seed: int, tags: collections.abc.Iterable[Any] | None = None) -> str
+
+   Generate a default name for the run based on the seed and optional tags.
+
+
+.. py:function:: default_output_path(seed: int, tags: collections.abc.Iterable[Any] | None = None) -> pathlib.Path
+
+   Return the default path to store experiment outputs, such as logs.
+
+   Based on the provided seed and tags, a directory name is created.
+
+   :param seed: The RNG seed used for the experiment.
+   :param tags: Optional iterable of tags to include in the directory name.
+
+   :returns: A `Path` to the default output directory.
+
+
+.. py:function:: init_run(trainer: leap_c.trainer.Trainer[leap_c.trainer.TrainerConfigType, leap_c.trainer.CtxType], cfg, output_path: str | pathlib.Path) -> None
+
+   Init function to run experiments.
+
+   If the output path already exists, the run will continue from the last checkpoint.
+
+   :param trainer: The trainer for the experiment.
+   :param cfg: The configuration that was used to create the experiment.
+   :param output_path: Path to save output to.
+
+   :returns: The final score of the trainer.
+
+
+.. py:function:: resolve_output_path(args: argparse.Namespace, tags: collections.abc.Iterable[Any] | None = None) -> pathlib.Path
+
+   Resolve the output path, using a default if not provided.
+
+   :param args: Parsed argparse namespace with `output_path` and `seed` attributes.
+   :param tags: Tags for the default output path name.
+
+   :returns: The resolved output path.
+
+
+.. py:function:: resolve_reuse_code_dir(args: argparse.Namespace) -> pathlib.Path | None
+
+   Resolve the reuse code directory from parsed args.
+
+   :param args: Parsed argparse namespace with `reuse_code` and `reuse_code_dir` attributes.
+
+   :returns: The resolved reuse code directory, or None if not reusing code.
+
+
+.. py:function:: setup_wandb(args: argparse.Namespace, cfg, tags: collections.abc.Iterable[Any] | None = None) -> None
+
+   Set up W&B logging on the config if --use-wandb is set.
+
+   :param args: Parsed argparse namespace with wandb-related attributes.
+   :param cfg: The run config dataclass with a `trainer.log` nested config.
+   :param tags: Tags for the default run name.
+
+
+.. py:function:: validate_torch_device_arg(arg: str) -> torch.device
+
+   Validate the provided string argument as a valid torch device.
+
+   :param arg: String representation of the torch device (e.g., "cpu", "cuda:0", etc.).
+
+   :returns: The corresponding torch device object for the provided string.
+
+   :raises ArgumentTypeError: If the provided value is not a valid torch device.
+
+
+.. py:function:: validate_torch_dtype_arg(arg: str) -> torch.dtype
+
+   Validate the provided string argument as a valid torch data type.
+
+   :param arg: String representation of the torch dtype (e.g., "float32", "float64", etc.).
+
+   :returns: The corresponding torch dtype object for the provided string.
+
+   :raises ArgumentTypeError: If the provided value is not a valid torch type or is not floating.
+
+
+.. py:data:: OUTPUT_DIR
+

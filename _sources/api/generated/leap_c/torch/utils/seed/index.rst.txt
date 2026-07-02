@@ -1,0 +1,53 @@
+leap_c.torch.utils.seed
+=======================
+
+.. py:module:: leap_c.torch.utils.seed
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.torch.utils.seed.MAX_SEED
+   leap_c.torch.utils.seed.RngType
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.torch.utils.seed.mk_seed
+   leap_c.torch.utils.seed.set_seed
+
+
+Module Contents
+---------------
+
+.. py:function:: mk_seed(rng: numpy.random.Generator) -> int
+
+   Generates a random seed compatible with `gymnasium.Env.reset`.
+
+   :param rng: A `numpy.random.Generator` instance.
+
+   :returns: A random integer in the range [0, 2**32).
+   :rtype: int
+
+
+.. py:function:: set_seed(seed: int) -> numpy.random.Generator
+
+   Set the seed for all random number generators.
+
+   :param seed: The seed to use.
+
+   :returns: A numpy random number generator initialized with the given seed.
+   :rtype: np.random.Generator
+
+
+.. py:data:: MAX_SEED
+
+.. py:type:: RngType
+   :canonical: int | Sequence[int] | np.random.SeedSequence | np.random.BitGenerator | np.random.Generator
+
+

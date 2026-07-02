@@ -1,0 +1,711 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../../">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../genindex.html" /><link rel="search" title="Search" href="../../../../search.html" />
+
+    <!-- Generated with Sphinx 8.2.3 and Furo 2024.08.06 -->
+        <title>leap_c.torch.rl.sac_zop - leap-c 2025 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/styles/furo-extensions.css?v=302659d7" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../../index.html"><div class="brand">leap-c 2025 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../../index.html">
+  
+  
+  <span class="sidebar-brand-text">leap-c 2025 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../define_differentiable_mpc.html">Define a differentiable MPC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../parameter_management.html">Parameter Management in Acados OCPs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../notebooks.html">Running Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../troubleshooting.html">Troubleshooting usability with VS Code</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api/index.html">Core API</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/index.html">leap_c</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of leap_c</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/autograd/index.html">leap_c.autograd</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of leap_c.autograd</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/autograd/function/index.html">leap_c.autograd.function</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/autograd/torch/index.html">leap_c.autograd.torch</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/controller/index.html">leap_c.controller</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/index.html">leap_c.examples</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of leap_c.examples</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/index.html">leap_c.examples.cartpole</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of leap_c.examples.cartpole</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/acados_ocp/index.html">leap_c.examples.cartpole.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/env/index.html">leap_c.examples.cartpole.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/planner/index.html">leap_c.examples.cartpole.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/index.html">leap_c.examples.chain</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of leap_c.examples.chain</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/acados_ocp/index.html">leap_c.examples.chain.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/dynamics/index.html">leap_c.examples.chain.dynamics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/env/index.html">leap_c.examples.chain.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/planner/index.html">leap_c.examples.chain.planner</a></li>
+<li class="toctree-l4 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/index.html">leap_c.examples.chain.utils</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of leap_c.examples.chain.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/ellipsoid/index.html">leap_c.examples.chain.utils.ellipsoid</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/plot/index.html">leap_c.examples.chain.utils.plot</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/resting_chain_solver/index.html">leap_c.examples.chain.utils.resting_chain_solver</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/index.html">leap_c.examples.mass_spring_damper</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of leap_c.examples.mass_spring_damper</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/acados_ocp/index.html">leap_c.examples.mass_spring_damper.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/env/index.html">leap_c.examples.mass_spring_damper.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/planner/index.html">leap_c.examples.mass_spring_damper.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/index.html">leap_c.examples.pointmass</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of leap_c.examples.pointmass</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/acados_ocp/index.html">leap_c.examples.pointmass.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/env/index.html">leap_c.examples.pointmass.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/planner/index.html">leap_c.examples.pointmass.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/utils/index.html">leap_c.examples.utils</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of leap_c.examples.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/utils/casadi/index.html">leap_c.examples.utils.casadi</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/utils/matplotlib_env/index.html">leap_c.examples.utils.matplotlib_env</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/index.html">leap_c.ocp</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of leap_c.ocp</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/index.html">leap_c.ocp.acados</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of leap_c.ocp.acados</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/data/index.html">leap_c.ocp.acados.data</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/diff_mpc/index.html">leap_c.ocp.acados.diff_mpc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/initializer/index.html">leap_c.ocp.acados.initializer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/parameters/index.html">leap_c.ocp.acados.parameters</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/repr/index.html">leap_c.ocp.acados.repr</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/torch/index.html">leap_c.ocp.acados.torch</a></li>
+<li class="toctree-l4 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/index.html">leap_c.ocp.acados.utils</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of leap_c.ocp.acados.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/create_solver/index.html">leap_c.ocp.acados.utils.create_solver</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/delete_directory_hook/index.html">leap_c.ocp.acados.utils.delete_directory_hook</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/prepare_solver/index.html">leap_c.ocp.acados.utils.prepare_solver</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/solve/index.html">leap_c.ocp.acados.utils.solve</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/planner/index.html">leap_c.planner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/run/index.html">leap_c.run</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/index.html">leap_c.torch</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of leap_c.torch</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/index.html">leap_c.torch.nn</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of leap_c.torch.nn</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html">leap_c.torch.nn.bounded_distributions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/extractor/index.html">leap_c.torch.nn.extractor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/mlp/index.html">leap_c.torch.nn.mlp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/scale/index.html">leap_c.torch.nn.scale</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/index.html">leap_c.torch.rl</a><input class="toctree-checkbox" id="toctree-checkbox-15" name="toctree-checkbox-15" role="switch" type="checkbox"/><label for="toctree-checkbox-15"><div class="visually-hidden">Toggle navigation of leap_c.torch.rl</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/buffer/index.html">leap_c.torch.rl.buffer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/crossq/index.html">leap_c.torch.rl.crossq</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/crossq_zop/index.html">leap_c.torch.rl.crossq_zop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/mpc_actor/index.html">leap_c.torch.rl.mpc_actor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/sac/index.html">leap_c.torch.rl.sac</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/sac_fop/index.html">leap_c.torch.rl.sac_fop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/sac_zop/index.html">leap_c.torch.rl.sac_zop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/utils/index.html">leap_c.torch.rl.utils</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/utils/index.html">leap_c.torch.utils</a><input class="toctree-checkbox" id="toctree-checkbox-16" name="toctree-checkbox-16" role="switch" type="checkbox"/><label for="toctree-checkbox-16"><div class="visually-hidden">Toggle navigation of leap_c.torch.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/utils/gym/index.html">leap_c.torch.utils.gym</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/utils/seed/index.html">leap_c.torch.utils.seed</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/trainer/index.html">leap_c.trainer</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/utils/index.html">leap_c.utils</a><input class="toctree-checkbox" id="toctree-checkbox-17" name="toctree-checkbox-17" role="switch" type="checkbox"/><label for="toctree-checkbox-17"><div class="visually-hidden">Toggle navigation of leap_c.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/cfg/index.html">leap_c.utils.cfg</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/dependencies/index.html">leap_c.utils.dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/git/index.html">leap_c.utils.git</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/gym/index.html">leap_c.utils.gym</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/latexify/index.html">leap_c.utils.latexify</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/logger/index.html">leap_c.utils.logger</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/parameters/index.html">leap_c.utils.parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/rollout/index.html">leap_c.utils.rollout</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for leap_c.torch.rl.sac_zop</h1><div class="highlight"><pre>
+<span></span><span class="sd">&quot;&quot;&quot;Provides a trainer for a SAC algorithm that sets parameters of a parameterized controller.&quot;&quot;&quot;</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">math</span><span class="w"> </span><span class="kn">import</span> <span class="n">prod</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">Generator</span><span class="p">,</span> <span class="n">Generic</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">torch.nn</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">nn</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">gymnasium</span><span class="w"> </span><span class="kn">import</span> <span class="n">Env</span><span class="p">,</span> <span class="n">spaces</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.controller</span><span class="w"> </span><span class="kn">import</span> <span class="n">CtxType</span><span class="p">,</span> <span class="n">ParameterizedController</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.torch.nn.extractor</span><span class="w"> </span><span class="kn">import</span> <span class="n">ExtractorName</span><span class="p">,</span> <span class="n">get_extractor_cls</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.torch.nn.mlp</span><span class="w"> </span><span class="kn">import</span> <span class="n">MlpConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.torch.rl.buffer</span><span class="w"> </span><span class="kn">import</span> <span class="n">ReplayBuffer</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.torch.rl.mpc_actor</span><span class="w"> </span><span class="kn">import</span> <span class="p">(</span>
+    <span class="n">HierachicalMPCActor</span><span class="p">,</span>
+    <span class="n">HierachicalMPCActorConfig</span><span class="p">,</span>
+    <span class="n">StochasticMPCActorOutput</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.torch.rl.sac</span><span class="w"> </span><span class="kn">import</span> <span class="n">SacCritic</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.torch.rl.utils</span><span class="w"> </span><span class="kn">import</span> <span class="n">soft_target_update</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.torch.utils.seed</span><span class="w"> </span><span class="kn">import</span> <span class="n">mk_seed</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.trainer</span><span class="w"> </span><span class="kn">import</span> <span class="n">Trainer</span><span class="p">,</span> <span class="n">TrainerConfig</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.utils.gym</span><span class="w"> </span><span class="kn">import</span> <span class="n">flatten_param_space</span><span class="p">,</span> <span class="n">seed_env</span><span class="p">,</span> <span class="n">wrap_env</span>
+
+
+<div class="viewcode-block" id="SacZopTrainerConfig">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/rl/sac_zop/index.html#leap_c.torch.rl.sac_zop.SacZopTrainerConfig">[docs]</a>
+<span class="nd">@dataclass</span><span class="p">(</span><span class="n">kw_only</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">SacZopTrainerConfig</span><span class="p">(</span><span class="n">TrainerConfig</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Specific settings for the Zop trainer.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        critic_mlp: The configuration for the Q-networks (critics).</span>
+<span class="sd">        batch_size: The batch size for training.</span>
+<span class="sd">        buffer_size: The size of the replay buffer.</span>
+<span class="sd">        gamma: The discount factor.</span>
+<span class="sd">        tau: The soft update factor for the target networks.</span>
+<span class="sd">        soft_update_freq: The frequency of soft updates (in steps).</span>
+<span class="sd">        lr_q: The learning rate for the Q-networks.</span>
+<span class="sd">        lr_pi: The learning rate for the policy network.</span>
+<span class="sd">        lr_alpha: The learning rate for the temperature parameter.</span>
+<span class="sd">            Can be set to None to avoid updating the temperature.</span>
+<span class="sd">        init_alpha: The initial temperature parameter.</span>
+<span class="sd">        target_entropy: The minimum target entropy for the policy.</span>
+<span class="sd">            If `None`, it is set automatically depending on dimensions of the action space.</span>
+<span class="sd">        entropy_reward_bonus: Whether to add an entropy bonus to the reward.</span>
+<span class="sd">        num_critics: The number of critic networks.</span>
+<span class="sd">        update_freq: The frequency of updating the networks (in steps).</span>
+<span class="sd">        actor: Configuration for the HierachicalMPCActor.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">critic_mlp</span><span class="p">:</span> <span class="n">MlpConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="n">MlpConfig</span><span class="p">)</span>
+    <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">64</span>
+    <span class="n">buffer_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1000000</span>
+    <span class="n">gamma</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.99</span>
+    <span class="n">tau</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.005</span>
+    <span class="n">soft_update_freq</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">1</span>
+    <span class="n">lr_q</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-4</span>
+    <span class="n">lr_pi</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">1e-4</span>
+    <span class="n">lr_alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="mf">1e-3</span>
+    <span class="n">init_alpha</span><span class="p">:</span> <span class="nb">float</span> <span class="o">=</span> <span class="mf">0.01</span>
+    <span class="n">target_entropy</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="n">entropy_reward_bonus</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">True</span>
+    <span class="n">num_critics</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">2</span>
+    <span class="n">update_freq</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">4</span>
+    <span class="n">actor</span><span class="p">:</span> <span class="n">HierachicalMPCActorConfig</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span>
+        <span class="n">default_factory</span><span class="o">=</span><span class="k">lambda</span><span class="p">:</span> <span class="n">HierachicalMPCActorConfig</span><span class="p">(</span><span class="n">residual</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+    <span class="p">)</span></div>
+
+
+
+<div class="viewcode-block" id="SacZopTrainer">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/rl/sac_zop/index.html#leap_c.torch.rl.sac_zop.SacZopTrainer">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">SacZopTrainer</span><span class="p">(</span><span class="n">Trainer</span><span class="p">[</span><span class="n">SacZopTrainerConfig</span><span class="p">,</span> <span class="n">CtxType</span><span class="p">],</span> <span class="n">Generic</span><span class="p">[</span><span class="n">CtxType</span><span class="p">]):</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;A trainer that implements SAC with a controller in the policy network.</span>
+
+<span class="sd">    The controller is used to compute actions but without differentiating through it (SAC-ZOP).</span>
+<span class="sd">    Uses parameter noise and a parameter critic.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        train_env: The training environment.</span>
+<span class="sd">        q: The Q-function approximator (critic).</span>
+<span class="sd">        q_target: The target Q-function approximator.</span>
+<span class="sd">        q_optim: The optimizer for the Q-function.</span>
+<span class="sd">        pi: The policy network containing the parameterized controller (the actor).</span>
+<span class="sd">        pi_optim: The optimizer for the policy network.</span>
+<span class="sd">        log_alpha: The log of the temperature parameter.</span>
+<span class="sd">        alpha_optim: The optimizer for the temperature parameter.</span>
+<span class="sd">            If `None`, the temperature is fixed.</span>
+<span class="sd">        target_entropy: The target entropy for the policy.</span>
+<span class="sd">            If `None`, the temperature is fixed.</span>
+<span class="sd">        entropy_norm: The normalization factor for the entropy term.</span>
+<span class="sd">            Normalizes the entropy based on the ratio of parameter and action dimensions.</span>
+<span class="sd">        buffer: The replay buffer used to store transitions.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">train_env</span><span class="p">:</span> <span class="n">Env</span>
+    <span class="n">q</span><span class="p">:</span> <span class="n">SacCritic</span>
+    <span class="n">q_target</span><span class="p">:</span> <span class="n">SacCritic</span>
+    <span class="n">q_optim</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span>
+    <span class="n">pi</span><span class="p">:</span> <span class="n">HierachicalMPCActor</span><span class="p">[</span><span class="n">CtxType</span><span class="p">]</span>
+    <span class="n">pi_optim</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span>
+    <span class="n">log_alpha</span><span class="p">:</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span>
+    <span class="n">alpha_optim</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">target_entropy</span><span class="p">:</span> <span class="nb">float</span> <span class="o">|</span> <span class="kc">None</span>
+    <span class="n">entropy_norm</span><span class="p">:</span> <span class="nb">float</span>
+    <span class="n">buffer</span><span class="p">:</span> <span class="n">ReplayBuffer</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">cfg</span><span class="p">:</span> <span class="n">SacZopTrainerConfig</span><span class="p">,</span>
+        <span class="n">val_env</span><span class="p">:</span> <span class="n">Env</span> <span class="o">|</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">output_path</span><span class="p">:</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">Path</span><span class="p">,</span>
+        <span class="n">device</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="nb">str</span> <span class="o">|</span> <span class="n">torch</span><span class="o">.</span><span class="n">device</span><span class="p">,</span>
+        <span class="n">dtype</span><span class="p">:</span> <span class="n">torch</span><span class="o">.</span><span class="n">dtype</span><span class="p">,</span>
+        <span class="n">train_env</span><span class="p">:</span> <span class="n">Env</span><span class="p">,</span>
+        <span class="n">controller</span><span class="p">:</span> <span class="n">ParameterizedController</span><span class="p">[</span><span class="n">CtxType</span><span class="p">],</span>
+        <span class="n">extractor_cls</span><span class="p">:</span> <span class="n">ExtractorName</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initializes the SAC-ZOP trainer.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            cfg: The configuration for the trainer.</span>
+<span class="sd">            val_env: The validation environment. If None, training runs without evaluation.</span>
+<span class="sd">            output_path: The path to the output directory.</span>
+<span class="sd">            device: The device on which the trainer is running.</span>
+<span class="sd">            dtype: The data type to use for tensor computations.</span>
+<span class="sd">            train_env: The training environment.</span>
+<span class="sd">            controller: The controller to use in the policy.</span>
+<span class="sd">            extractor_cls: Deprecated. Use cfg.actor.extractor_name instead.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="nb">super</span><span class="p">()</span><span class="o">.</span><span class="fm">__init__</span><span class="p">(</span><span class="n">cfg</span><span class="p">,</span> <span class="n">val_env</span><span class="p">,</span> <span class="n">output_path</span><span class="p">,</span> <span class="n">device</span><span class="p">)</span>
+
+        <span class="n">param_space</span><span class="p">:</span> <span class="n">spaces</span><span class="o">.</span><span class="n">Box</span> <span class="o">=</span> <span class="n">flatten_param_space</span><span class="p">(</span><span class="n">controller</span><span class="o">.</span><span class="n">param_space</span><span class="p">)</span>
+        <span class="n">obs_space</span> <span class="o">=</span> <span class="n">train_env</span><span class="o">.</span><span class="n">observation_space</span>
+        <span class="n">act_space</span> <span class="o">=</span> <span class="n">train_env</span><span class="o">.</span><span class="n">action_space</span>
+        <span class="n">action_dim</span> <span class="o">=</span> <span class="n">prod</span><span class="p">(</span><span class="n">act_space</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="n">param_dim</span> <span class="o">=</span> <span class="n">prod</span><span class="p">(</span><span class="n">param_space</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">train_env</span> <span class="o">=</span> <span class="n">wrap_env</span><span class="p">(</span><span class="n">train_env</span><span class="p">)</span>
+        <span class="n">device</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">device</span>
+
+        <span class="c1"># Handle deprecated extractor_cls parameter</span>
+        <span class="k">if</span> <span class="n">extractor_cls</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">cfg</span><span class="o">.</span><span class="n">actor</span><span class="o">.</span><span class="n">extractor_name</span> <span class="o">=</span> <span class="n">extractor_cls</span>
+
+        <span class="c1"># Get extractor class for critic</span>
+        <span class="n">critic_extractor_cls</span> <span class="o">=</span> <span class="n">get_extractor_cls</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">actor</span><span class="o">.</span><span class="n">extractor_name</span><span class="p">)</span>
+
+        <span class="n">args</span> <span class="o">=</span> <span class="p">(</span><span class="n">critic_extractor_cls</span><span class="p">,</span> <span class="n">param_space</span><span class="p">,</span> <span class="n">obs_space</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">critic_mlp</span><span class="p">,</span> <span class="n">cfg</span><span class="o">.</span><span class="n">num_critics</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">q</span> <span class="o">=</span> <span class="n">SacCritic</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">q_target</span> <span class="o">=</span> <span class="n">SacCritic</span><span class="p">(</span><span class="o">*</span><span class="n">args</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">q_target</span><span class="o">.</span><span class="n">load_state_dict</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">q</span><span class="o">.</span><span class="n">state_dict</span><span class="p">())</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">q_optim</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">q</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">lr_q</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">pi</span> <span class="o">=</span> <span class="n">HierachicalMPCActor</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">actor</span><span class="p">,</span> <span class="n">obs_space</span><span class="p">,</span> <span class="n">act_space</span><span class="p">,</span> <span class="n">controller</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">pi_optim</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">pi</span><span class="o">.</span><span class="n">parameters</span><span class="p">(),</span> <span class="n">lr</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">lr_pi</span><span class="p">)</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_alpha</span> <span class="o">=</span> <span class="n">nn</span><span class="o">.</span><span class="n">Parameter</span><span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">scalar_tensor</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">init_alpha</span><span class="p">,</span> <span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span><span class="o">.</span><span class="n">log</span><span class="p">()</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">entropy_norm</span> <span class="o">=</span> <span class="n">param_dim</span> <span class="o">/</span> <span class="n">action_dim</span>
+        <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">lr_alpha</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha_optim</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Adam</span><span class="p">([</span><span class="bp">self</span><span class="o">.</span><span class="n">log_alpha</span><span class="p">],</span> <span class="n">lr</span><span class="o">=</span><span class="n">cfg</span><span class="o">.</span><span class="n">lr_alpha</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">target_entropy</span> <span class="o">=</span> <span class="o">-</span><span class="n">action_dim</span> <span class="k">if</span> <span class="n">cfg</span><span class="o">.</span><span class="n">target_entropy</span> <span class="ow">is</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">cfg</span><span class="o">.</span><span class="n">target_entropy</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">alpha_optim</span> <span class="o">=</span> <span class="kc">None</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">target_entropy</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="bp">self</span><span class="o">.</span><span class="n">buffer</span> <span class="o">=</span> <span class="n">ReplayBuffer</span><span class="p">(</span><span class="n">cfg</span><span class="o">.</span><span class="n">buffer_size</span><span class="p">,</span> <span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+
+<div class="viewcode-block" id="SacZopTrainer.train_loop">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/rl/sac_zop/index.html#leap_c.torch.rl.sac_zop.SacZopTrainer.train_loop">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">train_loop</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Generator</span><span class="p">[</span><span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">float</span><span class="p">],</span> <span class="kc">None</span><span class="p">,</span> <span class="kc">None</span><span class="p">]:</span>
+        <span class="n">is_terminated</span> <span class="o">=</span> <span class="n">is_truncated</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">policy_ctx</span> <span class="o">=</span> <span class="kc">None</span>
+        <span class="n">obs</span> <span class="o">=</span> <span class="kc">None</span>
+
+        <span class="k">while</span> <span class="kc">True</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">is_terminated</span> <span class="ow">or</span> <span class="n">is_truncated</span><span class="p">:</span>
+                <span class="n">obs</span><span class="p">,</span> <span class="n">_</span> <span class="o">=</span> <span class="n">seed_env</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">train_env</span><span class="p">,</span> <span class="n">mk_seed</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">rng</span><span class="p">),</span> <span class="p">{</span><span class="s2">&quot;mode&quot;</span><span class="p">:</span> <span class="s2">&quot;train&quot;</span><span class="p">})</span>
+                <span class="n">policy_ctx</span> <span class="o">=</span> <span class="kc">None</span>
+                <span class="n">is_terminated</span> <span class="o">=</span> <span class="n">is_truncated</span> <span class="o">=</span> <span class="kc">False</span>
+
+            <span class="n">obs_batched</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">collate</span><span class="p">([</span><span class="n">obs</span><span class="p">])</span>
+
+            <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+                <span class="n">pi_output</span><span class="p">:</span> <span class="n">StochasticMPCActorOutput</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pi</span><span class="p">(</span>
+                    <span class="n">obs_batched</span><span class="p">,</span> <span class="n">policy_ctx</span><span class="p">,</span> <span class="n">deterministic</span><span class="o">=</span><span class="kc">False</span>
+                <span class="p">)</span>
+            <span class="k">assert</span> <span class="n">pi_output</span><span class="o">.</span><span class="n">action</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Expected action to be not `None`&quot;</span>
+            <span class="n">action</span> <span class="o">=</span> <span class="n">pi_output</span><span class="o">.</span><span class="n">action</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+            <span class="n">param</span> <span class="o">=</span> <span class="n">pi_output</span><span class="o">.</span><span class="n">param</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">report_stats</span><span class="p">(</span><span class="s2">&quot;train_trajectory&quot;</span><span class="p">,</span> <span class="p">{</span><span class="s2">&quot;action&quot;</span><span class="p">:</span> <span class="n">action</span><span class="p">,</span> <span class="s2">&quot;param&quot;</span><span class="p">:</span> <span class="n">param</span><span class="p">},</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">report_stats</span><span class="p">(</span><span class="s2">&quot;train_policy_rollout&quot;</span><span class="p">,</span> <span class="n">pi_output</span><span class="o">.</span><span class="n">stats</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+            <span class="n">obs_prime</span><span class="p">,</span> <span class="n">reward</span><span class="p">,</span> <span class="n">is_terminated</span><span class="p">,</span> <span class="n">is_truncated</span><span class="p">,</span> <span class="n">info</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">train_env</span><span class="o">.</span><span class="n">step</span><span class="p">(</span><span class="n">action</span><span class="p">)</span>
+
+            <span class="k">if</span> <span class="s2">&quot;episode&quot;</span> <span class="ow">in</span> <span class="n">info</span> <span class="ow">or</span> <span class="s2">&quot;task&quot;</span> <span class="ow">in</span> <span class="n">info</span><span class="p">:</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">report_stats</span><span class="p">(</span><span class="s2">&quot;train&quot;</span><span class="p">,</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;episode&quot;</span><span class="p">,</span> <span class="p">{})</span> <span class="o">|</span> <span class="n">info</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">&quot;task&quot;</span><span class="p">,</span> <span class="p">{}))</span>
+
+            <span class="bp">self</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">put</span><span class="p">((</span><span class="n">obs</span><span class="p">,</span> <span class="n">param</span><span class="p">,</span> <span class="n">reward</span><span class="p">,</span> <span class="n">obs_prime</span><span class="p">,</span> <span class="n">is_terminated</span><span class="p">))</span>
+
+            <span class="n">obs</span> <span class="o">=</span> <span class="n">obs_prime</span>
+            <span class="n">policy_ctx</span> <span class="o">=</span> <span class="n">pi_output</span><span class="o">.</span><span class="n">ctx</span>
+
+            <span class="k">if</span> <span class="p">(</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">step</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">train_start</span>
+                <span class="ow">and</span> <span class="nb">len</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">buffer</span><span class="p">)</span> <span class="o">&gt;=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span>
+                <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">step</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">update_freq</span> <span class="o">==</span> <span class="mi">0</span>
+            <span class="p">):</span>
+                <span class="c1"># sample batch</span>
+                <span class="n">o</span><span class="p">,</span> <span class="n">a</span><span class="p">,</span> <span class="n">r</span><span class="p">,</span> <span class="n">o_prime</span><span class="p">,</span> <span class="n">te</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">sample</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">batch_size</span><span class="p">)</span>
+
+                <span class="c1"># sample action</span>
+                <span class="n">pi_o</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pi</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">only_param</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                <span class="n">a_pi</span> <span class="o">=</span> <span class="n">pi_o</span><span class="o">.</span><span class="n">param</span>
+                <span class="n">log_p</span> <span class="o">=</span> <span class="n">pi_o</span><span class="o">.</span><span class="n">log_prob</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">entropy_norm</span>
+
+                <span class="c1"># update temperature</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_optim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">alpha_loss</span> <span class="o">=</span> <span class="o">-</span><span class="n">torch</span><span class="o">.</span><span class="n">mean</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">log_alpha</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span> <span class="o">*</span> <span class="p">(</span><span class="n">log_p</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">target_entropy</span><span class="p">)</span><span class="o">.</span><span class="n">detach</span><span class="p">()</span>
+                    <span class="p">)</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">alpha_optim</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+                    <span class="n">alpha_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">alpha_optim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+
+                <span class="c1"># update critic</span>
+                <span class="n">alpha</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">log_alpha</span><span class="o">.</span><span class="n">exp</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">()</span>
+                <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">no_grad</span><span class="p">():</span>
+                    <span class="n">pi_o_prime</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pi</span><span class="p">(</span><span class="n">o_prime</span><span class="p">,</span> <span class="kc">None</span><span class="p">,</span> <span class="n">only_param</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+                    <span class="n">q_target</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">q_target</span><span class="p">(</span><span class="n">o_prime</span><span class="p">,</span> <span class="n">pi_o_prime</span><span class="o">.</span><span class="n">param</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                    <span class="n">q_target</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">q_target</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">values</span>
+
+                    <span class="c1"># add entropy</span>
+                    <span class="n">factor</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">entropy_reward_bonus</span> <span class="o">/</span> <span class="bp">self</span><span class="o">.</span><span class="n">entropy_norm</span>
+                    <span class="n">q_target</span> <span class="o">=</span> <span class="n">q_target</span> <span class="o">-</span> <span class="n">alpha</span> <span class="o">*</span> <span class="n">pi_o_prime</span><span class="o">.</span><span class="n">log_prob</span> <span class="o">*</span> <span class="n">factor</span>
+
+                    <span class="n">target</span> <span class="o">=</span> <span class="n">r</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">]</span> <span class="o">+</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">gamma</span> <span class="o">*</span> <span class="p">(</span><span class="mi">1</span> <span class="o">-</span> <span class="n">te</span><span class="p">[:,</span> <span class="kc">None</span><span class="p">])</span> <span class="o">*</span> <span class="n">q_target</span>
+
+                <span class="n">q</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">q</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">a</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">q_loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">q</span> <span class="o">-</span> <span class="n">target</span><span class="p">)</span><span class="o">.</span><span class="n">square</span><span class="p">()</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">q_optim</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+                <span class="n">q_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">q_optim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+
+                <span class="c1"># update actor</span>
+                <span class="n">q_pi</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">q</span><span class="p">(</span><span class="n">o</span><span class="p">,</span> <span class="n">a_pi</span><span class="p">),</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">)</span>
+                <span class="n">min_q_pi</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">min</span><span class="p">(</span><span class="n">q_pi</span><span class="p">,</span> <span class="n">dim</span><span class="o">=</span><span class="mi">1</span><span class="p">,</span> <span class="n">keepdim</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span><span class="o">.</span><span class="n">values</span>
+                <span class="n">pi_loss</span> <span class="o">=</span> <span class="p">(</span><span class="n">alpha</span> <span class="o">*</span> <span class="n">log_p</span> <span class="o">-</span> <span class="n">min_q_pi</span><span class="p">)</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span>
+
+                <span class="bp">self</span><span class="o">.</span><span class="n">pi_optim</span><span class="o">.</span><span class="n">zero_grad</span><span class="p">()</span>
+                <span class="n">pi_loss</span><span class="o">.</span><span class="n">backward</span><span class="p">()</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">pi_optim</span><span class="o">.</span><span class="n">step</span><span class="p">()</span>
+
+                <span class="c1"># soft updates</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">state</span><span class="o">.</span><span class="n">step</span> <span class="o">%</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">soft_update_freq</span> <span class="o">==</span> <span class="mi">0</span><span class="p">:</span>
+                    <span class="n">soft_target_update</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">q</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">q_target</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">cfg</span><span class="o">.</span><span class="n">tau</span><span class="p">)</span>
+
+                <span class="c1"># report stats</span>
+                <span class="n">loss_stats</span> <span class="o">=</span> <span class="p">{</span>
+                    <span class="s2">&quot;q_loss&quot;</span><span class="p">:</span> <span class="n">q_loss</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                    <span class="s2">&quot;pi_loss&quot;</span><span class="p">:</span> <span class="n">pi_loss</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                    <span class="s2">&quot;alpha&quot;</span><span class="p">:</span> <span class="n">alpha</span><span class="p">,</span>
+                    <span class="s2">&quot;q&quot;</span><span class="p">:</span> <span class="n">q</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                    <span class="s2">&quot;q_target&quot;</span><span class="p">:</span> <span class="n">target</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                    <span class="s2">&quot;entropy&quot;</span><span class="p">:</span> <span class="o">-</span><span class="n">log_p</span><span class="o">.</span><span class="n">mean</span><span class="p">()</span><span class="o">.</span><span class="n">item</span><span class="p">(),</span>
+                <span class="p">}</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">report_stats</span><span class="p">(</span><span class="s2">&quot;loss&quot;</span><span class="p">,</span> <span class="n">loss_stats</span><span class="p">,</span> <span class="n">verbose</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+            <span class="k">yield</span> <span class="mi">1</span><span class="p">,</span> <span class="nb">float</span><span class="p">(</span><span class="n">reward</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="SacZopTrainer.act">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/rl/sac_zop/index.html#leap_c.torch.rl.sac_zop.SacZopTrainer.act">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">act</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">obs</span><span class="p">,</span> <span class="n">deterministic</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span> <span class="n">state</span><span class="p">:</span> <span class="n">CtxType</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span> <span class="n">CtxType</span><span class="p">,</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">float</span><span class="p">]]:</span>
+        <span class="n">obs</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">buffer</span><span class="o">.</span><span class="n">collate</span><span class="p">([</span><span class="n">obs</span><span class="p">])</span>
+        <span class="k">with</span> <span class="n">torch</span><span class="o">.</span><span class="n">inference_mode</span><span class="p">():</span>
+            <span class="n">pi_output</span><span class="p">:</span> <span class="n">StochasticMPCActorOutput</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">pi</span><span class="p">(</span><span class="n">obs</span><span class="p">,</span> <span class="n">state</span><span class="p">,</span> <span class="n">deterministic</span><span class="o">=</span><span class="n">deterministic</span><span class="p">)</span>
+        <span class="k">assert</span> <span class="n">pi_output</span><span class="o">.</span><span class="n">action</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">,</span> <span class="s2">&quot;Expected action to be not `None`&quot;</span>
+        <span class="n">action</span> <span class="o">=</span> <span class="n">pi_output</span><span class="o">.</span><span class="n">action</span><span class="o">.</span><span class="n">cpu</span><span class="p">()</span><span class="o">.</span><span class="n">numpy</span><span class="p">()[</span><span class="mi">0</span><span class="p">]</span>
+        <span class="k">return</span> <span class="n">action</span><span class="p">,</span> <span class="n">pi_output</span><span class="o">.</span><span class="n">ctx</span><span class="p">,</span> <span class="n">pi_output</span><span class="o">.</span><span class="n">stats</span></div>
+
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">optimizers</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="n">torch</span><span class="o">.</span><span class="n">optim</span><span class="o">.</span><span class="n">Optimizer</span><span class="p">]:</span>
+        <span class="n">optimizers</span> <span class="o">=</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">q_optim</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">pi_optim</span><span class="p">]</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">alpha_optim</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="n">optimizers</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">alpha_optim</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">optimizers</span>
+
+<div class="viewcode-block" id="SacZopTrainer.periodic_ckpt_modules">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/rl/sac_zop/index.html#leap_c.torch.rl.sac_zop.SacZopTrainer.periodic_ckpt_modules">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">periodic_ckpt_modules</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s2">&quot;q&quot;</span><span class="p">,</span> <span class="s2">&quot;pi&quot;</span><span class="p">,</span> <span class="s2">&quot;q_target&quot;</span><span class="p">,</span> <span class="s2">&quot;log_alpha&quot;</span><span class="p">]</span></div>
+
+
+<div class="viewcode-block" id="SacZopTrainer.singleton_ckpt_modules">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/torch/rl/sac_zop/index.html#leap_c.torch.rl.sac_zop.SacZopTrainer.singleton_ckpt_modules">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">singleton_ckpt_modules</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">[</span><span class="s2">&quot;buffer&quot;</span><span class="p">]</span></div>
+</div>
+
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2025-2026, Dirk, Jasper, Leonard
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../../_static/documentation_options.js?v=cb975c41"></script>
+    <script src="../../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../_static/scripts/furo.js?v=5fa4622c"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
+window.addEventListener("load", () => mermaid.run());
+</script>
+    </body>
+</html>

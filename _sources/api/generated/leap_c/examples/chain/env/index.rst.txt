@@ -1,0 +1,280 @@
+leap_c.examples.chain.env
+=========================
+
+.. py:module:: leap_c.examples.chain.env
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.examples.chain.env.ChainEnv
+   leap_c.examples.chain.env.ChainEnvConfig
+
+
+Module Contents
+---------------
+
+.. py:class:: ChainEnv(render_mode: str | None = None, cfg: ChainEnvConfig | None = None)
+
+   Bases: :py:obj:`leap_c.examples.utils.matplotlib_env.MatplotlibRenderEnv`, :py:obj:`gymnasium.Env`
+
+
+   An environment of a chain of masses, connected by "springs".
+
+   The first mass is fixed at a given point,
+   and the last mass can be controlled by setting its velocity.
+   The goal is to move the chain to a target position while minimizing mass velocity.
+
+   The system corresponds to the example in
+   L. Wirsching, H. G. Bock, and M. Diehl, “Fast nmpc of a chain of masses
+   connected by springs,” in 2006 IEEE Conference on Computer Aided Control
+   System Design, 2006 IEEE International Conference on Control Applications,
+   2006 IEEE International Symposium on Intelligent Control, pp. 591–596, IEEE,
+   2006.
+   NOTE: An additoinal damping term has been added to the dynamics.
+
+   The observation space, action space, reward, and termination are described
+   below::
+
+       Observation Space:
+       ------------------
+
+       The observation is of shape `(6 * n_mass - 9,)` representing the state of the
+       system. It consists of the 3D positions of the `n_mass - 1` free masses and
+       the 3D velocities of the `n_mass - 2` masses (the free masses, except the last mass,
+       whose velocity is being controlled).
+
+       The state is structured as `[p_2, ..., p_{n_mass}, v_2, ..., v_{n_mass-1}]`,
+       where `p_i` is the position of the i-th mass and `v_i` is its velocity.
+
+       Action Space:
+       -------------
+
+       The action is a `ndarray` with shape `(3,)` which can take values in the range
+       `(-vmax, vmax)`. It represents the velocity of the last mass.
+
+       Reward:
+       -------
+
+       The reward is designed to encourage the agent to move the last mass to the target position
+       while minimizing velocity. It is calculated as:
+       `r = 10 * (r_dist + r_vel)`
+       where:
+       - `r_dist` is the negative l1 norm of the distance between the last mass
+           and the target position.
+       - `r_vel` is the negative l2 norm of the velocities of the masses, scaled by 0.1.
+
+       Termination and truncation:
+       ---------------------------
+       The system never terminates, but the episode is truncated after
+       `max_time` seconds simulation time.
+
+       Info:
+       -----
+       The info dictionary contains:
+       - "task": {"violation": bool, "success": bool}
+         - violation: Always False.
+         - success: True if goal reached
+
+   :ivar cfg: Configuration for the environment.
+   :ivar fix_point: Fixed point where the first mass is anchored.
+   :ivar pos_last_ref: Target state for the chain.
+   :ivar nx_pos: Number of position states in the observation.
+   :ivar nx_vel: Number of velocity states in the observation.
+   :ivar observation_space: The observation space of the environment.
+   :ivar action_space: The action space of the environment.
+   :ivar trajectory: List to store the trajectory of states during an episode.
+   :ivar dyn_param_dict: Dictionary of dynamics parameters.
+   :ivar discrete_dynamics: Function to compute the next state given the current state and action.
+   :ivar resting_chain_solver: Solver to compute the target resting state of the chain.
+   :ivar init_phi_range: Sampling range of initial azimuthal angles for the last mass.
+   :ivar init_theta_range: Sampling range of initial polar angles for the last mass.
+   :ivar ellipsoid: Ellipsoid class for translating the sampled initial spherical coordinates into
+                    the initial cartesian coordinates.
+
+
+
+   .. py:method:: reset(*, seed: int | None = None, options: dict | None = None) -> tuple[Any, dict]
+
+      Resets the environment to an initial internal state, returning an initial observation and info.
+
+      This method generates a new starting state often with some randomness to ensure that the agent explores the
+      state space and learns a generalised policy about the environment. This randomness can be controlled
+      with the ``seed`` parameter otherwise if the environment already has a random number generator and
+      :meth:`reset` is called with ``seed=None``, the RNG is not reset.
+
+      Therefore, :meth:`reset` should (in the typical use case) be called with a seed right after initialization and then never again.
+
+      For Custom environments, the first line of :meth:`reset` should be ``super().reset(seed=seed)`` which implements
+      the seeding correctly.
+
+      .. versionchanged:: v0.25
+
+          The ``return_info`` parameter was removed and now info is expected to be returned.
+
+      :param seed: The seed that is used to initialize the environment's PRNG (`np_random`) and
+                   the read-only attribute `np_random_seed`.
+                   If the environment does not already have a PRNG and ``seed=None`` (the default option) is passed,
+                   a seed will be chosen from some source of entropy (e.g. timestamp or /dev/urandom).
+                   However, if the environment already has a PRNG and ``seed=None`` is passed, the PRNG will *not* be reset
+                   and the env's :attr:`np_random_seed` will *not* be altered.
+                   If you pass an integer, the PRNG will be reset even if it already exists.
+                   Usually, you want to pass an integer *right after the environment has been initialized and then never again*.
+                   Please refer to the minimal example above to see this paradigm in action.
+      :type seed: optional int
+      :param options: Additional information to specify how the environment is reset (optional,
+                      depending on the specific environment)
+      :type options: optional dict
+
+      :returns:
+
+                Observation of the initial state. This will be an element of :attr:`observation_space`
+                    (typically a numpy array) and is analogous to the observation returned by :meth:`step`.
+                info (dictionary):  This dictionary contains auxiliary information complementing ``observation``. It should be analogous to
+                    the ``info`` returned by :meth:`step`.
+      :rtype: observation (ObsType)
+
+
+
+   .. py:method:: step(action: numpy.ndarray) -> tuple[Any, float, bool, bool, dict]
+
+      Execute one time step within the environment.
+
+      :param action: Velocity command for the last mass.
+
+      :returns:     - observation: Next observation (positions and velocities of the free masses).
+                    - reward: Reward for this step.
+                    - terminated: Whether the episode terminated.
+                    - truncated: Whether the episode was truncated.
+                    - info: Dictionary with task information.
+      :rtype: Tuple containing
+
+
+
+   .. py:attribute:: action_space
+      :type:  gymnasium.spaces.Box
+
+
+   .. py:attribute:: cfg
+      :type:  ChainEnvConfig
+
+
+   .. py:attribute:: discrete_dynamics
+      :type:  Callable
+
+
+   .. py:attribute:: dyn_param_dict
+      :type:  dict[str, numpy.ndarray]
+
+
+   .. py:attribute:: ellipsoid
+      :type:  leap_c.examples.chain.utils.ellipsoid.Ellipsoid
+
+
+   .. py:attribute:: fix_point
+
+
+   .. py:attribute:: init_phi_range
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: init_theta_range
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: metadata
+
+
+   .. py:attribute:: nx_pos
+      :type:  int
+
+
+   .. py:attribute:: nx_vel
+      :type:  int
+
+
+   .. py:attribute:: observation_space
+      :type:  gymnasium.spaces.Box
+
+
+   .. py:attribute:: pos_last_ref
+      :type:  numpy.ndarray
+
+
+   .. py:attribute:: reset_needed
+      :type:  bool
+
+
+   .. py:attribute:: resting_chain_solver
+      :type:  leap_c.examples.chain.utils.resting_chain_solver.RestingChainSolver
+
+
+   .. py:attribute:: t
+      :type:  float
+
+
+   .. py:attribute:: trajectory
+      :type:  list[numpy.ndarray]
+
+
+.. py:class:: ChainEnvConfig
+
+   Configuration for the Chain environment.
+
+
+   .. py:attribute:: C
+      :type:  list[float]
+      :value: []
+
+
+
+   .. py:attribute:: D
+      :type:  list[float]
+      :value: []
+
+
+
+   .. py:attribute:: L
+      :type:  list[float]
+      :value: []
+
+
+
+   .. py:attribute:: dt
+      :type:  float
+      :value: 0.05
+
+
+
+   .. py:attribute:: m
+      :type:  list[float]
+      :value: []
+
+
+
+   .. py:attribute:: max_time
+      :type:  float
+      :value: 10.0
+
+
+
+   .. py:attribute:: n_mass
+      :type:  int
+      :value: 5
+
+
+
+   .. py:attribute:: vmax
+      :type:  float
+      :value: 1.0
+
+
+
+   .. py:attribute:: w
+      :type:  list[float]
+      :value: []
+
+
+

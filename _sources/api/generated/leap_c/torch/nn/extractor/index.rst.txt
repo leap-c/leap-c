@@ -1,0 +1,132 @@
+leap_c.torch.nn.extractor
+=========================
+
+.. py:module:: leap_c.torch.nn.extractor
+
+.. autoapi-nested-parse::
+
+   This module contains classes for feature extraction from observations.
+
+   We provide an abstraction to allow algorithms to be applied to different
+   types of observations and using different neural network architectures.
+
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.torch.nn.extractor.EXTRACTOR_REGISTRY
+   leap_c.torch.nn.extractor.ExtractorName
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.torch.nn.extractor.Extractor
+   leap_c.torch.nn.extractor.IdentityExtractor
+   leap_c.torch.nn.extractor.ScalingExtractor
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.torch.nn.extractor.get_extractor_cls
+
+
+Module Contents
+---------------
+
+.. py:class:: Extractor(observation_space: gymnasium.Space)
+
+   Bases: :py:obj:`torch.nn.Module`, :py:obj:`abc.ABC`
+
+
+   An abstract class for feature extraction from observations.
+
+
+   .. py:attribute:: observation_space
+
+
+   .. py:property:: output_size
+      :type: int
+
+      :abstractmethod:
+
+
+      Returns the embedded vector size.
+
+
+.. py:class:: IdentityExtractor(observation_space: gymnasium.Space)
+
+   Bases: :py:obj:`Extractor`
+
+
+   An extractor that returns the input as is.
+
+
+   .. py:method:: forward(x)
+
+      Returns the input as is.
+
+      :param x: The input tensor.
+
+      :returns: The input tensor.
+
+
+
+   .. py:property:: output_size
+      :type: int
+
+
+      Returns the embedded vector size.
+
+
+.. py:class:: ScalingExtractor(observation_space: gymnasium.spaces.Box)
+
+   Bases: :py:obj:`Extractor`
+
+
+   An extractor that returns the input normalized to the range [0, 1], using min-max scaling.
+
+
+   .. py:method:: forward(x)
+
+      Returns the input normalized to the range [0, 1], using min-max scaling.
+
+      :param x: The input tensor.
+
+      :returns: The normalized tensor.
+
+
+
+   .. py:property:: output_size
+      :type: int
+
+
+      Returns the embedded vector size.
+
+
+.. py:function:: get_extractor_cls(name: ExtractorName) -> type[Extractor]
+
+   Get the extract class corresponding to the given name.
+
+   :param name: The name of the extractor.
+   :type name: {"identity", "scaling"}
+
+   :returns: The class of the requested extractor.
+   :rtype: type[Extractor]
+
+   :raises ValueError: If the name is not recognized.
+
+
+.. py:data:: EXTRACTOR_REGISTRY
+   :type:  dict[ExtractorName, type[Extractor]]
+
+.. py:data:: ExtractorName
+

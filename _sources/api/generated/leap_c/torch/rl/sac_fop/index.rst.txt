@@ -1,0 +1,263 @@
+leap_c.torch.rl.sac_fop
+=======================
+
+.. py:module:: leap_c.torch.rl.sac_fop
+
+.. autoapi-nested-parse::
+
+   Provides a trainer for a SAC algorithm that uses a diff. MPC layer in the policy network.
+
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.torch.rl.sac_fop.SacFopTrainer
+   leap_c.torch.rl.sac_fop.SacFopTrainerConfig
+
+
+Module Contents
+---------------
+
+.. py:class:: SacFopTrainer(cfg: SacFopTrainerConfig, val_env: gymnasium.Env | None, output_path: str | pathlib.Path, device: int | str | torch.device, dtype: torch.dtype, train_env: gymnasium.Env, controller: leap_c.controller.ParameterizedController[leap_c.controller.CtxType], extractor_cls: leap_c.torch.nn.extractor.ExtractorName | None = None)
+
+   Bases: :py:obj:`leap_c.trainer.Trainer`\ [\ :py:obj:`SacFopTrainerConfig`\ , :py:obj:`leap_c.controller.CtxType`\ ], :py:obj:`Generic`\ [\ :py:obj:`leap_c.controller.CtxType`\ ]
+
+
+   A trainer implementing Soft Actor-Critic (SAC) that uses a differentiable controller layer.
+
+   The differentiable controller layer is in the policy network (SAC-FOP).
+
+   Supports variants using parameter noise or action noise. Always uses an action critic.
+
+   :ivar train_env: The training environment.
+   :ivar q: The Q-function approximator (critic).
+   :ivar q_target: The target Q-function approximator.
+   :ivar q_optim: The optimizer for the Q-function.
+   :ivar pi: The policy network containing the parameterized controller (the actor).
+   :ivar pi_optim: The optimizer for the policy network.
+   :ivar log_alpha: The logarithm of the temperature parameter.
+   :ivar alpha_optim: The optimizer for the temperature parameter.
+                      If `None`, the temperature is fixed.
+   :ivar target_entropy: The target entropy for the policy.
+                         If `None`, the temperature is fixed.
+   :ivar entropy_norm: The normalization factor for the entropy term.
+                       Normalizes the entropy based on the ratio of parameter and action dimensions.
+   :ivar buffer: The replay buffer used to store transitions.
+
+
+
+   .. py:method:: act(obs: numpy.ndarray, deterministic: bool = False, state: leap_c.controller.CtxType | None = None) -> tuple[numpy.ndarray, leap_c.controller.CtxType, dict[str, float]]
+
+      Act based on the observation.
+
+      This is intended for rollouts (= interaction with the environment).
+
+      :param obs: The observation for which the action should be determined.
+      :type obs: Any
+      :param deterministic: If `True`, the action is drawn deterministically.
+      :type deterministic: bool
+      :param state: The state of the policy. Useful, if, e.g., the policy is recurrent or includes
+                    an MPC planner which might want to pass warmstarting information.
+                    Note, that at the start of an episode, the state is assumed to be `None`.
+
+      :returns: The action, the state of the policy and potential solving stats.
+
+
+
+   .. py:method:: periodic_ckpt_modules() -> list[str]
+
+      Returns the modules that should be checkpointed periodically.
+
+      This is used for example for tracking policy parameters over time.
+
+
+
+   .. py:method:: singleton_ckpt_modules() -> list[str]
+
+      Returns the modules that should be checkpointed only once.
+
+      Replay Buffers often should not be stored multiple times as there is overlap.
+
+
+
+   .. py:method:: train_loop() -> Generator[tuple[int, float], None, None]
+
+      The main training loop.
+
+      For simplicity, we use an Iterator here, to make the training loop as simple as
+      possible. To make your own code compatible use the yield statement to return the
+      number of steps your train loop did. If yield does not always return `1`, the validation
+      might be performed not exactly at the specified interval.
+
+      :Yields: The number of steps the training loop did.
+               The training score over these steps.
+
+
+
+   .. py:attribute:: alpha_optim
+      :type:  torch.optim.Optimizer | None
+
+
+   .. py:attribute:: buffer
+      :type:  leap_c.torch.rl.buffer.ReplayBuffer
+
+
+   .. py:attribute:: entropy_norm
+      :type:  float
+
+
+   .. py:attribute:: log_alpha
+      :type:  torch.nn.Parameter
+
+
+   .. py:property:: optimizers
+      :type: list[torch.optim.Optimizer]
+
+
+      If provided, optimizers are also checkpointed.
+
+
+   .. py:attribute:: pi
+      :type:  leap_c.torch.rl.mpc_actor.HierachicalMPCActor[leap_c.controller.CtxType]
+
+
+   .. py:attribute:: pi_optim
+      :type:  torch.optim.Optimizer
+
+
+   .. py:attribute:: q
+      :type:  leap_c.torch.rl.sac.SacCritic
+
+
+   .. py:attribute:: q_optim
+      :type:  torch.optim.Optimizer
+
+
+   .. py:attribute:: q_target
+      :type:  leap_c.torch.rl.sac.SacCritic
+
+
+   .. py:attribute:: target_entropy
+      :type:  float | None
+
+
+   .. py:attribute:: train_env
+      :type:  gymnasium.Env
+
+
+.. py:class:: SacFopTrainerConfig
+
+   Bases: :py:obj:`leap_c.trainer.TrainerConfig`
+
+
+   Specific settings for the Fop trainer.
+
+   :ivar critic_mlp: The configuration for the Q-networks (critics).
+   :ivar batch_size: The batch size for training.
+   :ivar buffer_size: The size of the replay buffer.
+   :ivar gamma: The discount factor.
+   :ivar tau: The soft update factor for the target networks.
+   :ivar soft_update_freq: The frequency of soft updates (in steps).
+   :ivar lr_q: The learning rate for the Q-networks.
+   :ivar lr_pi: The learning rate for the policy network.
+   :ivar lr_alpha: The learning rate for the temperature parameter.
+                   Can be set to None to avoid updating the temperature.
+   :ivar init_alpha: The initial temperature parameter.
+   :ivar target_entropy: The minimum target entropy for the policy.
+                         If `None`, it is set automatically depending on dimensions of the action space.
+   :ivar entropy_reward_bonus: Whether to add an entropy bonus to the reward.
+   :ivar num_critics: The number of critic networks.
+   :ivar update_freq: The frequency of updating the networks (in steps).
+   :ivar actor: Configuration for the HierachicalMPCActor.
+
+
+
+   .. py:attribute:: actor
+      :type:  leap_c.torch.rl.mpc_actor.HierachicalMPCActorConfig
+
+
+   .. py:attribute:: batch_size
+      :type:  int
+      :value: 64
+
+
+
+   .. py:attribute:: buffer_size
+      :type:  int
+      :value: 1000000
+
+
+
+   .. py:attribute:: critic_mlp
+      :type:  leap_c.torch.nn.mlp.MlpConfig
+
+
+   .. py:attribute:: entropy_reward_bonus
+      :type:  bool
+      :value: True
+
+
+
+   .. py:attribute:: gamma
+      :type:  float
+      :value: 0.99
+
+
+
+   .. py:attribute:: init_alpha
+      :type:  float
+      :value: 0.01
+
+
+
+   .. py:attribute:: lr_alpha
+      :type:  float | None
+      :value: 0.001
+
+
+
+   .. py:attribute:: lr_pi
+      :type:  float
+      :value: 0.0001
+
+
+
+   .. py:attribute:: lr_q
+      :type:  float
+      :value: 0.0001
+
+
+
+   .. py:attribute:: num_critics
+      :type:  int
+      :value: 2
+
+
+
+   .. py:attribute:: soft_update_freq
+      :type:  int
+      :value: 1
+
+
+
+   .. py:attribute:: target_entropy
+      :type:  float | None
+      :value: None
+
+
+
+   .. py:attribute:: tau
+      :type:  float
+      :value: 0.005
+
+
+
+   .. py:attribute:: update_freq
+      :type:  int
+      :value: 4
+
+
+

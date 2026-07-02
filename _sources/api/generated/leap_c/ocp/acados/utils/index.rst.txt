@@ -1,0 +1,18 @@
+leap_c.ocp.acados.utils
+=======================
+
+.. py:module:: leap_c.ocp.acados.utils
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /api/generated/leap_c/ocp/acados/utils/create_solver/index
+   /api/generated/leap_c/ocp/acados/utils/delete_directory_hook/index
+   /api/generated/leap_c/ocp/acados/utils/prepare_solver/index
+   /api/generated/leap_c/ocp/acados/utils/solve/index
+
+

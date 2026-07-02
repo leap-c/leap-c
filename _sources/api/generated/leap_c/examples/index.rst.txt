@@ -1,0 +1,98 @@
+leap_c.examples
+===============
+
+.. py:module:: leap_c.examples
+
+.. autoapi-nested-parse::
+
+   In this module, we manage all the example environments, controllers and planners.
+
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /api/generated/leap_c/examples/cartpole/index
+   /api/generated/leap_c/examples/chain/index
+   /api/generated/leap_c/examples/mass_spring_damper/index
+   /api/generated/leap_c/examples/pointmass/index
+   /api/generated/leap_c/examples/utils/index
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.examples.CONTROLLER_REGISTRY
+   leap_c.examples.ENV_REGISTRY
+   leap_c.examples.ExampleControllerName
+   leap_c.examples.ExampleEnvName
+   leap_c.examples.ExamplePlannerName
+   leap_c.examples.PLANNER_REGISTRY
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.examples.create_controller
+   leap_c.examples.create_env
+   leap_c.examples.create_planner
+
+
+Package Contents
+----------------
+
+.. py:function:: create_controller(controller_name: ExampleControllerName, reuse_code_base_dir: pathlib.Path | None = None, **kwargs: Any) -> leap_c.controller.ParameterizedController[leap_c.controller.CtxType]
+
+   Create a controller or create a planner and wrap it as a controller.
+
+   :param controller_name: Name of the controller.
+   :param reuse_code_base_dir: Directory to reuse code base from, e.g., generated code.
+   :param \*\*kwargs: Additional keyword arguments passed to the controller's config constructor.
+
+   :returns: An instance of the requested controller.
+
+
+.. py:function:: create_env(env_name: ExampleEnvName, **kw: Any) -> gymnasium.Env
+
+   Create an environment based on the given name.
+
+   :param env_name: Name of the environment.
+   :param \*\*kw: Additional keyword arguments passed to the environment constructor.
+
+   :returns: An instance of the requested environment.
+
+
+.. py:function:: create_planner(planner_name: ExamplePlannerName, reuse_code_base_dir: pathlib.Path | None = None, **kwargs: Any) -> leap_c.planner.ParameterizedPlanner[leap_c.controller.CtxType]
+
+   Create a planner.
+
+   :param planner_name: Name of the planner.
+   :param reuse_code_base_dir: Directory to reuse code base from, e.g., generated code.
+   :param \*\*kwargs: Additional keyword arguments passed to the planner's config constructor.
+
+   :returns: An instance of the requested planner.
+
+
+.. py:data:: CONTROLLER_REGISTRY
+
+.. py:data:: ENV_REGISTRY
+   :type:  dict[str, tuple[str, str]]
+
+.. py:type:: ExampleControllerName
+   :canonical: ExamplePlannerName
+
+
+.. py:data:: ExampleEnvName
+
+.. py:data:: ExamplePlannerName
+
+.. py:data:: PLANNER_REGISTRY
+   :type:  dict[str, tuple[str, str, str, dict[str, Any]]]
+

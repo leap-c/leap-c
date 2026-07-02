@@ -1,0 +1,937 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../../../../">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="index" title="Index" href="../../../../../../genindex.html" /><link rel="search" title="Search" href="../../../../../../search.html" /><link rel="next" title="leap_c.examples.pointmass.planner" href="../planner/index.html" /><link rel="prev" title="leap_c.examples.pointmass.acados_ocp" href="../acados_ocp/index.html" />
+
+    <!-- Generated with Sphinx 8.2.3 and Furo 2024.08.06 -->
+        <title>leap_c.examples.pointmass.env - leap-c 2025 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../../../../_static/styles/furo-extensions.css?v=302659d7" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../../../../index.html"><div class="brand">leap-c 2025 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../../../../index.html">
+  
+  
+  <span class="sidebar-brand-text">leap-c 2025 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../../../../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../define_differentiable_mpc.html">Define a differentiable MPC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../parameter_management.html">Parameter Management in Acados OCPs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../notebooks.html">Running Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../../../troubleshooting.html">Troubleshooting usability with VS Code</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="../../../../../index.html">Core API</a></li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="../../../index.html">leap_c</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of leap_c</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../autograd/index.html">leap_c.autograd</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of leap_c.autograd</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../autograd/function/index.html">leap_c.autograd.function</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../autograd/torch/index.html">leap_c.autograd.torch</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../controller/index.html">leap_c.controller</a></li>
+<li class="toctree-l2 current has-children"><a class="reference internal" href="../../index.html">leap_c.examples</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of leap_c.examples</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../cartpole/index.html">leap_c.examples.cartpole</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of leap_c.examples.cartpole</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../cartpole/acados_ocp/index.html">leap_c.examples.cartpole.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../cartpole/env/index.html">leap_c.examples.cartpole.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../cartpole/planner/index.html">leap_c.examples.cartpole.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../chain/index.html">leap_c.examples.chain</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of leap_c.examples.chain</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../chain/acados_ocp/index.html">leap_c.examples.chain.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../chain/dynamics/index.html">leap_c.examples.chain.dynamics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../chain/env/index.html">leap_c.examples.chain.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../chain/planner/index.html">leap_c.examples.chain.planner</a></li>
+<li class="toctree-l4 has-children"><a class="reference internal" href="../../chain/utils/index.html">leap_c.examples.chain.utils</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of leap_c.examples.chain.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l5"><a class="reference internal" href="../../chain/utils/ellipsoid/index.html">leap_c.examples.chain.utils.ellipsoid</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../chain/utils/plot/index.html">leap_c.examples.chain.utils.plot</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../chain/utils/resting_chain_solver/index.html">leap_c.examples.chain.utils.resting_chain_solver</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../mass_spring_damper/index.html">leap_c.examples.mass_spring_damper</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of leap_c.examples.mass_spring_damper</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../mass_spring_damper/acados_ocp/index.html">leap_c.examples.mass_spring_damper.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../mass_spring_damper/env/index.html">leap_c.examples.mass_spring_damper.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../mass_spring_damper/planner/index.html">leap_c.examples.mass_spring_damper.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 current has-children"><a class="reference internal" href="../index.html">leap_c.examples.pointmass</a><input checked="" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of leap_c.examples.pointmass</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul class="current">
+<li class="toctree-l4"><a class="reference internal" href="../acados_ocp/index.html">leap_c.examples.pointmass.acados_ocp</a></li>
+<li class="toctree-l4 current current-page"><a class="current reference internal" href="#">leap_c.examples.pointmass.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../planner/index.html">leap_c.examples.pointmass.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../utils/index.html">leap_c.examples.utils</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of leap_c.examples.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../utils/casadi/index.html">leap_c.examples.utils.casadi</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../utils/matplotlib_env/index.html">leap_c.examples.utils.matplotlib_env</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../ocp/index.html">leap_c.ocp</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of leap_c.ocp</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../ocp/acados/index.html">leap_c.ocp.acados</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of leap_c.ocp.acados</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../ocp/acados/data/index.html">leap_c.ocp.acados.data</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../ocp/acados/diff_mpc/index.html">leap_c.ocp.acados.diff_mpc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../ocp/acados/initializer/index.html">leap_c.ocp.acados.initializer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../ocp/acados/parameters/index.html">leap_c.ocp.acados.parameters</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../ocp/acados/repr/index.html">leap_c.ocp.acados.repr</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../ocp/acados/torch/index.html">leap_c.ocp.acados.torch</a></li>
+<li class="toctree-l4 has-children"><a class="reference internal" href="../../../ocp/acados/utils/index.html">leap_c.ocp.acados.utils</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of leap_c.ocp.acados.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l5"><a class="reference internal" href="../../../ocp/acados/utils/create_solver/index.html">leap_c.ocp.acados.utils.create_solver</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../ocp/acados/utils/delete_directory_hook/index.html">leap_c.ocp.acados.utils.delete_directory_hook</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../ocp/acados/utils/prepare_solver/index.html">leap_c.ocp.acados.utils.prepare_solver</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../ocp/acados/utils/solve/index.html">leap_c.ocp.acados.utils.solve</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../planner/index.html">leap_c.planner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../run/index.html">leap_c.run</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../torch/index.html">leap_c.torch</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of leap_c.torch</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../torch/nn/index.html">leap_c.torch.nn</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of leap_c.torch.nn</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/nn/bounded_distributions/index.html">leap_c.torch.nn.bounded_distributions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/nn/extractor/index.html">leap_c.torch.nn.extractor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/nn/mlp/index.html">leap_c.torch.nn.mlp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/nn/scale/index.html">leap_c.torch.nn.scale</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../torch/rl/index.html">leap_c.torch.rl</a><input class="toctree-checkbox" id="toctree-checkbox-15" name="toctree-checkbox-15" role="switch" type="checkbox"/><label for="toctree-checkbox-15"><div class="visually-hidden">Toggle navigation of leap_c.torch.rl</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/rl/buffer/index.html">leap_c.torch.rl.buffer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/rl/crossq/index.html">leap_c.torch.rl.crossq</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/rl/crossq_zop/index.html">leap_c.torch.rl.crossq_zop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/rl/mpc_actor/index.html">leap_c.torch.rl.mpc_actor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/rl/sac/index.html">leap_c.torch.rl.sac</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/rl/sac_fop/index.html">leap_c.torch.rl.sac_fop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/rl/sac_zop/index.html">leap_c.torch.rl.sac_zop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/rl/utils/index.html">leap_c.torch.rl.utils</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../torch/utils/index.html">leap_c.torch.utils</a><input class="toctree-checkbox" id="toctree-checkbox-16" name="toctree-checkbox-16" role="switch" type="checkbox"/><label for="toctree-checkbox-16"><div class="visually-hidden">Toggle navigation of leap_c.torch.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/utils/gym/index.html">leap_c.torch.utils.gym</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../torch/utils/seed/index.html">leap_c.torch.utils.seed</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../trainer/index.html">leap_c.trainer</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../utils/index.html">leap_c.utils</a><input class="toctree-checkbox" id="toctree-checkbox-17" name="toctree-checkbox-17" role="switch" type="checkbox"/><label for="toctree-checkbox-17"><div class="visually-hidden">Toggle navigation of leap_c.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../utils/cfg/index.html">leap_c.utils.cfg</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../utils/dependencies/index.html">leap_c.utils.dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../utils/git/index.html">leap_c.utils.git</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../utils/gym/index.html">leap_c.utils.gym</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../utils/latexify/index.html">leap_c.utils.latexify</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../utils/logger/index.html">leap_c.utils.logger</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../utils/parameters/index.html">leap_c.utils.parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../utils/rollout/index.html">leap_c.utils.rollout</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="../../../../../../_sources/api/generated/leap_c/examples/pointmass/env/index.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="module-leap_c.examples.pointmass.env">
+<span id="leap-c-examples-pointmass-env"></span><h1>leap_c.examples.pointmass.env<a class="headerlink" href="#module-leap_c.examples.pointmass.env" title="Link to this heading">¶</a></h1>
+<section id="attributes">
+<h2>Attributes<a class="headerlink" href="#attributes" title="Link to this heading">¶</a></h2>
+<div class="table-wrapper autosummary longtable docutils container">
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#leap_c.examples.pointmass.env.DifficultyLevel" title="leap_c.examples.pointmass.env.DifficultyLevel"><code class="xref py py-obj docutils literal notranslate"><span class="pre">DifficultyLevel</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="classes">
+<h2>Classes<a class="headerlink" href="#classes" title="Link to this heading">¶</a></h2>
+<div class="table-wrapper autosummary longtable docutils container">
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#leap_c.examples.pointmass.env.Circle" title="leap_c.examples.pointmass.env.Circle"><code class="xref py py-obj docutils literal notranslate"><span class="pre">Circle</span></code></a></p></td>
+<td><p></p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv" title="leap_c.examples.pointmass.env.PointMassEnv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PointMassEnv</span></code></a></p></td>
+<td><p>A 2D point mass navigation environment with wind disturbances.</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig" title="leap_c.examples.pointmass.env.PointMassEnvConfig"><code class="xref py py-obj docutils literal notranslate"><span class="pre">PointMassEnvConfig</span></code></a></p></td>
+<td><p>Configuration for the PointMass environment.</p></td>
+</tr>
+<tr class="row-even"><td><p><a class="reference internal" href="#leap_c.examples.pointmass.env.WindField" title="leap_c.examples.pointmass.env.WindField"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WindField</span></code></a></p></td>
+<td><p>Helper class that provides a standard way to create an ABC using</p></td>
+</tr>
+<tr class="row-odd"><td><p><a class="reference internal" href="#leap_c.examples.pointmass.env.WindParcour" title="leap_c.examples.pointmass.env.WindParcour"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WindParcour</span></code></a></p></td>
+<td><p>Helper class that provides a standard way to create an ABC using</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="functions">
+<h2>Functions<a class="headerlink" href="#functions" title="Link to this heading">¶</a></h2>
+<div class="table-wrapper autosummary longtable docutils container">
+<table class="autosummary longtable docutils align-default">
+<tbody>
+<tr class="row-odd"><td><p><a class="reference internal" href="#leap_c.examples.pointmass.env.define_transition_matrices" title="leap_c.examples.pointmass.env.define_transition_matrices"><code class="xref py py-obj docutils literal notranslate"><span class="pre">define_transition_matrices</span></code></a>(→ tuple[numpy.ndarray, ...)</p></td>
+<td><p>Define the transition matrices A and B for the point mass dynamics.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="module-contents">
+<h2>Module Contents<a class="headerlink" href="#module-contents" title="Link to this heading">¶</a></h2>
+<dl class="py class">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.Circle">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">leap_c.examples.pointmass.env.</span></span><span class="sig-name descname"><span class="pre">Circle</span></span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#Circle"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.Circle" title="Link to this definition">¶</a></dt>
+<dd><dl class="py method">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.Circle.sample">
+<span class="sig-name descname"><span class="pre">sample</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">rng</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/random/generator.html#numpy.random.Generator" title="(in NumPy v2.5)"><span class="pre">numpy.random.Generator</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a></span></span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#Circle.sample"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.Circle.sample" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.Circle.pos">
+<span class="sig-name descname"><span class="pre">pos</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.Circle.pos" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.Circle.radius">
+<span class="sig-name descname"><span class="pre">radius</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.Circle.radius" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">leap_c.examples.pointmass.env.</span></span><span class="sig-name descname"><span class="pre">PointMassEnv</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">render_mode</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cfg</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig" title="leap_c.examples.pointmass.env.PointMassEnvConfig"><span class="pre">PointMassEnvConfig</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#PointMassEnv"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="../../utils/matplotlib_env/index.html#leap_c.examples.utils.matplotlib_env.MatplotlibRenderEnv" title="leap_c.examples.utils.matplotlib_env.MatplotlibRenderEnv"><code class="xref py py-obj docutils literal notranslate"><span class="pre">leap_c.examples.utils.matplotlib_env.MatplotlibRenderEnv</span></code></a></p>
+<p>A 2D point mass navigation environment with wind disturbances.</p>
+<p>The observation space, action space, reward, and termination are described
+below:</p>
+<div class="highlight-default notranslate"><div class="highlight"><pre><span></span>Observation Space:
+------------------
+The observation is a `ndarray` with shape `(6,)` and dtype `np.float32` representing:
+| Num | Observation         | Min        | Max        |
+|-----|---------------------|------------|------------|
+| 0   | x-position          | 0.0        | 4.0        |
+| 1   | y-position          | 0.0        | 1.0        |
+| 2   | x-velocity          | -max_v     | max_v      |
+| 3   | y-velocity          | -max_v     | max_v      |
+| 4   | wind force (x)      | -max_wind  | max_wind   |
+| 5   | wind force (y)      | -max_wind  | max_wind   |
+
+Action Space:
+-------------
+The action is a `ndarray` with shape `(2,)` and dtype `np.float32`
+representing the force applied in x and y directions.
+Each component is bounded by [-Fmax, Fmax] which will be enforced by
+clipping the input action in each step.
+
+Reward:
+-------
+The agent receives a small reward for progressing towards the goal in the x-direction
+and a large bonus for reaching the goal quickly.
+- Distance reward: r_dist = 1 - abs(x - goal_x) / (x_max - x_min)
+- Goal reward: r_goal = 60 * (1 - 0.5 * t / max_time) if goal reached, else 0
+- Total reward: r = 0.1 * r_dist + r_goal
+
+Termination:
+------------
+The episode terminates if:
+- The agent leaves the allowed state space (out of bounds, also including velocity limits)
+- The agent reaches the goal region
+
+Truncation:
+-----------
+The episode is truncated if the maximum time is exceeded.
+
+Info:
+-----
+The info dictionary contains:
+- &quot;task&quot;: {&quot;violation&quot;: bool, &quot;success&quot;: bool}
+  - violation: True if out of bounds
+  - success: True if goal reached
+</pre></div>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Variables<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>cfg</strong> – Configuration object for the environment.</p></li>
+<li><p><strong>state_low</strong> – Lower bounds for the Pointmass position and velocity.</p></li>
+<li><p><strong>state_high</strong> – Upper bounds for the Pointmass position and velocity.</p></li>
+<li><p><strong>observation_space</strong> – The observation space of the environment.</p></li>
+<li><p><strong>action_space</strong> – The action space of the environment.</p></li>
+<li><p><strong>A</strong> – State transition matrix for the point mass dynamics.</p></li>
+<li><p><strong>B</strong> – Control input matrix for the point mass dynamics.</p></li>
+<li><p><strong>start</strong> – The starting position will be sampled in this Circle.</p></li>
+<li><p><strong>goal</strong> – The goal is reached if the pointmass enters this Circle.</p></li>
+<li><p><strong>wind_field</strong> – WindField object representing the wind disturbances.</p></li>
+<li><p><strong>state</strong> – Current state of the environment (position and velocity).</p></li>
+<li><p><strong>action</strong> – Last action taken (used in rendering).</p></li>
+<li><p><strong>time</strong> – Elapsed time in the current episode.</p></li>
+<li><p><strong>trajectory</strong> – List of states visited during the episode (used in rendering).</p></li>
+<li><p><strong>trajectory_plot</strong> – object representing the trajectory in the rendering.</p></li>
+<li><p><strong>agent_plot</strong> – object representing the agent in the rendering.</p></li>
+<li><p><strong>action_arrow_patch</strong> – object representing the action arrow in the rendering.</p></li>
+</ul>
+</dd>
+</dl>
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.reset">
+<span class="sig-name descname"><span class="pre">reset</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="keyword-only-separator o"><abbr title="Keyword-only parameters separator (PEP 3102)"><span class="pre">*</span></abbr></span></em>, <em class="sig-param"><span class="n"><span class="pre">seed</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">options</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">None</span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#PointMassEnv.reset"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.reset" title="Link to this definition">¶</a></dt>
+<dd><p>Resets the environment to an initial internal state, returning an initial observation and info.</p>
+<p>This method generates a new starting state often with some randomness to ensure that the agent explores the
+state space and learns a generalised policy about the environment. This randomness can be controlled
+with the <code class="docutils literal notranslate"><span class="pre">seed</span></code> parameter otherwise if the environment already has a random number generator and
+<a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.reset" title="leap_c.examples.pointmass.env.PointMassEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">reset()</span></code></a> is called with <code class="docutils literal notranslate"><span class="pre">seed=None</span></code>, the RNG is not reset.</p>
+<p>Therefore, <a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.reset" title="leap_c.examples.pointmass.env.PointMassEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">reset()</span></code></a> should (in the typical use case) be called with a seed right after initialization and then never again.</p>
+<p>For Custom environments, the first line of <a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.reset" title="leap_c.examples.pointmass.env.PointMassEnv.reset"><code class="xref py py-meth docutils literal notranslate"><span class="pre">reset()</span></code></a> should be <code class="docutils literal notranslate"><span class="pre">super().reset(seed=seed)</span></code> which implements
+the seeding correctly.</p>
+<div class="versionchanged">
+<p><span class="versionmodified changed">Changed in version v0.25: </span>The <code class="docutils literal notranslate"><span class="pre">return_info</span></code> parameter was removed and now info is expected to be returned.</p>
+</div>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>seed</strong> (<em>optional int</em>) – The seed that is used to initialize the environment’s PRNG (<cite>np_random</cite>) and
+the read-only attribute <cite>np_random_seed</cite>.
+If the environment does not already have a PRNG and <code class="docutils literal notranslate"><span class="pre">seed=None</span></code> (the default option) is passed,
+a seed will be chosen from some source of entropy (e.g. timestamp or /dev/urandom).
+However, if the environment already has a PRNG and <code class="docutils literal notranslate"><span class="pre">seed=None</span></code> is passed, the PRNG will <em>not</em> be reset
+and the env’s <code class="xref py py-attr docutils literal notranslate"><span class="pre">np_random_seed</span></code> will <em>not</em> be altered.
+If you pass an integer, the PRNG will be reset even if it already exists.
+Usually, you want to pass an integer <em>right after the environment has been initialized and then never again</em>.
+Please refer to the minimal example above to see this paradigm in action.</p></li>
+<li><p><strong>options</strong> (<em>optional dict</em>) – Additional information to specify how the environment is reset (optional,
+depending on the specific environment)</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><dl class="simple">
+<dt>Observation of the initial state. This will be an element of <a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.observation_space" title="leap_c.examples.pointmass.env.PointMassEnv.observation_space"><code class="xref py py-attr docutils literal notranslate"><span class="pre">observation_space</span></code></a></dt><dd><p>(typically a numpy array) and is analogous to the observation returned by <a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.step" title="leap_c.examples.pointmass.env.PointMassEnv.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">step()</span></code></a>.</p>
+</dd>
+<dt>info (dictionary):  This dictionary contains auxiliary information complementing <code class="docutils literal notranslate"><span class="pre">observation</span></code>. It should be analogous to</dt><dd><p>the <code class="docutils literal notranslate"><span class="pre">info</span></code> returned by <a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.step" title="leap_c.examples.pointmass.env.PointMassEnv.step"><code class="xref py py-meth docutils literal notranslate"><span class="pre">step()</span></code></a>.</p>
+</dd>
+</dl>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>observation (ObsType)</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.step">
+<span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">action</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><span class="pre">Any</span><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#bool" title="(in Python v3.14)"><span class="pre">bool</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#dict" title="(in Python v3.14)"><span class="pre">dict</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#PointMassEnv.step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.step" title="Link to this definition">¶</a></dt>
+<dd><p>Execute one time step within the environment.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><p><strong>action</strong> – Force applied in the x and y directions.</p>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p><ul class="simple">
+<li><p>observation: Next observation (position, velocity, wind force).</p></li>
+<li><p>reward: Reward for this step.</p></li>
+<li><p>terminated: Whether the episode terminated.</p></li>
+<li><p>truncated: Whether the episode was truncated.</p></li>
+<li><p>info: Dictionary with task information.</p></li>
+</ul>
+</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>Tuple containing</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.A">
+<span class="sig-name descname"><span class="pre">A</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.A" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.B">
+<span class="sig-name descname"><span class="pre">B</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.B" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.action">
+<span class="sig-name descname"><span class="pre">action</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.action" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.action_arrow_patch">
+<span class="sig-name descname"><span class="pre">action_arrow_patch</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">matplotlib.patches.FancyArrowPatch</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.action_arrow_patch" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.action_high">
+<span class="sig-name descname"><span class="pre">action_high</span></span><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.action_high" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.action_low">
+<span class="sig-name descname"><span class="pre">action_low</span></span><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.action_low" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.action_space">
+<span class="sig-name descname"><span class="pre">action_space</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">gymnasium.spaces.Box</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.action_space" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.agent_plot">
+<span class="sig-name descname"><span class="pre">agent_plot</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">matplotlib.lines.Line2D</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.agent_plot" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.cfg">
+<span class="sig-name descname"><span class="pre">cfg</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig" title="leap_c.examples.pointmass.env.PointMassEnvConfig"><span class="pre">PointMassEnvConfig</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.cfg" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.goal">
+<span class="sig-name descname"><span class="pre">goal</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#leap_c.examples.pointmass.env.Circle" title="leap_c.examples.pointmass.env.Circle"><span class="pre">Circle</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.goal" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.metadata">
+<span class="sig-name descname"><span class="pre">metadata</span></span><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.metadata" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.observation_space">
+<span class="sig-name descname"><span class="pre">observation_space</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">gymnasium.spaces.Box</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.observation_space" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.start">
+<span class="sig-name descname"><span class="pre">start</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#leap_c.examples.pointmass.env.Circle" title="leap_c.examples.pointmass.env.Circle"><span class="pre">Circle</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.start" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.state">
+<span class="sig-name descname"><span class="pre">state</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.state" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.state_high">
+<span class="sig-name descname"><span class="pre">state_high</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.state_high" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.state_low">
+<span class="sig-name descname"><span class="pre">state_low</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.state_low" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.time">
+<span class="sig-name descname"><span class="pre">time</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.time" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.trajectory">
+<span class="sig-name descname"><span class="pre">trajectory</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#list" title="(in Python v3.14)"><span class="pre">list</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a><span class="p"><span class="pre">]</span></span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">[]</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.trajectory" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.trajectory_plot">
+<span class="sig-name descname"><span class="pre">trajectory_plot</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">matplotlib.lines.Line2D</span><span class="w"> </span><span class="p"><span class="pre">|</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.trajectory_plot" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnv.wind_field">
+<span class="sig-name descname"><span class="pre">wind_field</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference internal" href="#leap_c.examples.pointmass.env.WindField" title="leap_c.examples.pointmass.env.WindField"><span class="pre">WindField</span></a></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnv.wind_field" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnvConfig">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">leap_c.examples.pointmass.env.</span></span><span class="sig-name descname"><span class="pre">PointMassEnvConfig</span></span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#PointMassEnvConfig"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnvConfig" title="Link to this definition">¶</a></dt>
+<dd><p>Configuration for the PointMass environment.</p>
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnvConfig.Fmax">
+<span class="sig-name descname"><span class="pre">Fmax</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10.0</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.Fmax" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnvConfig.cx">
+<span class="sig-name descname"><span class="pre">cx</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">15</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.cx" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnvConfig.cy">
+<span class="sig-name descname"><span class="pre">cy</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">15</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.cy" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnvConfig.difficulty">
+<span class="sig-name descname"><span class="pre">difficulty</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="pre">DifficultyLevel</span></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">'hard'</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.difficulty" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnvConfig.dt">
+<span class="sig-name descname"><span class="pre">dt</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">0.1</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.dt" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnvConfig.m">
+<span class="sig-name descname"><span class="pre">m</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">1.0</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.m" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnvConfig.max_time">
+<span class="sig-name descname"><span class="pre">max_time</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10.0</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.max_time" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnvConfig.max_v">
+<span class="sig-name descname"><span class="pre">max_v</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">20.0</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.max_v" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.PointMassEnvConfig.max_wind_force">
+<span class="sig-name descname"><span class="pre">max_wind_force</span></span><em class="property"><span class="p"><span class="pre">:</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></em><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10.5</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.max_wind_force" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.WindField">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">leap_c.examples.pointmass.env.</span></span><span class="sig-name descname"><span class="pre">WindField</span></span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#WindField"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.WindField" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABC" title="(in Python v3.14)"><code class="xref py py-obj docutils literal notranslate"><span class="pre">abc.ABC</span></code></a></p>
+<p>Helper class that provides a standard way to create an ABC using
+inheritance.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.WindField.plot_XY">
+<span class="sig-name descname"><span class="pre">plot_XY</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xlim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#WindField.plot_XY"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.WindField.plot_XY" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.WindField.plot_wind_field">
+<span class="sig-name descname"><span class="pre">plot_wind_field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">matplotlib.axes.Axes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xlim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">max_len</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">0.15</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#WindField.plot_wind_field"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.WindField.plot_wind_field" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py class">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.WindParcour">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">leap_c.examples.pointmass.env.</span></span><span class="sig-name descname"><span class="pre">WindParcour</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">magnitude</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">10.0</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">difficulty</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">DifficultyLevel</span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><span class="default_value"><span class="pre">'easy'</span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#WindParcour"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.WindParcour" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#leap_c.examples.pointmass.env.WindField" title="leap_c.examples.pointmass.env.WindField"><code class="xref py py-obj docutils literal notranslate"><span class="pre">WindField</span></code></a></p>
+<p>Helper class that provides a standard way to create an ABC using
+inheritance.</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.WindParcour.plot_XY">
+<span class="sig-name descname"><span class="pre">plot_XY</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">xlim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#WindParcour.plot_XY"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.WindParcour.plot_XY" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.WindParcour.plot_wind_field">
+<span class="sig-name descname"><span class="pre">plot_wind_field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">ax</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="pre">matplotlib.axes.Axes</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xlim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></em>, <em class="sig-param"><span class="n"><span class="pre">ylim</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a><span class="p"><span class="pre">]</span></span></span></em><span class="sig-paren">)</span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#WindParcour.plot_wind_field"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.WindParcour.plot_wind_field" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+<dl class="py attribute">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.WindParcour.magnitude">
+<span class="sig-name descname"><span class="pre">magnitude</span></span><em class="property"><span class="w"> </span><span class="p"><span class="pre">=</span></span><span class="w"> </span><span class="pre">10.0</span></em><a class="headerlink" href="#leap_c.examples.pointmass.env.WindParcour.magnitude" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.define_transition_matrices">
+<span class="sig-prename descclassname"><span class="pre">leap_c.examples.pointmass.env.</span></span><span class="sig-name descname"><span class="pre">define_transition_matrices</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">m</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cx</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">cy</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></em>, <em class="sig-param"><span class="n"><span class="pre">dt</span></span><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></em><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#tuple" title="(in Python v3.14)"><span class="pre">tuple</span></a><span class="p"><span class="pre">[</span></span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a><span class="p"><span class="pre">,</span></span><span class="w"> </span><a class="reference external" href="https://numpy.org/doc/stable/reference/generated/numpy.ndarray.html#numpy.ndarray" title="(in NumPy v2.5)"><span class="pre">numpy.ndarray</span></a><span class="p"><span class="pre">]</span></span></span></span><a class="reference internal" href="../../../../../../_modules/leap_c/examples/pointmass/env.html#define_transition_matrices"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#leap_c.examples.pointmass.env.define_transition_matrices" title="Link to this definition">¶</a></dt>
+<dd><p>Define the transition matrices A and B for the point mass dynamics.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters<span class="colon">:</span></dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>m</strong> – Mass of the point mass.</p></li>
+<li><p><strong>cx</strong> – Damping coefficient in x direction.</p></li>
+<li><p><strong>cy</strong> – Damping coefficient in y direction.</p></li>
+<li><p><strong>dt</strong> – Time step for the discrete dynamics.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns<span class="colon">:</span></dt>
+<dd class="field-even"><p>State transition matrix.
+B: Control input matrix.</p>
+</dd>
+<dt class="field-odd">Return type<span class="colon">:</span></dt>
+<dd class="field-odd"><p>A</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py data">
+<dt class="sig sig-object py" id="leap_c.examples.pointmass.env.DifficultyLevel">
+<span class="sig-prename descclassname"><span class="pre">leap_c.examples.pointmass.env.</span></span><span class="sig-name descname"><span class="pre">DifficultyLevel</span></span><a class="headerlink" href="#leap_c.examples.pointmass.env.DifficultyLevel" title="Link to this definition">¶</a></dt>
+<dd></dd></dl>
+
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="../planner/index.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">leap_c.examples.pointmass.planner</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="../acados_ocp/index.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">leap_c.examples.pointmass.acados_ocp</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2025-2026, Dirk, Jasper, Leonard
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">leap_c.examples.pointmass.env</a><ul>
+<li><a class="reference internal" href="#attributes">Attributes</a></li>
+<li><a class="reference internal" href="#classes">Classes</a></li>
+<li><a class="reference internal" href="#functions">Functions</a></li>
+<li><a class="reference internal" href="#module-contents">Module Contents</a><ul>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.Circle"><code class="docutils literal notranslate"><span class="pre">Circle</span></code></a><ul>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.Circle.sample"><code class="docutils literal notranslate"><span class="pre">Circle.sample()</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.Circle.pos"><code class="docutils literal notranslate"><span class="pre">Circle.pos</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.Circle.radius"><code class="docutils literal notranslate"><span class="pre">Circle.radius</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv"><code class="docutils literal notranslate"><span class="pre">PointMassEnv</span></code></a><ul>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.reset"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.reset()</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.step"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.step()</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.A"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.A</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.B"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.B</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.action"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.action</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.action_arrow_patch"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.action_arrow_patch</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.action_high"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.action_high</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.action_low"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.action_low</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.action_space"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.action_space</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.agent_plot"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.agent_plot</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.cfg"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.cfg</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.goal"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.goal</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.metadata"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.metadata</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.observation_space"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.observation_space</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.start"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.start</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.state"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.state</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.state_high"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.state_high</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.state_low"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.state_low</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.time"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.time</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.trajectory"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.trajectory</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.trajectory_plot"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.trajectory_plot</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnv.wind_field"><code class="docutils literal notranslate"><span class="pre">PointMassEnv.wind_field</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig"><code class="docutils literal notranslate"><span class="pre">PointMassEnvConfig</span></code></a><ul>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.Fmax"><code class="docutils literal notranslate"><span class="pre">PointMassEnvConfig.Fmax</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.cx"><code class="docutils literal notranslate"><span class="pre">PointMassEnvConfig.cx</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.cy"><code class="docutils literal notranslate"><span class="pre">PointMassEnvConfig.cy</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.difficulty"><code class="docutils literal notranslate"><span class="pre">PointMassEnvConfig.difficulty</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.dt"><code class="docutils literal notranslate"><span class="pre">PointMassEnvConfig.dt</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.m"><code class="docutils literal notranslate"><span class="pre">PointMassEnvConfig.m</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.max_time"><code class="docutils literal notranslate"><span class="pre">PointMassEnvConfig.max_time</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.max_v"><code class="docutils literal notranslate"><span class="pre">PointMassEnvConfig.max_v</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.PointMassEnvConfig.max_wind_force"><code class="docutils literal notranslate"><span class="pre">PointMassEnvConfig.max_wind_force</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.WindField"><code class="docutils literal notranslate"><span class="pre">WindField</span></code></a><ul>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.WindField.plot_XY"><code class="docutils literal notranslate"><span class="pre">WindField.plot_XY()</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.WindField.plot_wind_field"><code class="docutils literal notranslate"><span class="pre">WindField.plot_wind_field()</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.WindParcour"><code class="docutils literal notranslate"><span class="pre">WindParcour</span></code></a><ul>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.WindParcour.plot_XY"><code class="docutils literal notranslate"><span class="pre">WindParcour.plot_XY()</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.WindParcour.plot_wind_field"><code class="docutils literal notranslate"><span class="pre">WindParcour.plot_wind_field()</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.WindParcour.magnitude"><code class="docutils literal notranslate"><span class="pre">WindParcour.magnitude</span></code></a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.define_transition_matrices"><code class="docutils literal notranslate"><span class="pre">define_transition_matrices()</span></code></a></li>
+<li><a class="reference internal" href="#leap_c.examples.pointmass.env.DifficultyLevel"><code class="docutils literal notranslate"><span class="pre">DifficultyLevel</span></code></a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../../../../_static/documentation_options.js?v=cb975c41"></script>
+    <script src="../../../../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../../../_static/scripts/furo.js?v=5fa4622c"></script>
+    </body>
+</html>

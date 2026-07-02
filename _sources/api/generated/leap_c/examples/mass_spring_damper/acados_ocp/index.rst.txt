@@ -1,0 +1,43 @@
+leap_c.examples.mass_spring_damper.acados_ocp
+=============================================
+
+.. py:module:: leap_c.examples.mass_spring_damper.acados_ocp
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.examples.mass_spring_damper.acados_ocp.N_horizon
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.examples.mass_spring_damper.acados_ocp.export_parametric_ocp
+
+
+Module Contents
+---------------
+
+.. py:function:: export_parametric_ocp(N_horizon: int, name: str = 'mass_spring_damper', x0: numpy.ndarray | None = None) -> tuple[acados_template.AcadosOcp, leap_c.ocp.acados.parameters.AcadosParameterManager, gymnasium.spaces.Dict, dict[str, numpy.ndarray]]
+
+   Export the mass-spring-damper OCP.
+
+   :param N_horizon: Number of time steps in the horizon.
+   :param name: Name of the OCP model.
+   :param x0: Initial state.
+
+   :returns: the configured
+             :class:`AcadosOcp`, its :class:`AcadosParameterManager`, the parameter space, and
+             the default parameter values.
+   :rtype: A tuple ``(ocp, parameter_manager, param_space, defaults)``
+
+
+.. py:data:: N_horizon
+   :value: 100
+
+

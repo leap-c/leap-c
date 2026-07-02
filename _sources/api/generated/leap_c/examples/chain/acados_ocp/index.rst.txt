@@ -1,0 +1,44 @@
+leap_c.examples.chain.acados_ocp
+================================
+
+.. py:module:: leap_c.examples.chain.acados_ocp
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.examples.chain.acados_ocp.ChainInitializer
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.examples.chain.acados_ocp.export_parametric_ocp
+
+
+Module Contents
+---------------
+
+.. py:class:: ChainInitializer(ocp: acados_template.AcadosOcp, x_ref: numpy.ndarray)
+
+   Bases: :py:obj:`leap_c.ocp.acados.initializer.AcadosDiffMpcInitializer`
+
+
+   Initializer for the chain controller.
+
+
+   .. py:method:: single_iterate(solver_input: leap_c.ocp.acados.data.AcadosOcpSolverInput) -> acados_template.AcadosOcpFlattenedIterate
+
+      Returns a single iterate for the given solver input. Using the default iterate.
+
+
+
+   .. py:attribute:: default_iterate
+
+
+.. py:function:: export_parametric_ocp(x_ref: numpy.ndarray, fix_point: numpy.ndarray, name: str = 'chain', N_horizon: int = 30, T_horizon: float = 6.0, n_mass: int = 5) -> tuple[acados_template.AcadosOcp, leap_c.ocp.acados.parameters.AcadosParameterManager, gymnasium.spaces.Dict, dict[str, numpy.ndarray]]
+

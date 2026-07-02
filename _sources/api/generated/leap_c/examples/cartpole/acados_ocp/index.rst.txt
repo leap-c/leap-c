@@ -1,0 +1,33 @@
+leap_c.examples.cartpole.acados_ocp
+===================================
+
+.. py:module:: leap_c.examples.cartpole.acados_ocp
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.examples.cartpole.acados_ocp.CartPoleAcadosCostType
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.examples.cartpole.acados_ocp.export_parametric_ocp
+
+
+Module Contents
+---------------
+
+.. py:function:: export_parametric_ocp(cost_type: CartPoleAcadosCostType = 'NONLINEAR_LS', name: str = 'cartpole', Fmax: float = 80.0, x_threshold: float = 2.4, N_horizon: int = 50, T_horizon: float = 2.0, param_splits: leap_c.utils.parameters.ParamSplits = 'global') -> tuple[acados_template.AcadosOcp, leap_c.ocp.acados.parameters.AcadosParameterManager, gymnasium.spaces.Box, numpy.ndarray]
+
+.. py:data:: CartPoleAcadosCostType
+
+   The type of cost to use, either "EXTERNAL" or "NONLINEAR_LS". Both model the same cost function,
+   but the former uses an exact Hessian in the optimization, while the latter uses a
+   Gauss-Newton Hessian approximation.
+

@@ -1,0 +1,17 @@
+leap_c.examples.cartpole
+========================
+
+.. py:module:: leap_c.examples.cartpole
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /api/generated/leap_c/examples/cartpole/acados_ocp/index
+   /api/generated/leap_c/examples/cartpole/env/index
+   /api/generated/leap_c/examples/cartpole/planner/index
+
+

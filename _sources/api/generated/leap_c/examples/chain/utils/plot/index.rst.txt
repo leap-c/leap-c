@@ -1,0 +1,82 @@
+leap_c.examples.chain.utils.plot
+================================
+
+.. py:module:: leap_c.examples.chain.utils.plot
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.examples.chain.utils.plot.animate_chain_position
+   leap_c.examples.chain.utils.plot.animate_chain_position_3D
+   leap_c.examples.chain.utils.plot.get_plot_lims
+   leap_c.examples.chain.utils.plot.plot_chain_control_traj
+   leap_c.examples.chain.utils.plot.plot_chain_position
+   leap_c.examples.chain.utils.plot.plot_chain_position_3D
+   leap_c.examples.chain.utils.plot.plot_chain_position_traj
+   leap_c.examples.chain.utils.plot.plot_chain_velocity_traj
+   leap_c.examples.chain.utils.plot.plot_steady_state
+   leap_c.examples.chain.utils.plot.plot_timings
+   leap_c.examples.chain.utils.plot.sample_from_ellipsoid
+   leap_c.examples.chain.utils.plot.sample_from_ellipsoid_surface
+
+
+Module Contents
+---------------
+
+.. py:function:: animate_chain_position(simX: numpy.ndarray, xPosFirstMass: numpy.ndarray | None, refX: numpy.ndarray | None = None, Ts: float = 0.1, yPosWall: numpy.ndarray | None = None)
+
+   Creates animation of the chain, where simX contains the state trajectory.
+
+   dt defines the time gap (in seconds) between two succesive entries.
+
+
+.. py:function:: animate_chain_position_3D(simX, xPosFirstMass, Ts=0.1)
+
+   Create 3D animation of the chain, where simX contains the state trajectory.
+
+   dt defines the time gap (in seconds) between two succesive entries.
+
+
+.. py:function:: get_plot_lims(a)
+
+.. py:function:: plot_chain_control_traj(simU)
+
+.. py:function:: plot_chain_position(x, xPosFirstMass)
+
+.. py:function:: plot_chain_position_3D(X, xPosFirstMass, XNames=None)
+
+   X can be either chain state, or tuple of chain states.
+
+   Xnames is a list of strings.
+
+
+.. py:function:: plot_chain_position_traj(simX, yPosWall=None)
+
+.. py:function:: plot_chain_velocity_traj(simX)
+
+.. py:function:: plot_steady_state(x_ss: numpy.ndarray, u_ss: numpy.ndarray, n_mass: int, pos_first_mass: numpy.ndarray) -> tuple[matplotlib.pyplot.Figure, matplotlib.pyplot.Figure]
+
+.. py:function:: plot_timings(results_list, labels, figure_filename=None, t_max=None)
+
+.. py:function:: sample_from_ellipsoid(w, Z)
+
+   Sample from ellipsoid with center w and variability matrix Z.
+
+
+.. py:function:: sample_from_ellipsoid_surface(w, Z)
+
+   Uniformly sample from the surface of an ellipsoid with center w and variability matrix Z.
+
+   :param w (numpy.ndarray):
+   :type w (numpy.ndarray): Center of the ellipsoid
+   :param Z (numpy.ndarray):
+   :type Z (numpy.ndarray): Symmetric positive definite variability matrix
+   :param Returns:
+   :param -------:
+   :param numpy.ndarray:
+   :type numpy.ndarray: A point on the surface of the ellipsoid
+
+

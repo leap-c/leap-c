@@ -1,0 +1,195 @@
+leap_c.ocp.acados.parameters
+============================
+
+.. py:module:: leap_c.ocp.acados.parameters
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.ocp.acados.parameters.AcadosParameterManager
+
+
+Module Contents
+---------------
+
+.. py:class:: AcadosParameterManager(N_horizon: int, casadi_type: Literal['SX', 'MX'] = 'SX')
+
+   acados parameter management.
+
+   Handles parameter registration, validation, CasADi symbol creation, and provides default
+   numpy implementations for combining parameters. Framework-specific methods
+   (e.g. :meth:`combine_differentiable_parameters_torch`) preserve differentiability through the
+   composition.
+
+   **Stage-varying differentiable parameters** (``splits`` are not ``"global"``) are implemented
+   via a one-hot *indicator* vector that is appended to the non-differentiable parameters.  At
+   stage ``k`` only ``indicator[k]`` is 1; :meth:`get` returns a weighted sum over all stage
+   blocks so the same symbolic expression evaluates to the correct block value at every stage.
+
+   .. warning::
+       If you forget to set the indicator correctly in
+       :meth:`combine_non_differentiable_parameters`, every stage will silently evaluate to zero
+       for all stage-varying differentiable parameters.
+
+   :ivar parameters: Dictionary of parameter names to _AcadosParameter instances.
+   :ivar N_horizon: The horizon length for the ocp.
+   :ivar casadi_type: The CasADi symbolic type used for the parameters, either "SX" or "MX".
+   :ivar differentiable_default_flat:
+                                      Differentiable parameters' default values as a flattened NDArray.
+   :ivar non_differentiable_default_flat:
+                                          Non-differentiable parameters' default values as a flattened NDArray.
+   :ivar differentiable_symbols: CasADi SX/MX expression for the differentiable parameters.
+   :ivar non_differentiable_symbols: CasADi SX/MX expression for the non-differentiable parameters.
+
+
+
+   .. py:method:: assign_to_ocp(ocp: acados_template.AcadosOcp) -> None
+
+      Synchronize the parameter manager's symbols and defaults onto the OCP.
+
+      Sets ``model.p``, ``model.p_global``, ``parameter_values``, and ``p_global_values``
+      on the provided acados OCP instance. Should be called before solver code generation.
+
+      :param ocp: An acados ``AcadosOcp`` instance.
+
+
+
+   .. py:method:: combine_differentiable_parameters_jax(batch_size: int | None = None, **overwrites: Any) -> Any
+
+      Combine differentiable parameters into a flat JAX array, preserving differentiability.
+
+      .. note::
+          This method is a placeholder. Contributions implementing JAX-native operations
+          (e.g. using ``jax.numpy``) are welcome.
+
+      :param batch_size: Batch size.
+      :param \*\*overwrites: Named parameter overrides as JAX or numpy arrays.
+
+      :returns: JAX array of shape ``(batch_size, N_differentiable)``.
+
+      :raises ImportError: If jax is not installed.
+      :raises NotImplementedError: Until a JAX implementation is contributed.
+
+
+
+   .. py:method:: combine_differentiable_parameters_torch(batch_size: int | None = None, device: AcadosParameterManager.combine_differentiable_parameters_torch.torch = None, dtype: AcadosParameterManager.combine_differentiable_parameters_torch.torch = None, **overwrites: AcadosParameterManager.combine_differentiable_parameters_torch.torch) -> AcadosParameterManager.combine_differentiable_parameters_torch.torch
+
+      Combine differentiable parameters into a flat tensor, preserving differentiability.
+
+      Uses ``torch.cat``, indexing, and reshaping — all differentiable — so gradients
+      flow back to the original parameter tensors in the ``overwrites`` dict.
+
+      :param batch_size: Batch size. Required.
+      :param device: Target device for the output tensor. Required.
+      :param dtype: Target dtype for the output tensor. Required.
+      :param \*\*overwrites: Named parameter overrides as tensors or numpy arrays.
+
+      :returns: Tensor of shape ``(batch_size, N_differentiable)``.
+
+      :raises ImportError: If torch is not installed.
+
+
+
+   .. py:method:: combine_non_differentiable_parameters(batch_size: int | None = None, **overwrite: numpy.ndarray) -> numpy.ndarray
+
+      Combine all non-differentiable parameters into a single numpy array.
+
+      :param batch_size: The batch size for the parameters.
+                         Not needed if overwrite is provided.
+      :param \*\*overwrite: Overwrite values for specific parameters.
+                            The keys should correspond to the parameter names to overwrite.
+                            The values need to be np.ndarray with shape ``(batch_size, N_horizon, pdim)``,
+                            where ``pdim`` is the number of dimensions of the parameter to overwrite.
+
+      :returns: shape ``(batch_size, N_horizon, np)`` with ``np`` being the number of
+                ``parameter_values``.
+      :rtype: np.ndarray
+
+
+
+   .. py:method:: get(name: str) -> casadi.SX | casadi.MX | numpy.ndarray
+
+      Get the symbolic variable for a parameter.
+
+      For stage-varying differentiable parameters (those with ``splits``), the returned
+      expression is a weighted sum over all stage blocks, gated by the ``indicator`` vector
+      in the non-differentiable parameters.  The expression evaluates to the correct block value
+      at each stage, but **only if the indicator is set correctly** via
+      :meth:`combine_non_differentiable_parameters`.  If the indicator is all-zero (e.g. the
+      default), every stage silently evaluates to zero for these parameters.
+
+      :param name: The name of the parameter to retrieve.
+
+      :returns:
+
+                - CasADi ``SX``/``MX`` expression for ``"differentiable"`` and ``"non-differentiable"``
+                  parameters.
+
+      :raises ValueError: If ``name`` is not registered with this manager.
+
+
+
+   .. py:method:: register_parameter(name: str, default: numpy.ndarray, differentiable: bool = False, splits: leap_c.utils.parameters.ParamSplits = 'global') -> casadi.SX | casadi.MX
+
+      Register a parameter and return a CasADi symbolic for immediate use.
+
+      The returned symbolic is a real CasADi SX (or MX) expression (not a placeholder).
+      It can be used directly in cost, dynamics, and constraint expressions.
+
+      :param name: The name of the parameter.
+      :param default: The default value(s) for the parameter.
+      :param differentiable: If True, the parameter supports sensitivities (differentiable).
+                             If False, the parameter is changeable at runtime but not differentiable
+                             (non-differentiable). Defaults to ``False``.
+      :param splits: Defines how the parameter varies across stages. See
+                     :class:`_AcadosParameter` for details. Defaults to ``"global"``.
+
+      :returns: A CasADi symbolic expression for the parameter.
+
+
+
+   .. py:attribute:: N_horizon
+      :type:  int
+
+
+   .. py:attribute:: casadi_type
+      :type:  Literal['SX', 'MX']
+
+
+   .. py:property:: differentiable_default_flat
+      :type: numpy.ndarray
+
+
+
+   .. py:property:: differentiable_parameter_names
+      :type: list[str]
+
+
+
+   .. py:property:: differentiable_symbols
+      :type: casadi.SX | casadi.MX
+
+
+
+   .. py:property:: non_differentiable_default_flat
+      :type: numpy.ndarray
+
+
+
+   .. py:property:: non_differentiable_parameter_names
+      :type: list[str]
+
+
+
+   .. py:property:: non_differentiable_symbols
+      :type: casadi.SX | casadi.MX
+
+
+
+   .. py:attribute:: parameters
+      :type:  dict[str, _AcadosParameter]
+
+

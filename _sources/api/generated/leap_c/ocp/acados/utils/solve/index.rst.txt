@@ -1,0 +1,34 @@
+leap_c.ocp.acados.utils.solve
+=============================
+
+.. py:module:: leap_c.ocp.acados.utils.solve
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.ocp.acados.utils.solve.solve_with_retry
+
+
+Module Contents
+---------------
+
+.. py:function:: solve_with_retry(batch_solver: acados_template.acados_ocp_batch_solver.AcadosOcpBatchSolver, initializer: leap_c.ocp.acados.initializer.AcadosDiffMpcInitializer, ocp_iterate: acados_template.acados_ocp_iterate.AcadosOcpFlattenedBatchIterate | None, solver_input: leap_c.ocp.acados.data.AcadosOcpSolverInput) -> tuple[numpy.ndarray, dict[str, float]]
+
+   Solve a batch of problem instances, and retry in case of failure.
+
+   This function prepares the batch solver by loading the iterate, setting the initial conditions,
+   and configuring the global and stage-wise parameters. If `p_global` or `p_stagewise` is not
+   provided, it will check if the model has default parameters and load them accordingly.
+
+   :param batch_solver: The batch solver to use.
+   :param initializer: The initializer used for retries.
+   :param ocp_iterate: The iterate to load into the batch solver.
+   :param solver_input: Input data for the solver, which includes initial conditions and parameters.
+
+   :returns: The status of each solver (`status != 0` means failure) and statistics of the solving
+             process, i.e., `"solving_time"`, `"success_rate"`, and `"retry_rate"`.
+
+

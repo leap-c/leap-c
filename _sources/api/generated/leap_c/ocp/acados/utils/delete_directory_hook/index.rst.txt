@@ -1,0 +1,29 @@
+leap_c.ocp.acados.utils.delete_directory_hook
+=============================================
+
+.. py:module:: leap_c.ocp.acados.utils.delete_directory_hook
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.ocp.acados.utils.delete_directory_hook.DeleteDirectoryHook
+
+
+Module Contents
+---------------
+
+.. py:class:: DeleteDirectoryHook(obj, dir: str | pathlib.Path)
+
+   A class that registers a cleanup hook to delete a directory.
+
+   This class ensures a specified directory is removed automatically upon
+   program termination, even if an error occurs. It uses `atexit.register`
+   to queue the directory deletion.
+
+
+   .. py:attribute:: dir
+
+

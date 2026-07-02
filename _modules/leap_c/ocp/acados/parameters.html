@@ -1,0 +1,1069 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="../../../../">
+  <head><meta charset="utf-8"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <meta name="color-scheme" content="light dark"><link rel="index" title="Index" href="../../../../genindex.html" /><link rel="search" title="Search" href="../../../../search.html" />
+
+    <!-- Generated with Sphinx 8.2.3 and Furo 2024.08.06 -->
+        <title>leap_c.ocp.acados.parameters - leap-c 2025 documentation</title>
+      <link rel="stylesheet" type="text/css" href="../../../../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/styles/furo.css?v=354aac6f" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/graphviz.css?v=4ae1632d" />
+    <link rel="stylesheet" type="text/css" href="../../../../_static/styles/furo-extensions.css?v=302659d7" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f8f8f8;
+  --color-code-foreground: black;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style></head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc">
+<label class="overlay sidebar-overlay" for="__navigation">
+  <div class="visually-hidden">Hide navigation sidebar</div>
+</label>
+<label class="overlay toc-overlay" for="__toc">
+  <div class="visually-hidden">Hide table of contents sidebar</div>
+</label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <div class="visually-hidden">Toggle site navigation sidebar</div>
+        <i class="icon"><svg><use href="#svg-menu"></use></svg></i>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="../../../../index.html"><div class="brand">leap-c 2025 documentation</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle">
+          <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon no-toc" for="__toc">
+        <div class="visually-hidden">Toggle table of contents sidebar</div>
+        <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="../../../../index.html">
+  
+  
+  <span class="sidebar-brand-text">leap-c 2025 documentation</span>
+  
+</a><form class="sidebar-search-container" method="get" action="../../../../search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Contents</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../getting_started.html">Getting Started</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../define_differentiable_mpc.html">Define a differentiable MPC</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../parameter_management.html">Parameter Management in Acados OCPs</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../notebooks.html">Running Notebooks</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../../../../troubleshooting.html">Troubleshooting usability with VS Code</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">API Reference</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="../../../../api/index.html">Core API</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/index.html">leap_c</a><input class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><div class="visually-hidden">Toggle navigation of leap_c</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/autograd/index.html">leap_c.autograd</a><input class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><div class="visually-hidden">Toggle navigation of leap_c.autograd</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/autograd/function/index.html">leap_c.autograd.function</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/autograd/torch/index.html">leap_c.autograd.torch</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/controller/index.html">leap_c.controller</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/index.html">leap_c.examples</a><input class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><div class="visually-hidden">Toggle navigation of leap_c.examples</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/index.html">leap_c.examples.cartpole</a><input class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><div class="visually-hidden">Toggle navigation of leap_c.examples.cartpole</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/acados_ocp/index.html">leap_c.examples.cartpole.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/env/index.html">leap_c.examples.cartpole.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/cartpole/planner/index.html">leap_c.examples.cartpole.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/index.html">leap_c.examples.chain</a><input class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><div class="visually-hidden">Toggle navigation of leap_c.examples.chain</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/acados_ocp/index.html">leap_c.examples.chain.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/dynamics/index.html">leap_c.examples.chain.dynamics</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/env/index.html">leap_c.examples.chain.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/planner/index.html">leap_c.examples.chain.planner</a></li>
+<li class="toctree-l4 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/index.html">leap_c.examples.chain.utils</a><input class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><div class="visually-hidden">Toggle navigation of leap_c.examples.chain.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/ellipsoid/index.html">leap_c.examples.chain.utils.ellipsoid</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/plot/index.html">leap_c.examples.chain.utils.plot</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/examples/chain/utils/resting_chain_solver/index.html">leap_c.examples.chain.utils.resting_chain_solver</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/index.html">leap_c.examples.mass_spring_damper</a><input class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><div class="visually-hidden">Toggle navigation of leap_c.examples.mass_spring_damper</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/acados_ocp/index.html">leap_c.examples.mass_spring_damper.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/env/index.html">leap_c.examples.mass_spring_damper.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/mass_spring_damper/planner/index.html">leap_c.examples.mass_spring_damper.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/index.html">leap_c.examples.pointmass</a><input class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><div class="visually-hidden">Toggle navigation of leap_c.examples.pointmass</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/acados_ocp/index.html">leap_c.examples.pointmass.acados_ocp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/env/index.html">leap_c.examples.pointmass.env</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/pointmass/planner/index.html">leap_c.examples.pointmass.planner</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/examples/utils/index.html">leap_c.examples.utils</a><input class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><div class="visually-hidden">Toggle navigation of leap_c.examples.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/utils/casadi/index.html">leap_c.examples.utils.casadi</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/examples/utils/matplotlib_env/index.html">leap_c.examples.utils.matplotlib_env</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/index.html">leap_c.ocp</a><input class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><div class="visually-hidden">Toggle navigation of leap_c.ocp</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/index.html">leap_c.ocp.acados</a><input class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><div class="visually-hidden">Toggle navigation of leap_c.ocp.acados</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/data/index.html">leap_c.ocp.acados.data</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/diff_mpc/index.html">leap_c.ocp.acados.diff_mpc</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/initializer/index.html">leap_c.ocp.acados.initializer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/parameters/index.html">leap_c.ocp.acados.parameters</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/repr/index.html">leap_c.ocp.acados.repr</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/torch/index.html">leap_c.ocp.acados.torch</a></li>
+<li class="toctree-l4 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/index.html">leap_c.ocp.acados.utils</a><input class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><div class="visually-hidden">Toggle navigation of leap_c.ocp.acados.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/create_solver/index.html">leap_c.ocp.acados.utils.create_solver</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/delete_directory_hook/index.html">leap_c.ocp.acados.utils.delete_directory_hook</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/prepare_solver/index.html">leap_c.ocp.acados.utils.prepare_solver</a></li>
+<li class="toctree-l5"><a class="reference internal" href="../../../../api/generated/leap_c/ocp/acados/utils/solve/index.html">leap_c.ocp.acados.utils.solve</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/planner/index.html">leap_c.planner</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/run/index.html">leap_c.run</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/index.html">leap_c.torch</a><input class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><div class="visually-hidden">Toggle navigation of leap_c.torch</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/index.html">leap_c.torch.nn</a><input class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><div class="visually-hidden">Toggle navigation of leap_c.torch.nn</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/bounded_distributions/index.html">leap_c.torch.nn.bounded_distributions</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/extractor/index.html">leap_c.torch.nn.extractor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/mlp/index.html">leap_c.torch.nn.mlp</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/nn/scale/index.html">leap_c.torch.nn.scale</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/index.html">leap_c.torch.rl</a><input class="toctree-checkbox" id="toctree-checkbox-15" name="toctree-checkbox-15" role="switch" type="checkbox"/><label for="toctree-checkbox-15"><div class="visually-hidden">Toggle navigation of leap_c.torch.rl</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/buffer/index.html">leap_c.torch.rl.buffer</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/crossq/index.html">leap_c.torch.rl.crossq</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/crossq_zop/index.html">leap_c.torch.rl.crossq_zop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/mpc_actor/index.html">leap_c.torch.rl.mpc_actor</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/sac/index.html">leap_c.torch.rl.sac</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/sac_fop/index.html">leap_c.torch.rl.sac_fop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/sac_zop/index.html">leap_c.torch.rl.sac_zop</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/rl/utils/index.html">leap_c.torch.rl.utils</a></li>
+</ul>
+</li>
+<li class="toctree-l3 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/torch/utils/index.html">leap_c.torch.utils</a><input class="toctree-checkbox" id="toctree-checkbox-16" name="toctree-checkbox-16" role="switch" type="checkbox"/><label for="toctree-checkbox-16"><div class="visually-hidden">Toggle navigation of leap_c.torch.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/utils/gym/index.html">leap_c.torch.utils.gym</a></li>
+<li class="toctree-l4"><a class="reference internal" href="../../../../api/generated/leap_c/torch/utils/seed/index.html">leap_c.torch.utils.seed</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="../../../../api/generated/leap_c/trainer/index.html">leap_c.trainer</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="../../../../api/generated/leap_c/utils/index.html">leap_c.utils</a><input class="toctree-checkbox" id="toctree-checkbox-17" name="toctree-checkbox-17" role="switch" type="checkbox"/><label for="toctree-checkbox-17"><div class="visually-hidden">Toggle navigation of leap_c.utils</div><i class="icon"><svg><use href="#svg-arrow-right"></use></svg></i></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/cfg/index.html">leap_c.utils.cfg</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/dependencies/index.html">leap_c.utils.dependencies</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/git/index.html">leap_c.utils.git</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/gym/index.html">leap_c.utils.gym</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/latexify/index.html">leap_c.utils.latexify</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/logger/index.html">leap_c.utils.logger</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/parameters/index.html">leap_c.utils.parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="../../../../api/generated/leap_c/utils/rollout/index.html">leap_c.utils.rollout</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle">
+              <div class="visually-hidden">Toggle Light / Dark / Auto color theme</div>
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon no-toc" for="__toc">
+            <div class="visually-hidden">Toggle table of contents sidebar</div>
+            <i class="icon"><svg><use href="#svg-toc"></use></svg></i>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <h1>Source code for leap_c.ocp.acados.parameters</h1><div class="highlight"><pre>
+<span></span><span class="kn">from</span><span class="w"> </span><span class="nn">dataclasses</span><span class="w"> </span><span class="kn">import</span> <span class="n">dataclass</span><span class="p">,</span> <span class="n">field</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">typing</span><span class="w"> </span><span class="kn">import</span> <span class="n">TYPE_CHECKING</span><span class="p">,</span> <span class="n">Any</span><span class="p">,</span> <span class="n">Literal</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">warnings</span><span class="w"> </span><span class="kn">import</span> <span class="n">warn</span>
+
+<span class="kn">import</span><span class="w"> </span><span class="nn">casadi</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">ca</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">numpy</span><span class="w"> </span><span class="k">as</span><span class="w"> </span><span class="nn">np</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">acados_template</span><span class="w"> </span><span class="kn">import</span> <span class="n">AcadosOcp</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.utils.dependencies</span><span class="w"> </span><span class="kn">import</span> <span class="n">require_jax</span><span class="p">,</span> <span class="n">require_torch</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.utils.parameters</span><span class="w"> </span><span class="kn">import</span> <span class="n">ParamSplits</span>
+
+<span class="k">if</span> <span class="n">TYPE_CHECKING</span><span class="p">:</span>
+    <span class="kn">import</span><span class="w"> </span><span class="nn">torch</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_AcadosParameter</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Parameter container for flexible parameter management with acados.</span>
+
+<span class="sd">    It provides an interface for defining parameter sets without requiring knowledge of</span>
+<span class="sd">    internal CasADi tools or acados interface details.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        name: The name identifier for the parameter.</span>
+<span class="sd">        default: The parameter&#39;s default numerical value(s).</span>
+<span class="sd">        interface: Parameter interface type.</span>
+<span class="sd">            Either `&quot;non-differentiable&quot;` (not exposed to the learning interface, but will be</span>
+<span class="sd">            changeable parameters also after creation of the solver), or `&quot;differentiable&quot;`</span>
+<span class="sd">            (parameters directly exposed to the learning interface, in particular supporting</span>
+<span class="sd">            sensitivities). Defaults to `&quot;differentiable&quot;`.</span>
+<span class="sd">        splits: Defines how the parameter varies across stages. Only used for the `&quot;differentiable&quot;`</span>
+<span class="sd">            interface. Accepts:</span>
+<span class="sd">            - `list[int]`: Sorted (ascending) stage boundaries. The parameter takes one value per</span>
+<span class="sd">            resulting segment. Example: with `9` stages (`0` to `9`) and `splits = [4, 9]`, the</span>
+<span class="sd">            parameter has one value for stages `0` to `4` and another for stages `5` to `9`.</span>
+<span class="sd">            - `int`: Number of equal-sized splits.</span>
+<span class="sd">            - `&quot;stagewise&quot;`: One value per stage. Equivalent to `list(range(N_horizon + 1))`.</span>
+<span class="sd">            - `&quot;global&quot;`: A single value across all stages. Equivalent to `[N_horizon]`.</span>
+<span class="sd">            Defaults to `&quot;global&quot;`.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="c1"># Fields from base Parameter class</span>
+    <span class="n">name</span><span class="p">:</span> <span class="nb">str</span>
+    <span class="n">default</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="n">interface</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;differentiable&quot;</span><span class="p">,</span> <span class="s2">&quot;non-differentiable&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;differentiable&quot;</span>
+
+    <span class="c1"># Additional acados-specific field</span>
+    <span class="n">splits</span><span class="p">:</span> <span class="n">ParamSplits</span> <span class="o">=</span> <span class="s2">&quot;global&quot;</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">is_stage_varying</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">bool</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">splits</span> <span class="o">!=</span> <span class="s2">&quot;global&quot;</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">__post_init__</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splits</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="ow">not</span> <span class="bp">self</span><span class="o">.</span><span class="n">splits</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Parameter &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; has empty splits list. Hint: if you meant to define a&quot;</span>
+                <span class="s2">&quot; global parameter, please set splits=&#39;global&#39; instead.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splits</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">splits</span> <span class="o">!=</span> <span class="nb">sorted</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splits</span><span class="p">):</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Parameter &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; splits </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">splits</span><span class="si">}</span><span class="s2"> are not sorted in ascending order.&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splits</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">splits</span> <span class="o">&lt;=</span> <span class="mi">1</span><span class="p">:</span>
+            <span class="n">hint</span> <span class="o">=</span> <span class="p">(</span>
+                <span class="s2">&quot; If you meant to define a global parameter, please set splits=&#39;global&#39;&quot;</span>
+                <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">splits</span> <span class="o">==</span> <span class="mi">1</span>
+                <span class="k">else</span> <span class="s2">&quot;&quot;</span>
+            <span class="p">)</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Parameter &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; has invalid splits value </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">splits</span><span class="si">}</span><span class="s2">, number of splits&quot;</span>
+                <span class="sa">f</span><span class="s2">&quot; must be `&gt;1`.</span><span class="si">{</span><span class="n">hint</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">default</span><span class="o">.</span><span class="n">ndim</span> <span class="o">&gt;</span> <span class="mi">2</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Parameter &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; has </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">default</span><span class="o">.</span><span class="n">ndim</span><span class="si">}</span><span class="s2"> dimensions, &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;but CasADi only supports arrays up to 2 dimensions. &quot;</span>
+                <span class="sa">f</span><span class="s2">&quot;Parameter shape: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">default</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">interface</span> <span class="o">!=</span> <span class="s2">&quot;differentiable&quot;</span> <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">splits</span> <span class="o">!=</span> <span class="s2">&quot;global&quot;</span><span class="p">:</span>
+            <span class="n">warn</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Parameter &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; with interface &#39;</span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">interface</span><span class="si">}</span><span class="s2">&#39; defines splits.&quot;</span>
+                <span class="s2">&quot; The splits will be ignored as only &#39;differentiable&#39; parameters supports it.&quot;</span><span class="p">,</span>
+                <span class="ne">UserWarning</span><span class="p">,</span>
+                <span class="n">stacklevel</span><span class="o">=</span><span class="mi">2</span><span class="p">,</span>
+            <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">overwrite_shape</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">N_horizon</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">splits</span> <span class="o">==</span> <span class="s2">&quot;global&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">default</span><span class="o">.</span><span class="n">shape</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">ends</span> <span class="o">=</span> <span class="n">_define_starts_and_ends</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splits</span><span class="p">,</span> <span class="n">N_horizon</span><span class="p">)</span>
+        <span class="k">return</span> <span class="p">(</span><span class="nb">len</span><span class="p">(</span><span class="n">ends</span><span class="p">),</span> <span class="o">*</span><span class="bp">self</span><span class="o">.</span><span class="n">default</span><span class="o">.</span><span class="n">shape</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">broadcasted_default</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">N_horizon</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">splits</span> <span class="o">==</span> <span class="s2">&quot;global&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">default</span>
+        <span class="n">_</span><span class="p">,</span> <span class="n">ends</span> <span class="o">=</span> <span class="n">_define_starts_and_ends</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">splits</span><span class="p">,</span> <span class="n">N_horizon</span><span class="p">)</span>
+        <span class="n">n_segments</span> <span class="o">=</span> <span class="nb">len</span><span class="p">(</span><span class="n">ends</span><span class="p">)</span>
+        <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">default</span><span class="p">,</span> <span class="p">(</span><span class="n">n_segments</span><span class="p">,</span> <span class="o">*</span><span class="p">([</span><span class="mi">1</span><span class="p">]</span> <span class="o">*</span> <span class="bp">self</span><span class="o">.</span><span class="n">default</span><span class="o">.</span><span class="n">ndim</span><span class="p">)))</span>
+
+
+<span class="nd">@dataclass</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">_ParameterStore</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Helper class for storing parameter information and symbolic variables.</span>
+
+<span class="sd">    This is used internally by AcadosParameterManager to manage the parameters.</span>
+<span class="sd">    Allows adding symbols, defaults, and bounds. Handles the indexing and sizing</span>
+<span class="sd">    automatically.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">symbols</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">ca</span><span class="o">.</span><span class="n">SX</span> <span class="o">|</span> <span class="n">ca</span><span class="o">.</span><span class="n">MX</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">indices</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">int</span><span class="p">,</span> <span class="nb">int</span><span class="p">]]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">defaults</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">]</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default_factory</span><span class="o">=</span><span class="nb">dict</span><span class="p">)</span>
+    <span class="n">_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="n">field</span><span class="p">(</span><span class="n">default</span><span class="o">=</span><span class="mi">0</span><span class="p">,</span> <span class="n">init</span><span class="o">=</span><span class="kc">False</span><span class="p">)</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">size</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">int</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">add</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">symbol</span><span class="p">:</span> <span class="n">ca</span><span class="o">.</span><span class="n">SX</span> <span class="o">|</span> <span class="n">ca</span><span class="o">.</span><span class="n">MX</span><span class="p">,</span>
+        <span class="n">default</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">n</span> <span class="o">=</span> <span class="n">default</span><span class="o">.</span><span class="n">size</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">symbols</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">symbol</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_size</span> <span class="o">+</span> <span class="n">n</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">defaults</span><span class="p">[</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">default</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_size</span> <span class="o">+=</span> <span class="n">n</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_values</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">np</span><span class="o">.</span><span class="n">concatenate</span><span class="p">([</span><span class="n">v</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="o">-</span><span class="mi">1</span><span class="p">,</span> <span class="n">order</span><span class="o">=</span><span class="s2">&quot;F&quot;</span><span class="p">)</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">defaults</span><span class="o">.</span><span class="n">values</span><span class="p">()])</span>
+            <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">defaults</span>
+            <span class="k">else</span> <span class="n">np</span><span class="o">.</span><span class="n">array</span><span class="p">([])</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">get_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ca</span><span class="o">.</span><span class="n">SX</span> <span class="o">|</span> <span class="n">ca</span><span class="o">.</span><span class="n">MX</span><span class="p">:</span>
+        <span class="k">return</span> <span class="n">ca</span><span class="o">.</span><span class="n">vertcat</span><span class="p">(</span><span class="o">*</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">symbols</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span>
+
+
+<div class="viewcode-block" id="AcadosParameterManager">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/ocp/acados/parameters/index.html#leap_c.ocp.acados.parameters.AcadosParameterManager">[docs]</a>
+<span class="k">class</span><span class="w"> </span><span class="nc">AcadosParameterManager</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;acados parameter management.</span>
+
+<span class="sd">    Handles parameter registration, validation, CasADi symbol creation, and provides default</span>
+<span class="sd">    numpy implementations for combining parameters. Framework-specific methods</span>
+<span class="sd">    (e.g. :meth:`combine_differentiable_parameters_torch`) preserve differentiability through the</span>
+<span class="sd">    composition.</span>
+
+<span class="sd">    **Stage-varying differentiable parameters** (``splits`` are not ``&quot;global&quot;``) are implemented</span>
+<span class="sd">    via a one-hot *indicator* vector that is appended to the non-differentiable parameters.  At</span>
+<span class="sd">    stage ``k`` only ``indicator[k]`` is 1; :meth:`get` returns a weighted sum over all stage</span>
+<span class="sd">    blocks so the same symbolic expression evaluates to the correct block value at every stage.</span>
+
+<span class="sd">    .. warning::</span>
+<span class="sd">        If you forget to set the indicator correctly in</span>
+<span class="sd">        :meth:`combine_non_differentiable_parameters`, every stage will silently evaluate to zero</span>
+<span class="sd">        for all stage-varying differentiable parameters.</span>
+
+<span class="sd">    Attributes:</span>
+<span class="sd">        parameters: Dictionary of parameter names to _AcadosParameter instances.</span>
+<span class="sd">        N_horizon: The horizon length for the ocp.</span>
+<span class="sd">        casadi_type: The CasADi symbolic type used for the parameters, either &quot;SX&quot; or &quot;MX&quot;.</span>
+<span class="sd">        differentiable_default_flat:</span>
+<span class="sd">            Differentiable parameters&#39; default values as a flattened NDArray.</span>
+<span class="sd">        non_differentiable_default_flat:</span>
+<span class="sd">            Non-differentiable parameters&#39; default values as a flattened NDArray.</span>
+<span class="sd">        differentiable_symbols: CasADi SX/MX expression for the differentiable parameters.</span>
+<span class="sd">        non_differentiable_symbols: CasADi SX/MX expression for the non-differentiable parameters.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+
+    <span class="n">parameters</span><span class="p">:</span> <span class="nb">dict</span><span class="p">[</span><span class="nb">str</span><span class="p">,</span> <span class="n">_AcadosParameter</span><span class="p">]</span>
+    <span class="n">N_horizon</span><span class="p">:</span> <span class="nb">int</span>
+    <span class="n">casadi_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;SX&quot;</span><span class="p">,</span> <span class="s2">&quot;MX&quot;</span><span class="p">]</span>
+    <span class="n">_differentiable_parameter_store</span><span class="p">:</span> <span class="n">_ParameterStore</span>
+    <span class="n">_non_differentiable_parameter_store</span><span class="p">:</span> <span class="n">_ParameterStore</span>
+    <span class="n">_need_indicator</span><span class="p">:</span> <span class="nb">bool</span>
+    <span class="n">_finalized</span><span class="p">:</span> <span class="nb">bool</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">differentiable_default_flat</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_differentiable_parameter_store</span><span class="o">.</span><span class="n">get_values</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">non_differentiable_default_flat</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_non_differentiable_parameter_store</span><span class="o">.</span><span class="n">get_values</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">differentiable_parameter_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="n">name</span> <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">items</span><span class="p">()</span> <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">interface</span> <span class="o">==</span> <span class="s2">&quot;differentiable&quot;</span>
+        <span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">non_differentiable_parameter_names</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">list</span><span class="p">[</span><span class="nb">str</span><span class="p">]:</span>
+        <span class="k">return</span> <span class="p">[</span>
+            <span class="n">name</span>
+            <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">param</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">items</span><span class="p">()</span>
+            <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">interface</span> <span class="o">==</span> <span class="s2">&quot;non-differentiable&quot;</span>
+        <span class="p">]</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">differentiable_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ca</span><span class="o">.</span><span class="n">SX</span> <span class="o">|</span> <span class="n">ca</span><span class="o">.</span><span class="n">MX</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_differentiable_parameter_store</span><span class="o">.</span><span class="n">get_symbols</span><span class="p">()</span>
+
+    <span class="nd">@property</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">non_differentiable_symbols</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ca</span><span class="o">.</span><span class="n">SX</span> <span class="o">|</span> <span class="n">ca</span><span class="o">.</span><span class="n">MX</span><span class="p">:</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_non_differentiable_parameter_store</span><span class="o">.</span><span class="n">get_symbols</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__repr__</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">str</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">leap_c.ocp.acados.repr</span><span class="w"> </span><span class="kn">import</span> <span class="n">format_parameter_manager_repr</span>
+
+        <span class="k">return</span> <span class="n">format_parameter_manager_repr</span><span class="p">(</span><span class="bp">self</span><span class="p">)</span>
+
+    <span class="nd">@staticmethod</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">_create_symbol</span><span class="p">(</span><span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">size</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span> <span class="n">casadi_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;SX&quot;</span><span class="p">,</span> <span class="s2">&quot;MX&quot;</span><span class="p">])</span> <span class="o">-&gt;</span> <span class="n">ca</span><span class="o">.</span><span class="n">SX</span> <span class="o">|</span> <span class="n">ca</span><span class="o">.</span><span class="n">MX</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">casadi_type</span> <span class="o">==</span> <span class="s2">&quot;SX&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ca</span><span class="o">.</span><span class="n">SX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">elif</span> <span class="n">casadi_type</span> <span class="o">==</span> <span class="s2">&quot;MX&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">ca</span><span class="o">.</span><span class="n">MX</span><span class="o">.</span><span class="n">sym</span><span class="p">(</span><span class="n">name</span><span class="p">,</span> <span class="n">size</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unsupported casadi_type: </span><span class="si">{</span><span class="n">casadi_type</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_store_differentiable_parameter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameter</span><span class="p">:</span> <span class="n">_AcadosParameter</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">is_stage_varying</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_need_indicator</span> <span class="o">=</span> <span class="kc">True</span>
+            <span class="k">if</span> <span class="s2">&quot;indicator&quot;</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">_non_differentiable_parameter_store</span><span class="o">.</span><span class="n">symbols</span><span class="p">:</span>
+                <span class="n">indicator</span> <span class="o">=</span> <span class="n">_AcadosParameter</span><span class="p">(</span>
+                    <span class="n">name</span><span class="o">=</span><span class="s2">&quot;indicator&quot;</span><span class="p">,</span>
+                    <span class="n">default</span><span class="o">=</span><span class="n">np</span><span class="o">.</span><span class="n">zeros</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span> <span class="o">+</span> <span class="mi">1</span><span class="p">),</span>
+                    <span class="n">interface</span><span class="o">=</span><span class="s2">&quot;non-differentiable&quot;</span><span class="p">,</span>
+                <span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_store_non_differentiable_parameter</span><span class="p">(</span><span class="n">indicator</span><span class="p">)</span>
+            <span class="n">starts</span><span class="p">,</span> <span class="n">ends</span> <span class="o">=</span> <span class="n">_define_starts_and_ends</span><span class="p">(</span>
+                <span class="n">splits</span><span class="o">=</span><span class="n">parameter</span><span class="o">.</span><span class="n">splits</span><span class="p">,</span> <span class="n">N_horizon</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span>
+            <span class="p">)</span>
+            <span class="k">for</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">starts</span><span class="p">,</span> <span class="n">ends</span><span class="p">):</span>
+                <span class="c1"># Build symbolic expressions for each stage</span>
+                <span class="c1"># following the template {name}_{first_stage}_{last_stage}</span>
+                <span class="c1"># e.g. price_0_10, price_11_20, etc.</span>
+                <span class="n">p_name</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">parameter</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="n">symbol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_symbol</span><span class="p">(</span><span class="n">p_name</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">default</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">casadi_type</span><span class="p">)</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">_differentiable_parameter_store</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">p_name</span><span class="p">,</span> <span class="n">symbol</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">default</span><span class="p">)</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="n">symbol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_symbol</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">default</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">casadi_type</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_differentiable_parameter_store</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">symbol</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">default</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">_store_non_differentiable_parameter</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">parameter</span><span class="p">:</span> <span class="n">_AcadosParameter</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+        <span class="n">symbol</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_create_symbol</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">default</span><span class="o">.</span><span class="n">size</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">casadi_type</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_non_differentiable_parameter_store</span><span class="o">.</span><span class="n">add</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">name</span><span class="p">,</span> <span class="n">symbol</span><span class="p">,</span> <span class="n">parameter</span><span class="o">.</span><span class="n">default</span><span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">N_horizon</span><span class="p">:</span> <span class="nb">int</span><span class="p">,</span>
+        <span class="n">casadi_type</span><span class="p">:</span> <span class="n">Literal</span><span class="p">[</span><span class="s2">&quot;SX&quot;</span><span class="p">,</span> <span class="s2">&quot;MX&quot;</span><span class="p">]</span> <span class="o">=</span> <span class="s2">&quot;SX&quot;</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Initialize the parameter manager.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            N_horizon: Horizon length ``N``.  Stages are indexed ``0`` to ``N`` (inclusive),</span>
+<span class="sd">                giving ``N + 1`` stages in total.</span>
+<span class="sd">            casadi_type: CasADi symbolic type to use, either ``&quot;SX&quot;`` (default, faster for</span>
+<span class="sd">                small problems) or ``&quot;MX&quot;`` (required when parameters appear inside CasADi</span>
+<span class="sd">                ``Function`` objects that are evaluated multiple times).</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span> <span class="o">=</span> <span class="p">{}</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span> <span class="o">=</span> <span class="n">N_horizon</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">casadi_type</span> <span class="o">=</span> <span class="n">casadi_type</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_differentiable_parameter_store</span> <span class="o">=</span> <span class="n">_ParameterStore</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_non_differentiable_parameter_store</span> <span class="o">=</span> <span class="n">_ParameterStore</span><span class="p">()</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_need_indicator</span> <span class="o">=</span> <span class="kc">False</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_finalized</span> <span class="o">=</span> <span class="kc">False</span>
+
+<div class="viewcode-block" id="AcadosParameterManager.register_parameter">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/ocp/acados/parameters/index.html#leap_c.ocp.acados.parameters.AcadosParameterManager.register_parameter">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">register_parameter</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span>
+        <span class="n">default</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">,</span>
+        <span class="n">differentiable</span><span class="p">:</span> <span class="nb">bool</span> <span class="o">=</span> <span class="kc">False</span><span class="p">,</span>
+        <span class="n">splits</span><span class="p">:</span> <span class="n">ParamSplits</span> <span class="o">=</span> <span class="s2">&quot;global&quot;</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ca</span><span class="o">.</span><span class="n">SX</span> <span class="o">|</span> <span class="n">ca</span><span class="o">.</span><span class="n">MX</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Register a parameter and return a CasADi symbolic for immediate use.</span>
+
+<span class="sd">        The returned symbolic is a real CasADi SX (or MX) expression (not a placeholder).</span>
+<span class="sd">        It can be used directly in cost, dynamics, and constraint expressions.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name: The name of the parameter.</span>
+<span class="sd">            default: The default value(s) for the parameter.</span>
+<span class="sd">            differentiable: If True, the parameter supports sensitivities (differentiable).</span>
+<span class="sd">                If False, the parameter is changeable at runtime but not differentiable</span>
+<span class="sd">                (non-differentiable). Defaults to ``False``.</span>
+<span class="sd">            splits: Defines how the parameter varies across stages. See</span>
+<span class="sd">                :class:`_AcadosParameter` for details. Defaults to ``&quot;global&quot;``.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            A CasADi symbolic expression for the parameter.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_finalized</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="s2">&quot;Cannot register parameters after assigning to OCP&quot;</span><span class="p">)</span>
+
+        <span class="n">parameter</span> <span class="o">=</span> <span class="n">_AcadosParameter</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="n">name</span><span class="p">,</span>
+            <span class="n">default</span><span class="o">=</span><span class="n">default</span><span class="p">,</span>
+            <span class="n">interface</span><span class="o">=</span><span class="s2">&quot;differentiable&quot;</span> <span class="k">if</span> <span class="n">differentiable</span> <span class="k">else</span> <span class="s2">&quot;non-differentiable&quot;</span><span class="p">,</span>
+            <span class="n">splits</span><span class="o">=</span><span class="n">splits</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">splits</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">splits</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">]</span> <span class="ow">not</span> <span class="ow">in</span> <span class="p">[</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span> <span class="o">-</span> <span class="mi">1</span><span class="p">,</span>
+                <span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span><span class="p">,</span>
+            <span class="p">]:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Parameter &#39;</span><span class="si">{</span><span class="n">parameter</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; has splits </span><span class="si">{</span><span class="n">parameter</span><span class="o">.</span><span class="n">splits</span><span class="si">}</span><span class="s2"> &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;but the last element must be either </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span><span class="w"> </span><span class="o">-</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2"> or </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="p">)</span>
+        <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">splits</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+            <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">splits</span> <span class="o">&gt;</span> <span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span> <span class="o">+</span> <span class="mi">1</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Parameter &#39;</span><span class="si">{</span><span class="n">parameter</span><span class="o">.</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; has </span><span class="si">{</span><span class="n">parameter</span><span class="o">.</span><span class="n">splits</span><span class="si">}</span><span class="s2"> splits, which exceeds the&quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot; number of stages </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span><span class="w"> </span><span class="o">+</span><span class="w"> </span><span class="mi">1</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">parameter</span><span class="o">.</span><span class="n">name</span><span class="p">]</span> <span class="o">=</span> <span class="n">parameter</span>
+        <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">interface</span> <span class="o">==</span> <span class="s2">&quot;differentiable&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_store_differentiable_parameter</span><span class="p">(</span><span class="n">parameter</span><span class="p">)</span>
+        <span class="k">if</span> <span class="n">parameter</span><span class="o">.</span><span class="n">interface</span> <span class="o">==</span> <span class="s2">&quot;non-differentiable&quot;</span><span class="p">:</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">_store_non_differentiable_parameter</span><span class="p">(</span><span class="n">parameter</span><span class="p">)</span>
+        <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="n">parameter</span><span class="o">.</span><span class="n">name</span><span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AcadosParameterManager.combine_differentiable_parameters_torch">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/ocp/acados/parameters/index.html#leap_c.ocp.acados.parameters.AcadosParameterManager.combine_differentiable_parameters_torch">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">combine_differentiable_parameters_torch</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">device</span><span class="p">:</span> <span class="s2">&quot;torch.device | None&quot;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="n">dtype</span><span class="p">:</span> <span class="s2">&quot;torch.dtype | None&quot;</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">overwrites</span><span class="p">:</span> <span class="s2">&quot;torch.Tensor | np.ndarray&quot;</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="s2">&quot;torch.Tensor&quot;</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Combine differentiable parameters into a flat tensor, preserving differentiability.</span>
+
+<span class="sd">        Uses ``torch.cat``, indexing, and reshaping — all differentiable — so gradients</span>
+<span class="sd">        flow back to the original parameter tensors in the ``overwrites`` dict.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            batch_size: Batch size. Required.</span>
+<span class="sd">            device: Target device for the output tensor. Required.</span>
+<span class="sd">            dtype: Target dtype for the output tensor. Required.</span>
+<span class="sd">            **overwrites: Named parameter overrides as tensors or numpy arrays.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            Tensor of shape ``(batch_size, N_differentiable)``.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ImportError: If torch is not installed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">torch</span> <span class="o">=</span> <span class="n">require_torch</span><span class="p">()</span>
+
+        <span class="n">inferred_batch_size</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">overwrites</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">overwrites</span> <span class="k">else</span> <span class="kc">None</span>
+
+        <span class="k">if</span> <span class="n">batch_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="ow">and</span> <span class="n">inferred_batch_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+            <span class="k">if</span> <span class="n">batch_size</span> <span class="o">!=</span> <span class="n">inferred_batch_size</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Provided batch_size=</span><span class="si">{</span><span class="n">batch_size</span><span class="si">}</span><span class="s2"> does not match &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;inferred batch_size=</span><span class="si">{</span><span class="n">inferred_batch_size</span><span class="si">}</span><span class="s2"> from overwrites.&quot;</span>
+                <span class="p">)</span>
+
+        <span class="n">batch_size</span> <span class="o">=</span> <span class="n">inferred_batch_size</span> <span class="k">if</span> <span class="n">inferred_batch_size</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span> <span class="k">else</span> <span class="n">batch_size</span> <span class="ow">or</span> <span class="mi">1</span>
+
+        <span class="n">batch_param</span> <span class="o">=</span> <span class="p">(</span>
+            <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">differentiable_default_flat</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">expand</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+            <span class="o">.</span><span class="n">clone</span><span class="p">()</span>
+        <span class="p">)</span>
+
+        <span class="k">if</span> <span class="ow">not</span> <span class="n">overwrites</span><span class="p">:</span>
+            <span class="k">return</span> <span class="n">batch_param</span>
+
+        <span class="k">for</span> <span class="n">name</span><span class="p">,</span> <span class="n">values</span> <span class="ow">in</span> <span class="n">overwrites</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Parameter &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; not found. &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;Available parameters: </span><span class="si">{</span><span class="nb">list</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="o">.</span><span class="n">keys</span><span class="p">())</span><span class="si">}</span><span class="s2">&quot;</span>
+                <span class="p">)</span>
+
+            <span class="n">param</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+
+            <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">interface</span> <span class="o">!=</span> <span class="s2">&quot;differentiable&quot;</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Parameter &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; has interface &#39;</span><span class="si">{</span><span class="n">param</span><span class="o">.</span><span class="n">interface</span><span class="si">}</span><span class="s2">&#39;, &quot;</span>
+                    <span class="s2">&quot;but only &#39;differentiable&#39; parameters can be used in this method.&quot;</span>
+                <span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">!=</span> <span class="n">batch_size</span><span class="p">:</span>
+                <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                    <span class="sa">f</span><span class="s2">&quot;Parameter &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; values have batch size </span><span class="si">{</span><span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span><span class="si">}</span><span class="s2">, &quot;</span>
+                    <span class="sa">f</span><span class="s2">&quot;but expected </span><span class="si">{</span><span class="n">batch_size</span><span class="si">}</span><span class="s2">.&quot;</span>
+                <span class="p">)</span>
+
+            <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">is_stage_varying</span><span class="p">:</span>
+                <span class="n">expected_n_segments</span> <span class="o">=</span> <span class="n">param</span><span class="o">.</span><span class="n">overwrite_shape</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">1</span><span class="p">]</span> <span class="o">!=</span> <span class="n">expected_n_segments</span><span class="p">:</span>
+                    <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                        <span class="sa">f</span><span class="s2">&quot;Parameter &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39; is stage-varying and requires shape &quot;</span>
+                        <span class="sa">f</span><span class="s2">&quot;(batch_size, </span><span class="si">{</span><span class="n">expected_n_segments</span><span class="si">}</span><span class="s2">, ...), but got shape </span><span class="si">{</span><span class="n">values</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span>
+                    <span class="p">)</span>
+
+        <span class="n">batch_param</span><span class="o">.</span><span class="n">requires_grad_</span><span class="p">()</span>
+
+        <span class="k">for</span> <span class="n">name</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">differentiable_parameter_names</span><span class="p">:</span>
+            <span class="n">param</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+            <span class="k">if</span> <span class="n">name</span> <span class="ow">in</span> <span class="n">overwrites</span><span class="p">:</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="n">overwrites</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+                <span class="k">if</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">):</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">from_numpy</span><span class="p">(</span><span class="n">val</span><span class="p">)</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+                <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">val</span><span class="p">,</span> <span class="n">torch</span><span class="o">.</span><span class="n">Tensor</span><span class="p">):</span>
+                    <span class="n">val</span> <span class="o">=</span> <span class="n">val</span><span class="o">.</span><span class="n">to</span><span class="p">(</span><span class="n">device</span><span class="o">=</span><span class="n">device</span><span class="p">,</span> <span class="n">dtype</span><span class="o">=</span><span class="n">dtype</span><span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">val</span> <span class="o">=</span> <span class="kc">None</span>
+
+            <span class="k">if</span> <span class="n">param</span><span class="o">.</span><span class="n">is_stage_varying</span><span class="p">:</span>
+                <span class="n">starts</span><span class="p">,</span> <span class="n">ends</span> <span class="o">=</span> <span class="n">_define_starts_and_ends</span><span class="p">(</span>
+                    <span class="n">splits</span><span class="o">=</span><span class="n">param</span><span class="o">.</span><span class="n">splits</span><span class="p">,</span> <span class="n">N_horizon</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span>
+                <span class="p">)</span>
+                <span class="k">for</span> <span class="n">seg_idx</span><span class="p">,</span> <span class="p">(</span><span class="n">start</span><span class="p">,</span> <span class="n">end</span><span class="p">)</span> <span class="ow">in</span> <span class="nb">enumerate</span><span class="p">(</span><span class="nb">zip</span><span class="p">(</span><span class="n">starts</span><span class="p">,</span> <span class="n">ends</span><span class="p">)):</span>
+                    <span class="n">key</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">&quot;</span>
+                    <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_differentiable_parameter_store</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+                    <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                        <span class="n">batch_param</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">(</span>
+                            <span class="p">[</span>
+                                <span class="n">batch_param</span><span class="p">[:,</span> <span class="p">:</span><span class="n">s</span><span class="p">],</span>
+                                <span class="n">val</span><span class="p">[:,</span> <span class="n">seg_idx</span><span class="p">]</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">),</span>
+                                <span class="n">batch_param</span><span class="p">[:,</span> <span class="n">e</span><span class="p">:],</span>
+                            <span class="p">],</span>
+                            <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">,</span>
+                        <span class="p">)</span>
+            <span class="k">else</span><span class="p">:</span>
+                <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_differentiable_parameter_store</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+                <span class="k">if</span> <span class="n">val</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+                    <span class="n">batch_param</span> <span class="o">=</span> <span class="n">torch</span><span class="o">.</span><span class="n">cat</span><span class="p">([</span><span class="n">batch_param</span><span class="p">[:,</span> <span class="p">:</span><span class="n">s</span><span class="p">],</span> <span class="n">val</span><span class="p">,</span> <span class="n">batch_param</span><span class="p">[:,</span> <span class="n">e</span><span class="p">:]],</span> <span class="n">dim</span><span class="o">=-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">return</span> <span class="n">batch_param</span></div>
+
+
+<div class="viewcode-block" id="AcadosParameterManager.combine_differentiable_parameters_jax">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/ocp/acados/parameters/index.html#leap_c.ocp.acados.parameters.AcadosParameterManager.combine_differentiable_parameters_jax">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">combine_differentiable_parameters_jax</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span>
+        <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span>
+        <span class="o">**</span><span class="n">overwrites</span><span class="p">:</span> <span class="n">Any</span><span class="p">,</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">Any</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Combine differentiable parameters into a flat JAX array, preserving differentiability.</span>
+
+<span class="sd">        .. note::</span>
+<span class="sd">            This method is a placeholder. Contributions implementing JAX-native operations</span>
+<span class="sd">            (e.g. using ``jax.numpy``) are welcome.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            batch_size: Batch size.</span>
+<span class="sd">            **overwrites: Named parameter overrides as JAX or numpy arrays.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            JAX array of shape ``(batch_size, N_differentiable)``.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ImportError: If jax is not installed.</span>
+<span class="sd">            NotImplementedError: Until a JAX implementation is contributed.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="n">require_jax</span><span class="p">()</span>
+        <span class="k">raise</span> <span class="ne">NotImplementedError</span><span class="p">(</span>
+            <span class="s2">&quot;combine_differentiable_parameters_jax is not yet implemented. &quot;</span>
+            <span class="s2">&quot;Contributions are welcome! See combine_differentiable_parameters_torch for reference.&quot;</span>
+        <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AcadosParameterManager.combine_non_differentiable_parameters">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/ocp/acados/parameters/index.html#leap_c.ocp.acados.parameters.AcadosParameterManager.combine_non_differentiable_parameters">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">combine_non_differentiable_parameters</span><span class="p">(</span>
+        <span class="bp">self</span><span class="p">,</span> <span class="n">batch_size</span><span class="p">:</span> <span class="nb">int</span> <span class="o">|</span> <span class="kc">None</span> <span class="o">=</span> <span class="kc">None</span><span class="p">,</span> <span class="o">**</span><span class="n">overwrite</span><span class="p">:</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span>
+    <span class="p">)</span> <span class="o">-&gt;</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Combine all non-differentiable parameters into a single numpy array.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            batch_size: The batch size for the parameters.</span>
+<span class="sd">                Not needed if overwrite is provided.</span>
+<span class="sd">            **overwrite: Overwrite values for specific parameters.</span>
+<span class="sd">                The keys should correspond to the parameter names to overwrite.</span>
+<span class="sd">                The values need to be np.ndarray with shape ``(batch_size, N_horizon, pdim)``,</span>
+<span class="sd">                where ``pdim`` is the number of dimensions of the parameter to overwrite.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            np.ndarray: shape ``(batch_size, N_horizon, np)`` with ``np`` being the number of</span>
+<span class="sd">            ``parameter_values``.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="c1"># Infer batch size from overwrite if not provided.</span>
+        <span class="c1"># Resolve to 1 if empty, will result in one batch sample of default values.</span>
+        <span class="n">batch_size</span> <span class="o">=</span> <span class="nb">next</span><span class="p">(</span><span class="nb">iter</span><span class="p">(</span><span class="n">overwrite</span><span class="o">.</span><span class="n">values</span><span class="p">()))</span><span class="o">.</span><span class="n">shape</span><span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">overwrite</span> <span class="k">else</span> <span class="n">batch_size</span> <span class="ow">or</span> <span class="mi">1</span>
+        <span class="n">Np1</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span> <span class="o">+</span> <span class="mi">1</span>
+        <span class="n">expected_shape</span> <span class="o">=</span> <span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="n">Np1</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">_non_differentiable_parameter_store</span><span class="o">.</span><span class="n">size</span><span class="p">)</span>
+
+        <span class="c1"># Create a batch of parameter values - if indicators are not needed and no overwrites are</span>
+        <span class="c1"># passed, just return a broadcasted view to avoid unnecessary memory allocation; otherwise,</span>
+        <span class="c1"># create a tiled array (is writeable, so indicators and overwrites can be applied afterward)</span>
+        <span class="n">non_differentiable_default_flat</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_non_differentiable_parameter_store</span><span class="o">.</span><span class="n">get_values</span><span class="p">()</span>
+        <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">_need_indicator</span> <span class="ow">or</span> <span class="n">overwrite</span><span class="p">):</span>
+            <span class="k">return</span> <span class="n">np</span><span class="o">.</span><span class="n">broadcast_to</span><span class="p">(</span><span class="n">non_differentiable_default_flat</span><span class="p">,</span> <span class="n">expected_shape</span><span class="p">)</span>
+        <span class="n">batch_parameter_values</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">tile</span><span class="p">(</span><span class="n">non_differentiable_default_flat</span><span class="p">,</span> <span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="n">Np1</span><span class="p">,</span> <span class="mi">1</span><span class="p">))</span>
+
+        <span class="c1"># Set indicator for each stage</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">_need_indicator</span><span class="p">:</span>
+            <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_non_differentiable_parameter_store</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="s2">&quot;indicator&quot;</span><span class="p">]</span>
+            <span class="n">batch_parameter_values</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">s</span><span class="p">:</span><span class="n">e</span><span class="p">]</span> <span class="o">=</span> <span class="n">np</span><span class="o">.</span><span class="n">eye</span><span class="p">(</span><span class="n">Np1</span><span class="p">)</span>
+
+        <span class="c1"># Overwrite the values in the batch</span>
+        <span class="c1"># TODO: Make sure indexing is consistent.</span>
+        <span class="c1"># Issue is the difference between casadi (row major) and numpy (column major)</span>
+        <span class="c1"># when using matrix values.</span>
+        <span class="c1"># NOTE: Can use numpy.reshape with order=&#39;C&#39; or order=&#39;F&#39;</span>
+        <span class="c1"># to specify column / row major.</span>
+        <span class="c1"># NOTE: First check the order, using something like a.flags.f_contiguous,</span>
+        <span class="c1"># see https://numpy.org/doc/2.1/reference/generated/numpy.isfortran.html</span>
+        <span class="c1"># and reshape if needed or raise an error.</span>
+        <span class="k">for</span> <span class="n">key</span><span class="p">,</span> <span class="n">val</span> <span class="ow">in</span> <span class="n">overwrite</span><span class="o">.</span><span class="n">items</span><span class="p">():</span>
+            <span class="n">s</span><span class="p">,</span> <span class="n">e</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">_non_differentiable_parameter_store</span><span class="o">.</span><span class="n">indices</span><span class="p">[</span><span class="n">key</span><span class="p">]</span>
+            <span class="n">batch_parameter_values</span><span class="p">[:,</span> <span class="p">:,</span> <span class="n">s</span><span class="p">:</span><span class="n">e</span><span class="p">]</span> <span class="o">=</span> <span class="n">val</span><span class="o">.</span><span class="n">reshape</span><span class="p">(</span><span class="n">batch_size</span><span class="p">,</span> <span class="n">Np1</span><span class="p">,</span> <span class="o">-</span><span class="mi">1</span><span class="p">)</span>
+
+        <span class="k">assert</span> <span class="n">batch_parameter_values</span><span class="o">.</span><span class="n">shape</span> <span class="o">==</span> <span class="n">expected_shape</span><span class="p">,</span> <span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;batch_parameter_values should have shape </span><span class="si">{</span><span class="n">expected_shape</span><span class="si">}</span><span class="s2">, &quot;</span>
+            <span class="sa">f</span><span class="s2">&quot;got </span><span class="si">{</span><span class="n">batch_parameter_values</span><span class="o">.</span><span class="n">shape</span><span class="si">}</span><span class="s2">.&quot;</span>
+        <span class="p">)</span>
+        <span class="k">return</span> <span class="n">batch_parameter_values</span></div>
+
+
+<div class="viewcode-block" id="AcadosParameterManager.get">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/ocp/acados/parameters/index.html#leap_c.ocp.acados.parameters.AcadosParameterManager.get">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">get</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">name</span><span class="p">:</span> <span class="nb">str</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="n">ca</span><span class="o">.</span><span class="n">SX</span> <span class="o">|</span> <span class="n">ca</span><span class="o">.</span><span class="n">MX</span> <span class="o">|</span> <span class="n">np</span><span class="o">.</span><span class="n">ndarray</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Get the symbolic variable for a parameter.</span>
+
+<span class="sd">        For stage-varying differentiable parameters (those with ``splits``), the returned</span>
+<span class="sd">        expression is a weighted sum over all stage blocks, gated by the ``indicator`` vector</span>
+<span class="sd">        in the non-differentiable parameters.  The expression evaluates to the correct block value</span>
+<span class="sd">        at each stage, but **only if the indicator is set correctly** via</span>
+<span class="sd">        :meth:`combine_non_differentiable_parameters`.  If the indicator is all-zero (e.g. the</span>
+<span class="sd">        default), every stage silently evaluates to zero for these parameters.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            name: The name of the parameter to retrieve.</span>
+
+<span class="sd">        Returns:</span>
+<span class="sd">            - CasADi ``SX``/``MX`` expression for ``&quot;differentiable&quot;`` and ``&quot;non-differentiable&quot;``</span>
+<span class="sd">              parameters.</span>
+
+<span class="sd">        Raises:</span>
+<span class="sd">            ValueError: If ``name`` is not registered with this manager.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="k">if</span> <span class="n">name</span> <span class="ow">not</span> <span class="ow">in</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span><span class="sa">f</span><span class="s2">&quot;Unknown name: </span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">. Available names: </span><span class="si">{</span><span class="s1">&#39;, &#39;</span><span class="o">.</span><span class="n">join</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">)</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="p">(</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">interface</span> <span class="o">==</span> <span class="s2">&quot;differentiable&quot;</span>
+            <span class="ow">and</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">is_stage_varying</span>
+        <span class="p">):</span>
+            <span class="n">starts</span><span class="p">,</span> <span class="n">ends</span> <span class="o">=</span> <span class="n">_define_starts_and_ends</span><span class="p">(</span>
+                <span class="n">splits</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">splits</span><span class="p">,</span> <span class="n">N_horizon</span><span class="o">=</span><span class="bp">self</span><span class="o">.</span><span class="n">N_horizon</span>
+            <span class="p">)</span>
+            <span class="n">indicators</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="n">variables</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">start</span><span class="p">,</span> <span class="n">end</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">starts</span><span class="p">,</span> <span class="n">ends</span><span class="p">):</span>
+                <span class="n">indicators</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="n">ca</span><span class="o">.</span><span class="n">sum</span><span class="p">(</span>
+                        <span class="bp">self</span><span class="o">.</span><span class="n">_non_differentiable_parameter_store</span><span class="o">.</span><span class="n">symbols</span><span class="p">[</span><span class="s2">&quot;indicator&quot;</span><span class="p">][</span>
+                            <span class="n">start</span> <span class="p">:</span> <span class="n">end</span> <span class="o">+</span> <span class="mi">1</span>
+                        <span class="p">]</span>
+                    <span class="p">)</span>
+                <span class="p">)</span>
+                <span class="n">variables</span><span class="o">.</span><span class="n">append</span><span class="p">(</span>
+                    <span class="bp">self</span><span class="o">.</span><span class="n">_differentiable_parameter_store</span><span class="o">.</span><span class="n">symbols</span><span class="p">[</span><span class="sa">f</span><span class="s2">&quot;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">start</span><span class="si">}</span><span class="s2">_</span><span class="si">{</span><span class="n">end</span><span class="si">}</span><span class="s2">&quot;</span><span class="p">]</span>
+                <span class="p">)</span>
+
+            <span class="n">terms</span> <span class="o">=</span> <span class="p">[]</span>
+            <span class="k">for</span> <span class="n">indicator</span><span class="p">,</span> <span class="n">variable</span> <span class="ow">in</span> <span class="nb">zip</span><span class="p">(</span><span class="n">indicators</span><span class="p">,</span> <span class="n">variables</span><span class="p">):</span>
+                <span class="n">terms</span><span class="o">.</span><span class="n">append</span><span class="p">(</span><span class="n">indicator</span> <span class="o">*</span> <span class="n">variable</span><span class="p">)</span>
+            <span class="k">return</span> <span class="nb">sum</span><span class="p">(</span><span class="n">terms</span><span class="p">)</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">interface</span> <span class="o">==</span> <span class="s2">&quot;differentiable&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_differentiable_parameter_store</span><span class="o">.</span><span class="n">symbols</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">interface</span> <span class="o">==</span> <span class="s2">&quot;non-differentiable&quot;</span><span class="p">:</span>
+            <span class="k">return</span> <span class="bp">self</span><span class="o">.</span><span class="n">_non_differentiable_parameter_store</span><span class="o">.</span><span class="n">symbols</span><span class="p">[</span><span class="n">name</span><span class="p">]</span>
+        <span class="k">else</span><span class="p">:</span>
+            <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+                <span class="sa">f</span><span class="s2">&quot;Unknown interface type for field &#39;</span><span class="si">{</span><span class="n">name</span><span class="si">}</span><span class="s2">&#39;: </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="n">name</span><span class="p">]</span><span class="o">.</span><span class="n">interface</span><span class="si">}</span><span class="s2">&quot;</span>
+            <span class="p">)</span></div>
+
+
+<div class="viewcode-block" id="AcadosParameterManager.assign_to_ocp">
+<a class="viewcode-back" href="../../../../api/generated/leap_c/ocp/acados/parameters/index.html#leap_c.ocp.acados.parameters.AcadosParameterManager.assign_to_ocp">[docs]</a>
+    <span class="k">def</span><span class="w"> </span><span class="nf">assign_to_ocp</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">ocp</span><span class="p">:</span> <span class="n">AcadosOcp</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="kc">None</span><span class="p">:</span>
+<span class="w">        </span><span class="sd">&quot;&quot;&quot;Synchronize the parameter manager&#39;s symbols and defaults onto the OCP.</span>
+
+<span class="sd">        Sets ``model.p``, ``model.p_global``, ``parameter_values``, and ``p_global_values``</span>
+<span class="sd">        on the provided acados OCP instance. Should be called before solver code generation.</span>
+
+<span class="sd">        Args:</span>
+<span class="sd">            ocp: An acados ``AcadosOcp`` instance.</span>
+<span class="sd">        &quot;&quot;&quot;</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">_finalized</span> <span class="o">=</span> <span class="kc">True</span>
+        <span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">p</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">non_differentiable_symbols</span>
+        <span class="n">ocp</span><span class="o">.</span><span class="n">model</span><span class="o">.</span><span class="n">p_global</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">differentiable_symbols</span>
+        <span class="n">ocp</span><span class="o">.</span><span class="n">parameter_values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">non_differentiable_default_flat</span>
+        <span class="n">ocp</span><span class="o">.</span><span class="n">p_global_values</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">differentiable_default_flat</span></div>
+</div>
+
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">_define_starts_and_ends</span><span class="p">(</span><span class="n">splits</span><span class="p">:</span> <span class="n">ParamSplits</span><span class="p">,</span> <span class="n">N_horizon</span><span class="p">:</span> <span class="nb">int</span><span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">tuple</span><span class="p">[</span><span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">],</span> <span class="nb">list</span><span class="p">[</span><span class="nb">int</span><span class="p">]]:</span>
+<span class="w">    </span><span class="sd">&quot;&quot;&quot;Compute the start and end stage indices for each segment given a splits policy.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        splits: The split policy. Must be one of ``&quot;global&quot;``, ``&quot;stagewise&quot;``, a</span>
+<span class="sd">            positive ``int`` (number of equal-sized segments), or a ``list[int]`` of</span>
+<span class="sd">            ascending stage boundaries.</span>
+<span class="sd">        N_horizon: The horizon length. Stages are indexed ``0`` to ``N_horizon``</span>
+<span class="sd">            (inclusive), giving ``N_horizon + 1`` stages in total.</span>
+
+<span class="sd">    Returns:</span>
+<span class="sd">        A ``(starts, ends)`` pair of lists of equal length, where ``starts[i]`` and</span>
+<span class="sd">        ``ends[i]`` are the inclusive start and end stage indices of segment ``i``.</span>
+
+<span class="sd">    Example:</span>
+<span class="sd">        ``_define_starts_and_ends([2, 5], 5)`` returns ``([0, 3], [2, 5])`` — two</span>
+<span class="sd">        segments covering stages 0-2 and 3-5.</span>
+<span class="sd">    &quot;&quot;&quot;</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="p">(</span>
+        <span class="n">splits</span> <span class="ow">in</span> <span class="p">(</span><span class="s2">&quot;global&quot;</span><span class="p">,</span> <span class="s2">&quot;stagewise&quot;</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">splits</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="ow">and</span> <span class="n">splits</span> <span class="o">&gt;</span> <span class="mi">0</span><span class="p">)</span>
+        <span class="ow">or</span> <span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">splits</span><span class="p">,</span> <span class="nb">list</span><span class="p">)</span> <span class="ow">and</span> <span class="nb">all</span><span class="p">(</span><span class="nb">isinstance</span><span class="p">(</span><span class="n">x</span><span class="p">,</span> <span class="nb">int</span><span class="p">)</span> <span class="k">for</span> <span class="n">x</span> <span class="ow">in</span> <span class="n">splits</span><span class="p">))</span>
+    <span class="p">):</span>
+        <span class="k">raise</span> <span class="ne">ValueError</span><span class="p">(</span>
+            <span class="sa">f</span><span class="s2">&quot;Invalid splits value: </span><span class="si">{</span><span class="n">splits</span><span class="si">!r}</span><span class="s2">. Expected &#39;global&#39;, &#39;stagewise&#39;, a positive int, &quot;</span>
+            <span class="s2">&quot;or a list[int].&quot;</span>
+        <span class="p">)</span>
+
+    <span class="k">if</span> <span class="n">splits</span> <span class="o">==</span> <span class="s2">&quot;global&quot;</span><span class="p">:</span>
+        <span class="c1"># A single segment covering all stages 0..N_horizon.</span>
+        <span class="n">ends</span> <span class="o">=</span> <span class="p">[</span><span class="n">N_horizon</span><span class="p">]</span>
+    <span class="k">elif</span> <span class="n">splits</span> <span class="o">==</span> <span class="s2">&quot;stagewise&quot;</span><span class="p">:</span>
+        <span class="n">ends</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="nb">range</span><span class="p">(</span><span class="n">N_horizon</span> <span class="o">+</span> <span class="mi">1</span><span class="p">))</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">splits</span><span class="p">,</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="n">split_size</span> <span class="o">=</span> <span class="p">(</span><span class="n">N_horizon</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">//</span> <span class="n">splits</span>
+        <span class="n">remainder</span> <span class="o">=</span> <span class="p">(</span><span class="n">N_horizon</span> <span class="o">+</span> <span class="mi">1</span><span class="p">)</span> <span class="o">%</span> <span class="n">splits</span>
+        <span class="n">sizes</span> <span class="o">=</span> <span class="p">[</span><span class="n">split_size</span><span class="p">]</span> <span class="o">*</span> <span class="n">splits</span>
+        <span class="k">for</span> <span class="n">i</span> <span class="ow">in</span> <span class="nb">range</span><span class="p">(</span><span class="n">remainder</span><span class="p">):</span>
+            <span class="n">sizes</span><span class="p">[</span><span class="n">i</span><span class="p">]</span> <span class="o">+=</span> <span class="mi">1</span>
+        <span class="n">ends</span> <span class="o">=</span> <span class="p">(</span><span class="n">np</span><span class="o">.</span><span class="n">cumsum</span><span class="p">(</span><span class="n">sizes</span><span class="p">)</span> <span class="o">-</span> <span class="mi">1</span><span class="p">)</span><span class="o">.</span><span class="n">tolist</span><span class="p">()</span>
+    <span class="k">elif</span> <span class="nb">isinstance</span><span class="p">(</span><span class="n">splits</span><span class="p">,</span> <span class="nb">list</span><span class="p">):</span>
+        <span class="n">ends</span> <span class="o">=</span> <span class="n">splits</span>
+    <span class="n">starts</span> <span class="o">=</span> <span class="p">[</span><span class="mi">0</span><span class="p">]</span> <span class="o">+</span> <span class="p">[</span><span class="n">v</span> <span class="o">+</span> <span class="mi">1</span> <span class="k">for</span> <span class="n">v</span> <span class="ow">in</span> <span class="n">ends</span> <span class="k">if</span> <span class="n">v</span> <span class="o">+</span> <span class="mi">1</span> <span class="o">&lt;=</span> <span class="n">N_horizon</span><span class="p">]</span>
+    <span class="k">return</span> <span class="n">starts</span><span class="p">,</span> <span class="n">ends</span>
+</pre></div>
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2025-2026, Dirk, Jasper, Leonard
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer no-toc">
+      
+      
+      
+    </aside>
+  </div>
+</div><script src="../../../../_static/documentation_options.js?v=cb975c41"></script>
+    <script src="../../../../_static/doctools.js?v=9bcbadda"></script>
+    <script src="../../../../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../../../../_static/scripts/furo.js?v=5fa4622c"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs"></script>
+    <script type="module" src="https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs"></script>
+    <script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";import elkLayouts from "https://cdn.jsdelivr.net/npm/@mermaid-js/layout-elk@0.1.4/dist/mermaid-layout-elk.esm.min.mjs";mermaid.registerLayoutLoaders(elkLayouts);mermaid.initialize({startOnLoad:false});</script>
+    <script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script>
+    <script type="module">
+import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.2.0/dist/mermaid.esm.min.mjs";
+window.addEventListener("load", () => mermaid.run());
+</script>
+    </body>
+</html>

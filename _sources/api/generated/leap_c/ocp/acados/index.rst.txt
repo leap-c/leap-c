@@ -1,0 +1,21 @@
+leap_c.ocp.acados
+=================
+
+.. py:module:: leap_c.ocp.acados
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /api/generated/leap_c/ocp/acados/data/index
+   /api/generated/leap_c/ocp/acados/diff_mpc/index
+   /api/generated/leap_c/ocp/acados/initializer/index
+   /api/generated/leap_c/ocp/acados/parameters/index
+   /api/generated/leap_c/ocp/acados/repr/index
+   /api/generated/leap_c/ocp/acados/torch/index
+   /api/generated/leap_c/ocp/acados/utils/index
+
+

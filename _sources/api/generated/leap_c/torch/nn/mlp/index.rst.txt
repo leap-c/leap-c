@@ -1,0 +1,156 @@
+leap_c.torch.nn.mlp
+===================
+
+.. py:module:: leap_c.torch.nn.mlp
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.torch.nn.mlp.Activation
+   leap_c.torch.nn.mlp.WeightInit
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.torch.nn.mlp.Mlp
+   leap_c.torch.nn.mlp.MlpConfig
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.torch.nn.mlp.orthogonal_init
+   leap_c.torch.nn.mlp.string_to_activation
+   leap_c.torch.nn.mlp.string_to_weight_init
+
+
+Module Contents
+---------------
+
+.. py:class:: Mlp(input_sizes: int | Iterable[int], output_sizes: int | Iterable[int], mlp_cfg: MlpConfig)
+
+   Bases: :py:obj:`torch.nn.Module`
+
+
+   A base class for a multi-layer perceptron (MLP).
+
+   The MLP includes a configurable number of layers and activation functions.
+
+   :ivar mlp: The MLP model. Is `None` if no hidden layers were set in the config (see
+              `MlpConfig.hidden_dims`), in which case the parameter tensor `param` is set instead.
+   :ivar param: A parameter tensor with the given output size. Is `None` if hidden layers were set in
+                the config, in which case the MLP model `mlp` is set instead.
+
+
+
+   .. py:method:: forward(*x: torch.Tensor) -> tuple[torch.Tensor, Ellipsis]
+
+      Forward the input throught the neural network.
+
+      :param \*x: Input tensors. Will be concatenated along the last dimension. Must have shape
+                  `(batch_size, input_size_i)` for each input tensor `i`.
+
+      :returns: A tuple of output tensors, one for each output size specified in the constructor.
+
+
+
+   .. py:attribute:: mlp
+      :type:  torch.nn.Module | None
+
+
+   .. py:attribute:: param
+      :type:  torch.nn.Parameter | None
+
+
+.. py:class:: MlpConfig
+
+   Configuration for a multi-layer perceptron (MLP).
+
+   :ivar hidden_dims: A sequence of integers representing the sizes of the hidden layers. If `None`,
+                      no hidden layers will be used, and the MLP will be replaced with a parameter tensor with
+                      the given output size.
+   :ivar activation: The activation function to use in the hidden layers.
+   :ivar weight_init: The weight initialization method to use for the hidden layers. If `None`, no
+                      initialization will be applied.
+   :ivar batchnorm: Whether to use batch normalization between layers.
+
+
+   TODO (Jasper):
+       Consider switching to RL-specific BatchNorm as in TorchRl which in the beginning uses
+       minibatch statistics and then switches to running statistics.
+
+
+   .. py:attribute:: activation
+      :type:  Activation
+      :value: 'relu'
+
+
+
+   .. py:attribute:: batchnorm
+      :type:  bool
+      :value: False
+
+
+
+   .. py:attribute:: hidden_dims
+      :type:  collections.abc.Sequence[int] | None
+      :value: (256, 256, 256)
+
+
+
+   .. py:attribute:: weight_init
+      :type:  WeightInit | None
+      :value: 'orthogonal'
+
+
+
+.. py:function:: orthogonal_init(module: torch.nn.Module) -> None
+
+   Initialize the weights of a module using orthogonal initialization.
+
+   :param module: The module to initialize.
+   :type module: nn.Module
+
+
+.. py:function:: string_to_activation(activation: Activation) -> torch.nn.Module
+
+   Convert a string to an activation.
+
+   :param activation: The activation function to convert.
+   :type activation: {"relu", "tanh", "sigmoid", "leaky_relu"}
+
+   :raises ValueError: If the activation function is not recognized.
+
+   :returns: The activation function as a torch module.
+   :rtype: nn.Module
+
+
+.. py:function:: string_to_weight_init(weight_init: WeightInit) -> Callable[[torch.nn.Module], None]
+
+   Convert a string to an initializiation method.
+
+   :param weight_init: The weight initialization method. For now, only "orthogonal"
+                       is supported.
+   :type weight_init: {"orthogonal"}
+
+   :raises ValueError: If the weight initialization method is not recognized.
+
+   :returns:
+
+             The weight initialization function that takes in a module and
+                 initializes its weights, returning nothing.
+   :rtype: Callable[[nn.Module], None]
+
+
+.. py:data:: Activation
+
+.. py:data:: WeightInit
+

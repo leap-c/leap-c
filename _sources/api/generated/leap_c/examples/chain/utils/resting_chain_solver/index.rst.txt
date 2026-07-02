@@ -1,0 +1,43 @@
+leap_c.examples.chain.utils.resting_chain_solver
+================================================
+
+.. py:module:: leap_c.examples.chain.utils.resting_chain_solver
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.examples.chain.utils.resting_chain_solver.FexplType
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.examples.chain.utils.resting_chain_solver.RestingChainSolver
+
+
+Module Contents
+---------------
+
+.. py:class:: RestingChainSolver(n_mass: int, f_expl: FexplType, fix_point: numpy.ndarray, m: numpy.ndarray, D: numpy.ndarray, C: numpy.ndarray, L: numpy.ndarray, **_: Any)
+
+   .. py:attribute:: f_expl
+
+
+   .. py:attribute:: n_mass
+
+
+   .. py:attribute:: p0
+
+
+   .. py:attribute:: x0
+
+
+.. py:type:: FexplType
+   :canonical: Callable[[struct_symSX, ca.SX, dict[str, ca.SX], ca.SX], ca.SX]
+
+

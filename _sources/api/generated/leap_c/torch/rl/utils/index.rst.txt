@@ -1,0 +1,31 @@
+leap_c.torch.rl.utils
+=====================
+
+.. py:module:: leap_c.torch.rl.utils
+
+.. autoapi-nested-parse::
+
+   This file contains utility functions that are used in the training loop.
+
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.torch.rl.utils.soft_target_update
+
+
+Module Contents
+---------------
+
+.. py:function:: soft_target_update(source_net: torch.nn.Module, target_net: torch.nn.Module, tau: float) -> None
+
+   Update the target network parameters using a soft update rule.
+
+   :param source_net: The source network whose parameters are used for updating the target network.
+   :param target_net: The target network whose parameters are updated.
+   :param tau: The interpolation parameter for the soft update rule.
+
+

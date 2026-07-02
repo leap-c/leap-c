@@ -1,0 +1,69 @@
+leap_c.utils.gym
+================
+
+.. py:module:: leap_c.utils.gym
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.utils.gym.WrapperType
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.utils.gym.flatten_param_space
+   leap_c.utils.gym.seed_env
+   leap_c.utils.gym.wrap_env
+
+
+Module Contents
+---------------
+
+.. py:function:: flatten_param_space(space: gymnasium.spaces.Space) -> gymnasium.spaces.Box
+
+   Flatten a parameter space into a single flat ``Box``.
+
+   Controllers expose ``param_space`` as a ``gym.spaces.Dict`` keyed by differentiable
+   parameter name (constructed in registration order), or as a ``gym.spaces.Box``.
+   RL and tuning code that needs a flat parameter vector flattens it here; the
+   flattened order matches the canonical differentiable-parameter order.
+
+   :param space: The parameter space (``Dict`` or ``Box``).
+
+   :returns: The flattened 1D parameter space.
+   :rtype: spaces.Box
+
+
+.. py:function:: seed_env(env: gymnasium.Env[gymnasium.core.ObsType, gymnasium.core.ActType], seed: int = 0, options: dict[str, Any] | None = None) -> tuple[gymnasium.core.ObsType, dict[str, Any]]
+
+   Seeds the environment.
+
+   :param env: The environment to seed.
+   :param seed: The seed to use.
+   :param options: Additional options to pass to `env.reset`.
+
+   :returns: The output of `env.reset`, i.e., the initial observation and info dictionary.
+   :rtype: tuple
+
+
+.. py:function:: wrap_env(env: gymnasium.Env[gymnasium.core.ObsType, gymnasium.core.ActType], wrappers: list[WrapperType] | None = None) -> gymnasium.Env[gymnasium.core.ObsType, gymnasium.core.ActType]
+
+   Wraps a gymnasium environment.
+
+   :param env: The environment to wrap.
+   :param wrappers: A list of wrappers to apply to the environment.
+
+   :returns: The wrapped environment.
+   :rtype: gymnasium.Env
+
+
+.. py:type:: WrapperType
+   :canonical: Callable[[Env[ObsType, ActType]], Env[ObsType, ActType]]
+
+

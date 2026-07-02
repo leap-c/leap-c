@@ -1,0 +1,333 @@
+leap_c.torch.rl.sac
+===================
+
+.. py:module:: leap_c.torch.rl.sac
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.torch.rl.sac.SacActor
+   leap_c.torch.rl.sac.SacCritic
+   leap_c.torch.rl.sac.SacTrainer
+   leap_c.torch.rl.sac.SacTrainerConfig
+
+
+Module Contents
+---------------
+
+.. py:class:: SacActor(extractor_cls: type[leap_c.torch.nn.extractor.Extractor], action_space: gymnasium.spaces.Box, observation_space: gymnasium.spaces.Space, distribution_name: leap_c.torch.nn.bounded_distributions.BoundedDistributionName, mlp_cfg: leap_c.torch.nn.mlp.MlpConfig)
+
+   Bases: :py:obj:`torch.nn.Module`
+
+
+   An actor network for Soft Actor-Critic (SAC).
+
+   :ivar extractor: A feature extractor for the observations.
+   :ivar mlp: A multi-layer perceptron (MLP) that outputs the mean and log standard deviation for the
+              action distribution.
+   :ivar bounded_distribution: A module that samples actions from a bounded distribution.
+
+
+
+   .. py:method:: forward(obs: torch.Tensor, deterministic: bool = False) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]
+
+      Sample actions from the policy given observations.
+
+      The given observations are passed to the extractor to obtain features.
+      These are used by the MLP to predict parameters used to define a
+      bounded distribution in the action space.
+      The final actions are then sampled from this distribution.
+
+      :param obs: The observations to compute the actions for.
+      :param ctx: The optional context object containing information about the previous controller
+                  solve. Can be used, e.g., to warm-start the solver.
+      :param deterministic: If `True`, use the mode of the distribution instead of sampling.
+
+
+
+   .. py:attribute:: bounded_distribution
+      :type:  leap_c.torch.nn.bounded_distributions.BoundedDistribution
+
+
+   .. py:attribute:: extractor
+      :type:  leap_c.torch.nn.extractor.Extractor
+
+
+   .. py:attribute:: mlp
+      :type:  leap_c.torch.nn.mlp.Mlp
+
+
+.. py:class:: SacCritic(extractor_cls: type[leap_c.torch.nn.extractor.Extractor], action_space: gymnasium.spaces.Box, observation_space: gymnasium.spaces.Space, mlp_cfg: leap_c.torch.nn.mlp.MlpConfig, num_critics: int)
+
+   Bases: :py:obj:`torch.nn.Module`
+
+
+   A critic network for Soft Actor-Critic (SAC).
+
+   Consists of multiple Q-networks that estimate the expected return for given state-action pairs.
+
+   :ivar extractor: A list of feature extractors for the observations.
+   :ivar mlp: A list of multi-layer perceptrons (MLPs) that estimate Q-values.
+   :ivar action_space: The action space of the environment (used for normalizing the actions).
+
+
+
+   .. py:method:: forward(x: torch.Tensor, a: torch.Tensor) -> list[torch.Tensor]
+
+      Returns a list of Q-value estimates for the given state-action pairs.
+
+
+
+   .. py:attribute:: action_space
+      :type:  gymnasium.spaces.Box
+
+
+   .. py:attribute:: extractor
+      :type:  torch.nn.ModuleList
+
+
+   .. py:attribute:: mlp
+      :type:  torch.nn.ModuleList
+
+
+.. py:class:: SacTrainer(cfg: SacTrainerConfig, val_env: gymnasium.Env | None, output_path: str | pathlib.Path, device: int | str | torch.device, dtype: torch.dtype, train_env: gymnasium.Env, extractor_cls: type[leap_c.torch.nn.extractor.Extractor] | leap_c.torch.nn.extractor.ExtractorName = 'identity')
+
+   Bases: :py:obj:`leap_c.trainer.Trainer`\ [\ :py:obj:`SacTrainerConfig`\ , :py:obj:`Any`\ ]
+
+
+   A trainer for Soft Actor-Critic (SAC).
+
+   :ivar train_env: The training environment.
+   :ivar q: The Q-function approximator (critic).
+   :ivar q_target: The target Q-function approximator.
+   :ivar q_optim: The optimizer for the Q-function.
+   :ivar pi: The policy network (the actor).
+   :ivar pi_optim: The optimizer for the policy network.
+   :ivar log_alpha: The logarithm of the temperature parameter.
+   :ivar alpha_optim: The optimizer for the temperature parameter.
+                      If `None`, the temperature is fixed.
+   :ivar target_entropy: The target entropy for the policy.
+                         If `None`, the temperature is fixed.
+   :ivar buffer: The replay buffer used for storing and sampling experiences.
+
+
+
+   .. py:method:: act(obs, deterministic: bool = False, state: Any = None) -> tuple[numpy.ndarray, None, dict[str, float]]
+
+      Act based on the observation.
+
+      This is intended for rollouts (= interaction with the environment).
+
+      :param obs: The observation for which the action should be determined.
+      :type obs: Any
+      :param deterministic: If `True`, the action is drawn deterministically.
+      :type deterministic: bool
+      :param state: The state of the policy. Useful, if, e.g., the policy is recurrent or includes
+                    an MPC planner which might want to pass warmstarting information.
+                    Note, that at the start of an episode, the state is assumed to be `None`.
+
+      :returns: The action, the state of the policy and potential solving stats.
+
+
+
+   .. py:method:: periodic_ckpt_modules() -> list[str]
+
+      Returns the modules that should be checkpointed periodically.
+
+      This is used for example for tracking policy parameters over time.
+
+
+
+   .. py:method:: singleton_ckpt_modules() -> list[str]
+
+      Returns the modules that should be checkpointed only once.
+
+      Replay Buffers often should not be stored multiple times as there is overlap.
+
+
+
+   .. py:method:: train_loop() -> Generator[tuple[int, float], None, None]
+
+      The main training loop.
+
+      For simplicity, we use an Iterator here, to make the training loop as simple as
+      possible. To make your own code compatible use the yield statement to return the
+      number of steps your train loop did. If yield does not always return `1`, the validation
+      might be performed not exactly at the specified interval.
+
+      :Yields: The number of steps the training loop did.
+               The training score over these steps.
+
+
+
+   .. py:attribute:: alpha_optim
+      :type:  torch.optim.Optimizer | None
+
+
+   .. py:attribute:: buffer
+      :type:  leap_c.torch.rl.buffer.ReplayBuffer
+
+
+   .. py:attribute:: log_alpha
+      :type:  torch.nn.Parameter
+
+
+   .. py:property:: optimizers
+      :type: list[torch.optim.Optimizer]
+
+
+      If provided, optimizers are also checkpointed.
+
+
+   .. py:attribute:: pi
+      :type:  SacActor
+
+
+   .. py:attribute:: pi_optim
+      :type:  torch.optim.Optimizer
+
+
+   .. py:attribute:: q
+      :type:  SacCritic
+
+
+   .. py:attribute:: q_optim
+      :type:  torch.optim.Optimizer
+
+
+   .. py:attribute:: q_target
+      :type:  SacCritic
+
+
+   .. py:attribute:: target_entropy
+      :type:  float | None
+
+
+   .. py:attribute:: train_env
+      :type:  gymnasium.Env
+
+
+.. py:class:: SacTrainerConfig
+
+   Bases: :py:obj:`leap_c.trainer.TrainerConfig`
+
+
+   Contains the necessary configuration for a SacTrainer.
+
+   :ivar critic_mlp: The configuration for the Q-networks (critics).
+   :ivar actor_mlp: The configuration for the policy network.
+   :ivar batch_size: The batch size for training.
+   :ivar buffer_size: The size of the replay buffer.
+   :ivar gamma: The discount factor.
+   :ivar tau: The soft update factor for the target networks.
+   :ivar soft_update_freq: The frequency of soft updates (in steps).
+   :ivar lr_q: The learning rate for the Q-networks.
+   :ivar lr_pi: The learning rate for the policy network.
+   :ivar lr_alpha: The learning rate for the temperature parameter.
+                   Can be set to None to avoid updating the temperature.
+   :ivar init_alpha: The initial temperature parameter.
+   :ivar target_entropy: The minimum target entropy for the policy.
+                         If `None`, it is set automatically depending on dimensions of the action space.
+   :ivar entropy_reward_bonus: Whether to add an entropy bonus to the reward.
+   :ivar num_critics: The number of critic networks.
+   :ivar update_freq: The frequency of updating the networks (in steps).
+   :ivar distribution_name: The type of bounded distribution to use
+                            for sampling inside the policy.
+
+
+
+   .. py:attribute:: actor_mlp
+      :type:  leap_c.torch.nn.mlp.MlpConfig
+
+
+   .. py:attribute:: batch_size
+      :type:  int
+      :value: 64
+
+
+
+   .. py:attribute:: buffer_size
+      :type:  int
+      :value: 1000000
+
+
+
+   .. py:attribute:: critic_mlp
+      :type:  leap_c.torch.nn.mlp.MlpConfig
+
+
+   .. py:attribute:: distribution_name
+      :type:  leap_c.torch.nn.bounded_distributions.BoundedDistributionName
+      :value: 'squashed_gaussian'
+
+
+
+   .. py:attribute:: entropy_reward_bonus
+      :type:  bool
+      :value: True
+
+
+
+   .. py:attribute:: gamma
+      :type:  float
+      :value: 0.99
+
+
+
+   .. py:attribute:: init_alpha
+      :type:  float
+      :value: 0.01
+
+
+
+   .. py:attribute:: lr_alpha
+      :type:  float | None
+      :value: 0.001
+
+
+
+   .. py:attribute:: lr_pi
+      :type:  float
+      :value: 0.0001
+
+
+
+   .. py:attribute:: lr_q
+      :type:  float
+      :value: 0.0001
+
+
+
+   .. py:attribute:: num_critics
+      :type:  int
+      :value: 2
+
+
+
+   .. py:attribute:: soft_update_freq
+      :type:  int
+      :value: 1
+
+
+
+   .. py:attribute:: target_entropy
+      :type:  float | None
+      :value: None
+
+
+
+   .. py:attribute:: tau
+      :type:  float
+      :value: 0.005
+
+
+
+   .. py:attribute:: update_freq
+      :type:  int
+      :value: 4
+
+
+

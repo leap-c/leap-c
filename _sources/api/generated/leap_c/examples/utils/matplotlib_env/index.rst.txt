@@ -1,0 +1,81 @@
+leap_c.examples.utils.matplotlib_env
+====================================
+
+.. py:module:: leap_c.examples.utils.matplotlib_env
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.examples.utils.matplotlib_env.ActType
+   leap_c.examples.utils.matplotlib_env.ObsType
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.examples.utils.matplotlib_env.MatplotlibRenderEnv
+
+
+Module Contents
+---------------
+
+.. py:class:: MatplotlibRenderEnv(render_mode: str | None = None, **kwargs: Any)
+
+   Bases: :py:obj:`abc.ABC`, :py:obj:`gymnasium.Env`\ [\ :py:obj:`ObsType`\ , :py:obj:`ActType`\ ], :py:obj:`Generic`\ [\ :py:obj:`ObsType`\ , :py:obj:`ActType`\ , :py:obj:`leap_c.controller.CtxType`\ ]
+
+
+   A class for Gymnasium environments to handle Matplotlib rendering.
+
+   This mixin provides the boilerplate for `render()` and `close()` methods. To use it, an
+   environment class must inherit from this mixin and implement two abstract methods:
+   - `_render_setup()`: For one-time plot initialization.
+   - `_render_frame()`: For updating the plot on each render call.
+
+   The environment must also have a `render_mode` attribute.
+
+   :ivar render_mode: The mode for rendering the environment.
+
+
+
+   .. py:method:: close() -> None
+
+      Closes the rendering window.
+
+
+
+   .. py:method:: render() -> numpy.ndarray | list[numpy.ndarray] | None
+
+      Renders the environment.
+
+      Handles initialization on the first call and delegates to the environment-specific drawing
+      methods.
+
+
+
+   .. py:method:: set_ctx(ctx: leap_c.controller.CtxType) -> None
+
+      Sets the context for rendering.
+
+      This method can be used to pass additional information to the rendering methods.
+
+      :param ctx: The context to set.
+
+
+
+   .. py:attribute:: metadata
+
+
+   .. py:attribute:: render_mode
+      :value: None
+
+
+
+.. py:data:: ActType
+
+.. py:data:: ObsType
+

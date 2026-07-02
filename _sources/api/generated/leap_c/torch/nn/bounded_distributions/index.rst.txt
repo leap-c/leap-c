@@ -1,0 +1,394 @@
+leap_c.torch.nn.bounded_distributions
+=====================================
+
+.. py:module:: leap_c.torch.nn.bounded_distributions
+
+.. autoapi-nested-parse::
+
+   Provides a simple distributional layer that allows policies to respect action bounds.
+
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.torch.nn.bounded_distributions.BoundedDistributionName
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.torch.nn.bounded_distributions.BoundedDistribution
+   leap_c.torch.nn.bounded_distributions.ModeConcentrationBeta
+   leap_c.torch.nn.bounded_distributions.ScaledBeta
+   leap_c.torch.nn.bounded_distributions.SquashedGaussian
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.torch.nn.bounded_distributions.get_bounded_distribution
+
+
+Module Contents
+---------------
+
+.. py:class:: BoundedDistribution(space: gymnasium.spaces.Box)
+
+   Bases: :py:obj:`torch.nn.Module`
+
+
+   An abstract class for bounded distributions.
+
+
+   .. py:method:: forward(*defining_parameters: torch.Tensor, deterministic: bool = False, anchor: torch.Tensor | numpy.ndarray | None = None, sample_shape: tuple[int, Ellipsis] = ()) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]
+      :abstractmethod:
+
+
+      Sample from the distribution.
+
+      :param \*defining_parameters: The parameters defining the distribution, such as mean and log
+                                    standard deviation for a Gaussian distribution, or alpha and beta parameters for a
+                                    Beta distribution.
+                                    These parameters are expected to be broadcastable with the bounds of the space
+                                    provided at construction, and have shape `(*, event_dim)` with `event_dim` the
+                                    dimension of said space and `*` any shape for the batched distributions.
+      :param deterministic: If `deterministic` is `True`, the mode of the distribution is used
+                            instead of sampling.
+      :param anchor: An optional tensor/array to shift the distribution's mean/mode towards. Used in
+                     residual policies where the output distribution models an offset to the anchor.
+                     Must be broadcastable to `(*, event_dim)`.
+      :param sample_shape: The shape of the samples to be drawn from the distribution. This allows
+                           for drawing multiple samples at once from each distribution in the batch.
+
+      :returns: A tuple containing the samples with shape `(*sample_shape, *, event_dim)`, the
+                corresponding log-probabilities, and a dictionary of stats.
+
+
+
+   .. py:method:: inverse(normalized_x: torch.Tensor) -> torch.Tensor
+      :abstractmethod:
+
+
+      Apply the inverse transformation to the input tensor.
+
+      The inverse transform is meant to translate the input from the bounded space to the squashed
+      interval (e.g., `[0,1]` or `[-1,1]`) .
+
+      :param normalized_x: The input tensor.
+
+      :returns: The inverse transformed tensor.
+
+
+
+   .. py:method:: parameter_size(output_dim: int) -> tuple[int, Ellipsis]
+      :abstractmethod:
+
+
+      Returns param size required to define the distribution for the given output dim.
+
+      :param output_dim: The dimensionality of the output space (e.g., action space).
+
+      :returns: A tuple of integers, each integer specifying the size of one parameter required to
+                define the distribution in the forward pass.
+
+
+
+.. py:class:: ModeConcentrationBeta(space: gymnasium.spaces.Box, log_conc_min: numpy.typing.ArrayLike = log(2.0), log_conc_max: numpy.typing.ArrayLike = log(100.0), padding: numpy.typing.ArrayLike = 0.0001)
+
+   Bases: :py:obj:`BoundedDistribution`
+
+
+   Beta distribution parameterized by mode and total concentration.
+
+   This distribution is parameterized similarly to `SquashedGaussian`:
+   - logit_mode: The logit of the mode of the distribution
+   - log_conc: The logarithm of the concentration parameter
+
+   :ivar scale: The scale of the space-fitting transform (for scaling).
+   :ivar loc: The location of the space-fitting transform (for shifting).
+   :ivar log_conc_min: The minimum value for the logarithm of the concentration.
+   :ivar log_conc_max: The maximum value for the logarithm of the concentration.
+   :ivar padding: The amount of padding to distance the action of the bounds, when using the inverse
+                  transformation for the anchoring. This improves numerical stability.
+
+
+
+   .. py:method:: forward(logit_mode: torch.Tensor, logit_log_conc: torch.Tensor, deterministic: bool = False, anchor: torch.Tensor | numpy.ndarray | None = None, sample_shape: tuple[int, Ellipsis] = ()) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]
+
+      Sample from the `ModeConcentrationBeta` distribution.
+
+      :param logit_mode: The logit of the mode of the Beta distribution (unbounded). This number is
+                         later squashed through a sigmoid to ensure it lies in the valid `[0, 1]` interval.
+                         Must be broadcastable to `(*, event_dim)`, where `event_dim` is the dimension of
+                         space provided at construction.
+      :param logit_log_conc: The logit of the logarithm of the concentration parameter, of the same
+                             shape as the mode (i.e., assuming independent dimensions). The logit is forced to
+                             the bounded interval `[log_conc_min, log_conc_max]` via a sigmoid; then, it is
+                             exponentiated.
+                             Must be also broadcastable to `(*, event_dim)`.
+      :param deterministic: If `True`, the output will just be `spacefitting(mode)`, with no sampling
+                            taking place.
+      :param anchor: An optional tensor/array to shift the distribution's mode towards. Used in
+                     residual policies where the output distribution models an offset to the anchor.
+                     Must be broadcastable to `(*, event_dim)`.
+      :param sample_shape: The shape of the samples to be drawn from the distribution. This allows
+                           for drawing multiple samples at once from each distribution in the batch.
+
+      :returns: An output sampled from the `ModeConcentrationBeta` distribution with shape
+                `(*sample_shape, *, event_dim)`, the log probability of this output, and an empty stats
+                dict.
+
+
+
+   .. py:method:: inverse(x: torch.Tensor) -> torch.Tensor
+
+      Apply the inverse transformation from `[lb, ub]` to `[0, 1]`.
+
+      :param x: The input tensor.
+
+      :returns: The inverse scaled tensor.
+
+
+
+   .. py:method:: parameter_size(output_dim: int) -> tuple[int, Ellipsis]
+
+      Returns param size required to define the distribution for the given output dim.
+
+      :param output_dim: The dimensionality of the output space (e.g., action space).
+
+      :returns: A tuple of integers, each integer specifying the size of one parameter required to
+                define the distribution in the forward pass.
+
+
+
+   .. py:attribute:: loc
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: log_conc_max
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: log_conc_min
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: padding
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: scale
+      :type:  torch.Tensor
+
+
+.. py:class:: ScaledBeta(space: gymnasium.spaces.Box, log_alpha_min: numpy.typing.ArrayLike = -10.0, log_beta_min: numpy.typing.ArrayLike = -10.0, log_alpha_max: numpy.typing.ArrayLike = 10.0, log_beta_max: numpy.typing.ArrayLike = 10.0, padding: numpy.typing.ArrayLike = 0.0001)
+
+   Bases: :py:obj:`BoundedDistribution`
+
+
+   A unimodal scaled Beta distribution.
+
+   Samples the output from a Beta distribution specified by the input, and then scales and shifts
+   the result to match the space. Unomodality is ensured by enforcing `alpha, beta > 1`.
+
+   Can for example be used to enforce certain action bounds of a stochastic policy.
+
+   :ivar scale: The scale of the space-fitting transform (for scaling).
+   :ivar loc: The location of the space-fitting transform (for shifting).
+   :ivar log_alpha_min: The minimum value for the logarithm of the alpha parameter.
+   :ivar log_beta_min: The minimum value for the logarithm of the beta parameter.
+   :ivar log_alpha_max: The maximum value for the logarithm of the alpha parameter.
+   :ivar log_beta_max: The maximum value for the logarithm of the beta parameter.
+   :ivar padding: The amount of padding to distance the action of the bounds, when using the inverse
+                  transformation for the anchoring. This improves numerical stability.
+
+
+
+   .. py:method:: forward(log_alpha: torch.Tensor, log_beta: torch.Tensor, deterministic: bool = False, anchor: torch.Tensor | numpy.ndarray | None = None, sample_shape: tuple[int, Ellipsis] = ()) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]
+
+      Sample from the `ScaledBeta` distribution.
+
+      Note that `alpha` and `beta` are enforced to be `> 1` to ensure concavity.
+
+      :param log_alpha: The logarithm of the alpha parameter of the Beta distribution, with shape
+                        `(*, event_dim)`, where `event_dim` is the shape of space provided at construction.
+      :param log_beta: The logarithm of the beta parameter of the Beta distribution. Must be
+                       broadcastable to `(*, event_dim)`.
+      :param deterministic: If `True`, the output will just be `spacefitting(mode)`, with no
+                            sampling taking place.
+      :param anchor: An optional tensor/array to shift the distribution's mode towards. Used in
+                     residual policies where the output distribution models an offset to the anchor.
+                     Must be broadcastable to `(*, event_dim)`.
+      :param sample_shape: The shape of the samples to be drawn from the distribution. This allows
+                           for drawing multiple samples at once from each distribution in the batch.
+
+      :returns: An output sampled from the `ScaledBeta` distribution with shape
+                `(*sample_shape, *, event_dim)`, the log probability of this output, and an empty stats
+                dict.
+
+
+
+   .. py:method:: inverse(x: torch.Tensor) -> torch.Tensor
+
+      Apply the inverse transformation from `[lb, ub]` to `[0, 1]`.
+
+      :param x: The input tensor.
+
+      :returns: The inverse scaled tensor.
+
+
+
+   .. py:method:: parameter_size(output_dim: int) -> tuple[int, Ellipsis]
+
+      Returns param size required to define the distribution for the given output dim.
+
+      :param output_dim: The dimensionality of the output space (e.g., action space).
+
+      :returns: A tuple of integers, each integer specifying the size of one parameter required to
+                define the distribution in the forward pass.
+
+
+
+   .. py:attribute:: loc
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: log_alpha_max
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: log_alpha_min
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: log_beta_max
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: log_beta_min
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: padding
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: scale
+      :type:  torch.Tensor
+
+
+.. py:class:: SquashedGaussian(space: gymnasium.spaces.Box, log_std_min: numpy.typing.ArrayLike = -4.0, log_std_max: numpy.typing.ArrayLike = 2.0, padding: numpy.typing.ArrayLike = 0.0001)
+
+   Bases: :py:obj:`BoundedDistribution`
+
+
+   A squashed Gaussian.
+
+   Samples the output from a Gaussian distribution specified by the input, and then squashes the
+   result with a `tanh` function. Finally, the output of the `tanh` function is scaled and shifted
+   to match the space.
+
+   Can for example be used to enforce certain action bounds of a stochastic policy.
+
+   :ivar scale: The scale of the space-fitting transform.
+   :ivar loc: The location of the space-fitting transform (for shifting).
+   :ivar log_std_min: The minimum value for the logarithm of the standard deviation.
+   :ivar log_std_max: The maximum value for the logarithm of the standard deviation.
+   :ivar padding: The amount of padding to distance the action of the bounds, when using the inverse
+                  transformation for the anchoring. This improves numerical stability.
+
+
+
+   .. py:method:: forward(mean: torch.Tensor, log_std: torch.Tensor | None = None, deterministic: bool = False, anchor: torch.Tensor | numpy.ndarray | None = None, sample_shape: tuple[int, Ellipsis] = ()) -> tuple[torch.Tensor, torch.Tensor, dict[str, float]]
+
+      Sample from the `SquashedGaussian` distribution.
+
+      :param mean: The mean of the normal distribution with shape `(*, event_dim)`, where `event_dim`
+                   is the dimension of space provided at construction.
+      :param log_std: The logarithm of the standard deviation of the normal distribution, of the same
+                      shape as the mean (i.e., assuming independent dimensions). Will be clamped according
+                      to the attributes of this class. Must be broadcastable to `(*, event_dim)`.
+                      If `None`, the output is deterministic (no noise added to `mean`; same as for
+                      `deterministic == True`).
+      :param deterministic: If `True`, the output will just be `spacefitting(tanh(mean))`, with no
+                            sampling taking place.
+      :param anchor: An optional tensor/array to shift the distribution's mean towards. Used in
+                     residual policies where the output distribution models an offset to the anchor.
+                     Must be broadcastable to `(*, event_dim)`.
+      :param sample_shape: The shape of the samples to be drawn from the distribution. This allows
+                           for drawing multiple samples at once from each distribution in the batch.
+
+      :returns: Output sampled from the `SquashedGaussian` with shape `(*sample_shape, *, event_dim)`,
+                the log probability of this output, and a statistics dict containing the standard
+                deviation.
+
+
+
+   .. py:method:: inverse(x: torch.Tensor) -> torch.Tensor
+
+      Apply the inverse transformation to the input tensor.
+
+      The inverse transformation is a descale and then `arctanh`. For numerical stability, the
+      input is slightly padded away (by `padding`) from the bounds before applying `arctanh`.
+
+      :param x: The input tensor.
+
+      :returns: The inverse squashed tensor, scaled and shifted to match the action space.
+
+
+
+   .. py:method:: parameter_size(output_dim: int) -> tuple[int, Ellipsis]
+
+      Returns param size required to define the distribution for the given output dim.
+
+      :param output_dim: The dimensionality of the output space (e.g., action space).
+
+      :returns: A tuple of integers, each integer specifying the size of one parameter required to
+                define the distribution in the forward pass.
+
+
+
+   .. py:attribute:: loc
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: log_std_max
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: log_std_min
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: padding
+      :type:  torch.Tensor
+
+
+   .. py:attribute:: scale
+      :type:  torch.Tensor
+
+
+.. py:function:: get_bounded_distribution(name: BoundedDistributionName, **kwargs: Any) -> BoundedDistribution
+
+   Create an instance of a bounded distribution by name.
+
+   :param name: The name of the
+                bounded distribution
+   :type name: {"squashed_gaussian", "scaled_beta", "mode_concentration_beta"}
+   :param kwargs: Additional keyword arguments passed to the constructor of the bounded distribution.
+
+   :returns: The newly created instance.
+   :rtype: BoundedDistribution
+
+   :raises ValueError: If the provided name does not correspond to a known bounded distribution.
+
+
+.. py:data:: BoundedDistributionName
+

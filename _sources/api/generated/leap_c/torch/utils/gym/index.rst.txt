@@ -1,0 +1,34 @@
+leap_c.torch.utils.gym
+======================
+
+.. py:module:: leap_c.torch.utils.gym
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.torch.utils.gym.flatten
+   leap_c.torch.utils.gym.flatten_space
+   leap_c.torch.utils.gym.unflatten
+
+
+Module Contents
+---------------
+
+.. py:function:: flatten(space: gymnasium.Space, x: Any)
+
+   Flatten a value from a Gymnasium space using torch operations.
+
+
+.. py:function:: flatten_space(space: gymnasium.Space) -> gymnasium.spaces.Box
+
+   Return the flattened Gymnasium space.
+
+
+.. py:function:: unflatten(space: gymnasium.Space, x: Any)
+
+   Unflatten a flat tensor into a value matching a Gymnasium space.
+
+
