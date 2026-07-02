@@ -8,6 +8,16 @@
 - Python 3.11 or higher
 - [acados dependencies](https://docs.acados.org/installation/index.html)
 
+We recommend the [uv](https://docs.astral.sh/uv/) package manager. Install it with
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+(see the [uv installation guide](https://docs.astral.sh/uv/getting-started/installation/)
+for other options). If you prefer, the classic `pip` + `venv` workflow is also fully
+supported — the alternative commands are shown alongside each step below.
+
 Clone the repository and recursively update submodules:
 
 ```bash
@@ -18,7 +28,16 @@ git submodule update --init --recursive
 
 ### Python
 
-Create a virtual environment and activate it. Assuming a required Python version of 3.11 or newer, you can use the following commands:
+Create a virtual environment and activate it. Assuming a required Python version of 3.11 or newer, you can use the following commands.
+
+Recommended (uv), which also fetches a matching Python if it is not installed:
+
+```bash
+uv venv --python 3.11
+source .venv/bin/activate
+```
+
+Alternatively (pip/venv):
 
 ```bash
 python3 -m venv .venv
@@ -38,35 +57,49 @@ cd external/acados
 and build it as described in the [acados documentation](https://docs.acados.org/installation/index.html).
 When running the `cmake` command, include the options `-DACADOS_WITH_OPENMP=ON -DACADOS_NUM_THREADS=1`.
 Afterwards, install the [python interface](https://docs.acados.org/python_interface/index.html) of acados.
+When the acados docs use `pip install`, you can substitute `uv pip install` as a drop-in
+replacement inside the activated environment.
 
 #### PyTorch
 
 Install PyTorch as described on the [PyTorch website](https://pytorch.org/get-started/locally/).
 
-To install CPU-only PyTorch you can use:
+To install CPU-only PyTorch you can use, recommended (uv):
 
-``` bash
+```bash
+uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+```
+
+Alternatively (pip):
+
+```bash
 pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
 ```
 
 ### Install leap-c
 
-To install the package containing minimum dependencies in the root directory of the repository, run:
+To install the package containing minimum dependencies in the root directory of the repository, run — recommended (uv):
+
+```bash
+uv pip install -e .
+```
+
+Alternatively (pip):
 
 ```bash
 pip install -e .
 ```
 
-For also enabling rendering in some of our examples use:
+For also enabling rendering in some of our examples, add the `rendering` extra:
 
 ```bash
-pip install -e ".[rendering]"
+uv pip install -e ".[rendering]"     # or: pip install -e ".[rendering]"
 ```
 
 For development, you might want to install all additional dependencies:
 
 ```bash
-pip install -e ".[dev]"
+uv pip install -e ".[dev]"           # or: pip install -e ".[dev]"
 ```
 
 See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on package configurations.
@@ -120,7 +153,13 @@ For keeping our code style and our diffs consistent we use the [Ruff](https://do
 
 To make this as easy as possible we also provide a [pre-commit](https://pre-commit.com/) config for running the linter and formatter automatically at every commit. For enabling pre-commit follow these steps:
 
-1. Install pre-commit using pip (already done if you installed the additional "[dev]" dependencies of leap-c).
+1. Install pre-commit (already done if you installed the additional "[dev]" dependencies of leap-c). Recommended (uv):
+
+```bash
+uv pip install pre-commit
+```
+
+Alternatively (pip):
 
 ```bash
 pip install pre-commit

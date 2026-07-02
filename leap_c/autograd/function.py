@@ -16,7 +16,8 @@ class DiffFunction(ABC):
       the outputs, and returns a tuple of gradients with respect to the
       inputs.
 
-    Example:
+    A minimal subclass looks like this::
+
         class MyFunction:
             def forward(
                 self, *inputs: np.ndarray, ctx: Optional[dict] = None

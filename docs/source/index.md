@@ -32,8 +32,17 @@ Documentation latest build: |today|
 
 Home<self>
 installation
-getting_started/index
+getting_started
+define_differentiable_mpc
+parameter_management
 notebooks
-tutorials/parameter_manager
 troubleshooting
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: API Reference
+
+api/index
+api/generated/leap_c/index
 ```

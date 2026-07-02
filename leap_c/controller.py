@@ -51,11 +51,13 @@ class ParameterizedController(nn.Module, Generic[CtxType], metaclass=ABCMeta):
             ctx (CtxType, optional): Optional internal context passed between invocations.
 
         Returns:
-            ctx (CtxType, optional): A context object containing any intermediate values needed for
-                backward computation and further invocations.
-                Stats to be logged are expected to be passed in the field `ctx.log`, which should be
-                a dictionary mapping string keys to float values.
-            action (Tensor): The computed action.
+            A tuple ``(ctx, action)`` where:
+
+            - ctx (CtxType, optional): A context object containing any intermediate values
+              needed for backward computation and further invocations. Stats to be logged
+              are expected to be passed in the field ``ctx.log``, which should be a
+              dictionary mapping string keys to float values.
+            - action (Tensor): The computed action.
         """
         ...
 

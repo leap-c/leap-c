@@ -59,45 +59,48 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
     2006.
     NOTE: An additoinal damping term has been added to the dynamics.
 
-    Observation Space:
-    ------------------
+    The observation space, action space, reward, and termination are described
+    below::
 
-    The observation is of shape `(6 * n_mass - 9,)` representing the state of the
-    system. It consists of the 3D positions of the `n_mass - 1` free masses and
-    the 3D velocities of the `n_mass - 2` masses (the free masses, except the last mass,
-    whose velocity is being controlled).
+        Observation Space:
+        ------------------
 
-    The state is structured as `[p_2, ..., p_{n_mass}, v_2, ..., v_{n_mass-1}]`, where `p_i` is the
-    position of the i-th mass and `v_i` is its velocity.
+        The observation is of shape `(6 * n_mass - 9,)` representing the state of the
+        system. It consists of the 3D positions of the `n_mass - 1` free masses and
+        the 3D velocities of the `n_mass - 2` masses (the free masses, except the last mass,
+        whose velocity is being controlled).
 
-    Action Space:
-    -------------
+        The state is structured as `[p_2, ..., p_{n_mass}, v_2, ..., v_{n_mass-1}]`,
+        where `p_i` is the position of the i-th mass and `v_i` is its velocity.
 
-    The action is a `ndarray` with shape `(3,)` which can take values in the range `(-vmax, vmax)`.
-    It represents the velocity of the last mass.
+        Action Space:
+        -------------
 
-    Reward:
-    -------
+        The action is a `ndarray` with shape `(3,)` which can take values in the range
+        `(-vmax, vmax)`. It represents the velocity of the last mass.
 
-    The reward is designed to encourage the agent to move the last mass to the target position
-    while minimizing velocity. It is calculated as:
-    `r = 10 * (r_dist + r_vel)`
-    where:
-    - `r_dist` is the negative l1 norm of the distance between the last mass
-        and the target position.
-    - `r_vel` is the negative l2 norm of the velocities of the masses, scaled by 0.1.
+        Reward:
+        -------
 
-    Termination and truncation:
-    ---------------------------
-    The system never terminates, but the episode is truncated after
-    `max_time` seconds simulation time.
+        The reward is designed to encourage the agent to move the last mass to the target position
+        while minimizing velocity. It is calculated as:
+        `r = 10 * (r_dist + r_vel)`
+        where:
+        - `r_dist` is the negative l1 norm of the distance between the last mass
+            and the target position.
+        - `r_vel` is the negative l2 norm of the velocities of the masses, scaled by 0.1.
 
-    Info:
-    -----
-    The info dictionary contains:
-    - "task": {"violation": bool, "success": bool}
-      - violation: Always False.
-      - success: True if goal reached
+        Termination and truncation:
+        ---------------------------
+        The system never terminates, but the episode is truncated after
+        `max_time` seconds simulation time.
+
+        Info:
+        -----
+        The info dictionary contains:
+        - "task": {"violation": bool, "success": bool}
+          - violation: Always False.
+          - success: True if goal reached
 
     Attributes:
         cfg: Configuration for the environment.
@@ -204,6 +207,19 @@ class ChainEnv(MatplotlibRenderEnv, gym.Env):
         )
 
     def step(self, action: np.ndarray) -> tuple[Any, float, bool, bool, dict]:
+        """Execute one time step within the environment.
+
+        Args:
+            action: Velocity command for the last mass.
+
+        Returns:
+            Tuple containing:
+                - observation: Next observation (positions and velocities of the free masses).
+                - reward: Reward for this step.
+                - terminated: Whether the episode terminated.
+                - truncated: Whether the episode was truncated.
+                - info: Dictionary with task information.
+        """
         u = action
         self.action = action
 

@@ -25,7 +25,11 @@ To fix it, you can run
 sudo apt install libqt5gui5
 ```
 and then install
-`PyQt5` in your python virtual environment using
+`PyQt5` in your python virtual environment. Recommended (uv):
+```bash
+uv pip install pyqt5
+```
+Alternatively (pip):
 ```bash
 pip install pyqt5
 ```
