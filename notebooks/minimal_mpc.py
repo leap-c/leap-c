@@ -6,7 +6,7 @@ This marimo notebook builds a tiny scalar integrator MPC, solves it with
 
 import marimo
 
-__generated_with = "0.13.0"
+__generated_with = "0.23.13"
 app = marimo.App(width="medium")
 
 
@@ -19,24 +19,22 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        # Minimal MPC with batched warm starts
+    mo.md(r"""
+    # Minimal MPC with batched warm starts
 
-        This notebook uses the smallest useful MPC example: a scalar integrator
-        
-        \[
-        x_{k+1} = x_k + \Delta t u_k
-        \]
-        
-        with a box constraint on `u`. The target position is a differentiable
-        parameter, so gradients can flow from the MPC value back to `x_ref`.
+    This notebook uses the smallest useful MPC example: a scalar integrator
 
-        The final cells show the user-facing collation story: if you store
-        `AcadosDiffMpcCtx` objects for warm starts, `collate_torch` lets PyTorch
-        collate normal tensors while leap-c handles the MPC context.
-        """
-    )
+    \[
+    x_{k+1} = x_k + \Delta t u_k
+    \]
+
+    with a box constraint on `u`. The target position is a differentiable
+    parameter, so gradients can flow from the MPC value back to `x_ref`.
+
+    The final cells show the user-facing collation story: if you store
+    `AcadosDiffMpcCtx` objects for warm starts, `collate_torch` lets PyTorch
+    collate normal tensors while leap-c handles the MPC context.
+    """)
     return
 
 
@@ -51,7 +49,15 @@ def _():
     from leap_c.torch import AcadosDiffMpcTorch
     from leap_c.utils import collate_torch
 
-    return AcadosDiffMpcTorch, AcadosOcp, AcadosParameterManager, ca, collate_torch, np, torch
+    return (
+        AcadosDiffMpcTorch,
+        AcadosOcp,
+        AcadosParameterManager,
+        ca,
+        collate_torch,
+        np,
+        torch,
+    )
 
 
 @app.cell
@@ -124,21 +130,31 @@ def _(AcadosDiffMpcTorch, create_integrator_ocp, torch):
             return self.layer(x0=x0, params={"x_ref": x_ref, "u_ref": u_ref}, ctx=ctx)
 
     planner = MinimalMpcPlanner()
-    return MinimalMpcPlanner, planner
+    return (planner,)
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Single solve
+    """)
+    return
 
 
 @app.cell
-def _(mo, planner, torch):
+def _(planner, torch):
     x0 = torch.tensor([[2.0]], dtype=torch.float64)
     x_ref = torch.tensor([[0.0]], dtype=torch.float64, requires_grad=True)
 
     ctx, u0, x_traj, u_traj, value = planner.solve(x0=x0, x_ref=x_ref)
     value.sum().backward()
+    return ctx, u0, value, x_ref, x_traj
 
+
+@app.cell(hide_code=True)
+def _(ctx, mo, u0, value, x_ref):
     mo.md(
         f"""
-        ## Single solve
-
         Solver status: `{ctx.status.tolist()}`
 
         First control: `{u0.detach().flatten().tolist()}`
@@ -148,25 +164,23 @@ def _(mo, planner, torch):
         Gradient wrt target `x_ref`: `{x_ref.grad.flatten().tolist()}`
         """
     )
-    return ctx, u0, value, x0, x_ref, x_traj
+    return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""
-        ## Collating contexts for batched warm starts
+    mo.md(r"""
+    ## Collating contexts for batched warm starts
 
-        A warm start context is not a tensor, so PyTorch's default collation does
-        not know how to stack it. `collate_torch` keeps PyTorch's default behavior
-        for tensors and only adds the custom rule for `AcadosDiffMpcCtx`.
-        """
-    )
+    A warm start context is not a tensor, so PyTorch's default collation does
+    not know how to stack it. `collate_torch` keeps PyTorch's default behavior
+    for tensors and only adds the custom rule for `AcadosDiffMpcCtx`.
+    """)
     return
 
 
 @app.cell
-def _(collate_torch, mo, planner, torch):
+def _(collate_torch, planner, torch):
     samples = []
     for initial_state in [2.0, -1.5, 0.5]:
         sample_x0 = torch.tensor([initial_state], dtype=torch.float64)
@@ -175,7 +189,11 @@ def _(collate_torch, mo, planner, torch):
         samples.append({"ctx": sample_ctx, "x0": sample_x0, "x_ref": sample_x_ref})
 
     batch = collate_torch(samples)
+    return (batch,)
 
+
+@app.cell(hide_code=True)
+def _(batch, mo):
     mo.md(
         f"""
         Collated `x0` shape: `{tuple(batch["x0"].shape)}`
@@ -185,11 +203,19 @@ def _(collate_torch, mo, planner, torch):
         Collated solver statuses: `{batch["ctx"].status.tolist()}`
         """
     )
-    return batch, samples
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ## Batched warm-started solve
+    """)
+    return
 
 
 @app.cell
-def _(batch, mo, planner):
+def _(batch, planner):
     # Explicit tensor movement stays visible to users.  If you need CUDA, move
     # tensor leaves before calling the layer; the context itself stays numpy/acados.
     x0_batch = batch["x0"]
@@ -201,11 +227,13 @@ def _(batch, mo, planner):
         x_ref=x_ref_batch,
         ctx=warmstart_ctx,
     )
+    return ctx2, u0_batch, value_batch
 
+
+@app.cell(hide_code=True)
+def _(ctx2, mo, u0_batch, value_batch):
     mo.md(
         f"""
-        ## Batched warm-started solve
-
         Solver statuses: `{ctx2.status.tolist()}`
 
         First controls: `{u0_batch.detach().flatten().tolist()}`
@@ -213,7 +241,7 @@ def _(batch, mo, planner):
         Values: `{value_batch.detach().flatten().tolist()}`
         """
     )
-    return ctx2, u0_batch, value_batch
+    return
 
 
 if __name__ == "__main__":
