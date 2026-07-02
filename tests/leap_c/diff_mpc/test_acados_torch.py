@@ -920,8 +920,7 @@ def test_backward_nmpc(
     check_gradients(diff_mpc, n_batch, max_batch_size, dtype, noise_scale)
     print("Check stagewise diff_mpc===============================")
     check_gradients(
-        diff_mpc_with_stagewise_varying_params,
-        n_batch, max_batch_size, dtype, noise_scale
+        diff_mpc_with_stagewise_varying_params, n_batch, max_batch_size, dtype, noise_scale
     )
 
 
