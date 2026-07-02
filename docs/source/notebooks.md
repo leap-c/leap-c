@@ -9,13 +9,13 @@ You can run these notebooks either locally (recommended for development) or via 
 First complete the [native installation](installation.md), then install the notebook extras. Recommended (uv):
 
 ```bash
-uv pip install -e ".[notebook]"
+uv pip install -e ".[notebooks]"
 ```
 
 Alternatively (pip):
 
 ```bash
-pip install -e ".[notebook]"
+pip install -e ".[notebooks]"
 ```
 
 Launch the marimo server from the repository root:
@@ -24,7 +24,7 @@ Launch the marimo server from the repository root:
 marimo edit notebooks
 ```
 
-Open the printed URL (default <http://localhost:8080>) in your browser. The example notebook `notebooks/intro.py` solves a CartPole MPC problem end-to-end.
+Open the printed URL (default <http://localhost:8080>) in your browser.
 
 ## Docker fallback
 
@@ -50,7 +50,7 @@ Edits made in the browser are then saved directly to your local `notebooks/` fol
 
 ### CPU shell image
 
-If you only need a reproducible shell environment (for example to run scripts or tests without installing acados), use the `cpu` image:
+If you only need a reproducible shell environment (for example to run tests without installing acados), use the `cpu` image:
 
 ```bash
 docker run -it --rm -v "$(pwd):/workspace" -w /workspace ghcr.io/leap-c/leap-c:cpu

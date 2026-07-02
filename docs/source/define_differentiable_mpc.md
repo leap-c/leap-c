@@ -4,7 +4,7 @@
 state-of-the-art numerical optimal-control solver — acados' `AcadosOcpSolver` — so that a
 whole MPC controller can live inside a PyTorch learning pipeline and be trained end to end.
 
-The central interface is {py:class}`~leap_c.ocp.acados.torch.AcadosDiffMpcTorch`, a
+The central interface is {py:class}`~leap_c.acados_torch.AcadosDiffMpcLayerTorch`, a
 `torch.nn.Module`. Its `forward` solves a (batched) optimal control problem with acados; its
 `backward` returns *exact* gradients of the solution with respect to the problem's parameters.
 Because it is an ordinary `nn.Module`, you can drop it into any model, compose it with neural
@@ -13,16 +13,16 @@ networks, and call `loss.backward()` straight through the solver.
 To build one you need three things:
 
 1. an `AcadosOcp` describing the optimal control problem (dynamics, cost, constraints);
-2. an {py:class}`~leap_c.ocp.acados.parameters.AcadosParameterManager` declaring which numbers
+2. an {py:class}`~leap_c.parameters.base.AcadosParameterManager` declaring which numbers
    in that problem are **differentiable** (learnable, shared `p_global`) and which are
    **non-differentiable** (runtime-settable model values, per-stage `p`);
-3. {py:class}`~leap_c.ocp.acados.torch.AcadosDiffMpcTorch`, which wraps the two.
+3. {py:class}`~leap_c.acados_torch.AcadosDiffMpcLayerTorch`, which wraps the two.
 
 ```{mermaid}
 flowchart LR
   OCP["AcadosOcp<br/>(dynamics, cost, constraints)"] --> DMPC
   PM["AcadosParameterManager<br/>(differentiable vs. runtime params)"] --> DMPC
-  DMPC["AcadosDiffMpcTorch<br/>(torch.nn.Module)"] --> PIPE["your PyTorch model<br/>/ training loop"]
+  DMPC["AcadosDiffMpcLayerTorch<br/>(torch.nn.Module)"] --> PIPE["your PyTorch model<br/>/ training loop"]
 ```
 
 ## Minimal example
@@ -42,8 +42,8 @@ import numpy as np
 import torch
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+from leap_c.parameters.base import AcadosParameterManager
+from leap_c.acados_torch import AcadosDiffMpcLayerTorch
 
 N_horizon = 20  # stages 0 .. N_horizon (inclusive)
 dt = 0.05       # time step [s] — a plain constant, not a parameter
@@ -98,14 +98,14 @@ ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
 ocp.solver_options.hessian_approx = "EXACT"
 ```
 
-### Step 3 — Wrap in `AcadosDiffMpcTorch`
+### Step 3 — Wrap in `AcadosDiffMpcLayerTorch`
 
 Pass the OCP and its manager. The manager attaches the parameter symbols to the OCP and
 generates the acados solvers. (The OCP must *not* already have `model.p` / `model.p_global`
 set — the manager assigns them.)
 
 ```python
-diff_mpc = AcadosDiffMpcTorch(ocp, manager)
+diff_mpc = AcadosDiffMpcLayerTorch(ocp, manager)
 ```
 
 ### Step 4 — Forward and backward
@@ -157,29 +157,15 @@ the lower-level `combine_*` helpers — see the
 
 ## Building a planner for a custom environment
 
-The examples wrap the pattern above into reusable **planners** for concrete
-[gym](https://gymnasium.farama.org/) environments. Each package under
-[`leap_c/examples/`](https://github.com/leap-c/leap-c/tree/main/leap_c/examples) bundles an
-`env.py` (the environment), an `acados_ocp.py` (builds the `AcadosOcp` and its
-`AcadosParameterManager`), and a `planner.py` (a `ParameterizedPlanner` that holds an
-`AcadosDiffMpcTorch` and forwards observations to it).
+The minimal example above shows the canonical pattern for any environment: define an
+`AcadosOcp` using symbols from an `AcadosParameterManager`, wrap both in an
+`AcadosDiffMpcLayerTorch`, and call `forward(x0, params=...)` to solve. Because
+`AcadosDiffMpcLayerTorch` is an ordinary `torch.nn.Module`, you can drop it into any
+PyTorch model, training loop, or pipeline.
 
-You can instantiate a ready-made planner by name and query it like the module above:
-
-```python
-from leap_c.examples import create_planner
-
-planner = create_planner("cartpole")
-ctx, u0, x, u, value = planner.forward(obs=x0)
-```
-
-The `notebooks/intro.py` marimo notebook demonstrates this on the CartPole example. To *learn*
-the parameters (reinforcement or imitation learning), wrap a planner in a
-{py:class}`~leap_c.trainer.Trainer`.
+The `notebooks/intro.py` marimo notebook shows this end-to-end.
 
 ## Next steps
 
 - [Parameter management](parameter_management.md) — the full parameter API.
 - [Core API](api/index.md) — the main user-facing classes.
-- [Examples](https://github.com/leap-c/leap-c/tree/main/leap_c/examples) — complete environments
-  and planners.

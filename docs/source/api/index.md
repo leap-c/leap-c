@@ -3,20 +3,14 @@
 The main user-facing interfaces of leap-c. Each entry links to its full,
 type-annotated reference page.
 
-- {py:class}`~leap_c.ocp.acados.torch.AcadosDiffMpcTorch` — the central interface:
+- {py:class}`~leap_c.acados_torch.AcadosDiffMpcLayerTorch` — the central interface:
   wraps an acados OCP solver as a differentiable PyTorch module.
-- {py:class}`~leap_c.ocp.acados.parameters.AcadosParameterManager` — define and
+- {py:class}`~leap_c.parameters.base.AcadosParameterManager` — define and
   manage the parameters of an acados OCP without touching CasADi/acados internals.
-- {py:class}`~leap_c.controller.ParameterizedController` — abstract base class for
-  differentiable, parameterized controllers.
-- {py:class}`~leap_c.trainer.Trainer` — base training loop for RL / imitation
-  learning.
 
 ```{autoapisummary}
-leap_c.ocp.acados.torch.AcadosDiffMpcTorch
-leap_c.ocp.acados.parameters.AcadosParameterManager
-leap_c.controller.ParameterizedController
-leap_c.trainer.Trainer
+leap_c.acados_torch.AcadosDiffMpcLayerTorch
+leap_c.parameters.base.AcadosParameterManager
 ```
 
 The complete, auto-generated reference (including developer/internal modules) is

@@ -1,10 +1,10 @@
 # Getting Started
 
 `leap-c` turns a model predictive controller into a differentiable PyTorch layer. It wraps
-acados' state-of-the-art optimal-control solver `AcadosOcpSolver` in a `torch.nn.Module` whose
+acados' state-of-the-art optimal-control solver `AcadosOcpSolver` into a layer whose
 **forward** pass solves a (batched) optimal control problem and whose **backward** pass returns
 *exact* gradients of the solution with respect to the problem's parameters. Because it is an
-ordinary `nn.Module`, you can drop it into any model, compose it with neural networks, and call
+ordinary `torch.nn.Module`, you can drop it into any model, compose it with neural networks, and call
 `loss.backward()` straight through the solver — the basis for learning MPC parameters with
 reinforcement or imitation learning.
 
@@ -40,22 +40,35 @@ map differentiable in $p$.
 
 ## The differentiable-MPC interface
 
-{py:class}`~leap_c.ocp.acados.torch.AcadosDiffMpcTorch` implements the solution map above as a
+{py:class}`~leap_c.acados_torch.AcadosDiffMpcLayerTorch` implements the solution map above as a
 `torch.nn.Module`. You build one from an `AcadosOcp` (the problem — dynamics, cost, constraints)
-and an {py:class}`~leap_c.ocp.acados.parameters.AcadosParameterManager` (which numbers are
+and an {py:class}`~leap_c.parameters.base.AcadosParameterManager` (which numbers are
 learnable), then call it like any module:
 
 ```{mermaid}
 flowchart LR
   OCP["AcadosOcp<br/>(dynamics, cost, constraints)"] --> DMPC
   PM["AcadosParameterManager<br/>(differentiable vs. runtime params)"] --> DMPC
-  DMPC["AcadosDiffMpcTorch<br/>(torch.nn.Module)"] --> PIPE["your PyTorch model<br/>/ training loop"]
+  DMPC["AcadosDiffMpcLayerTorch<br/>(torch.nn.Module)"] --> PIPE["your PyTorch model<br/>/ training loop"]
 ```
 
 Its public interface is just a constructor and a `forward`:
 
 ```python
-class AcadosDiffMpcTorch(torch.nn.Module):
+class AcadosDiffMpcLayerTorch(torch.nn.Module):
+
+    def __init__(
+        self,
+        ocp: AcadosOcp,                             # the OCP: dynamics, cost, constraints
+        parameter_manager: AcadosParameterManager,  # which parameters are learnable
+        # ... optional solver / code-generation options
+    ): ...
+```
+
+Its public interface is just a constructor and a `forward`:
+
+```python
+class AcadosDiffMpcLayerTorch(torch.nn.Module):
 
     def __init__(
         self,
@@ -92,8 +105,8 @@ differentiate through the solve — reads like this:
 import numpy as np
 import torch
 
-from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+from leap_c.acados_torch import AcadosDiffMpcLayerTorch
+from leap_c.parameters.base import AcadosParameterManager
 
 # 1. Register parameters. The manager returns CasADi symbols to use in the OCP.
 #    differentiable=True  -> learnable, exact gradients (shared acados p_global)
@@ -108,7 +121,7 @@ mass = manager.register_parameter("mass", np.array([1.0]), differentiable=False)
 ocp = build_point_mass_ocp(manager, Q, R, mass)
 
 # 3. Wrap the OCP and its parameters into a differentiable torch.nn.Module.
-diff_mpc = AcadosDiffMpcTorch(ocp, manager)
+diff_mpc = AcadosDiffMpcLayerTorch(ocp, manager)
 
 # 4. Solve a batch of OCPs for an initial state, overriding a parameter by name.
 x0 = torch.tensor([[1.0, 0.0]], dtype=torch.float64)                  # (batch, n_x)
@@ -132,5 +145,3 @@ returned above in the dynamics and cost. See
 - [Parameter management](parameter_management.md) — declaring learnable vs. runtime parameters and
   varying them across the horizon.
 - [Core API](api/index.md) — the main user-facing classes.
-- [Examples](https://github.com/leap-c/leap-c/tree/main/leap_c/examples) — complete environments
-  and planners.

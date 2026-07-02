@@ -60,46 +60,39 @@ Afterwards, install the [python interface](https://docs.acados.org/python_interf
 When the acados docs use `pip install`, you can substitute `uv pip install` as a drop-in
 replacement inside the activated environment.
 
-#### PyTorch
+## Backend
 
-Install PyTorch as described on the [PyTorch website](https://pytorch.org/get-started/locally/).
+leap-c does **not** auto-install a computational backend. Select one via its
+optional extra:
 
-To install CPU-only PyTorch you can use, recommended (uv):
+| Extra | Framework | Required for |
+|-------|-----------|-------------|
+| `torch` | PyTorch | `AcadosDiffMpcLayerTorch` |
+| `jax` | JAX | (planned) |
+
+**uv:**
 
 ```bash
-uv pip install torch --index-url https://download.pytorch.org/whl/cpu
+uv sync --extra torch                                           # GPU (default)
+uv sync --extra torch --index-url https://download.pytorch.org/whl/cpu  # CPU-only
 ```
 
-Alternatively (pip):
+**pip** (requires acados_template installed first — see [acados](#acados) above):
 
 ```bash
-pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
+pip install -e ".[torch]"                                       # GPU (default)
+pip install -e ".[torch]" --extra-index-url https://download.pytorch.org/whl/cpu  # CPU-only
 ```
 
-### Install leap-c
+If no backend is installed and you try to import a backend-specific module,
+leap-c raises a clear error telling you which backends are supported.
 
-To install the package containing minimum dependencies in the root directory of the repository, run — recommended (uv):
-
-```bash
-uv pip install -e .
-```
-
-Alternatively (pip):
+## Install leap-c
 
 ```bash
-pip install -e .
-```
-
-For also enabling rendering in some of our examples, add the `rendering` extra:
-
-```bash
-uv pip install -e ".[rendering]"     # or: pip install -e ".[rendering]"
-```
-
-For development, you might want to install all additional dependencies:
-
-```bash
-uv pip install -e ".[dev]"           # or: pip install -e ".[dev]"
+uv sync                      # minimal install (no backend)
+uv sync --extra dev          # minimal + torch, docs, test, pre-commit
+pip install -e ".[dev]"      # pip equivalent
 ```
 
 See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on package configurations.
