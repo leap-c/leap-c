@@ -1,9 +1,13 @@
 """Parameter type alias and numpy helpers for stage-varying MPC parameters."""
 
-from typing import Literal
+from __future__ import annotations
+
+from typing import TYPE_CHECKING, Literal
 
 import numpy as np
-from torch import Tensor
+
+if TYPE_CHECKING:
+    from torch import Tensor
 
 ParamSplits = list[int] | int | Literal["stagewise", "global"]
 """How a differentiable parameter varies across the MPC horizon.
