@@ -5,52 +5,6 @@ on:
   pull_request:
 
 jobs:
-  script_tests:
-    name: Integration Tests (${{ matrix.test-group.env }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        python-version: ["3.11"]
-        test-group:
-          - env: "cartpole"
-            script: "sac,sac_zop,sac_fop,controller"
-          - env: "chain"
-            script: "sac,sac_zop,sac_fop,controller"
-          - env: "pointmass"
-            script: "sac,sac_zop,sac_fop,controller"
-
-    steps:
-      - name: Checkout leap-c
-        uses: actions/checkout@v7
-        with:
-          path: ${{github.workspace}}/leap_c
-          submodules: "recursive"
-
-      - name: Setup leap-c environment
-        uses: ./leap_c/.github/actions/setup-leap-c
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Run tests
-        working-directory: ${{github.workspace}}/leap_c
-        env:
-          TEST_ENV: ${{ matrix.test-group.env }}
-          TEST_SCRIPT: ${{ matrix.test-group.script }}
-        run: |
-          pytest tests/leap_c/test_scripts.py -v -s --cov=leap_c --cov-report=xml:coverage-${{ matrix.test-group.env }}.xml --cov-report=term
-
-      - name: Upload coverage to Codecov
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        if: env.CODECOV_TOKEN != ''
-        uses: codecov/codecov-action@v7
-        with:
-          token: ${{ env.CODECOV_TOKEN }}
-          name: ${{ matrix.test-group.env }}-${{ matrix.test-group.script }}
-          flags: integration-tests
-          verbose: true
-
   unit_tests:
     name: Unit Tests
     runs-on: ubuntu-latest
@@ -74,7 +28,7 @@ jobs:
       - name: Run tests
         working-directory: ${{github.workspace}}/leap_c
         run: |
-          pytest tests/leap_c/ -v --ignore=tests/leap_c/test_scripts.py --cov=leap_c --cov-report=xml:coverage-unit.xml --cov-report=term
+          pytest tests/leap_c/ -v --cov=leap_c --cov-report=xml:coverage-unit.xml --cov-report=term
 
       - name: Upload coverage to Codecov
         env:
