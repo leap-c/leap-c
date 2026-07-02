@@ -58,7 +58,7 @@ dev = [
 packages = ["leap_c"]
 
 [tool.uv.sources]
-acados-template = { path = "external/acados/interfaces/acados_template" }
+acados-template = { path = "external/acados/interfaces/acados_template", editable = true }
 
 [project.urls]
 Repository = "https://github.com/leap-c/leap-c"
