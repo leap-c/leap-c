@@ -1,18 +1,15 @@
 """Collate helpers for leap-c context objects.
 
-The most common custom batching case in the core package is stacking
-:class:`~leap_c.diff_mpc.function.AcadosDiffMpcCtx` objects.  The collate
-function itself lives next to the context definition; this module exposes a
-ready-made ``collate_fn_map`` entry for callers that use a PyTorch-style collate
-utility.
+These helpers are useful when batching data structures that contain
+``AcadosDiffMpcCtx`` objects, for example to reuse a list of single-sample
+contexts as one batched warm start.
 
 Example:
     ``collate_fn_map = {AcadosDiffMpcCtx: collate_acados_diff_mpc_ctx}``
 
-For now this module intentionally does not provide a generic torch/jax collate
-wrapper.  Those libraries have different batching conventions.  The PyTorch
-helper below is intentionally thin: it delegates all standard cases to PyTorch's
-default collate and only adds the custom rule for ``AcadosDiffMpcCtx``.
+For PyTorch users, :func:`collate_torch` keeps the default PyTorch behavior for
+tensors, numpy arrays, mappings, tuples, and scalars, and only adds the missing
+custom rule for ``AcadosDiffMpcCtx``.
 """
 
 from collections.abc import Callable, Sequence
