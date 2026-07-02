@@ -7,7 +7,7 @@ type-annotated reference page.
   wraps an acados OCP solver as a differentiable PyTorch module.
 - {py:class}`~leap_c.parameters.AcadosParameterManager` — define and
   manage the parameters of an acados OCP without touching CasADi/acados internals.
-- {py:data}`~leap_c.utils.ACADOS_DIFF_MPC_COLLATE_FN_MAP` — custom collate rule for
+- {py:data}`~leap_c.utils.LEAPC_COLLATE_FN_MAP` — custom collate rule for
   batching `AcadosDiffMpcCtx` objects in replay buffers, data loaders, or downstream code.
 - {py:func}`~leap_c.utils.collate_torch` — PyTorch default collation plus the leap-c
   context rule, useful when batching warm-start contexts.
@@ -15,7 +15,7 @@ type-annotated reference page.
 ```{autoapisummary}
 leap_c.torch.AcadosDiffMpcTorch
 leap_c.parameters.AcadosParameterManager
-leap_c.utils.ACADOS_DIFF_MPC_COLLATE_FN_MAP
+leap_c.utils.LEAPC_COLLATE_FN_MAP
 leap_c.utils.collate_torch
 ```
 
