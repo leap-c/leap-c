@@ -37,8 +37,8 @@ docs = [
 ]
 dev = ["leap_c[docs]", "leap_c[test]", "leap_c[torch]", "pre-commit", "ruff"]
 
-[tool.setuptools]
-packages = ["leap_c"]
+[tool.setuptools.packages.find]
+include = ["leap_c*"]
 
 [tool.uv.sources]
 acados-template = { path = "external/acados/interfaces/acados_template", editable = true }
