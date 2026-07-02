@@ -24,60 +24,64 @@ class CartPoleEnvConfig:
 class CartPoleEnv(gym.Env):
     """An environment of a pendulum on a cart for swinging a pole upright and holding it there.
 
-    Observation Space:
-    ------------------
+    The observation space, action space, reward, and termination are described
+    below::
 
-    The observation is a `ndarray` with shape `(4,)` and dtype `np.float32`
-    representing the state of the system.
+        Observation Space:
+        ------------------
 
-    | Num | Observation           | Min                 | Max               |
-    |-----|-----------------------|---------------------|-------------------|
-    | 0   | Cart Position         | -2*x_threshold      | 2*x_threshold     |
-    | 1   | Pole Angle (theta)    | -2pi                | 2pi               |
-    | 2   | Cart Velocity         | -Inf                | Inf               |
-    | 3   | Pole Angular Velocity | -Inf                | Inf               |
+        The observation is a `ndarray` with shape `(4,)` and dtype `np.float32`
+        representing the state of the system.
 
-    NOTE: Like in the original CartPole environment, the range above for the cart position denotes
-    the possible range of the cart's center of mass in the observation space,
-    but the episode terminates if it leaves the interval (-x_threshold, x_threshold) already.
-    NOTE: The pole angle is actually bounded between -2pi and 2pi by always adding/subtracting
-    (in the negative / in the positive case) the highest multiple of 2pi
-    until the pole angle is within the bounds again.
-    NOTE: Contrary to the original CartPoleEnv, the state space here is arranged like
-    [x, theta, dx, dtheta] instead of [x, dx, theta, dtheta].
-    NOTE: A positive angle theta is interpreted as counterclockwise rotation.
-    An angle of 0 means the pole is pointing upwards.
+        | Num | Observation           | Min                 | Max               |
+        |-----|-----------------------|---------------------|-------------------|
+        | 0   | Cart Position         | -2*x_threshold      | 2*x_threshold     |
+        | 1   | Pole Angle (theta)    | -2pi                | 2pi               |
+        | 2   | Cart Velocity         | -Inf                | Inf               |
+        | 3   | Pole Angular Velocity | -Inf                | Inf               |
 
-
-    Action Space:
-    -------------
-
-    The action is a `ndarray` with shape `(1,)` which can take values in the range (-Fmax, Fmax)
-    indicating the direction of the fixed force the cart is pushed with (action > 0 -> push right).
+        NOTE: Like in the original CartPole environment, the range above for the cart position
+        denotes the possible range of the cart's center of mass in the observation space,
+        but the episode terminates if it leaves the interval (-x_threshold, x_threshold) already.
+        NOTE: The pole angle is actually bounded between -2pi and 2pi by always adding/subtracting
+        (in the negative / in the positive case) the highest multiple of 2pi
+        until the pole angle is within the bounds again.
+        NOTE: Contrary to the original CartPoleEnv, the state space here is arranged like
+        [x, theta, dx, dtheta] instead of [x, dx, theta, dtheta].
+        NOTE: A positive angle theta is interpreted as counterclockwise rotation.
+        An angle of 0 means the pole is pointing upwards.
 
 
-    Reward:
-    -------
-    Since this is an environment for the swingup task, the agent achieves maximum reward
-    when the pole is upright (theta = 0) and minimum reward when the pole
-    is hanging down (theta = pi or theta = -pi). In particular, the reward is symmetric around 0
-    and bounded between 0 and 0.1 in each step.
+        Action Space:
+        -------------
+
+        The action is a `ndarray` with shape `(1,)` which can take values in the range (-Fmax, Fmax)
+        indicating the direction of the fixed force the cart is pushed with
+        (action > 0 -> push right).
 
 
-    Terminates:
-    -----------
-    If the cart position is outside of the x_threshold interval (-x_threshold, x_threshold).
+        Reward:
+        -------
+        Since this is an environment for the swingup task, the agent achieves maximum reward
+        when the pole is upright (theta = 0) and minimum reward when the pole
+        is hanging down (theta = pi or theta = -pi). In particular, the reward is symmetric around 0
+        and bounded between 0 and 0.1 in each step.
 
-    Truncates:
-    ----------
-    After max_time seconds of simulation time.
 
-    Info:
-    -----
-    The info dictionary contains:
-    - "task": {"violation": bool, "success": bool}
-      - violation: True if out of bounds
-      - success: True if the pole was upright in the last 10 steps.
+        Terminates:
+        -----------
+        If the cart position is outside of the x_threshold interval (-x_threshold, x_threshold).
+
+        Truncates:
+        ----------
+        After max_time seconds of simulation time.
+
+        Info:
+        -----
+        The info dictionary contains:
+        - "task": {"violation": bool, "success": bool}
+          - violation: True if out of bounds
+          - success: True if the pole was upright in the last 10 steps.
 
     Attributes:
         cfg: Configuration for the environment.
@@ -194,6 +198,19 @@ class CartPoleEnv(gym.Env):
         self.clock = None
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict]:
+        """Execute one time step within the environment.
+
+        Args:
+            action: Force applied to the cart.
+
+        Returns:
+            Tuple containing:
+                - observation: Next observation `[x, theta, dx, dtheta]`.
+                - reward: Reward for this step (swing-up reward).
+                - terminated: Whether the episode terminated.
+                - truncated: Whether the episode was truncated.
+                - info: Dictionary with task information.
+        """
         if self.reset_needed:
             raise Exception("Call reset before using the step method.")
         self.x = self.integrator(self.x, action, self.cfg.dt)
@@ -428,6 +445,19 @@ class CartPoleBalanceEnv(CartPoleEnv):
         return self.np_random.uniform(low=low, high=high, size=(4,))
 
     def step(self, action: np.ndarray) -> tuple[np.ndarray, float, bool, bool, dict]:
+        """Execute one time step, terminating if the pole leaves the balance region.
+
+        Args:
+            action: Force applied to the cart.
+
+        Returns:
+            Tuple containing:
+                - observation: Next observation `[x, theta, dx, dtheta]`.
+                - reward: Reward for this step (`1.0` while balancing, else `0.0`).
+                - terminated: Whether the episode terminated.
+                - truncated: Whether the episode was truncated.
+                - info: Dictionary with task information.
+        """
         s_prime, r, term, trunc, info = super().step(action)
         theta = s_prime[1]
         if abs(theta) > self.theta_threshold:

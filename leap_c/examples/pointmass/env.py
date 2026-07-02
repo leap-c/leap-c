@@ -33,49 +33,52 @@ class PointMassEnvConfig:
 class PointMassEnv(MatplotlibRenderEnv):
     """A 2D point mass navigation environment with wind disturbances.
 
-    Observation Space:
-    ------------------
-    The observation is a `ndarray` with shape `(6,)` and dtype `np.float32` representing:
-    | Num | Observation         | Min        | Max        |
-    |-----|---------------------|------------|------------|
-    | 0   | x-position          | 0.0        | 4.0        |
-    | 1   | y-position          | 0.0        | 1.0        |
-    | 2   | x-velocity          | -max_v     | max_v      |
-    | 3   | y-velocity          | -max_v     | max_v      |
-    | 4   | wind force (x)      | -max_wind  | max_wind   |
-    | 5   | wind force (y)      | -max_wind  | max_wind   |
+    The observation space, action space, reward, and termination are described
+    below::
 
-    Action Space:
-    -------------
-    The action is a `ndarray` with shape `(2,)` and dtype `np.float32`
-    representing the force applied in x and y directions.
-    Each component is bounded by [-Fmax, Fmax] which will be enforced by
-    clipping the input action in each step.
+        Observation Space:
+        ------------------
+        The observation is a `ndarray` with shape `(6,)` and dtype `np.float32` representing:
+        | Num | Observation         | Min        | Max        |
+        |-----|---------------------|------------|------------|
+        | 0   | x-position          | 0.0        | 4.0        |
+        | 1   | y-position          | 0.0        | 1.0        |
+        | 2   | x-velocity          | -max_v     | max_v      |
+        | 3   | y-velocity          | -max_v     | max_v      |
+        | 4   | wind force (x)      | -max_wind  | max_wind   |
+        | 5   | wind force (y)      | -max_wind  | max_wind   |
 
-    Reward:
-    -------
-    The agent receives a small reward for progressing towards the goal in the x-direction
-    and a large bonus for reaching the goal quickly.
-    - Distance reward: r_dist = 1 - abs(x - goal_x) / (x_max - x_min)
-    - Goal reward: r_goal = 60 * (1 - 0.5 * t / max_time) if goal reached, else 0
-    - Total reward: r = 0.1 * r_dist + r_goal
+        Action Space:
+        -------------
+        The action is a `ndarray` with shape `(2,)` and dtype `np.float32`
+        representing the force applied in x and y directions.
+        Each component is bounded by [-Fmax, Fmax] which will be enforced by
+        clipping the input action in each step.
 
-    Termination:
-    ------------
-    The episode terminates if:
-    - The agent leaves the allowed state space (out of bounds, also including velocity limits)
-    - The agent reaches the goal region
+        Reward:
+        -------
+        The agent receives a small reward for progressing towards the goal in the x-direction
+        and a large bonus for reaching the goal quickly.
+        - Distance reward: r_dist = 1 - abs(x - goal_x) / (x_max - x_min)
+        - Goal reward: r_goal = 60 * (1 - 0.5 * t / max_time) if goal reached, else 0
+        - Total reward: r = 0.1 * r_dist + r_goal
 
-    Truncation:
-    -----------
-    The episode is truncated if the maximum time is exceeded.
+        Termination:
+        ------------
+        The episode terminates if:
+        - The agent leaves the allowed state space (out of bounds, also including velocity limits)
+        - The agent reaches the goal region
 
-    Info:
-    -----
-    The info dictionary contains:
-    - "task": {"violation": bool, "success": bool}
-      - violation: True if out of bounds
-      - success: True if goal reached
+        Truncation:
+        -----------
+        The episode is truncated if the maximum time is exceeded.
+
+        Info:
+        -----
+        The info dictionary contains:
+        - "task": {"violation": bool, "success": bool}
+          - violation: True if out of bounds
+          - success: True if goal reached
 
     Attributes:
         cfg: Configuration object for the environment.
@@ -165,6 +168,19 @@ class PointMassEnv(MatplotlibRenderEnv):
         self.trajectory: list[np.ndarray] = []
 
     def step(self, action: np.ndarray) -> tuple[Any, float, bool, bool, dict]:
+        """Execute one time step within the environment.
+
+        Args:
+            action: Force applied in the x and y directions.
+
+        Returns:
+            Tuple containing:
+                - observation: Next observation (position, velocity, wind force).
+                - reward: Reward for this step.
+                - terminated: Whether the episode terminated.
+                - truncated: Whether the episode was truncated.
+                - info: Dictionary with task information.
+        """
         if self.state is None:
             raise ValueError("Environment must be reset before stepping.")
 
