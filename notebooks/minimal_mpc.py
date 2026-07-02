@@ -151,7 +151,7 @@ def _(planner, torch):
     return ctx, u0, value, x_ref, x_traj
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(ctx, mo, u0, value, x_ref):
     mo.md(
         f"""
@@ -192,7 +192,7 @@ def _(collate_torch, planner, torch):
     return (batch,)
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(batch, mo):
     mo.md(
         f"""
@@ -230,7 +230,7 @@ def _(batch, planner):
     return ctx2, u0_batch, value_batch
 
 
-@app.cell(hide_code=True)
+@app.cell
 def _(ctx2, mo, u0_batch, value_batch):
     mo.md(
         f"""
