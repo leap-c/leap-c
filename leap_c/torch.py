@@ -1,11 +1,13 @@
 """Central interface to use acados in PyTorch."""
 
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 from acados_template import AcadosOcp
 
 from leap_c.autograd.torch import create_autograd_function
+from leap_c.diff_mpc.data import validate_forward_inputs
 from leap_c.diff_mpc.function import (
     AcadosDiffMpcCtx,
     AcadosDiffMpcFunction,
@@ -18,19 +20,34 @@ from leap_c.utils.repr import (
     format_diff_mpc_module_repr,
 )
 
-torch = require_torch()
+if TYPE_CHECKING:
+    import torch
+else:
+    torch = require_torch()
 
 
 class AcadosDiffMpcTorch(torch.nn.Module):
     """PyTorch module for differentiable MPC based on acados.
 
-    This module wraps acados solvers to enable their use in differentiable machine learning
+    This module wraps acados solvers to enable their use in end-to-end machine learning
     pipelines. It provides an autograd compatible forward method and supports sensitivity
-    computation with respect to various inputs (see `AcadosDiffMpcCtx`).
+    computation with respect to various inputs.
 
     Accepts a plain ``AcadosOcp`` together with a parameter manager. The parameter manager's
     :meth:`~AcadosParameterManager.combine_differentiable_parameters_torch` is called in the forward
     pass to build a flat differentiable tensor from the ``params`` dict.
+
+    Examples:
+        Forward pass with differentiable parameters; gradients flow back through ``params``::
+
+            >>> diff_mpc = AcadosDiffMpcTorch(ocp, manager)
+            >>> ctx, u_star, x, u, value = diff_mpc(x0, params={"cost_weight": w})
+            >>> value.sum().backward()
+            >>> w.grad  # d(value)/d(cost_weight)
+
+        Sensitivities via :func:`torch.autograd.functional.jacobian`::
+
+            >>> jac = torch.autograd.functional.jacobian(lambda x0: diff_mpc(x0)[1], x0)
 
     Attributes:
         diff_mpc_fun: The differentiable MPC function wrapper for acados.
@@ -97,16 +114,22 @@ class AcadosDiffMpcTorch(torch.nn.Module):
     ) -> tuple[AcadosDiffMpcCtx, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """Performs the forward pass by solving the provided problem instances.
 
-        Builds flat ``p_global`` and ``p_stagewise`` arrays from the ``params`` dict using the
-        parameter manager, then calls the underlying differentiable MPC function.  Gradients flow
-        back through ``p_global`` to the individual parameter tensors provided in ``params``.
+        Passing a ``ctx`` returned by a previous call warmstarts the solver: its saved iterate
+        is reused as the initial guess, which can speed up convergence across sequential solves.
+        When ``ctx`` is ``None``, the solver is initialized by the ``initializer`` provided at
+        construction (a zero iterate by default).
+
+        Setting ``u0`` fixates the first-stage control: instead of being a free decision
+        variable, the first control is constrained to ``u0``. In that case the returned
+        ``u_star`` equals ``u0`` and ``value`` is the cost of the constrained trajectory
+        (a Q-value) rather than the optimal value (a V-value).
 
         Args:
             x0: Initial states with shape ``(B, x_dim)``.
             u0: Initial actions with shape ``(B, u_dim)``. Defaults to ``None``.
             params: A dictionary containing named parameter overrides.  Values may be
                 torch tensors (differentiable) or numpy arrays (non-differentiable).
-            ctx: An object for storing context. If provided, it will be used to warmstart the solve.
+            ctx: Context from a previous solve, used to warmstart. Defaults to ``None``.
 
         Returns:
             ctx: A new context object from solving the problems.
@@ -114,7 +137,19 @@ class AcadosDiffMpcTorch(torch.nn.Module):
             x: The solution of the whole state trajectory.
             u: The solution of the whole control trajectory.
             value: The cost value of the computed trajectory.
+
+        Examples:
+            Warmstart a subsequent solve by feeding the previous ``ctx`` back in::
+
+                >>> ctx, u_star, x, u, value = diff_mpc(x0)
+                >>> ctx, u_star, x, u, value = diff_mpc(x0, ctx=ctx)
+
+            Fixate the first-stage control with ``u0``::
+
+                >>> ctx, u_star, x, u, value = diff_mpc(x0, u0=u0)
+                >>> torch.allclose(u_star, u0)  # True (up to dtype cast)
         """
+        validate_forward_inputs(self.diff_mpc_fun.ocp, x0, u0)
         batch_size = x0.shape[0]
         device = x0.device
 
