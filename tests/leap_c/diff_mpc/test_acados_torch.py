@@ -1094,3 +1094,23 @@ def test_guard_differentiable_requires_grad_works() -> None:
     value.sum().backward()
     assert Q_tensor.grad is not None
     assert not torch.isnan(Q_tensor.grad).any()
+
+
+@pytest.mark.parametrize(
+    "x0,u0,needle",
+    [
+        (torch.zeros(2), None, "x0 must be 2-D"),
+        (torch.zeros(4, 3), None, "expected nx=2"),
+        (torch.zeros(4, 2), torch.zeros(4), "u0 must be 2-D"),
+        (torch.zeros(4, 2), torch.zeros(3, 1), "matching x0"),
+        (torch.zeros(4, 2), torch.zeros(4, 2), "expected nu=1"),
+    ],
+    ids=["x0_1d", "x0_wrong_dim", "u0_1d", "u0_wrong_batch", "u0_wrong_dim"],
+)
+def test_validate_forward_inputs_raises(
+    x0: torch.Tensor, u0: torch.Tensor | None, needle: str
+) -> None:
+    diff_mpc = create_simple_diff_mpc(N_horizon=5)
+
+    with pytest.raises(ValueError, match=needle):
+        diff_mpc(x0=x0, u0=u0)
