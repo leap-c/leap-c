@@ -5,7 +5,7 @@ from warnings import warn
 import casadi as ca
 import numpy as np
 
-from leap_c.utils.parameters import ParamSplits, _define_starts_and_ends
+from leap_c.parameters.utils import ParamSplits, _define_starts_and_ends
 
 
 @dataclass

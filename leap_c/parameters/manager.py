@@ -5,8 +5,8 @@ import numpy as np
 from acados_template import AcadosOcp
 
 from leap_c.parameters.data import _AcadosParameter, _ParameterStore
+from leap_c.parameters.utils import ParamSplits, _define_starts_and_ends
 from leap_c.utils.dependencies import require_jax, require_torch
-from leap_c.utils.parameters import ParamSplits, _define_starts_and_ends
 
 if TYPE_CHECKING:
     import torch
