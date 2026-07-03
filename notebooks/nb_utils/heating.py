@@ -1,8 +1,8 @@
 """The R1C1 room-heating OCP used by notebooks 04 and 05.
 
 A single thermal resistance R to the outdoors and a single thermal
-capacitance C for the room (the model from the parameter-manager tutorial in
-``docs/source/tutorials/parameter_manager.md``):
+capacitance C for the room (the model from the parameter-management guide in
+``docs/source/parameter_management.md``):
 
     T_next = T + dt * ((outdoor_temp - T) / (R * C) + q / C)
 
@@ -14,8 +14,8 @@ import casadi as ca
 import numpy as np
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import AcadosParameterManager
-from leap_c.utils.parameters import ParamSplits
+from leap_c.parameters import AcadosParameterManager
+from leap_c.parameters.utils import ParamSplits
 
 R_THERMAL = 2.0  # thermal resistance to the outdoors [K/kW]
 C_THERMAL = 1.5  # thermal capacitance of the room [kWh/K]

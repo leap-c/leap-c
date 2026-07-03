@@ -51,7 +51,7 @@ def _():
     from nb_utils.msd import build_msd_ocp
     from nb_utils.params import p_global_slice
 
-    from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+    from leap_c.torch import AcadosDiffMpcTorch
 
     torch.set_default_dtype(torch.float64)
     return AcadosDiffMpcTorch, build_msd_ocp, np, p_global_slice, plt, torch

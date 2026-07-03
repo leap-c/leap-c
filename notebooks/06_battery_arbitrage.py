@@ -62,8 +62,8 @@ def _():
     from nb_utils.data import make_day_profiles
     from nb_utils.params import p_global_slice
 
-    from leap_c.ocp.acados.parameters import AcadosParameterManager
-    from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+    from leap_c.parameters import AcadosParameterManager
+    from leap_c.torch import AcadosDiffMpcTorch
 
     torch.set_default_dtype(torch.float64)
     return (

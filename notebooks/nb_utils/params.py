@@ -2,10 +2,8 @@
 
 import numpy as np
 
-from leap_c.ocp.acados.parameters import (
-    AcadosParameterManager,
-    _define_starts_and_ends,
-)
+from leap_c.parameters import AcadosParameterManager
+from leap_c.parameters.utils import _define_starts_and_ends
 
 
 def p_global_slice(manager: AcadosParameterManager, name: str) -> slice:

@@ -49,7 +49,7 @@ def _():
 
     from nb_utils.msd import build_msd_ocp
 
-    from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+    from leap_c.torch import AcadosDiffMpcTorch
 
     torch.set_default_dtype(torch.float64)
     return AcadosDiffMpcTorch, build_msd_ocp, np, plt, torch

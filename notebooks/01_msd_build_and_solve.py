@@ -6,8 +6,7 @@ build an ``AcadosOcp`` around them, wrap everything in leap-c's
 trajectory. An interactive slider at the end sweeps a cost parameter.
 
 The control problem (a mass-spring-damper) is deliberately trivial so that the
-focus stays on the leap-c API. Unlike ``intro.py`` (which uses the high-level
-``create_planner`` wrapper), here we build the OCP by hand to expose every step.
+focus stays on the leap-c API: we build the OCP by hand to expose every step.
 """
 
 import marimo
@@ -55,8 +54,8 @@ def _():
     import torch
     from acados_template import AcadosOcp
 
-    from leap_c.ocp.acados.parameters import AcadosParameterManager
-    from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+    from leap_c.parameters import AcadosParameterManager
+    from leap_c.torch import AcadosDiffMpcTorch
 
     # acados is double precision — use float64 tensors throughout so gradients
     # and shape checks line up exactly.

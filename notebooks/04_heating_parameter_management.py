@@ -55,8 +55,8 @@ def _():
     from nb_utils.diagrams import draw_rc_thermal
     from nb_utils.params import average_per_segment, expand_to_stages
 
-    from leap_c.ocp.acados.parameters import AcadosParameterManager
-    from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+    from leap_c.parameters import AcadosParameterManager
+    from leap_c.torch import AcadosDiffMpcTorch
 
     torch.set_default_dtype(torch.float64)
     return (

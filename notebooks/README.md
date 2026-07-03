@@ -8,7 +8,7 @@ solves. Recommended reading order:
 
 | # | Notebook | System | Teaches | Key API |
 |---|----------|--------|---------|---------|
-| — | `intro.py` | CartPole | high-level planner in a gym loop | `create_planner` |
+| — | `minimal_mpc.py` | scalar integrator | minimal end-to-end MPC; batched warm-start collation | `AcadosDiffMpcTorch`, `collate_torch` |
 | 01 | `01_msd_build_and_solve.py` | mass-spring-damper | registering parameters, building a parametric OCP, solving, reading the plan | `AcadosParameterManager.register_parameter`, `AcadosDiffMpcTorch` |
 | 02 | `02_msd_value_policy_maps.py` | mass-spring-damper | batched solves; the MPC as value function and policy over the state space | batching, `n_batch_init` |
 | 03 | `03_msd_sensitivities.py` | mass-spring-damper | gradients through the solver | `.backward()`, `torch.autograd.functional.jacobian`, `sensitivity(ctx, ...)` |
@@ -24,15 +24,16 @@ OCP is used only in 06, so no copy exists).
 
 ## Running
 
-marimo is behind the `notebook` extra, so pass `--extra notebook` (or run
-`uv sync --extra notebook` once and drop the flag afterwards):
+marimo is behind the `notebooks` extra and the notebooks need `torch`, so pass
+`--extra notebooks --extra torch` (or run `uv sync --extra notebooks --extra torch`
+once and drop the flags afterwards):
 
 ```bash
 # Interactive editor (edit + run cells) — usual choice
-uv run --extra notebook marimo edit notebooks/01_msd_build_and_solve.py
+uv run --extra notebooks --extra torch marimo edit notebooks/01_msd_build_and_solve.py
 
 # Read-only app view (runs it as a deployed app, cells hidden)
-uv run --extra notebook marimo run notebooks/01_msd_build_and_solve.py
+uv run --extra notebooks --extra torch marimo run notebooks/01_msd_build_and_solve.py
 ```
 
 marimo prints a `http://localhost:2718` URL and normally opens it in your
@@ -43,9 +44,9 @@ which can take a minute or two; subsequent runs are fast.
 
 ## Roadmap — future notebooks
 
-- **Cartpole with stage-varying references** — `leap_c/examples/cartpole`
-  already accepts `param_splits` for its reference; a notebook could morph the
-  swing-up target over the horizon.
+- **Cartpole with stage-varying references** — build a swing-up OCP inline (as
+  the MSD and heating notebooks do) and morph the target reference over the
+  horizon using `splits`.
 - **Point mass with wind** — 2-D policy gradients `du0/dp` drawn as arrows.
 - **Real forecast data** — swap the synthetic profiles in `nb_utils/data.py`
   for measured weather/price time series.

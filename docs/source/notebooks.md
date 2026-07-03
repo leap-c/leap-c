@@ -6,6 +6,15 @@ Available notebooks:
 
 - `notebooks/minimal_mpc.py`: scalar integrator MPC plus batched warm-start collation.
 
+A guided series builds up from there on small, visual systems:
+
+- `notebooks/01_msd_build_and_solve.py`: register parameters, build and solve a mass-spring-damper OCP, read the plan.
+- `notebooks/02_msd_value_policy_maps.py`: batched solves as value-function and policy maps over the state space.
+- `notebooks/03_msd_sensitivities.py`: gradients through the solver.
+- `notebooks/04_heating_parameter_management.py`: differentiable vs. non-differentiable parameters and stage `splits` on an R1C1 heating model.
+- `notebooks/05_heating_forecasts.py`: embedding weather/price forecasts over a receding horizon.
+- `notebooks/06_battery_arbitrage.py`: economic MPC for battery arbitrage with signed price sensitivities.
+
 You can run these notebooks either locally (recommended for development) or via a pre-built Docker image (a convenient fallback if you do not want to build acados yourself).
 
 ## Local setup

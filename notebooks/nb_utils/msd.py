@@ -8,7 +8,7 @@ import casadi as ca
 import numpy as np
 from acados_template import AcadosOcp
 
-from leap_c.ocp.acados.parameters import AcadosParameterManager
+from leap_c.parameters import AcadosParameterManager
 
 
 def build_msd_ocp(N_horizon: int, dt: float) -> tuple[AcadosOcp, AcadosParameterManager]:

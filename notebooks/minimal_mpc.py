@@ -47,7 +47,7 @@ def _():
 
     from leap_c.parameters import AcadosParameterManager
     from leap_c.torch import AcadosDiffMpcTorch
-    from leap_c.utils import collate_torch
+    from leap_c.utils.collate import collate_torch
 
     return (
         AcadosDiffMpcTorch,

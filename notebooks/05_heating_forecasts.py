@@ -51,7 +51,7 @@ def _():
     from nb_utils.heating import build_heating_ocp, step_room
     from nb_utils.params import p_global_slice
 
-    from leap_c.ocp.acados.torch import AcadosDiffMpcTorch
+    from leap_c.torch import AcadosDiffMpcTorch
 
     torch.set_default_dtype(torch.float64)
     return (
@@ -367,9 +367,8 @@ def _(mo):
     The series continues with a one-state battery-arbitrage primer in 06 —
     a *pure* economic cost, in contrast to the mixed comfort/price objective
     here. Further ideas live in the README roadmap: a cartpole notebook with
-    stage-varying references (`leap_c/examples/cartpole` already supports
-    `param_splits`), and real weather data in place of the synthetic
-    profiles.
+    stage-varying references built inline, and real weather data in place of
+    the synthetic profiles.
     """)
     return
 
