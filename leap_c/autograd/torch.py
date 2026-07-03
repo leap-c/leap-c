@@ -1,14 +1,9 @@
 """This module creates PyTorch autograd functions."""
 
-from typing import TYPE_CHECKING
-
 from leap_c.autograd.function import DiffFunction
 from leap_c.utils.dependencies import require_torch
 
-if TYPE_CHECKING:
-    import torch
-else:
-    torch = require_torch()
+torch = require_torch()
 
 
 def create_autograd_function(fun: DiffFunction) -> type[torch.autograd.Function]:

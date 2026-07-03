@@ -1,14 +1,10 @@
-from typing import TYPE_CHECKING, NamedTuple, Sequence
+from typing import NamedTuple, Sequence
 
 import numpy as np
-from acados_template import AcadosOcp
 from acados_template.acados_ocp_iterate import (
     AcadosOcpFlattenedBatchIterate,
     AcadosOcpFlattenedIterate,
 )
-
-if TYPE_CHECKING:
-    import torch
 
 
 class AcadosOcpSolverInput(NamedTuple):
@@ -105,35 +101,3 @@ def collate_acados_ocp_solver_input(
         p_stagewise=_stack_safe("p_stagewise", batch),
         p_stagewise_sparse_idx=_stack_safe("p_stagewise_sparse_idx", batch),
     )
-
-
-def validate_forward_inputs(
-    ocp: AcadosOcp,
-    x0: "np.ndarray | torch.Tensor",
-    u0: "np.ndarray | torch.Tensor | None",
-) -> None:
-    """Validate the shapes of ``x0`` and ``u0`` before the forward solve.
-
-    Works on any array-like exposing ``ndim`` and ``shape`` (numpy, torch, jax), so it can be
-    shared by the torch and jax layers. Run before solver initialization so dimension mismatches
-    fail fast with a clear message rather than as a cryptic C-level error.
-
-    Raises:
-        ValueError: If ``x0`` is not 2-D, its last dimension is not ``ocp.dims.nx``, ``u0`` is
-            not 2-D, its batch does not match ``x0``, or its last dimension is not ``ocp.dims.nu``.
-    """
-    nx = ocp.dims.nx
-    nu = ocp.dims.nu
-    if x0.ndim != 2:
-        raise ValueError(f"x0 must be 2-D (B, nx), got shape {tuple(x0.shape)}.")
-    if x0.shape[1] != nx:
-        raise ValueError(f"x0 has {x0.shape[1]} states, expected nx={nx}.")
-    if u0 is not None:
-        if u0.ndim != 2:
-            raise ValueError(f"u0 must be 2-D (B, nu), got shape {tuple(u0.shape)}.")
-        if u0.shape[0] != x0.shape[0]:
-            raise ValueError(
-                f"u0 has batch size {u0.shape[0]}, expected {x0.shape[0]} (matching x0)."
-            )
-        if u0.shape[1] != nu:
-            raise ValueError(f"u0 has {u0.shape[1]} controls, expected nu={nu}.")
