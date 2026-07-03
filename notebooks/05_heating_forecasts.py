@@ -364,10 +364,12 @@ def _(mo):
     - **05** — forecasts as stagewise parameters, closed loop, and
       gradients with respect to a forecast.
 
-    Ideas that would extend the series (see the README roadmap): a cartpole
-    notebook with stage-varying references (`leap_c/examples/cartpole`
-    already supports `param_splits`), a one-state battery-arbitrage primer,
-    and real weather data in place of the synthetic profiles.
+    The series continues with a one-state battery-arbitrage primer in 06 —
+    a *pure* economic cost, in contrast to the mixed comfort/price objective
+    here. Further ideas live in the README roadmap: a cartpole notebook with
+    stage-varying references (`leap_c/examples/cartpole` already supports
+    `param_splits`), and real weather data in place of the synthetic
+    profiles.
     """)
     return
 

@@ -99,8 +99,7 @@ def _(mo):
 
     The batch is laid out as `stiffness × grid`: the grid is repeated once
     per stiffness value, and the `stiffness` parameter column repeats each
-    value over its grid block. Everything below is indexing into the
-    precomputed result — the slider never solves.
+    value over its grid block.
     """)
     return
 
@@ -138,7 +137,17 @@ def _(mo, stiffness_values):
 
 
 @app.cell
-def _(k_slider, mo, np, plt, policy_maps, pos_grid, stiffness_values, value_maps, vel_grid):
+def _(
+    k_slider,
+    mo,
+    np,
+    plt,
+    policy_maps,
+    pos_grid,
+    stiffness_values,
+    value_maps,
+    vel_grid,
+):
     # No solve here — the slider picks one precomputed (value, policy) map pair.
     _i = k_slider.value
 

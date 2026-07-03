@@ -14,11 +14,13 @@ solves. Recommended reading order:
 | 03 | `03_msd_sensitivities.py` | mass-spring-damper | gradients through the solver | `.backward()`, `torch.autograd.functional.jacobian`, `sensitivity(ctx, ...)` |
 | 04 | `04_heating_parameter_management.py` | R1C1 heating | differentiable vs. non-differentiable parameters; `splits`: global / blocks / stagewise | `splits=`, `model.p` vs. `model.p_global` |
 | 05 | `05_heating_forecasts.py` | R1C1 heating | embedding weather/price forecasts, receding horizon, gradients w.r.t. a forecast | stagewise `(B, N+1, 1)` params, `dvalue_dp_global` |
+| 06 | `06_battery_arbitrage.py` | battery | economic MPC: a pure money cost, terminal energy value, signed price sensitivities | `EXTERNAL` economic cost, `dvalue_dp_global` w.r.t. price and terminal value |
 
 Shared helpers live in `nb_utils/` (OCP builders, the RC-network diagram,
 synthetic day profiles). The OCP builders are taught *inline* in 01
-(mass-spring-damper) and 04 (heating); the copies in `nb_utils` exist so the
-other notebooks can import them.
+(mass-spring-damper), 04 (heating) and 06 (battery); the copies of the first
+two in `nb_utils` exist so the other notebooks can import them (the battery
+OCP is used only in 06, so no copy exists).
 
 ## Running
 
@@ -44,9 +46,6 @@ which can take a minute or two; subsequent runs are fast.
 - **Cartpole with stage-varying references** — `leap_c/examples/cartpole`
   already accepts `param_splits` for its reference; a notebook could morph the
   swing-up target over the horizon.
-- **Battery arbitrage** — a one-state, one-input economic MPC (state of
-  charge, charge rate, stagewise price): the smallest possible showcase of an
-  economic cost.
 - **Point mass with wind** — 2-D policy gradients `du0/dp` drawn as arrows.
 - **Real forecast data** — swap the synthetic profiles in `nb_utils/data.py`
   for measured weather/price time series.

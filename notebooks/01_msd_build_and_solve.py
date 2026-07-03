@@ -117,9 +117,7 @@ def _(mo):
 @app.cell
 def _(AcadosOcp, AcadosParameterManager, ca, np):
     def build_msd_ocp(N_horizon, dt):
-        # NOTE: manager and OCP are usually built together, fresh: the manager is
-        # finalized when AcadosDiffMpcTorch assigns it to the OCP and must not be
-        # does not allow to register new parameters after
+        # NOTE: manager and OCP are usually built together.
         manager = AcadosParameterManager(N_horizon=N_horizon)
 
         def register(name, default):

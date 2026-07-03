@@ -136,7 +136,7 @@ def _(mo):
     We solve the whole sweep in **one batched call** and read back the value, the
     policy, and both exact gradients (`du0_dp_global`, `dvalue_dp_global`) at every
     sweep point at once. Drag the slider below to move `r_diag_sqrt`: the tangent
-    slides along both curves using those precomputed gradients — no solve per drag.
+    slides along both curves using those precomputed gradients.
     """)
     return
 
@@ -177,7 +177,7 @@ def _(N_SWEEP, diff_mpc, np, p_global_slice, torch):
     assert np.allclose(du0_dr_curve, _du0_dr_auto.numpy().ravel(), rtol=1e-3, atol=1e-6)
     assert np.allclose(dV_dr_curve, _dV_dr_auto.numpy().ravel(), rtol=1e-3, atol=1e-6)
 
-    # The whole point: the force bound is inactive everywhere on this sweep.
+    # The force bound is inactive everywhere on this sweep.
     assert np.abs(u0_curve).max() < 0.5 - 1e-3
     return dV_dr_curve, du0_dr_curve, r_sweep, u0_curve, v_curve
 
@@ -208,8 +208,6 @@ def _(
     u0_curve,
     v_curve,
 ):
-    # No solve here — the slider just picks one precomputed sweep point and we
-    # redraw the tangent from the cached curves/gradients, so it updates instantly.
     _i = r_slider.value
     r0 = float(r_sweep[_i])
     u0_r0 = float(u0_curve[_i])
