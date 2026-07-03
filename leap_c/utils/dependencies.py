@@ -14,8 +14,7 @@ def require_torch() -> ModuleType:
         import torch
     except ImportError as exc:
         raise ImportError(
-            "The 'leap_c.torch' module requires PyTorch. "
-            "Please install it via 'pip install leap-c[torch]'"
+            "PyTorch is required but not installed. Please install it via 'pip install torch'"
         ) from exc
     _TORCH_MODULE = torch
     return torch

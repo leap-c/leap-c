@@ -1,0 +1,70 @@
+import time
+
+import numpy as np
+from acados_template.acados_ocp_batch_solver import AcadosOcpBatchSolver
+from acados_template.acados_ocp_iterate import AcadosOcpFlattenedBatchIterate
+
+from leap_c.diff_mpc.data import AcadosOcpSolverInput
+from leap_c.diff_mpc.initializer import AcadosDiffMpcInitializer
+from leap_c.diff_mpc.utils.prepare_solver import prepare_batch_solver
+
+
+def solve_with_retry(
+    batch_solver: AcadosOcpBatchSolver,
+    initializer: AcadosDiffMpcInitializer,
+    ocp_iterate: AcadosOcpFlattenedBatchIterate | None,
+    solver_input: AcadosOcpSolverInput,
+) -> tuple[np.ndarray, dict[str, float]]:
+    """Solve a batch of problem instances, and retry in case of failure.
+
+    This function prepares the batch solver by loading the iterate, setting the initial conditions,
+    and configuring the global and stage-wise parameters. If `p_global` or `p_stagewise` is not
+    provided, it will check if the model has default parameters and load them accordingly.
+
+    Args:
+        batch_solver: The batch solver to use.
+        initializer: The initializer used for retries.
+        ocp_iterate: The iterate to load into the batch solver.
+        solver_input: Input data for the solver, which includes initial conditions and parameters.
+
+    Returns:
+        The status of each solver (`status != 0` means failure) and statistics of the solving
+        process, i.e., `"solving_time"`, `"success_rate"`, and `"retry_rate"`.
+    """
+    batch_size = solver_input.batch_size
+
+    if ocp_iterate is None:
+        ocp_iterate = initializer.batch_iterate(solver_input)
+        with_retry = False
+    else:
+        with_retry = True
+
+    prepare_batch_solver(batch_solver, ocp_iterate, solver_input)
+
+    start = time.perf_counter()
+    batch_solver.solve(n_batch=batch_size)
+    time_solve = time.perf_counter() - start
+
+    active_solvers = batch_solver.ocp_solvers[:batch_size]
+    batch_status = batch_solver.status
+
+    if with_retry and batch_status.any():
+        for idx, solver in enumerate(active_solvers):
+            if batch_status[idx] == 0:
+                continue
+            single_iterate = initializer.single_iterate(solver_input.get_sample(idx))
+            solver.set_iterate(single_iterate)
+
+        start_retry = time.perf_counter()
+        batch_solver.solve(n_batch=batch_size)
+        time_solve += time.perf_counter() - start_retry
+
+    batch_status_retry = batch_solver.status
+
+    stats = {
+        "solving_time": time_solve,
+        "success_rate": (batch_status_retry == 0).mean(),
+        "retry_rate": (batch_status != 0).mean(),
+    }
+
+    return batch_status_retry, stats

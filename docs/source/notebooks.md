@@ -2,20 +2,24 @@
 
 leap-c ships interactive [marimo](https://marimo.io) notebooks (see the `notebooks/` folder) that demonstrate how to formulate and solve optimal control problems with the differentiable acados layer.
 
+Available notebooks:
+
+- `notebooks/minimal_mpc.py`: scalar integrator MPC plus batched warm-start collation.
+
 You can run these notebooks either locally (recommended for development) or via a pre-built Docker image (a convenient fallback if you do not want to build acados yourself).
 
 ## Local setup
 
-First complete the [native installation](installation.md), then install the notebook extras. Recommended (uv):
+First complete the [native installation](installation.md), then install the notebook and torch extras. Recommended (uv):
 
 ```bash
-uv pip install -e ".[notebook]"
+uv pip install -e ".[notebooks,torch]"
 ```
 
 Alternatively (pip):
 
 ```bash
-pip install -e ".[notebook]"
+pip install -e ".[notebooks,torch]"
 ```
 
 Launch the marimo server from the repository root:
@@ -24,7 +28,7 @@ Launch the marimo server from the repository root:
 marimo edit notebooks
 ```
 
-Open the printed URL (default <http://localhost:8080>) in your browser. The example notebook `notebooks/intro.py` solves a CartPole MPC problem end-to-end.
+Open the printed URL (default <http://localhost:8080>) in your browser.
 
 ## Docker fallback
 
@@ -50,7 +54,7 @@ Edits made in the browser are then saved directly to your local `notebooks/` fol
 
 ### CPU shell image
 
-If you only need a reproducible shell environment (for example to run scripts or tests without installing acados), use the `cpu` image:
+If you only need a reproducible shell environment (for example to run tests without installing acados), use the `cpu` image:
 
 ```bash
 docker run -it --rm -v "$(pwd):/workspace" -w /workspace ghcr.io/leap-c/leap-c:cpu
