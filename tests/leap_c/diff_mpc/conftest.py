@@ -319,6 +319,42 @@ def define_discrete_dynamics(ocp: AcadosOcp, param_manager: AcadosParameterManag
     )
 
 
+def define_nonlinear_discrete_dynamics(
+    ocp: AcadosOcp, param_manager: AcadosParameterManager
+) -> None:
+    """Discrete dynamics with a nonlinear term.
+
+    Identical to :func:`define_discrete_dynamics` but adds a ``sin`` term to the
+    velocity states. The ``sin`` has a nonzero second derivative, so under an
+    EXACT-hessian SQP the multiplier-weighted dynamics curvature enters the
+    Hessian of the Lagrangian (the purely linear model contributes none and is
+    effectively a convex QP). ``k_nl`` is chosen large enough that the assembled
+    exact Hessian is genuinely indefinite at the nominal operating point (acados
+    ``get_hessian_block`` reports a min eigenvalue of about -0.1, versus +0.002
+    for a small term). Paired with the wide, inactive control bounds of
+    :func:`define_loose_constraints`, the optimal solution is interior and the
+    solution map stays smooth, so the finite-difference backward gradient checks
+    remain valid despite the indefinite full Hessian.
+    """
+    kwargs = {
+        "m": param_manager.get(name="m"),
+        "cx": param_manager.get(name="cx"),
+        "cy": param_manager.get(name="cy"),
+        "dt": ocp.solver_options.tf / ocp.solver_options.N_horizon,
+    }
+    dt = kwargs["dt"]
+    k_nl = 12.0  # strength of the nonlinear term (tuned for indefiniteness)
+    nonlinear = ca.vertcat(
+        0,
+        0,
+        k_nl * ca.sin(ocp.model.x[0]),
+        k_nl * ca.sin(ocp.model.x[1]),
+    )
+    ocp.model.disc_dyn_expr = (
+        get_A_disc(**kwargs) @ ocp.model.x + get_B_disc(**kwargs) @ ocp.model.u + dt * nonlinear
+    )
+
+
 def define_constraints(ocp: AcadosOcp, param_manager: AcadosParameterManager) -> None:
     """Define constraints for the OCP."""
     ocp.constraints.x0 = np.array([1.0, 0.5, 0.0, 0.0])
@@ -340,6 +376,22 @@ def define_constraints(ocp: AcadosOcp, param_manager: AcadosParameterManager) ->
     ocp.cost.Zl = 10 * np.ones((ns,))
     ocp.cost.zu = 10000 * np.ones((ns,))
     ocp.cost.Zu = 10 * np.ones((ns,))
+
+
+def define_loose_constraints(ocp: AcadosOcp) -> None:
+    """Initial state plus wide (inactive) control bounds, no state constraints.
+
+    Used by the indefinite-Hessian fixtures: with the bounds inactive the
+    optimal solution is interior and the solution map is smooth, so the
+    finite-difference gradient checks stay valid even though the full Hessian is
+    indefinite. (The linear fixtures use the tighter :func:`define_constraints`
+    with active bounds and slacks.)
+    """
+    ocp.constraints.x0 = np.array([1.0, 0.5, 0.0, 0.0])
+    u_bound = 100.0
+    ocp.constraints.lbu = np.array([-u_bound, -u_bound])
+    ocp.constraints.ubu = np.array([u_bound, u_bound])
+    ocp.constraints.idxbu = np.array([0, 1])
 
 
 @pytest.fixture(scope="session", params=["external", "nonlinear_ls"])
@@ -458,6 +510,77 @@ def acados_test_ocp_with_stagewise_varying_params(
 
 
 @pytest.fixture(scope="session")
+def acados_test_ocp_indefinite_hess(
+    ocp_options: AcadosOcpOptions,
+    nominal_params: tuple[_AcadosParameter, ...],
+) -> AcadosOcp:
+    """AcadosOcp whose nonlinear dynamics give an indefinite full Hessian.
+
+    Same 4-state / 2-input model, params, and external cost as
+    :func:`acados_test_ocp`, but the discrete dynamics carry a smooth nonlinear
+    term (see :func:`define_nonlinear_discrete_dynamics`) and the inequality
+    bounds are loosened (see :func:`define_loose_constraints`). Under an
+    EXACT-hessian SQP the nonlinear term makes the Hessian of the Lagrangian
+    indefinite, exercising the nonlinear-MPC backward path that the purely linear
+    ``acados_test_ocp`` does not.
+    """
+    ocp = AcadosOcp()
+    ocp.solver_options = ocp_options
+
+    param_manager = AcadosParameterManager(N_horizon=ocp.solver_options.N_horizon)
+    for param in nominal_params:
+        param_manager.register_parameter(
+            name=param.name,
+            default=param.default,
+            differentiable=(param.interface == "differentiable"),
+            splits=param.splits,
+        )
+
+    ocp.model.name = "test_ocp_indefinite_hess"
+
+    ocp.model.x = ca.SX.sym("x", 4)
+    ocp.model.u = ca.SX.sym("u", 2)
+
+    define_nonlinear_discrete_dynamics(ocp, param_manager)
+    define_external_cost(ocp, param_manager)
+    define_loose_constraints(ocp)
+
+    ocp._test_pm = param_manager
+    return ocp
+
+
+@pytest.fixture(scope="session")
+def acados_test_ocp_indefinite_hess_stagewise(
+    ocp_options: AcadosOcpOptions,
+    nominal_stagewise_params: tuple[_AcadosParameter, ...],
+) -> AcadosOcp:
+    """Like :func:`acados_test_ocp_indefinite_hess` but with stagewise params."""
+    ocp = AcadosOcp()
+    ocp.solver_options = ocp_options
+
+    param_manager = AcadosParameterManager(N_horizon=ocp.solver_options.N_horizon)
+    for param in nominal_stagewise_params:
+        param_manager.register_parameter(
+            name=param.name,
+            default=param.default,
+            differentiable=(param.interface == "differentiable"),
+            splits=param.splits,
+        )
+
+    ocp.model.name = "test_ocp_indefinite_hess_stagewise"
+
+    ocp.model.x = ca.SX.sym("x", 4)
+    ocp.model.u = ca.SX.sym("u", 2)
+
+    define_nonlinear_discrete_dynamics(ocp, param_manager)
+    define_external_cost(ocp, param_manager)
+    define_loose_constraints(ocp)
+
+    ocp._test_pm = param_manager
+    return ocp
+
+
+@pytest.fixture(scope="session")
 def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpcTorch:
     pm = acados_test_ocp._test_pm
     del acados_test_ocp._test_pm
@@ -479,6 +602,36 @@ def diff_mpc_with_stagewise_varying_params(
 
     return AcadosDiffMpcTorch(
         ocp=acados_test_ocp_with_stagewise_varying_params,
+        parameter_manager=pm,
+        initializer=None,
+        discount_factor=None,
+        dtype=torch.float64,
+    )
+
+
+@pytest.fixture(scope="session")
+def diff_mpc_indefinite_hess(
+    acados_test_ocp_indefinite_hess: AcadosOcp,
+) -> AcadosDiffMpcTorch:
+    pm = acados_test_ocp_indefinite_hess._test_pm
+    del acados_test_ocp_indefinite_hess._test_pm
+    return AcadosDiffMpcTorch(
+        ocp=acados_test_ocp_indefinite_hess,
+        parameter_manager=pm,
+        initializer=None,
+        discount_factor=None,
+        dtype=torch.float64,
+    )
+
+
+@pytest.fixture(scope="session")
+def diff_mpc_indefinite_hess_stagewise(
+    acados_test_ocp_indefinite_hess_stagewise: AcadosOcp,
+) -> AcadosDiffMpcTorch:
+    pm = acados_test_ocp_indefinite_hess_stagewise._test_pm
+    del acados_test_ocp_indefinite_hess_stagewise._test_pm
+    return AcadosDiffMpcTorch(
+        ocp=acados_test_ocp_indefinite_hess_stagewise,
         parameter_manager=pm,
         initializer=None,
         discount_factor=None,

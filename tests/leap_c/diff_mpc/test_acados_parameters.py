@@ -8,8 +8,8 @@ from acados_template import AcadosOcp, AcadosOcpSolver
 
 from leap_c.parameters import AcadosParameterManager
 from leap_c.parameters.data import _AcadosParameter
+from leap_c.parameters.utils import _define_starts_and_ends, n_segments
 from leap_c.torch import AcadosDiffMpcTorch
-from leap_c.utils.parameters import _define_starts_and_ends, n_segments
 
 
 def test_acados_param_manager_basic_initialization():
