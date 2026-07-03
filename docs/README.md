@@ -60,10 +60,11 @@ docs/source/
 ├── conf.py                 # Sphinx + autoapi configuration
 ├── index.md                # landing page + top-level toctree
 ├── installation.md
-├── getting_started/
+├── getting_started.md
+├── define_differentiable_mpc.md
+├── parameter_management.md
 ├── notebooks.md
 ├── troubleshooting.md
-├── tutorials/              # hand-written tutorials
 └── api/
     ├── index.md            # curated "Core API" page (main public classes)
     └── generated/          # produced by autoapi on every build (git-ignored; do not edit)
