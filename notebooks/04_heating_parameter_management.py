@@ -28,7 +28,8 @@ def _(mo):
     # 04 — parameter management on a heating problem
 
     The mass-spring-damper notebooks only needed **global** parameters: one
-    value per solve, shared by every stage. Real problems are richer:
+    value per solve, shared by every stage. We now look at a richer problem where
+    time-varying forecast information is included as a different parameter value at every stage:
 
     - the **weather** is a *forecast* — it changes every solve and every
       stage, but there is nothing to learn about it,
@@ -58,7 +59,6 @@ def _():
     from leap_c.parameters import AcadosParameterManager
     from leap_c.torch import AcadosDiffMpcTorch
 
-    torch.set_default_dtype(torch.float64)
     return (
         AcadosDiffMpcTorch,
         AcadosOcp,
@@ -82,8 +82,7 @@ def _(mo):
     control). Heat leaks to the outdoors through a thermal resistance $R$;
     the room stores heat in a capacitance $C$:
 
-    $$T_{k+1} = T_k + \Delta t \left( \frac{T_{\mathrm{out},k} - T_k}{R\,C}
-    + \frac{q_k}{C} \right).$$
+    $$T_{k+1} = T_k + \Delta t \left( \frac{T_{\mathrm{out},k} - T_k}{R\,C}+ \frac{q_k}{C} \right).$$
 
     The stage cost trades comfort against energy cost,
 
@@ -107,8 +106,6 @@ def _(AcadosOcp, AcadosParameterManager, ca, np):
     C_THERMAL = 1.5  # thermal capacitance of the room [kWh/K]
 
     def build_heating_ocp(N_horizon, dt=0.25, price_splits="global", q_max=8.0, name="heating"):
-        # NOTE: manager and OCP are always built together, fresh (see notebook 01).
-        # The same builder is importable as nb_utils.heating.build_heating_ocp.
         manager = AcadosParameterManager(N_horizon=N_horizon)
 
         # Weather forecast: changeable per stage at runtime, but no gradients.
@@ -173,9 +170,9 @@ def _(mo):
     | `differentiable=True, splits="stagewise"` | `model.p_global`, one block per *stage* | `(B, N+1, dim)` | yes |
 
     Stage-varying differentiable parameters are implemented with a one-hot
-    *indicator* appended to `model.p`: at stage $k$ the symbolic expression
+    *indicator* appended to `ocp.model.p`: at stage $k$ the symbolic expression
     returned by `register_parameter` evaluates to the block covering $k$.
-    All of this is bookkeeping the manager does for you.
+    The `manager` does all of this bookkeeping for you.
 
     Below we build **three MPC instances** that differ *only* in the price's
     `splits` — one price for the whole horizon, two price blocks, and one
@@ -214,13 +211,23 @@ def _(AcadosDiffMpcTorch, build_heating_ocp, torch):
 
 
 @app.cell(hide_code=True)
-def _(mo, mpc_stagewise):
-    mo.md(
-        "The manager's `repr` shows the resulting parameter layout — here for "
-        "the stagewise instance (note the per-stage `price_k_k` blocks and the "
-        "`indicator` appended to the non-differentiable parameters):\n\n"
-        f"```\n{mpc_stagewise.parameter_manager!r}\n```"
-    )
+def _(mo):
+    mo.md("""
+    The manager's `repr` shows the resulting parameter layout with categories `differentiable` vs `non-differentiable` and `name`, `shape`, and `default` for each parameter. Compare the structure of each of the managers of the mpc instances we just defined, ranging from one global parameter value over two values to full resolution for every stage.
+    """)
+    return
+
+
+@app.cell
+def _(mpc_blocks, mpc_global, mpc_stagewise):
+    for _label, _mpc in [
+        ('price_splits="global"', mpc_global),
+        ("price_splits=[11, 24]", mpc_blocks),
+        ('price_splits="stagewise"', mpc_stagewise),
+    ]:
+        print(f"===== {_label} =====")
+        print(_mpc.parameter_manager)
+        print()
     return
 
 
@@ -230,7 +237,7 @@ def _(mo):
     ## Splits are compile-time structure
 
     `splits` decides how many price *symbols* exist inside the generated
-    solver — changing it changes the `p_global` layout and requires building
+    solver — changing it changes the `p_global` layout inside the `ocp` and requires building
     a new solver. The price *values* are runtime: pass them per solve through
     `params`, shaped `(B, n_segments, 1)`.
 
@@ -333,8 +340,7 @@ def _(mo):
 
     The comfort setpoint is global and differentiable, so a sweep over it is
     one batched solve — exactly like the `r_diag_sqrt` sweep in notebook 01,
-    just on a different problem. The slider picks a precomputed solution;
-    it never solves.
+    just on a different problem.
     """)
     return
 
@@ -376,7 +382,6 @@ def _(N_SETPOINTS, mo):
 
 @app.cell
 def _(DT_HEAT, mo, np, plt, setpoint_slider, setpoints, u_sp, x_sp):
-    # No solve here — the slider picks one of the precomputed solutions.
     _i = setpoint_slider.value
     _t_state = DT_HEAT * np.arange(x_sp.shape[1])
     _t_ctrl = DT_HEAT * np.arange(u_sp.shape[1])
