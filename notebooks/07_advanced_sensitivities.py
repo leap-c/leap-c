@@ -302,6 +302,11 @@ def _(mo):
     graph, or want to precompute a batch of exact gradients off one solve. The
     cost is the coupling it exposes: the raw `ctx`, `.diff_mpc_fun`, and flat
     `p_global` column bookkeeping via `p_global_slice`.
+
+    **Next:** notebook 08 puts both doors to work — a prosumer MPC reports
+    the full Jacobian of its planned grid exchange with respect to a
+    24-hour tariff, built from per-stage backward passes and cross-checked
+    against the adjoint call.
     """)
     return
 

@@ -16,12 +16,17 @@ solves. Recommended reading order:
 | 05 | `05_heating_forecasts.py` | R1C1 heating | embedding weather/price forecasts, receding horizon, gradients w.r.t. a forecast | stagewise `(B, N+1, 1)` params, `.backward()` → `.grad` |
 | 06 | `06_battery_arbitrage.py` | battery | economic MPC: a pure money cost, terminal energy value, signed price sensitivities | `EXTERNAL` economic cost, autograd `.grad` w.r.t. price and terminal value |
 | 07 | `07_advanced_sensitivities.py` | mass-spring-damper | *advanced*: the exact KKT sensitivity API, exact-match validation vs. autograd, timing comparison | `diff_mpc_fun.sensitivity(ctx, ...)`, `p_global_slice` |
+| 08 | `08_prosumer.py` | prosumer (heat pump + battery + PV) | multi-input economic MPC: asymmetric buy/sell prices, a soft comfort band, and the full Jacobian of the planned grid exchange w.r.t. a 24 h tariff | slacked `idxsbx` bounds, stagewise price at N=96, per-stage Jacobian via autograd + `du_dp_global` cross-check |
 
 Shared helpers live in `nb_utils/` (OCP builders, the RC-network diagram,
 synthetic day profiles). The OCP builders are taught *inline* in 01
 (mass-spring-damper), 04 (heating) and 06 (battery); the copies of the first
 two in `nb_utils` exist so the other notebooks can import them (the battery
-OCP is used only in 06, so no copy exists).
+OCP is used only in 06, so no copy exists). By 08 the builder pattern is
+assumed known: the prosumer OCP lives only in `nb_utils/prosumer.py` and the
+notebook stays high-level. Numerical and API observations collected while
+building 08 (including the stage-summed behavior of `du_dp_global`) are
+documented in [`08_prosumer_observations.md`](08_prosumer_observations.md).
 
 ## Running
 
