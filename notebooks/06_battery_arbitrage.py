@@ -60,7 +60,6 @@ def _():
     from acados_template import AcadosOcp
 
     from nb_utils.data import make_day_profiles
-    from nb_utils.params import p_global_slice
 
     from leap_c.parameters import AcadosParameterManager
     from leap_c.torch import AcadosDiffMpcTorch
@@ -73,7 +72,6 @@ def _():
         ca,
         make_day_profiles,
         np,
-        p_global_slice,
         plt,
         torch,
     )
@@ -86,20 +84,18 @@ def _(mo):
 
     A lossless battery is a pure integrator,
 
-    $$E_{k+1} = E_k + \Delta t \, u_k, \qquad
-    E \in [0, E_{\max}], \quad u \in [-p_{\max}, p_{\max}],$$
+    $$E_{k+1} = E_k + \Delta t \, u_k, \qquad E \in [0, E_{\max}], \quad u \in [-p_{\max}, p_{\max}],$$
 
     and the objective is the money spent (negative = earned):
 
-    $$\sum_{k=0}^{N-1} \big(\text{price}_k \, u_k
-    + c_\text{wear}\, u_k^2\big)\,\Delta t \;-\; \lambda\, E_N.$$
+    $$\sum_{k=0}^{N-1} \big(\text{price}_k \, u_k + c_\text{wear}\, u_k^2\big)\,\Delta t \;-\; \lambda\, E_N.$$
 
     Two terms deserve a defense:
 
     - **The wear term** $c_\text{wear} u^2$ is *mandatory*, not cosmetic. A
       purely linear cost has zero Hessian; the exact-Hessian SQP would face
       a singular QP, and the sensitivity solver leap-c builds for the
-      backward pass strips *all* regularization (it must — regularization
+      backward pass strips *all* regularization (regularization
       would falsify the KKT sensitivities). The curvature has to come from
       the cost itself, and a small quadratic wear cost is the physically
       honest way to provide it. We pick $c_\text{wear} = 0.005$
@@ -112,16 +108,18 @@ def _(mo):
       artifact of the finite horizon, not a property of good battery
       operation. We set $\lambda = 0.15$ EUR/kWh, exactly the off-peak
       price: stored energy is worth what it costs to replace.
+      NOTE: In a learning context, this terminal cost term would be a
+      good candidate to subject to training.
 
     Three differentiable parameters enter the problem:
 
     | name | default | splits | role |
     |---|---|---|---|
-    | `price` | 0.15 | `"stagewise"` | electricity price forecast [EUR/kWh] |
+    | `price` | 0.15 | stagewise | electricity price forecast [EUR/kWh] |
     | `terminal_value` ($\lambda$) | 0.15 | global | value of stored energy at stage $N$ |
     | `c_wear` | 0.005 | global | quadratic wear cost [EUR·h/kW²] |
 
-    (No non-differentiable parameter this time — 04 and 05 covered that
+    (No non-differentiable parameter this time — notebooks 04 and 05 covered that
     interface.)
     """)
     return
@@ -169,10 +167,6 @@ def _(AcadosOcp, AcadosParameterManager, ca, np):
         # Initial state — a nominal value, overwritten on every solve.
         ocp.constraints.x0 = np.array([4.0])
 
-        # Hard state box (a 1-state integrator can always hold its state with
-        # u = 0, so hard bounds cannot cause infeasibility). idxbx covers the
-        # intermediate stages only — stage N needs its own idxbx_e, otherwise
-        # the last step may overshoot e_max.
         ocp.constraints.idxbx = np.array([0])
         ocp.constraints.lbx = np.array([0.0])
         ocp.constraints.ubx = np.array([e_max])
@@ -274,7 +268,7 @@ def _(mo):
 
 
 @app.cell
-def _(DT_BAT, E0, E_MAX, N_BAT, P_MAX, mo, mpc_bat, np, plt, price_day, t_day, torch):
+def _(E0, E_MAX, N_BAT, P_MAX, mo, mpc_bat, np, plt, price_day, t_day, torch):
     _s = 20  # 05:00
     _t_win = t_day[_s : _s + N_BAT + 1]
     _price_win = price_day[_s : _s + N_BAT + 1]
@@ -332,8 +326,7 @@ def _(mo):
     at quarter-hour $i$ (always from a half-full battery), so a whole day
     of open-loop plans is precomputed in one call. The price windows and
     the terminal value are passed as leaf tensors with
-    `requires_grad=True` — the same solve powers the gradient section at
-    the end. Drag the slider; nothing is re-solved.
+    `requires_grad=True`.
     """)
     return
 
@@ -383,7 +376,6 @@ def _(
     u_plans,
     x_plans,
 ):
-    # No solve here — the slider picks one precomputed forecast window.
     _s = start_slider.value
     _t_win = t_day[_s : _s + N_BAT + 1]
 
@@ -446,7 +438,17 @@ def _(mo):
 
 
 @app.cell
-def _(DT_BAT, E0, N_BAT, N_STARTS, mpc_bat, np, price_day, step_battery, torch):
+def _(
+    DT_BAT,
+    E0,
+    N_BAT,
+    N_STARTS,
+    mpc_bat,
+    np,
+    price_day,
+    step_battery,
+    torch,
+):
     E_sim = np.empty(N_STARTS + 1)
     u_sim = np.empty(N_STARTS)
     E_sim[0] = E0
@@ -468,7 +470,19 @@ def _(DT_BAT, E0, N_BAT, N_STARTS, mpc_bat, np, price_day, step_battery, torch):
 
 
 @app.cell
-def _(DT_BAT, E_MAX, E_sim, N_STARTS, cash, np, plt, price_day, profit_total, t_day, u_sim):
+def _(
+    DT_BAT,
+    E_MAX,
+    E_sim,
+    N_STARTS,
+    cash,
+    np,
+    plt,
+    price_day,
+    profit_total,
+    t_day,
+    u_sim,
+):
     _t_state = DT_BAT * np.arange(N_STARTS + 1)
     _t_ctrl = DT_BAT * np.arange(N_STARTS)
 
@@ -516,17 +530,16 @@ def _(mo):
     $$\frac{\partial V}{\partial \text{price}_k} = u_k \,\Delta t
     \qquad \text{[kWh]},$$
 
-    the energy *traded* at stage $k$ — **positive** where the plan buys (a
-    dearer price hurts) and **negative** where it sells (a dearer peak
-    helps). Contrast notebook 05, where the heater could only buy and every
+    the energy *traded* at stage $k$ — **positive** where the plan buys and **negative** where it sells. Contrast notebook 05, where the heater could only buy and every
     bar was positive. Likewise
 
     $$\frac{\partial V}{\partial \lambda} = -E_N,$$
 
-    one extra credit per kWh left in the battery. Both come out of the
-    exact KKT sensitivity `dvalue_dp_global`, read off the batched context
-    from the window explorer (no new solve) and cross-checked against
-    autograd.
+    one extra credit per kWh left in the battery. We get both from a single
+    `value.sum().backward()` on the batched solve: one backward pass populates
+    `price_windows.grad` and `lam_batch.grad` — the gradient arrives shaped like
+    each parameter tensor, no flat-`p_global` bookkeeping. (For the lower-level
+    exact KKT sensitivity API, `dvalue_dp_global`, see notebook 07.)
     """)
     return
 
@@ -535,12 +548,9 @@ def _(mo):
 def _(
     DT_BAT,
     N_BAT,
-    ctx_bat,
     lam_batch,
     mo,
-    mpc_bat,
     np,
-    p_global_slice,
     plt,
     price_windows,
     t_day,
@@ -551,19 +561,11 @@ def _(
     _s = 20  # the 05:00 window again
     _t_win = t_day[_s : _s + N_BAT + 1]
 
-    # Exact KKT sensitivities for the whole batch: (B, 1, P). The parameter
-    # columns inside flat p_global are located from the registration order.
-    _dV_dp = mpc_bat.diff_mpc_fun.sensitivity(ctx_bat, "dvalue_dp_global")
-    dV_dprice = _dV_dp[_s, 0, p_global_slice(mpc_bat.parameter_manager, "price")]
-    dV_dlam = _dV_dp[:, 0, p_global_slice(mpc_bat.parameter_manager, "terminal_value")][:, 0]
-
-    # Cross-check against autograd: one backward pass over the summed value
-    # recovers all per-window gradients.
+    # One backward pass over the summed value populates .grad on every parameter
+    # tensor at once — each window's gradient, shaped like the parameter itself.
     value_bat.sum().backward()
-    assert np.allclose(dV_dprice, price_windows.grad[_s, :, 0].numpy(), rtol=1e-3, atol=1e-6)
-    assert np.allclose(dV_dlam, lam_batch.grad[:, 0].numpy(), rtol=1e-3, atol=1e-6)
-    # The punchline: dV/dlambda is exactly minus the planned final energy.
-    assert np.allclose(dV_dlam, -x_plans[:, -1, 0], atol=1e-6)
+    dV_dprice = price_windows.grad[_s, :, 0].numpy()
+    dV_dlam = lam_batch.grad[:, 0].numpy()
 
     sens_fig, sens_axes = plt.subplots(2, 1, figsize=(9, 6.5))
 
@@ -594,10 +596,9 @@ def _(
         mo.md(
             "Each bar is literally the energy traded at that stage (the black "
             "dots overlay $u_k \\Delta t$ from the plan). The last bar is "
-            "exactly zero: the stage-$N$ price sits in `p_global` but enters "
-            "no cost expression — stage $N$ only carries the terminal cost. "
-            "The exact batched sensitivities agree with autograd to numerical "
-            "precision."
+            "exactly zero: the stage-$N$ price enters no cost expression — "
+            "stage $N$ only carries the terminal cost — so the optimal cost is "
+            "insensitive to it."
         ),
     ])
     return
@@ -617,12 +618,6 @@ def _(mo):
       stored energy — itself a differentiable parameter with the clean
       sensitivity $\partial V / \partial \lambda = -E_N$;
     - **signed** price sensitivities: the battery both buys and sells.
-
-    Natural extensions: charge/discharge efficiency (needs either two
-    inputs or a smooth loss model — the nonsmooth $\max(u, 0)$ would break
-    the exact-Hessian solver), richer degradation models, a price profile
-    with a cheap night valley, or real market prices in place of the
-    synthetic day (see the README roadmap).
     """)
     return
 

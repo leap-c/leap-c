@@ -57,9 +57,6 @@ def _():
     from leap_c.parameters import AcadosParameterManager
     from leap_c.torch import AcadosDiffMpcTorch
 
-    # acados is double precision — use float64 tensors throughout so gradients
-    # and shape checks line up exactly.
-    torch.set_default_dtype(torch.float64)
     return (
         AcadosDiffMpcTorch,
         AcadosOcp,
@@ -339,11 +336,6 @@ def _(N_SWEEP, mo):
         show_value=True,
     )
     return (r_slider,)
-
-
-@app.cell
-def _():
-    return
 
 
 @app.cell

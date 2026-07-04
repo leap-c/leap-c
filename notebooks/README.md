@@ -11,10 +11,11 @@ solves. Recommended reading order:
 | — | `minimal_mpc.py` | scalar integrator | minimal end-to-end MPC; batched warm-start collation | `AcadosDiffMpcTorch`, `collate_torch` |
 | 01 | `01_msd_build_and_solve.py` | mass-spring-damper | registering parameters, building a parametric OCP, solving, reading the plan | `AcadosParameterManager.register_parameter`, `AcadosDiffMpcTorch` |
 | 02 | `02_msd_value_policy_maps.py` | mass-spring-damper | batched solves; the MPC as value function and policy over the state space | batching, `n_batch_init` |
-| 03 | `03_msd_sensitivities.py` | mass-spring-damper | gradients through the solver | `.backward()`, `torch.autograd.functional.jacobian`, `sensitivity(ctx, ...)` |
+| 03 | `03_msd_sensitivities.py` | mass-spring-damper | gradients through the solver with autograd | `.backward()`, `torch.autograd.functional.jacobian` |
 | 04 | `04_heating_parameter_management.py` | R1C1 heating | differentiable vs. non-differentiable parameters; `splits`: global / blocks / stagewise | `splits=`, `model.p` vs. `model.p_global` |
-| 05 | `05_heating_forecasts.py` | R1C1 heating | embedding weather/price forecasts, receding horizon, gradients w.r.t. a forecast | stagewise `(B, N+1, 1)` params, `dvalue_dp_global` |
-| 06 | `06_battery_arbitrage.py` | battery | economic MPC: a pure money cost, terminal energy value, signed price sensitivities | `EXTERNAL` economic cost, `dvalue_dp_global` w.r.t. price and terminal value |
+| 05 | `05_heating_forecasts.py` | R1C1 heating | embedding weather/price forecasts, receding horizon, gradients w.r.t. a forecast | stagewise `(B, N+1, 1)` params, `.backward()` → `.grad` |
+| 06 | `06_battery_arbitrage.py` | battery | economic MPC: a pure money cost, terminal energy value, signed price sensitivities | `EXTERNAL` economic cost, autograd `.grad` w.r.t. price and terminal value |
+| 07 | `07_advanced_sensitivities.py` | mass-spring-damper | *advanced*: the exact KKT sensitivity API, exact-match validation vs. autograd, timing comparison | `diff_mpc_fun.sensitivity(ctx, ...)`, `p_global_slice` |
 
 Shared helpers live in `nb_utils/` (OCP builders, the RC-network diagram,
 synthetic day profiles). The OCP builders are taught *inline* in 01

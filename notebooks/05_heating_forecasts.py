@@ -49,7 +49,6 @@ def _():
 
     from nb_utils.data import make_day_profiles
     from nb_utils.heating import build_heating_ocp, step_room
-    from nb_utils.params import p_global_slice
 
     from leap_c.torch import AcadosDiffMpcTorch
 
@@ -294,11 +293,12 @@ def _(mo):
     ## Gradients with respect to a forecast
 
     Because the price is *differentiable stagewise*, every one of its
-    `N+1` per-stage values is a column of `p_global` — so the exact KKT
-    sensitivity `dvalue_dp_global` tells us how the optimal cost of one solve
-    responds to **each future price individually**. We read it off the
-    batched context from the window explorer above (no new solve) and
-    cross-check it against autograd on the same solve.
+    `N+1` per-stage values is a separate parameter — so the gradient of the
+    optimal cost tells us how one solve responds to **each future price
+    individually**. One `value.sum().backward()` on the batched solve populates
+    `price_windows.grad`, giving that gradient shaped exactly like the forecast.
+    (For the lower-level exact KKT sensitivity API, `dvalue_dp_global`, see
+    notebook 07.)
     """)
     return
 
@@ -336,8 +336,7 @@ def _(mo):
 
     - **01** — register parameters, build the OCP, solve, plot the plan.
     - **02** — batched solves turn the MPC into value/policy maps.
-    - **03** — gradients through the solver: autograd and exact KKT
-      sensitivities.
+    - **03** — gradients through the solver with autograd.
     - **04** — the parameter design space: differentiable vs. not, global
       vs. splits vs. stagewise.
     - **05** — forecasts as stagewise parameters, closed loop, and
@@ -345,7 +344,7 @@ def _(mo):
 
     The series continues with a one-state battery-arbitrage primer in 06 —
     a *pure* economic cost, in contrast to the mixed comfort/price objective
-    here.
+    here — and an advanced look at the exact KKT sensitivity API in 07.
     """)
     return
 

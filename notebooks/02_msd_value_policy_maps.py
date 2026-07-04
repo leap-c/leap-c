@@ -30,12 +30,12 @@ def _(mo):
     An MPC controller defines two functions of the initial state $x_0$:
 
     - the **value function** $V(x_0)$ — the optimal cost-to-go, and
-    - the **policy** $\pi(x_0) = F_0^{*}(x_0)$ — the first optimal action.
+    - the **policy** $\pi(x_0) = u_0^{*}(x_0)$ — the first optimal action.
 
-    Batched solving makes both cheap to visualise: a grid of initial states
+    Batched solving makes both cheap to compute and visualise: a grid of initial states
     goes in as one batch, one map comes out per output. This notebook adds a
     twist: we solve the grid for **several spring stiffnesses at once** (grid
-    × stiffness is still just one batch) and use a slider to flip through the
+    × stiffness is still just one batch) and use a slider to explore the
     resulting maps.
     """)
     return
@@ -61,7 +61,7 @@ def _(mo):
         src=str(mo.notebook_dir() / "assets" / "mass_spring_damper.svg"),
         width=340,
         caption=(
-            "Same system as notebook 01: state x = [p, v], control F. "
+            "Same system as notebook 01: state x = [p, v], control u = F. "
             "The stiffness k of the spring is one of the registered parameters."
         ),
     )
@@ -92,10 +92,6 @@ def _(AcadosDiffMpcTorch, build_msd_ocp, np, torch):
 def _(mo):
     mo.md(r"""
     ## One batched solve for all maps
-
-    We evaluate on an *inner* grid $[-1.8, 1.8]^2$ to stay away from the
-    soft state bounds, whose slack penalties would otherwise distort the
-    value bowl near the edges.
 
     The batch is laid out as `stiffness × grid`: the grid is repeated once
     per stiffness value, and the `stiffness` parameter column repeats each
