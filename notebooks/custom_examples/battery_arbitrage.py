@@ -1,6 +1,6 @@
-"""Part 6 — battery arbitrage: an economic MPC.
+"""Battery arbitrage: an economic MPC.
 
-The heating notebooks (04, 05) mixed a comfort *tracking* term with an energy
+The getting-started heating notebooks mixed a comfort *tracking* term with an energy
 price. Here the cost is money and nothing else: a battery buys (charges) when
 electricity is cheap and sells (discharges) when it is expensive. This is the
 smallest possible showcase of an *economic* cost — one state (stored energy),
@@ -26,9 +26,10 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    # 06 — battery arbitrage: an economic MPC
+    # Battery arbitrage: an economic MPC
 
-    In notebooks 04 and 05 the OCP *tracked* a comfort setpoint and the
+    In the getting-started heating notebooks the OCP *tracked* a comfort
+    setpoint and the
     price only tilted the trade-off. In an **economic MPC** there is no
     reference at all — the stage cost is the cash flow itself, and the
     optimal behavior (buy low, sell high) emerges from the price forecast
@@ -45,21 +46,25 @@ def _(mo):
       worthless — what is it worth?
 
     The finale differentiates the optimal cost with respect to every future
-    price: unlike the heater in 05 (which only buys), the battery's price
-    sensitivities come out **signed**.
+    price: unlike the heater of the getting-started series (which only
+    buys), the battery's price sensitivities come out **signed**.
     """)
     return
 
 
 @app.cell
-def _():
+def _(mo):
+    import sys
+
+    sys.path.insert(0, str(mo.notebook_dir().parent))  # notebooks/ root -> nb_utils
+
     import casadi as ca
     import matplotlib.pyplot as plt
     import numpy as np
     import torch
     from acados_template import AcadosOcp
 
-    from nb_utils.data import make_day_profiles
+    from nb_utils.data import make_day_profiles, stack_forecast_windows
 
     from leap_c.parameters import AcadosParameterManager
     from leap_c.torch import AcadosDiffMpcTorch
@@ -73,6 +78,7 @@ def _():
         make_day_profiles,
         np,
         plt,
+        stack_forecast_windows,
         torch,
     )
 
@@ -119,8 +125,8 @@ def _(mo):
     | `terminal_value` ($\lambda$) | 0.15 | global | value of stored energy at stage $N$ |
     | `c_wear` | 0.005 | global | quadratic wear cost [EUR·h/kW²] |
 
-    (No non-differentiable parameter this time — notebooks 04 and 05 covered that
-    interface.)
+    (No non-differentiable parameter this time — getting_started notebooks 04
+    and 05 covered that interface.)
     """)
     return
 
@@ -198,7 +204,7 @@ def _(AcadosOcp, AcadosParameterManager, ca, np):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    We use the same grid as notebook 05 — 15-minute steps, an 8-hour
+    We use the same grid as getting_started notebook 05 — 15-minute steps, an 8-hour
     horizon, and one forecast window per quarter-hour of the day — so all
     the window bookkeeping carries over unchanged.
     """)
@@ -322,7 +328,7 @@ def _(mo):
     mo.md(r"""
     ## One batched solve, 96 forecast windows
 
-    As in notebook 05, batch element $i$ receives the price window starting
+    As in getting_started notebook 05, batch element $i$ receives the price window starting
     at quarter-hour $i$ (always from a half-full battery), so a whole day
     of open-loop plans is precomputed in one call. The price windows and
     the terminal value are passed as leaf tensors with
@@ -332,9 +338,9 @@ def _(mo):
 
 
 @app.cell
-def _(E0, N_BAT, N_STARTS, mpc_bat, np, price_day, torch):
+def _(E0, N_BAT, N_STARTS, mpc_bat, price_day, stack_forecast_windows, torch):
     price_windows = torch.tensor(
-        np.stack([price_day[s : s + N_BAT + 1] for s in range(N_STARTS)])[..., None],
+        stack_forecast_windows(price_day, N_STARTS, N_BAT)[..., None],
         requires_grad=True,
     )  # (N_STARTS, N+1, 1)
     lam_batch = torch.full((N_STARTS, 1), 0.15, requires_grad=True)
@@ -530,7 +536,7 @@ def _(mo):
     $$\frac{\partial V}{\partial \text{price}_k} = u_k \,\Delta t
     \qquad \text{[kWh]},$$
 
-    the energy *traded* at stage $k$ — **positive** where the plan buys and **negative** where it sells. Contrast notebook 05, where the heater could only buy and every
+    the energy *traded* at stage $k$ — **positive** where the plan buys and **negative** where it sells. Contrast the heating MPC, where the heater could only buy and every
     bar was positive. Likewise
 
     $$\frac{\partial V}{\partial \lambda} = -E_N,$$
@@ -539,7 +545,7 @@ def _(mo):
     `value.sum().backward()` on the batched solve: one backward pass populates
     `price_windows.grad` and `lam_batch.grad` — the gradient arrives shaped like
     each parameter tensor, no flat-`p_global` bookkeeping. (For the lower-level
-    exact KKT sensitivity API, `dvalue_dp_global`, see notebook 07.)
+    exact KKT sensitivity API, `dvalue_dp_global`, see `advanced_sensitivities.py`.)
     """)
     return
 

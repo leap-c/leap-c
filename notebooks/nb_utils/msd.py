@@ -1,7 +1,8 @@
-"""The mass-spring-damper OCP used by notebooks 01-03.
+"""The fully parametric mass-spring-damper OCP (six differentiable parameters).
 
-NOTE: keep in sync with the inline builder taught in
-``notebooks/01_msd_build_and_solve.py`` (pedagogical inline copy).
+Sole home of this builder — used by ``custom_examples/advanced_sensitivities.py``.
+The getting-started intro notebook teaches a smaller single-parameter MSD
+variant inline instead.
 """
 
 import casadi as ca

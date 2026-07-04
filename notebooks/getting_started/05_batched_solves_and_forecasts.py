@@ -1,11 +1,10 @@
-"""Part 5 — embedding forecasts in the MPC.
+"""Part 5 — batched solves and forecasts: one call, many problems.
 
-Forecasts are the flagship use case for stagewise parameters: every solve, a
-window of predicted outdoor temperature and electricity price slides into the
-horizon. This notebook feeds a synthetic day of weather/price data through the
-R1C1 heating MPC from notebook 04, first open-loop (explore any start time
-with a slider), then closed-loop (a receding-horizon day), and finally asks
-the solver which future price the value function is most sensitive to.
+The batch dimension is the workhorse of AcadosDiffMpcTorch: many initial
+states, many parameter sets, many forecast windows — one solver call. This
+notebook slides a synthetic day of weather/price forecasts through the R1C1
+heating MPC, reads value and policy curves off a batched sweep, and takes
+gradients with respect to a stagewise price forecast.
 """
 
 import marimo
@@ -24,10 +23,16 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    # 05 — embedding forecasts in the MPC
+    # 05 — batched solves and forecasts
 
-    Two forecast signals enter the heating OCP, through the two different
-    parameter interfaces of the manager:
+    Every input of `AcadosDiffMpcTorch` carries a leading **batch dimension**:
+    `x0` is `(B, nx)`, a global override `(B, dim)`, a stagewise one
+    `(B, N+1, dim)`. The `B` problems are solved together by an acados batch
+    solver — so sweeps, forecast studies and training batches all cost one
+    call.
+
+    The second theme is **forecasts**, which enter through the two parameter
+    interfaces of notebook 04:
 
     - **outdoor temperature** — non-differentiable stagewise values in
       `model.p`, passed per solve with shape `(B, N+1, 1)`,
@@ -42,13 +47,17 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(mo):
+    import sys
+
+    sys.path.insert(0, str(mo.notebook_dir().parent))  # notebooks/ root -> nb_utils
+
     import matplotlib.pyplot as plt
     import numpy as np
     import torch
 
-    from nb_utils.data import make_day_profiles
-    from nb_utils.heating import build_heating_ocp, step_room
+    from nb_utils.data import make_day_profiles, stack_forecast_windows
+    from nb_utils.heating import build_heating_ocp
 
     from leap_c.torch import AcadosDiffMpcTorch
 
@@ -58,7 +67,7 @@ def _():
         make_day_profiles,
         np,
         plt,
-        step_room,
+        stack_forecast_windows,
         torch,
     )
 
@@ -78,6 +87,23 @@ def _(AcadosDiffMpcTorch, build_heating_ocp, torch):
         verbose=False,
     )
     return DT_FC, N_FC, N_STARTS, mpc_fc
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    Two constructor arguments matter once you batch:
+
+    - `n_batch_init` sets how many solver instances the acados batch solver
+      pre-allocates. Exceeding it later works, but triggers a solver
+      re-creation — size it to your largest batch up front.
+    - `num_threads_batch_solver` (default 4) parallelizes the batch across
+      threads.
+    - `dtype` fixes the dtype of all tensor inputs/outputs (the solver
+      itself always computes in double precision); we pass
+      `torch.float64` throughout the series so autograd checks are exact.
+    """)
+    return
 
 
 @app.cell(hide_code=True)
@@ -120,20 +146,20 @@ def _(mo):
 
     Batch element $i$ receives the forecast window starting at quarter-hour
     $i$ — the whole day of open-loop plans is precomputed in **one** call
-    (the room always starts at 21 °C). The price is passed as a leaf tensor
-    with `requires_grad=True`, so the same single solve also powers the gradient
-    section at the end.
+    (the room always starts at 21 °C). `stack_forecast_windows` does the
+    slicing; the price is passed as a leaf tensor with `requires_grad=True`,
+    so the same single solve also powers the gradient section at the end.
     """)
     return
 
 
 @app.cell
-def _(N_FC, N_STARTS, mpc_fc, np, outdoor_day, price_day, torch):
-    outdoor_windows = np.stack(
-        [outdoor_day[s : s + N_FC + 1] for s in range(N_STARTS)]
-    )[..., None]  # (N_STARTS, N+1, 1), numpy -> non-differentiable interface
+def _(N_FC, N_STARTS, mpc_fc, outdoor_day, price_day, stack_forecast_windows, torch):
+    outdoor_windows = stack_forecast_windows(outdoor_day, N_STARTS, N_FC)[
+        ..., None
+    ]  # (N_STARTS, N+1, 1), numpy -> non-differentiable interface
     price_windows = torch.tensor(
-        np.stack([price_day[s : s + N_FC + 1] for s in range(N_STARTS)])[..., None],
+        stack_forecast_windows(price_day, N_STARTS, N_FC)[..., None],
         requires_grad=True,
     )  # (N_STARTS, N+1, 1), leaf tensor -> differentiable interface
 
@@ -216,79 +242,71 @@ def _(mo):
     Slide towards **05:00–06:00** and watch the plan pre-heat: the room is
     warmed *before* the 7–9 h price peak enters the window, then drifts
     through the expensive hours. The same happens again ahead of the evening
-    peak.
+    peak. (Notebook 06 turns exactly this into a receding-horizon controller
+    — solve, apply the first decision, step, repeat.)
 
-    ## Closing the loop
+    ## The MPC as a function: value and policy curves
 
-    A receding-horizon controller repeats this every quarter-hour: solve with
-    the current window, apply the first heating decision, step the (here:
-    perfectly modelled) room, shift the window. This runs 96 sequential
-    solves once at cell execution — not on interaction.
+    Solved as a batch over many initial states, the MPC *is* two functions
+    of the state: the optimal cost $V(T_0)$ (a value function) and the first
+    heating decision $q_0^\star(T_0)$ (a policy). One batched call sweeps 41
+    initial temperatures under two constant prices.
     """)
     return
 
 
 @app.cell
-def _(
-    DT_FC,
-    N_FC,
-    N_STARTS,
-    mpc_fc,
-    np,
-    outdoor_day,
-    price_day,
-    step_room,
-    torch,
-):
-    T_sim = np.empty(N_STARTS + 1)
-    q_sim = np.empty(N_STARTS)
-    T_sim[0] = 21.0
+def _(N_FC, mpc_fc, np, torch):
+    N_GRID = 41
+    T0_grid = np.linspace(14.0, 24.0, N_GRID)
+    price_levels = [0.15, 0.35]  # off-peak vs. peak
 
-    for _k in range(N_STARTS):
-        _out_w = outdoor_day[_k : _k + N_FC + 1].reshape(1, -1, 1)
-        _price_w = torch.tensor(price_day[_k : _k + N_FC + 1].reshape(1, -1, 1))
-        _, _u0, _, _, _ = mpc_fc(
-            x0=torch.tensor([[T_sim[_k]]]),
-            params={"outdoor_temp": _out_w, "price": _price_w},
+    # Stack the two sweeps into one batch of 82 problems.
+    _x0 = torch.tensor(np.tile(T0_grid, len(price_levels)).reshape(-1, 1))
+    _price = torch.tensor(
+        np.concatenate(
+            [np.full((N_GRID, N_FC + 1, 1), _p) for _p in price_levels]
         )
-        q_sim[_k] = float(_u0)
-        T_sim[_k + 1] = step_room(T_sim[_k], q_sim[_k], outdoor_day[_k], dt=DT_FC)
+    )
+    _outdoor = np.full((len(price_levels) * N_GRID, N_FC + 1, 1), 5.0)
 
-    energy_cost = float(np.sum(price_day[:N_STARTS] * q_sim * DT_FC))
-    return T_sim, energy_cost, q_sim
+    _, _, _, u_grid, value_grid = mpc_fc(
+        x0=_x0, params={"outdoor_temp": _outdoor, "price": _price}
+    )
+    V_curves = value_grid.detach().numpy().reshape(len(price_levels), N_GRID)
+    q0_curves = u_grid.detach().numpy()[:, 0, 0].reshape(len(price_levels), N_GRID)
+    return N_GRID, T0_grid, V_curves, price_levels, q0_curves
 
 
 @app.cell
-def _(DT_FC, N_STARTS, T_sim, energy_cost, np, plt, price_day, q_sim, t_day):
-    _t_state = DT_FC * np.arange(N_STARTS + 1)
-    _t_ctrl = DT_FC * np.arange(N_STARTS)
-
-    cl_fig, cl_axes = plt.subplots(3, 1, figsize=(9, 7), sharex=True)
-    cl_axes[0].step(t_day[:N_STARTS], price_day[:N_STARTS], where="post", color="tab:purple")
-    cl_axes[0].set_ylabel("Price [EUR/kWh]")
-    cl_axes[1].plot(_t_state, T_sim, color="tab:blue")
-    cl_axes[1].axhline(21.0, ls="--", lw=0.8, color="gray")
-    cl_axes[1].set_ylabel("Room temp [degC]")
-    cl_axes[2].step(_t_ctrl, q_sim, where="post", color="tab:orange")
-    cl_axes[2].set_ylabel("Heating [kW]")
-    cl_axes[2].set_xlabel("Time since midnight [h]")
-    for _ax_cl in cl_axes:
-        _ax_cl.grid(True, alpha=0.3)
-        for _lo, _hi in [(7.0, 9.0), (17.0, 20.0)]:
-            _ax_cl.axvspan(_lo, _hi, color="tab:purple", alpha=0.08)
-    cl_fig.suptitle(
-        f"Receding-horizon day — realized energy cost {energy_cost:.2f} EUR"
-    )
-    cl_fig.tight_layout()
-    cl_fig
+def _(T0_grid, V_curves, plt, price_levels, q0_curves):
+    vp_fig, vp_axes = plt.subplots(1, 2, figsize=(9.5, 3.6))
+    for _i, _p in enumerate(price_levels):
+        _c = "tab:green" if _i == 0 else "tab:red"
+        vp_axes[0].plot(T0_grid, V_curves[_i], color=_c, label=f"price {_p:.2f}")
+        vp_axes[1].plot(T0_grid, q0_curves[_i], color=_c, label=f"price {_p:.2f}")
+    vp_axes[0].set_xlabel("Initial room temp $T_0$ [degC]")
+    vp_axes[0].set_ylabel("Optimal cost $V(T_0)$")
+    vp_axes[0].set_title("Value function")
+    vp_axes[1].set_xlabel("Initial room temp $T_0$ [degC]")
+    vp_axes[1].set_ylabel("First decision $q_0^\\star(T_0)$ [kW]")
+    vp_axes[1].set_title("Policy")
+    for _ax in vp_axes:
+        _ax.grid(True, alpha=0.3)
+        _ax.legend(fontsize=8)
+    vp_fig.tight_layout()
+    vp_fig
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    The purple bands mark the price peaks: the room is heated slightly above
-    the setpoint just before them and allowed to sag through them.
+    The value function is a smooth bowl around the setpoint; starting cold
+    costs more when energy is expensive. The policy saturates at
+    $q_{\max}$ for cold starts — the flat segment where the actuator limit,
+    not the optimizer, dictates the action (remember the vanishing gradients
+    of notebook 03).
 
     ## Gradients with respect to a forecast
 
@@ -298,7 +316,7 @@ def _(mo):
     individually**. One `value.sum().backward()` on the batched solve populates
     `price_windows.grad`, giving that gradient shaped exactly like the forecast.
     (For the lower-level exact KKT sensitivity API, `dvalue_dp_global`, see
-    notebook 07.)
+    `custom_examples/advanced_sensitivities.py`.)
     """)
     return
 
@@ -332,25 +350,20 @@ def _(DT_FC, N_FC, mo, plt, price_windows, t_day, value_fc):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## Series wrap-up
+    ## Recap
 
-    - **01** — register parameters, build the OCP, solve, plot the plan.
-    - **02** — batched solves turn the MPC into value/policy maps.
-    - **03** — gradients through the solver with autograd.
-    - **04** — the parameter design space: differentiable vs. not, global
-      vs. splits vs. stagewise.
-    - **05** — forecasts as stagewise parameters, closed loop, and
-      gradients with respect to a forecast.
+    - The batch dimension turns sweeps, forecast studies and training
+      batches into single calls; size `n_batch_init` to your largest batch.
+    - Forecasts are `(B, N+1, 1)` windows — numpy through `model.p` when
+      you only need values, leaf tensors through `p_global` when you also
+      need gradients.
+    - A batched sweep over initial states reads the MPC's value function
+      and policy directly off the solver.
 
-    The series continues with a one-state battery-arbitrage primer in 06 —
-    a *pure* economic cost, in contrast to the mixed comfort/price objective
-    here — and an advanced look at the exact KKT sensitivity API in 07.
+    **Next:** `06_planner_interface.py` wraps the layer into a planner —
+    `forward(obs) → action` — gives it a slacked, time-varying comfort band,
+    and closes the loop against a house that does *not* match the model.
     """)
-    return
-
-
-@app.cell
-def _():
     return
 
 

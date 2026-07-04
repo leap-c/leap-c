@@ -1,4 +1,10 @@
-"""Helpers for locating and reshaping parameters in the flat ``p_global`` layout."""
+"""Helpers for locating and reshaping parameters in the flat ``p_global`` layout.
+
+NOTE: these helpers reach into leap-c private internals
+(``manager._differentiable_parameter_store.indices`` and
+``leap_c.parameters.utils._define_starts_and_ends``) — they are candidates
+for promotion into ``leap_c.parameters`` proper.
+"""
 
 import numpy as np
 

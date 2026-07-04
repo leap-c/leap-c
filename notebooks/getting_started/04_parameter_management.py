@@ -1,12 +1,10 @@
-"""Part 4 — parameter management: global vs. stagewise vs. splits.
+"""Part 4 — everything AcadosParameterManager.
 
-A heating problem is the natural playground for parameter management: the
-weather is an exogenous forecast (changeable, not learnable), the comfort
-setpoint is one shared quantity (learnable), and the electricity price varies
-over the horizon (learnable, with a stage structure you choose).
-
-This notebook builds the same R1C1 room model with three different stage
-structures for the price and compares what the MPC can "see" in each case.
+The complete parameter model in one place: differentiable vs.
+non-differentiable, the stage structure (`splits`), the override shape
+contract, and the guard rails that catch the classic mistakes. The R1C1
+heating OCP from notebook 02 is the playground; the electricity price is the
+parameter whose stage structure we vary.
 """
 
 import marimo
@@ -25,11 +23,12 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    # 04 — parameter management on a heating problem
+    # 04 — everything `AcadosParameterManager`
 
-    The mass-spring-damper notebooks only needed **global** parameters: one
-    value per solve, shared by every stage. We now look at a richer problem where
-    time-varying forecast information is included as a different parameter value at every stage:
+    So far the parameters just *appeared*: notebook 01 registered a global
+    reference, notebook 02 mixed a differentiable scalar (`R`) with a
+    non-differentiable stagewise forecast (`outdoor_temp`). This notebook
+    lays out the full design space behind those choices:
 
     - the **weather** is a *forecast* — it changes every solve and every
       stage, but there is nothing to learn about it,
@@ -46,14 +45,17 @@ def _(mo):
 
 
 @app.cell
-def _():
-    import casadi as ca
+def _(mo):
+    import sys
+
+    sys.path.insert(0, str(mo.notebook_dir().parent))  # notebooks/ root -> nb_utils
+
     import matplotlib.pyplot as plt
     import numpy as np
     import torch
-    from acados_template import AcadosOcp
 
     from nb_utils.diagrams import draw_rc_thermal
+    from nb_utils.heating import build_heating_ocp
     from nb_utils.params import average_per_segment, expand_to_stages
 
     from leap_c.parameters import AcadosParameterManager
@@ -61,10 +63,9 @@ def _():
 
     return (
         AcadosDiffMpcTorch,
-        AcadosOcp,
         AcadosParameterManager,
         average_per_segment,
-        ca,
+        build_heating_ocp,
         draw_rc_thermal,
         expand_to_stages,
         np,
@@ -100,61 +101,36 @@ def _(draw_rc_thermal):
     return
 
 
-@app.cell
-def _(AcadosOcp, AcadosParameterManager, ca, np):
-    R_THERMAL = 2.0  # thermal resistance to the outdoors [K/kW]
-    C_THERMAL = 1.5  # thermal capacitance of the room [kWh/K]
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    The OCP builder is the one taught line by line in notebook 02
+    (`nb_utils.heating.build_heating_ocp` is its synced copy) — the only
+    news is the `price_splits` argument it forwards to `register_parameter`:
 
-    def build_heating_ocp(N_horizon, dt=0.25, price_splits="global", q_max=8.0, name="heating"):
-        manager = AcadosParameterManager(N_horizon=N_horizon)
+    ```python
+    # Weather forecast: changeable per stage at runtime, but no gradients.
+    outdoor_temp = manager.register_parameter(
+        name="outdoor_temp", default=np.array([10.0]), differentiable=False
+    )
+    # Envelope quality: one differentiable value shared by all stages.
+    R = manager.register_parameter(
+        name="R", default=np.array([2.0]), differentiable=True
+    )
+    # Comfort reference: one differentiable value shared by all stages.
+    comfort_setpoint = manager.register_parameter(
+        name="comfort_setpoint", default=np.array([21.0]), differentiable=True
+    )
+    # Electricity price: differentiable, stage structure set by `price_splits`.
+    price = manager.register_parameter(
+        name="price", default=np.array([0.15]), differentiable=True, splits=price_splits
+    )
+    ```
 
-        # Weather forecast: changeable per stage at runtime, but no gradients.
-        outdoor_temp = manager.register_parameter(
-            name="outdoor_temp", default=np.array([10.0]), differentiable=False
-        )
-        # Comfort reference: one differentiable value shared by all stages.
-        comfort_setpoint = manager.register_parameter(
-            name="comfort_setpoint", default=np.array([21.0]), differentiable=True
-        )
-        # Electricity price: differentiable, stage structure set by `price_splits`.
-        price = manager.register_parameter(
-            name="price", default=np.array([0.15]), differentiable=True, splits=price_splits
-        )
-
-        ocp = AcadosOcp()
-        ocp.model.name = name
-
-        T = ca.SX.sym("T")  # room temperature [degC]
-        q = ca.SX.sym("q")  # heating power [kW]
-        ocp.model.x = T
-        ocp.model.u = q
-
-        ocp.model.disc_dyn_expr = T + dt * (
-            (outdoor_temp - T) / (R_THERMAL * C_THERMAL) + q / C_THERMAL
-        )
-
-        ocp.cost.cost_type = "EXTERNAL"
-        ocp.cost.cost_type_e = "EXTERNAL"
-        ocp.model.cost_expr_ext_cost = (T - comfort_setpoint) ** 2 + price * q
-        ocp.model.cost_expr_ext_cost_e = (T - comfort_setpoint) ** 2
-
-        ocp.constraints.x0 = np.array([20.0])
-
-        # The heater can only heat, up to q_max.
-        ocp.constraints.idxbu = np.array([0])
-        ocp.constraints.lbu = np.array([0.0])
-        ocp.constraints.ubu = np.array([q_max])
-
-        ocp.solver_options.N_horizon = N_horizon
-        ocp.solver_options.tf = N_horizon * dt
-        ocp.solver_options.integrator_type = "DISCRETE"
-        ocp.solver_options.nlp_solver_type = "SQP"
-        ocp.solver_options.hessian_approx = "EXACT"
-        ocp.solver_options.qp_solver = "PARTIAL_CONDENSING_HPIPM"
-
-        return ocp, manager
-
-    return (build_heating_ocp,)
+    Each call returns a CasADi symbol that goes straight into the dynamics
+    and cost expressions — the manager remembers everything else.
+    """)
+    return
 
 
 @app.cell(hide_code=True)
@@ -169,10 +145,18 @@ def _(mo):
     | `differentiable=True, splits=[...]` or `int` | `model.p_global`, one block per *segment* | `(B, n_segments, dim)` | yes |
     | `differentiable=True, splits="stagewise"` | `model.p_global`, one block per *stage* | `(B, N+1, dim)` | yes |
 
-    Stage-varying differentiable parameters are implemented with a one-hot
-    *indicator* appended to `ocp.model.p`: at stage $k$ the symbolic expression
-    returned by `register_parameter` evaluates to the block covering $k$.
-    The `manager` does all of this bookkeeping for you.
+    Values in `params` may be numpy arrays or torch tensors; only
+    differentiable parameters may carry `requires_grad=True` tensors (the
+    guard rails below enforce this). Stage-varying differentiable parameters
+    are implemented with a one-hot *indicator* appended to `ocp.model.p`: at
+    stage $k$ the symbolic expression returned by `register_parameter`
+    evaluates to the block covering $k$. The manager does all of this
+    bookkeeping for you — including assembling the flat `p_global`/`p`
+    vectors before each solve (its `combine_*` methods are internal plumbing
+    you never call yourself). Index `N` of a stagewise value parameterizes
+    the *terminal* stage; a parameter that only appears in the dynamics
+    (like a weather forecast) is simply inert there — pass the full
+    `(B, N+1, dim)` window anyway.
 
     Below we build **three MPC instances** that differ *only* in the price's
     `splits` — one price for the whole horizon, two price blocks, and one
@@ -336,10 +320,69 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
+    ## Guard rails
+
+    The manager and the layer catch the classic mistakes early, with
+    explicit messages. Three worth knowing before they find you:
+
+    1. a **non-differentiable** parameter cannot carry a grad-tracking
+       tensor — register it `differentiable=True` or `.detach()` it,
+    2. registration is **closed** once the manager is assigned to an OCP
+       (which `AcadosDiffMpcTorch` does in its constructor) — build a fresh
+       OCP *and* manager together instead,
+    3. a `splits` list must cover the horizon — its last entry has to be
+       `N-1` or `N`.
+    """)
+    return
+
+
+@app.cell
+def _(AcadosParameterManager, N_HEAT, mpc_blocks, mpc_global, np, torch, x0_heat):
+    # 1. Non-differentiable parameter with a grad-tracking override.
+    try:
+        mpc_global(
+            x0=x0_heat,
+            params={"outdoor_temp": torch.full((1, N_HEAT + 1, 1), 5.0, requires_grad=True)},
+        )
+    except ValueError as guard1:
+        print(f"1. {guard1}\n")
+
+    # 2. Registering on a manager that is already assigned to an OCP.
+    try:
+        mpc_global.parameter_manager.register_parameter(
+            name="too_late", default=np.array([1.0])
+        )
+    except ValueError as guard2:
+        print(f"2. {guard2}\n")
+
+    # 3. A splits list that does not cover the horizon.
+    try:
+        _bad_manager = AcadosParameterManager(N_horizon=N_HEAT)
+        _bad_manager.register_parameter(
+            name="price", default=np.array([0.15]), differentiable=True, splits=[5, 11]
+        )
+    except ValueError as guard3:
+        print(f"3. {guard3}\n")
+
+    # Bonus: the shape contract from above, violated on purpose — the two-block
+    # instance expects (B, 2, 1), we pass per-stage values.
+    try:
+        mpc_blocks(
+            x0=x0_heat,
+            params={"price": torch.full((1, N_HEAT + 1, 1), 0.15)},
+        )
+    except ValueError as guard4:
+        print(f"4. {guard4}")
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
     ## A global parameter, swept interactively
 
     The comfort setpoint is global and differentiable, so a sweep over it is
-    one batched solve — exactly like the `r_diag_sqrt` sweep in notebook 01,
+    one batched solve — exactly like the `x_ref` override in notebook 01,
     just on a different problem.
     """)
     return
@@ -414,10 +457,18 @@ def _(DT_HEAT, mo, np, plt, setpoint_slider, setpoints, u_sp, x_sp):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    **Next:** `05_heating_forecasts.py` slides a real day of weather and
-    price forecasts through the horizon — the non-differentiable stagewise
-    interface in action — and takes gradients with respect to a stagewise
-    price forecast.
+    ### Two footnotes
+
+    - `AcadosParameterManager(N_horizon, casadi_type="MX")` builds MX
+      symbols instead of SX — only needed when your model uses features SX
+      cannot express; everything in this series is SX.
+    - The manager also stores each parameter's default, so any parameter you
+      do *not* override in `params` silently keeps its registered default —
+      that is why the sweep above only had to pass two of the four.
+
+    **Next:** `05_batched_solves_and_forecasts.py` puts the batch dimension
+    to work — many initial states, many parameter sets, and a day of sliding
+    forecast windows in single solver calls.
     """)
     return
 

@@ -1,6 +1,6 @@
 """Headless smoke tests for the marimo notebooks in ``notebooks/``.
 
-Every top-level ``.py`` in ``notebooks/`` that is a marimo notebook is discovered
+Every ``.py`` under ``notebooks/`` (any depth) that is a marimo notebook is discovered
 dynamically and executed end-to-end via ``marimo export html``, which runs all cells
 top-to-bottom with no display and exits non-zero on any cell error. Adding or editing a
 notebook is therefore covered automatically without touching this file.
@@ -20,7 +20,7 @@ pytest.importorskip("marimo")  # skip cleanly where the notebooks extra isn't in
 # tests/test_notebooks.py -> repo root is parents[1]
 REPO_ROOT = Path(__file__).resolve().parents[1]
 NOTEBOOKS_DIR = REPO_ROOT / "notebooks"
-NOTEBOOKS = sorted(p for p in NOTEBOOKS_DIR.glob("*.py") if "marimo.App(" in p.read_text())
+NOTEBOOKS = sorted(p for p in NOTEBOOKS_DIR.rglob("*.py") if "marimo.App(" in p.read_text())
 
 
 def test_notebooks_discovered():
@@ -28,7 +28,9 @@ def test_notebooks_discovered():
     assert NOTEBOOKS, f"No marimo notebooks found in {NOTEBOOKS_DIR}"
 
 
-@pytest.mark.parametrize("notebook", NOTEBOOKS, ids=[p.name for p in NOTEBOOKS])
+@pytest.mark.parametrize(
+    "notebook", NOTEBOOKS, ids=[str(p.relative_to(NOTEBOOKS_DIR)) for p in NOTEBOOKS]
+)
 def test_notebook_runs_headless(notebook: Path, tmp_path: Path):
     """Each notebook runs to completion headless (all cells, no errors)."""
     out = tmp_path / f"{notebook.stem}.html"

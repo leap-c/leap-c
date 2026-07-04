@@ -4,7 +4,8 @@ These helpers are useful when batching nested data with
 ``AcadosDiffMpcCtx`` objects inside, for example to reuse single-sample contexts
 as one batched warm start.
 
-For a full user-facing example, see ``notebooks/minimal_mpc.py``.
+For a full user-facing example, see
+``notebooks/getting_started/07_imitation_learning.py``.
 
 """
 

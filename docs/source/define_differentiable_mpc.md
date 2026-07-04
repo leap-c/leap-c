@@ -163,7 +163,7 @@ The minimal example above shows the canonical pattern for any environment: defin
 `AcadosDiffMpcTorch` is an ordinary `torch.nn.Module`, you can drop it into any
 PyTorch model, training loop, or pipeline.
 
-The `notebooks/minimal_mpc.py` marimo notebook shows this end-to-end.
+The `notebooks/getting_started/01_intro_diff_mpc.py` marimo notebook shows this end-to-end.
 
 ## Next steps
 

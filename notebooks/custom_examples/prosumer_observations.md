@@ -1,6 +1,7 @@
-# Observations from building notebook 08 (prosumer economic MPC)
+# Observations from building the prosumer example (economic MPC)
 
-Notes collected while developing `08_prosumer.py` (2026-07-04). Everything
+Notes collected while developing `prosumer_home_energy.py` (2026-07-04,
+then named `08_prosumer.py`). Everything
 below was verified numerically; the reproduction commands are at the end.
 Setup: R1C1 building + heat pump (COP 3), 10 kWh battery, PV, asymmetric
 grid prices (dynamic tariff vs. 0.079 EUR/kWh feed-in), N = 96 stages of
@@ -9,8 +10,7 @@ grid prices (dynamic tariff vs. 0.079 EUR/kWh feed-in), N = 96 stages of
 ## 1. `du_dp_global` returns the *stage-summed* sensitivity, not the trajectory Jacobian
 
 The docstring of `AcadosDiffMpcCtx` ("sensitivity of the whole control
-trajectory solution") and notebook 07's markdown ("the KKT solver returns the
-whole `(B, N·nu, P)` block in a single call") both suggest that
+trajectory solution") suggests that
 `diff_mpc_fun.sensitivity(ctx, "du_dp_global")` returns the full Jacobian of
 the control trajectory. It does not. The actual return shape is
 `(B, nu, P)`, and its content is
@@ -26,10 +26,9 @@ contributions across stages. `dx_dp_global` has the same behavior
 
 Consequences:
 
-- Notebook 07's section C timing comparison ("full trajectory Jacobian:
-  autograd vs. one KKT call") is apples-to-oranges — the autograd side
-  computes the true `(B, N·nu, P)` Jacobian, the KKT side only the
-  stage-summed `(B, nu, P)` aggregate. Its text has not been corrected yet.
+- `advanced_sensitivities.py`'s section C used to make the same claim; it
+  now teaches the stage-summed semantics explicitly and cross-checks them
+  against the true per-stage Jacobian summed over stages.
 - No test pins either behavior.
 - A silent reshape of the `(B, nu, P)` result into per-stage blocks produces
   plausible-looking garbage.
@@ -150,10 +149,10 @@ tolerance), because the backward pass evaluates the same expressions:
 ## Reproduction
 
 All of section 6 and the complementarity/band checks run as asserts inside
-`08_prosumer.py` on every headless execution:
+`prosumer_home_energy.py` on every headless execution:
 
 ```bash
-cd notebooks && MPLBACKEND=Agg uv run --extra notebooks python -m marimo export html 08_prosumer.py -o /tmp/08.html
+cd notebooks/custom_examples && MPLBACKEND=Agg uv run --extra notebooks python -m marimo export html prosumer_home_energy.py -o /tmp/prosumer.html
 uv run --extra test --extra notebooks python -m pytest tests/test_notebooks.py -k 08 -v
 ```
 

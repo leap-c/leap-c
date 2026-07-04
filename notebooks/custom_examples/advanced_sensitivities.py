@@ -1,14 +1,15 @@
-"""Part 7 (advanced) — the exact KKT sensitivity API.
+"""Advanced — the exact KKT sensitivity API.
 
 The recommended way to differentiate through ``AcadosDiffMpcTorch`` is plain
 autograd (``.backward()`` / ``torch.autograd.functional.jacobian``), as shown in
-``03_msd_sensitivities.py``. This notebook is the **advanced** counterpart: it
-reaches past autograd into the solver's own exact KKT sensitivities via
-``diff_mpc.diff_mpc_fun.sensitivity(ctx, ...)``.
+``getting_started/03_gradients_through_the_solver.py``. This notebook is the
+**advanced** counterpart: it reaches past autograd into the solver's own exact
+KKT sensitivities via ``diff_mpc.diff_mpc_fun.sensitivity(ctx, ...)``.
 
 We (A) show the low-level API, (B) prove it is a numerically exact match to
-autograd, and (C) compare the timings — so you know when the extra machinery is
-worth it. It reuses the mass-spring-damper OCP from ``nb_utils.msd``.
+autograd, and (C) pin down what each field actually returns — including the
+easy-to-misread stage-summed semantics of ``du_dp_global`` — and compare the
+timings. It uses the mass-spring-damper OCP from ``nb_utils.msd``.
 """
 
 import marimo
@@ -27,11 +28,11 @@ def _():
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    # 07 — advanced: the exact KKT sensitivity API
+    # Advanced: the exact KKT sensitivity API
 
-    Autograd (notebook 03) is the recommended interface and should cover almost
-    everything. Underneath it, the solver can hand back the **exact KKT
-    sensitivities** directly:
+    Autograd (getting_started notebook 03) is the recommended interface and
+    should cover almost everything. Underneath it, the solver can hand back
+    the **exact KKT sensitivities** directly:
 
     ```python
     diff_mpc.diff_mpc_fun.sensitivity(ctx, "du0_dp_global")   # (B, nu, P)
@@ -48,16 +49,21 @@ def _(mo):
       order. Autograd, by contrast, hands the gradient straight back on the
       parameter tensor you passed (`param.grad`) — no column bookkeeping.
 
-    So why reach for it? For a **full Jacobian of a vector output** (Section C):
-    one call returns the whole block, whereas reverse-mode autograd pays one
-    backward pass per output component.
+    So why reach for it? To read exact Jacobian *blocks* — like `du0/dp` for
+    **all** parameters at once — straight off a solve, even one that never
+    built a torch graph (e.g. inside `torch.no_grad()`). Section C also pins
+    down what the whole-trajectory fields (`du_dp_global`, `dx_dp_global`)
+    really return, which is easy to misread.
     """)
     return
 
 
 @app.cell
-def _():
+def _(mo):
+    import sys
     import time
+
+    sys.path.insert(0, str(mo.notebook_dir().parent))  # notebooks/ root -> nb_utils
 
     import matplotlib.pyplot as plt
     import numpy as np
@@ -132,7 +138,8 @@ def _(B, diff_mpc, mo, np, p_global_slice, torch):
         - `dvalue_dp_global` shape: `{tuple(dV_dp.shape)}`  (B, 1, P)
 
         Slicing column {col} gives `dF0*/dr` and `dV/dr` at each of the {B} sweep
-        points — the same curves notebook 03 plots, here read straight from `ctx`.
+        points — the kind of curves getting_started notebook 03 plots, here
+        read straight from `ctx`.
         """
     )
     return dV_dr_kkt, du0_dr_kkt, r_param, u0, value
@@ -183,28 +190,59 @@ def _(dV_dr_kkt, du0_dr_kkt, mo, np, r_param, torch, u0, value):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## C. Timing: when the low-level API pays off
+    ## C. What the trajectory fields return — and the timings
 
-    Two representative jobs, each timed end-to-end (solve + gradient), median
-    over a few repeats. Because every repeat re-solves, `sensitivity()`
-    recomputes rather than returning its per-`ctx` cache — a fair comparison.
+    **Read this before using `du_dp_global` or `dx_dp_global`:** they do
+    **not** return the per-stage trajectory Jacobian their names suggest.
+    `sensitivity(ctx, "du_dp_global")` is a single *adjoint* (backward) pass
+    seeded with ones over all stages, so it returns the **stage-summed**
+    sensitivity
 
-    1. **Scalar value gradient** `dV/dp` — one adjoint solve either way, so the
-       gradient is a small marginal cost on top of the solve. Autograd wins on
-       simplicity here.
-    2. **Full control-trajectory Jacobian** `du/dp` — a *vector* output.
-       Reverse-mode autograd (`torch.autograd.functional.jacobian`) pays one
-       backward pass per output component; the KKT solver returns the whole
-       `(B, N·nu, P)` block in a single call.
+    $$\texttt{du\_dp\_global}[b] \;=\; \frac{\partial \sum_k u_k}{\partial p}
+    \in \mathbb{R}^{n_u \times P},$$
+
+    of shape `(B, nu, P)` — not the `(B, N·nu, P)` per-stage block. The cell
+    below verifies this by summing the true Jacobian over stages. If you need
+    the full per-stage Jacobian, no single KKT call returns it; use
+    `torch.autograd.functional.jacobian` (or one autograd pass per stage, as
+    the prosumer example does).
+
+    With that settled, three representative jobs, each timed end-to-end
+    (solve + gradient), median over a few repeats. Because every repeat
+    re-solves, `sensitivity()` recomputes rather than returning its per-`ctx`
+    cache — a fair comparison.
+
+    1. **Scalar value gradient** `dV/dp` — one adjoint solve either way.
+    2. **Stage-summed control sensitivity** `d(Σₖ uₖ)/dp` — one autograd
+       backward pass on `u.sum()` vs. one `du_dp_global` call: the same
+       aggregate, computed both ways.
+    3. **Full per-stage trajectory Jacobian** `duₖ/dp` — autograd only
+       (`functional.jacobian`, one backward pass per output component).
     """)
     return
 
 
 @app.cell
-def _(B, diff_mpc, np, time, torch):
+def _(B, diff_mpc, mo, np, p_global_slice, time, torch):
     _x0 = torch.tensor([[0.05, 0.0]]).repeat(B, 1)
     _r_np = np.linspace(0.2, 1.2, B).reshape(-1, 1)
 
+    # --- First, verify the stage-summed semantics of du_dp_global. ---------
+    _r = torch.tensor(_r_np)
+    _ctx, _, _, _, _ = diff_mpc(x0=_x0, params={"r_diag_sqrt": _r})
+    du_dp_sum = diff_mpc.diff_mpc_fun.sensitivity(_ctx, "du_dp_global")  # (B, nu, P)
+
+    # The true per-stage Jacobian, summed over stages, must reproduce it.
+    _jac_full = torch.autograd.functional.jacobian(
+        lambda p: diff_mpc(x0=_x0, params={"r_diag_sqrt": p})[3], _r
+    )  # (B, N, nu, B, 1) — block-diagonal in the batch
+    _col = p_global_slice(diff_mpc.parameter_manager, "r_diag_sqrt").start
+    _stage_summed_auto = np.array(
+        [_jac_full[i].sum(dim=0)[0, i, 0].item() for i in range(B)]
+    )
+    assert np.allclose(du_dp_sum[:, 0, _col], _stage_summed_auto, rtol=1e-3, atol=1e-6)
+
+    # --- Timings. -----------------------------------------------------------
     def _median(fn, repeats=5):
         samples = []
         for _ in range(repeats):
@@ -226,35 +264,48 @@ def _(B, diff_mpc, np, time, torch):
         c, _, _, _, _ = diff_mpc(x0=_x0, params={"r_diag_sqrt": torch.tensor(_r_np)})
         diff_mpc.diff_mpc_fun.sensitivity(c, "dvalue_dp_global")
 
-    def _jac_autograd():
-        r = torch.tensor(_r_np)
-        torch.autograd.functional.jacobian(
-            lambda p: diff_mpc(x0=_x0, params={"r_diag_sqrt": p})[3], r  # [3] = full control traj
-        )
+    def _sum_autograd():
+        # The same stage-summed aggregate du_dp_global returns: one backward pass.
+        r = torch.tensor(_r_np).requires_grad_(True)
+        _, _, _, u, _ = diff_mpc(x0=_x0, params={"r_diag_sqrt": r})
+        u.sum().backward()
 
-    def _jac_kkt():
+    def _sum_kkt():
         c, _, _, _, _ = diff_mpc(x0=_x0, params={"r_diag_sqrt": torch.tensor(_r_np)})
         diff_mpc.diff_mpc_fun.sensitivity(c, "du_dp_global")
 
+    def _jac_autograd():
+        # The true per-stage Jacobian — autograd only, no single KKT call.
+        r = torch.tensor(_r_np)
+        torch.autograd.functional.jacobian(
+            lambda p: diff_mpc(x0=_x0, params={"r_diag_sqrt": p})[3], r
+        )
+
     # Warm up once — the first acados calls take the slow path.
-    for _f in (_solve_only, _val_autograd, _val_kkt, _jac_autograd, _jac_kkt):
+    for _f in (_solve_only, _val_autograd, _val_kkt, _sum_autograd, _sum_kkt, _jac_autograd):
         _f()
 
     t_solve = _median(_solve_only)
     t_val_auto = _median(_val_autograd)
     t_val_kkt = _median(_val_kkt)
+    t_sum_auto = _median(_sum_autograd)
+    t_sum_kkt = _median(_sum_kkt)
     t_jac_auto = _median(_jac_autograd)
-    t_jac_kkt = _median(_jac_kkt)
-    return t_jac_auto, t_jac_kkt, t_solve, t_val_auto, t_val_kkt
+
+    mo.md(
+        r"Cross-check passed: summing the true per-stage Jacobian over stages "
+        r"reproduces `du_dp_global` — confirming its **stage-summed** semantics."
+    )
+    return t_jac_auto, t_solve, t_sum_auto, t_sum_kkt, t_val_auto, t_val_kkt
 
 
 @app.cell
-def _(mo, plt, t_jac_auto, t_jac_kkt, t_solve, t_val_auto, t_val_kkt):
+def _(mo, plt, t_jac_auto, t_solve, t_sum_auto, t_sum_kkt, t_val_auto, t_val_kkt):
     time_fig, time_ax = plt.subplots(figsize=(8, 4))
 
-    _labels = ["value gradient\n∂V/∂p", "full traj. Jacobian\n∂u/∂p"]
-    _auto = [t_val_auto, t_jac_auto]
-    _kkt = [t_val_kkt, t_jac_kkt]
+    _labels = ["value gradient\n∂V/∂p", "stage-summed sens.\n∂(Σₖuₖ)/∂p"]
+    _auto = [t_val_auto, t_sum_auto]
+    _kkt = [t_val_kkt, t_sum_kkt]
     _x = range(len(_labels))
     _w = 0.38
 
@@ -270,7 +321,7 @@ def _(mo, plt, t_jac_auto, t_jac_kkt, t_solve, t_val_auto, t_val_kkt):
     time_fig.tight_layout()
 
     _val_ratio = t_val_auto / t_val_kkt
-    _jac_ratio = t_jac_auto / t_jac_kkt
+    _sum_ratio = t_sum_auto / t_sum_kkt
 
     mo.vstack([
         time_fig,
@@ -279,12 +330,15 @@ def _(mo, plt, t_jac_auto, t_jac_kkt, t_solve, t_val_auto, t_val_kkt):
             | job | autograd | KKT `sensitivity()` | autograd / KKT |
             |---|---|---|---|
             | value gradient ∂V/∂p | {t_val_auto:.1f} ms | {t_val_kkt:.1f} ms | {_val_ratio:.2f}× |
-            | full traj. Jacobian ∂u/∂p | {t_jac_auto:.1f} ms | {t_jac_kkt:.1f} ms | {_jac_ratio:.2f}× |
+            | stage-summed ∂(Σₖuₖ)/∂p | {t_sum_auto:.1f} ms | {t_sum_kkt:.1f} ms | {_sum_ratio:.2f}× |
+            | full per-stage Jacobian ∂uₖ/∂p | {t_jac_auto:.1f} ms | — (no single call) | — |
 
-            For the **scalar** value gradient the two are close and both are
-            dominated by the solve — autograd's convenience is essentially free.
-            For the **full Jacobian** the single KKT call is markedly faster,
-            because autograd must run one backward pass per trajectory component.
+            For the two **adjoint-sized** jobs the routes are comparable — both
+            are dominated by the solve, and autograd's convenience is essentially
+            free. The **full per-stage Jacobian** is a genuinely bigger job:
+            reverse mode pays one backward pass per trajectory component
+            ({t_jac_auto / t_solve:.0f}× the bare solve here), and no single
+            KKT call replaces it.
             """
         ),
     ])
@@ -296,17 +350,20 @@ def _(mo):
     mo.md(r"""
     ## When to reach for `sensitivity(ctx, ...)`
 
-    Default to autograd. Drop to the low-level API when you specifically need a
-    **full Jacobian of a vector output** (whole-trajectory sensitivities, or
-    `du0/dp` across many controls), want to avoid building a torch backward
-    graph, or want to precompute a batch of exact gradients off one solve. The
-    cost is the coupling it exposes: the raw `ctx`, `.diff_mpc_fun`, and flat
-    `p_global` column bookkeeping via `p_global_slice`.
+    Default to autograd. Drop to the low-level API when you specifically need
+    the **`du0/dp` Jacobian block for all parameters at once**, want gradients
+    off a solve that never built a torch graph (`torch.no_grad()`), or want to
+    precompute a batch of exact gradients off one `ctx`. Remember the
+    semantics: `du_dp_global`/`dx_dp_global` are **stage-summed** adjoints
+    `(B, nu, P)`/`(B, nx, P)` — a full per-stage trajectory Jacobian always
+    goes through autograd. The cost of the low-level door is the coupling it
+    exposes: the raw `ctx`, `.diff_mpc_fun`, and flat `p_global` column
+    bookkeeping via `p_global_slice`.
 
-    **Next:** notebook 08 puts both doors to work — a prosumer MPC reports
-    the full Jacobian of its planned grid exchange with respect to a
-    24-hour tariff, built from per-stage backward passes and cross-checked
-    against the adjoint call.
+    **Next:** `prosumer_home_energy.py` puts both doors to work — a prosumer
+    MPC reports the full Jacobian of its planned grid exchange with respect
+    to a 24-hour tariff, built from per-stage backward passes and
+    cross-checked against the stage-summed adjoint call.
     """)
     return
 

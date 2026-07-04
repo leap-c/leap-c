@@ -188,6 +188,9 @@ test.gin
 c_generated_code
 !.devcontainer/devcontainer.json
 
+# marimo session/cache artifacts next to the notebooks
+__marimo__/
+
 # Logs and videos
 *.csv
 *.mp4

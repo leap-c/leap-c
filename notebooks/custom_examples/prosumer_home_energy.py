@@ -1,4 +1,4 @@
-"""Part 8 — the prosumer: an economic MPC that buys, sells, heats and stores.
+"""The prosumer: an economic MPC that buys, sells, heats and stores.
 
 Notebook 06 traded with a single battery and one signed power. A real
 prosumer has three levers behind one meter — a heat pump, a battery and a PV
@@ -48,7 +48,11 @@ def _(mo):
 
 
 @app.cell
-def _():
+def _(mo):
+    import sys
+
+    sys.path.insert(0, str(mo.notebook_dir().parent))  # notebooks/ root -> nb_utils
+
     import matplotlib.pyplot as plt
     import numpy as np
     import torch
@@ -108,7 +112,7 @@ def _(mo):
 
     $$\ell_k = \text{price}^\text{buy}_k g_{\text{buy},k} - \text{price}^\text{sell} g_{\text{sell},k} + c_\text{wear} (P^\text{bat}_k)^2 + \varepsilon \left( q_k^2 + g_{\text{buy},k}^2 + g_{\text{sell},k}^2 \right),$$
 
-    with the terminal credit $-\lambda E_N$ from notebook 06. Three details are critical:
+    with the terminal credit $-\lambda E_N$ from `battery_arbitrage.py`. Three details are critical:
 
     - **The $\varepsilon$ term is mandatory, and $c_\text{wear}$ alone would
       not do.** The wear term's Hessian is rank **one** in the 3-D control
@@ -123,7 +127,7 @@ def _(mo):
       (asserted below).
     - **Comfort is soft, physics is hard.** The temperature band is a
       preference, enforced by slacks (`idxsbx` softens only the $T$ row —
-      the same mechanism as notebook 01's state bounds); the battery box is
+      the same mechanism as the MSD notebook's soft state bounds); the battery box is
       physics and stays hard. The terminal value must satisfy
       $\text{price}^\text{sell} < \lambda < \min_k \text{price}^\text{buy}_k$
       — above the feed-in tariff or the plan dumps the battery into the
@@ -142,7 +146,7 @@ def _(mo):
 
     The builder lives in `nb_utils/prosumer.py` — by now the pattern (a
     fresh manager and OCP built together, `EXTERNAL` cost, `DISCRETE`
-    dynamics) is the one taught inline in notebooks 01, 04 and 06.
+    dynamics) is the one taught inline in the getting-started series.
     """)
     return
 
@@ -204,7 +208,8 @@ def _(mo):
 
     A single solve over the default day. The stagewise buy price goes in as
     a `(1, 97, 1)` tensor, the two forecasts as numpy arrays of the same
-    shape — the interface from notebook 05, just with more of everything.
+    shape — the interface from getting_started notebook 05, just with more of
+    everything.
     """)
     return
 
@@ -363,7 +368,7 @@ def _(mo):
     Row $k$ of the Jacobian is the gradient of the planned net exchange
     $g_{\text{net},k} = g_{\text{buy},k} - g_{\text{sell},k}$ with respect
     to the whole price profile. Reverse mode pays one backward pass per
-    output (notebook 07's lesson), so the $96 \times 97$ map costs 96
+    output (`advanced_sensitivities.py`'s lesson), so the $96 \times 97$ map costs 96
     backward passes over the batched solve — a couple of seconds for all
     48 scenarios at once.
 
@@ -527,7 +532,7 @@ def _(mo):
     mo.md(r"""
     ## Value gradients in EUR
 
-    As in notebook 06, the optimal cost $V$ is money and the envelope
+    As in `battery_arbitrage.py`, the optimal cost $V$ is money and the envelope
     theorem makes its gradients legible:
 
     $$\frac{\partial V}{\partial \text{price}^\text{buy}_k}
@@ -540,7 +545,7 @@ def _(mo):
     at the end — all from one differentiable solve. We take the gradients
     with `torch.autograd.grad` (rather than `.backward()`) so the cell can
     rerun without accumulating, and cross-check them against the exact
-    KKT value gradient `dvalue_dp_global` from notebook 07.
+    KKT value gradient `dvalue_dp_global` from `advanced_sensitivities.py`.
     """)
     return
 
@@ -577,7 +582,7 @@ def _(
     assert np.allclose(_dV_dsell, -DT * u_plans[:, :, 2].sum(axis=1), atol=1e-6)
     assert np.allclose(_dV_dlam, -x_plans[:, -1, 1], atol=1e-6)
 
-    # Exact KKT cross-check (notebook 07's API), all 48 scenarios at once.
+    # Exact KKT cross-check (advanced_sensitivities.py's API), all 48 scenarios at once.
     _dV_dp = mpc_pro.diff_mpc_fun.sensitivity(ctx_pro, "dvalue_dp_global")
     assert np.allclose(_dV_dp[:, 0, price_cols], _dV_dbuy, atol=1e-8)
 
