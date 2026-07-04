@@ -40,16 +40,3 @@ jobs:
           name: unit-tests-${{ matrix.python-version }}
           flags: unit-tests
           verbose: true
-
-  integration_tests_placeholders:
-    name: Integration Tests (${{ matrix.env }})
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        env: [cartpole, chain, pointmass]
-    steps:
-      - name: Integration tests moved downstream
-        run: |
-          echo "The ${{ matrix.env }} integration tests were removed from core CI."
-          echo "This placeholder keeps existing branch protection checks green until they are updated."
