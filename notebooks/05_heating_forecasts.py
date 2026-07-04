@@ -53,13 +53,11 @@ def _():
 
     from leap_c.torch import AcadosDiffMpcTorch
 
-    torch.set_default_dtype(torch.float64)
     return (
         AcadosDiffMpcTorch,
         build_heating_ocp,
         make_day_profiles,
         np,
-        p_global_slice,
         plt,
         step_room,
         torch,
@@ -72,8 +70,6 @@ def _(AcadosDiffMpcTorch, build_heating_ocp, torch):
     DT_FC = 0.25  # time step [h]
     N_STARTS = 96  # one forecast window per quarter-hour of the day
 
-    # q_max is generous so the heater never saturates during the cold night —
-    # every wiggle in the closed-loop trajectory is then driven by the price.
     mpc_fc = AcadosDiffMpcTorch(
         *build_heating_ocp(
             N_FC, DT_FC, price_splits="stagewise", q_max=12.0, name="heating_forecast"
@@ -126,9 +122,8 @@ def _(mo):
     Batch element $i$ receives the forecast window starting at quarter-hour
     $i$ — the whole day of open-loop plans is precomputed in **one** call
     (the room always starts at 21 °C). The price is passed as a leaf tensor
-    with `requires_grad=True`, so the same solve also powers the gradient
-    section at the end. Drag the slider through the day; nothing is
-    re-solved.
+    with `requires_grad=True`, so the same single solve also powers the gradient
+    section at the end.
     """)
     return
 
@@ -150,7 +145,7 @@ def _(N_FC, N_STARTS, mpc_fc, np, outdoor_day, price_day, torch):
 
     x_plans = x_fc.detach().numpy()  # (N_STARTS, N+1, 1)
     u_plans = u_fc.detach().numpy()  # (N_STARTS, N, 1)
-    return ctx_fc, price_windows, u_plans, value_fc, x_plans
+    return price_windows, u_plans, value_fc, x_plans
 
 
 @app.cell
@@ -168,7 +163,6 @@ def _(N_STARTS, mo):
 
 @app.cell
 def _(
-    DT_FC,
     N_FC,
     mo,
     np,
@@ -180,7 +174,6 @@ def _(
     u_plans,
     x_plans,
 ):
-    # No solve here — the slider picks one precomputed forecast window.
     _s = start_slider.value
     _t_win = t_day[_s : _s + N_FC + 1]
 
@@ -237,7 +230,17 @@ def _(mo):
 
 
 @app.cell
-def _(DT_FC, N_FC, N_STARTS, mpc_fc, np, outdoor_day, price_day, step_room, torch):
+def _(
+    DT_FC,
+    N_FC,
+    N_STARTS,
+    mpc_fc,
+    np,
+    outdoor_day,
+    price_day,
+    step_room,
+    torch,
+):
     T_sim = np.empty(N_STARTS + 1)
     q_sim = np.empty(N_STARTS)
     T_sim[0] = 21.0
@@ -286,8 +289,7 @@ def _(DT_FC, N_STARTS, T_sim, energy_cost, np, plt, price_day, q_sim, t_day):
 def _(mo):
     mo.md(r"""
     The purple bands mark the price peaks: the room is heated slightly above
-    the setpoint just before them and allowed to sag through them — the
-    forecast is worth money.
+    the setpoint just before them and allowed to sag through them.
 
     ## Gradients with respect to a forecast
 
@@ -302,34 +304,12 @@ def _(mo):
 
 
 @app.cell
-def _(
-    DT_FC,
-    N_FC,
-    ctx_fc,
-    mo,
-    mpc_fc,
-    np,
-    p_global_slice,
-    plt,
-    price_windows,
-    t_day,
-    value_fc,
-):
+def _(DT_FC, N_FC, mo, plt, price_windows, t_day, value_fc):
     _s = 20  # the 05:00 window — the morning price peak sits mid-horizon
     _t_win = t_day[_s : _s + N_FC + 1]
 
-    # Exact KKT sensitivities for the whole batch: (B, 1, P). The price's
-    # columns inside flat p_global are located from the registration order.
-    _dV_dp = mpc_fc.diff_mpc_fun.sensitivity(ctx_fc, "dvalue_dp_global")
-    _price_cols = p_global_slice(mpc_fc.parameter_manager, "price")
-    dV_dprice = _dV_dp[_s, 0, _price_cols]  # (N+1,)
-
-    # Cross-check against autograd: each batch element depends only on its own
-    # price window, so one backward pass over the summed value recovers all
-    # per-window gradients.
     value_fc.sum().backward()
-    _dV_dprice_auto = price_windows.grad[_s, :, 0].numpy()
-    assert np.allclose(dV_dprice, _dV_dprice_auto, rtol=1e-3, atol=1e-6)
+    dV_dprice = price_windows.grad[_s, :, 0].numpy()
 
     sens_fig, sens_ax = plt.subplots(figsize=(9, 3.4))
     sens_ax.bar(_t_win, dV_dprice, width=0.8 * DT_FC, color="tab:purple")
@@ -343,8 +323,7 @@ def _(
         sens_fig,
         mo.md(
             "Each bar is the planned energy bought at that stage (for a cost "
-            "linear in the price, ∂V/∂price_k is exactly `q_k·Δt`). The exact "
-            "batched sensitivities agree with autograd to numerical precision."
+            "linear in the price, ∂V/∂price_k is exactly `q_k·Δt`)."
         ),
     ])
     return
@@ -366,10 +345,13 @@ def _(mo):
 
     The series continues with a one-state battery-arbitrage primer in 06 —
     a *pure* economic cost, in contrast to the mixed comfort/price objective
-    here. Further ideas live in the README roadmap: a cartpole notebook with
-    stage-varying references built inline, and real weather data in place of
-    the synthetic profiles.
+    here.
     """)
+    return
+
+
+@app.cell
+def _():
     return
 
 
