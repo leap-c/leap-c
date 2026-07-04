@@ -91,8 +91,7 @@ def _(mo):
     control). Heat leaks to the outdoors through a thermal resistance $R$
     [K/kW]; the room stores heat in a capacitance $C$ [kWh/K]:
 
-    $$T_{k+1} = T_k + \Delta t \left( \frac{T_{\mathrm{out},k} - T_k}{R\,C}
-    + \frac{q_k}{C} \right).$$
+    $$T_{k+1} = T_k + \Delta t \left( \frac{T_{\mathrm{out},k} - T_k}{R\,C} + \frac{q_k}{C} \right).$$
 
     The stage cost trades comfort against the electricity bill,
     $\ell_k = (T_k - T_\mathrm{set})^2 + \mathrm{price}_k\, q_k$, with a
@@ -235,7 +234,7 @@ def _(mo):
     are **out of reach**:
 
     - **no batching**: one solver, one problem; a sweep or a training batch
-      means a Python loop,
+      means a Python loop or using the batch solver of acados,
     - **no gradients**: nothing connects the solution to $R$, the setpoint,
       or the prices,
     - **manual bookkeeping**: the `p`-layout (`[outdoor, price]`, stage by
@@ -428,7 +427,7 @@ def _(
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## What you bought: a gradient
+    ## What the differentiable mpc gives you in addition: a gradient
 
     The classic solver ends at the solution. The leap-c layer keeps going:
     pass $R$ as a leaf tensor and ask what one more unit of insulation is
@@ -456,9 +455,7 @@ def _(N, T0, diff_mpc, mo, outdoor_win, price_win, torch):
         extra insulation, over one 8 h horizon.
 
         Negative: a better-insulated house loses less heat, so the optimal
-        mix of discomfort and electricity cost gets cheaper. Scale it up —
-        thousands of horizons per heating season — and this single number
-        is the start of an insulation business case. Notebook 03 makes a
+        mix of discomfort and electricity cost gets cheaper. Notebook 03 makes a
         systematic tour of these gradients.
         """
     )
@@ -475,7 +472,7 @@ def _(mo):
     | `ca.SX.sym` + `model.p` + `parameter_values` | `manager.register_parameter(...)` |
     | `solver.set(k, "p", ...)` per stage, per solve | `params={"name": values}` per call |
     | one problem per solve | batch dimension on everything |
-    | no derivatives | `.backward()` through the solver |
+    | derivatives needs implementation effort | `.backward()` through the solver |
 
     The builder taught here is importable as
     `nb_utils.heating.build_heating_ocp` — the later notebooks pull it from

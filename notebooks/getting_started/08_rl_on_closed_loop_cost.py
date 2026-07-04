@@ -28,16 +28,13 @@ def _(mo):
     Behavior cloning (notebook 07) can only be as good as the occupant.
     But we know what we actually want — small values of the running cost
 
-    $$c_k = \underbrace{\mathrm{price}_k\, q_k\, \Delta t}_{\text{energy bill}}
-    \;+\; w \cdot \underbrace{\big[(\mathrm{lb}_{k+1} - T_{k+1})_+ +
-    (T_{k+1} - \mathrm{ub}_{k+1})_+\big] \Delta t}_{\text{discomfort [K·h]}}$$
+    $$c_k = \underbrace{\mathrm{price}_k\, q_k\, \Delta t}_{\text{energy bill}}\;+\; w \cdot \underbrace{\big[(\mathrm{lb}_{k+1} - T_{k+1})_+ +(T_{k+1} - \mathrm{ub}_{k+1})_+\big] \Delta t}_{\text{discomfort [Kh]}}$$
 
-    — the BOPTEST-style building objective (`cost + w · discomfort`, here
+    — a typical building objective (`cost + w · discomfort`, here
     $w = 1$ EUR per K·h). So minimize the discounted closed-loop sum
     directly:
 
-    $$J(\theta) = \mathbb{E}\Big[\sum_{k=0}^{K-1} \gamma^k\,
-    c_k\big(T_k,\, u_0(o_k; \theta)\big)\Big] .$$
+    $$J(\theta) = \mathbb{E}\Big[\sum_{k=0}^{K-1} \gamma^k\,c_k\big(T_k,\, u_0(o_k; \theta)\big)\Big] .$$
 
     **What this is:** analytic policy search through a *differentiable
     simulation* — our true dynamics are a torch one-liner, the disturbances

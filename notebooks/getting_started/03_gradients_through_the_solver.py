@@ -30,7 +30,7 @@ def _(mo):
     $$V(x_0, \theta) = \min_{x, u}\; \sum_k \ell_k(x_k, u_k; \theta)
     \quad \text{s.t.} \quad \text{dynamics}(\theta),\ \text{bounds},$$
 
-    and everything it returns — `u0`, the trajectories, `value` — is
+    and everything it returns — `u0`, the trajectories `x`, `u`, and `V` — is
     differentiable with respect to $x_0$ and every **differentiable**
     parameter in $\theta$. The gradients are *exact*: leap-c reads them off
     the solver's KKT system rather than finite-differencing.
