@@ -24,13 +24,21 @@ ARG ACADOS_CI_IMAGE=ghcr.io/leap-c/acados-ci:ubuntu24.04
 
 
 # ----------------------------------------------------------
+# Stage: acados-ci
+# Named alias for the published acados-ci image so downstream stages can
+# inherit/copy from it without relying on ARG interpolation in COPY --from.
+# ----------------------------------------------------------
+FROM ${ACADOS_CI_IMAGE} AS acados-ci
+
+
+# ----------------------------------------------------------
 # Stage: runtime
 # Heavy shared layer built on top of acados-ci.
 # acados + system deps already present; we add the leap user,
 # Python 3.12 venv, PyTorch CPU, acados_template, leap-c, marimo.
 # Both `cpu` and `notebook` branch from this stage.
 # ----------------------------------------------------------
-FROM ${ACADOS_CI_IMAGE} AS runtime
+FROM acados-ci AS runtime
 
 # Install sudo (not in acados-ci) and create non-root user
 RUN apt-get update && apt-get install -y --no-install-recommends sudo && \
@@ -115,9 +123,9 @@ RUN useradd -m -s /bin/bash leap && \
 ENV HOME=/home/leap
 
 # Copy acados build artifacts from the published acados-ci image
-COPY --from=${ACADOS_CI_IMAGE} --chown=leap:leap /opt/acados/lib /opt/acados/lib
-COPY --from=${ACADOS_CI_IMAGE} --chown=leap:leap /opt/acados/include /opt/acados/include
-COPY --from=${ACADOS_CI_IMAGE} --chown=leap:leap /opt/acados/bin /opt/acados/bin
+COPY --from=acados-ci --chown=leap:leap /opt/acados/lib /opt/acados/lib
+COPY --from=acados-ci --chown=leap:leap /opt/acados/include /opt/acados/include
+COPY --from=acados-ci --chown=leap:leap /opt/acados/bin /opt/acados/bin
 
 # Acados environment
 ENV ACADOS_SOURCE_DIR=/opt/acados
@@ -138,7 +146,7 @@ COPY --chown=leap:leap pyproject.toml /home/leap/leap-c/pyproject.toml
 WORKDIR /home/leap/leap-c
 
 # Copy acados_template from the acados-ci image
-COPY --from=${ACADOS_CI_IMAGE} --chown=leap:leap /opt/acados/interfaces/acados_template \
+COPY --from=acados-ci --chown=leap:leap /opt/acados/interfaces/acados_template \
      /tmp/acados_template
 RUN uv pip install /tmp/acados_template && rm -rf /tmp/acados_template
 

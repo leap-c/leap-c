@@ -73,7 +73,6 @@ jobs:
           cache-to: type=gha,scope=acados-ci-${{ matrix.arch }},mode=max
 
       - name: Smoke test image
-        if: github.event_name == 'pull_request'
         run: |
           docker run --rm \
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:ubuntu24.04-${{ matrix.arch }} \
