@@ -107,7 +107,7 @@ def format_diff_mpc_module_repr(
         f"    u0       (B, {nu})     fixates first-stage control (optional)\n"
         "    params   dict       parameter overrides (see parameters)\n"
         "  outputs:\n"
-        f"    u_star   (B, {nu})     optimal first-stage control (= u0 if given)\n"
+        f"    u0       (B, {nu})     optimal first-stage control (= u0 if given)\n"
         f"    x        (B, {N + 1}, {nx})  state trajectory\n"
         f"    u        (B, {N}, {nu})    control trajectory\n"
         "    value    (B, 1)      cost (V(x0), or Q(x0, u0) when u0 given)\n"
