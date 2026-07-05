@@ -2,10 +2,10 @@
 # ==============================================================
 # leap-c Dockerfile
 #
-# Multi-stage build with a shared runtime stage:
+# Multi-stage build using the pre-built acados-ci base image:
 #
-#   base → acados-builder → runtime → cpu / notebook
-#                                   ↘ gpu (local/manual only)
+#   acados-ci → runtime → cpu / notebook
+#                       ↘ gpu (local/manual only, COPY --from=acados-ci)
 #
 # Usage:
 #   Notebook:     docker build -t leap-c:notebook .   (default target)
@@ -13,101 +13,38 @@
 #   GPU dev:      docker build --target gpu -t leap-c:gpu .
 #
 # Prerequisites:
-#   git submodule update --init --recursive
+#   No submodule init needed — acados comes from the acados-ci base image.
 #
 # For HuggingFace Spaces, the default (last) target is used automatically.
 # ==============================================================
 
 ARG CUDA_IMAGE=nvidia/cuda:12.8.1-cudnn-devel-ubuntu24.04
 ARG TORCH_CUDA_INDEX=https://download.pytorch.org/whl/cu128
-
-
-# ----------------------------------------------------------
-# Stage: base
-# Common system dependencies, uv, and non-root user.
-# ----------------------------------------------------------
-FROM ubuntu:24.04 AS base
-ENV DEBIAN_FRONTEND=noninteractive
-
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    sudo git cmake make build-essential gfortran pkg-config \
-    wget curl unzip ca-certificates \
-    libopenblas-dev liblapack-dev libblas-dev \
-    swig python3 && \
-    rm -rf /var/lib/apt/lists/*
-
-# Install uv for fast Python package management
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
-
-# Create non-root user
-RUN useradd -m -s /bin/bash leap && \
-    echo "leap ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/leap && \
-    chmod 0440 /etc/sudoers.d/leap
-
-ENV HOME=/home/leap
-ENV LD_LIBRARY_PATH=""
-
-
-# ----------------------------------------------------------
-# Stage: acados-builder
-# Builds acados from source and installs the Tera renderer.
-# ----------------------------------------------------------
-FROM base AS acados-builder
-
-COPY --chown=leap:leap external/acados /opt/acados
-
-USER leap
-WORKDIR /opt/acados
-
-# Build acados (matching CI flags from .github/actions/build-acados)
-RUN cmake -S . -B build \
-        -DACADOS_WITH_OPENMP=ON \
-        -DACADOS_NUM_THREADS=1 && \
-    cmake --build build --target install -- -j"$(nproc)"
-
-# Install Tera renderer (required by acados_template for C code generation)
-# On x86_64 we use the pre-built binary; on ARM64 (Apple Silicon) we build from source
-ARG TARGETARCH
-RUN mkdir -p /opt/acados/bin && \
-    if [ "$TARGETARCH" = "amd64" ]; then \
-        wget -q -O /opt/acados/bin/t_renderer \
-            "https://github.com/acados/tera_renderer/releases/download/v0.2.0/t_renderer-v0.2.0-linux-amd64" && \
-        chmod +x /opt/acados/bin/t_renderer; \
-    else \
-        curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
-        . "$HOME/.cargo/env" && \
-        git clone --depth 1 --branch v0.2.0 \
-            https://github.com/acados/tera_renderer.git /tmp/tera_renderer && \
-        cd /tmp/tera_renderer && \
-        cargo build --release --bin t_renderer && \
-        cp /tmp/tera_renderer/target/release/t_renderer /opt/acados/bin/t_renderer && \
-        rm -rf /tmp/tera_renderer "$HOME/.cargo"; \
-    fi
+ARG ACADOS_CI_IMAGE=ghcr.io/leap-c/acados-ci:ubuntu24.04
 
 
 # ----------------------------------------------------------
 # Stage: runtime
-# Heavy shared layer: acados + Python 3.12 + PyTorch CPU +
-# acados_template + leap-c + marimo.
+# Heavy shared layer built on top of acados-ci.
+# acados + system deps already present; we add the leap user,
+# Python 3.12 venv, PyTorch CPU, acados_template, leap-c, marimo.
 # Both `cpu` and `notebook` branch from this stage.
 # ----------------------------------------------------------
-FROM base AS runtime
+FROM ${ACADOS_CI_IMAGE} AS runtime
 
-# Copy acados build artifacts (libraries, headers, Tera renderer)
-COPY --from=acados-builder --chown=leap:leap /opt/acados/lib /opt/acados/lib
-COPY --from=acados-builder --chown=leap:leap /opt/acados/include /opt/acados/include
-COPY --from=acados-builder --chown=leap:leap /opt/acados/bin /opt/acados/bin
+# Install sudo (not in acados-ci) and create non-root user
+RUN apt-get update && apt-get install -y --no-install-recommends sudo && \
+    rm -rf /var/lib/apt/lists/* && \
+    useradd -m -s /bin/bash leap && \
+    echo "leap ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/leap && \
+    chmod 0440 /etc/sudoers.d/leap
 
-# Acados environment
-ENV ACADOS_SOURCE_DIR=/opt/acados
-ENV LD_LIBRARY_PATH="/opt/acados/lib:${LD_LIBRARY_PATH}"
-ENV PATH="/opt/acados/bin:${PATH}"
+ENV HOME=/home/leap
 
 USER leap
 
-# Install Python 3.12 via uv and create a virtual environment
-RUN uv python install 3.12 && \
-    uv venv --python 3.12 /home/leap/.venv
+# Create Python 3.12 virtual environment
+RUN uv venv --python 3.12 /home/leap/.venv
 
 ENV VIRTUAL_ENV=/home/leap/.venv
 ENV PATH="/home/leap/.venv/bin:${PATH}"
@@ -117,10 +54,8 @@ ENV PATH="/home/leap/.venv/bin:${PATH}"
 COPY --chown=leap:leap pyproject.toml /home/leap/leap-c/pyproject.toml
 WORKDIR /home/leap/leap-c
 
-# Copy acados_template and install it (pulls numpy, scipy, etc.)
-COPY --chown=leap:leap external/acados/interfaces/acados_template \
-     external/acados/interfaces/acados_template
-RUN uv pip install external/acados/interfaces/acados_template
+# Install acados_template from the acados-ci base image (already at /opt/acados)
+RUN uv pip install /opt/acados/interfaces/acados_template
 
 # Install PyTorch CPU (large download, cached independently of leap-c source)
 RUN uv pip install torch --index-url https://download.pytorch.org/whl/cpu
@@ -157,6 +92,7 @@ CMD ["/bin/bash"]
 # Stage: gpu
 # GPU image with CUDA and PyTorch GPU.
 # Local/manual only — not built by CI by default.
+# Copies acados artifacts from the published acados-ci image.
 # ----------------------------------------------------------
 FROM ${CUDA_IMAGE} AS gpu
 
@@ -178,14 +114,14 @@ RUN useradd -m -s /bin/bash leap && \
 
 ENV HOME=/home/leap
 
-# Copy acados build artifacts
-COPY --from=acados-builder --chown=leap:leap /opt/acados/lib /opt/acados/lib
-COPY --from=acados-builder --chown=leap:leap /opt/acados/include /opt/acados/include
-COPY --from=acados-builder --chown=leap:leap /opt/acados/bin /opt/acados/bin
+# Copy acados build artifacts from the published acados-ci image
+COPY --from=${ACADOS_CI_IMAGE} --chown=leap:leap /opt/acados/lib /opt/acados/lib
+COPY --from=${ACADOS_CI_IMAGE} --chown=leap:leap /opt/acados/include /opt/acados/include
+COPY --from=${ACADOS_CI_IMAGE} --chown=leap:leap /opt/acados/bin /opt/acados/bin
 
 # Acados environment
 ENV ACADOS_SOURCE_DIR=/opt/acados
-ENV LD_LIBRARY_PATH="/opt/acados/lib:${LD_LIBRARY_PATH}"
+ENV LD_LIBRARY_PATH="/opt/acados/lib"
 ENV PATH="/opt/acados/bin:${PATH}"
 
 USER leap
@@ -201,9 +137,10 @@ ENV PATH="/home/leap/.venv/bin:${PATH}"
 COPY --chown=leap:leap pyproject.toml /home/leap/leap-c/pyproject.toml
 WORKDIR /home/leap/leap-c
 
-COPY --chown=leap:leap external/acados/interfaces/acados_template \
-     external/acados/interfaces/acados_template
-RUN uv pip install external/acados/interfaces/acados_template
+# Copy acados_template from the acados-ci image
+COPY --from=${ACADOS_CI_IMAGE} --chown=leap:leap /opt/acados/interfaces/acados_template \
+     /tmp/acados_template
+RUN uv pip install /tmp/acados_template && rm -rf /tmp/acados_template
 
 # Install PyTorch GPU (CUDA)
 ARG TORCH_CUDA_INDEX

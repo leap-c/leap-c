@@ -22,12 +22,21 @@ env:
 
 jobs:
   build:
-    name: build amd64
-    runs-on: ubuntu-latest
+    name: build (${{ matrix.arch }})
+    runs-on: ${{ matrix.runner }}
     permissions:
       contents: read
       packages: write
-
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            platform: linux/amd64
+            runner: ubuntu-latest
+          - arch: arm64
+            platform: linux/arm64
+            runner: ubuntu-24.04-arm
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -45,21 +54,60 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build image
+      - name: Short SHA
+        id: vars
+        run: echo "short_sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Build and push arch image
         uses: docker/build-push-action@v7
         with:
           context: .
           file: docker/acados-ci/Dockerfile
+          platforms: ${{ matrix.platform }}
           push: ${{ github.event_name != 'pull_request' }}
           load: ${{ github.event_name == 'pull_request' }}
           tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:ubuntu24.04
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          cache-from: type=gha,scope=acados-ci-amd64
-          cache-to: type=gha,scope=acados-ci-amd64,mode=max
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:ubuntu24.04-${{ matrix.arch }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:sha-${{ steps.vars.outputs.short_sha }}-${{ matrix.arch }}
+          cache-from: type=gha,scope=acados-ci-${{ matrix.arch }}
+          cache-to: type=gha,scope=acados-ci-${{ matrix.arch }},mode=max
 
       - name: Smoke test image
+        if: github.event_name == 'pull_request'
         run: |
           docker run --rm \
-            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:ubuntu24.04 \
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:ubuntu24.04-${{ matrix.arch }} \
             bash -lc 'for py in 3.11 3.12 3.13; do uv venv --python ${py} /tmp/venv-${py}; . /tmp/venv-${py}/bin/activate; uv pip install /opt/acados/interfaces/acados_template; python -c "import acados_template; print(\"acados_template ok\")"; deactivate; done; test -x /opt/acados/bin/t_renderer; test -d /opt/acados/lib'
+
+  manifest:
+    name: multi-arch manifest
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event_name != 'pull_request'
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Short SHA
+        id: vars
+        run: echo "short_sha=${GITHUB_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Create multi-arch manifest
+        run: |
+          IMAGE="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+          docker buildx imagetools create \
+            -t ${IMAGE}:ubuntu24.04 \
+            -t ${IMAGE}:latest \
+            -t ${IMAGE}:sha-${{ steps.vars.outputs.short_sha }} \
+            "${IMAGE}:ubuntu24.04-amd64" \
+            "${IMAGE}:ubuntu24.04-arm64"
