@@ -315,8 +315,8 @@ def _(mo):
     optimal cost tells us how one solve responds to **each future price
     individually**. One `value.sum().backward()` on the batched solve populates
     `price_windows.grad`, giving that gradient shaped exactly like the forecast.
-    (For the lower-level exact KKT sensitivity API, `dvalue_dp_global`, see
-    `custom_examples/advanced_sensitivities.py`.)
+    (The lower-level exact KKT sensitivity API exposes the same gradient
+    directly, as `diff_mpc.diff_mpc_fun.sensitivity(ctx, "dvalue_dp_global")`.)
     """)
     return
 
