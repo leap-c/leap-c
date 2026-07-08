@@ -64,8 +64,8 @@ The snippet omits the acados OCP construction. For a full runnable example, see
 
 ## Ecosystem
 
-- [leap-c-lab](https://github.com/leap-c/leap-c-lab): planners, OCP definitions, gym
-  environments, and controller/planner abstractions built on the core layer.
+- [leap-c-lab](https://github.com/leap-c/leap-c-lab): example environments, OCP definitions, and
+  planners that show how to build on the core layer.
 - [mpc-sac](https://github.com/leap-c/mpc-sac): SAC/CrossQ-style RL training utilities for
   learning MPC controllers with `leap-c` and `leap-c-lab`.
 

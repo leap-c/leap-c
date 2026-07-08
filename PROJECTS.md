@@ -5,9 +5,9 @@ plus related work that may be useful to users.
 
 ## leap-c Ecosystem
 
-- [leap-c-lab](https://github.com/leap-c/leap-c-lab): example environments, OCP definitions,
-  planners, and controller/planner abstractions for `leap-c`. Use this when you want ready-made
-  planners and environments instead of building directly from the core layer.
+- [leap-c-lab](https://github.com/leap-c/leap-c-lab): example environments, OCP definitions, and
+  planners that show how to build on the `leap-c` core layer. Use it as a reference for
+  constructing your own planners and environments rather than as a ready-made library.
 - [mpc-sac](https://github.com/leap-c/mpc-sac): SAC, CrossQ, trainer, neural-network, and script
   utilities for training MPC controllers. It shows how `leap-c` can be used in reinforcement
   learning through `leap-c-lab` planners and environments.
