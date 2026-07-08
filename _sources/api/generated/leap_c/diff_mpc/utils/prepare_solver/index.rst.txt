@@ -1,0 +1,34 @@
+leap_c.diff_mpc.utils.prepare_solver
+====================================
+
+.. py:module:: leap_c.diff_mpc.utils.prepare_solver
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.diff_mpc.utils.prepare_solver.prepare_batch_solver
+   leap_c.diff_mpc.utils.prepare_solver.prepare_batch_solver_for_backward
+
+
+Module Contents
+---------------
+
+.. py:function:: prepare_batch_solver(batch_solver: acados_template.acados_ocp_batch_solver.AcadosOcpBatchSolver, ocp_iterate: acados_template.acados_ocp_iterate.AcadosOcpFlattenedBatchIterate, solver_input: leap_c.diff_mpc.data.AcadosOcpSolverInput) -> None
+
+   Prepare batch solver for problem instance given by solver_input, starting at ocp_iterate.
+
+   Also caches the last call, such that repeated calls to this do not incur unnecessary cost by
+   preparing a batch solver multiple times with the same inputs.
+
+
+.. py:function:: prepare_batch_solver_for_backward(batch_solver: acados_template.acados_ocp_batch_solver.AcadosOcpBatchSolver, ocp_iterate: acados_template.acados_ocp_iterate.AcadosOcpFlattenedBatchIterate, solver_input: leap_c.diff_mpc.data.AcadosOcpSolverInput) -> None
+
+   Prepare the backward batch solver such that the sensitivities can be retrieved.
+
+   Also caches the last call, such that repeated calls to this do not incur unnecessary cost by
+   preparing a batch solver multiple times with the same inputs.
+
+

@@ -1,0 +1,19 @@
+leap_c
+======
+
+.. py:module:: leap_c
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /api/generated/leap_c/autograd/index
+   /api/generated/leap_c/diff_mpc/index
+   /api/generated/leap_c/parameters/index
+   /api/generated/leap_c/torch/index
+   /api/generated/leap_c/utils/index
+
+

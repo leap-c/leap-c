@@ -1,0 +1,18 @@
+leap_c.diff_mpc.utils
+=====================
+
+.. py:module:: leap_c.diff_mpc.utils
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /api/generated/leap_c/diff_mpc/utils/create_solver/index
+   /api/generated/leap_c/diff_mpc/utils/delete_directory_hook/index
+   /api/generated/leap_c/diff_mpc/utils/prepare_solver/index
+   /api/generated/leap_c/diff_mpc/utils/solve/index
+
+

@@ -1,0 +1,77 @@
+leap_c.utils.collate
+====================
+
+.. py:module:: leap_c.utils.collate
+
+.. autoapi-nested-parse::
+
+   Collate helpers for leap-c context objects.
+
+   These helpers are useful when batching nested data with
+   ``AcadosDiffMpcCtx`` objects inside, for example to reuse single-sample contexts
+   as one batched warm start.
+
+   For a full user-facing example, see
+   ``notebooks/getting_started/07_imitation_learning.py``.
+
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.utils.collate.LEAPC_COLLATE_FN_MAP
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.utils.collate.collate_acados_diff_mpc_ctx
+   leap_c.utils.collate.collate_torch
+
+
+Module Contents
+---------------
+
+.. py:function:: collate_acados_diff_mpc_ctx(batch: collections.abc.Sequence[leap_c.diff_mpc.function.AcadosDiffMpcCtx], collate_fn_map: dict[str, collections.abc.Callable] | None = None) -> leap_c.diff_mpc.function.AcadosDiffMpcCtx
+
+   Collate a batch of single-sample contexts into one batched context.
+
+   Stacks the iterate and solver input arrays along a new batch axis and
+   concatenates statuses into a 1-D array.  ``log`` is set to ``None`` since
+   per-sample logs do not merge meaningfully.
+
+   :param batch: Non-empty sequence of :class:`AcadosDiffMpcCtx` objects, each
+                 holding a single-sample iterate and solver input.
+   :param collate_fn_map: Optional PyTorch-style collate map.  Accepted for
+                          protocol compatibility but unused.
+
+   :returns: A single :class:`AcadosDiffMpcCtx` whose ``iterate.N_batch`` equals
+             ``len(batch)``.
+
+
+.. py:function:: collate_torch(batch: collections.abc.Sequence[Any]) -> Any
+
+   Collate a batch with PyTorch defaults plus leap-c context support.
+
+   This is a convenience function for PyTorch ``DataLoader`` instances, replay
+   buffers, or downstream training code that stores ``AcadosDiffMpcCtx`` values
+   for batched warm starts.  PyTorch handles tensors, numpy arrays, mappings,
+   tuples, scalars, etc.; leap-c only adds the missing rule for MPC contexts.
+
+   :param batch: Sequence of samples to collate.
+
+   :returns: The PyTorch-collated batch.
+
+
+.. py:data:: LEAPC_COLLATE_FN_MAP
+
+   PyTorch-style ``collate_fn_map`` for :class:`AcadosDiffMpcCtx`.
+
+   Use this when an external batching utility accepts a custom collate map and may
+   encounter ``AcadosDiffMpcCtx`` objects.  If users only need to stack contexts
+   directly, they can call :func:`collate_acados_diff_mpc_ctx` instead.
+

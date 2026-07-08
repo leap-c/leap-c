@@ -1,0 +1,134 @@
+leap_c.torch
+============
+
+.. py:module:: leap_c.torch
+
+.. autoapi-nested-parse::
+
+   Central interface to use acados in PyTorch.
+
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.torch.torch
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.torch.AcadosDiffMpcTorch
+
+
+Module Contents
+---------------
+
+.. py:class:: AcadosDiffMpcTorch(ocp: acados_template.AcadosOcp, parameter_manager: leap_c.parameters.AcadosParameterManager, initializer: leap_c.diff_mpc.initializer.AcadosDiffMpcInitializer | None = None, discount_factor: float | None = None, export_directory: pathlib.Path | None = None, n_batch_init: int | None = None, num_threads_batch_solver: int | None = None, dtype: torch.dtype | None = None, verbose: bool = True)
+
+   Bases: :py:obj:`torch.nn.Module`
+
+
+   PyTorch module for differentiable MPC based on acados.
+
+   This module wraps acados solvers to enable their use in end-to-end machine learning
+   pipelines. It provides an autograd compatible forward method and supports sensitivity
+   computation with respect to various inputs.
+
+   Accepts a plain ``AcadosOcp`` together with a parameter manager. The parameter manager's
+   :meth:`~AcadosParameterManager.combine_differentiable_parameters_torch` is called in the forward
+   pass to build a flat differentiable tensor from the ``params`` dict.
+
+   .. rubric:: Examples
+
+   Forward pass with differentiable parameters; gradients flow back through ``params``::
+
+       >>> diff_mpc = AcadosDiffMpcTorch(ocp, manager)
+       >>> ctx, u0, x, u, value = diff_mpc(x0, params={"cost_weight": w})
+       >>> value.sum().backward()
+       >>> w.grad  # d(value)/d(cost_weight)
+
+   Sensitivities via :func:`torch.autograd.functional.jacobian`::
+
+       >>> jac = torch.autograd.functional.jacobian(lambda x0: diff_mpc(x0)[1], x0)
+
+   :ivar diff_mpc_fun: The differentiable MPC function wrapper for acados.
+   :ivar autograd_fun: A PyTorch autograd function created from ``diff_mpc_fun``.
+   :ivar parameter_manager: The parameter manager instance.
+
+
+
+   .. py:method:: extra_repr() -> str
+
+      Return the extra representation of the module.
+
+      To print customized extra information, you should re-implement
+      this method in your own modules. Both single-line and multi-line
+      strings are acceptable.
+
+
+
+   .. py:method:: forward(x0: torch.Tensor, u0: torch.Tensor | None = None, params: dict[str, torch.Tensor | numpy.ndarray] | None = None, ctx: leap_c.diff_mpc.function.AcadosDiffMpcCtx | None = None) -> tuple[leap_c.diff_mpc.function.AcadosDiffMpcCtx, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]
+
+      Performs the forward pass by solving the provided problem instances.
+
+      Passing a ``ctx`` returned by a previous call warmstarts the solver: its saved iterate
+      is reused as the initial guess, which can speed up convergence across sequential solves.
+      When ``ctx`` is ``None``, the solver is initialized by the ``initializer`` provided at
+      construction (a zero iterate by default).
+
+      Setting ``u0`` fixates the first-stage control: instead of being a free decision
+      variable, the first control is constrained to ``u0``. In that case the returned
+      ``u0`` matches the input ``u0`` and ``value`` is the cost of the constrained trajectory
+      (a Q-value) rather than the optimal value (a V-value).
+
+      :param x0: Initial states with shape ``(B, x_dim)``.
+      :param u0: Initial actions with shape ``(B, u_dim)``. Defaults to ``None``.
+      :param params: A dictionary containing named parameter overrides.  Values may be
+                     torch tensors (differentiable) or numpy arrays (non-differentiable).
+      :param ctx: Context from a previous solve, used to warmstart. Defaults to ``None``.
+
+      :returns: A new context object from solving the problems.
+                u0: Solution of initial control input.
+                x: The solution of the whole state trajectory.
+                u: The solution of the whole control trajectory.
+                value: The cost value of the computed trajectory.
+      :rtype: ctx
+
+      .. rubric:: Examples
+
+      Warmstart a subsequent solve by feeding the previous ``ctx`` back in::
+
+          >>> ctx, u0, x, u, value = diff_mpc(x0)
+          >>> ctx, u0, x, u, value = diff_mpc(x0, ctx=ctx)
+
+      Fixate the first-stage control with ``u0``::
+
+          >>> ctx, u0, x, u, value = diff_mpc(x0, u0=action)
+          >>> torch.allclose(u0, action)  # True (up to dtype cast)
+
+
+
+   .. py:attribute:: autograd_fun
+      :type:  type[torch.autograd.Function]
+
+
+   .. py:attribute:: diff_mpc_fun
+      :type:  leap_c.diff_mpc.function.AcadosDiffMpcFunction
+
+
+   .. py:attribute:: dtype
+      :value: None
+
+
+
+   .. py:attribute:: parameter_manager
+      :type:  leap_c.parameters.AcadosParameterManager
+
+
+.. py:data:: torch
+
