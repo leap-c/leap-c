@@ -219,8 +219,8 @@ def _(mo):
     | `functional.jacobian` | full Jacobians of vector outputs |
 
     All three read the same exact KKT gradient. (There is also a lower-level
-    API that returns Jacobian blocks straight off the solver context — see
-    `custom_examples/advanced_sensitivities.py` once you need it.)
+    API that returns Jacobian blocks straight off the solver context:
+    `diff_mpc.diff_mpc_fun.sensitivity(ctx, field)`.)
 
     ## Where gradients die: saturation
 

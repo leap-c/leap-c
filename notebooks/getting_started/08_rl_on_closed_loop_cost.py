@@ -401,9 +401,10 @@ def _(mo):
       closed-loop objective then buys what no demonstration contains —
       here, price-awareness.
 
-    **Where to go next:** the `custom_examples/` folder — economic MPC on
-    a battery, the exact KKT sensitivity API, and a full prosumer (heat
-    pump + PV + battery) with a plan-vs-tariff Jacobian.
+    **Where to go next:** your own problem. Formulate its OCP as in 02,
+    decide which parameters are differentiable and how they vary over the
+    horizon (04), batch the solve (05), wrap it in a planner (06), and
+    train it against demonstrations (07) or a closed-loop cost (08).
     """)
     return
 

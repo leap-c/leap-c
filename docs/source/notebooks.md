@@ -13,12 +13,6 @@ leap-c ships interactive [marimo](https://marimo.io) notebooks (see the `noteboo
 - `07_imitation_learning.py`: behavior cloning through the solver.
 - `08_rl_on_closed_loop_cost.py`: tuning the planner by backpropagating through closed-loop rollouts.
 
-**`notebooks/custom_examples/`** holds self-contained advanced studies:
-
-- `battery_arbitrage.py`: economic MPC for battery arbitrage with signed price sensitivities.
-- `advanced_sensitivities.py`: the exact KKT sensitivity API (`sensitivity(ctx, ...)`).
-- `prosumer_home_energy.py`: a heat pump + battery + PV prosumer with a full plan-vs-tariff Jacobian.
-
 See `notebooks/README.md` for the full API coverage map and reading order.
 
 You can run these notebooks either locally (recommended for development) or via a pre-built Docker image (a convenient fallback if you do not want to build acados yourself).

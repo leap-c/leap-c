@@ -1,15 +1,11 @@
 # Notebooks
 
-These are [marimo](https://marimo.io) notebooks (plain `.py` files, not `.ipynb`),
-organized in two tiers:
+These are [marimo](https://marimo.io) notebooks (plain `.py` files, not `.ipynb`).
 
-- **`getting_started/`** — a sequential course. Eight notebooks, one focus
-  each, on two systems only (a mass-spring-damper and an R1C1 house-heating
-  problem). Read in order; afterwards you can formulate, batch,
-  differentiate, and train your own problem.
-- **`custom_examples/`** — self-contained advanced studies (economic MPC on
-  a battery, the low-level KKT sensitivity API, a full prosumer). Read in
-  any order, after the course.
+**`getting_started/`** is a sequential course: eight notebooks, one focus each,
+on two systems only (a mass-spring-damper and an R1C1 house-heating problem).
+Read in order; afterwards you can formulate, batch, differentiate, and train
+your own problem.
 
 Shared helpers live in `nb_utils/` at this directory's root.
 
@@ -29,17 +25,6 @@ reinforcement learning (07, 08).
 | 06 | `06_planner_interface.py` | R1C1 heating | a `forward(obs) → action` planner; time-varying slacked comfort band; warm starts; closed loop vs. a mismatched house |
 | 07 | `07_imitation_learning.py` | R1C1 heating | behavior cloning through the solver; the learned parameters as a portrait of occupant + building; `collate_torch` |
 | 08 | `08_rl_on_closed_loop_cost.py` | R1C1 heating | backprop through a closed-loop rollout; BOPTEST-style cost + discomfort objective; `discount_factor=` |
-
-## custom_examples
-
-| Notebook | System | Focus |
-|----------|--------|-------|
-| `battery_arbitrage.py` | battery | economic MPC: a pure money cost, the wear-term Hessian argument, terminal energy value, signed price sensitivities |
-| `advanced_sensitivities.py` | mass-spring-damper | the exact KKT `sensitivity(ctx, ...)` API; exact match vs. autograd; the **stage-summed** semantics of `du_dp_global` |
-| `prosumer_home_energy.py` | prosumer (heat pump + battery + PV) | multi-input economic MPC; asymmetric buy/sell prices; full Jacobian of the planned grid exchange w.r.t. a 24 h tariff |
-
-Numerical and API observations collected while building the prosumer example
-are documented in [`custom_examples/prosumer_observations.md`](custom_examples/prosumer_observations.md).
 
 ## API coverage map
 
@@ -64,11 +49,12 @@ looking for how to do X, start at the notebook named here):
 | time-varying slacked bounds via parametric h-constraints | 06 (builder in `nb_utils/heating.py`) |
 | training loops (behavior cloning; backprop-through-rollout) | 07, 08 |
 | `collate_torch` (incl. collating stored `AcadosDiffMpcCtx`) | 07 |
-| low-level `diff_mpc_fun.sensitivity(ctx, field)`, `p_global_slice` | `custom_examples/advanced_sensitivities.py` |
 
-Deliberately not covered in notebooks: custom `AcadosDiffMpcInitializer`
-(named in 06), `casadi_type="MX"` (note in 04), and the manager's internal
-`combine_*` methods (never user-called).
+Deliberately not covered in notebooks: the low-level
+`diff_mpc_fun.sensitivity(ctx, field)` API that returns Jacobian blocks
+straight off the solver context (named in 03 and 05), custom
+`AcadosDiffMpcInitializer` (named in 06), `casadi_type="MX"` (note in 04),
+and the manager's internal `combine_*` methods (never user-called).
 
 ## Conventions
 
