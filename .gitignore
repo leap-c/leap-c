@@ -111,6 +111,10 @@ ipython_config.py
 #   install all needed dependencies.
 #Pipfile.lock
 
+# uv
+#   leap-c is a library; uv may generate this locally when running commands.
+uv.lock
+
 # poetry
 #   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
 #   This is especially recommended for binary packages to ensure reproducibility, and is more
