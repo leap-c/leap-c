@@ -2,9 +2,24 @@
 
 leap-c ships interactive [marimo](https://marimo.io) notebooks (see the `notebooks/` folder) that demonstrate how to formulate and solve optimal control problems with the differentiable acados layer.
 
-Available notebooks:
+**`notebooks/getting_started/`** is a sequential course on two small systems (a mass-spring-damper and an R1C1 house-heating problem):
 
-- `notebooks/minimal_mpc.py`: scalar integrator MPC plus batched warm-start collation.
+- `01_intro_diff_mpc.py`: differentiable MPC end-to-end in five minutes.
+- `02_from_acados_to_diff_mpc.py`: converting an existing plain `AcadosOcp` into a differentiable one.
+- `03_gradients_through_the_solver.py`: V vs. Q, the three autograd routes, and where gradients die.
+- `04_parameter_management.py`: differentiable vs. non-differentiable parameters, stage `splits`, override shapes, guard rails.
+- `05_batched_solves_and_forecasts.py`: the batch dimension; weather/price forecasts through both parameter interfaces.
+- `06_planner_interface.py`: an observation-to-action planner with a time-varying slacked comfort band, closed-loop against a mismatched house.
+- `07_imitation_learning.py`: behavior cloning through the solver.
+- `08_rl_on_closed_loop_cost.py`: tuning the planner by backpropagating through closed-loop rollouts.
+
+**`notebooks/custom_examples/`** holds self-contained advanced studies:
+
+- `battery_arbitrage.py`: economic MPC for battery arbitrage with signed price sensitivities.
+- `advanced_sensitivities.py`: the exact KKT sensitivity API (`sensitivity(ctx, ...)`).
+- `prosumer_home_energy.py`: a heat pump + battery + PV prosumer with a full plan-vs-tariff Jacobian.
+
+See `notebooks/README.md` for the full API coverage map and reading order.
 
 You can run these notebooks either locally (recommended for development) or via a pre-built Docker image (a convenient fallback if you do not want to build acados yourself).
 
