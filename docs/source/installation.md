@@ -33,8 +33,7 @@ Create a virtual environment and activate it. Assuming a required Python version
 Recommended (uv), which also fetches a matching Python if it is not installed:
 
 ```bash
-uv venv --python 3.11
-source .venv/bin/activate
+uv sync
 ```
 
 Alternatively (pip/venv):
@@ -56,14 +55,33 @@ cd external/acados
 
 and build it as described in the [acados documentation](https://docs.acados.org/installation/index.html).
 When running the `cmake` command, include the options `-DACADOS_WITH_OPENMP=ON -DACADOS_NUM_THREADS=1`.
-Afterwards, install the [python interface](https://docs.acados.org/python_interface/index.html) of acados.
-When the acados docs use `pip install`, you can substitute `uv pip install` as a drop-in
-replacement inside the activated environment.
+
+Then, export the following environment variables:
+
+```bash
+export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:"$PWD/external/acados/lib"
+export ACADOS_SOURCE_DIR="$PWD/external/acados"
+```
+
+## Install leap-c
+
+> [!NOTE] If you're planning to use `pip`, we recommend you to manually create a virtual environment of your choice, with Python version of 3.11 or newer.
+
+```bash
+uv sync --extra torch        # minimal install with torch backend
+```
+
+Alternatively (pip/venv):
+
+```bash
+pip install -e .[torch]
+```
+
+See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on package configurations.
 
 ## Backend
 
-leap-c does **not** auto-install a computational backend. Select one via its
-optional extra:
+Main leap-c package does **not** auto-install a computational backend. Select one via its optional extra:
 
 | Extra | Framework | Required for |
 |-------|-----------|-------------|
@@ -131,16 +149,6 @@ pip install -e ".[jax-cuda12]"
 
 If no backend is installed and you try to import a backend-specific module,
 leap-c raises a clear error telling you which backends are supported.
-
-## Install leap-c
-
-```bash
-uv sync                      # minimal install (no backend)
-uv sync --extra dev          # minimal + torch, jax, docs, test, pre-commit
-pip install -e ".[dev]"      # pip equivalent
-```
-
-See the [pyproject.toml](https://github.com/leap-c/leap-c/blob/main/pyproject.toml) for more information on package configurations.
 
 ### Troubleshooting
 

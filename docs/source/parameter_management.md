@@ -2,7 +2,7 @@
 
 This tutorial walks through `AcadosParameterManager` — the class that controls how numerical
 parameters flow into an acados Optimal Control Problem (OCP) and, optionally, into a learning
-loop via `AcadosDiffMpcTorch`.
+loop via `AcadosDiffMpcTorch` or `AcadosDiffMpcJax`.
 
 You register each parameter once with `manager.register_parameter(...)`, which returns a CasADi
 symbol you drop straight into your dynamics, cost, and constraint expressions. At solve time you
