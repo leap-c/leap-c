@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "leap-c"
 version = "0.3.0a0"
-dependencies = ["casadi", "numpy>=1.26.0"]
+dependencies = ["casadi", "numpy>=1.26.0", "acados_template"]
 
 requires-python = ">=3.11"
 maintainers = [
@@ -26,6 +26,7 @@ classifiers = [
 test = ["pytest", "pytest-cov"]
 torch = ["torch>=2.0.0"]
 jax = ["jax"]
+jax-cuda12 = ["jax[cuda12]"]
 notebooks = ["marimo>=0.13.0"]
 docs = [
     "sphinx",
@@ -35,7 +36,14 @@ docs = [
     "sphinx-autobuild",
     "sphinxcontrib-mermaid",
 ]
-dev = ["leap_c[docs]", "leap_c[test]", "leap_c[torch]", "pre-commit", "ruff"]
+dev = [
+    "leap_c[docs]",
+    "leap_c[test]",
+    "leap_c[torch]",
+    "leap_c[jax-cuda12]",
+    "pre-commit",
+    "ruff",
+]
 
 [tool.setuptools.packages.find]
 include = ["leap_c*"]
@@ -54,6 +62,9 @@ extend-exclude = ["external", "notebooks"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"
+
+[tool.uv.sources]
+acados_template = { path = "./external/acados/interfaces/acados_template", editable = true }
 
 [tool.ruff.lint]
 ignore = [

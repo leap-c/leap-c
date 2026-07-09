@@ -1,6 +1,8 @@
 import re
 
 import casadi as ca
+import jax
+import jax.numpy as jnp
 import numpy as np
 import pytest
 import torch
@@ -969,6 +971,161 @@ def test_combine_differentiable_parameters_torch_errors():
             batch_size=2,
             temperature=np.array([[1.0], [2.0]]),  # Should be (2, 2)
         ).detach().numpy()
+
+
+def test_combine_differentiable_parameters_jax_basic():
+    """Test combine_differentiable_parameters_jax with basic parameters."""
+    N_horizon = 5
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(name="scalar", default=np.array([1.0]), differentiable=True)
+    manager.register_parameter(name="vector", default=np.array([2.0, 3.0]), differentiable=True)
+
+    batch_size = 3
+    result = np.asarray(manager.combine_differentiable_parameters_jax(batch_size=batch_size))
+
+    default_flat = np.concatenate(
+        list(manager._differentiable_parameter_store.defaults.values())
+    ).reshape(-1)
+    expected = np.tile(default_flat, (batch_size, 1))
+
+    np.testing.assert_array_equal(result, expected)
+    assert result.shape == (batch_size, len(default_flat))
+
+
+def test_combine_differentiable_parameters_jax_with_overwrites():
+    """Test combine_differentiable_parameters_jax with overwrites for non-stagewise params."""
+    N_horizon = 5
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(name="scalar", default=np.array([1.0]), differentiable=True)
+    manager.register_parameter(name="vector", default=np.array([2.0, 3.0]), differentiable=True)
+
+    batch_size = 3
+    scalar_values = jnp.array([[10.0], [20.0], [30.0]])
+
+    result = np.asarray(
+        manager.combine_differentiable_parameters_jax(batch_size=batch_size, scalar=scalar_values)
+    )
+
+    scalar_idx_start, scalar_idx_end = manager._differentiable_parameter_store.indices["scalar"]
+    np.testing.assert_array_equal(result[:, scalar_idx_start:scalar_idx_end], scalar_values)
+
+    vector_idx_start, vector_idx_end = manager._differentiable_parameter_store.indices["vector"]
+    expected_vector = np.tile([[2.0], [3.0]], (1, batch_size)).T
+    np.testing.assert_array_equal(result[:, vector_idx_start:vector_idx_end], expected_vector)
+
+
+def test_combine_differentiable_parameters_jax_stagewise():
+    """Test combine_differentiable_parameters_jax with stagewise parameters."""
+    N_horizon = 5
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(
+        name="temperature",
+        default=np.array([20.0]),
+        differentiable=True,
+        splits=[2, N_horizon],
+    )
+    manager.register_parameter(
+        name="price",
+        default=np.array([10.0]),
+        differentiable=True,
+        splits=[N_horizon],
+    )
+
+    batch_size = 2
+    temperature_forecast = jnp.array([[15.0, 16.0], [25.0, 26.0]])
+    price_forecast = jnp.array([[5.0], [15.0]])
+
+    result = np.asarray(
+        manager.combine_differentiable_parameters_jax(
+            batch_size=batch_size, temperature=temperature_forecast, price=price_forecast
+        )
+    )
+
+    temp_0_2_idx_start, temp_0_2_idx_end = manager._differentiable_parameter_store.indices[
+        "temperature_0_2"
+    ]
+    temp_3_5_idx_start, temp_3_5_idx_end = manager._differentiable_parameter_store.indices[
+        "temperature_3_5"
+    ]
+
+    np.testing.assert_array_equal(
+        result[0, temp_0_2_idx_start:temp_0_2_idx_end], temperature_forecast[0, 0]
+    )
+    np.testing.assert_array_equal(
+        result[0, temp_3_5_idx_start:temp_3_5_idx_end], temperature_forecast[0, 1]
+    )
+    np.testing.assert_array_equal(
+        result[1, temp_0_2_idx_start:temp_0_2_idx_end], temperature_forecast[1, 0]
+    )
+    np.testing.assert_array_equal(
+        result[1, temp_3_5_idx_start:temp_3_5_idx_end], temperature_forecast[1, 1]
+    )
+
+    price_0_5_idx_start, price_0_5_idx_end = manager._differentiable_parameter_store.indices[
+        "price_0_5"
+    ]
+    np.testing.assert_array_equal(
+        result[0, price_0_5_idx_start:price_0_5_idx_end], price_forecast[0, 0]
+    )
+    np.testing.assert_array_equal(
+        result[1, price_0_5_idx_start:price_0_5_idx_end], price_forecast[1, 0]
+    )
+
+
+def test_combine_differentiable_parameters_jax_errors():
+    """Test error handling in combine_differentiable_parameters_jax."""
+    N_horizon = 5
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(name="scalar", default=np.array([1.0]), differentiable=True)
+    manager.register_parameter(
+        name="temperature",
+        default=np.array([20.0]),
+        differentiable=True,
+        splits=[2, N_horizon],
+    )
+
+    with pytest.raises(ValueError, match="Parameter 'unknown' not found"):
+        manager.combine_differentiable_parameters_jax(
+            batch_size=2, unknown=jnp.array([[1.0], [2.0]])
+        )
+
+    manager2 = AcadosParameterManager(N_horizon=N_horizon)
+    manager2.register_parameter(name="non_learn", default=np.array([1.0]), differentiable=False)
+
+    with pytest.raises(ValueError, match="has interface 'non-differentiable'"):
+        manager2.combine_differentiable_parameters_jax(
+            batch_size=2, non_learn=jnp.array([[1.0], [2.0]])
+        )
+
+    with pytest.raises(ValueError, match="batch_size=2 does not match.*batch_size=3"):
+        manager.combine_differentiable_parameters_jax(
+            batch_size=2, scalar=jnp.array([[1.0], [2.0], [3.0]])
+        )
+
+    with pytest.raises(ValueError, match="requires shape \\(batch_size, 2"):
+        manager.combine_differentiable_parameters_jax(
+            batch_size=2,
+            temperature=jnp.array([[1.0], [2.0]]),  # Should be (2, 2)
+        )
+
+
+def test_combine_differentiable_parameters_jax_gradient_flow():
+    """Gradients flow from combine output back to per-segment overwrite arrays."""
+    N_horizon = 5
+    manager = AcadosParameterManager(N_horizon=N_horizon)
+    manager.register_parameter(
+        name="p", default=np.array([1.0]), differentiable=True, splits=[2, N_horizon]
+    )
+
+    values = jnp.array([[15.0, 25.0], [16.0, 26.0]])
+
+    def loss_fn(values):
+        return manager.combine_differentiable_parameters_jax(batch_size=2, p=values).sum()
+
+    grad = jax.grad(loss_fn)(values)
+
+    assert grad.shape == values.shape
+    np.testing.assert_allclose(np.asarray(grad), np.ones((2, 2)))
 
 
 @pytest.mark.parametrize(

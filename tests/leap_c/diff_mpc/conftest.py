@@ -6,6 +6,7 @@ import pytest
 import torch
 from acados_template import AcadosOcp, AcadosOcpOptions
 
+from leap_c.jax import AcadosDiffMpcJax
 from leap_c.parameters import AcadosParameterManager
 from leap_c.parameters.data import _AcadosParameter
 from leap_c.torch import AcadosDiffMpcTorch
@@ -581,12 +582,19 @@ def acados_test_ocp_indefinite_hess_stagewise(
 
 
 @pytest.fixture(scope="session")
-def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpcTorch:
+def _param_manager(acados_test_ocp: AcadosOcp) -> AcadosParameterManager:
     pm = acados_test_ocp._test_pm
     del acados_test_ocp._test_pm
+    return pm
+
+
+@pytest.fixture(scope="session")
+def diff_mpc(
+    acados_test_ocp: AcadosOcp, _param_manager: AcadosParameterManager
+) -> AcadosDiffMpcTorch:
     return AcadosDiffMpcTorch(
         ocp=acados_test_ocp,
-        parameter_manager=pm,
+        parameter_manager=_param_manager,
         initializer=None,
         discount_factor=None,
         dtype=torch.float64,
@@ -594,18 +602,50 @@ def diff_mpc(acados_test_ocp: AcadosOcp) -> AcadosDiffMpcTorch:
 
 
 @pytest.fixture(scope="session")
-def diff_mpc_with_stagewise_varying_params(
+def diff_mpc_jax(
+    acados_test_ocp: AcadosOcp, _param_manager: AcadosParameterManager
+) -> AcadosDiffMpcJax:
+    return AcadosDiffMpcJax(
+        ocp=acados_test_ocp,
+        parameter_manager=_param_manager,
+        initializer=None,
+        discount_factor=None,
+    )
+
+
+@pytest.fixture(scope="session")
+def _param_manager_stagewise(
     acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
-) -> AcadosDiffMpcTorch:
+) -> AcadosParameterManager:
     pm = acados_test_ocp_with_stagewise_varying_params._test_pm
     del acados_test_ocp_with_stagewise_varying_params._test_pm
+    return pm
 
+
+@pytest.fixture(scope="session")
+def diff_mpc_with_stagewise_varying_params(
+    acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
+    _param_manager_stagewise: AcadosParameterManager,
+) -> AcadosDiffMpcTorch:
     return AcadosDiffMpcTorch(
         ocp=acados_test_ocp_with_stagewise_varying_params,
-        parameter_manager=pm,
+        parameter_manager=_param_manager_stagewise,
         initializer=None,
         discount_factor=None,
         dtype=torch.float64,
+    )
+
+
+@pytest.fixture(scope="session")
+def diff_mpc_jax_with_stagewise_varying_params(
+    acados_test_ocp_with_stagewise_varying_params: AcadosOcp,
+    _param_manager_stagewise: AcadosParameterManager,
+) -> AcadosDiffMpcJax:
+    return AcadosDiffMpcJax(
+        ocp=acados_test_ocp_with_stagewise_varying_params,
+        parameter_manager=_param_manager_stagewise,
+        initializer=None,
+        discount_factor=None,
     )
 
 
