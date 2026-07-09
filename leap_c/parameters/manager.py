@@ -231,7 +231,11 @@ class AcadosParameterManager:
                     f"inferred batch_size={inferred_batch_size} from overwrites."
                 )
 
-        batch_size = inferred_batch_size if inferred_batch_size is not None else batch_size or 1
+        batch_size = (
+            inferred_batch_size
+            if inferred_batch_size is not None
+            else (batch_size if batch_size is not None else 1)
+        )
 
         batch_param = (
             torch.from_numpy(self.differentiable_default_flat)
@@ -315,12 +319,12 @@ class AcadosParameterManager:
     ) -> Any:
         """Combine differentiable parameters into a flat JAX array, preserving differentiability.
 
-        .. note::
-            This method is a placeholder. Contributions implementing JAX-native operations
-            (e.g. using ``jax.numpy``) are welcome.
+        Uses ``jax.numpy`` operations (``concatenate``, ``broadcast_to``) so that JAX can trace
+        and differentiate through the parameter composition. Mirrors
+        :meth:`combine_differentiable_parameters_torch`.
 
         Args:
-            batch_size: Batch size.
+            batch_size: Batch size. If not provided, inferred from the first overwrite value.
             **overwrites: Named parameter overrides as JAX or numpy arrays.
 
         Returns:
@@ -328,13 +332,93 @@ class AcadosParameterManager:
 
         Raises:
             ImportError: If jax is not installed.
-            NotImplementedError: Until a JAX implementation is contributed.
+            ValueError: If a parameter name is not registered or has a mismatched interface.
         """
         require_jax()
-        raise NotImplementedError(
-            "combine_differentiable_parameters_jax is not yet implemented. "
-            "Contributions are welcome! See combine_differentiable_parameters_torch for reference."
+        import jax.numpy as jnp
+
+        inferred_batch_size = next(iter(overwrites.values())).shape[0] if overwrites else None
+        if batch_size is not None and inferred_batch_size is not None:
+            if batch_size != inferred_batch_size:
+                raise ValueError(
+                    f"Provided batch_size={batch_size} does not match "
+                    f"inferred batch_size={inferred_batch_size} from overwrites."
+                )
+
+        batch_size = (
+            inferred_batch_size
+            if inferred_batch_size is not None
+            else (batch_size if batch_size is not None else 1)
         )
+
+        batch_param = jnp.broadcast_to(
+            jnp.asarray(self.differentiable_default_flat).reshape(1, -1),
+            (batch_size, self.differentiable_default_flat.shape[0]),
+        )
+
+        if not overwrites:
+            return batch_param
+
+        for name, values in overwrites.items():
+            if name not in self.parameters:
+                raise ValueError(
+                    f"Parameter '{name}' not found. "
+                    f"Available parameters: {list(self.parameters.keys())}"
+                )
+
+            param = self.parameters[name]
+            if param.interface != "differentiable":
+                raise ValueError(
+                    f"Parameter '{name}' has interface '{param.interface}', "
+                    "but only 'differentiable' parameters can be used in this method."
+                )
+
+            if values.shape[0] != batch_size:
+                raise ValueError(
+                    f"Parameter '{name}' values have batch size {values.shape[0]}, "
+                    f"but expected {batch_size}."
+                )
+
+            if param.is_stage_varying:
+                expected_n_segments = param.overwrite_shape(self.N_horizon)[0]
+                if values.shape[1] != expected_n_segments:
+                    raise ValueError(
+                        f"Parameter '{name}' is stage-varying and requires shape "
+                        f"(batch_size, {expected_n_segments}, ...), but got shape {values.shape}."
+                    )
+
+        for name in self.differentiable_parameter_names:
+            param = self.parameters[name]
+            if name in overwrites:
+                val = overwrites[name]
+                if isinstance(val, np.ndarray):
+                    val = jnp.asarray(val)
+            else:
+                continue
+
+            if param.is_stage_varying:
+                starts, ends = _define_starts_and_ends(
+                    splits=param.splits, N_horizon=self.N_horizon
+                )
+                for seg_idx, (start, end) in enumerate(zip(starts, ends)):
+                    key = f"{name}_{start}_{end}"
+                    s, e = self._differentiable_parameter_store.indices[key]
+                    batch_param = jnp.concatenate(
+                        [
+                            batch_param[:, :s],
+                            val[:, seg_idx].reshape(batch_size, -1),
+                            batch_param[:, e:],
+                        ],
+                        axis=-1,
+                    )
+            else:
+                s, e = self._differentiable_parameter_store.indices[name]
+                batch_param = jnp.concatenate(
+                    [batch_param[:, :s], val.reshape(batch_size, -1), batch_param[:, e:]],
+                    axis=-1,
+                )
+
+        return batch_param
 
     def combine_non_differentiable_parameters(
         self, batch_size: int | None = None, **overwrite: np.ndarray
