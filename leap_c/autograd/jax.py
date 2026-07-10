@@ -40,16 +40,36 @@ def create_jax_callable(
     :func:`leap_c.autograd.torch.create_autograd_function`: passing a ``ctx`` from a previous
     call warmstarts the solve, and the returned ``ctx`` can be fed into the next call.
 
-    The impure acados C solver is isolated inside ``jax.pure_callback``, and gradients flow via
-    ``jax.custom_vjp``. Every call builds a *fresh* ``custom_vjp``-wrapped primal closing over a
-    per-call context box: the forward pass's context is threaded to its own matching backward pass
-    via that box (``AcadosDiffMpcCtx`` isn't a valid JAX pytree, so it can't ride as a
-    ``custom_vjp`` residual). Because the box and the VJP rule are rebuilt on every call rather than
-    shared across calls, concurrent-in-time forward calls on the same layer (e.g. two rollouts
-    before either is differentiated) never clobber each other's context; only the fixed cost of
-    re-registering a VJP rule is paid per call, which is negligible next to the acados solve. Since
-    ``pure_callback`` calls run eagerly, ``jax.grad`` works but ``jax.jit`` of the whole layer (or
-    of ``jax.grad`` thereof) is not supported.
+    The acados C solver is wrapped with ``jax.pure_callback`` so it can sit inside a
+    ``jax.custom_vjp``-differentiated function, and gradients flow via that ``custom_vjp``. This
+    function (``solve``) is itself stateless: the caller's ``ctx`` comes in as an argument and a
+    fresh ``ctx`` goes out as part of the return value, with nothing shared across calls at module
+    scope. There is one unavoidable side channel, though: ``fun.forward``'s real output includes
+    ``AcadosDiffMpcCtx``, a plain Python object (solver-internal iterate, dict, etc.), but
+    ``pure_callback`` only allows its callback to return values matching a fixed
+    ``result_shape_dtypes`` of JAX arrays -- a non-array object can't come back through that return
+    channel (confirmed empirically: returning it as an ``object``-dtype ``ShapedArray`` raises
+    ``TypeError: No dtype_to_ir_type handler for dtype: object``). So the callback smuggles the new
+    ctx out via ``ctx_box``, a plain dict captured by closure, instead of returning it -- that box
+    is the one impure step, and it's forced by ``pure_callback``'s arrays-only contract rather than
+    by how ``ctx`` is threaded through ``solve``'s own signature. The same box also carries the
+    context from the forward pass to its matching backward pass, since ``AcadosDiffMpcCtx`` isn't a
+    valid JAX pytree either and so can't ride as a ``custom_vjp`` residual.
+
+    Every call builds a *fresh* ``ctx_box`` and a *fresh* ``custom_vjp``-wrapped primal closing over
+    it, rather than reusing either across calls: this means concurrent-in-time forward calls on the
+    same layer (e.g. two rollouts before either is differentiated) never clobber each other's
+    context; only the fixed cost of re-registering a VJP rule is paid per call, which is negligible
+    next to the acados solve. Since ``pure_callback`` calls run eagerly, ``jax.grad`` works but
+    ``jax.jit`` of the whole layer (or of ``jax.grad`` thereof) is not supported.
+
+    Unlike :func:`leap_c.autograd.torch.create_autograd_function`, which wraps any ``DiffFunction``
+    generically (arbitrary arity, no shape info needed) because PyTorch's autograd is eager, this
+    function is specific to ``AcadosDiffMpcFunction``-shaped problems and takes ``N_horizon``,
+    ``nx``, ``nu`` explicitly. That's because ``pure_callback`` must be told the exact output
+    ``ShapedArray``s *before* it runs the callback, so something has to supply those shapes ahead of
+    time; a fully generic JAX wrapper would need that shape information from the ``DiffFunction``
+    itself rather than hardcoded here.
 
     ``pure_callback`` passes JAX arrays (not numpy) to the callback, so explicit
     ``np.asarray()`` conversion is performed before calling the core solver.
