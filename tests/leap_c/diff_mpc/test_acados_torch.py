@@ -501,7 +501,7 @@ def test_sensitivity(
         # Setup test data
         test_inputs = _setup_test_inputs(diff_mpc_k, n_batch, dtype, noise_scale)
 
-        ctx, u0, x, u, value = diff_mpc_k.forward(x0=test_inputs.x0)
+        ctx, _u0, _x, _u, _value = diff_mpc_k.forward(x0=test_inputs.x0)
 
         results = {
             field: diff_mpc_k.diff_mpc_fun.sensitivity(ctx=ctx, field_name=field)  # type: ignore
@@ -529,7 +529,7 @@ def test_sensitivity(
             f"Got: {results['dvalue_dx0'].shape}"
         )
 
-        ctx, u0, x, u, value = diff_mpc_k.forward(x0=test_inputs.x0, u0=test_inputs.u0)
+        ctx, _u0, _x, _u, _value = diff_mpc_k.forward(x0=test_inputs.x0, u0=test_inputs.u0)
         results["dvalue_du0"] = diff_mpc_k.diff_mpc_fun.sensitivity(
             ctx=ctx, field_name="dvalue_du0"
         )
@@ -610,7 +610,7 @@ def _check_jacobian_matches_sensitivity(
         s, e = indices[param_name]
 
     # Ground truth: low-level acados sensitivity, sliced to this param's p_global block(s).
-    ctx, u0, x, u, value = diff_mpc(x0=x0, params={param_name: param})
+    ctx, _u0, _x, _u, _value = diff_mpc(x0=x0, params={param_name: param})
     du0_dp_global = torch.as_tensor(diff_mpc.diff_mpc_fun.sensitivity(ctx, "du0_dp_global"))
     dvalue_dp_global = torch.as_tensor(diff_mpc.diff_mpc_fun.sensitivity(ctx, "dvalue_dp_global"))
     du0_dp_ref = du0_dp_global[:, :, s:e]  # (B, nu, width)
@@ -1006,7 +1006,7 @@ def test_params_dict_backward_simple() -> None:
 
     params = {"Q": Q_tensor, "R": R_tensor, "dummy_non_differentiable": dummy_tensor}
 
-    ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
+    _ctx, _u0, _xs, _us, value = diff_mpc(x0=x0, params=params)
 
     loss = value.sum()
     loss.backward()
@@ -1062,7 +1062,7 @@ def test_guard_non_differentiable_detached_works() -> None:
 
     params = {"dummy_non_differentiable": dummy_tensor}
 
-    ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
+    ctx, _u0, _xs, _us, _value = diff_mpc(x0=x0, params=params)
 
     assert np.all(ctx.status == 0)
 
@@ -1074,7 +1074,7 @@ def test_guard_non_differentiable_numpy_works() -> None:
     dummy_array = np.array([[[1.0]] * 6], dtype=np.float64)
 
     params = {"dummy_non_differentiable": dummy_array}
-    ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
+    ctx, _u0, _xs, _us, _value = diff_mpc(x0=x0, params=params)
 
     assert np.all(ctx.status == 0)
 
@@ -1087,7 +1087,7 @@ def test_guard_differentiable_requires_grad_works() -> None:
     dummy_tensor = torch.tensor([[[1.0]] * 6], dtype=torch.float64, requires_grad=True).detach()
 
     params = {"Q": Q_tensor, "dummy_non_differentiable": dummy_tensor}
-    ctx, u0, xs, us, value = diff_mpc(x0=x0, params=params)
+    ctx, _u0, _xs, _us, value = diff_mpc(x0=x0, params=params)
 
     assert np.all(ctx.status == 0)
 

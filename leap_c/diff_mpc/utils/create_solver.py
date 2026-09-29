@@ -180,10 +180,10 @@ def _set_discount_factor(
         for stage in range(ocp_solver.acados_ocp.solver_options.N_horizon + 1):  # type: ignore
             ocp_solver.cost_set(stage, "scaling", discount_factor**stage)
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
-        for ocp_solver in ocp_solver.ocp_solvers:
-            _set_discount_factor(ocp_solver, discount_factor)
+        for solver in ocp_solver.ocp_solvers:
+            _set_discount_factor(solver, discount_factor)
     else:
-        raise ValueError(
+        raise TypeError(
             f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
         )
 

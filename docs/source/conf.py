@@ -9,11 +9,11 @@
 
 import os
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 
 sys.path.insert(0, os.path.abspath("../.."))
 start_year = 2025
-current_year = datetime.now().year
+current_year = datetime.now(tz=UTC).year
 
 project = "leap-c"
 copyright = f"{start_year}-{current_year}, Dirk, Jasper, Leonard"
