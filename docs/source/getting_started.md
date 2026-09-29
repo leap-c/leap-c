@@ -56,10 +56,9 @@ Its public interface is just a constructor and a `forward`:
 
 ```python
 class AcadosDiffMpcTorch(torch.nn.Module):
-
     def __init__(
         self,
-        ocp: AcadosOcp,                             # the OCP: dynamics, cost, constraints
+        ocp: AcadosOcp,  # the OCP: dynamics, cost, constraints
         parameter_manager: AcadosParameterManager,  # which parameters are learnable
         # ... optional solver / code-generation options
     ): ...
@@ -69,20 +68,19 @@ Its public interface is just a constructor and a `forward`:
 
 ```python
 class AcadosDiffMpcTorch(torch.nn.Module):
-
     def __init__(
         self,
-        ocp: AcadosOcp,                             # the OCP: dynamics, cost, constraints
+        ocp: AcadosOcp,  # the OCP: dynamics, cost, constraints
         parameter_manager: AcadosParameterManager,  # which parameters are learnable
         # ... optional solver / code-generation options
     ): ...
 
     def forward(
         self,
-        x0: torch.Tensor,                                # initial state, shape (B, n_x)
-        u0: torch.Tensor | None = None,                  # optional fixed first action
-        params: dict[str, torch.Tensor] | None = None,   # parameter overrides p, by name
-        ctx: AcadosDiffMpcCtx | None = None,             # solver context, for warm starts
+        x0: torch.Tensor,  # initial state, shape (B, n_x)
+        u0: torch.Tensor | None = None,  # optional fixed first action
+        params: dict[str, torch.Tensor] | None = None,  # parameter overrides p, by name
+        ctx: AcadosDiffMpcCtx | None = None,  # solver context, for warm starts
     ) -> tuple[AcadosDiffMpcCtx, torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         # returns (ctx, u0, x, u, value)
         ...
@@ -124,12 +122,12 @@ ocp = build_point_mass_ocp(manager, Q, R, mass)
 diff_mpc = AcadosDiffMpcTorch(ocp, manager)
 
 # 4. Solve a batch of OCPs for an initial state, overriding a parameter by name.
-x0 = torch.tensor([[1.0, 0.0]], dtype=torch.float64)                  # (batch, n_x)
+x0 = torch.tensor([[1.0, 0.0]], dtype=torch.float64)  # (batch, n_x)
 Q_t = torch.tensor([[1.0, 1.0]], dtype=torch.float64, requires_grad=True)
 ctx, u0, x, u, value = diff_mpc(x0, params={"Q": Q_t})
 
 # u0 is the first optimal action; differentiate the solution end to end.
-value.sum().backward()          # exact gradients w.r.t. differentiable params
+value.sum().backward()  # exact gradients w.r.t. differentiable params
 print(u0, Q_t.grad)
 ```
 
