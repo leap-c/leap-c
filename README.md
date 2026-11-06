@@ -55,7 +55,7 @@ Q = torch.tensor([[1.0, 1.0]], dtype=torch.float64, requires_grad=True)
 ctx, u0, x, u, value = diff_mpc(x0, params={"Q": Q})
 value.sum().backward()
 
-print(u0)      # first optimal action
+print(u0)  # first optimal action
 print(Q.grad)  # gradient through the MPC solve
 ```
 

@@ -1,4 +1,5 @@
-from typing import TYPE_CHECKING, NamedTuple, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, NamedTuple
 
 import numpy as np
 from acados_template import AcadosOcp

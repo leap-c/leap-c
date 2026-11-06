@@ -9,7 +9,7 @@ dependencies = ["casadi", "numpy>=1.26.0"]
 
 requires-python = ">=3.11"
 maintainers = [
-    { name = "Dirk Reinhardt", email = "dirk.p.reinhardt@ntnu.no" },
+    { name = "Dirk Reinhardt", email = "dirk.reinhardt@protonmail.no" },
     { name = "Jasper Hoffmann", email = "hoffmaja@informatik.uni-freiburg.de" },
     { name = "Leonard Fichtner", email = "leonard.fichtner@imtek.uni-freiburg.de" },
 ]

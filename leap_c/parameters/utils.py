@@ -96,9 +96,9 @@ def broadcast_default_param(
     """
     if isinstance(default, dict):
         out = {key: np.asarray(value) for key, value in default.items()}
-        for key in out:
+        for key, value in out.items():
             if obs is not None and obs.ndim > 1:
-                out[key] = np.broadcast_to(out[key], (*obs.shape[:-1], *out[key].shape))
+                out[key] = np.broadcast_to(value, (*obs.shape[:-1], *value.shape))
         return out
     default = np.asarray(default)
     if obs is not None and obs.ndim > 1:

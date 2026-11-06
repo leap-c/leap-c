@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import mkdtemp
 
 from acados_template import AcadosOcp, AcadosOcpBatchSolver, AcadosOcpSolver
+from acados_template.utils import is_empty
 
 from leap_c.diff_mpc.utils.delete_directory_hook import DeleteDirectoryHook
 
@@ -106,14 +107,7 @@ def create_forward_backward_batch_solvers(
     opts = ocp.solver_options
     opts.with_batch_functionality = True
 
-    # translate cost terms to external to allow
-    # implicit differentiation for a p_global parameter.
-    if ocp.cost.cost_type_0 is not None and ocp.cost.cost_type_0 != "EXTERNAL":
-        ocp.translate_initial_cost_term_to_external(cost_hessian=opts.hessian_approx)
-    if ocp.cost.cost_type != "EXTERNAL":
-        ocp.translate_intermediate_cost_term_to_external(cost_hessian=opts.hessian_approx)
-    if ocp.cost.cost_type_e != "EXTERNAL":
-        ocp.translate_terminal_cost_term_to_external(cost_hessian=opts.hessian_approx)
+    _translate_cost_terms_to_external(ocp)
 
     # check if we can use the forward solver for the backward pass.
     need_backward_solver = _check_need_sensitivity_solver(ocp)
@@ -164,6 +158,30 @@ def create_forward_backward_batch_solvers(
     return forward_batch_solver, backward_batch_solver
 
 
+def _translate_cost_terms_to_external(ocp: AcadosOcp) -> None:
+    """Translate cost terms to external to allow implicit differentiation for a p_global parameter.
+
+    Least-squares terms without residuals (e.g. the default terminal cost ``LINEAR_LS`` with
+    ``ny_e = 0``) are set to a zero external cost directly: acados' translation fails on them
+    with CasADi >= 3.8, and keeping them as least-squares terms is not an option either, since
+    acados does not implement adjoint solution sensitivities for least-squares costs.
+    """
+    translate = {
+        "_0": ocp.translate_initial_cost_term_to_external,
+        "": ocp.translate_intermediate_cost_term_to_external,
+        "_e": ocp.translate_terminal_cost_term_to_external,
+    }
+    for suffix, translate_term in translate.items():
+        cost_type = getattr(ocp.cost, f"cost_type{suffix}")
+        if cost_type is None or cost_type == "EXTERNAL":
+            continue
+        if cost_type in ("LINEAR_LS", "NONLINEAR_LS") and is_empty(getattr(ocp.cost, f"W{suffix}")):
+            setattr(ocp.cost, f"cost_type{suffix}", "EXTERNAL")
+            setattr(ocp.model, f"cost_expr_ext_cost{suffix}", 0)
+        else:
+            translate_term(cost_hessian=ocp.solver_options.hessian_approx)
+
+
 def _check_need_sensitivity_solver(ocp: AcadosOcp) -> bool:
     try:
         ocp.ensure_solution_sensitivities_available()
@@ -180,10 +198,10 @@ def _set_discount_factor(
         for stage in range(ocp_solver.acados_ocp.solver_options.N_horizon + 1):  # type: ignore
             ocp_solver.cost_set(stage, "scaling", discount_factor**stage)
     elif isinstance(ocp_solver, AcadosOcpBatchSolver):
-        for ocp_solver in ocp_solver.ocp_solvers:
-            _set_discount_factor(ocp_solver, discount_factor)
+        for solver in ocp_solver.ocp_solvers:
+            _set_discount_factor(solver, discount_factor)
     else:
-        raise ValueError(
+        raise TypeError(
             f"expected AcadosOcpSolver or AcadosOcpBatchSolver, got {type(ocp_solver)}."
         )
 
