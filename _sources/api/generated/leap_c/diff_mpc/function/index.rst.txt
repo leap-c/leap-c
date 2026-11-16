@@ -1,0 +1,223 @@
+leap_c.diff_mpc.function
+========================
+
+.. py:module:: leap_c.diff_mpc.function
+
+.. autoapi-nested-parse::
+
+   Provides an implemenation of differentiable MPC based on acados.
+
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.diff_mpc.function.AcadosDiffMpcSensitivityOptions
+   leap_c.diff_mpc.function.DEFAULT_NUM_THREADS_BATCH_SOLVER
+   leap_c.diff_mpc.function.DEFAULT_N_BATCH_INIT
+   leap_c.diff_mpc.function.TO_ACADOS_SOLVER_GRADOPTS
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.diff_mpc.function.AcadosDiffMpcCtx
+   leap_c.diff_mpc.function.AcadosDiffMpcFunction
+
+
+Module Contents
+---------------
+
+.. py:class:: AcadosDiffMpcCtx
+
+   Context for differentiable MPC with acados.
+
+   This context holds the results of the forward pass. This information is needed for the backward
+   pass and to calculate the sensitivities. It also contains fields for caching the sensitivity
+   calculations.
+
+   :ivar iterate: The solution iterate from the forward pass. Can be used for, e.g., initializing the
+                  next solve.
+   :ivar status: The status of the solver after the forward pass. 0 indicates success, non-zero
+                 values indicate various errors.
+   :ivar log: Statistics from the forward solve containing info like success rates and timings.
+   :ivar solver_input: The input used for the forward pass.
+   :ivar needs_input_grad: A list of booleans indicating which inputs require gradients.
+   :ivar du0_dp_global: Sensitivity of the control solution of the initial stage with respect to
+                        acados global parameters (i.e., differentiable parameters).
+   :ivar du0_dx0: Sensitivity of the control solution of the initial stage with respect to the
+                  initial state.
+   :ivar dvalue_du0: Sensitivity of the objective value solution with respect to the control input of
+                     the first stage. Only available if said control was provided.
+   :ivar dvalue_dx0: Sensitivity of the objective value solution solution with respect to the initial
+                     state.
+   :ivar dx_dp_global: Sensitivity of the whole state trajectory solution with respect to acados
+                       global parameters (i.e., differentiable parameters).
+   :ivar du_dp_global: Sensitivity of the whole control trajectory solution with respect to acados
+                       global parameters (i.e., differentiable parameters).
+   :ivar dvalue_dp_global: Sensitivity of the objective value solution with respect to acados global.
+
+
+
+   .. py:attribute:: du0_dp_global
+      :type:  numpy.ndarray | None
+      :value: None
+
+
+
+   .. py:attribute:: du0_dx0
+      :type:  numpy.ndarray | None
+      :value: None
+
+
+
+   .. py:attribute:: du_dp_global
+      :type:  numpy.ndarray | None
+      :value: None
+
+
+
+   .. py:attribute:: dvalue_dp_global
+      :type:  numpy.ndarray | None
+      :value: None
+
+
+
+   .. py:attribute:: dvalue_du0
+      :type:  numpy.ndarray | None
+      :value: None
+
+
+
+   .. py:attribute:: dvalue_dx0
+      :type:  numpy.ndarray | None
+      :value: None
+
+
+
+   .. py:attribute:: dx_dp_global
+      :type:  numpy.ndarray | None
+      :value: None
+
+
+
+   .. py:attribute:: iterate
+      :type:  acados_template.acados_ocp_iterate.AcadosOcpFlattenedBatchIterate
+
+
+   .. py:attribute:: log
+      :type:  dict[str, float] | None
+
+
+   .. py:attribute:: needs_input_grad
+      :type:  tuple[bool] | None
+      :value: None
+
+
+
+   .. py:attribute:: solver_input
+      :type:  leap_c.diff_mpc.data.AcadosOcpSolverInput
+
+
+   .. py:attribute:: status
+      :type:  numpy.ndarray
+
+
+.. py:class:: AcadosDiffMpcFunction(ocp: acados_template.AcadosOcp, initializer: leap_c.diff_mpc.initializer.AcadosDiffMpcInitializer | None = None, discount_factor: float | None = None, export_directory: pathlib.Path | None = None, n_batch_init: int | None = None, num_threads_batch_solver: int | None = None, verbose: bool = True)
+
+   Bases: :py:obj:`leap_c.autograd.function.DiffFunction`
+
+
+   Differentiable MPC function based on acados.
+
+   :ivar ocp: The acados ocp object defining the optimal control problem structure.
+   :ivar forward_batch_solver: The acados batch solver used for the forward pass.
+   :ivar backward_batch_solver: The acados batch solver used for the backward pass.
+   :ivar initializer: The initializer used to provide initial guesses for the solver, if none are
+                      provided explicitly or on a retry. Uses a zero iterate by default.
+
+
+
+   .. py:method:: backward(ctx: AcadosDiffMpcCtx, u0_grad: numpy.ndarray | None, x_grad: numpy.ndarray | None, u_grad: numpy.ndarray | None, value_grad: numpy.ndarray | None) -> tuple[numpy.ndarray | None, numpy.ndarray | None, numpy.ndarray | None, None, None]
+
+      Perform the backward pass via implicit differentiation.
+
+      :param ctx: The ctx object from the forward pass.
+      :param u0_grad: Gradient with respect to the control solution of the first stage.
+      :param x_grad: Gradient with respect to the whole state trajectory solution.
+      :param u_grad: Gradient with respect to the whole control trajectory solution.
+      :param value_grad: Gradient with respect to the objective value solution.
+
+      :returns:
+
+                - grad_x0: Gradient with respect to the initial state.
+                - grad_u0: Gradient with respect to the initial control.
+                - grad_p_global: Gradient with respect to the acados global parameters.
+                - grad_p_stagewise: Always `None` (not supported for differentiation).
+                - grad_p_stagewise_sparse_idx: Always `None` (not supported for differentiation).
+      :rtype: A tuple containing the gradients with respect to the inputs in the following order
+
+
+
+   .. py:method:: forward(ctx: AcadosDiffMpcCtx | None, x0: numpy.ndarray, u0: numpy.ndarray | None = None, p_global: numpy.ndarray | None = None, p_stagewise: numpy.ndarray | None = None, p_stagewise_sparse_idx: numpy.ndarray | None = None) -> tuple[AcadosDiffMpcCtx, numpy.ndarray, numpy.ndarray, numpy.ndarray, numpy.ndarray]
+
+      Perform the forward pass by solving the problem instances.
+
+      :param ctx: A context object for the forward pass. If provided, it will be used to warmstart
+                  the solve (e.g., by using the saved iterate).
+      :param x0: Initial states with shape ``(B, x_dim)``.
+      :param u0: Initial actions with shape ``(B, u_dim)``. Defaults to ``None``.
+      :param p_global: Flat differentiable parameters, shape ``(B, N_differentiable)``.
+      :param p_stagewise: Stage-wise non-differentiable parameters, shape
+                          ``(B, N_horizon + 1, N_non_differentiable)``.
+      :param p_stagewise_sparse_idx: Not yet supported.
+
+      :returns:
+
+                - ctx: The context object containing information from the forward pass.
+                - sol_u0: The control solution of the first stage, shape ``(B, u_dim)``.
+                - x: The state trajectory solution, shape ``(B, N_horizon + 1, x_dim)``.
+                - u: The control trajectory solution, shape ``(B, N_horizon, u_dim)``.
+                - sol_value: The objective value solution, shape ``(B, 1)``.
+      :rtype: A tuple containing
+
+
+
+   .. py:method:: sensitivity(ctx: AcadosDiffMpcCtx, field_name: AcadosDiffMpcSensitivityOptions) -> numpy.ndarray
+
+      Retrieves a specific sensitivity field from the context object.
+
+      Recalculates the sensitivity if not already present.
+
+      :param ctx: The ctx object generated by the forward pass.
+      :param field_name: The name of the sensitivity field to retrieve.
+
+      :returns: The requested sensitivity as a numpy array.
+
+      :raises ValueError: If `field_name` is not recognized.
+
+
+
+   .. py:attribute:: initializer
+
+
+   .. py:attribute:: ocp
+
+
+.. py:data:: AcadosDiffMpcSensitivityOptions
+
+.. py:data:: DEFAULT_NUM_THREADS_BATCH_SOLVER
+   :value: 4
+
+
+.. py:data:: DEFAULT_N_BATCH_INIT
+   :value: 256
+
+
+.. py:data:: TO_ACADOS_SOLVER_GRADOPTS
+   :type:  dict[str, str]
+

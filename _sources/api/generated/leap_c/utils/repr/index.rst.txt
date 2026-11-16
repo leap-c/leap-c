@@ -1,0 +1,45 @@
+leap_c.utils.repr
+=================
+
+.. py:module:: leap_c.utils.repr
+
+.. autoapi-nested-parse::
+
+   Human-readable repr formatting for acados MPC objects.
+
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.utils.repr.format_diff_mpc_module_extra_repr
+   leap_c.utils.repr.format_diff_mpc_module_repr
+   leap_c.utils.repr.format_parameter_manager_repr
+   leap_c.utils.repr.format_parameter_sections
+
+
+Module Contents
+---------------
+
+.. py:function:: format_diff_mpc_module_extra_repr(*, ocp: acados_template.AcadosOcp, parameter_manager: leap_c.parameters.AcadosParameterManager) -> str
+
+   Return the common one-line repr summary for acados DiffMPC modules.
+
+
+.. py:function:: format_diff_mpc_module_repr(*, class_name: str, ocp: acados_template.AcadosOcp, parameter_manager: leap_c.parameters.AcadosParameterManager) -> str
+
+   Return the full repr for a Torch/JAX-style acados DiffMPC module.
+
+
+.. py:function:: format_parameter_manager_repr(parameter_manager: leap_c.parameters.AcadosParameterManager) -> str
+
+   Return the full repr for an acados parameter manager.
+
+
+.. py:function:: format_parameter_sections(parameter_manager: leap_c.parameters.AcadosParameterManager) -> str
+
+   Return differentiable/non-differentiable parameter table sections.
+
+

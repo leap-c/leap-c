@@ -1,0 +1,61 @@
+leap_c.parameters.utils
+=======================
+
+.. py:module:: leap_c.parameters.utils
+
+.. autoapi-nested-parse::
+
+   Parameter type alias and numpy helpers for stage-varying MPC parameters.
+
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.parameters.utils.ParamSplits
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.parameters.utils.broadcast_default_param
+   leap_c.parameters.utils.n_segments
+
+
+Module Contents
+---------------
+
+.. py:function:: broadcast_default_param(default: numpy.ndarray | dict[str, numpy.ndarray], obs: numpy.ndarray | torch.Tensor | None = None) -> numpy.ndarray | dict[str, numpy.ndarray]
+
+   Broadcast a per-stage default parameter to the batch shape implied by ``obs``.
+
+   For a batched ``obs`` of shape ``(B, obs_dim)``, the default is broadcast to
+   ``(B, *param_shape)``. Without ``obs`` (or a 1-D ``obs``) the unbatched default
+   is returned. Handles both ``np.ndarray`` and ``dict[str, np.ndarray]`` defaults.
+
+
+.. py:function:: n_segments(splits: ParamSplits, N_horizon: int) -> int
+
+   Return the number of independent segments a ``splits`` specification produces.
+
+   :param splits: The split specification (see :data:`ParamSplits`).
+   :param N_horizon: The MPC horizon length (number of shooting intervals).
+
+   :returns: ``1`` for ``"global"``, ``N_horizon + 1`` for
+             ``"stagewise"``, ``splits`` for an ``int``, and ``len(splits)`` for a list.
+   :rtype: The number of segments
+
+
+.. py:data:: ParamSplits
+
+   How a differentiable parameter varies across the MPC horizon.
+
+   - ``"global"``: one value shared across all stages.
+   - ``"stagewise"``: one independent value per stage (``N+1`` values total).
+   - ``int``: number of equal-sized stage segments.
+   - ``list[int]``: explicit stage boundaries (ascending), e.g. ``[4, 9]``.
+

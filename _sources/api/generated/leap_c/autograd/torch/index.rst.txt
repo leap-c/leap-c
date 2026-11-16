@@ -1,0 +1,52 @@
+leap_c.autograd.torch
+=====================
+
+.. py:module:: leap_c.autograd.torch
+
+.. autoapi-nested-parse::
+
+   This module creates PyTorch autograd functions.
+
+
+
+Attributes
+----------
+
+.. autoapisummary::
+
+   leap_c.autograd.torch.torch
+
+
+Functions
+---------
+
+.. autoapisummary::
+
+   leap_c.autograd.torch.create_autograd_function
+
+
+Module Contents
+---------------
+
+.. py:function:: create_autograd_function(fun: leap_c.autograd.function.DiffFunction) -> type[torch.autograd.Function]
+
+   Creates a PyTorch autograd function from an object implementing forward and backward methods.
+
+   The `fun` object must implement the `forward` and `backward` methods as described in the
+   `Function` class. During the backward pass, the custom context object gets the information about
+   which inputs need gradients via `torch_ctx.needs_input_grad`.
+
+   :param fun: An object implementing `forward(custom_ctx, *args)` and
+               `backward(custom_ctx, *grad_outputs)` methods, where `custom_ctx` is a context object
+               that can be used to store intermediate values for the backward pass.
+
+   :returns: A PyTorch autograd function, wrapping the object.
+
+   .. rubric:: Examples
+
+   >>> fn = create_autograd_function(obj)
+   >>> ctx, y = fn(*inputs)
+
+
+.. py:data:: torch
+

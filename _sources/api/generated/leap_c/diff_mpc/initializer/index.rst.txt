@@ -1,0 +1,92 @@
+leap_c.diff_mpc.initializer
+===========================
+
+.. py:module:: leap_c.diff_mpc.initializer
+
+.. autoapi-nested-parse::
+
+   Provides logic for initializing AcadosDiffMpc.
+
+
+
+Classes
+-------
+
+.. autoapisummary::
+
+   leap_c.diff_mpc.initializer.AcadosDiffMpcInitializer
+   leap_c.diff_mpc.initializer.ZeroDiffMpcInitializer
+
+
+Module Contents
+---------------
+
+.. py:class:: AcadosDiffMpcInitializer
+
+   Bases: :py:obj:`abc.ABC`
+
+
+   Abstract base class for initializing an AcadosDiffMpc.
+
+   This class defines the interface for different initialization strategies
+   for `AcadosDiffMpc` instances. Subclasses must implement the
+   `single_iterate` method but can also overwrite the `batch_iterate` method
+   for higher efficiency.
+
+
+   .. py:method:: batch_iterate(solver_input: leap_c.diff_mpc.data.AcadosOcpSolverInput) -> acados_template.acados_ocp_iterate.AcadosOcpFlattenedBatchIterate
+
+      Generates a batch of initial iterates for a batch of problem instances.
+
+      This method uses the `single_sample` method to generate an initial
+      iterate for each OCP in the batch.
+
+      :param solver_input: An `AcadosOcpSolverInput` object containing the inputs for
+                           the batch of OCPs.
+
+      :returns: A batched iterate object, containing one iterate object for each problem instance in
+                the input batch.
+
+
+
+   .. py:method:: single_iterate(solver_input: leap_c.diff_mpc.data.AcadosOcpSolverInput) -> acados_template.acados_ocp_iterate.AcadosOcpFlattenedIterate
+      :abstractmethod:
+
+
+      Abstract method to generate an initial iterate for a single problem instance.
+
+      Subclasses must implement this method to provide a specific
+      initialization strategy.
+
+      :param solver_input: An input object containing the initial
+                           conditions and parameters for the problem to solve.
+
+      :returns: An iterate object representing the initial guess.
+
+
+
+.. py:class:: ZeroDiffMpcInitializer(ocp: acados_template.acados_ocp.AcadosOcp)
+
+   Bases: :py:obj:`AcadosDiffMpcInitializer`
+
+
+   An initializer that always returns an iterate with all values set to zero.
+
+
+   .. py:method:: single_iterate(solver_input: leap_c.diff_mpc.data.AcadosOcpSolverInput) -> acados_template.acados_ocp_iterate.AcadosOcpFlattenedIterate
+
+      Abstract method to generate an initial iterate for a single problem instance.
+
+      Subclasses must implement this method to provide a specific
+      initialization strategy.
+
+      :param solver_input: An input object containing the initial
+                           conditions and parameters for the problem to solve.
+
+      :returns: An iterate object representing the initial guess.
+
+
+
+   .. py:attribute:: zero_iterate
+
+

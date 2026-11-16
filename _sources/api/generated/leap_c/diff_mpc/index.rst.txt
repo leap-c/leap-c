@@ -1,0 +1,18 @@
+leap_c.diff_mpc
+===============
+
+.. py:module:: leap_c.diff_mpc
+
+
+Submodules
+----------
+
+.. toctree::
+   :maxdepth: 1
+
+   /api/generated/leap_c/diff_mpc/data/index
+   /api/generated/leap_c/diff_mpc/function/index
+   /api/generated/leap_c/diff_mpc/initializer/index
+   /api/generated/leap_c/diff_mpc/utils/index
+
+
