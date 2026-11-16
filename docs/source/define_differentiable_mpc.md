@@ -46,7 +46,7 @@ from leap_c.parameters import AcadosParameterManager
 from leap_c.torch import AcadosDiffMpcTorch
 
 N_horizon = 20  # stages 0 .. N_horizon (inclusive)
-dt = 0.05       # time step [s] — a plain constant, not a parameter
+dt = 0.05  # time step [s] — a plain constant, not a parameter
 
 manager = AcadosParameterManager(N_horizon=N_horizon)
 

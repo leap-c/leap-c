@@ -174,21 +174,19 @@ class AcadosParameterManager:
             interface="differentiable" if differentiable else "non-differentiable",
             splits=splits,
         )
-        if isinstance(parameter.splits, list):
-            if parameter.splits[-1] not in [
-                self.N_horizon - 1,
-                self.N_horizon,
-            ]:
-                raise ValueError(
-                    f"Parameter '{parameter.name}' has splits {parameter.splits} "
-                    f"but the last element must be either {self.N_horizon - 1} or {self.N_horizon}."
-                )
-        if isinstance(parameter.splits, int):
-            if parameter.splits > self.N_horizon + 1:
-                raise ValueError(
-                    f"Parameter '{parameter.name}' has {parameter.splits} splits, which exceeds the"
-                    f" number of stages {self.N_horizon + 1}."
-                )
+        if isinstance(parameter.splits, list) and parameter.splits[-1] not in [
+            self.N_horizon - 1,
+            self.N_horizon,
+        ]:
+            raise ValueError(
+                f"Parameter '{parameter.name}' has splits {parameter.splits} "
+                f"but the last element must be either {self.N_horizon - 1} or {self.N_horizon}."
+            )
+        if isinstance(parameter.splits, int) and parameter.splits > self.N_horizon + 1:
+            raise ValueError(
+                f"Parameter '{parameter.name}' has {parameter.splits} splits, which exceeds the"
+                f" number of stages {self.N_horizon + 1}."
+            )
         self.parameters[parameter.name] = parameter
         if parameter.interface == "differentiable":
             self._store_differentiable_parameter(parameter)
@@ -224,12 +222,15 @@ class AcadosParameterManager:
 
         inferred_batch_size = next(iter(overwrites.values())).shape[0] if overwrites else None
 
-        if batch_size is not None and inferred_batch_size is not None:
-            if batch_size != inferred_batch_size:
-                raise ValueError(
-                    f"Provided batch_size={batch_size} does not match "
-                    f"inferred batch_size={inferred_batch_size} from overwrites."
-                )
+        if (
+            batch_size is not None
+            and inferred_batch_size is not None
+            and batch_size != inferred_batch_size
+        ):
+            raise ValueError(
+                f"Provided batch_size={batch_size} does not match "
+                f"inferred batch_size={inferred_batch_size} from overwrites."
+            )
 
         batch_size = inferred_batch_size if inferred_batch_size is not None else batch_size or 1
 

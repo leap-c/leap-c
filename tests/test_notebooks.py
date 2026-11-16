@@ -41,6 +41,7 @@ def test_notebook_runs_headless(notebook: Path, tmp_path: Path):
         capture_output=True,
         text=True,
         timeout=600,  # first run compiles the acados solver
+        check=False,
     )
     assert result.returncode == 0, (
         f"{notebook.name} failed to run headless:\n"

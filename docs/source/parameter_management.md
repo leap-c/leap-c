@@ -50,7 +50,7 @@ manager = AcadosParameterManager(N_horizon=N_horizon)
 # Non-differentiable: ambient temperature, changed per call, no gradient.
 outdoor_temp = manager.register_parameter(
     name="outdoor_temp",
-    default=np.array([20.0]),   # ambient temperature [degC]
+    default=np.array([20.0]),  # ambient temperature [degC]
     differentiable=False,
 )
 
@@ -65,7 +65,7 @@ comfort_ref = manager.register_parameter(
 # With splits=[4, N_horizon]: block 0 covers stages 0-4, block 1 covers stages 5-N_horizon.
 price = manager.register_parameter(
     name="price",
-    default=np.array([0.15]),   # electricity price [EUR/kWh]
+    default=np.array([0.15]),  # electricity price [EUR/kWh]
     differentiable=True,
     splits=[4, N_horizon],
 )
@@ -79,7 +79,7 @@ construction live in separate functions.)
 
 ```python
 R_THERMAL, C_THERMAL = 2.0, 1.5  # thermal resistance, capacitance
-dt = 0.25                        # 15-minute time step [h] — a plain constant, not a parameter
+dt = 0.25  # 15-minute time step [h] — a plain constant, not a parameter
 
 ocp = AcadosOcp()
 ocp.model.name = "temp_ctrl"
@@ -188,9 +188,9 @@ comfort_values = torch.tensor([[19.0], [21.0], [23.0], [22.5]], dtype=torch.floa
 ctx, u0, x, u, value = diff_mpc(
     x0=x0_batch,
     params={
-        "outdoor_temp": temp_forecast,       # non-differentiable, per-stage forecast
+        "outdoor_temp": temp_forecast,  # non-differentiable, per-stage forecast
         "comfort_setpoint": comfort_values,  # differentiable, per-batch scalar
-        "price": price_tensor,               # differentiable, stage-varying
+        "price": price_tensor,  # differentiable, stage-varying
     },
 )
 ```
