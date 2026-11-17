@@ -5,6 +5,8 @@ type-annotated reference page.
 
 - {py:class}`~leap_c.torch.AcadosDiffMpcTorch` — the central interface:
   wraps an acados OCP solver as a differentiable PyTorch module.
+- {py:class}`~leap_c.jax.AcadosDiffMpcJax` — wraps an acados OCP solver as a
+  differentiable JAX callable.
 - {py:class}`~leap_c.parameters.AcadosParameterManager` — define and
   manage the parameters of an acados OCP without touching CasADi/acados internals.
 - {py:func}`~leap_c.utils.collate.collate_torch` — PyTorch default collation plus the leap-c
@@ -12,6 +14,7 @@ type-annotated reference page.
 
 ```{autoapisummary}
 leap_c.torch.AcadosDiffMpcTorch
+leap_c.jax.AcadosDiffMpcJax
 leap_c.parameters.AcadosParameterManager
 leap_c.utils.collate.collate_torch
 ```

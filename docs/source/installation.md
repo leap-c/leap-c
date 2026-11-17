@@ -68,7 +68,11 @@ optional extra:
 | Extra | Framework | Required for |
 |-------|-----------|-------------|
 | `torch` | PyTorch | `AcadosDiffMpcTorch` |
-| `jax` | JAX | (planned) |
+| `jax` | JAX | `AcadosDiffMpcJax` |
+
+### PyTorch
+
+PyTorch wheels default to GPU (CUDA).
 
 **uv:**
 
@@ -84,6 +88,47 @@ pip install -e ".[torch]"                                       # GPU (default)
 pip install -e ".[torch]" --extra-index-url https://download.pytorch.org/whl/cpu  # CPU-only
 ```
 
+The CPU choice above is a flag passed at install time, not a declared dependency, so a later
+plain `uv sync`/`pip install -e .` (e.g. to pick up an unrelated change) re-resolves torch from
+the default index and silently switches you back to the GPU build. Re-pass the CPU flag whenever
+you resync after choosing CPU-only.
+
+### JAX
+
+JAX wheels default to **CPU**. For CUDA 12, use the `jax-cuda12` extra so the GPU build is
+part of the locked, declared dependencies — not a manual post-install step that a later plain
+`uv sync`/`pip install -e .` would silently revert back to CPU.
+
+**uv** (CPU):
+
+```bash
+uv sync --extra jax
+```
+
+**uv** (GPU, CUDA 12):
+
+```bash
+uv sync --extra jax-cuda12
+```
+
+For other CUDA setups (local CUDA, ROCm, TPU), see the
+[JAX installation guide](https://jax.readthedocs.io/en/latest/installation.html) and add the
+matching extra (e.g. `jax[cuda12-local]`) to `pyproject.toml`, or install it manually with
+`uv pip install` — keeping in mind a manual install like that does not survive a later plain
+`uv sync`.
+
+**pip** (CPU):
+
+```bash
+pip install -e ".[jax]"
+```
+
+**pip** (GPU, CUDA 12):
+
+```bash
+pip install -e ".[jax-cuda12]"
+```
+
 If no backend is installed and you try to import a backend-specific module,
 leap-c raises a clear error telling you which backends are supported.
 
@@ -91,7 +136,7 @@ leap-c raises a clear error telling you which backends are supported.
 
 ```bash
 uv sync                      # minimal install (no backend)
-uv sync --extra dev          # minimal + torch, docs, test, pre-commit
+uv sync --extra dev          # minimal + torch, jax, docs, test, pre-commit
 pip install -e ".[dev]"      # pip equivalent
 ```
 
